@@ -1836,8 +1836,11 @@ private final class KernelConformanceReplicaNodeV1 {
             applicationSupportURL: applicationSupportURL,
             pointerEnrichmentIdentity: identity
         ).openOrBootstrapCurrent()
-        coordinator = try StoreSessionCoordinator(validatingSession: session)
         let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        coordinator = try StoreSessionCoordinator(
+            validatingSession: session,
+            lifecycleProfileRegistry: registry
+        )
         let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
         let backup = BackupExportService(
             modelContext: session.modelContext,
@@ -1939,6 +1942,7 @@ final class KernelConformanceProductionHarnessV1 {
     private var activeApplicationSupportURL: URL
     private(set) var session: StoreGenerationSession!
     private(set) var coordinator: StoreSessionCoordinator!
+    private var lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?
 
     init(label: String) throws {
         let harnessRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -1950,7 +1954,8 @@ final class KernelConformanceProductionHarnessV1 {
         session = try StoreGenerationFactory(
             applicationSupportURL: activeApplicationSupportURL
         ).openOrBootstrapCurrent()
-        coordinator = try StoreSessionCoordinator(validatingSession: session)
+        coordinator = nil
+        lifecycleProfileRegistry = nil
     }
 
     func exerciseFullLifecycle(
@@ -1965,6 +1970,16 @@ final class KernelConformanceProductionHarnessV1 {
         guard try validationRegistry.resolve(validationProfile.release) == validationProfile else {
             throw KernelConformanceFixtureFailureV1.incompleteCoverage("production-profile-validation")
         }
+        guard coordinator == nil, lifecycleProfileRegistry == nil else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                "production-profile-writer-precondition"
+            )
+        }
+        lifecycleProfileRegistry = validationRegistry
+        coordinator = try StoreSessionCoordinator(
+            validatingSession: session,
+            lifecycleProfileRegistry: validationRegistry
+        )
         _ = try coordinator.packageLifecycleDependencies(profileRegistry: validationRegistry)
         actions.append("VALIDATE")
         try await createFirstSign(
@@ -2132,12 +2147,21 @@ final class KernelConformanceProductionHarnessV1 {
     }
 
     private func relaunchCanonicalSession() throws {
+        guard let lifecycleProfileRegistry else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                "production-profile-registry"
+            )
+        }
+        try coordinator?.invalidateAndReleaseWriter()
         coordinator = nil
         session = nil
         let reopened = try StoreGenerationFactory(applicationSupportURL: activeApplicationSupportURL)
             .openOrBootstrapCurrent()
         session = reopened
-        coordinator = try StoreSessionCoordinator(validatingSession: reopened)
+        coordinator = try StoreSessionCoordinator(
+            validatingSession: reopened,
+            lifecycleProfileRegistry: lifecycleProfileRegistry
+        )
     }
 
     func replayReplicaSchedule(
@@ -2897,7 +2921,11 @@ final class KernelConformanceProductionHarnessV1 {
                 sourceTimestamp: Date(timeIntervalSince1970: TimeInterval(index + 1))
             )
         }
-        let registry = coordinator.searchServices.registry
+        let registry = try SwiftDataSearchCanonicalProjectionSourceV1.makeExtendedRegistry(
+            includeAccountability: false,
+            includeAssetSemantics: true,
+            includeAuthorityCriterion: true
+        )
         switch boundary {
         case "SEARCH_CANCELLATION":
             let source = KernelConformanceSearchSourceV1(revision: revision, records: records)
@@ -3128,6 +3156,10 @@ final class KernelConformanceProductionHarnessV1 {
 
     private struct ReadyCheckBoundaryFixture {
         let session: StoreGenerationSession
+        let coordinator: StoreSessionCoordinator
+        let lifecycleProfile: WorkspacePackageLifecycleProfileV1
+        let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+        let lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1
         let runner: CheckRunnerCoordinator
         let assetID: UUID
         let issueLabel: String
@@ -3139,6 +3171,10 @@ final class KernelConformanceProductionHarnessV1 {
         finalizationStoreFailure: FinalizationIntentStoreFailureInjection? = nil,
         finalizationServiceFailure: FinalizationServiceFailureInjection? = nil
     ) async throws -> ReadyCheckBoundaryFixture {
+        let lifecycleProfile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let lifecycleProfileRegistry = try WorkspacePackageLifecycleProfileRegistryV1(
+            profiles: [lifecycleProfile]
+        )
         let installed = try StoreGenerationFactory(applicationSupportURL: support)
             .openOrBootstrapCurrent()
         let siteID = UUID(), assetID = UUID()
@@ -3153,8 +3189,17 @@ final class KernelConformanceProductionHarnessV1 {
             label: "Boundary Asset", createdAt: Date(timeIntervalSince1970: 1_700_020_001)
         ))
         try installed.modelContext.save()
-        let runner = CheckRunnerCoordinator(
-            modelContext: installed.modelContext, signPack: .illuminatedSignV1,
+        let coordinator = try StoreSessionCoordinator(
+            validatingSession: installed,
+            lifecycleProfileRegistry: lifecycleProfileRegistry
+        )
+        let lifecycleDependencies = try coordinator.packageLifecycleDependencies(
+            profileRegistry: lifecycleProfileRegistry
+        )
+        let runner = try CheckRunnerCoordinator(
+            modelContext: installed.modelContext,
+            packageLifecycleDependencies: lifecycleDependencies,
+            packageLifecycleProfile: lifecycleProfile,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max }),
             finalizationStoreFailureInjection: finalizationStoreFailure,
             finalizationServiceFailureInjection: finalizationServiceFailure
@@ -3174,7 +3219,11 @@ final class KernelConformanceProductionHarnessV1 {
             _ = try await runner.accept(candidate: candidate, assetID: assetID)
         }
         return ReadyCheckBoundaryFixture(
-            session: installed, runner: runner, assetID: assetID,
+            session: installed, coordinator: coordinator,
+            lifecycleProfile: lifecycleProfile,
+            lifecycleProfileRegistry: lifecycleProfileRegistry,
+            lifecycleDependencies: lifecycleDependencies,
+            runner: runner, assetID: assetID,
             issueLabel: SignPack.illuminatedSignV1.issueLabels[0].key,
             observedAt: observedAt
         )
@@ -3212,6 +3261,7 @@ final class KernelConformanceProductionHarnessV1 {
                 at: support, finalizationStoreFailure: storeFailure,
                 finalizationServiceFailure: serviceFailure
             )
+            defer { try? fixture.coordinator.invalidateAndReleaseWriter() }
             var visibleFailure = ""
             do {
                 _ = try await fixture.runner.finalize(
@@ -3237,13 +3287,28 @@ final class KernelConformanceProductionHarnessV1 {
         await Task.yield()
         let coldSession = try StoreGenerationFactory(applicationSupportURL: support)
             .openOrBootstrapCurrent()
-        _ = try StoreSessionCoordinator(validatingSession: coldSession)
+        let lifecycleProfile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let lifecycleProfileRegistry = try WorkspacePackageLifecycleProfileRegistryV1(
+            profiles: [lifecycleProfile]
+        )
+        let coldCoordinator = try StoreSessionCoordinator(
+            validatingSession: coldSession,
+            lifecycleProfileRegistry: lifecycleProfileRegistry
+        )
+        defer { try? coldCoordinator.invalidateAndReleaseWriter() }
+        let coldDependencies = try coldCoordinator.packageLifecycleDependencies(
+            profileRegistry: lifecycleProfileRegistry
+        )
         _ = try await FinalizationRecoveryService(
             modelContext: coldSession.modelContext,
-            generationRootURL: coldSession.generationRootURL
+            generationRootURL: coldSession.generationRootURL,
+            workspaceWriter: coldDependencies.writer,
+            lifecycleProfileRegistry: lifecycleProfileRegistry
         ).reconcile()
-        let replay = CheckRunnerCoordinator(
-            modelContext: coldSession.modelContext, signPack: .illuminatedSignV1,
+        let replay = try CheckRunnerCoordinator(
+            modelContext: coldSession.modelContext,
+            packageLifecycleDependencies: coldDependencies,
+            packageLifecycleProfile: lifecycleProfile,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max })
         )
         replay.configureCapture(generationRootURL: coldSession.generationRootURL)
@@ -3297,6 +3362,7 @@ final class KernelConformanceProductionHarnessV1 {
             rowsBefore: Int, evidenceBefore: Int, visibleFailure: String
         ) in
             let fixture = try await makeReadyCheckBoundaryFixture(at: support)
+            defer { try? fixture.coordinator.invalidateAndReleaseWriter() }
             let finalized = try await fixture.runner.finalize(
                 assetID: fixture.assetID,
                 selection: .visibleIssue(labelKey: fixture.issueLabel),
@@ -3307,9 +3373,11 @@ final class KernelConformanceProductionHarnessV1 {
             let issueID = try requireValue(finalized.issueID, "\(boundary)-issue")
             let injection = WorkCoordinatorFailureInjection(failOnceAt: point)
             let faulted = try WorkCoordinator(
-                modelContext: fixture.session.modelContext, signPack: .illuminatedSignV1,
+                modelContext: fixture.session.modelContext,
+                signPack: fixture.lifecycleProfile.package,
                 generationRootURL: fixture.session.generationRootURL,
                 checkRunnerCoordinator: fixture.runner,
+                lifecycleDependencies: fixture.lifecycleDependencies,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max }),
                 failureInjection: injection
             )
@@ -3345,16 +3413,28 @@ final class KernelConformanceProductionHarnessV1 {
         await Task.yield()
         let coldSession = try StoreGenerationFactory(applicationSupportURL: support)
             .openOrBootstrapCurrent()
-        _ = try StoreSessionCoordinator(validatingSession: coldSession)
-        let coldRunner = CheckRunnerCoordinator(
-            modelContext: coldSession.modelContext, signPack: .illuminatedSignV1,
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let coldCoordinator = try StoreSessionCoordinator(
+            validatingSession: coldSession,
+            lifecycleProfileRegistry: registry
+        )
+        defer { try? coldCoordinator.invalidateAndReleaseWriter() }
+        let coldDependencies = try coldCoordinator.packageLifecycleDependencies(
+            profileRegistry: registry
+        )
+        let coldRunner = try CheckRunnerCoordinator(
+            modelContext: coldSession.modelContext,
+            packageLifecycleDependencies: coldDependencies,
+            packageLifecycleProfile: profile,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max })
         )
         coldRunner.configureCapture(generationRootURL: coldSession.generationRootURL)
         let resumed = try WorkCoordinator(
-            modelContext: coldSession.modelContext, signPack: .illuminatedSignV1,
+            modelContext: coldSession.modelContext, signPack: profile.package,
             generationRootURL: coldSession.generationRootURL,
             checkRunnerCoordinator: coldRunner,
+            lifecycleDependencies: coldDependencies,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max })
         )
         let saved = try await resumed.saveWork(
@@ -3391,6 +3471,7 @@ final class KernelConformanceProductionHarnessV1 {
         let faultingRun: (reportID: UUID, visibleFailure: String) = try await {
             () async throws -> (reportID: UUID, visibleFailure: String) in
             let fixture = try await makeReadyCheckBoundaryFixture(at: support)
+            defer { try? fixture.coordinator.invalidateAndReleaseWriter() }
             let finalized = try await fixture.runner.finalize(
                 assetID: fixture.assetID, selection: .noVisibleIssue,
                 completedAt: fixture.observedAt.addingTimeInterval(3),
@@ -3402,13 +3483,15 @@ final class KernelConformanceProductionHarnessV1 {
             if boundary == "REPORT_RETRY_TRANSITION_SAVE" {
                 let initial = try ReportRenderService(
                     modelContext: fixture.session.modelContext,
-                    generationRootURL: fixture.session.generationRootURL,
+                    lifecycleDependencies: fixture.lifecycleDependencies,
+                    lifecycleProfile: fixture.lifecycleProfile,
                     failureInjection: .init(failOnceAt: .render)
                 )
                 _ = try initial.attemptPendingReport(id: reportID)
                 let faulted = try ReportRecoveryService(
                     modelContext: fixture.session.modelContext,
-                    generationRootURL: fixture.session.generationRootURL,
+                    lifecycleDependencies: fixture.lifecycleDependencies,
+                    lifecycleProfile: fixture.lifecycleProfile,
                     recoveryFailureInjection: .init(failOnceAt: .retryTransitionSave)
                 )
                 try faulted.reconcileAtStartup()
@@ -3417,7 +3500,8 @@ final class KernelConformanceProductionHarnessV1 {
             } else if boundary == "REPORT_FAILED_STATE_SAVE" {
                 let faulted = try ReportRenderService(
                     modelContext: fixture.session.modelContext,
-                    generationRootURL: fixture.session.generationRootURL,
+                    lifecycleDependencies: fixture.lifecycleDependencies,
+                    lifecycleProfile: fixture.lifecycleProfile,
                     storagePreflight: StoragePreflightService(capacityProvider: { _ in 0 }),
                     failureInjection: .init(failOnceAt: .failedStateSave)
                 )
@@ -3435,7 +3519,8 @@ final class KernelConformanceProductionHarnessV1 {
                 }
                 let faulted = try ReportRecoveryService(
                     modelContext: fixture.session.modelContext,
-                    generationRootURL: fixture.session.generationRootURL,
+                    lifecycleDependencies: fixture.lifecycleDependencies,
+                    lifecycleProfile: fixture.lifecycleProfile,
                     failureInjection: .init(failOnceAt: point)
                 )
                 try faulted.reconcileAtStartup()
@@ -3454,10 +3539,22 @@ final class KernelConformanceProductionHarnessV1 {
         await Task.yield()
         let coldSession = try StoreGenerationFactory(applicationSupportURL: support)
             .openOrBootstrapCurrent()
-        _ = try StoreSessionCoordinator(validatingSession: coldSession)
+        let lifecycleProfile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let lifecycleProfileRegistry = try WorkspacePackageLifecycleProfileRegistryV1(
+            profiles: [lifecycleProfile]
+        )
+        let coldCoordinator = try StoreSessionCoordinator(
+            validatingSession: coldSession,
+            lifecycleProfileRegistry: lifecycleProfileRegistry
+        )
+        defer { try? coldCoordinator.invalidateAndReleaseWriter() }
+        let coldDependencies = try coldCoordinator.packageLifecycleDependencies(
+            profileRegistry: lifecycleProfileRegistry
+        )
         let recovery = try ReportRecoveryService(
             modelContext: coldSession.modelContext,
-            generationRootURL: coldSession.generationRootURL
+            lifecycleDependencies: coldDependencies,
+            lifecycleProfile: lifecycleProfile
         )
         try recovery.reconcileAtStartup()
         if let failed = try coldSession.modelContext.fetch(FetchDescriptor<Report>())
@@ -4541,7 +4638,10 @@ final class KernelConformanceProductionHarnessV1 {
                 currentGenerationRootURL: restoreTarget.generationRootURL,
                 mode: .emptyInstall
             )
-            let restoredCoordinator = try StoreSessionCoordinator(validatingSession: restored)
+            let restoredCoordinator = try StoreSessionCoordinator(
+                validatingSession: restored,
+                lifecycleProfileRegistry: registry
+            )
             let restoredDependencies = try restoredCoordinator.packageLifecycleDependencies(
                 profileRegistry: registry
             )
@@ -4661,6 +4761,11 @@ final class KernelConformanceProductionHarnessV1 {
     }
 
     func exerciseArchiveRestoreRoundTrip() async throws -> StoreGenerationSession {
+        guard let lifecycleProfileRegistry else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                "production-profile-registry"
+            )
+        }
         let exportDirectory = root.appendingPathComponent("exports", isDirectory: true)
         try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
         let exporter = BackupExportService(
@@ -4670,6 +4775,8 @@ final class KernelConformanceProductionHarnessV1 {
         )
         let preview = try exporter.prepareStreaming()
         let archive = try exporter.exportStreaming(previewID: preview.id, to: exportDirectory)
+        try coordinator.invalidateAndReleaseWriter()
+        coordinator = nil
         let targetSupport = root.appendingPathComponent("restore-target", isDirectory: true)
         let restored: StoreGenerationSession = try await {
             let target = try StoreGenerationFactory(applicationSupportURL: targetSupport)
@@ -4695,7 +4802,10 @@ final class KernelConformanceProductionHarnessV1 {
         session = nil
         activeApplicationSupportURL = targetSupport
         session = restored
-        coordinator = try StoreSessionCoordinator(validatingSession: restored)
+        coordinator = try StoreSessionCoordinator(
+            validatingSession: restored,
+            lifecycleProfileRegistry: lifecycleProfileRegistry
+        )
         return restored
     }
 
@@ -4707,7 +4817,12 @@ final class KernelConformanceProductionHarnessV1 {
         }
         let profile = try suppliedProfile
             ?? WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
-        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        guard let registry = lifecycleProfileRegistry,
+              try registry.resolve(profile.release) == profile else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                "production-profile-registry"
+            )
+        }
         let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
         return try await WholeSignDeletionService(
             modelContext: session.modelContext,
@@ -4720,7 +4835,12 @@ final class KernelConformanceProductionHarnessV1 {
     ) async throws -> EraseAllOutcome {
         let profile = try suppliedProfile
             ?? WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
-        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        guard let registry = lifecycleProfileRegistry,
+              try registry.resolve(profile.release) == profile else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                "production-profile-registry"
+            )
+        }
         let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
         let diagnostics = DiagnosticsStore(applicationSupportURL: activeApplicationSupportURL)
         return try await EraseAllService(
@@ -4765,8 +4885,9 @@ final class KernelConformanceProductionHarnessV1 {
     ) async throws -> [String] {
         var actions: [String] = []
         let profile = try suppliedProfile ?? Self.profile(for: shape)
-        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
-        guard let assetID = try session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id,
+        guard let registry = lifecycleProfileRegistry,
+              try registry.resolve(profile.release) == profile,
+              let assetID = try session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id,
               let issueLabel = profile.package.issueLabels.first?.key else {
             throw KernelConformanceFixtureFailureV1.incompleteCoverage("check-start")
         }
@@ -4808,11 +4929,15 @@ final class KernelConformanceProductionHarnessV1 {
             actions.append("RESPOND")
         }
 
+        try coordinator.invalidateAndReleaseWriter()
         coordinator = nil
         session = nil
         session = try StoreGenerationFactory(applicationSupportURL: activeApplicationSupportURL)
             .openOrBootstrapCurrent()
-        coordinator = try StoreSessionCoordinator(validatingSession: session)
+        coordinator = try StoreSessionCoordinator(
+            validatingSession: session,
+            lifecycleProfileRegistry: registry
+        )
         var dependencies: WorkspacePackageLifecycleDependenciesV1? = try coordinator
             .packageLifecycleDependencies(profileRegistry: registry)
         var runner: CheckRunnerCoordinator? = try CheckRunnerCoordinator(
@@ -4890,17 +5015,27 @@ final class KernelConformanceProductionHarnessV1 {
         let finalizedRecordID = finalized.recordID
         let finalizedIssueID = finalized.issueID!
         actions.append("FINALIZE")
+        var recordedWorkMutationID: UUID?
         if profile.stages.flatMap(\.outcomes).contains(where: { $0.role == .workRecorded }) {
             let recheckPreparation = try await {
-                () async throws -> (submission: BeginDraftSubmission, draftID: UUID) in
+                () async throws -> (
+                    submission: BeginDraftSubmission,
+                    draftID: UUID,
+                    workMutationID: UUID
+                ) in
                 let activeRunner = try requireValue(runner, "check-runner")
+                let activeDependencies = try requireValue(
+                    dependencies, "package-lifecycle-dependencies"
+                )
                 let work = try WorkCoordinator(
                     modelContext: session.modelContext,
                     signPack: profile.package,
                     generationRootURL: session.generationRootURL,
-                    checkRunnerCoordinator: activeRunner
+                    checkRunnerCoordinator: activeRunner,
+                    lifecycleDependencies: activeDependencies
                 )
                 let workDraft = try work.beginWork(issueID: finalizedIssueID)
+                let workMutationID = UUID()
                 let saved = try await work.saveWork(
                     draftID: workDraft.recordID,
                     submission: WorkSaveSubmission(
@@ -4910,7 +5045,10 @@ final class KernelConformanceProductionHarnessV1 {
                         photos: [],
                         completedAt: observedAt.addingTimeInterval(30)
                     ),
-                    identifiers: WorkIdentifiers(mutationID: UUID(), evidenceID: nil)
+                    identifiers: WorkIdentifiers(
+                        mutationID: workMutationID,
+                        evidenceID: nil
+                    )
                 )
                 guard saved.status == .recheckDue else {
                     throw KernelConformanceFixtureFailureV1.incompleteCoverage("work")
@@ -4926,8 +5064,13 @@ final class KernelConformanceProductionHarnessV1 {
                     safePositionAccepted: true
                 )
                 let draft = try activeRunner.beginOrResumeDraft(submission)
-                return (submission: submission, draftID: draft.id)
+                return (
+                    submission: submission,
+                    draftID: draft.id,
+                    workMutationID: workMutationID
+                )
             }()
+            recordedWorkMutationID = recheckPreparation.workMutationID
             if shape == .measurementRepeat {
                 runner = nil
                 dependencies = nil
@@ -4977,15 +5120,51 @@ final class KernelConformanceProductionHarnessV1 {
             }
             actions.append("RECHECK")
         }
+        let activeDependencies = try requireValue(
+            dependencies, "package-lifecycle-dependencies"
+        )
+        let historyBeforeRecovery = try activeDependencies.writer
+            .sourceMutationHistorySnapshot()
+        let workEnvelopeBeforeRecovery = try recordedWorkMutationID.flatMap {
+            try activeDependencies.writer.workEnvelope(
+                mutationID: MutationIDV1(rawValue: $0)
+            )
+        }
+        let workReceiptBeforeRecovery = try workEnvelopeBeforeRecovery.flatMap {
+            try activeDependencies.writer.workCommitReceipt(envelope: $0)
+        }
+        try workEnvelopeBeforeRecovery?.validate()
+        try workReceiptBeforeRecovery?.validate()
+        guard recordedWorkMutationID == nil
+                || (workEnvelopeBeforeRecovery != nil && workReceiptBeforeRecovery != nil) else {
+            throw KernelConformanceFixtureFailureV1.invalidArtifact("package-lifecycle")
+        }
         let recovery = try PackFinalizationRecoveryAdapterV1(
-            dependencies: requireValue(dependencies, "package-lifecycle-dependencies"),
+            dependencies: activeDependencies,
             profile: profile,
             legacyModelContext: session.modelContext
         )
         let outcome = try await recovery.reconcile()
-        guard outcome.packageRelease == profile.release,
+        let historyAfterRecovery = try activeDependencies.writer
+            .sourceMutationHistorySnapshot()
+        let workEnvelopeAfterRecovery = try recordedWorkMutationID.flatMap {
+            try activeDependencies.writer.workEnvelope(
+                mutationID: MutationIDV1(rawValue: $0)
+            )
+        }
+        let workReceiptAfterRecovery = try workEnvelopeAfterRecovery.flatMap {
+            try activeDependencies.writer.workCommitReceipt(envelope: $0)
+        }
+        guard outcome.workspaceID == activeDependencies.workspaceID,
+              outcome.generationID == activeDependencies.generationID,
+              outcome.packageRelease == profile.release,
               outcome.summary.recoveredDraftRecordIDs.isEmpty,
-              !outcome.zeroFeatureWriteClosureClaimed else {
+              outcome.summary.completedRecordIDs.isEmpty,
+              !outcome.preservesReservedLegacyRawWriteDebt,
+              outcome.zeroFeatureWriteClosureClaimed,
+              historyAfterRecovery == historyBeforeRecovery,
+              workEnvelopeAfterRecovery == workEnvelopeBeforeRecovery,
+              workReceiptAfterRecovery == workReceiptBeforeRecovery else {
             throw KernelConformanceFixtureFailureV1.invalidArtifact("package-lifecycle")
         }
         withExtendedLifetime(runner) {}
@@ -4993,8 +5172,10 @@ final class KernelConformanceProductionHarnessV1 {
     }
 
     func cleanup() {
+        try? coordinator?.invalidateAndReleaseWriter()
         coordinator = nil
         session = nil
+        lifecycleProfileRegistry = nil
         try? FileManager.default.removeItem(at: root)
     }
 

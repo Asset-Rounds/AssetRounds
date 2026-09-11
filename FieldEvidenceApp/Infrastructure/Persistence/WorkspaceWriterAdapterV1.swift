@@ -44,6 +44,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .finalizeCheck,
             .finalizeCorrection,
             .transitionReportPDF,
+            .recordWork,
             .applySavedSmartView,
             .applyRequirementAssurance,
             .applyPartyAccountability,
@@ -110,6 +111,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?
     private var stagedFinalization: FinalizationRecoveryService?
     private var stagedPDF: (report: Report, before: ReportPayloadV1)?
+    private var stagedWork: (record: WorkflowRecord, recordBefore: WorkflowRecordPayloadV1,
+                             issue: Issue, issueBefore: IssuePayloadV1)?
     private let assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1
     private let completedActivitySnapshotResolver:
         ((CompletedActivitySnapshotV2CompatibilityReferenceV1) throws
@@ -182,6 +185,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         // its held rollback state before staging the next transaction.
         stagedFinalization = nil
         stagedPDF = nil
+        stagedWork = nil
         do {
             _ = try ObservationAndTimeRowStoreV1.validatedIndex(in: modelContext)
         } catch {
@@ -200,6 +204,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             try staging.stageWriterMutation(command: command, expectedRootIdentity: expectedRootIdentity)
             return try .init(affectedEntities: WorkspaceWriterV1.affectedIdentities(for: command),
                              temporaryRelativePath: temporaryRelativePath)
+        case let .recordWork(value):
+            return try stageWork(value, temporaryRelativePath: temporaryRelativePath)
         case let .transitionReportPDF(value):
             return try stageReportPDF(value, temporaryRelativePath: temporaryRelativePath)
         case let .createFirstSign(value):
@@ -342,7 +348,6 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
-             .recordWork,
              .restoreWorkspace,
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
@@ -5115,6 +5120,11 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     }
 
     func rollback() {
+        if let stagedWork {
+            apply(stagedWork.recordBefore, to: stagedWork.record)
+            apply(stagedWork.issueBefore, to: stagedWork.issue)
+        }
+        stagedWork = nil
         stagedFinalization?.restoreStagedWriterValues()
         if let stagedPDF {
             stagedPDF.report.pdfState = stagedPDF.before.pdfState
@@ -5125,6 +5135,89 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         stagedPDF = nil
         assetSemanticLifecycleAdapter.rollback()
         modelContext.rollback()
+    }
+
+    private func stageWork(_ value: RecordWorkMutationV1,
+                           temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
+        guard let authority = value.writerAuthority else { throw WorkspaceMutationFailureV1.unsupportedCommand }
+        try authority.validate(command: .recordWork(value))
+        guard let generationRootURL, let expectedRootIdentity, let lifecycleProfileRegistry,
+              generationRootURL.lastPathComponent == authority.generationID.uuidString.lowercased(),
+              try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == expectedRootIdentity else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let profile = try lifecycleProfileRegistry.resolve(authority.packageRelease)
+        let reader = WorkAuthorityReaderV1(modelContext: modelContext, signPack: profile.package,
+                                          generationRootURL: generationRootURL, rootIdentity: expectedRootIdentity)
+        let source = try reader.validateFrozenSource(authority)
+        guard let draft = source.draft else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let evidence: EvidenceFile?
+        if let incoming = authority.evidenceInsert {
+            let row = EvidenceFile(id: incoming.id, recordID: incoming.recordID,
+                purposeKey: incoming.purposeKey, relativePath: incoming.relativePath,
+                mimeType: incoming.mimeType, byteCount: incoming.byteCount, sha256: incoming.sha256,
+                createdAt: incoming.createdAt, thumbnailRelativePath: incoming.thumbnailRelativePath,
+                thumbnailByteCount: incoming.thumbnailByteCount, thumbnailSHA256: incoming.thumbnailSHA256)
+            try reader.validateEvidenceRow(row, record: draft)
+            evidence = row
+        } else { evidence = nil }
+        stagedWork = (draft, reader.payload(draft), source.issue, reader.payload(source.issue))
+        apply(authority.recordAfter, to: draft)
+        apply(authority.issueAfter, to: source.issue)
+        if let evidence { modelContext.insert(evidence) }
+        // Companions and assurance are unchanged source authority, not inferred
+        // values synthesized by WorkRule or a second persistence path.
+        for binding in authority.sourceBindings {
+            guard try reader.sourceBinding(recordID: binding.recordID) == binding else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        guard reader.payload(draft) == authority.recordAfter,
+              reader.payload(source.issue) == authority.issueAfter else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return try .init(affectedEntities: authority.affectedIdentities,
+                         temporaryRelativePath: temporaryRelativePath)
+    }
+
+    private func apply(_ value: WorkflowRecordPayloadV1, to record: WorkflowRecord) {
+        record.packetID = value.packetID
+        record.issueID = value.issueID
+        record.parentRecordID = value.parentRecordID
+        record.revisesRecordID = value.revisesRecordID
+        record.evidenceSourceRecordID = value.evidenceSourceRecordID
+        record.revisionKind = value.revisionKind
+        record.stage = value.stage
+        record.state = value.state
+        record.draftStepKey = value.draftStepKey
+        record.completedAt = value.completedAt
+        record.observedAtUTC = value.observedAtUTC
+        record.timeZoneID = value.timeZoneID
+        record.utcOffsetMinutes = value.utcOffsetMinutes
+        record.localDate = value.localDate
+        record.localTime = value.localTime
+        record.afterDarkAcknowledgementKey = value.afterDarkAcknowledgementKey
+        record.afterDarkAcknowledgementCopy = value.afterDarkAcknowledgementCopy
+        record.afterDarkAcknowledgementVersion = value.afterDarkAcknowledgementVersion
+        record.afterDarkAcknowledgementAccepted = value.afterDarkAcknowledgementAccepted
+        record.safePositionAcknowledgementKey = value.safePositionAcknowledgementKey
+        record.safePositionAcknowledgementCopy = value.safePositionAcknowledgementCopy
+        record.safePositionAcknowledgementVersion = value.safePositionAcknowledgementVersion
+        record.safePositionAcknowledgementAccepted = value.safePositionAcknowledgementAccepted
+        record.outcomeKey = value.outcomeKey
+        record.couldNotVerifyKey = value.couldNotVerifyKey
+        record.couldNotVerifyDisplaySnapshot = value.couldNotVerifyDisplaySnapshot
+        record.couldNotVerifyRegistryVersion = value.couldNotVerifyRegistryVersion
+        record.workPerformedLocalDate = value.workPerformedLocalDate
+        record.workDescription = value.workDescription
+        record.note = value.note
+        record.finalizationMutationID = value.finalizationMutationID
+    }
+
+    private func apply(_ value: IssuePayloadV1, to issue: Issue) {
+        issue.status = value.status
+        issue.resolvedByRecordID = value.resolvedByRecordID
+        issue.updatedAt = value.updatedAt
     }
 
     private func stageReportPDF(

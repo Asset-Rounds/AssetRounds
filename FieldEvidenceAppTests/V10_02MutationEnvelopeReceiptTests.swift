@@ -1723,6 +1723,258 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
 }
 
 extension V10_02MutationEnvelopeReceiptTests {
+    @MainActor
+    func testCanonicalWorkAuthorityRoundTripsAndRequiresOriginalV53Source() async throws {
+        try await WorkCanonicalIntegrationTestSupportV1.withCommittedWork { envelope, receipt, history in
+            guard case let .recordWork(command) = envelope.command else {
+                return XCTFail("Expected the real work writer receipt")
+            }
+            let authority = try XCTUnwrap(command.writerAuthority)
+            let bytes = try envelope.canonicalData()
+            XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes), envelope)
+            XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes).canonicalData(), bytes)
+            XCTAssertEqual(try MutationReceiptV1.decodeCanonical(from: receipt.canonicalData()), receipt)
+            XCTAssertFalse(String(decoding: bytes, as: UTF8.self).contains("writerInstanceID"))
+            XCTAssertEqual(envelope.contentDependencyIDs, authority.contentDigests)
+            XCTAssertEqual(Set(try receipt.postImages.map { try $0.identity }), Set(try authority.affectedIdentities))
+            XCTAssertEqual(Set(envelope.expectedRevision.entityRevisions.map(\.identity)), Set(try authority.concurrencyIdentities))
+            XCTAssertEqual(
+                MutationJournalStoreV1.minimumPersistentSchemaVersion(for: envelope.command),
+                PersistentSchemaV53.versionIdentifier.major
+            )
+            XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(
+                history, sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+            ))
+            // A synthetic baseline-zero codec vector isolates Work admission
+            // from the real fixture's earlier V53 finalization receipt.
+            let isolatedExpected = try WorkspaceExpectedRevisionV1(
+                workspaceID: envelope.workspaceID, generationID: envelope.generationID,
+                writerInstanceID: UUID(), workspaceRevision: 0,
+                entityRevisions: envelope.expectedRevision.entityRevisions
+            )
+            let isolatedAuthority = WorkWriterAuthorityV1(
+                workspaceID: authority.workspaceID, generationID: authority.generationID,
+                mutationID: authority.mutationID, expectedRevision: try MutationPortableExpectedRevisionV1(isolatedExpected),
+                packageRelease: authority.packageRelease, draftBefore: authority.draftBefore,
+                issueBefore: authority.issueBefore, parentBefore: authority.parentBefore,
+                sourceBindings: authority.sourceBindings, submission: authority.submission,
+                recordAfter: authority.recordAfter, issueAfter: authority.issueAfter,
+                evidenceInsert: authority.evidenceInsert
+            )
+            let isolatedCommand = RecordWorkMutationV1(
+                workMutationID: command.workMutationID, assetID: command.assetID,
+                issueID: command.issueID, recordID: command.recordID, evidenceIDs: command.evidenceIDs,
+                semanticDigest: try isolatedAuthority.semanticSHA256(), writerAuthority: isolatedAuthority
+            )
+            let isolatedEnvelope = try MutationEnvelopeV1(
+                request: .init(mutationID: envelope.mutationID, expectedRevision: isolatedExpected,
+                               command: .recordWork(isolatedCommand)),
+                identity: .init(workspaceID: envelope.workspaceID, replicaID: envelope.replicaID),
+                contentDependencyIDs: envelope.contentDependencyIDs
+            )
+            let codecFixture = try FinalizationCodecAdmissionFixtureV1.make()
+            let isolatedHistory = try codecFixture.history(
+                envelope: isolatedEnvelope, postImages: receipt.postImages
+            )
+            XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(
+                isolatedHistory, sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+            ))
+            for source in [PersistentSchemaV4.versionIdentifier.major, PersistentSchemaV52.versionIdentifier.major] {
+                XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+                    isolatedHistory, sourcePersistentSchemaVersion: source
+                ))
+            }
+        }
+    }
+
+    @MainActor
+    func testCanonicalWorkImportRejectsResealedEnvelopeAndUnchangedSourceRevisionForgery() async throws {
+        try await WorkCanonicalIntegrationTestSupportV1.withCommittedWork { envelope, receipt, history in
+            guard case let .recordWork(command) = envelope.command else {
+                return XCTFail("Expected the real work writer receipt")
+            }
+            let authority = try XCTUnwrap(command.writerAuthority)
+            XCTAssertFalse(authority.contentDigests.isEmpty, "The shared fixture must exercise media binding")
+
+            func alteredEnvelope(
+                workspaceID: WorkspaceID? = nil, generationID: UUID? = nil,
+                mutationID: MutationIDV1? = nil, workspaceRevision: UInt64? = nil,
+                entityRevisions: [WorkspaceEntityRevisionV1]? = nil, dependencies: [String]? = nil
+            ) throws -> MutationEnvelopeV1 {
+                let workspace = workspaceID ?? envelope.workspaceID
+                let expected = try WorkspaceExpectedRevisionV1(
+                    workspaceID: workspace, generationID: generationID ?? envelope.generationID,
+                    writerInstanceID: UUID(),
+                    workspaceRevision: workspaceRevision ?? envelope.expectedRevision.workspaceRevision,
+                    entityRevisions: entityRevisions ?? envelope.expectedRevision.entityRevisions
+                )
+                return try MutationEnvelopeV1(
+                    request: .init(mutationID: mutationID ?? envelope.mutationID,
+                                   expectedRevision: expected, command: envelope.command),
+                    identity: .init(workspaceID: workspace, replicaID: envelope.replicaID),
+                    sourceKind: envelope.sourceKind,
+                    contentDependencyIDs: dependencies ?? envelope.contentDependencyIDs
+                )
+            }
+            func replacingReceipt(
+                envelope replacement: MutationEnvelopeV1,
+                resultingRevisions: [WorkspaceEntityRevisionV1]? = nil,
+                postImages: [MutationPostImageV1]? = nil
+            ) throws -> MutationHistorySnapshotV1 {
+                let resulting = try WorkspaceExpectedRevisionV1(
+                    workspaceID: replacement.workspaceID, generationID: replacement.generationID,
+                    writerInstanceID: UUID(), workspaceRevision: replacement.expectedRevision.workspaceRevision + 1,
+                    entityRevisions: resultingRevisions ?? receipt.resultingRevision.entityRevisions
+                )
+                let replacementReceipt = try MutationReceiptV1(
+                    identity: .init(workspaceID: replacement.workspaceID, replicaID: replacement.replicaID,
+                                    localSequence: receipt.identity.localSequence),
+                    envelope: replacement, resultingRevision: MutationPortableExpectedRevisionV1(resulting),
+                    postImages: postImages ?? receipt.postImages, committedAt: receipt.committedAt
+                )
+                let originalBytes = try envelope.canonicalData()
+                let replacementEnvelopeBytes = try replacement.canonicalData()
+                let replacementReceiptBytes = try replacementReceipt.canonicalData()
+                XCTAssertEqual(history.receipts.filter { $0.envelopeData == originalBytes }.count, 1)
+                return MutationHistorySnapshotV1(
+                    workspaceRevision: history.workspaceRevision, lastLocalSequence: history.lastLocalSequence,
+                    receipts: history.receipts.map { entry in
+                        guard entry.envelopeData == originalBytes else { return entry }
+                        return .init(envelopeData: replacementEnvelopeBytes, receiptData: replacementReceiptBytes,
+                                     reversalBasisData: nil, semanticReversalData: nil)
+                    }, quarantines: history.quarantines, entityRevisions: history.entityRevisions
+                )
+            }
+
+            let parentIdentity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: authority.parentBefore.id)
+            let missingParentLock = envelope.expectedRevision.entityRevisions.filter { $0.identity != parentIdentity }
+            let hostileEnvelopes = try [
+                alteredEnvelope(workspaceID: WorkspaceID(rawValue: UUID())),
+                alteredEnvelope(generationID: UUID()),
+                alteredEnvelope(mutationID: MutationIDV1(rawValue: UUID())),
+                alteredEnvelope(workspaceRevision: envelope.expectedRevision.workspaceRevision + 1),
+                alteredEnvelope(entityRevisions: missingParentLock),
+                alteredEnvelope(dependencies: []),
+                alteredEnvelope(dependencies: [String(repeating: "0", count: 64)]),
+            ]
+            for hostile in hostileEnvelopes {
+                // These are internally canonical envelopes, not a stale digest shortcut.
+                XCTAssertNoThrow(try MutationEnvelopeV1.decodeCanonical(from: hostile.canonicalData()))
+                XCTAssertThrowsError(try authority.validate(envelope: hostile))
+                let hostileHistory = try replacingReceipt(envelope: hostile)
+                XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+                    hostileHistory, sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+                ))
+            }
+
+            let sourceIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: command.assetID)
+            let originalSource = try XCTUnwrap(receipt.resultingRevision.entityRevisions.first {
+                $0.identity == sourceIdentity
+            })
+            let changedSource = receipt.resultingRevision.entityRevisions.map {
+                $0.identity == sourceIdentity
+                    ? WorkspaceEntityRevisionV1(identity: sourceIdentity, revision: originalSource.revision + 1)
+                    : $0
+            }
+            let forgedHistory = try replacingReceipt(envelope: envelope, resultingRevisions: changedSource)
+            XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+                forgedHistory, sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+            ))
+            let wrongImages = receipt.postImages.map { image -> MutationPostImageV1 in
+                if case let .workflowRecord(id, revision, _) = image {
+                    return .workflowRecord(id: id, revision: revision, semanticSHA256: String(repeating: "f", count: 64))
+                }
+                return image
+            }
+            XCTAssertNotEqual(wrongImages, receipt.postImages)
+            let forgedEffect = try replacingReceipt(envelope: envelope, postImages: wrongImages)
+            XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+                forgedEffect, sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+            ))
+        }
+    }
+
+    @MainActor
+    func testCanonicalWorkRejectsHostileCommandAndAuthorityBytes() async throws {
+        try await WorkCanonicalIntegrationTestSupportV1.withCommittedWork { envelope, _, _ in
+            guard case let .recordWork(command) = envelope.command else {
+                return XCTFail("Expected the real work writer receipt")
+            }
+            let commandData = try WorkspaceMutationCanonicalV1.data(command)
+            let original = try XCTUnwrap(JSONSerialization.jsonObject(with: commandData) as? [String: Any])
+            let decode: ([String: Any]) throws -> RecordWorkMutationV1 = { value in
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .millisecondsSince1970
+                return try decoder.decode(RecordWorkMutationV1.self, from: JSONSerialization.data(
+                    withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes]
+                ))
+            }
+            XCTAssertEqual(try decode(original), command)
+            for key in ["assetID", "issueID", "recordID", "workMutationID"] {
+                var hostile = original
+                hostile[key] = UUID().uuidString
+                XCTAssertThrowsError(try decode(hostile), key)
+            }
+            let replacements: [Any] = [NSNull(), [:] as [String: Any], ["unknownVersion": 2]]
+            for replacement in replacements {
+                var hostile = original
+                hostile["writerAuthority"] = replacement
+                XCTAssertThrowsError(try decode(hostile))
+            }
+            let originalAuthority = try XCTUnwrap(original["writerAuthority"] as? [String: Any])
+            for key in ["generationID", "sourceBindings", "recordAfter", "unknownAuthorityField"] {
+                var hostile = original
+                var authority = originalAuthority
+                switch key {
+                case "generationID": authority[key] = UUID().uuidString
+                case "sourceBindings": authority[key] = [] as [Any]
+                case "recordAfter": authority[key] = originalAuthority["draftBefore"]
+                default: authority[key] = true
+                }
+                hostile["writerAuthority"] = authority
+                XCTAssertThrowsError(try decode(hostile), key)
+            }
+        }
+    }
+
+    func testLegacyRecordWorkPreservesCanonicalBytesAndOriginalV4Admission() throws {
+        let fixture = try FinalizationCodecAdmissionFixtureV1.make()
+        let command = RecordWorkMutationV1(
+            workMutationID: fixture.id(41), assetID: fixture.assetID,
+            issueID: fixture.id(42), recordID: fixture.recordID,
+            evidenceIDs: [], semanticDigest: fixture.digest("a")
+        )
+        let originalBody = Data((
+            "{\"assetID\":\"\(command.assetID.uuidString)\",\"evidenceIDs\":[],"
+                + "\"issueID\":\"\(command.issueID.uuidString)\",\"recordID\":\"\(command.recordID.uuidString)\","
+                + "\"semanticDigest\":\"\(command.semanticDigest)\",\"workMutationID\":\"\(command.workMutationID.uuidString)\"}"
+        ).utf8)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(command), originalBody)
+        XCTAssertEqual(try JSONDecoder().decode(RecordWorkMutationV1.self, from: originalBody), command)
+        for field in ["\"writerAuthority\":null,", "\"writerAuthority\":{},", "\"unknownWorkAuthority\":true,"] {
+            let hostile = Data(("{" + field + String(decoding: originalBody.dropFirst(), as: UTF8.self)).utf8)
+            XCTAssertThrowsError(try JSONDecoder().decode(RecordWorkMutationV1.self, from: hostile))
+        }
+        XCTAssertEqual(
+            MutationJournalStoreV1.minimumPersistentSchemaVersion(for: .recordWork(command)),
+            PersistentSchemaV4.versionIdentifier.major
+        )
+
+        let envelope = try fixture.legacyWorkEnvelope(command)
+        let bytes = try envelope.canonicalData()
+        XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes), envelope)
+        XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes).canonicalData(), bytes)
+        XCTAssertFalse(try XCTUnwrap(String(data: bytes, encoding: .utf8)).contains("writerAuthority"))
+        let history = try fixture.history(envelope: envelope, postImages: [
+            .asset(id: command.assetID, revision: 1, semanticSHA256: fixture.digest("b")),
+            .issue(id: command.issueID, revision: 1, semanticSHA256: fixture.digest("c")),
+            .workflowRecord(id: command.recordID, revision: 1, semanticSHA256: fixture.digest("d")),
+        ])
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(
+            history, sourcePersistentSchemaVersion: PersistentSchemaV4.versionIdentifier.major
+        ))
+    }
+
     func testV23P03C15ReceiptEnvelopeBindsReleaseMutationAndRevision() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_202)
         let mutation = try WorkPacketMutationV1(
@@ -3057,6 +3309,17 @@ private struct FinalizationCodecAdmissionFixtureV1 {
                 reversalBasisData: nil, semanticReversalData: nil
             )], quarantines: [],
             entityRevisions: resultingRevisions
+        )
+    }
+
+    func legacyWorkEnvelope(_ command: RecordWorkMutationV1) throws -> MutationEnvelopeV1 {
+        try envelope(
+            mutationID: MutationIDV1(rawValue: command.workMutationID),
+            command: .recordWork(command), entityRevisions: [
+                .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: command.assetID), revision: 0),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .issue, id: command.issueID), revision: 0),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .workflowRecord, id: command.recordID), revision: 0),
+            ]
         )
     }
 

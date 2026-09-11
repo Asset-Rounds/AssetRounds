@@ -604,6 +604,7 @@ private final class EvidenceBundleStoreAssetLabelPublicationV1: @unchecked Senda
 }
 
 actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
+    private static let legacyBundleLock = NSRecursiveLock()
     private let sourceMutationGuard: StoreMigrationSourceMutationGuardV1?
     private struct FileIdentity: Equatable {
         let device: dev_t
@@ -1105,6 +1106,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         evidenceID: UUID,
         input: EvidenceBundleInput
     ) throws -> StagedEvidenceBundle {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
         try validateCanonicalJPEG(input.originalJPEG, kind: .original)
         try validateCanonicalJPEG(input.thumbnailJPEG, kind: .thumbnail)
@@ -1188,6 +1191,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func promote(_ staged: StagedEvidenceBundle) throws -> PromotedEvidenceBundle {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
         let paths = paths(for: staged.evidenceID)
         try validateGenerationRoot()
@@ -1275,6 +1280,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func discardStaging(evidenceID: UUID) throws {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
         let target = paths(for: evidenceID).stagingDirectoryURL
         try validateGenerationRoot()
@@ -1289,6 +1296,44 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func removePromotedBundleIfOwned(_ promoted: PromotedEvidenceBundle) throws {
+        try removePromotedBundleIfOwnedSynchronously(promoted)
+    }
+
+    nonisolated func discardStagedBundleIfOwnedSynchronously(
+        _ staged: StagedEvidenceBundle
+    ) throws {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try requireProducerAuthority()
+        let bundlePaths = paths(for: staged.evidenceID)
+        try validateGenerationRoot()
+        guard try itemType(at: bundlePaths.stagingDirectoryURL) != nil else {
+            return
+        }
+        try verifyBundlePolicy(paths: bundlePaths, isStaging: true)
+        let facts = try verifyBundle(
+            directoryURL: bundlePaths.stagingDirectoryURL,
+            evidenceID: staged.evidenceID,
+            paths: bundlePaths
+        )
+        guard staged.stagingDirectoryRelativePath
+                == bundlePaths.stagingDirectoryRelativePath,
+              staged.originalRelativePath == bundlePaths.originalRelativePath,
+              staged.thumbnailRelativePath == bundlePaths.thumbnailRelativePath,
+              staged.originalByteCount == facts.originalByteCount,
+              staged.thumbnailByteCount == facts.thumbnailByteCount,
+              staged.originalSHA256 == facts.originalSHA256,
+              staged.thumbnailSHA256 == facts.thumbnailSHA256 else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        try removeExactDirectoryIfPresent(bundlePaths.stagingDirectoryURL)
+    }
+
+    nonisolated func removePromotedBundleIfOwnedSynchronously(
+        _ promoted: PromotedEvidenceBundle
+    ) throws {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
         let paths = paths(for: promoted.evidenceID)
         try validateGenerationRoot()
@@ -1314,6 +1359,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     func verifyPromoted(
         _ promoted: PromotedEvidenceBundle
     ) throws -> PromotedEvidenceBundle {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
         let bundlePaths = paths(for: promoted.evidenceID)
         try validateGenerationRoot()
         let facts = try verifyBundle(
@@ -1335,6 +1382,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func reconcile(authorities: [EvidenceBundleAuthority]) throws {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
         if let sourceMutationGuard {
             try sourceMutationGuard.withAuthorizedMutation {
                 try reconcileUnprotected(authorities: authorities)
@@ -1351,6 +1400,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func verifyOriginalRecoverySettled(authorities: [EvidenceBundleAuthority]) throws {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
         guard let sourceMutationGuard else { throw EvidenceBundleStoreError.generationRootInvalid }
         try sourceMutationGuard.withAuthorizedMutation {
             try validateGenerationRoot()
@@ -1466,7 +1517,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         let thumbnailSHA256: String
     }
 
-    private func paths(for evidenceID: UUID) -> BundlePaths {
+    nonisolated private func paths(for evidenceID: UUID) -> BundlePaths {
         let canonicalID = evidenceID.uuidString.lowercased()
         let stagingDirectoryRelativePath = ".staging/evidence/\(canonicalID)"
         let originalRelativePath = "evidence/\(canonicalID)/original.jpg"
@@ -1527,7 +1578,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return result
     }
 
-    private func verifyBundle(
+    nonisolated private func verifyBundle(
         directoryURL: URL,
         evidenceID: UUID,
         paths: BundlePaths
@@ -1589,7 +1640,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         )
     }
 
-    private func validateCanonicalJPEG(
+    nonisolated private func validateCanonicalJPEG(
         _ data: Data,
         kind: MediaContractV1.OutputKind
     ) throws {
@@ -1624,7 +1675,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         let generationIdentity: FileIdentity
     }
 
-    private func openGenerationRootAuthority() throws -> GenerationRootAuthority {
+    nonisolated private func openGenerationRootAuthority() throws -> GenerationRootAuthority {
         let root = generationRootURL.standardizedFileURL
         let generationsURL = root.deletingLastPathComponent()
         let dataRootURL = generationsURL.deletingLastPathComponent()
@@ -1705,14 +1756,14 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return authority
     }
 
-    private func closeGenerationRootAuthority(_ authority: GenerationRootAuthority) {
+    nonisolated private func closeGenerationRootAuthority(_ authority: GenerationRootAuthority) {
         _ = Darwin.close(authority.generationDescriptor)
         _ = Darwin.close(authority.generationsDescriptor)
         _ = Darwin.close(authority.dataRootDescriptor)
         _ = Darwin.close(authority.applicationSupportDescriptor)
     }
 
-    private func reproveGenerationRoot(_ authority: GenerationRootAuthority) throws {
+    nonisolated private func reproveGenerationRoot(_ authority: GenerationRootAuthority) throws {
         guard try directoryIdentity(authority.applicationSupportDescriptor)
                 == authority.applicationSupportIdentity,
               try directoryIdentity(authority.dataRootDescriptor)
@@ -1745,7 +1796,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func withGenerationRootAuthority<T>(
+    nonisolated private func withGenerationRootAuthority<T>(
         _ body: (GenerationRootAuthority) throws -> T
     ) throws -> T {
         let authority = try openGenerationRootAuthority()
@@ -1756,7 +1807,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return result
     }
 
-    private func validateGenerationRoot() throws {
+    nonisolated private func validateGenerationRoot() throws {
         try withGenerationRootAuthority { _ in }
     }
 
@@ -2014,7 +2065,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func verifyBundlePolicy(
+    nonisolated private func verifyBundlePolicy(
         paths: BundlePaths,
         isStaging: Bool
     ) throws {
@@ -2032,7 +2083,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         )
     }
 
-    private func verifyOwnedPolicy(
+    nonisolated private func verifyOwnedPolicy(
         _ kind: OwnedFileKindV1,
         at url: URL
     ) throws {
@@ -2132,7 +2183,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func withDirectoryDescriptor<T>(
+    nonisolated private func withDirectoryDescriptor<T>(
         relativeComponents: [String],
         _ body: (Int32) throws -> T
     ) throws -> T {
@@ -2161,7 +2212,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func withOptionalDirectoryDescriptor<T>(
+    nonisolated private func withOptionalDirectoryDescriptor<T>(
         relativeComponents: [String],
         _ body: (Int32) throws -> T
     ) throws -> T? {
@@ -2193,7 +2244,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func withOwnedDirectory<T>(
+    nonisolated private func withOwnedDirectory<T>(
         at url: URL,
         _ body: (Int32) throws -> T
     ) throws -> T {
@@ -2211,7 +2262,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func directoryNames(_ descriptor: Int32) throws -> [String] {
+    nonisolated private func directoryNames(_ descriptor: Int32) throws -> [String] {
         let duplicate = Darwin.dup(descriptor)
         guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
             if duplicate >= 0 { _ = Darwin.close(duplicate) }
@@ -2240,7 +2291,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return names.sorted()
     }
 
-    private func readProtectedRegularFile(
+    nonisolated private func readProtectedRegularFile(
         _ kind: OwnedFileKindV1,
         at url: URL,
         parent: Int32,
@@ -2361,7 +2412,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return Data(hasher.finalize()).map { String(format: "%02x", $0) }.joined()
     }
 
-    private func withParentDescriptor<T>(
+    nonisolated private func withParentDescriptor<T>(
         of url: URL,
         _ body: (Int32, String) throws -> T
     ) throws -> T {
@@ -2376,7 +2427,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func relativeComponents(for url: URL) throws -> [String] {
+    nonisolated private func relativeComponents(for url: URL) throws -> [String] {
         let root = generationRootURL.standardizedFileURL
         let target = url.standardizedFileURL
         let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
@@ -2393,12 +2444,12 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return components
     }
 
-    private func validPathComponent(_ value: String) -> Bool {
+    nonisolated private func validPathComponent(_ value: String) -> Bool {
         !value.isEmpty && value != "." && value != ".."
             && !value.contains("/") && !value.contains("\\")
     }
 
-    private func directoryIdentity(at url: URL) throws -> FileIdentity {
+    nonisolated private func directoryIdentity(at url: URL) throws -> FileIdentity {
         let descriptor = Darwin.open(
             url.path,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
@@ -2415,7 +2466,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return FileIdentity(device: info.st_dev, inode: info.st_ino)
     }
 
-    private func directoryIdentity(_ descriptor: Int32) throws -> FileIdentity {
+    nonisolated private func directoryIdentity(_ descriptor: Int32) throws -> FileIdentity {
         var info = stat()
         guard Darwin.fstat(descriptor, &info) == 0,
               (info.st_mode & S_IFMT) == S_IFDIR else {
@@ -2424,7 +2475,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return FileIdentity(device: info.st_dev, inode: info.st_ino)
     }
 
-    private func directoryIdentity(parent: Int32, name: String) throws -> FileIdentity {
+    nonisolated private func directoryIdentity(parent: Int32, name: String) throws -> FileIdentity {
         let child = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard child >= 0 else {
             throw EvidenceBundleStoreError.fileOperationFailed
@@ -2433,7 +2484,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return try directoryIdentity(child)
     }
 
-    private func regularIdentity(at url: URL) throws -> FileIdentity {
+    nonisolated private func regularIdentity(at url: URL) throws -> FileIdentity {
         let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
         guard descriptor >= 0 else {
             throw EvidenceBundleStoreError.fileOperationFailed
@@ -2442,7 +2493,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return try regularIdentity(descriptor)
     }
 
-    private func regularIdentity(
+    nonisolated private func regularIdentity(
         parent: Int32,
         name: String
     ) throws -> FileIdentity {
@@ -2454,7 +2505,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return try regularIdentity(descriptor)
     }
 
-    private func regularIdentity(_ descriptor: Int32) throws -> FileIdentity {
+    nonisolated private func regularIdentity(_ descriptor: Int32) throws -> FileIdentity {
         var info = stat()
         guard Darwin.fstat(descriptor, &info) == 0,
               (info.st_mode & S_IFMT) == S_IFREG,
@@ -2470,7 +2521,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func itemType(at url: URL) throws -> FileAttributeType? {
+    nonisolated private func itemType(at url: URL) throws -> FileAttributeType? {
         guard isInsideGeneration(url) else {
             throw EvidenceBundleStoreError.unsafePath
         }
@@ -2488,7 +2539,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         } ?? nil
     }
 
-    private func itemType(parent: Int32, name: String) throws -> FileAttributeType? {
+    nonisolated private func itemType(parent: Int32, name: String) throws -> FileAttributeType? {
         guard validPathComponent(name) else {
             throw EvidenceBundleStoreError.unsafePath
         }
@@ -2500,7 +2551,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return fileAttributeType(info.st_mode & S_IFMT)
     }
 
-    private func fileAttributeType(_ mode: mode_t) -> FileAttributeType {
+    nonisolated private func fileAttributeType(_ mode: mode_t) -> FileAttributeType {
         switch mode {
         case S_IFDIR:
             return .typeDirectory
@@ -2513,7 +2564,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func isInsideGeneration(_ url: URL) -> Bool {
+    nonisolated private func isInsideGeneration(_ url: URL) -> Bool {
         let root = generationRootURL.standardizedFileURL.path
         let candidate = url.standardizedFileURL.path
         return candidate == root || candidate.hasPrefix(root + "/")
@@ -2533,7 +2584,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         try removeDirectoryTree(at: url)
     }
 
-    private func removeExactDirectoryIfPresent(_ url: URL) throws {
+    nonisolated private func removeExactDirectoryIfPresent(_ url: URL) throws {
         guard let type = try itemType(at: url) else { return }
         guard type == .typeDirectory else {
             throw EvidenceBundleStoreError.bundleShapeInvalid
@@ -2541,7 +2592,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         try removeDirectoryTree(at: url)
     }
 
-    private func removeDirectoryTree(at url: URL) throws {
+    nonisolated private func removeDirectoryTree(at url: URL) throws {
         try withParentDescriptor(of: url) { parent, leaf in
             let descriptor = Darwin.openat(
                 parent,
@@ -2561,7 +2612,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func quarantineDirectoryAndRemove(
+    nonisolated private func quarantineDirectoryAndRemove(
         parent: Int32,
         name: String,
         expectedIdentity: FileIdentity
@@ -2634,7 +2685,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func quarantineRegularFileAndRemove(
+    nonisolated private func quarantineRegularFileAndRemove(
         parent: Int32,
         name: String,
         expectedIdentity: FileIdentity
@@ -2703,7 +2754,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func restoreQuarantinedItem(
+    nonisolated private func restoreQuarantinedItem(
         parent: Int32,
         quarantine: String,
         name: String,
@@ -2734,7 +2785,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return Darwin.fsync(parent) == 0
     }
 
-    private func removeDirectoryContents(_ directory: Int32) throws {
+    nonisolated private func removeDirectoryContents(_ directory: Int32) throws {
         for name in try directoryNames(directory) {
             var info = stat()
             guard Darwin.fstatat(directory, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
@@ -2790,7 +2841,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func sha256(_ data: Data) -> String {
+    nonisolated private func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

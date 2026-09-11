@@ -13,7 +13,10 @@ final class S5_4RecheckCNVTests: XCTestCase {
     @MainActor
     func testPartialConditionsChangedCreatesOneIncompleteRootAndPreservesIssue() async throws {
         let harness = try await makeHarness(acceptsWide: true)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer {
+            try? harness.fixture.close()
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
         let issueBefore = issuePayload(try onlyIssue(id: harness.issueID, context: harness.context))
         let packetCount = try harness.context.fetchCount(FetchDescriptor<Packet>())
         let reportCount = try harness.context.fetchCount(FetchDescriptor<Report>())
@@ -94,7 +97,10 @@ final class S5_4RecheckCNVTests: XCTestCase {
     @MainActor
     func testZeroEvidenceUnsafeToContinueReplaysWithoutIssueDriftOrDuplicateRoot() async throws {
         let harness = try await makeHarness(acceptsWide: false)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer {
+            try? harness.fixture.close()
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
         let issueBefore = issuePayload(try onlyIssue(id: harness.issueID, context: harness.context))
         let identifiers = FinalizationIdentifiers(
             mutationID: UUID(), packetID: UUID(), stableRootID: UUID(),
@@ -118,9 +124,10 @@ final class S5_4RecheckCNVTests: XCTestCase {
             sourceApp: sourceApp,
             identifiers: identifiers
         )
-        let coldRunner = CheckRunnerCoordinator(
+        let coldRunner = try CheckRunnerCoordinator(
             modelContext: harness.context,
-            signPack: pack,
+            packageLifecycleDependencies: harness.fixture.lifecycleDependencies,
+            packageLifecycleProfile: harness.fixture.lifecycleProfile,
             diagnosticsStore: harness.diagnostics
         )
         coldRunner.configureCapture(generationRootURL: harness.generationRootURL)
@@ -216,7 +223,10 @@ final class S5_4RecheckCNVTests: XCTestCase {
     @MainActor
     func testStaleIssueAndUnknownReasonFailClosedWithoutPartialAuthority() async throws {
         let harness = try await makeHarness(acceptsWide: true)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer {
+            try? harness.fixture.close()
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
         XCTAssertThrowsError(try harness.runner.prepareReview(
             assetID: harness.assetID,
             selection: .couldNotVerify(reasonKey: "not_in_registry", note: nil)
@@ -254,7 +264,10 @@ final class S5_4RecheckCNVTests: XCTestCase {
             failOnceAt: .intentPhaseWrite(.databaseCommitted)
         )
         let harness = try await makeHarness(acceptsWide: true, storeFailure: injection)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer {
+            try? harness.fixture.close()
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
         let issueBefore = issuePayload(try onlyIssue(id: harness.issueID, context: harness.context))
         let identifiers = FinalizationIdentifiers(
             mutationID: UUID(), packetID: UUID(), stableRootID: UUID(),
@@ -294,9 +307,10 @@ final class S5_4RecheckCNVTests: XCTestCase {
             issueBefore
         )
         injection.removeFailure()
-        let coldRunner = CheckRunnerCoordinator(
+        let coldRunner = try CheckRunnerCoordinator(
             modelContext: harness.context,
-            signPack: pack,
+            packageLifecycleDependencies: harness.fixture.lifecycleDependencies,
+            packageLifecycleProfile: harness.fixture.lifecycleProfile,
             diagnosticsStore: harness.diagnostics
         )
         coldRunner.configureCapture(generationRootURL: harness.generationRootURL)
@@ -323,6 +337,7 @@ final class S5_4RecheckCNVTests: XCTestCase {
     }
 
     private struct Harness {
+        let fixture: WorkCanonicalCurrentRouteFixtureV1
         let applicationSupportURL: URL
         let session: StoreGenerationSession
         let generationRootURL: URL
@@ -346,153 +361,58 @@ final class S5_4RecheckCNVTests: XCTestCase {
             isDirectory: true
         )
         try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
-        let session = try StoreGenerationFactory(
-            applicationSupportURL: support
-        ).openOrBootstrapCurrent()
-        let context = session.modelContext
         let diagnostics = DiagnosticsStore(applicationSupportURL: support)
-        let siteID = UUID()
-        let assetID = UUID()
-        let issueID = UUID()
-        let openingID = UUID()
-        let workID = UUID()
-        let openingPacketID = UUID()
-        let observedAt = Date(timeIntervalSince1970: 1_780_000_000)
-        let openingCompleted = observedAt.addingTimeInterval(60)
-        let workStarted = openingCompleted.addingTimeInterval(60)
-        let workCompleted = workStarted.addingTimeInterval(30)
-        let recheckObserved = workCompleted.addingTimeInterval(60)
-        let recheckCompleted = recheckObserved.addingTimeInterval(60)
-        let frozen = try TimeContextRule.freeze(
-            observedAtUTC: observedAt,
-            confirmedTimeZoneID: "America/New_York"
-        )
-        context.insert(Site(
-            id: siteID, label: "North Campus", address: "10 Main Street",
-            timeZoneID: "America/New_York", createdAt: observedAt.addingTimeInterval(-120)
-        ))
-        context.insert(Asset(
-            id: assetID, siteID: siteID,
-            packID: pack.packID, packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            label: "Monument Sign", createdAt: observedAt.addingTimeInterval(-100)
-        ))
-        let opening = WorkflowRecord(
-            id: openingID, assetID: assetID, packetID: openingPacketID,
-            issueID: issueID, parentRecordID: nil,
-            recordRevisionRootID: openingID, revisesRecordID: nil,
-            evidenceSourceRecordID: nil, revisionKind: .original,
-            stage: .check, state: .completed, draftStepKey: nil,
-            startedAt: observedAt, completedAt: openingCompleted,
-            observedAtUTC: frozen.observedAtUTC, timeZoneID: frozen.timeZoneID,
-            utcOffsetMinutes: frozen.utcOffsetMinutes,
-            localDate: frozen.localDate, localTime: frozen.localTime,
-            afterDarkAcknowledgementKey: pack.acknowledgements[0].key,
-            afterDarkAcknowledgementCopy: pack.acknowledgements[0].copy,
-            afterDarkAcknowledgementVersion: pack.acknowledgements[0].version,
-            afterDarkAcknowledgementAccepted: true,
-            safePositionAcknowledgementKey: pack.acknowledgements[1].key,
-            safePositionAcknowledgementCopy: pack.acknowledgements[1].copy,
-            safePositionAcknowledgementVersion: pack.acknowledgements[1].version,
-            safePositionAcknowledgementAccepted: true,
-            packID: pack.packID, packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            pdfTemplateID: "field.evidence.pdf.worklight.v1", pdfTemplateVersion: 1,
-            outcomeKey: "visible_issue", couldNotVerifyKey: nil,
-            couldNotVerifyDisplaySnapshot: nil, couldNotVerifyRegistryVersion: nil,
-            workPerformedLocalDate: nil, workDescription: nil, note: nil,
-            finalizationMutationID: UUID()
-        )
-        let work = WorkflowRecord(
-            id: workID, assetID: assetID, packetID: nil, issueID: issueID,
-            parentRecordID: openingID, recordRevisionRootID: workID,
-            revisesRecordID: nil, evidenceSourceRecordID: nil,
-            revisionKind: .original, stage: .work, state: .completed,
-            draftStepKey: nil, startedAt: workStarted, completedAt: workCompleted,
-            observedAtUTC: nil, timeZoneID: nil, utcOffsetMinutes: nil,
-            localDate: nil, localTime: nil,
-            afterDarkAcknowledgementKey: nil, afterDarkAcknowledgementCopy: nil,
-            afterDarkAcknowledgementVersion: nil, afterDarkAcknowledgementAccepted: nil,
-            safePositionAcknowledgementKey: nil, safePositionAcknowledgementCopy: nil,
-            safePositionAcknowledgementVersion: nil, safePositionAcknowledgementAccepted: nil,
-            packID: pack.packID, packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            pdfTemplateID: "field.evidence.pdf.worklight.v1", pdfTemplateVersion: 1,
-            outcomeKey: "work_recorded", couldNotVerifyKey: nil,
-            couldNotVerifyDisplaySnapshot: nil, couldNotVerifyRegistryVersion: nil,
-            workPerformedLocalDate: "2026-08-13",
-            workDescription: "Replaced failed power supply", note: "Work saved.",
-            finalizationMutationID: UUID()
-        )
-        context.insert(opening)
-        context.insert(work)
-        context.insert(Issue(
-            id: issueID, assetID: assetID, openedByRecordID: openingID,
-            labelKey: "dark_section", labelDisplaySnapshot: "Section appears dark",
-            status: .recheckDue, resolvedByRecordID: nil,
-            createdAt: openingCompleted, updatedAt: workCompleted
-        ))
-        context.insert(Packet(
-            id: openingPacketID, stableRootID: UUID(), currentRecordID: openingID,
-            evaluationCounted: true, contentDeletedAt: nil, createdAt: openingCompleted
-        ))
-        context.insert(Report(
-            id: UUID(), packetID: openingPacketID, sourceRecordID: openingID,
-            snapshotSchemaVersion: 1, snapshotRelativePath: "snapshots/opening.json",
-            snapshotSHA256: String(repeating: "a", count: 64), pdfState: .pending,
-            pdfRelativePath: nil, pdfSHA256: nil, createdAt: openingCompleted,
-            replacesReportID: nil
-        ))
-        let store = EvidenceBundleStore(generationRootURL: session.generationRootURL)
-        context.insert(try await makeEvidence(
-            id: UUID(), recordID: openingID, purposeKey: "wide_context",
-            source: try makePNG(width: 80, height: 60, seed: 10),
-            createdAt: observedAt.addingTimeInterval(10), store: store
-        ))
-        context.insert(try await makeEvidence(
-            id: UUID(), recordID: openingID, purposeKey: "close_detail",
-            source: try makePNG(width: 72, height: 72, seed: 20),
-            createdAt: observedAt.addingTimeInterval(20), store: store
-        ))
-        context.insert(try await makeEvidence(
-            id: UUID(), recordID: workID, purposeKey: "work_context",
-            source: try makePNG(width: 88, height: 66, seed: 30),
-            createdAt: workStarted.addingTimeInterval(10), store: store
-        ))
-        try context.save()
-        let runner = CheckRunnerCoordinator(
-            modelContext: context,
-            signPack: pack,
-            diagnosticsStore: diagnostics,
-            finalizationStoreFailureInjection: storeFailure
-        )
-        let draft = try runner.beginOrResumeDraft(BeginDraftSubmission(
-            assetID: assetID, requestedStage: .recheck, issueID: issueID,
-            observedAtUTC: recheckObserved,
-            confirmedTimeZoneID: "America/New_York",
-            afterDarkAccepted: true, safePositionAccepted: true
-        ))
-        if acceptsWide {
-            context.insert(try await makeEvidence(
-                id: UUID(), recordID: draft.id, purposeKey: "wide_context",
-                source: try makePNG(width: 96, height: 72, seed: 40),
-                createdAt: recheckObserved.addingTimeInterval(10), store: store
-            ))
-        }
-        draft.draftStepKey = WorkflowDraftStep.outcome.rawValue
-        try context.save()
-        runner.configureCapture(generationRootURL: session.generationRootURL)
-        return Harness(
+        let fixture = try await WorkCanonicalCurrentRouteFixtureV1.make(
             applicationSupportURL: support,
-            session: session,
-            generationRootURL: session.generationRootURL,
-            context: context, runner: runner, diagnostics: diagnostics,
-            assetID: assetID, issueID: issueID,
-            openingRecordID: openingID, workRecordID: workID,
-            completedAt: recheckCompleted
+            pack: pack,
+            workPhotoData: try makePNG(width: 88, height: 66, seed: 30)
         )
+        do {
+            let runner = try CheckRunnerCoordinator(
+                modelContext: fixture.context,
+                packageLifecycleDependencies: fixture.lifecycleDependencies,
+                packageLifecycleProfile: fixture.lifecycleProfile,
+                diagnosticsStore: diagnostics,
+                finalizationStoreFailureInjection: storeFailure
+            )
+            try runner.requestRecheck(assetID: fixture.assetID, issueID: fixture.issueID)
+            let recheckObserved = fixture.workSubmission.completedAt.addingTimeInterval(60)
+            _ = try runner.beginCheck(
+                assetID: fixture.assetID,
+                timeZoneID: "America/New_York",
+                isTimeZoneConfirmed: true,
+                afterDarkAccepted: true,
+                safePositionAccepted: true,
+                observedAt: recheckObserved
+            )
+            runner.configureCapture(generationRootURL: fixture.session.generationRootURL)
+            if acceptsWide {
+                let wide = try await runner.importCandidate(
+                    assetID: fixture.assetID,
+                    sourceData: try makePNG(width: 96, height: 72, seed: 40),
+                    createdAt: recheckObserved.addingTimeInterval(10)
+                )
+                _ = try await runner.accept(candidate: wide, assetID: fixture.assetID)
+            }
+            return Harness(
+                fixture: fixture,
+                applicationSupportURL: support,
+                session: fixture.session,
+                generationRootURL: fixture.session.generationRootURL,
+                context: fixture.context,
+                runner: runner,
+                diagnostics: diagnostics,
+                assetID: fixture.assetID,
+                issueID: fixture.issueID,
+                openingRecordID: fixture.openingRecordID,
+                workRecordID: fixture.workRecordID,
+                completedAt: recheckObserved.addingTimeInterval(60)
+            )
+        } catch {
+            try? fixture.close()
+            throw error
+        }
     }
-
     @MainActor
     private func makeEvidence(
         id: UUID,

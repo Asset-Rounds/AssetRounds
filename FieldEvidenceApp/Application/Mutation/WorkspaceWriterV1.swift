@@ -338,6 +338,74 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return envelope
     }
 
+    func prepareWorkEnvelope(_ authority: WorkWriterAuthorityV1) throws -> MutationEnvelopeV1 {
+        try authority.validate()
+        guard isActive, journalStore != nil,
+              authority.workspaceID == identity.workspaceID,
+              authority.generationID == generationID else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let command = WorkspaceCommandV1.recordWork(.init(
+            workMutationID: authority.mutationID.rawValue, assetID: authority.draftBefore.assetID,
+            issueID: authority.issueBefore.id, recordID: authority.draftBefore.id,
+            evidenceIDs: authority.evidenceInsert.map { [$0.id] } ?? [],
+            semanticDigest: try authority.semanticSHA256(), writerAuthority: authority
+        ))
+        let expected = authority.expectedRevision
+        let request = WorkspaceMutationRequestV1(mutationID: authority.mutationID,
+            expectedRevision: try .init(workspaceID: expected.workspaceID, generationID: expected.generationID,
+                writerInstanceID: writerInstanceID, workspaceRevision: expected.workspaceRevision,
+                entityRevisions: expected.entityRevisions), command: command)
+        let envelope = try MutationEnvelopeV1(request: request, identity: identity,
+                                             contentDependencyIDs: authority.contentDigests)
+        try authority.validate(envelope: envelope)
+        return envelope
+    }
+
+    func workEnvelope(mutationID: MutationIDV1) throws -> MutationEnvelopeV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        try journalStore.validateAll()
+        guard let envelope = try journalStore.workEnvelope(mutationID: mutationID) else { return nil }
+        guard envelope.workspaceID == identity.workspaceID, envelope.generationID == generationID,
+              case let .recordWork(value) = envelope.command else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try value.writerAuthority?.validate(envelope: envelope)
+        return envelope
+    }
+
+    func workCommitReceipt(envelope: MutationEnvelopeV1) throws -> MutationReceiptV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        try journalStore.validateAll()
+        guard envelope.workspaceID == identity.workspaceID, envelope.replicaID == identity.replicaID,
+              envelope.generationID == generationID, case let .recordWork(value) = envelope.command,
+              let authority = value.writerAuthority else { throw WorkspaceMutationFailureV1.invalidCommand }
+        try authority.validate(envelope: envelope)
+        return try journalStore.resolveReplay(envelope: envelope, detectedAt: clock.now())
+    }
+
+    func commitWork(envelope: MutationEnvelopeV1) throws -> MutationReceiptV1 {
+        if let existing = try workCommitReceipt(envelope: envelope) { return existing }
+        guard case let .recordWork(value) = envelope.command,
+              let authority = value.writerAuthority, envelope.sourceKind == .localUser else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let request = try runtimeRequest(envelope)
+        let reconstructed = try MutationEnvelopeV1(request: request, identity: identity,
+            sourceKind: envelope.sourceKind, contentDependencyIDs: envelope.contentDependencyIDs,
+            correlationID: envelope.correlationID)
+        guard try reconstructed.canonicalData() == envelope.canonicalData() else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        _ = try executeInternal(request, reversalPlan: nil, semanticReversalExecution: nil,
+            semanticReversalReplayIdentitySHA256: nil, sourceKind: .localUser,
+            contentDependencyIDs: authority.contentDigests, correlationID: envelope.correlationID)
+        guard let receipt = try workCommitReceipt(envelope: envelope) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return receipt
+    }
+
     func reportPDFTransitionReceipt(for command: ReportPDFTransitionMutationV1) throws -> MutationReceiptV1? {
         try command.validate()
         guard isActive, let journalStore,
@@ -1294,6 +1362,15 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             throw WorkspaceMutationFailureV1.invalidReversal
         }
         switch request.command {
+        case let .recordWork(value) where value.writerAuthority != nil:
+            guard let authority = value.writerAuthority else { throw WorkspaceMutationFailureV1.invalidCommand }
+            try authority.validate(command: request.command)
+            guard authority.mutationID == request.mutationID,
+                  authority.workspaceID == identity.workspaceID, authority.generationID == generationID,
+                  authority.expectedRevision == (try MutationPortableExpectedRevisionV1(request.expectedRevision)),
+                  contentDependencyIDs == authority.contentDigests else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         case let .transitionReportPDF(value):
             try value.validate()
             guard value.mutationID == request.mutationID,
@@ -1660,6 +1737,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                   authority.payload.workflowRecordAfter.finalizationMutationID == request.mutationID.rawValue,
                   journalStore != nil else { throw WorkspaceMutationFailureV1.invalidCommand }
         }
+        if case let .recordWork(value) = request.command {
+            guard let authority = value.writerAuthority, journalStore != nil, envelope.sourceKind == .localUser else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try authority.validate(envelope: envelope)
+        }
         if case let .applyReinspectionException(command) = request.command {
             // Durable replay returns above. Every first-seen C12 route,
             // including generic execution and validated import, must retain
@@ -1758,6 +1841,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             switch request.command {
             case let .finalizeCheck(value): protectsCommittedHeldValues = value.writerAuthority != nil
             case let .finalizeCorrection(value): protectsCommittedHeldValues = value.writerAuthority != nil
+            case let .recordWork(value): protectsCommittedHeldValues = value.writerAuthority != nil
             case .transitionReportPDF: protectsCommittedHeldValues = true
             default: protectsCommittedHeldValues = false
             }
@@ -2322,6 +2406,11 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
 
     static func affectedIdentities(for command: WorkspaceCommandV1) throws -> [WorkspaceEntityIdentityV1] {
         switch command {
+        case let .recordWork(value):
+            if let authority = value.writerAuthority {
+                try authority.validate(command: command)
+                return try authority.affectedIdentities
+            }
         case let .finalizeCheck(value):
             if let authority = value.writerAuthority {
                 try authority.validate(command: command)
@@ -2444,6 +2533,11 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         case let .recordWork(value):
             try requireOperationID(value.workMutationID)
             try requireDigest(value.semanticDigest)
+            if let authority = value.writerAuthority {
+                try authority.validate(command: command)
+                values = try authority.concurrencyIdentities
+                break
+            }
             guard value.evidenceIDs.count <= 256,
                   Set(value.evidenceIDs).count == value.evidenceIDs.count else {
                 throw WorkspaceMutationFailureV1.invalidCommand

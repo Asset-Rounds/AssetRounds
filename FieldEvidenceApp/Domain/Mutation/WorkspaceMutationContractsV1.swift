@@ -511,6 +511,195 @@ struct RecordWorkMutationV1: Codable, Equatable, Sendable {
     let recordID: UUID
     let evidenceIDs: [UUID]
     let semanticDigest: String
+    var writerAuthority: WorkWriterAuthorityV1? = nil
+}
+
+/// The incumbent WorkRule remains the only source of the record/issue delta.
+/// This portable submission binds its inputs without changing that rule's API.
+struct WorkWriterSubmissionV1: Codable, Equatable, Sendable {
+    let performedLocalDate: String
+    let description: String
+    let note: String?
+    let completedAt: Date
+    let evidencePurposeKeys: [String]
+
+    func ruleSubmission(mutationID: MutationIDV1) -> WorkRuleSubmission {
+        .init(performedLocalDate: performedLocalDate, description: description,
+              note: note, completedAt: completedAt, mutationID: mutationID.rawValue,
+              evidencePurposeKeys: evidencePurposeKeys)
+    }
+}
+
+struct WorkEvidencePayloadV1: Codable, Equatable, Sendable {
+    let id: UUID
+    let schemaVersion: Int
+    let recordID: UUID
+    let purposeKey: String
+    let relativePath: String
+    let mimeType: String
+    let byteCount: Int
+    let sha256: String
+    let createdAt: Date
+    let thumbnailRelativePath: String
+    let thumbnailByteCount: Int
+    let thumbnailSHA256: String
+
+    func validate(record: WorkflowRecordPayloadV1) throws {
+        _ = try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: id)
+        let key = id.uuidString.lowercased()
+        guard schemaVersion == 1, recordID == record.id, purposeKey == "work_context",
+              mimeType == "image/jpeg", relativePath == "evidence/\(key)/original.jpg",
+              thumbnailRelativePath == "evidence/\(key)/thumbnail.jpg",
+              byteCount > 0, thumbnailByteCount > 0,
+              MutationEnvelopeV1.isSHA256(sha256), MutationEnvelopeV1.isSHA256(thumbnailSHA256),
+              createdAt >= record.startedAt,
+              record.completedAt.map({ createdAt <= $0 }) == true else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+}
+
+struct WorkRecordSourceBindingV1: Codable, Equatable, Sendable {
+    let recordID: UUID
+    let observationBasisV1Data: Data
+    let temporalContextV1Data: Data
+    let requirementAssurance: RequirementAssuranceSnapshotV1?
+
+    func validate(workspaceID: WorkspaceID, record: WorkflowRecordPayloadV1) throws {
+        let observation = try ObservationAndTimeCodecV1.decodeObservationBasis(observationBasisV1Data)
+        let temporal = try ObservationAndTimeCodecV1.decodeTemporalContext(temporalContextV1Data)
+        guard recordID == record.id,
+              try ObservationAndTimeCodecV1.encode(observation) == observationBasisV1Data,
+              try ObservationAndTimeCodecV1.encode(temporal) == temporalContextV1Data,
+              record.observationBasisV1Data.map({ $0 == observationBasisV1Data }) ?? true,
+              record.temporalContextV1Data.map({ $0 == temporalContextV1Data }) ?? true else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        if let requirementAssurance {
+            try requirementAssurance.validate()
+            guard requirementAssurance.workspaceID == workspaceID.rawValue,
+                  requirementAssurance.workflowRecordID == recordID else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+    }
+}
+
+struct WorkWriterAuthorityV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let generationID: UUID
+    let mutationID: MutationIDV1
+    let expectedRevision: MutationPortableExpectedRevisionV1
+    let packageRelease: PackageReleaseIdentityV1
+    let draftBefore: WorkflowRecordPayloadV1
+    let issueBefore: IssuePayloadV1
+    let parentBefore: WorkflowRecordPayloadV1
+    let sourceBindings: [WorkRecordSourceBindingV1]
+    let submission: WorkWriterSubmissionV1
+    let recordAfter: WorkflowRecordPayloadV1
+    let issueAfter: IssuePayloadV1
+    let evidenceInsert: WorkEvidencePayloadV1?
+
+    var affectedIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            var values = try [WorkspaceEntityIdentityV1(kind: .workflowRecord, id: recordAfter.id),
+                              WorkspaceEntityIdentityV1(kind: .issue, id: issueAfter.id)]
+            if let evidenceInsert { values.append(try .init(kind: .evidenceFile, id: evidenceInsert.id)) }
+            return values.sorted { $0.stableKey < $1.stableKey }
+        }
+    }
+
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            var values = try affectedIdentities
+            values.append(try .init(kind: .asset, id: draftBefore.assetID))
+            values.append(try .init(kind: .workflowRecord, id: parentBefore.id))
+            guard Set(values).count == values.count else { throw WorkspaceMutationFailureV1.invalidCommand }
+            return values.sorted { $0.stableKey < $1.stableKey }
+        }
+    }
+
+    var contentDigests: [String] {
+        evidenceInsert.map { Array(Set([$0.sha256, $0.thumbnailSHA256])).sorted() } ?? []
+    }
+
+    func semanticSHA256() throws -> String { try WorkspaceMutationCanonicalV1.sha256(self) }
+
+    func validate() throws {
+        try expectedRevision.validate()
+        _ = try MutationIDV1(rawValue: workspaceID.rawValue)
+        _ = try MutationIDV1(rawValue: generationID)
+        _ = try MutationIDV1(rawValue: mutationID.rawValue)
+        _ = try PackageReleaseIdentityV1(packageID: packageRelease.packageID,
+                                        schemaVersion: packageRelease.schemaVersion,
+                                        contentVersion: packageRelease.contentVersion)
+        let plan = try WorkRule.makePlan(draft: draftBefore, issue: issueBefore, parent: parentBefore,
+                                        submission: submission.ruleSubmission(mutationID: mutationID))
+        guard expectedRevision.workspaceID == workspaceID, expectedRevision.generationID == generationID,
+              expectedRevision.entityRevisions.map(\.identity) == (try concurrencyIdentities),
+              plan.recordAfter == recordAfter, plan.issueAfter == issueAfter,
+              packageRelease.packageID == draftBefore.packID,
+              packageRelease.schemaVersion == draftBefore.packSchemaVersion,
+              packageRelease.contentVersion == draftBefore.packContentVersion,
+              sourceBindings.map(\.recordID) == [draftBefore.id, parentBefore.id].sorted(by: {
+                  $0.uuidString.lowercased() < $1.uuidString.lowercased()
+              }),
+              draftBefore.id != parentBefore.id,
+              submission.evidencePurposeKeys == (evidenceInsert == nil ? [] : ["work_context"]) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        for binding in sourceBindings {
+            try binding.validate(workspaceID: workspaceID,
+                                 record: binding.recordID == draftBefore.id ? draftBefore : parentBefore)
+        }
+        if let evidenceInsert {
+            try evidenceInsert.validate(record: recordAfter)
+            let identity = try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: evidenceInsert.id)
+            guard expectedRevision.entityRevisions.first(where: { $0.identity == identity })?.revision == 0 else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+    }
+
+    func validate(command: WorkspaceCommandV1) throws {
+        try validate()
+        guard case let .recordWork(value) = command,
+              value.writerAuthority == self, value.workMutationID == mutationID.rawValue,
+              value.assetID == draftBefore.assetID, value.issueID == issueBefore.id,
+              value.recordID == draftBefore.id,
+              value.evidenceIDs == (evidenceInsert.map({ [$0.id] }) ?? []),
+              value.semanticDigest == (try semanticSHA256()) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    func validate(envelope: MutationEnvelopeV1) throws {
+        try validate(command: envelope.command)
+        guard envelope.workspaceID == workspaceID, envelope.generationID == generationID,
+              envelope.mutationID == mutationID, envelope.expectedRevision == expectedRevision,
+              envelope.contentDependencyIDs == contentDigests else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+}
+
+extension RecordWorkMutationV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case workMutationID, assetID, issueID, recordID, evidenceIDs, semanticDigest, writerAuthority
+    }
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        workMutationID = try values.decode(UUID.self, forKey: .workMutationID)
+        assetID = try values.decode(UUID.self, forKey: .assetID)
+        issueID = try values.decode(UUID.self, forKey: .issueID)
+        recordID = try values.decode(UUID.self, forKey: .recordID)
+        evidenceIDs = try values.decode([UUID].self, forKey: .evidenceIDs)
+        semanticDigest = try values.decode(String.self, forKey: .semanticDigest)
+        writerAuthority = values.contains(.writerAuthority)
+            ? try values.decode(WorkWriterAuthorityV1.self, forKey: .writerAuthority) : nil
+        if let writerAuthority { try writerAuthority.validate(command: .recordWork(self)) }
+    }
 }
 
 enum ReportPDFTransitionV1: Codable, Equatable, Sendable {
@@ -524,6 +713,81 @@ enum ReportPDFTransitionV1: Codable, Equatable, Sendable {
         case .pendingToFailed: "pending_to_failed"
         case .failedToPending: "failed_to_pending"
         }
+    }
+}
+
+extension WorkWriterSubmissionV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case performedLocalDate, description, note, completedAt, evidencePurposeKeys
+    }
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        performedLocalDate = try values.decode(String.self, forKey: .performedLocalDate)
+        description = try values.decode(String.self, forKey: .description)
+        note = values.contains(.note) ? try values.decode(String.self, forKey: .note) : nil
+        completedAt = try values.decode(Date.self, forKey: .completedAt)
+        evidencePurposeKeys = try values.decode([String].self, forKey: .evidencePurposeKeys)
+    }
+}
+
+extension WorkEvidencePayloadV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case id, schemaVersion, recordID, purposeKey, relativePath, mimeType, byteCount, sha256, createdAt, thumbnailRelativePath, thumbnailByteCount, thumbnailSHA256
+    }
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        recordID = try values.decode(UUID.self, forKey: .recordID)
+        purposeKey = try values.decode(String.self, forKey: .purposeKey)
+        relativePath = try values.decode(String.self, forKey: .relativePath)
+        mimeType = try values.decode(String.self, forKey: .mimeType)
+        byteCount = try values.decode(Int.self, forKey: .byteCount)
+        sha256 = try values.decode(String.self, forKey: .sha256)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        thumbnailRelativePath = try values.decode(String.self, forKey: .thumbnailRelativePath)
+        thumbnailByteCount = try values.decode(Int.self, forKey: .thumbnailByteCount)
+        thumbnailSHA256 = try values.decode(String.self, forKey: .thumbnailSHA256)
+    }
+}
+
+extension WorkRecordSourceBindingV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case recordID, observationBasisV1Data, temporalContextV1Data, requirementAssurance
+    }
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        recordID = try values.decode(UUID.self, forKey: .recordID)
+        observationBasisV1Data = try values.decode(Data.self, forKey: .observationBasisV1Data)
+        temporalContextV1Data = try values.decode(Data.self, forKey: .temporalContextV1Data)
+        requirementAssurance = values.contains(.requirementAssurance) ? try values.decode(RequirementAssuranceSnapshotV1.self, forKey: .requirementAssurance) : nil
+    }
+}
+
+extension WorkWriterAuthorityV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case workspaceID, generationID, mutationID, expectedRevision, packageRelease, draftBefore, issueBefore, parentBefore, sourceBindings, submission, recordAfter, issueAfter, evidenceInsert
+    }
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        workspaceID = try values.decode(WorkspaceID.self, forKey: .workspaceID)
+        generationID = try values.decode(UUID.self, forKey: .generationID)
+        mutationID = try values.decode(MutationIDV1.self, forKey: .mutationID)
+        expectedRevision = try values.decode(MutationPortableExpectedRevisionV1.self, forKey: .expectedRevision)
+        packageRelease = try values.decode(PackageReleaseIdentityV1.self, forKey: .packageRelease)
+        draftBefore = try values.decode(WorkflowRecordPayloadV1.self, forKey: .draftBefore)
+        issueBefore = try values.decode(IssuePayloadV1.self, forKey: .issueBefore)
+        parentBefore = try values.decode(WorkflowRecordPayloadV1.self, forKey: .parentBefore)
+        sourceBindings = try values.decode([WorkRecordSourceBindingV1].self, forKey: .sourceBindings)
+        submission = try values.decode(WorkWriterSubmissionV1.self, forKey: .submission)
+        recordAfter = try values.decode(WorkflowRecordPayloadV1.self, forKey: .recordAfter)
+        issueAfter = try values.decode(IssuePayloadV1.self, forKey: .issueAfter)
+        evidenceInsert = values.contains(.evidenceInsert) ? try values.decode(WorkEvidencePayloadV1.self, forKey: .evidenceInsert) : nil
+        try validate()
     }
 }
 

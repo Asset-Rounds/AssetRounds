@@ -202,6 +202,7 @@ final class ProductionCompositionRoot {
             signPack: signPack,
             generationRootURL: lifecycle.generationRootURL,
             checkRunnerCoordinator: checkRunner,
+            lifecycleDependencies: lifecycle,
             storagePreflight: storagePreflight
         )
         let deletion = WholeSignDeletionService(

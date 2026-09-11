@@ -1347,6 +1347,7 @@ final class MutationJournalStoreV1 {
         let generatedSemanticReversal: SemanticReversalReceiptV1?
         try Self.validateFinalizationReceipt(receipt, envelope: envelope)
         try Self.validateReportPDFReceipt(receipt, envelope: envelope)
+        try Self.validateWorkReceipt(receipt, envelope: envelope)
         if let execution = semanticReversalExecution {
             generatedSemanticReversal = try SemanticReversalReceiptV1(
                 reversalReceiptIdentity: receipt.identity,
@@ -1461,6 +1462,30 @@ final class MutationJournalStoreV1 {
         case .finalizeCheck, .finalizeCorrection: return envelope
         default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+    }
+
+    /// Work replay and cleanup require the original typed command, not a
+    /// receipt for an unrelated mutation. The writer validates the full journal
+    /// before using trustworthy absence as file-cleanup authority.
+    func workEnvelope(mutationID: MutationIDV1) throws -> MutationEnvelopeV1? {
+        try validateCurrentWriterLease()
+        let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: mutationID)
+        guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        )).isEmpty else {
+            throw WorkspaceMutationFailureV1.mutationIDQuarantined
+        }
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        ))
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard let row = rows.first else { return nil }
+        _ = try validate(row: row, expectedEnvelope: nil)
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+        guard case .recordWork = envelope.command else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return envelope
     }
 
     /// Reconstructs the exact C48 wrapper from the canonical envelope and
@@ -3207,6 +3232,7 @@ final class MutationJournalStoreV1 {
             let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
             try validateFinalizationReceipt(receipt, envelope: envelope)
             try validateReportPDFReceipt(receipt, envelope: envelope)
+            try validateWorkReceipt(receipt, envelope: envelope)
             guard sourcePersistentSchemaVersion.map({
                       minimumPersistentSchemaVersion(for: envelope.command) <= $0
                   }) ?? true,
@@ -3671,6 +3697,8 @@ final class MutationJournalStoreV1 {
             return PersistentSchemaV53.versionIdentifier.major
         case let .finalizeCorrection(value) where value.writerAuthority != nil:
             return PersistentSchemaV53.versionIdentifier.major
+        case let .recordWork(value) where value.writerAuthority != nil:
+            return PersistentSchemaV53.versionIdentifier.major
         default:
             return minimumRelease(for: command.kind)
         }
@@ -3683,6 +3711,8 @@ final class MutationJournalStoreV1 {
         case let .finalizeCheck(value):
             try value.writerAuthority?.validate(envelope: envelope)
         case let .finalizeCorrection(value):
+            try value.writerAuthority?.validate(envelope: envelope)
+        case let .recordWork(value):
             try value.writerAuthority?.validate(envelope: envelope)
         case let .transitionReportPDF(value):
             try value.validate()
@@ -3841,6 +3871,123 @@ final class MutationJournalStoreV1 {
         }
         let ordered = try images.sorted { try $0.identity.stableKey < $1.identity.stableKey }
         guard receipt.postImages == ordered else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+    }
+
+    nonisolated private static func validateWorkReceipt(
+        _ receipt: MutationReceiptV1, envelope: MutationEnvelopeV1
+    ) throws {
+        guard case let .recordWork(command) = envelope.command,
+              let authority = command.writerAuthority else { return }
+        try authority.validate(envelope: envelope)
+        let expected = Dictionary(uniqueKeysWithValues: envelope.expectedRevision.entityRevisions.map {
+            ($0.identity, $0.revision)
+        })
+        let required = Set(try authority.concurrencyIdentities)
+        let changed = Set(try authority.affectedIdentities)
+        guard receipt.expectedRevision == envelope.expectedRevision,
+              receipt.commandBodySHA256 == envelope.commandBodySHA256,
+              receipt.sourceKind == envelope.sourceKind,
+              Set(expected.keys) == required,
+              changed.isSubset(of: required) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let evidence = authority.evidenceInsert {
+            let identity = try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: evidence.id)
+            guard expected[identity] == 0 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        // Existing draft/issue/source rows can legitimately have baseline zero.
+        // The receipt advances only the changed rows, retaining all source locks.
+        for identity in required.subtracting(changed) {
+            guard let before = expected[identity],
+                  receipt.resultingRevision.entityRevisions.filter({ $0.identity == identity })
+                    == [WorkspaceEntityRevisionV1(identity: identity, revision: before)] else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        var images: [MutationPostImageV1] = []
+        func append<Value: Codable>(_ kind: WorkspaceEntityKindV1, _ id: UUID, _ value: Value) throws {
+            let identity = try WorkspaceEntityIdentityV1(kind: kind, id: id)
+            guard changed.contains(identity), let before = expected[identity], before < UInt64.max else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let revision = before + 1
+            guard receipt.resultingRevision.entityRevisions.filter({ $0.identity == identity })
+                    == [WorkspaceEntityRevisionV1(identity: identity, revision: revision)] else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let digest = try WorkspaceMutationCanonicalV1.sha256(
+                PersistedPostImageDigestBasis(identity: identity, revision: revision, value: value)
+            )
+            switch kind {
+            case .workflowRecord: images.append(.workflowRecord(id: id, revision: revision, semanticSHA256: digest))
+            case .issue: images.append(.issue(id: id, revision: revision, semanticSHA256: digest))
+            case .evidenceFile: images.append(.evidenceFile(id: id, revision: revision, semanticSHA256: digest))
+            default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        let record = authority.recordAfter
+        let bindings = authority.sourceBindings.filter { $0.recordID == record.id }
+        guard bindings.count == 1, let source = bindings.first else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let workflowDTO = V4BackupWorkflowRecordDTO(
+            id: record.id, schemaVersion: record.schemaVersion, assetID: record.assetID,
+            packetID: record.packetID, issueID: record.issueID, parentRecordID: record.parentRecordID,
+            recordRevisionRootID: record.recordRevisionRootID, revisesRecordID: record.revisesRecordID,
+            evidenceSourceRecordID: record.evidenceSourceRecordID, revisionKind: record.revisionKind,
+            stage: record.stage, state: record.state, draftStepKey: record.draftStepKey,
+            startedAt: record.startedAt, completedAt: record.completedAt,
+            observedAtUTC: record.observedAtUTC, timeZoneID: record.timeZoneID,
+            utcOffsetMinutes: record.utcOffsetMinutes, localDate: record.localDate,
+            localTime: record.localTime,
+            afterDarkAcknowledgementKey: record.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: record.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: record.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: record.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: record.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: record.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: record.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: record.safePositionAcknowledgementAccepted,
+            packID: record.packID, packSchemaVersion: record.packSchemaVersion,
+            packContentVersion: record.packContentVersion, pdfTemplateID: record.pdfTemplateID,
+            pdfTemplateVersion: record.pdfTemplateVersion, outcomeKey: record.outcomeKey,
+            couldNotVerifyKey: record.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: record.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: record.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: record.workPerformedLocalDate,
+            workDescription: record.workDescription, note: record.note,
+            finalizationMutationID: record.finalizationMutationID
+        ).replacingObservationAndTime(
+            basisData: source.observationBasisV1Data,
+            temporalData: source.temporalContextV1Data
+        )
+        try append(.workflowRecord, record.id, WorkflowRecordPostImageV8(
+            record: workflowDTO, requirementAssurance: source.requirementAssurance
+        ))
+        let issue = authority.issueAfter
+        try append(.issue, issue.id, V4BackupIssueDTO(
+            id: issue.id, schemaVersion: issue.schemaVersion, assetID: issue.assetID,
+            openedByRecordID: issue.openedByRecordID, labelKey: issue.labelKey,
+            labelDisplaySnapshot: issue.labelDisplaySnapshot, status: issue.status,
+            resolvedByRecordID: issue.resolvedByRecordID, createdAt: issue.createdAt,
+            updatedAt: issue.updatedAt
+        ))
+        if let evidence = authority.evidenceInsert {
+            try append(.evidenceFile, evidence.id, V4BackupEvidenceFileDTO(
+                id: evidence.id, schemaVersion: evidence.schemaVersion, recordID: evidence.recordID,
+                purposeKey: evidence.purposeKey, relativePath: evidence.relativePath,
+                mimeType: evidence.mimeType, byteCount: evidence.byteCount, sha256: evidence.sha256,
+                createdAt: evidence.createdAt, thumbnailRelativePath: evidence.thumbnailRelativePath,
+                thumbnailByteCount: evidence.thumbnailByteCount, thumbnailSHA256: evidence.thumbnailSHA256
+            ))
+        }
+        let ordered = try images.sorted { try $0.identity.stableKey < $1.identity.stableKey }
+        guard receipt.postImages == ordered,
+              Set(try images.map { try $0.identity }) == changed else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
     }
@@ -4110,6 +4257,7 @@ final class MutationJournalStoreV1 {
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
         try Self.validateFinalizationReceipt(receipt, envelope: envelope)
         try Self.validateReportPDFReceipt(receipt, envelope: envelope)
+        try Self.validateWorkReceipt(receipt, envelope: envelope)
         let receiptIdentities = receipt.expectedRevision.entityRevisions.map(\.identity)
             + receipt.resultingRevision.entityRevisions.map(\.identity)
             + (try receipt.postImages.flatMap { try Self.terminalStateIdentities(for: $0) })

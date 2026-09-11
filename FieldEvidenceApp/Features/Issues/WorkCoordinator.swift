@@ -65,13 +65,17 @@ enum WorkCoordinatorFailurePoint: Equatable, Sendable {
 @MainActor
 final class WorkCoordinatorFailureInjection {
     private var pending: WorkCoordinatorFailurePoint?
+    private var afterEvidencePromotionHook: (@MainActor () async throws -> Void)?
 
-    init(failOnceAt point: WorkCoordinatorFailurePoint) {
+    init(failOnceAt point: WorkCoordinatorFailurePoint? = nil,
+         afterEvidencePromotion: (@MainActor () async throws -> Void)? = nil) {
         pending = point
+        afterEvidencePromotionHook = afterEvidencePromotion
     }
 
     func removeFailure() {
         pending = nil
+        afterEvidencePromotionHook = nil
     }
 
     fileprivate func consume(_ point: WorkCoordinatorFailurePoint) -> Bool {
@@ -79,18 +83,16 @@ final class WorkCoordinatorFailureInjection {
         pending = nil
         return true
     }
+
+    fileprivate func reachAfterEvidencePromotion() async throws {
+        guard let hook = afterEvidencePromotionHook else { return }
+        afterEvidencePromotionHook = nil
+        try await hook()
+    }
 }
 
 @MainActor
 final class WorkCoordinator {
-    private static let pdfTemplateID = "field.evidence.pdf.worklight.v1"
-    private static let recheckOutcomes: Set<String> = [
-        "resolved",
-        "issue_still_visible",
-        "original_resolved_different_issue",
-        "could_not_verify",
-    ]
-
     private let modelContext: ModelContext
     private let signPack: SignPack
     private let generationRootURL: URL
@@ -99,21 +101,17 @@ final class WorkCoordinator {
     private let evidenceStore: EvidenceBundleStore
     private let storagePreflight: StoragePreflightService
     private let failureInjection: WorkCoordinatorFailureInjection?
+    private let lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1?
+    private var isSaving = false
 
-    private struct Authority {
-        let asset: Asset
-        let issue: Issue
-        let draft: WorkflowRecord?
-        let parent: WorkflowRecord
-        let substantiveChain: [WorkflowRecord]
-        let evidence: [EvidenceFile]
-    }
+    private typealias Authority = WorkAuthorityReaderV1.Authority
 
     init(
         modelContext: ModelContext,
         signPack: SignPack,
         generationRootURL: URL,
         checkRunnerCoordinator: CheckRunnerCoordinator,
+        lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1? = nil,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         evidenceStoreFailureInjection: EvidenceBundleStoreFailureInjection? = nil,
         failureInjection: WorkCoordinatorFailureInjection? = nil
@@ -124,6 +122,7 @@ final class WorkCoordinator {
         self.generationRootURL = root
         self.rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
         self.checkRunnerCoordinator = checkRunnerCoordinator
+        self.lifecycleDependencies = lifecycleDependencies
         self.evidenceStore = EvidenceBundleStore(
             generationRootURL: root,
             failureInjection: evidenceStoreFailureInjection
@@ -157,6 +156,7 @@ final class WorkCoordinator {
     }
 
     func beginWork(issueID: UUID) throws -> WorkDraftValue {
+        _ = try requireLiveDependencies()
         try requireCleanContext()
         let authority = try validatedAuthority(issueID: issueID, draftID: nil)
         guard authority.issue.status == IssueStatus.open.rawValue else {
@@ -198,14 +198,20 @@ final class WorkCoordinator {
         submission: WorkSaveSubmission,
         identifiers suppliedIdentifiers: WorkIdentifiers? = nil
     ) async throws -> WorkIssuePresentationValue {
+        guard !isSaving else { throw WorkCoordinatorError.invalidAuthority }
+        isSaving = true
+        defer { isSaving = false }
+        let dependencies = try requireLiveDependencies()
+        let writer = dependencies.writer
         try requireCleanContext()
         try requireRootIdentity()
 
-        let identifiers = suppliedIdentifiers ?? WorkIdentifiers(
-            mutationID: UUID(),
-            evidenceID: submission.photos.isEmpty ? nil : UUID()
+        let identifiers = try suppliedIdentifiers ?? WorkIdentifiers(
+            mutationID: writer.makeMutationID().rawValue,
+            evidenceID: submission.photos.isEmpty ? nil : dependencies.idSource.makeID()
         )
-        guard (submission.photos.count == 1) == (identifiers.evidenceID != nil) else {
+        guard submission.photos.count <= 1,
+              (submission.photos.count == 1) == (identifiers.evidenceID != nil) else {
             throw WorkCoordinatorError.invalidSubmission
         }
 
@@ -246,6 +252,65 @@ final class WorkCoordinator {
             throw WorkCoordinatorError.invalidAuthority
         }
 
+        // Freeze scalar source and concurrency authority before the first await.
+        let draftBefore = payload(draft)
+        let issueBefore = payload(authority.issue)
+        let parentBefore = payload(authority.parent)
+        let sourceBindings = try [draftBefore.id, parentBefore.id]
+            .sorted { $0.uuidString.lowercased() < $1.uuidString.lowercased() }
+            .map { try authorityReader.sourceBinding(recordID: $0) }
+        let initialRevision = try writer.currentRevision()
+        var locks = try [WorkspaceEntityIdentityV1(kind: .asset, id: draftBefore.assetID),
+                         WorkspaceEntityIdentityV1(kind: .issue, id: issueBefore.id),
+                         WorkspaceEntityIdentityV1(kind: .workflowRecord, id: draftBefore.id),
+                         WorkspaceEntityIdentityV1(kind: .workflowRecord, id: parentBefore.id)]
+        if let evidenceID = identifiers.evidenceID {
+            guard !authority.evidence.contains(where: { $0.id == evidenceID }) else {
+                throw WorkCoordinatorError.invalidAuthority
+            }
+            locks.append(try .init(kind: .evidenceFile, id: evidenceID))
+        }
+        let revisions = Dictionary(uniqueKeysWithValues: initialRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: initialRevision.workspaceID,
+            generationID: initialRevision.generationID, writerInstanceID: initialRevision.writerInstanceID,
+            workspaceRevision: initialRevision.revision,
+            entityRevisions: locks.map { .init(identity: $0, revision: revisions[$0, default: 0]) })
+        func revalidateSource() throws {
+            try requireCleanContext()
+            _ = try requireLiveDependencies()
+            guard try writer.currentRevision() == initialRevision,
+                  try writer.workEnvelope(mutationID: MutationIDV1(rawValue: identifiers.mutationID)) == nil else {
+                throw WorkCoordinatorError.invalidAuthority
+            }
+            let current = try authorityForDraft(draftID)
+            guard let currentDraft = current.draft,
+                  payload(currentDraft) == draftBefore, payload(current.issue) == issueBefore,
+                  payload(current.parent) == parentBefore,
+                  try WorkRule.makePlan(draft: draftBefore, issue: issueBefore,
+                      parent: parentBefore, submission: ruleSubmission) == plan else {
+                throw WorkCoordinatorError.invalidAuthority
+            }
+            for binding in sourceBindings {
+                guard try authorityReader.sourceBinding(recordID: binding.recordID) == binding else {
+                    throw WorkCoordinatorError.invalidAuthority
+                }
+            }
+        }
+        func requireUncommitted() throws {
+            try requireCleanContext()
+            _ = try requireLiveDependencies()
+            guard try writer.workEnvelope(mutationID: MutationIDV1(rawValue: identifiers.mutationID)) == nil else {
+                throw WorkCoordinatorError.invalidAuthority
+            }
+            if let evidenceID = identifiers.evidenceID {
+                let key = evidenceID.uuidString.lowercased()
+                let paths = Set(["evidence/\(key)/original.jpg", "evidence/\(key)/thumbnail.jpg"])
+                let rows = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+                guard !rows.contains(where: { $0.id == evidenceID || paths.contains($0.relativePath)
+                    || paths.contains($0.thumbnailRelativePath) }) else { throw WorkCoordinatorError.invalidAuthority }
+            }
+        }
+
         var promoted: PromotedEvidenceBundle?
         var evidenceToInsert: EvidenceFile?
         if let photo = submission.photos.first,
@@ -279,22 +344,13 @@ final class WorkCoordinator {
             do {
                 try requireCleanContext()
                 try requireRootIdentity()
-                try revalidate(
-                    authority,
-                    draftID: draftID,
-                    submission: ruleSubmission,
-                    plan: plan
-                )
+                try revalidateSource()
                 let published = try await evidenceStore.promote(staged)
                 promoted = published
+                if let failureInjection { try await failureInjection.reachAfterEvidencePromotion() }
                 try requireCleanContext()
                 try requireRootIdentity()
-                try revalidate(
-                    authority,
-                    draftID: draftID,
-                    submission: ruleSubmission,
-                    plan: plan
-                )
+                try revalidateSource()
                 if failureInjection?.consume(.afterEvidencePromotion) == true {
                     throw WorkCoordinatorError.saveFailed
                 }
@@ -315,13 +371,17 @@ final class WorkCoordinator {
                 let failure = error
                 if let promoted {
                     do {
-                        try await evidenceStore.removePromotedBundleIfOwned(promoted)
+                        try requireUncommitted()
+                        try evidenceStore.removePromotedBundleIfOwnedSynchronously(promoted)
+                        _ = try requireLiveDependencies()
                     } catch {
                         throw WorkCoordinatorError.cleanupFailed
                     }
                 } else {
                     do {
-                        try await evidenceStore.discardStaging(evidenceID: evidenceID)
+                        try requireUncommitted()
+                        try evidenceStore.discardStagedBundleIfOwnedSynchronously(staged)
+                        _ = try requireLiveDependencies()
                     } catch {
                         throw WorkCoordinatorError.cleanupFailed
                     }
@@ -331,36 +391,48 @@ final class WorkCoordinator {
             }
         }
 
-        let draftBefore = payload(draft)
-        let issueBefore = payload(authority.issue)
         do {
-            apply(plan.recordAfter, to: draft)
-            apply(plan.issueAfter, to: authority.issue)
-            if let evidenceToInsert {
-                modelContext.insert(evidenceToInsert)
-            }
-            if failureInjection?.consume(.modelSave) == true {
-                throw WorkCoordinatorError.saveFailed
-            }
-            try modelContext.save()
+            try revalidateSource()
+            let workAuthority = WorkWriterAuthorityV1(workspaceID: initialRevision.workspaceID,
+                generationID: initialRevision.generationID,
+                mutationID: try .init(rawValue: identifiers.mutationID), expectedRevision: try .init(expected),
+                packageRelease: try .init(package: signPack), draftBefore: draftBefore,
+                issueBefore: issueBefore, parentBefore: parentBefore, sourceBindings: sourceBindings,
+                submission: .init(performedLocalDate: submission.performedLocalDate,
+                    description: submission.description, note: submission.note, completedAt: submission.completedAt,
+                    evidencePurposeKeys: submission.photos.map(\.purposeKey)),
+                recordAfter: plan.recordAfter, issueAfter: plan.issueAfter,
+                evidenceInsert: evidenceToInsert.map { authorityReader.evidencePayload($0) })
+            let envelope = try writer.prepareWorkEnvelope(workAuthority)
+            if failureInjection?.consume(.modelSave) == true { throw WorkCoordinatorError.saveFailed }
+            _ = try writer.commitWork(envelope: envelope)
         } catch {
             let failure = error
-            restore(draftBefore, to: draft)
-            restore(issueBefore, to: authority.issue)
-            modelContext.rollback()
             if let promoted {
+                // Ambiguous post-save failures preserve committed media. Failure
+                // to prove commit truth also preserves it; it never grants cleanup.
                 do {
-                    try await evidenceStore.removePromotedBundleIfOwned(promoted)
-                } catch {
-                    throw WorkCoordinatorError.cleanupFailed
-                }
+                    _ = try requireLiveDependencies()
+                    if let committed = try writer.workEnvelope(mutationID: MutationIDV1(rawValue: identifiers.mutationID)) {
+                        guard try writer.workCommitReceipt(envelope: committed) != nil else {
+                            throw WorkCoordinatorError.invalidAuthority
+                        }
+                    } else {
+                        try requireUncommitted()
+                        try evidenceStore.removePromotedBundleIfOwnedSynchronously(promoted)
+                        _ = try requireLiveDependencies()
+                    }
+                } catch { throw WorkCoordinatorError.cleanupFailed }
             }
             if let typed = failure as? WorkCoordinatorError { throw typed }
-            throw WorkCoordinatorError.saveFailed
+            throw failure
         }
 
         try requireCleanContext()
-        return try await issue(id: authority.issue.id)
+        guard let result = try await replayedWork(draftID: draftID, submission: submission, identifiers: identifiers) else {
+            throw WorkCoordinatorError.invalidAuthority
+        }
+        return result
     }
 
     private func replayedWork(
@@ -368,6 +440,8 @@ final class WorkCoordinator {
         submission: WorkSaveSubmission,
         identifiers: WorkIdentifiers
     ) async throws -> WorkIssuePresentationValue? {
+        let dependencies = try requireLiveDependencies()
+        let original = try dependencies.writer.workEnvelope(mutationID: MutationIDV1(rawValue: identifiers.mutationID))
         let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
         let mutationOwners = records.filter {
             $0.finalizationMutationID == identifiers.mutationID
@@ -376,26 +450,41 @@ final class WorkCoordinator {
         guard !mutationOwners.isEmpty || completedByID.contains(where: {
             $0.state == WorkflowState.completed.rawValue
         }) else {
+            guard original == nil else { throw WorkCoordinatorError.invalidAuthority }
             return nil
         }
-        guard mutationOwners.count == 1,
+        guard let original, case let .recordWork(command) = original.command,
+              let writerAuthority = command.writerAuthority,
+              try dependencies.writer.workCommitReceipt(envelope: original) != nil,
+              writerAuthority.packageRelease == (try PackageReleaseIdentityV1(package: signPack)),
+              command.workMutationID == identifiers.mutationID, command.recordID == draftID,
+              command.evidenceIDs == (identifiers.evidenceID.map { [$0] } ?? []),
+              try WorkspaceMutationCanonicalV1.data(writerAuthority.submission) == WorkspaceMutationCanonicalV1.data(WorkWriterSubmissionV1(
+                performedLocalDate: submission.performedLocalDate, description: submission.description,
+                note: submission.note, completedAt: submission.completedAt,
+                evidencePurposeKeys: submission.photos.map(\.purposeKey))),
+              mutationOwners.count == 1,
               completedByID.count == 1,
               let record = mutationOwners.first,
               record.id == draftID,
+              try WorkspaceMutationCanonicalV1.data(payload(record)) == WorkspaceMutationCanonicalV1.data(writerAuthority.recordAfter),
+              try WorkspaceMutationCanonicalV1.data(authorityReader.sourceBinding(recordID: draftID))
+                == WorkspaceMutationCanonicalV1.data(writerAuthority.sourceBindings.first(where: { $0.recordID == draftID })),
               completedByID.first === record,
               record.state == WorkflowState.completed.rawValue,
               record.stage == WorkflowStage.work.rawValue,
               record.workPerformedLocalDate == submission.performedLocalDate,
               record.workDescription == submission.description,
               record.note == submission.note,
-              record.completedAt == submission.completedAt,
               let issueID = record.issueID else {
             throw WorkCoordinatorError.invalidAuthority
         }
         let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>()).filter {
             $0.recordID == draftID
         }
-        guard evidence.count == submission.photos.count,
+        guard try WorkspaceMutationCanonicalV1.data(evidence.first.map({ authorityReader.evidencePayload($0) }))
+                == WorkspaceMutationCanonicalV1.data(writerAuthority.evidenceInsert),
+              evidence.count == submission.photos.count,
               evidence.first?.id == identifiers.evidenceID,
               evidence.allSatisfy({ $0.purposeKey == "work_context" }) else {
             throw WorkCoordinatorError.invalidAuthority
@@ -417,7 +506,7 @@ final class WorkCoordinator {
                 originalSHA256: row.sha256,
                 thumbnailSHA256: row.thumbnailSHA256
             )
-            guard row.createdAt == photo.createdAt,
+            guard try WorkspaceMutationCanonicalV1.data(row.createdAt) == WorkspaceMutationCanonicalV1.data(photo.createdAt),
                   row.byteCount == normalized.originalJPEG.count,
                   row.thumbnailByteCount == normalized.thumbnailJPEG.count,
                   row.sha256 == SHA256.hash(data: normalized.originalJPEG).hexString,
@@ -429,14 +518,214 @@ final class WorkCoordinator {
                 _ = try await evidenceStore.verifyPromoted(promoted)
                 try requireCleanContext()
                 try requireRootIdentity()
+                _ = try requireLiveDependencies()
+                guard try dependencies.writer.workCommitReceipt(envelope: original) != nil else {
+                    throw WorkCoordinatorError.invalidAuthority
+                }
             } catch {
                 throw WorkCoordinatorError.invalidAuthority
             }
         }
-        return try await issue(id: issueID)
+        let history = try authorityReader.validatedAuthority(issueID: issueID, draftID: nil,
+                                                              allowsResolvedHistory: true)
+        let result = try await presentation(history)
+        try requireCleanContext()
+        _ = try requireLiveDependencies()
+        guard try dependencies.writer.workCommitReceipt(envelope: original) != nil else {
+            throw WorkCoordinatorError.invalidAuthority
+        }
+        _ = try authorityReader.validatedAuthority(issueID: issueID, draftID: nil, allowsResolvedHistory: true)
+        return result
+    }
+
+
+    private func requireLiveDependencies() throws -> WorkspacePackageLifecycleDependenciesV1 {
+        guard let lifecycleDependencies,
+              lifecycleDependencies.generationRootURL.standardizedFileURL == generationRootURL,
+              generationRootURL.lastPathComponent == lifecycleDependencies.generationID.uuidString.lowercased(),
+              try lifecycleDependencies.profileRegistry.resolve(PackageReleaseIdentityV1(package: signPack)).package == signPack else {
+            throw WorkCoordinatorError.invalidAuthority
+        }
+        let revision = try lifecycleDependencies.writer.currentRevision()
+        guard revision.workspaceID == lifecycleDependencies.workspaceID,
+              revision.generationID == lifecycleDependencies.generationID else {
+            throw WorkCoordinatorError.invalidAuthority
+        }
+        try requireRootIdentity()
+        return lifecycleDependencies
+    }
+
+    private var authorityReader: WorkAuthorityReaderV1 {
+        .init(modelContext: modelContext, signPack: signPack,
+              generationRootURL: generationRootURL, rootIdentity: rootIdentity)
     }
 
     private func authorityForDraft(_ draftID: UUID) throws -> Authority {
+        try authorityReader.authorityForDraft(draftID)
+    }
+    private func validatedAuthority(issueID: UUID, draftID: UUID?) throws -> Authority {
+        try authorityReader.validatedAuthority(issueID: issueID, draftID: draftID)
+    }
+    private func requireCleanContext() throws { try authorityReader.requireCleanContext() }
+    private func requireRootIdentity() throws { try authorityReader.requireRootIdentity() }
+    private func payload(_ record: WorkflowRecord) -> WorkflowRecordPayloadV1 { authorityReader.payload(record) }
+    private func payload(_ issue: Issue) -> IssuePayloadV1 { authorityReader.payload(issue) }
+    private func uniqueMutationOwner(_ id: UUID) throws -> WorkflowRecord? { try authorityReader.uniqueMutationOwner(id) }
+    private func validCompletedWorkText(_ value: String, maximum: Int) -> Bool {
+        authorityReader.validCompletedWorkText(value, maximum: maximum)
+    }
+
+    private func presentation(
+        _ authority: Authority
+    ) async throws -> WorkIssuePresentationValue {
+        let workRecords = authority.substantiveChain.filter {
+            $0.stage == WorkflowStage.work.rawValue
+        }.sorted {
+            let left = $0.completedAt ?? .distantPast
+            let right = $1.completedAt ?? .distantPast
+            return left == right
+                ? $0.id.uuidString < $1.id.uuidString
+                : left < right
+        }
+        var values: [WorkRecordPresentationValue] = []
+        for record in workRecords {
+            guard let date = record.workPerformedLocalDate,
+                  let description = record.workDescription,
+                  validCompletedWorkText(description, maximum: 160),
+                  (record.note.map({
+                      validCompletedWorkText($0, maximum: 1_000)
+                  }) ?? true) else {
+                throw WorkCoordinatorError.invalidAuthority
+            }
+            let rows = authority.evidence.filter { $0.recordID == record.id }
+            guard rows.count <= 1 else {
+                throw WorkCoordinatorError.invalidAuthority
+            }
+            var thumbnail: Data?
+            if let row = rows.first {
+                let promoted = PromotedEvidenceBundle(
+                    evidenceID: row.id,
+                    originalRelativePath: row.relativePath,
+                    thumbnailRelativePath: row.thumbnailRelativePath,
+                    originalByteCount: row.byteCount,
+                    thumbnailByteCount: row.thumbnailByteCount,
+                    originalSHA256: row.sha256,
+                    thumbnailSHA256: row.thumbnailSHA256
+                )
+                _ = try await evidenceStore.verifyPromoted(promoted)
+                try requireRootIdentity()
+                let data = try ReportPDFAnchoredFile.readRegularFile(
+                    at: generationRootURL.appendingPathComponent(row.thumbnailRelativePath),
+                    within: generationRootURL,
+                    rootIdentity: rootIdentity
+                )
+                guard data.count == row.thumbnailByteCount,
+                      SHA256.hash(data: data).hexString == row.thumbnailSHA256 else {
+                    throw WorkCoordinatorError.invalidAuthority
+                }
+                thumbnail = data
+            }
+            values.append(
+                WorkRecordPresentationValue(
+                    id: record.id,
+                    performedLocalDate: date,
+                    description: description,
+                    note: record.note,
+                    photoThumbnailJPEG: thumbnail
+                )
+            )
+        }
+        guard let status = IssueStatus(rawValue: authority.issue.status) else {
+            throw WorkCoordinatorError.invalidAuthority
+        }
+        return WorkIssuePresentationValue(
+            id: authority.issue.id,
+            assetID: authority.issue.assetID,
+            label: authority.issue.labelDisplaySnapshot,
+            status: status,
+            records: values
+        )
+    }
+
+
+}
+
+
+/// Shared incumbent graph validation. It never saves, creates a runner or
+/// acquires a writer; returned model handles are valid only synchronously.
+@MainActor
+struct WorkAuthorityReaderV1 {
+    let modelContext: ModelContext
+    let signPack: SignPack
+    let generationRootURL: URL
+    let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+
+    func sourceBinding(recordID: UUID) throws -> WorkRecordSourceBindingV1 {
+        let row = try ObservationAndTimeRowStoreV1.requireRow(recordID: recordID, in: modelContext)
+        let assurances = try modelContext.fetch(FetchDescriptor<RequirementAssuranceRow>())
+            .filter { $0.workflowRecordID == recordID }
+        guard assurances.count <= 1 else { throw WorkCoordinatorError.invalidAuthority }
+        return .init(recordID: recordID, observationBasisV1Data: row.observationBasisV1Data,
+                     temporalContextV1Data: row.temporalContextV1Data,
+                     requirementAssurance: try assurances.first?.snapshot())
+    }
+
+    func evidencePayload(_ row: EvidenceFile) -> WorkEvidencePayloadV1 {
+        .init(id: row.id, schemaVersion: row.schemaVersion, recordID: row.recordID,
+              purposeKey: row.purposeKey, relativePath: row.relativePath, mimeType: row.mimeType,
+              byteCount: row.byteCount, sha256: row.sha256, createdAt: row.createdAt,
+              thumbnailRelativePath: row.thumbnailRelativePath,
+              thumbnailByteCount: row.thumbnailByteCount, thumbnailSHA256: row.thumbnailSHA256)
+    }
+
+    @discardableResult
+    func validateFrozenSource(_ frozen: WorkWriterAuthorityV1) throws -> Authority {
+        try frozen.validate()
+        let current = try authorityForDraft(frozen.draftBefore.id)
+        guard let draft = current.draft,
+              try WorkspaceMutationCanonicalV1.data(payload(draft)) == WorkspaceMutationCanonicalV1.data(frozen.draftBefore),
+              try WorkspaceMutationCanonicalV1.data(payload(current.issue)) == WorkspaceMutationCanonicalV1.data(frozen.issueBefore),
+              try WorkspaceMutationCanonicalV1.data(payload(current.parent)) == WorkspaceMutationCanonicalV1.data(frozen.parentBefore),
+              try PackageReleaseIdentityV1(package: signPack) == frozen.packageRelease,
+              try uniqueMutationOwner(frozen.mutationID.rawValue) == nil,
+              frozen.evidenceInsert.map({ incoming in
+                  let paths = Set([incoming.relativePath, incoming.thumbnailRelativePath])
+                  return !current.evidence.contains(where: { $0.id == incoming.id
+                      || paths.contains($0.relativePath) || paths.contains($0.thumbnailRelativePath) })
+              }) ?? true else { throw WorkCoordinatorError.invalidAuthority }
+        for binding in frozen.sourceBindings {
+            guard try WorkspaceMutationCanonicalV1.data(sourceBinding(recordID: binding.recordID))
+                    == WorkspaceMutationCanonicalV1.data(binding) else {
+                throw WorkCoordinatorError.invalidAuthority
+            }
+        }
+        let plan = try WorkRule.makePlan(draft: payload(draft), issue: payload(current.issue),
+            parent: payload(current.parent), submission: frozen.submission.ruleSubmission(mutationID: frozen.mutationID))
+        guard try WorkspaceMutationCanonicalV1.data(plan.recordAfter) == WorkspaceMutationCanonicalV1.data(frozen.recordAfter),
+              try WorkspaceMutationCanonicalV1.data(plan.issueAfter) == WorkspaceMutationCanonicalV1.data(frozen.issueAfter) else {
+            throw WorkCoordinatorError.invalidAuthority
+        }
+        return current
+    }
+
+    private static let pdfTemplateID = "field.evidence.pdf.worklight.v1"
+    private static let recheckOutcomes: Set<String> = [
+        "resolved",
+        "issue_still_visible",
+        "original_resolved_different_issue",
+        "could_not_verify",
+    ]
+
+    struct Authority {
+        let asset: Asset
+        let issue: Issue
+        let draft: WorkflowRecord?
+        let parent: WorkflowRecord
+        let substantiveChain: [WorkflowRecord]
+        let evidence: [EvidenceFile]
+    }
+
+    func authorityForDraft(_ draftID: UUID) throws -> Authority {
         let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
         guard records.filter({ $0.id == draftID }).count == 1,
               let draft = records.first(where: { $0.id == draftID }),
@@ -446,9 +735,10 @@ final class WorkCoordinator {
         return try validatedAuthority(issueID: issueID, draftID: draftID)
     }
 
-    private func validatedAuthority(
+    func validatedAuthority(
         issueID: UUID,
-        draftID: UUID?
+        draftID: UUID?,
+        allowsResolvedHistory: Bool = false
     ) throws -> Authority {
         try requireCleanContext()
         try requireRootIdentity()
@@ -486,7 +776,8 @@ final class WorkCoordinator {
               asset.packSchemaVersion == signPack.schemaVersion,
               asset.packContentVersion == signPack.contentVersion,
               issue.schemaVersion == 1,
-              issue.resolvedByRecordID == nil,
+              (issue.resolvedByRecordID == nil || (allowsResolvedHistory
+                  && issue.status == IssueStatus.resolved.rawValue)),
               issue.updatedAt >= issue.createdAt,
               signPack.issueLabels.filter({
                   $0.key == issue.labelKey
@@ -499,8 +790,10 @@ final class WorkCoordinator {
                 && ($0.status == IssueStatus.open.rawValue
                     || $0.status == IssueStatus.recheckDue.rawValue)
         }
-        guard activeIssues.count == 1,
-              activeIssues.first?.id == issue.id else {
+        let isResolvedReplay = allowsResolvedHistory && issue.status == IssueStatus.resolved.rawValue
+        guard isResolvedReplay
+                ? activeIssues.count <= 1 && !activeIssues.contains(where: { $0.id == issue.id })
+                : activeIssues.count == 1 && activeIssues.first?.id == issue.id else {
             throw WorkCoordinatorError.invalidAuthority
         }
 
@@ -630,104 +923,7 @@ final class WorkCoordinator {
         )
     }
 
-    private func presentation(
-        _ authority: Authority
-    ) async throws -> WorkIssuePresentationValue {
-        let workRecords = authority.substantiveChain.filter {
-            $0.stage == WorkflowStage.work.rawValue
-        }.sorted {
-            let left = $0.completedAt ?? .distantPast
-            let right = $1.completedAt ?? .distantPast
-            return left == right
-                ? $0.id.uuidString < $1.id.uuidString
-                : left < right
-        }
-        var values: [WorkRecordPresentationValue] = []
-        for record in workRecords {
-            guard let date = record.workPerformedLocalDate,
-                  let description = record.workDescription,
-                  validCompletedWorkText(description, maximum: 160),
-                  (record.note.map({
-                      validCompletedWorkText($0, maximum: 1_000)
-                  }) ?? true) else {
-                throw WorkCoordinatorError.invalidAuthority
-            }
-            let rows = authority.evidence.filter { $0.recordID == record.id }
-            guard rows.count <= 1 else {
-                throw WorkCoordinatorError.invalidAuthority
-            }
-            var thumbnail: Data?
-            if let row = rows.first {
-                let promoted = PromotedEvidenceBundle(
-                    evidenceID: row.id,
-                    originalRelativePath: row.relativePath,
-                    thumbnailRelativePath: row.thumbnailRelativePath,
-                    originalByteCount: row.byteCount,
-                    thumbnailByteCount: row.thumbnailByteCount,
-                    originalSHA256: row.sha256,
-                    thumbnailSHA256: row.thumbnailSHA256
-                )
-                _ = try await evidenceStore.verifyPromoted(promoted)
-                try requireRootIdentity()
-                let data = try ReportPDFAnchoredFile.readRegularFile(
-                    at: generationRootURL.appendingPathComponent(row.thumbnailRelativePath),
-                    within: generationRootURL,
-                    rootIdentity: rootIdentity
-                )
-                guard data.count == row.thumbnailByteCount,
-                      SHA256.hash(data: data).hexString == row.thumbnailSHA256 else {
-                    throw WorkCoordinatorError.invalidAuthority
-                }
-                thumbnail = data
-            }
-            values.append(
-                WorkRecordPresentationValue(
-                    id: record.id,
-                    performedLocalDate: date,
-                    description: description,
-                    note: record.note,
-                    photoThumbnailJPEG: thumbnail
-                )
-            )
-        }
-        guard let status = IssueStatus(rawValue: authority.issue.status) else {
-            throw WorkCoordinatorError.invalidAuthority
-        }
-        return WorkIssuePresentationValue(
-            id: authority.issue.id,
-            assetID: authority.issue.assetID,
-            label: authority.issue.labelDisplaySnapshot,
-            status: status,
-            records: values
-        )
-    }
-
-    private func revalidate(
-        _ original: Authority,
-        draftID: UUID,
-        submission: WorkRuleSubmission,
-        plan: WorkRulePlan
-    ) throws {
-        let current = try validatedAuthority(
-            issueID: original.issue.id,
-            draftID: draftID
-        )
-        guard let originalDraft = original.draft,
-              let draft = current.draft,
-              payload(draft) == payload(originalDraft),
-              payload(current.issue) == payload(original.issue),
-              payload(current.parent) == payload(original.parent),
-              try WorkRule.makePlan(
-                  draft: payload(draft),
-                  issue: payload(current.issue),
-                  parent: payload(current.parent),
-                  submission: submission
-              ) == plan else {
-            throw WorkCoordinatorError.invalidAuthority
-        }
-    }
-
-    private func uniqueMutationOwner(_ mutationID: UUID) throws -> WorkflowRecord? {
+    func uniqueMutationOwner(_ mutationID: UUID) throws -> WorkflowRecord? {
         let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
             $0.finalizationMutationID == mutationID
         }
@@ -882,7 +1078,7 @@ final class WorkCoordinator {
         }
     }
 
-    private func validateEvidenceRow(
+    func validateEvidenceRow(
         _ row: EvidenceFile,
         record: WorkflowRecord
     ) throws {
@@ -1175,7 +1371,7 @@ final class WorkCoordinator {
             && issue.updatedAt == expectedUpdatedAt
     }
 
-    private func validCompletedWorkText(_ value: String, maximum: Int) -> Bool {
+    func validCompletedWorkText(_ value: String, maximum: Int) -> Bool {
         !value.isEmpty
             && value.count <= maximum
             && value == value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1240,13 +1436,13 @@ final class WorkCoordinator {
             }.count == 1
     }
 
-    private func requireCleanContext() throws {
+    func requireCleanContext() throws {
         guard !modelContext.hasChanges else {
             throw WorkCoordinatorError.invalidAuthority
         }
     }
 
-    private func requireRootIdentity() throws {
+    func requireRootIdentity() throws {
         guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == rootIdentity else {
             throw WorkCoordinatorError.invalidAuthority
         }
@@ -1256,7 +1452,7 @@ final class WorkCoordinator {
         Set(ids).count == ids.count
     }
 
-    private func payload(_ record: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+    func payload(_ record: WorkflowRecord) -> WorkflowRecordPayloadV1 {
         WorkflowRecordPayloadV1(
             id: record.id, schemaVersion: record.schemaVersion,
             assetID: record.assetID, packetID: record.packetID,
@@ -1292,7 +1488,7 @@ final class WorkCoordinator {
         )
     }
 
-    private func payload(_ issue: Issue) -> IssuePayloadV1 {
+    func payload(_ issue: Issue) -> IssuePayloadV1 {
         IssuePayloadV1(
             id: issue.id, schemaVersion: issue.schemaVersion,
             assetID: issue.assetID, openedByRecordID: issue.openedByRecordID,
@@ -1303,53 +1499,6 @@ final class WorkCoordinator {
         )
     }
 
-    private func apply(_ value: WorkflowRecordPayloadV1, to record: WorkflowRecord) {
-        record.packetID = value.packetID
-        record.issueID = value.issueID
-        record.parentRecordID = value.parentRecordID
-        record.revisesRecordID = value.revisesRecordID
-        record.evidenceSourceRecordID = value.evidenceSourceRecordID
-        record.revisionKind = value.revisionKind
-        record.stage = value.stage
-        record.state = value.state
-        record.draftStepKey = value.draftStepKey
-        record.completedAt = value.completedAt
-        record.observedAtUTC = value.observedAtUTC
-        record.timeZoneID = value.timeZoneID
-        record.utcOffsetMinutes = value.utcOffsetMinutes
-        record.localDate = value.localDate
-        record.localTime = value.localTime
-        record.afterDarkAcknowledgementKey = value.afterDarkAcknowledgementKey
-        record.afterDarkAcknowledgementCopy = value.afterDarkAcknowledgementCopy
-        record.afterDarkAcknowledgementVersion = value.afterDarkAcknowledgementVersion
-        record.afterDarkAcknowledgementAccepted = value.afterDarkAcknowledgementAccepted
-        record.safePositionAcknowledgementKey = value.safePositionAcknowledgementKey
-        record.safePositionAcknowledgementCopy = value.safePositionAcknowledgementCopy
-        record.safePositionAcknowledgementVersion = value.safePositionAcknowledgementVersion
-        record.safePositionAcknowledgementAccepted = value.safePositionAcknowledgementAccepted
-        record.outcomeKey = value.outcomeKey
-        record.couldNotVerifyKey = value.couldNotVerifyKey
-        record.couldNotVerifyDisplaySnapshot = value.couldNotVerifyDisplaySnapshot
-        record.couldNotVerifyRegistryVersion = value.couldNotVerifyRegistryVersion
-        record.workPerformedLocalDate = value.workPerformedLocalDate
-        record.workDescription = value.workDescription
-        record.note = value.note
-        record.finalizationMutationID = value.finalizationMutationID
-    }
-
-    private func restore(_ value: WorkflowRecordPayloadV1, to record: WorkflowRecord) {
-        apply(value, to: record)
-    }
-
-    private func apply(_ value: IssuePayloadV1, to issue: Issue) {
-        issue.status = value.status
-        issue.resolvedByRecordID = value.resolvedByRecordID
-        issue.updatedAt = value.updatedAt
-    }
-
-    private func restore(_ value: IssuePayloadV1, to issue: Issue) {
-        apply(value, to: issue)
-    }
 }
 
 private extension Digest {

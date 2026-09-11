@@ -74,88 +74,77 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
         defer { try? fileManager.removeItem(at: applicationSupportURL) }
 
         let pack = try fixturePack(from: fixtureData())
-        let session = try StoreGenerationFactory(
-            applicationSupportURL: applicationSupportURL
-        ).openOrBootstrapCurrent()
-        let context = session.modelContext
-        let observedAt = Date(timeIntervalSince1970: 1_700_000_000)
-        let site = Site(
-            label: "East Campus",
-            address: "40 Service Road",
-            timeZoneID: "America/New_York",
-            createdAt: observedAt.addingTimeInterval(-120)
+        let fixture = try await WorkCanonicalCurrentRouteFixtureV1.make(
+            applicationSupportURL: applicationSupportURL,
+            pack: pack,
+            workPhotoData: nil,
+            siteLabel: "East Campus",
+            siteAddress: "40 Service Road",
+            assetLabel: "Parking Lot East",
+            workPerformedLocalDate: "2026-08-15",
+            workDescription: "Replaced the exterior-light driver and verified steady output.",
+            workNote: "Exterior-light work completed."
         )
-        let asset = Asset(
-            siteID: site.id,
-            packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            label: "Parking Lot East",
-            createdAt: observedAt.addingTimeInterval(-100)
+        defer { try? fixture.close() }
+        let session = fixture.session
+        let context = fixture.context
+        let runner = fixture.openingRunner
+        let assetID = fixture.assetID
+        let issueID = fixture.issueID
+        let openingRecordID = fixture.openingRecordID
+        let workRecordID = fixture.workRecordID
+        let workCompletedAt = fixture.workSubmission.completedAt
+        XCTAssertTrue(fixture.workSubmission.photos.isEmpty)
+        XCTAssertNil(fixture.workIdentifiers.evidenceID)
+        XCTAssertEqual(fixture.savedWork.status, .recheckDue)
+        XCTAssertEqual(fixture.savedWork.records.map(\.id), [workRecordID])
+        let workMutationID = try MutationIDV1(rawValue: fixture.workIdentifiers.mutationID)
+        let workEnvelope = try XCTUnwrap(
+            fixture.lifecycleDependencies.writer.workEnvelope(mutationID: workMutationID)
         )
-        context.insert(site)
-        context.insert(asset)
-        try context.save()
-
-        let runner = CheckRunnerCoordinator(modelContext: context, signPack: pack)
-        runner.configureCapture(generationRootURL: session.generationRootURL)
-        _ = try runner.beginCheck(
-            assetID: asset.id,
-            timeZoneID: "America/New_York",
-            isTimeZoneConfirmed: true,
-            afterDarkAccepted: true,
-            safePositionAccepted: true,
-            observedAt: observedAt
+        let workReceipt = try XCTUnwrap(
+            fixture.lifecycleDependencies.writer.workCommitReceipt(envelope: workEnvelope)
         )
-        try await capturePair(
-            runner: runner,
-            assetID: asset.id,
-            firstCreatedAt: observedAt.addingTimeInterval(10),
-            seeds: (11, 22)
+        guard case let .recordWork(workMutation) = workEnvelope.command,
+              let writerAuthority = workMutation.writerAuthority else {
+            XCTFail("Expected authority-bearing alternate-package Work envelope")
+            throw FixtureError.invalidFixture
+        }
+        try writerAuthority.validate(envelope: workEnvelope)
+        try workReceipt.validate()
+        XCTAssertEqual(workReceipt.mutationID, workMutationID)
+        XCTAssertEqual(Set(try workReceipt.postImages.map { try $0.identity }), Set([
+            try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: workRecordID),
+            try WorkspaceEntityIdentityV1(kind: .issue, id: issueID),
+        ]))
+        XCTAssertEqual(
+            try writerAuthority.affectedIdentities,
+            try workReceipt.postImages.map { try $0.identity }
+                .sorted { $0.stableKey < $1.stableKey }
         )
-        let openingIdentifiers = FinalizationIdentifiers(
-            mutationID: UUID(),
-            packetID: UUID(),
-            stableRootID: UUID(),
-            reportID: UUID(),
-            issueID: UUID()
-        )
-        let openingCompletedAt = observedAt.addingTimeInterval(60)
-        let opening = try await runner.finalize(
-            assetID: asset.id,
-            selection: .visibleIssue(labelKey: "dark_section"),
-            completedAt: openingCompletedAt,
-            snapshotCreatedAt: openingCompletedAt,
-            sourceApp: SourceAppSnapshotV1(build: "81", version: "1.0"),
-            identifiers: openingIdentifiers
-        )
-        let issueID = try XCTUnwrap(opening.issueID)
-        XCTAssertEqual(issueID, openingIdentifiers.issueID)
-
-        let workCoordinator = try WorkCoordinator(
-            modelContext: context,
-            signPack: pack,
-            generationRootURL: session.generationRootURL,
-            checkRunnerCoordinator: runner
-        )
-        let workDraft = try workCoordinator.beginWork(issueID: issueID)
-        let workCompletedAt = workDraft.startedAt.addingTimeInterval(30)
-        _ = try await workCoordinator.saveWork(
-            draftID: workDraft.recordID,
-            submission: WorkSaveSubmission(
-                performedLocalDate: "2026-08-15",
-                description: "Replaced the exterior-light driver and verified steady output.",
-                note: "Exterior-light work completed.",
-                photos: [],
-                completedAt: workCompletedAt
-            ),
-            identifiers: WorkIdentifiers(mutationID: UUID(), evidenceID: nil)
+        for postImage in workReceipt.postImages {
+            let identity = try postImage.identity
+            XCTAssertEqual(
+                workReceipt.resultingRevision.entityRevisions.first {
+                    $0.identity == identity
+                }?.revision,
+                postImage.revision
+            )
+        }
+        XCTAssertEqual(
+            try MutationJournalStoreV1(
+                modelContext: context,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                allowStateBootstrap: false
+            ).receipt(mutationID: workMutationID),
+            workReceipt
         )
 
-        try runner.requestRecheck(assetID: asset.id, issueID: issueID)
+        try runner.requestRecheck(assetID: assetID, issueID: issueID)
         let recheckObservedAt = workCompletedAt.addingTimeInterval(60)
         _ = try runner.beginCheck(
-            assetID: asset.id,
+            assetID: assetID,
             timeZoneID: "America/New_York",
             isTimeZoneConfirmed: true,
             afterDarkAccepted: true,
@@ -164,7 +153,7 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
         )
         try await capturePair(
             runner: runner,
-            assetID: asset.id,
+            assetID: assetID,
             firstCreatedAt: recheckObservedAt.addingTimeInterval(10),
             seeds: (33, 44)
         )
@@ -178,7 +167,7 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
         let recheckCompletedAt = recheckObservedAt.addingTimeInterval(60)
         let sourceApp = SourceAppSnapshotV1(build: "81", version: "1.0")
         let recheck = try await runner.finalize(
-            assetID: asset.id,
+            assetID: assetID,
             selection: .resolved(note: "Exterior-light output remained steady."),
             completedAt: recheckCompletedAt,
             snapshotCreatedAt: recheckCompletedAt,
@@ -186,7 +175,7 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
             identifiers: recheckIdentifiers
         )
         let replay = try await runner.finalize(
-            assetID: asset.id,
+            assetID: assetID,
             selection: .resolved(note: "Exterior-light output remained steady."),
             completedAt: recheckCompletedAt,
             snapshotCreatedAt: recheckCompletedAt,
@@ -194,12 +183,26 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
             identifiers: recheckIdentifiers
         )
         XCTAssertEqual(replay, recheck)
+        let workReplay = try await fixture.workCoordinator.saveWork(
+            draftID: workRecordID,
+            submission: fixture.workSubmission,
+            identifiers: fixture.workIdentifiers
+        )
+        XCTAssertEqual(workReplay.status, .resolved)
+        XCTAssertEqual(workReplay.records.map(\.id), [workRecordID])
+        XCTAssertEqual(
+            try fixture.lifecycleDependencies.writer.workCommitReceipt(
+                envelope: workEnvelope
+            ),
+            workReceipt
+        )
 
         let report = try onlyReport(id: recheck.reportID, context: context)
         let validated = try SnapshotValidatorV1(
             modelContext: context,
             generationRootURL: session.generationRootURL,
-            signPack: pack
+            lifecycleProfile: fixture.lifecycleProfile,
+            lifecycleDependencies: fixture.lifecycleDependencies
         ).validate(report: report)
         let snapshot = validated.snapshot
         XCTAssertEqual(snapshot.pack.id, pack.packID)
@@ -222,7 +225,7 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
             }
         )
         XCTAssertEqual(snapshot.issues.map(\.display), ["Exterior lamp section is dark"])
-        XCTAssertEqual(snapshot.history.map(\.recordID), [opening.recordID, workDraft.recordID])
+        XCTAssertEqual(snapshot.history.map(\.recordID), [openingRecordID, workRecordID])
         XCTAssertEqual(snapshot.history[0].stageDisplay, "Exterior-light survey")
         XCTAssertEqual(
             snapshot.history[0].outcomeDisplay,
@@ -271,7 +274,7 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
 
         let freshObservedAt = recheckCompletedAt.addingTimeInterval(120)
         _ = try runner.beginCheck(
-            assetID: asset.id,
+            assetID: assetID,
             timeZoneID: "America/New_York",
             isTimeZoneConfirmed: true,
             afterDarkAccepted: true,
@@ -280,7 +283,7 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
         )
         try await capturePair(
             runner: runner,
-            assetID: asset.id,
+            assetID: assetID,
             firstCreatedAt: freshObservedAt.addingTimeInterval(10),
             seeds: (55, 66)
         )
@@ -292,7 +295,7 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
             issueID: nil
         )
         let fresh = try await runner.finalize(
-            assetID: asset.id,
+            assetID: assetID,
             selection: .noVisibleIssue,
             completedAt: freshObservedAt.addingTimeInterval(60),
             snapshotCreatedAt: freshObservedAt.addingTimeInterval(60),

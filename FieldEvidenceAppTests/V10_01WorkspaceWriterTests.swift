@@ -400,7 +400,6 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
             .deleteAsset,
             .deleteSite,
             .eraseWorkspace,
-            .recordWork,
             .restoreWorkspace,
             .archiveEntities,
         ])
@@ -429,6 +428,7 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.finalizeCheck))
         XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.finalizeCorrection))
         XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.transitionReportPDF))
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.recordWork))
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.eraseWorkspace))
         XCTAssertEqual(MutationBoundaryClosureReceiptV1.kernel.writersPerWorkspaceGeneration, 1)
         XCTAssertEqual(
