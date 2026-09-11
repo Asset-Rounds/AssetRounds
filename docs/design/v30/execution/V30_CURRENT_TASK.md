@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 22 of 55 - Authored-content and template-language model
+Card 23 of 55 - Offline and sync-state localization integrity
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Distinguish app UI, admin templates, instructions, inspector/customer evidence, derived translations, report chrome, and licensed jurisdiction content. Preserve source and invalidate derived translations after edit/redaction.",
+    "required": "Cover existing pending/saved/syncing/synchronized/failed/conflicted/recovered states, queued Unicode attachments, offline startup, accessible recovery, and notification truth without creating a new sync engine.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "60815291c28d232c021274fddd352fbe293296ef",
-    "tree": "765ec10f2e1034f25b7fe91646d0bb34482ed886"
+    "head": "c004b4bdd19bc037e3373e7f3a8f508343e5dca0",
+    "tree": "7d63520aabb3424f3a2fea35b0bd268400a7517d"
   },
-  "cardID": "V30-P03-C01",
+  "cardID": "V30-P03-C02",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,8 +33,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P01-C04",
-    "V30-P02-C02"
+    "V30-P01-C08",
+    "V30-P02-C04"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -75,161 +75,175 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Domain/Globalization/AuthoredContentLanguageContractsV1.swift",
-        "purpose": "App/UI/template/evidence/derived-translation/report-chrome content-language distinctions.",
+        "path": "FieldEvidenceApp/Domain/Globalization/LocalizedSyncStateContractsV1.swift",
+        "purpose": "Existing sync state localization truth contracts.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Application/Globalization/AuthoredContentLanguageCoordinatorV1.swift",
-        "purpose": "Source preservation and derived-translation invalidation coordinator.",
+        "path": "FieldEvidenceApp/Infrastructure/Localization/LocalizedSyncStateRendererV1.swift",
+        "purpose": "Pending/saved/syncing/failed/conflict/recovery localization renderer.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P03_C01AuthoredContentLanguageTests.swift",
-        "purpose": "Edit/redaction/source/derived-language lifecycle tests.",
+        "path": "FieldEvidenceAppTests/V30_P03_C02OfflineSyncLocalizationTests.swift",
+        "purpose": "Offline startup, Unicode attachment, recovery, and notification truth tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/AuthoredContent/authored-content-language-cases-v1.json",
-        "purpose": "Authored-content language fixtures.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/SyncStates/localized-sync-state-cases-v1.json",
+        "purpose": "Existing sync-state locale fixtures.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "19f52a71cb2ded5ac20912bb8634263e7ace1ed6",
-        "expectedBSHA256": "a0065b15ef7059867bb00377bd5b97cbcd2e9ac98c74ea0e154297410773f8bb",
-        "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
-        "purpose": "Distinguish authored/source/derived/report-chrome language in existing document contracts.",
+        "expectedBBlobOID": "66b140364dbe91ac14a57aa49a9ace8cb9a51140",
+        "expectedBSHA256": "c52cfb7a59f8a016c0a5b4dfb9e2b55a09ec73a94411eb3f09e1039c05ca5788",
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "purpose": "Localize current pending/saved/syncing/failed/recovery state copy through the existing catalog.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "63991694cff079b0fe82f1ba941c15bf8dde2ffb",
-        "expectedBSHA256": "faedec6276ef31928285437f049ea1ca34c4cacc35e52ccdcde10dc3d0c0c9c5",
-        "path": "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift",
-        "purpose": "Preserve source evidence and historical report snapshot identity across derived translations.",
+        "expectedBBlobOID": "ae673d8b72d17198b9853d4f482638551d36f308",
+        "expectedBSHA256": "470424a46a97f48a80efaa7a72e81a6f52311369386027fa298d0807e8488e15",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+        "purpose": "Preserve localized offline startup/recovery state truth through existing startup routing.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "5319ade880b0d30fecb7cc84adc5033b042c536a",
-        "expectedBSHA256": "7e75d221f29fbf8b7812bcbae7680098758b071e850c7fd45eddf64fbe0e62b2",
-        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
-        "purpose": "Register language provenance without creating a parallel report projection path.",
+        "expectedBBlobOID": "5673ad8f967e053323eb7186af6d812153314e7a",
+        "expectedBSHA256": "2e37f0a2961f7051f6d751c4f926d1814eeeace3d456394e49ec1b76d0d45bb7",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+        "purpose": "Preserve localized sync/session state truth through the existing coordinator.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c428c9c4f9128188bb9126d08df2fdab39fe71f3",
-        "expectedBSHA256": "84cc28ffe7b87eee1459002852a04f8cca701af8726a94ca5bf032e0407759a1",
-        "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
-        "purpose": "Invalidate derived translations after canonical edit/redaction through the actual writer boundary.",
+        "expectedBBlobOID": "45d5e58ec81cfb61136c895c1756d643a47508ec",
+        "expectedBSHA256": "2445e1dcfaeedca8d3304999391dca01bf63cf3a7bc8a9aaeb9f492ef9713d0a",
+        "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+        "purpose": "Preserve Unicode sync-state evidence without a new sync engine.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "ec7e9e1b615baa46195e1b56c1b69bd9b06a03cf",
-        "expectedBSHA256": "c67a1362ecf340894d359affb6b4ffba52768c77f4e08d16ae913bfc0b61d19f",
-        "path": "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift",
-        "purpose": "Preserve authored/source/derived content provenance through the established content contract.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c7d11749e5e30978a538fad5480fec87a19b9fbb",
-        "expectedBSHA256": "29a7de7e0efdf546ba87674f5730b62e07f8d5a6329fc93852fc675da0a613cd",
-        "path": "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift",
-        "purpose": "Bind template/instruction language to the existing survey definition contract.",
+        "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+        "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+        "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "purpose": "Render existing recovery/sync-state truth with typed localized messages only.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "d4a23964c37b46d021c758a05a16b1510b4d0038",
-        "expectedBSHA256": "e012379cfaf64f4dc2315e32e1dc4584029fabcd9ddac0becca6306d8e1ef237",
-        "path": "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift",
-        "purpose": "Register content-language provenance through the existing content registry.",
+        "expectedBBlobOID": "2145a692c1100c6345a312ac9255d40041e034e3",
+        "expectedBSHA256": "972709e5b3dcc357e11552e01e5f0d2a1e3ee2bbb96c243f4ec7486d11590c78",
+        "path": "FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift",
+        "purpose": "Localize only existing sync classifications without creating a new sync engine.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "ab0cd81f65c9822d53505491697f91d0de9d15b1",
-        "expectedBSHA256": "62b1fd6dfefae68ec6beed96e5f743b132adfddc74d7bafdbd350e1a01bf4eb9",
-        "path": "FieldEvidenceApp/Infrastructure/Packs/PackageSandboxRunnerV1.swift",
-        "purpose": "Preserve language provenance and no-translation-service boundary in packaged content execution.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "57f1e5a4a964646fd28eda62d995241973d8ac2c",
-        "expectedBSHA256": "70ba681ed8b32543eceaca7bb44d7924921c28e62a93cd02ab5344ed4bf8ac27",
-        "path": "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
-        "purpose": "Preserve source/derived content provenance in final report snapshot encoding.",
+        "expectedBBlobOID": "3b45dc04e00db9e01f152dedd30c687f3f7f68e9",
+        "expectedBSHA256": "60488d3bd40ae65f1c8933c399c46f00525cd799aef6d73b10e64728562c88be",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+        "purpose": "Use the current typed sync-classification catalog as the localization source.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "6dbfedde09fbd158b1f44a16e692f5e06e4be0ee",
-        "expectedBSHA256": "d7a2b194dff13e4b63976a288f7ac5aa7561a56df17fb86f717dff1ed18c514d",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
-        "purpose": "Preserve authored source and derived-translation invalidation provenance in canonical backup output.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "54e9abdae8e0daea7810e286cac6de8fc08e71ab",
-        "expectedBSHA256": "1c82f2bb1d449c0a21f65e3e2883c8cb16a06f6211c292aecf070c733c6341a0",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
-        "purpose": "Restore authored source and derived-translation provenance without using current app language.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "f302941d7a5ae65f10418aab396cc6091d98bd50",
-        "expectedBSHA256": "4955715e9476fd26fa59131a14f681cae2cbe01405ba1893294a73e0185e30ce",
-        "path": "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift",
-        "purpose": "Regression-test source/content provenance invariants.",
+        "expectedBBlobOID": "2809457f13087d6d76d9ea7ec4e20a2392069a9d",
+        "expectedBSHA256": "628058e22fc146dfda05c841d54d40be7b26132d1d220c4069e567556feb2f1b",
+        "path": "FieldEvidenceApp/Infrastructure/Replication/IntegrationEventProjectionV1.swift",
+        "purpose": "Preserve localized sync event truth at the existing projection boundary.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0b107dd4303f35eb4a4947c506de315edb10e551",
-        "expectedBSHA256": "ac2dd39c003959211c0f310b519f8de3bda1459d6c74c6380a2fed29e00c77e6",
-        "path": "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift",
-        "purpose": "Regression-test template/instruction language semantics.",
+        "expectedBBlobOID": "a54f89f2b61e470eaa66c2bee7142bdddf83c832",
+        "expectedBSHA256": "c320713b856bd0a2674ebcbbccc280712993932618ea05dbff321c06d0a19c64",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+        "purpose": "Preserve sync-state evidence/recovery identity through the mutation journal.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "7124849b890d0baf1dd6b3027a65de125226b77d",
-        "expectedBSHA256": "1db3b7674933f59f0085ad888cc97c5d422c4940e4852580e8140350272dddcc",
-        "path": "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift",
-        "purpose": "Regression-test report snapshot provenance.",
-        "serializedSharedPath": false
+        "expectedBBlobOID": "1798cf7b2fd27e4005c2877083108b8362cd450f",
+        "expectedBSHA256": "fd97a87be8b5e83f9458f2d8e517c79c552876f9adf5eed3e8472a876edc7af5",
+        "path": "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+        "purpose": "Render localized offline/recovery state through the existing recovery surface.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "424f869477fe107d1595763c951abef7193c9c6b",
+        "expectedBSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+        "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+        "purpose": "Render only existing offline startup/recovery state with typed localized text; preserve Phase10 visual styling.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c09d86700bb161118f54d96289e0c6167255fc8f",
+        "expectedBSHA256": "25a59f8401631f6cbe358b3391dc0617660c03b7d3706b8b65e32aee122581ed",
+        "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+        "purpose": "Regression-test localized sync state without journal drift.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "1134417b3f24bf056cef13cdb133ea61d34c43fc",
+        "expectedBSHA256": "7b1c9163359202e97558078c3a782a03faa543ce7c14198ab1893e2fd65da5df",
+        "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+        "purpose": "Regression-test sync-state localization/accessibility.",
+        "serializedSharedPath": true
       }
     ],
-    "cardID": "V30-P03-C01",
+    "cardID": "V30-P03-C02",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
-      "V30-P01-C04",
-      "V30-P02-C02"
+      "V30-P01-C08",
+      "V30-P02-C04"
     ],
-    "ordinal": 22,
-    "preAuthorizedOverlapTuples": [],
-    "s10SharedPaths": [],
+    "ordinal": 23,
+    "preAuthorizedOverlapTuples": [
+      {
+        "boundedPurpose": "render only existing recovery/sync-state truth with typed localized messages; preserve Phase10 visual styling",
+        "cardID": "V30-P03-C02",
+        "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+        "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+        "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C02-SYNC-STATE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "render only existing offline startup/recovery state with typed localized text; preserve Phase10 visual styling and shell behavior",
+        "cardID": "V30-P03-C02",
+        "expectedBBlobOID": "424f869477fe107d1595763c951abef7193c9c6b",
+        "expectedBSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+        "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C02-SYNC-STATE-INTEGRATOR"
+      }
+    ],
+    "s10SharedPaths": [
+      "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+    ],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Authored-content and template-language model"
+    "title": "Offline and sync-state localization integrity"
   },
   "fenceSource": {
-    "cardID": "V30-P03-C01",
+    "cardID": "V30-P03-C02",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -240,71 +254,71 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P03-C02",
+  "next": "V30-P03-C03",
   "observedCoordination": {
-    "head": "8b1e5cee0304f133e10529aecb8da8b2a0edc5dd",
-    "ledgerDigest": "69dc1d9c80feefcc8a089431749286589408191da1d211af8ffebfc69dfb0c52",
-    "sequence": 45
+    "head": "db73b9b02644536f59067dfe8c0aeb97cdf5184d",
+    "ledgerDigest": "eb151919345c191dd26f66e512407eac984aa16a549e46b3f041a94a62b5f119",
+    "sequence": 47
   },
-  "ordinal": 22,
-  "outcome": "Distinguish app UI, admin templates, instructions, inspector/customer evidence, derived translations, report chrome, and licensed jurisdiction content. Preserve source and invalidate derived translations after edit/redaction.",
-  "payloadDigest": "cef49c992ee107020b44da84f9797c762cdcc797af81d41c801387e716e2afe4",
+  "ordinal": 23,
+  "outcome": "Cover existing pending/saved/syncing/synchronized/failed/conflicted/recovered states, queued Unicode attachments, offline startup, accessible recovery, and notification truth without creating a new sync engine.",
+  "payloadDigest": "417893dadf53077be55511f2e4a6c959c5511ed4ae77b7ed08aaa3796deae1be",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P01-C04": {
+    "V30-P01-C08": {
       "candidate": {
-        "base": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
-        "baseTree": "0d6e32f5f1aa589b7189b0e9e4dc80e1c822473c",
+        "base": "36f9c62ef09bff21c47923add3ade6469a82650e",
+        "baseTree": "0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8",
         "changedPaths": [
-          "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
-          "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/LocalizationCatalogReleaseContractsV1.swift",
           "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
-          "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
-          "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
-          "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
-          "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json",
-          "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
-          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
-        ],
-        "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
-        "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13"
-      },
-      "sequence": 22
-    },
-    "V30-P02-C02": {
-      "candidate": {
-        "base": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
-        "baseTree": "ab8211eed89a7980d4f38246026800b72226afe3",
-        "changedPaths": [
-          "FieldEvidenceApp/Application/Globalization/UnicodeEvidenceSafetyCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Globalization/UnicodeEvidenceSafetyContractsV1.swift",
-          "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
-          "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/Unicode/unicode-evidence-hostile-cases-v1.json",
-          "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
-          "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
-          "FieldEvidenceAppTests/V30_P02_C02UnicodeEvidenceSafetyTests.swift",
-          "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift",
-          "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/LocalizationCatalogReleaseStoreV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/CatalogRelease/catalog-release-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P01_C08CatalogReleaseIntegrityTests.swift",
+          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe",
-        "tree": "56016965f7f633eaf605460598e21910c1fc298b"
+        "head": "020c9da6df9c2d9afe741290ecab1b1893d8b2ec",
+        "tree": "a7b68fe27452c186cdd9e8c6a244a39c29b5c1ff"
       },
-      "sequence": 35
+      "sequence": 31
+    },
+    "V30-P02-C04": {
+      "candidate": {
+        "base": "0a7a4d9d82683a4b2aab06508623fc0a1f910586",
+        "baseTree": "551a18514c114181227dcaf8010c0f1f55f1217a",
+        "changedPaths": [
+          "FieldEvidenceApp/DesignSystem/GlobalizationAdaptiveLayoutPolicyV1.swift",
+          "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+          "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+          "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+          "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+          "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+          "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift",
+          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/Accessibility/expansion-and-type-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift",
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "d804f60308bcfdcaadf01780d429132e4bcbd77d",
+        "tree": "0cde23d9cf27616f10d4465ef4ee5a9ac387791e"
+      },
+      "sequence": 39
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1006,
-  "sourceStartLine": 1006,
-  "title": "Authored-content and template-language model"
+  "sourceEndLine": 1007,
+  "sourceStartLine": 1007,
+  "title": "Offline and sync-state localization integrity"
 }
 ```
