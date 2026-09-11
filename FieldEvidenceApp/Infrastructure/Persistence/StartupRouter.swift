@@ -33,6 +33,31 @@ enum StartupRecoveryBootstrapStateV1: Equatable, Sendable {
     case maintenance(StartupMaintenanceReason)
 }
 
+extension StartupMaintenanceReason {
+    var v30MessageKey: LocalizedSyncStateMessageKeyV1 {
+        switch self {
+        case .dataPointerInvalid: return .maintenanceDataPointer
+        case .dataGenerationMissing: return .maintenanceDataGeneration
+        case .finalizationInconsistent: return .maintenanceFinalization
+        case .mediaInconsistent: return .maintenanceMedia
+        case .restoreInconsistent: return .maintenanceRestore
+        case .eraseInconsistent: return .maintenanceErase
+        case .fieldDraftInconsistent: return .maintenanceFieldDraft
+        }
+    }
+}
+
+extension StartupRecoveryBootstrapStateV1 {
+    var v30MessageKey: LocalizedSyncStateMessageKeyV1 {
+        switch self {
+        case .checking: return .startupChecking
+        case .ready: return .startupReady
+        case .eraseCleanupPending: return .eraseCleanupPending
+        case .maintenance(let reason): return reason.v30MessageKey
+        }
+    }
+}
+
 @MainActor
 final class StartupRouter: ObservableObject {
     enum Route {

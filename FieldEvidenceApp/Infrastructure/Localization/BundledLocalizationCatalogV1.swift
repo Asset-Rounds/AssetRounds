@@ -5964,3 +5964,309 @@ extension BundledLocalizationCatalogV1 {
         }
     }
 }
+
+// MARK: - V30 offline and local recovery state truth
+
+extension BundledLocalizationCatalogV1 {
+    static func syncStateEnglish(_ key: LocalizedSyncStateMessageKeyV1) -> String {
+        switch key {
+        case .unsavedChanges: return "Unsaved changes on this iPhone."
+        case .savingLocally: return "Saving on this iPhone…"
+        case .savedLocally: return "Saved on this iPhone."
+        case .saveBlocked: return "The changes could not be saved on this iPhone. Retry when local storage is available."
+        case .committingLocally: return "Applying changes on this iPhone…"
+        case .draftConflict: return "This draft has a conflict. Review it before continuing."
+        case .draftRecoveryRequired: return "This draft needs recovery before you can continue."
+        case .committedLocally: return "Changes applied on this iPhone."
+        case .discarding: return "Discarding the local draft…"
+        case .discarded: return "Local draft discarded."
+        case .attachmentSelected: return "Attachment selected. Local preparation is pending."
+        case .attachmentLoading: return "Loading the attachment on this iPhone…"
+        case .attachmentStaged: return "Attachment staged locally. Confirmation is pending."
+        case .attachmentProcessing: return "Processing the attachment on this iPhone…"
+        case .attachmentReady: return "Attachment ready on this iPhone."
+        case .attachmentRetryableFailure: return "The attachment could not be prepared. Retry the attachment."
+        case .attachmentBlocked: return "The attachment is blocked. Review recovery options."
+        case .attachmentRemoving: return "Attachment removal is pending."
+        case .attachmentPromoted: return "Attachment added to the local record."
+        case .attachmentProtectedData: return "The attachment is unavailable while local data is locked. Unlock this iPhone and retry."
+        case .attachmentLowStorage: return "The attachment is blocked by low storage on this iPhone. Free space and retry."
+        case .replayPending: return "Local recovery is waiting for earlier changes."
+        case .replayMissingContent: return "Local recovery is waiting for required attachment content."
+        case .replayConflict: return "Local recovery has an unresolved conflict. Review it before continuing."
+        case .replayFailed: return "Local recovery could not apply the changes. Review recovery options."
+        case .replayRecovered: return "The recorded changes were recovered on this iPhone."
+        case .replayNoChanges: return "No additional local changes were recovered."
+        case .remoteSyncUnavailable: return "Remote synchronization status is unavailable."
+        case .syncingUnavailable: return "Syncing with another device cannot be confirmed."
+        case .synchronizedUnavailable: return "Synchronization with another device cannot be confirmed."
+        case .startupChecking: return "Checking local data on this iPhone…"
+        case .startupReady: return "Local data is ready on this iPhone."
+        case .eraseCleanupPending: return "Local erase cleanup is still pending."
+        case .maintenanceDataPointer: return "The active local data location could not be verified. Retry checks or review recovery steps."
+        case .maintenanceDataGeneration: return "The active local data could not be opened. Retry checks or review recovery steps."
+        case .maintenanceFinalization: return "A local save needs recovery. Retry checks or review recovery steps."
+        case .maintenanceMedia: return "Local evidence files need recovery. Retry checks or review recovery steps."
+        case .maintenanceRestore: return "A local restore needs recovery. Retry checks or review recovery steps."
+        case .maintenanceErase: return "Local erase cleanup needs recovery. Retry checks or review recovery steps."
+        case .maintenanceFieldDraft: return "A local draft needs recovery. Retry checks or review recovery steps."
+        case .restoreChecking: return "Checking the local backup…"
+        case .restoreInProgress: return "Restoring data on this iPhone…"
+        case .restoreFailed: return "The backup operation did not complete. Review the error before retrying."
+        case .restoreComplete: return "Backup restored on this iPhone."
+        case .recoveryHealthy: return "Local checks found no recovery action."
+        case .recoveryChecking: return "Checking recovery status…"
+        case .recoveryActionable: return "Recovery needs your attention."
+        case .recoveryInProgress: return "Recovery is in progress."
+        case .recoveryInterrupted: return "Recovery was interrupted. Review the next action."
+        case .recoveryFileRequired: return "Recovery is waiting for a required file."
+        case .recoveryValidationFailed: return "Recovery validation failed. Review the next action."
+        case .recoveryPartialSafe: return "Recovery is only partially complete. Review the remaining action."
+        case .recoveryComplete: return "Recovery checks are complete."
+        case .recoveryRestartRequired: return "Recovery requires a restart before continuing."
+        case .recoveryExternalActionRequired: return "Recovery requires an external action before continuing."
+        }
+    }
+
+    static func syncStateLocalized(
+        _ key: LocalizedSyncStateMessageKeyV1,
+        bundle: Bundle = .main, locale: Locale
+    ) -> String {
+        switch key {
+        case .unsavedChanges:
+            return String(localized: "v30.sync-state.unsaved-changes",
+                defaultValue: "Unsaved changes on this iPhone.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Unsaved changes on this iPhone. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .savingLocally:
+            return String(localized: "v30.sync-state.saving-locally",
+                defaultValue: "Saving on this iPhone…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Saving on this iPhone… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .savedLocally:
+            return String(localized: "v30.sync-state.saved-locally",
+                defaultValue: "Saved on this iPhone.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Saved on this iPhone. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .saveBlocked:
+            return String(localized: "v30.sync-state.save-blocked",
+                defaultValue: "The changes could not be saved on this iPhone. Retry when local storage is available.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The changes could not be saved on this iPhone. Retry when local storage is available. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .committingLocally:
+            return String(localized: "v30.sync-state.committing-locally",
+                defaultValue: "Applying changes on this iPhone…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Applying changes on this iPhone… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .draftConflict:
+            return String(localized: "v30.sync-state.draft-conflict",
+                defaultValue: "This draft has a conflict. Review it before continuing.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: This draft has a conflict. Review it before continuing. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .draftRecoveryRequired:
+            return String(localized: "v30.sync-state.draft-recovery-required",
+                defaultValue: "This draft needs recovery before you can continue.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: This draft needs recovery before you can continue. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .committedLocally:
+            return String(localized: "v30.sync-state.committed-locally",
+                defaultValue: "Changes applied on this iPhone.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Changes applied on this iPhone. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .discarding:
+            return String(localized: "v30.sync-state.discarding",
+                defaultValue: "Discarding the local draft…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Discarding the local draft… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .discarded:
+            return String(localized: "v30.sync-state.discarded",
+                defaultValue: "Local draft discarded.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local draft discarded. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentSelected:
+            return String(localized: "v30.sync-state.attachment-selected",
+                defaultValue: "Attachment selected. Local preparation is pending.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Attachment selected. Local preparation is pending. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentLoading:
+            return String(localized: "v30.sync-state.attachment-loading",
+                defaultValue: "Loading the attachment on this iPhone…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Loading the attachment on this iPhone… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentStaged:
+            return String(localized: "v30.sync-state.attachment-staged",
+                defaultValue: "Attachment staged locally. Confirmation is pending.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Attachment staged locally. Confirmation is pending. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentProcessing:
+            return String(localized: "v30.sync-state.attachment-processing",
+                defaultValue: "Processing the attachment on this iPhone…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Processing the attachment on this iPhone… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentReady:
+            return String(localized: "v30.sync-state.attachment-ready",
+                defaultValue: "Attachment ready on this iPhone.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Attachment ready on this iPhone. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentRetryableFailure:
+            return String(localized: "v30.sync-state.attachment-retryable-failure",
+                defaultValue: "The attachment could not be prepared. Retry the attachment.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The attachment could not be prepared. Retry the attachment. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentBlocked:
+            return String(localized: "v30.sync-state.attachment-blocked",
+                defaultValue: "The attachment is blocked. Review recovery options.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The attachment is blocked. Review recovery options. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentRemoving:
+            return String(localized: "v30.sync-state.attachment-removing",
+                defaultValue: "Attachment removal is pending.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Attachment removal is pending. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentPromoted:
+            return String(localized: "v30.sync-state.attachment-promoted",
+                defaultValue: "Attachment added to the local record.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Attachment added to the local record. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentProtectedData:
+            return String(localized: "v30.sync-state.attachment-protected-data",
+                defaultValue: "The attachment is unavailable while local data is locked. Unlock this iPhone and retry.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The attachment is unavailable while local data is locked. Unlock this iPhone and retry. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .attachmentLowStorage:
+            return String(localized: "v30.sync-state.attachment-low-storage",
+                defaultValue: "The attachment is blocked by low storage on this iPhone. Free space and retry.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The attachment is blocked by low storage on this iPhone. Free space and retry. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .replayPending:
+            return String(localized: "v30.sync-state.replay-pending",
+                defaultValue: "Local recovery is waiting for earlier changes.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local recovery is waiting for earlier changes. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .replayMissingContent:
+            return String(localized: "v30.sync-state.replay-missing-content",
+                defaultValue: "Local recovery is waiting for required attachment content.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local recovery is waiting for required attachment content. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .replayConflict:
+            return String(localized: "v30.sync-state.replay-conflict",
+                defaultValue: "Local recovery has an unresolved conflict. Review it before continuing.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local recovery has an unresolved conflict. Review it before continuing. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .replayFailed:
+            return String(localized: "v30.sync-state.replay-failed",
+                defaultValue: "Local recovery could not apply the changes. Review recovery options.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local recovery could not apply the changes. Review recovery options. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .replayRecovered:
+            return String(localized: "v30.sync-state.replay-recovered",
+                defaultValue: "The recorded changes were recovered on this iPhone.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The recorded changes were recovered on this iPhone. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .replayNoChanges:
+            return String(localized: "v30.sync-state.replay-no-changes",
+                defaultValue: "No additional local changes were recovered.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: No additional local changes were recovered. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .remoteSyncUnavailable:
+            return String(localized: "v30.sync-state.remote-sync-unavailable",
+                defaultValue: "Remote synchronization status is unavailable.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Remote synchronization status is unavailable. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .syncingUnavailable:
+            return String(localized: "v30.sync-state.syncing-unavailable",
+                defaultValue: "Syncing with another device cannot be confirmed.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Syncing with another device cannot be confirmed. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .synchronizedUnavailable:
+            return String(localized: "v30.sync-state.synchronized-unavailable",
+                defaultValue: "Synchronization with another device cannot be confirmed.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Synchronization with another device cannot be confirmed. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .startupChecking:
+            return String(localized: "v30.sync-state.startup-checking",
+                defaultValue: "Checking local data on this iPhone…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Checking local data on this iPhone… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .startupReady:
+            return String(localized: "v30.sync-state.startup-ready",
+                defaultValue: "Local data is ready on this iPhone.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local data is ready on this iPhone. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .eraseCleanupPending:
+            return String(localized: "v30.sync-state.erase-cleanup-pending",
+                defaultValue: "Local erase cleanup is still pending.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local erase cleanup is still pending. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .maintenanceDataPointer:
+            return String(localized: "v30.sync-state.maintenance-data-pointer",
+                defaultValue: "The active local data location could not be verified. Retry checks or review recovery steps.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The active local data location could not be verified. Retry checks or review recovery steps. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .maintenanceDataGeneration:
+            return String(localized: "v30.sync-state.maintenance-data-generation",
+                defaultValue: "The active local data could not be opened. Retry checks or review recovery steps.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The active local data could not be opened. Retry checks or review recovery steps. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .maintenanceFinalization:
+            return String(localized: "v30.sync-state.maintenance-finalization",
+                defaultValue: "A local save needs recovery. Retry checks or review recovery steps.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: A local save needs recovery. Retry checks or review recovery steps. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .maintenanceMedia:
+            return String(localized: "v30.sync-state.maintenance-media",
+                defaultValue: "Local evidence files need recovery. Retry checks or review recovery steps.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local evidence files need recovery. Retry checks or review recovery steps. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .maintenanceRestore:
+            return String(localized: "v30.sync-state.maintenance-restore",
+                defaultValue: "A local restore needs recovery. Retry checks or review recovery steps.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: A local restore needs recovery. Retry checks or review recovery steps. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .maintenanceErase:
+            return String(localized: "v30.sync-state.maintenance-erase",
+                defaultValue: "Local erase cleanup needs recovery. Retry checks or review recovery steps.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local erase cleanup needs recovery. Retry checks or review recovery steps. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .maintenanceFieldDraft:
+            return String(localized: "v30.sync-state.maintenance-field-draft",
+                defaultValue: "A local draft needs recovery. Retry checks or review recovery steps.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: A local draft needs recovery. Retry checks or review recovery steps. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .restoreChecking:
+            return String(localized: "v30.sync-state.restore-checking",
+                defaultValue: "Checking the local backup…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Checking the local backup… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .restoreInProgress:
+            return String(localized: "v30.sync-state.restore-in-progress",
+                defaultValue: "Restoring data on this iPhone…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Restoring data on this iPhone… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .restoreFailed:
+            return String(localized: "v30.sync-state.restore-failed",
+                defaultValue: "The backup operation did not complete. Review the error before retrying.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: The backup operation did not complete. Review the error before retrying. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .restoreComplete:
+            return String(localized: "v30.sync-state.restore-complete",
+                defaultValue: "Backup restored on this iPhone.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Backup restored on this iPhone. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryHealthy:
+            return String(localized: "v30.sync-state.recovery-healthy",
+                defaultValue: "Local checks found no recovery action.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Local checks found no recovery action. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryChecking:
+            return String(localized: "v30.sync-state.recovery-checking",
+                defaultValue: "Checking recovery status…", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Checking recovery status… Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryActionable:
+            return String(localized: "v30.sync-state.recovery-actionable",
+                defaultValue: "Recovery needs your attention.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery needs your attention. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryInProgress:
+            return String(localized: "v30.sync-state.recovery-in-progress",
+                defaultValue: "Recovery is in progress.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery is in progress. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryInterrupted:
+            return String(localized: "v30.sync-state.recovery-interrupted",
+                defaultValue: "Recovery was interrupted. Review the next action.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery was interrupted. Review the next action. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryFileRequired:
+            return String(localized: "v30.sync-state.recovery-file-required",
+                defaultValue: "Recovery is waiting for a required file.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery is waiting for a required file. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryValidationFailed:
+            return String(localized: "v30.sync-state.recovery-validation-failed",
+                defaultValue: "Recovery validation failed. Review the next action.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery validation failed. Review the next action. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryPartialSafe:
+            return String(localized: "v30.sync-state.recovery-partial-safe",
+                defaultValue: "Recovery is only partially complete. Review the remaining action.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery is only partially complete. Review the remaining action. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryComplete:
+            return String(localized: "v30.sync-state.recovery-complete",
+                defaultValue: "Recovery checks are complete.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery checks are complete. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryRestartRequired:
+            return String(localized: "v30.sync-state.recovery-restart-required",
+                defaultValue: "Recovery requires a restart before continuing.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery requires a restart before continuing. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        case .recoveryExternalActionRequired:
+            return String(localized: "v30.sync-state.recovery-external-action-required",
+                defaultValue: "Recovery requires an external action before continuing.", bundle: bundle, locale: locale,
+                comment: "Screen: Offline status and recovery. Meaning: Recovery requires an external action before continuing. Role: visible and accessible status. Arguments: none. Local operation only; no remote synchronization or delivery claim.")
+        }
+    }
+
+    static func syncStateRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try recoveryCenterRegistry()
+        let additions = LocalizedSyncStateMessageKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey, meaningID: key.rawValue,
+                translatorComment: "Existing local operation status; preserve failure, pending and recovery distinctions. No remote delivery or new capability claim.",
+                englishDefaultValue: syncStateEnglish(key), arguments: [],
+                requiredEnglishPluralCategories: [], state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}

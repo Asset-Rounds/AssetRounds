@@ -1731,6 +1731,22 @@ extension StoreSessionCoordinator {
     }
 }
 
+// MARK: - V30 replay-localization projection
+
+extension LocalChangeJournalV1.ReplayResultV1 {
+    /// Rebuilds localized presentation only from this already-produced replay
+    /// receipt. It does not advance the cursor, retain a batch, or write state.
+    func v30LocalizedState(
+        limits: ChangeJournalLimitsV1
+    ) throws -> LocalizedSyncStatePresentationV1 {
+        try LocalizedSyncStatePresentationV1.replay(
+            receipt: receipt,
+            isDeferred: isDeferred,
+            limits: limits
+        )
+    }
+}
+
 enum LightingLocalChangeJournalPolicyV1 { static let commandKind:WorkspaceCommandKindV1 = .applyLighting;static let durableEntityKinds:Set<WorkspaceEntityKindV1>=[.lightingSystem,.lightingObservation,.lightingIssue,.lightingMeasurementPlan,.lightingClaimState];static func validate(_ envelope:MutationEnvelopeV1)throws{guard case let .applyLighting(operation)=envelope.command else{return};try operation.validate();guard envelope.commandKind==commandKind,envelope.mutationID==operation.mutationID else{throw ChangeJournalFailureV1.tamperedBatch}} }
 
 enum AssistanceLocalChangeJournalPolicyV1 {

@@ -2296,3 +2296,25 @@ private final class V30P01C06BundledFallbackRegressionTests: XCTestCase {
         }
     }
 }
+
+extension V9_22LocalizationAccessibilityTests {
+    func testV30P03C02LocalizedSyncStatesExposeAccessibleEnglishFallbacks() throws {
+        let registry = try BundledLocalizationCatalogV1.syncStateRegistry()
+        try registry.validate()
+        let syncDefinitions = registry.definitions.filter {
+            $0.key.rawValue.hasPrefix("v30.sync-state.")
+        }
+        XCTAssertEqual(syncDefinitions.count, LocalizedSyncStateMessageKeyV1.allCases.count)
+
+        let presentation = LocalizedSyncStatePresentationV1.remoteSyncUnavailable
+        let visible = LocalizedSyncStateRendererV1.text(
+            presentation, bundle: Bundle(for: Self.self), locale: Locale(identifier: "ko")
+        )
+        let accessibility = LocalizedSyncStateRendererV1.text(
+            presentation.messageKey, bundle: Bundle(for: Self.self), locale: Locale(identifier: "ko")
+        )
+        XCTAssertEqual(visible, accessibility)
+        XCTAssertEqual(visible, BundledLocalizationCatalogV1.syncStateEnglish(presentation.messageKey))
+        XCTAssertFalse(presentation.claimsRemoteSynchronization)
+    }
+}

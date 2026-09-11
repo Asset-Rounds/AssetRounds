@@ -93,20 +93,30 @@ struct BackupRestoreProgressView: View {
                         }
 
                         if let errorMessage {
+                            let message = restoreStateText(.failed) + "\n" + errorMessage
                             WorklightStatusBadge(
                                 kind: .blocked,
-                                text: errorMessage
+                                text: message
                             )
+                            .accessibilityLabel(Text(message))
                             .accessibilityIdentifier(Self.errorAccessibilityIdentifier)
-                        }
-
-                        if isChecking || isRestoring {
+                        } else if didComplete {
+                            WorklightStatusBadge(
+                                kind: .complete,
+                                text: restoreStateText(.complete)
+                            )
+                            .accessibilityLabel(Text(restoreStateText(.complete)))
+                            .accessibilityIdentifier(Self.progressAccessibilityIdentifier)
+                        } else if isChecking || isRestoring {
+                            let state: LocalizedRestoreStateV1 = isRestoring
+                                ? .restoring
+                                : .checking
+                            let message = restoreStateText(state)
                             ProgressView(
-                                isRestoring
-                                    ? BundledLocalizationCatalogV1.v30Text(.backupRestoreRestoringProgress)
-                                    : BundledLocalizationCatalogV1.v30Text(.backupRestoreCheckingProgress)
+                                message
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityLabel(Text(message))
                             .accessibilityIdentifier(Self.progressAccessibilityIdentifier)
                         }
                     }
@@ -266,6 +276,12 @@ struct BackupRestoreProgressView: View {
     }
 
     private var isBusy: Bool { isChecking || isRestoring }
+
+    private func restoreStateText(_ state: LocalizedRestoreStateV1) -> String {
+        LocalizedSyncStateRendererV1.text(
+            .restore(state)
+        )
+    }
 
     private func validateSelection(
         _ url: URL,

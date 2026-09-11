@@ -381,6 +381,17 @@ enum SyncClassificationRegistryV1 {
     }
 }
 
+// MARK: - V30 remote-sync eligibility presentation
+
+extension SyncClassificationRegistryV1 {
+    /// The registry can validate local eligibility declarations only. It has no
+    /// remote delivery evidence, so it always reports remote sync unavailable.
+    static func v30RemoteSyncState() throws -> LocalizedSyncStatePresentationV1 {
+        try validate()
+        return .remoteSyncUnavailable
+    }
+}
+
 enum SyncClassificationRegistryFailureV1: Error, Equatable {
     case invalidSubject
     case invalidRegistrationCount

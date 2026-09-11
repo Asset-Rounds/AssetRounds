@@ -42,10 +42,11 @@ struct StartupMaintenanceView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
 
-                Text(Self.messageText)
+                Text(maintenanceMessage)
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(Text(maintenanceMessage))
 
                 Button(action: retryChecks) {
                     Label(Self.retryButtonText, systemImage: "arrow.clockwise")
@@ -95,5 +96,11 @@ struct StartupMaintenanceView: View {
                 .ignoresSafeArea()
         }
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+    }
+
+    private var maintenanceMessage: String {
+        LocalizedSyncStateRendererV1.text(
+            reason.v30MessageKey
+        )
     }
 }

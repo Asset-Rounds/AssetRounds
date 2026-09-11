@@ -115,7 +115,7 @@ struct RecoveryCenterView: View {
         WorklightCard {
             statusBadge
 
-            Text(localized(stateKey(projection.state)))
+            Text(syncStateText(projection.state))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -136,7 +136,7 @@ struct RecoveryCenterView: View {
 
     private var statusBadge: some View {
         Label {
-            Text(localized(stateKey(projection.state)))
+            Text(syncStateText(projection.state))
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: stateIcon(projection.state))
@@ -158,7 +158,7 @@ struct RecoveryCenterView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            Text("\(localized(.statusHeading)): \(localized(stateKey(projection.state)))")
+            Text("\(localized(.statusHeading)): \(syncStateText(projection.state))")
         )
     }
 
@@ -225,7 +225,7 @@ struct RecoveryCenterView: View {
             Text(localized(sourceKey(source.source)))
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
-            Text(localized(stateKey(source.state)))
+            Text(syncStateText(source.state))
                 .font(.subheadline)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
@@ -364,7 +364,7 @@ struct RecoveryCenterView: View {
         return layout {
             Text(localized(.statusHeading))
                 .font(.subheadline.weight(.semibold))
-            Text(localized(stateKey(source.state)))
+            Text(syncStateText(source.state))
                 .font(.subheadline)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
@@ -567,22 +567,10 @@ struct RecoveryCenterView: View {
         BundledLocalizationCatalogV1.recoveryCenterLocalized(key)
     }
 
-    private func stateKey(
-        _ state: RecoveryCenterStateV1
-    ) -> RecoveryCenterLocalizationKeyV1 {
-        switch state {
-        case .healthy: return .stateHealthy
-        case .checking: return .stateChecking
-        case .actionable: return .stateActionable
-        case .inProgress: return .stateInProgress
-        case .interrupted: return .stateInterrupted
-        case .fileRequired: return .stateFileRequired
-        case .validationFailed: return .stateValidationFailed
-        case .partialSafe: return .statePartialSafe
-        case .complete: return .stateComplete
-        case .restartRequired: return .stateRestartRequired
-        case .externalActionRequired: return .stateExternalActionRequired
-        }
+    private func syncStateText(_ state: RecoveryCenterStateV1) -> String {
+        LocalizedSyncStateRendererV1.text(
+            .recovery(state)
+        )
     }
 
     private func sourceKey(

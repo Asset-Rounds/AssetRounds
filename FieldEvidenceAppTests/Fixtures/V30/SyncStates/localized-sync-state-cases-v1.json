@@ -1,0 +1,512 @@
+{
+  "schemaVersion": 1,
+  "cardID": "V30-P03-C02",
+  "uiLocales": [
+    "en",
+    "es",
+    "zh-Hans",
+    "zh-Hant",
+    "vi",
+    "ko"
+  ],
+  "unicodeAttachment": {
+    "sourceLanguage": "en",
+    "text": "NFC café | NFD Café | 中文 | العربية | 👩‍🔧",
+    "utf8ByteCount": 62,
+    "sha256": "1174562e6184a7f48d63888e52f54b18afd816037546227dc593489a4a42b665"
+  },
+  "messageKeys": [
+    {
+      "key": "v30.sync-state.unsaved-changes",
+      "english": "Unsaved changes on this iPhone."
+    },
+    {
+      "key": "v30.sync-state.saving-locally",
+      "english": "Saving on this iPhone…"
+    },
+    {
+      "key": "v30.sync-state.saved-locally",
+      "english": "Saved on this iPhone."
+    },
+    {
+      "key": "v30.sync-state.save-blocked",
+      "english": "The changes could not be saved on this iPhone. Retry when local storage is available."
+    },
+    {
+      "key": "v30.sync-state.committing-locally",
+      "english": "Applying changes on this iPhone…"
+    },
+    {
+      "key": "v30.sync-state.draft-conflict",
+      "english": "This draft has a conflict. Review it before continuing."
+    },
+    {
+      "key": "v30.sync-state.draft-recovery-required",
+      "english": "This draft needs recovery before you can continue."
+    },
+    {
+      "key": "v30.sync-state.committed-locally",
+      "english": "Changes applied on this iPhone."
+    },
+    {
+      "key": "v30.sync-state.discarding",
+      "english": "Discarding the local draft…"
+    },
+    {
+      "key": "v30.sync-state.discarded",
+      "english": "Local draft discarded."
+    },
+    {
+      "key": "v30.sync-state.attachment-selected",
+      "english": "Attachment selected. Local preparation is pending."
+    },
+    {
+      "key": "v30.sync-state.attachment-loading",
+      "english": "Loading the attachment on this iPhone…"
+    },
+    {
+      "key": "v30.sync-state.attachment-staged",
+      "english": "Attachment staged locally. Confirmation is pending."
+    },
+    {
+      "key": "v30.sync-state.attachment-processing",
+      "english": "Processing the attachment on this iPhone…"
+    },
+    {
+      "key": "v30.sync-state.attachment-ready",
+      "english": "Attachment ready on this iPhone."
+    },
+    {
+      "key": "v30.sync-state.attachment-retryable-failure",
+      "english": "The attachment could not be prepared. Retry the attachment."
+    },
+    {
+      "key": "v30.sync-state.attachment-blocked",
+      "english": "The attachment is blocked. Review recovery options."
+    },
+    {
+      "key": "v30.sync-state.attachment-removing",
+      "english": "Attachment removal is pending."
+    },
+    {
+      "key": "v30.sync-state.attachment-promoted",
+      "english": "Attachment added to the local record."
+    },
+    {
+      "key": "v30.sync-state.attachment-protected-data",
+      "english": "The attachment is unavailable while local data is locked. Unlock this iPhone and retry."
+    },
+    {
+      "key": "v30.sync-state.attachment-low-storage",
+      "english": "The attachment is blocked by low storage on this iPhone. Free space and retry."
+    },
+    {
+      "key": "v30.sync-state.replay-pending",
+      "english": "Local recovery is waiting for earlier changes."
+    },
+    {
+      "key": "v30.sync-state.replay-missing-content",
+      "english": "Local recovery is waiting for required attachment content."
+    },
+    {
+      "key": "v30.sync-state.replay-conflict",
+      "english": "Local recovery has an unresolved conflict. Review it before continuing."
+    },
+    {
+      "key": "v30.sync-state.replay-failed",
+      "english": "Local recovery could not apply the changes. Review recovery options."
+    },
+    {
+      "key": "v30.sync-state.replay-recovered",
+      "english": "The recorded changes were recovered on this iPhone."
+    },
+    {
+      "key": "v30.sync-state.replay-no-changes",
+      "english": "No additional local changes were recovered."
+    },
+    {
+      "key": "v30.sync-state.remote-sync-unavailable",
+      "english": "Remote synchronization status is unavailable."
+    },
+    {
+      "key": "v30.sync-state.syncing-unavailable",
+      "english": "Syncing with another device cannot be confirmed."
+    },
+    {
+      "key": "v30.sync-state.synchronized-unavailable",
+      "english": "Synchronization with another device cannot be confirmed."
+    },
+    {
+      "key": "v30.sync-state.startup-checking",
+      "english": "Checking local data on this iPhone…"
+    },
+    {
+      "key": "v30.sync-state.startup-ready",
+      "english": "Local data is ready on this iPhone."
+    },
+    {
+      "key": "v30.sync-state.erase-cleanup-pending",
+      "english": "Local erase cleanup is still pending."
+    },
+    {
+      "key": "v30.sync-state.maintenance-data-pointer",
+      "english": "The active local data location could not be verified. Retry checks or review recovery steps."
+    },
+    {
+      "key": "v30.sync-state.maintenance-data-generation",
+      "english": "The active local data could not be opened. Retry checks or review recovery steps."
+    },
+    {
+      "key": "v30.sync-state.maintenance-finalization",
+      "english": "A local save needs recovery. Retry checks or review recovery steps."
+    },
+    {
+      "key": "v30.sync-state.maintenance-media",
+      "english": "Local evidence files need recovery. Retry checks or review recovery steps."
+    },
+    {
+      "key": "v30.sync-state.maintenance-restore",
+      "english": "A local restore needs recovery. Retry checks or review recovery steps."
+    },
+    {
+      "key": "v30.sync-state.maintenance-erase",
+      "english": "Local erase cleanup needs recovery. Retry checks or review recovery steps."
+    },
+    {
+      "key": "v30.sync-state.maintenance-field-draft",
+      "english": "A local draft needs recovery. Retry checks or review recovery steps."
+    },
+    {
+      "key": "v30.sync-state.restore-checking",
+      "english": "Checking the local backup…"
+    },
+    {
+      "key": "v30.sync-state.restore-in-progress",
+      "english": "Restoring data on this iPhone…"
+    },
+    {
+      "key": "v30.sync-state.restore-failed",
+      "english": "The backup operation did not complete. Review the error before retrying."
+    },
+    {
+      "key": "v30.sync-state.restore-complete",
+      "english": "Backup restored on this iPhone."
+    },
+    {
+      "key": "v30.sync-state.recovery-healthy",
+      "english": "Local checks found no recovery action."
+    },
+    {
+      "key": "v30.sync-state.recovery-checking",
+      "english": "Checking recovery status…"
+    },
+    {
+      "key": "v30.sync-state.recovery-actionable",
+      "english": "Recovery needs your attention."
+    },
+    {
+      "key": "v30.sync-state.recovery-in-progress",
+      "english": "Recovery is in progress."
+    },
+    {
+      "key": "v30.sync-state.recovery-interrupted",
+      "english": "Recovery was interrupted. Review the next action."
+    },
+    {
+      "key": "v30.sync-state.recovery-file-required",
+      "english": "Recovery is waiting for a required file."
+    },
+    {
+      "key": "v30.sync-state.recovery-validation-failed",
+      "english": "Recovery validation failed. Review the next action."
+    },
+    {
+      "key": "v30.sync-state.recovery-partial-safe",
+      "english": "Recovery is only partially complete. Review the remaining action."
+    },
+    {
+      "key": "v30.sync-state.recovery-complete",
+      "english": "Recovery checks are complete."
+    },
+    {
+      "key": "v30.sync-state.recovery-restart-required",
+      "english": "Recovery requires a restart before continuing."
+    },
+    {
+      "key": "v30.sync-state.recovery-external-action-required",
+      "english": "Recovery requires an external action before continuing."
+    }
+  ],
+  "draftPresentation": [
+    {
+      "input": "UNSAVED_CHANGES",
+      "state": "pending",
+      "key": "v30.sync-state.unsaved-changes",
+      "success": false
+    },
+    {
+      "input": "SAVING_ON_THIS_IPHONE",
+      "state": "pending",
+      "key": "v30.sync-state.saving-locally",
+      "success": false
+    },
+    {
+      "input": "SAVED_ON_THIS_IPHONE",
+      "state": "saved",
+      "key": "v30.sync-state.saved-locally",
+      "success": true
+    },
+    {
+      "input": "SAVE_BLOCKED",
+      "state": "failed",
+      "key": "v30.sync-state.save-blocked",
+      "success": false
+    },
+    {
+      "input": "COMMITTING",
+      "state": "pending",
+      "key": "v30.sync-state.committing-locally",
+      "success": false
+    },
+    {
+      "input": "CONFLICTED",
+      "state": "conflicted",
+      "key": "v30.sync-state.draft-conflict",
+      "success": false
+    },
+    {
+      "input": "RECOVERY_REQUIRED",
+      "state": "failed",
+      "key": "v30.sync-state.draft-recovery-required",
+      "success": false
+    },
+    {
+      "input": "COMMITTED",
+      "state": "saved",
+      "key": "v30.sync-state.committed-locally",
+      "success": true
+    },
+    {
+      "input": "DISCARDING",
+      "state": "pending",
+      "key": "v30.sync-state.discarding",
+      "success": false
+    },
+    {
+      "input": "DISCARDED",
+      "state": null,
+      "key": "v30.sync-state.discarded",
+      "success": false
+    }
+  ],
+  "attachmentPresentation": [
+    {
+      "input": "SELECTED",
+      "state": "pending",
+      "key": "v30.sync-state.attachment-selected",
+      "success": false
+    },
+    {
+      "input": "LOADING",
+      "state": "pending",
+      "key": "v30.sync-state.attachment-loading",
+      "success": false
+    },
+    {
+      "input": "STAGED_LOCAL",
+      "state": "pending",
+      "key": "v30.sync-state.attachment-staged",
+      "success": false
+    },
+    {
+      "input": "PROCESSING",
+      "state": "pending",
+      "key": "v30.sync-state.attachment-processing",
+      "success": false
+    },
+    {
+      "input": "READY",
+      "state": "saved",
+      "key": "v30.sync-state.attachment-ready",
+      "success": true
+    },
+    {
+      "input": "RETRYABLE_FAILURE",
+      "state": "failed",
+      "key": "v30.sync-state.attachment-retryable-failure",
+      "success": false
+    },
+    {
+      "input": "BLOCKED",
+      "state": "failed",
+      "key": "v30.sync-state.attachment-blocked",
+      "success": false
+    },
+    {
+      "input": "REMOVED",
+      "state": "pending",
+      "key": "v30.sync-state.attachment-removing",
+      "success": false
+    },
+    {
+      "input": "PROMOTED",
+      "state": "saved",
+      "key": "v30.sync-state.attachment-promoted",
+      "success": true
+    }
+  ],
+  "restorePresentation": [
+    {
+      "input": "checking",
+      "state": "pending",
+      "key": "v30.sync-state.restore-checking",
+      "success": false
+    },
+    {
+      "input": "restoring",
+      "state": "pending",
+      "key": "v30.sync-state.restore-in-progress",
+      "success": false
+    },
+    {
+      "input": "failed",
+      "state": "failed",
+      "key": "v30.sync-state.restore-failed",
+      "success": false
+    },
+    {
+      "input": "complete",
+      "state": "recovered",
+      "key": "v30.sync-state.restore-complete",
+      "success": true
+    }
+  ],
+  "recoveryPresentation": [
+    {
+      "input": "HEALTHY",
+      "state": null,
+      "key": "v30.sync-state.recovery-healthy",
+      "success": false
+    },
+    {
+      "input": "CHECKING",
+      "state": "pending",
+      "key": "v30.sync-state.recovery-checking",
+      "success": false
+    },
+    {
+      "input": "ACTIONABLE",
+      "state": "failed",
+      "key": "v30.sync-state.recovery-actionable",
+      "success": false
+    },
+    {
+      "input": "IN_PROGRESS",
+      "state": "pending",
+      "key": "v30.sync-state.recovery-in-progress",
+      "success": false
+    },
+    {
+      "input": "INTERRUPTED",
+      "state": "failed",
+      "key": "v30.sync-state.recovery-interrupted",
+      "success": false
+    },
+    {
+      "input": "FILE_REQUIRED",
+      "state": "pending",
+      "key": "v30.sync-state.recovery-file-required",
+      "success": false
+    },
+    {
+      "input": "VALIDATION_FAILED",
+      "state": "failed",
+      "key": "v30.sync-state.recovery-validation-failed",
+      "success": false
+    },
+    {
+      "input": "PARTIAL_SAFE",
+      "state": "pending",
+      "key": "v30.sync-state.recovery-partial-safe",
+      "success": false
+    },
+    {
+      "input": "COMPLETE",
+      "state": "recovered",
+      "key": "v30.sync-state.recovery-complete",
+      "success": true
+    },
+    {
+      "input": "RESTART_REQUIRED",
+      "state": "pending",
+      "key": "v30.sync-state.recovery-restart-required",
+      "success": false
+    },
+    {
+      "input": "EXTERNAL_ACTION_REQUIRED",
+      "state": "pending",
+      "key": "v30.sync-state.recovery-external-action-required",
+      "success": false
+    }
+  ],
+  "startupBootstrap": [
+    {
+      "input": "checking",
+      "key": "v30.sync-state.startup-checking"
+    },
+    {
+      "input": "ready",
+      "key": "v30.sync-state.startup-ready"
+    },
+    {
+      "input": "eraseCleanupPending",
+      "key": "v30.sync-state.erase-cleanup-pending"
+    },
+    {
+      "input": "maintenance",
+      "key": "v30.sync-state.maintenance-data-pointer"
+    }
+  ],
+  "startupMaintenance": [
+    {
+      "input": "dataPointerInvalid",
+      "key": "v30.sync-state.maintenance-data-pointer"
+    },
+    {
+      "input": "dataGenerationMissing",
+      "key": "v30.sync-state.maintenance-data-generation"
+    },
+    {
+      "input": "finalizationInconsistent",
+      "key": "v30.sync-state.maintenance-finalization"
+    },
+    {
+      "input": "mediaInconsistent",
+      "key": "v30.sync-state.maintenance-media"
+    },
+    {
+      "input": "restoreInconsistent",
+      "key": "v30.sync-state.maintenance-restore"
+    },
+    {
+      "input": "eraseInconsistent",
+      "key": "v30.sync-state.maintenance-erase"
+    },
+    {
+      "input": "fieldDraftInconsistent",
+      "key": "v30.sync-state.maintenance-field-draft"
+    }
+  ],
+  "remoteStatuses": [
+    {
+      "input": "syncing",
+      "state": null,
+      "key": "v30.sync-state.syncing-unavailable"
+    },
+    {
+      "input": "synchronized",
+      "state": null,
+      "key": "v30.sync-state.synchronized-unavailable"
+    }
+  ]
+}
