@@ -4581,3 +4581,75 @@ Implementation paths (13 within the 21-path fence):
 - `FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift`
 
 Boundary: isolated provisional branch only; no main or Phase 10 read/poll/mutation. Replay/reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence. Never merge wholesale. Next unstarted card: V30-P03-C03. This entry does not self-record its containing commit.
+
+
+## Card 24 of 55 - V30-P03-C03 - Forms, required-state, validation, and conditional semantics
+
+State: PROVISIONAL_CHECKPOINTED. Execution stops here at the owner's request. Card 25 / V30-P03-C04 remains unselected and unstarted. This is graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `de11273e4944974d644b6f5533f6137be7af9374`, tree `13e88b512a214a551648f8a3576dbf0597bfd790` (Card 23 checkpoint 49).
+- Observed G0 authority A: `4c9b8a34ed8a2fbfcb027fcc1c52748486de0ab5`; M..A is exactly the four V30 execution documents. All 25 fence entries match immutable authority and frozen B pins; three exact S10 UI tuples apply.
+- Product implementation E: `45eb5bb4dca6b32f3434d57ccada1059bf8fb0e6`, tree `2bd1a2364e17c9185812e43439c95870eb21e29e`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 51: head `3a7901ab7c280e23cbc5e914e621ddd03e6a0a28`, ledger digest `f4598503b1db9dbd0bcf81fe87220949c4194bf7d85fa6d57d34cc3b09bf31a9`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C03/CHECKPOINT/1`. The receipt includes all committed paths/hashes, candidate history, inventory and static evidence. All previous ledger event/request objects were proved unchanged before append.
+
+Direct prerequisite evidence:
+- V30-P01-C07: `36f9c62ef09bff21c47923add3ade6469a82650e`, tree `0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8`, checkpoint 28.
+- V30-P02-C04: `d804f60308bcfdcaadf01780d429132e4bcbd77d`, tree `0cde23d9cf27616f10d4465ef4ee5a9ac387791e`, checkpoint 39.
+- V30-P03-C01: `c004b4bdd19bc037e3373e7f3a8f508343e5dca0`, tree `7d63520aabb3424f3a2fea35b0bd268400a7517d`, checkpoint 47.
+
+Eight typed literal keys/defaults append to the existing registry. Default UI language comes from Apple effective app-language resolution. The six initial language inputs use English fallback where resources are absent; this is not completed translation or professional/native qualification.
+
+Choice projection maps canonical source order without localized sorting. Original visibility expressions remain unchanged. Conditions are checked through existing release/static validators and workflow graph regression coverage; rendering never evaluates branches or controls completion.
+
+The three existing CheckRunner surfaces add only required/optional accessibility semantics. Toggle On/Off state, text-field contents, existing hints, identifiers, choices, error details, navigation, disabled predicates and all operation bodies are preserved.
+
+The response-field overload calls existing validateSurveyFact and fails closed on required/cardinality and canonical choice-ID disagreement. Instruction and repeat-group headings have no response requirement marker. Existing field rules are never rewritten.
+
+Eleven implementation/test/fixture paths inside the twenty-five-path fence. Three exact pre-issued S10 UI tuples remain reconciliation-required. Existing canonical models, validators, graph rules, codecs, schema, journal/writer, lifecycle/sandbox, project/resources, V4 authority and selector are unchanged.
+
+Validated release membership and exact catalog release digest bind source labels, accessibility labels, help and choice text. The existing archive validates source catalog, registry, manifest and their hashes. Source defaults remain byte-preserved and are independent of app language; no arbitrary text substitution or translation engine exists.
+
+LocaleFormattingServiceV1 remains unchanged. Decimal and explicit-unit formatting is read-only; tests preserve typed canonical response bytes, reject invalid numbers/units and ambiguous input, and keep app-language choice independent from the formatting profile.
+
+ResponseFieldValidatorV1 remains the authority. Actual failures select typed localized messages, valid results contain no error message, unknown failures stay nonvalid without manufactured canonical error provenance, and malformed field configuration cannot claim a missing response.
+
+The selected field labels are additionally checked against the simple English string value in the validated source archive with exact UTF-8 equality. Argument, plural and substitution messages are not admitted as unformatted field labels. This closes the inherited archive validator's V30 registry-default comparison gap without changing that validator or adding a localization engine. Original source/catalog bytes, language metadata and source release identity are retained.
+
+The final source review corrected initial uncommitted API drafts, fieldless requirement semantics, actual error provenance, malformed-release prevalidation, exact source-byte binding and test fixture/API mismatches. Canonical validators, workflow rules and product operations remain unchanged. Independent reviewer c07_delivery_review checked the final source, API signatures, tests and paused-bookkeeping authority. Native execution is still required after reconciliation; these checks do not substitute for a build, test run or linguistic review.
+
+Added native regression methods (10), unexecuted:
+- `testFormSemanticsRegistryContainsEightTypedEnglishFallbacksAcrossSixUILocales`
+- `testArchiveBoundAuthoredTextChoiceOrderAndCanonicalBytesStayExact`
+- `testArchiveRejectsForgedV30DefaultAndParameterizedKeyWithoutArguments`
+- `testResponseRequirementChoiceAndCanonicalValidatorsRemainAuthoritative`
+- `testInstructionAndRepeatGroupRemainFieldlessAndDoNotEmitRequirementCopy`
+- `testLocaleFormattingIsIndependentFromUILanguageAndCanonicalValueUnit`
+- `testReleasedVisibilityConditionAndWorkflowGraphRemainCanonical`
+- `testV30P03C03LocalizedFormValidationKeepsTypedResponseAdmissionCanonical`
+- `testV30P03C03LocalizedFormProjectionPreservesReleasedSurveyDefinitionBytes`
+- `testV30P03C03LocalizedFormProjectionDoesNotAlterWorkflowGraphValidation`
+
+Static validation PASS: immutable 55-card/107-edge package and installed pins; typed WINDOWS_STATIC null selector; exact 25-path fence/B pins and authority-only M..A; eleven scoped implementation paths and three pre-issued S10 tuples; all existing declarations/operation bodies preserved through insertion-only changes; eight literal app-catalog keys/defaults; exact fixture/source byte checks and source hygiene; git diff --check. No hosted candidate was dispatched and no native or whole-suite pass is claimed.
+
+S10_SHARED_RECONCILIATION_REQUIRED:
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`: B blob `f7a500dd414a35824117caa9dcd93c83909d1530`, SHA-256 `f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8`, lane `V30-P03-C03-FORM-SEMANTICS-INTEGRATOR`; REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT.
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`: B blob `5e0b1d333ff0124259a863674c7cb308365a13b6`, SHA-256 `0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955`, lane `V30-P03-C03-FORM-SEMANTICS-INTEGRATOR`; REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT.
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`: B blob `199911f3676695af27f475e62e2d9ea4fb05e34d`, SHA-256 `bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b`, lane `V30-P03-C03-FORM-SEMANTICS-INTEGRATOR`; REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT.
+
+Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots: unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT. KNOWN_BUGS was read and remains its template; no defect was accepted. Historical English source-audit fixtures remain immutable; the three changed UI source hashes are recorded as invalidated evidence for post-reconciliation requalification.
+
+Implementation paths (11 within the 25-path fence):
+- `FieldEvidenceApp/Application/Globalization/LocalizedFormSemanticsCoordinatorV1.swift`
+- `FieldEvidenceApp/Domain/Globalization/LocalizedFormSemanticsContractsV1.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+- `FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/Forms/localized-form-semantics-cases-v1.json`
+- `FieldEvidenceAppTests/V30_P03_C03LocalizedFormSemanticsTests.swift`
+- `FieldEvidenceAppTests/V9_13TypedResponseTests.swift`
+- `FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift`
+- `FieldEvidenceAppTests/V9_83GuidedSurveyFlowTests.swift`
+
+Owner-directed pause: after completing this card, do not select or start V30-P03-C04. This bookkeeping commit only appends this handoff and refreshes the read-only ledger projection to the observed sequence-51 checkpoint. CURRENT_TASK and the V30 selector remain byte-for-byte at Card 24. The four source authority/selector documents and all prior receipts retain their historical meaning. No main or Phase 10 read/poll/mutation occurred. Replay or reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence; never merge wholesale. This entry does not self-record its containing commit.
