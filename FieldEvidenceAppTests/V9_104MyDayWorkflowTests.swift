@@ -498,6 +498,22 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
 }
 
 final class V9_104MyDayWorkflowTests: XCTestCase {
+    @MainActor func testSummaryPresentationUsesExactMembershipEstimate() throws {
+        // Exercise the view's actual formatter with validated canonical summary values.
+        for minutes in [nil, 1, 37] as [Int?] {
+            let item = try MyDayItemV1(membershipID: C41.id(310), reference: C41.round(1),
+                manualOrder: 0, estimate: minutes.map { try MyDayEstimateV1(wholeMinutes: $0) })
+            let frontier = try MyDaySourceFrontierV1(membershipID: item.membershipID,
+                plannedReference: item.reference, currentReference: item.reference,
+                state: .draft, readiness: .notReady, dueAt: nil, evaluatedAt: C41.now)
+            let summary = try MyDaySummaryItemV1(item: item, frontier: frontier, dueReason: nil)
+            try summary.validate()
+            XCTAssertEqual(MyDayWorkflowView.summaryEstimateText(summary),
+                minutes.map { "\($0) minute estimate" } ?? "no duration estimate")
+            XCTAssertEqual(summary.item, item)
+        }
+    }
+
     @MainActor
     func testProductionMyDayReadinessPreservesExactCapacityDriftSemantics() async throws {
         let h = try C41ProductionSourceHarness()

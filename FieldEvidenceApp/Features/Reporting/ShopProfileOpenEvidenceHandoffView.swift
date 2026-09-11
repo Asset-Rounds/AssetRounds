@@ -83,18 +83,18 @@ struct ShopProfileOpenEvidenceHandoffView: View {
     private var profileSection: some View {
         WorklightCard {
             heading(.profileHeading, identifier: Self.profileAccessibilityIdentifier)
-            guard let profile = trustedProfile else {
+            if let profile = trustedProfile {
+                fact(.presetHeading, localized(.profileHeading), identifier: Self.presetAccessibilityIdentifier)
+                fact(.audienceHeading, audienceLabel(profile.evidenceDetailProfile.audience), identifier: Self.audienceAccessibilityIdentifier)
+                fact(.activationHeading, activationLabel(profile.activation), identifier: Self.activationAccessibilityIdentifier)
+                fact(.packagingHeading, packagingLabel(profile.packaging), identifier: Self.packagingAccessibilityIdentifier)
+                Text(profile.activation == .off ? localized(.defaultOff) : localized(.noDeliveryClaim))
+                    .font(.footnote)
+                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
                 bodyText(.defaultOff)
-                return
             }
-            fact(.presetHeading, localized(.profileHeading), identifier: Self.presetAccessibilityIdentifier)
-            fact(.audienceHeading, audienceLabel(profile.evidenceDetailProfile.audience), identifier: Self.audienceAccessibilityIdentifier)
-            fact(.activationHeading, activationLabel(profile.activation), identifier: Self.activationAccessibilityIdentifier)
-            fact(.packagingHeading, packagingLabel(profile.packaging), identifier: Self.packagingAccessibilityIdentifier)
-            Text(profile.activation == .off ? localized(.defaultOff) : localized(.noDeliveryClaim))
-                .font(.footnote)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -191,7 +191,7 @@ struct ShopProfileOpenEvidenceHandoffView: View {
         }
     }
 
-    private var trustedProfile: ShopReportProfileV1? {
+    var trustedProfile: ShopReportProfileV1? {
         guard let profile,
               let coordinator,
               let current = try? coordinator.current(profileID: profile.profileID),
@@ -223,7 +223,7 @@ struct ShopProfileOpenEvidenceHandoffView: View {
         trustedDetection?.disposition == .pass && trustedConfirmation == nil
     }
 
-    private var trustedHandoff: ShopOpenEvidenceHandoffReceiptV1? {
+    var trustedHandoff: ShopOpenEvidenceHandoffReceiptV1? {
         guard let handoff,
               let profile = trustedProfile,
               let confirmation = trustedConfirmation else { return nil }
@@ -234,7 +234,7 @@ struct ShopProfileOpenEvidenceHandoffView: View {
                   handoff.detailReceipt.confirmation == confirmation,
                   handoff.detailReceipt.composedOutputSHA256 == confirmation.composedOutputSHA256,
                   handoff.packaging == profile.packaging,
-                  handoff.artifacts.contains({
+                  handoff.artifacts.contains(where: {
                       $0.format == handoff.confirmedFormat
                           && $0.sha256 == confirmation.composedOutputSHA256
                   }),

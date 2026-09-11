@@ -455,11 +455,12 @@ struct PartsStockWorkflowView: View {
         case returnQuantity
     }
 
-    private enum AccessibilityTarget: Hashable {
+    enum AccessibilityTarget: Hashable {
         case heading
         case search
         case manualLookup
         case selectedPart
+        case useQuantity
         case returnQuantity
         case error
         case status
@@ -908,6 +909,7 @@ struct PartsStockWorkflowView: View {
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.decimalPad)
                 .focused($keyboardFocus, equals: .useQuantity)
+                .accessibilityFocused($accessibilityFocus, equals: .useQuantity)
                 .accessibilityLabel("Quantity to use in \(unitText(item.detail.part.canonicalUnit))")
                 .accessibilityHint("Enter an exact nonnegative quantity. No stock changes while typing.")
                 .accessibilityIdentifier(Self.useQuantityAccessibilityIdentifier)
@@ -1254,14 +1256,19 @@ struct PartsStockWorkflowView: View {
 
     private func submitUse(for item: PartsStockWorkflowCatalogItemV1) {
         localErrorMessage = nil
-        guard !useQuantityText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            presentError("Enter a quantity before requesting Use from stock. Typing the material line alone never changes stock.", focus: .useQuantity)
+        if let error = Self.useQuantityInputError(useQuantityText) {
+            presentError(error.message, focus: error.focus)
             return
         }
         sendWrite(
             .use(partID: item.id, quantityText: useQuantityText, materialText: useMaterialText),
             message: "Requested explicit Use from stock for \(item.detail.part.displayName). Waiting for a canonical receipt; no decrement is claimed yet."
         )
+    }
+
+    static func useQuantityInputError(_ text: String) -> (message: String, focus: AccessibilityTarget)? {
+        guard text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return ("Enter a quantity before requesting Use from stock. Typing the material line alone never changes stock.", .useQuantity)
     }
 
     private func submitReturn(_ candidate: PartsStockWorkflowReturnPresentationV1) {

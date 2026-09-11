@@ -77,6 +77,19 @@ private struct C44Files: ApplicationFileAuthorityV1 { func temporaryRelativePath
 }
 
 final class V9_107PartsStockWorkflowTests: XCTestCase {
+    @MainActor func testMissingUseQuantityPresentationTargetsQuantityField() throws {
+        // This is the actual submit handler's pure presentation decision, not native focus proof.
+        for text in ["", " ", "\t\n"] {
+            let error = try XCTUnwrap(PartsStockWorkflowView.useQuantityInputError(text))
+            XCTAssertEqual(error.focus, .useQuantity)
+            XCTAssertEqual(error.message, "Enter a quantity before requesting Use from stock. Typing the material line alone never changes stock.")
+        }
+        for text in ["2", " 2 ", "not a quantity", "0", "-1"] {
+            XCTAssertNil(PartsStockWorkflowView.useQuantityInputError(text),
+                "Nonempty input must still reach the existing explicit command's canonical validation")
+        }
+    }
+
     private func corpus() throws -> [String: Any] {
         let name = "V23P04C44PartsStockWorkflowCorpusV1"; let bundled = Bundle(for: Self.self).url(forResource: name, withExtension: "json", subdirectory: "Fixtures/V23/PartsStock")
         let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/V23/PartsStock/\(name).json")

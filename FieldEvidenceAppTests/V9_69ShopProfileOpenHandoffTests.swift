@@ -4,6 +4,28 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_69ShopProfileOpenHandoffTests: XCTestCase {
+    @MainActor
+    func testHandoffPresentationRequiresExactSavedProfileAndRemainsDefaultOff() throws {
+        let harness = try makeSaveRetryHarness()
+        addTeardownBlock { try FileManager.default.removeItem(at: harness.directory) }
+        let profile = harness.fixture.profile
+        XCTAssertEqual(profile.activation, .off)
+        let absent = ShopProfileOpenEvidenceHandoffView()
+        XCTAssertNil(absent.trustedProfile)
+        XCTAssertNil(absent.trustedHandoff)
+        let unbound = ShopProfileOpenEvidenceHandoffView(profile: profile)
+        XCTAssertNil(unbound.trustedProfile)
+        let unsaved = ShopProfileOpenEvidenceHandoffView(profile: profile, coordinator: harness.coordinator)
+        XCTAssertNil(unsaved.trustedProfile)
+        _ = try harness.coordinator.save(profileMutation(profile))
+        let saved = ShopProfileOpenEvidenceHandoffView(profile: profile, coordinator: harness.coordinator)
+        XCTAssertEqual(saved.trustedProfile, profile)
+        XCTAssertEqual(saved.trustedProfile?.activation, .off)
+        XCTAssertNil(saved.trustedHandoff, "A saved profile does not imply confirmation or handoff")
+        XCTAssertEqual(try harness.coordinator.current(profileID: profile.profileID), profile,
+            "Reading presentation trust must not activate or change the profile")
+    }
+
     func testV23P04C04G01DeterministicProfilePresetAndConfirmationBytes() throws {
         let fixture = try makeFixture()
         XCTAssertEqual(fixture.profile.activation, .off)

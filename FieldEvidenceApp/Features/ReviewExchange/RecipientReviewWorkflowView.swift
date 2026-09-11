@@ -274,7 +274,7 @@ struct RecipientReviewWorkflowView: View {
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(disabled || isPerforming)
                 .accessibilityHint("Uses the supplied canonical recipient-review command.")
-                .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.\(commandIdentifier(command))")
+                .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.\(Self.commandIdentifier(command))")
         } else {
             Text("\(title) is unavailable until its canonical command is supplied.")
                 .font(.footnote)
@@ -327,7 +327,7 @@ struct RecipientReviewWorkflowView: View {
         case finalizeSessionOnly, recordResponseReceivedElsewhere, recoverAcceptAndApply
     }
 
-    private func commandIdentifier(_ command: RecipientReviewWorkflowCommandV1) -> String {
+    static func commandIdentifier(_ command: RecipientReviewWorkflowCommandV1) -> String {
         switch command {
         case .replayClearRequest: return "replay-clear"
         case .createResponse: return "create-response"
@@ -336,6 +336,10 @@ struct RecipientReviewWorkflowView: View {
         case .finalizeSessionOnly: return "session-only"
         case .recordResponseReceivedElsewhere: return "received-elsewhere"
         case .recoverAcceptAndApply: return "recover"
+        case .openEncryptedRequest: return "open-encrypted-request"
+        case .sealEncryptedResponse: return "seal-encrypted-response"
+        case .protectEncryptedResponse: return "protect-encrypted-response"
+        case .readLegacyClear: return "read-legacy-clear"
         }
     }
 
@@ -361,7 +365,7 @@ struct RecipientReviewWorkflowView: View {
                     operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
                     return
                 }
-                operationMessage = outcomeText(outcome)
+                operationMessage = Self.outcomeText(outcome)
                 onOutcome?(outcome)
                 await reloadProjection()
             } catch is CancellationError {
@@ -376,7 +380,7 @@ struct RecipientReviewWorkflowView: View {
         }
     }
 
-    private func outcomeText(_ outcome: RecipientReviewWorkflowCommandOutcomeV1) -> String {
+    static func outcomeText(_ outcome: RecipientReviewWorkflowCommandOutcomeV1) -> String {
         switch outcome {
         case .requestReplay:
             return "The clear request was replayed after its explicit warning acknowledgement."
@@ -392,6 +396,29 @@ struct RecipientReviewWorkflowView: View {
             return "The response received elsewhere was recorded as unverified history only."
         case .recovered:
             return "Recovery completed. Refresh from the canonical record before continuing."
+        case .encryptedRequestOpened(let result):
+            switch result.effect {
+            case .noEffect:
+                return "No encrypted request was opened by this operation."
+            case .completed:
+                guard result.receipt != nil else { return "The encrypted request result is incomplete. No completed opening is claimed." }
+                return "The encrypted request was opened locally. This does not verify the sender's identity or establish delivery."
+            }
+        case .encryptedResponseSealed(let result):
+            switch result.effect {
+            case .noEffect:
+                return "No encrypted response was produced by this operation."
+            case .completed:
+                guard result.receipt != nil, result.source != nil else { return "The encrypted response result is incomplete. No completed package is claimed." }
+                return "The encrypted response package was produced locally. It has not been sent; recipient identity and delivery are not established."
+            }
+        case .legacyClearRead(let protection):
+            switch protection {
+            case .legacyClearWithExplicitWarning:
+                return "The legacy clear package was read after its explicit warning acknowledgement. It is not encrypted."
+            case .manualPassphraseEncryptedV1:
+                return "The legacy-clear result has an unexpected protection mode. No clear-package read is claimed."
+            }
         }
     }
 }

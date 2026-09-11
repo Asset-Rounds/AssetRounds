@@ -176,7 +176,7 @@ struct MyDayWorkflowView: View {
                     Text("\(index + 1). \(referenceLabel(item.reference))")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
-                    Text(item.estimate.map(estimateText) ?? "No duration estimate supplied")
+                    Text(item.estimate.map(Self.estimateText) ?? "No duration estimate supplied")
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                     HStack {
@@ -225,7 +225,7 @@ struct MyDayWorkflowView: View {
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(summary.items, id: \.item.membershipID) { item in
-                    Text("\(referenceLabel(item.item.reference)): \(dueCueText(item.dueCue)); \(readinessText(item.readiness)); \(item.estimate.map(estimateText) ?? "no duration estimate")")
+                    Text("\(referenceLabel(item.item.reference)): \(dueCueText(item.dueCue)); \(readinessText(item.readiness)); \(Self.summaryEstimateText(item))")
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -371,8 +371,12 @@ struct MyDayWorkflowView: View {
         }
     }
 
-    private func estimateText(_ estimate: MyDayEstimateV1) -> String {
+    private static func estimateText(_ estimate: MyDayEstimateV1) -> String {
         "\(estimate.wholeMinutes) minute estimate"
+    }
+
+    static func summaryEstimateText(_ summary: MyDaySummaryItemV1) -> String {
+        summary.item.estimate.map(estimateText) ?? "no duration estimate"
     }
 
     private func dueCueText(_ cue: MyDayDueCueV1) -> String {

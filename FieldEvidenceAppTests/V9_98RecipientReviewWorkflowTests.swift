@@ -7,6 +7,41 @@ import XCTest
 
 @MainActor
 final class V9_98RecipientReviewWorkflowTests: XCTestCase {
+    func testEncryptedPresentationDistinguishesCommandsNoEffectAndIncompleteResults() async throws {
+        let h = try await C35Harness()
+        let secret = try EphemeralPassphraseV1(openingPassphrase: "presentation-only-secret")
+        let opening = try h.unsupportedOpen(passphrase: secret)
+        let sealing = EncryptedPortableEnvelopeSealRequestV1(operation: opening.operation,
+            source: opening.source, innerKind: .reviewResponse,
+            innerProtocolVersion: try .init(1), reviewProtectionMode: .passphraseEncryptedV1,
+            passphrase: secret, receiptContext: opening.receiptContext,
+            limits: opening.limits, executionMode: .new)
+        let commands: [RecipientReviewWorkflowCommandV1] = [
+            .openEncryptedRequest(opening), .sealEncryptedResponse(sealing),
+            .protectEncryptedResponse(opening: opening, sealing: sealing),
+            .readLegacyClear(source: opening.source, kind: .reviewRequest,
+                userAcknowledgedCleartextWarning: false),
+        ]
+        XCTAssertEqual(commands.map { RecipientReviewWorkflowView.commandIdentifier($0) },
+            ["open-encrypted-request", "seal-encrypted-response", "protect-encrypted-response", "read-legacy-clear"])
+        let noOpen = RecipientReviewWorkflowView.outcomeText(.encryptedRequestOpened(.init(effect: .noEffect, receipt: nil)))
+        let incompleteOpen = RecipientReviewWorkflowView.outcomeText(.encryptedRequestOpened(.init(effect: .completed, receipt: nil)))
+        XCTAssertEqual(noOpen, "No encrypted request was opened by this operation.")
+        XCTAssertEqual(incompleteOpen, "The encrypted request result is incomplete. No completed opening is claimed.")
+        let noSeal = RecipientReviewWorkflowView.outcomeText(.encryptedResponseSealed(.init(
+            effect: .noEffect, source: nil, receipt: nil, filename: nil, shareTitle: nil)))
+        let incompleteSeal = RecipientReviewWorkflowView.outcomeText(.encryptedResponseSealed(.init(
+            effect: .completed, source: nil, receipt: nil, filename: nil, shareTitle: nil)))
+        XCTAssertEqual(noSeal, "No encrypted response was produced by this operation.")
+        XCTAssertEqual(incompleteSeal, "The encrypted response result is incomplete. No completed package is claimed.")
+        XCTAssertEqual(RecipientReviewWorkflowView.outcomeText(.legacyClearRead(.legacyClearWithExplicitWarning)),
+            "The legacy clear package was read after its explicit warning acknowledgement. It is not encrypted.")
+        XCTAssertEqual(RecipientReviewWorkflowView.outcomeText(.legacyClearRead(.manualPassphraseEncryptedV1)),
+            "The legacy-clear result has an unexpected protection mode. No clear-package read is claimed.")
+        XCTAssertEqual(secret.withUnsafeBytes { $0.count }, "presentation-only-secret".utf8.count,
+            "Presentation must not execute a command or consume its passphrase")
+    }
+
     func testV23P04C35G01OfflineIsolatedDraftResponsePreviewAndExplicitAcceptAndApply() async throws {
         let corpus = try C35Corpus.load(); corpus.assertScenario("G01", kind: "GOLDEN")
         let h = try await C35Harness()
@@ -27,7 +62,8 @@ final class V9_98RecipientReviewWorkflowTests: XCTestCase {
         let before = try await h.store.statistics(for: .review)
         let preview = try await h.preview(response: response, decision: .acceptAndApply)
         XCTAssertTrue(preview.isZeroWrite); XCTAssertTrue(preview.requiresExplicitDecision)
-        XCTAssertEqual(try await h.store.statistics(for: .review), before)
+        let statisticsAfterPreview = try await h.store.statistics(for: .review)
+        XCTAssertEqual(statisticsAfterPreview, before)
         let receipt = try await h.apply(preview: preview)
         XCTAssertEqual(receipt.mutationReceipt.mutationID, h.mutation.mutationID)
         XCTAssertEqual(try h.transitionRows().filter { $0.transitionID == h.appliedTransition.transitionID }.count, 1)
@@ -186,7 +222,8 @@ final class V9_98RecipientReviewWorkflowTests: XCTestCase {
             requestManifest: h.manifest, capability: h.capability,
             responsePublicID: response.responsePublicID, body: divergentBody
         )
-        XCTAssertEqual(try await h.store.previewImport(divergent, capability: h.capability).disposition,
+        let divergentDisposition = try await h.store.previewImport(divergent, capability: h.capability).disposition
+        XCTAssertEqual(divergentDisposition,
                        .divergentSameResponseID)
         try await h.assertNoHostileEffect(
             statistics: baselineStatistics, sessions: baselineSessions, transitions: baselineRows
@@ -248,7 +285,8 @@ final class V9_98RecipientReviewWorkflowTests: XCTestCase {
         let preview = try await h.preview(response: response, decision: .acceptAndApply)
         let receipt = try await h.apply(preview: preview)
         _ = try await h.workflow.execute(.recoverAcceptAndApply(h.mutation.mutationID), context: h.workflowContext)
-        XCTAssertEqual(try await h.apply(preview: preview), receipt)
+        let recoveredReceipt = try await h.apply(preview: preview)
+        XCTAssertEqual(recoveredReceipt, receipt)
         XCTAssertEqual(try h.transitionRows().filter { $0.transitionID == h.appliedTransition.transitionID }.count, 1)
 
         let changed = try h.workflow.createResponse(
@@ -294,7 +332,8 @@ final class V9_98RecipientReviewWorkflowTests: XCTestCase {
                        UInt64(divergentRecord.canonicalResponse.canonicalBytes.count))
         XCTAssertEqual(afterQuarantine.sessionCount, beforeQuarantine.sessionCount)
         XCTAssertEqual(afterQuarantine.immutableByteCount, beforeQuarantine.immutableByteCount)
-        XCTAssertEqual(try await h.store.sessions(in: .review), beforeSessions)
+        let sessionsAfterQuarantine = try await h.store.sessions(in: .review)
+        XCTAssertEqual(sessionsAfterQuarantine, beforeSessions)
         XCTAssertEqual(try h.transitionRows(), beforeTransitions)
         XCTAssertNil(try h.portableReceipt(mutationID: quarantineMutationID))
     }
@@ -669,8 +708,10 @@ private final class C35Harness {
         file: StaticString = #filePath,
         line: UInt = #line
     ) async throws {
-        XCTAssertEqual(try await store.statistics(for: .review), statistics, file: file, line: line)
-        XCTAssertEqual(try await store.sessions(in: .review), sessions, file: file, line: line)
+        let actualStatistics = try await store.statistics(for: .review)
+        XCTAssertEqual(actualStatistics, statistics, file: file, line: line)
+        let actualSessions = try await store.sessions(in: .review)
+        XCTAssertEqual(actualSessions, sessions, file: file, line: line)
         XCTAssertEqual(try transitionRows(), transitions, file: file, line: line)
     }
 
@@ -678,10 +719,11 @@ private final class C35Harness {
     func assertEncryptedRoundTrip() async throws {
         let version = try EncryptedPortableEnvelopeInnerProtocolVersionV1(1)
         let (coordinator, encryptedWorkflow) = try encryptedPair(version: version)
-        XCTAssertEqual(try await encryptedWorkflow.readLegacyClear(
+        let legacyProtection = try await encryptedWorkflow.readLegacyClear(
             source: C35Bytes(packageBytes), kind: .reviewRequest,
             userAcknowledgedCleartextWarning: true
-        ), .legacyClearWithExplicitWarning)
+        )
+        XCTAssertEqual(legacyProtection, .legacyClearWithExplicitWarning)
         let requestSecret = try EphemeralPassphraseV1(
             passphrase: "C35 encrypted review passphrase 🔐",
             confirmation: "C35 encrypted review passphrase 🔐"
@@ -703,6 +745,8 @@ private final class C35Harness {
         ))
         XCTAssertEqual(opened.effect, .completed)
         XCTAssertEqual(opened.receipt?.innerKind, .reviewRequest)
+        XCTAssertEqual(RecipientReviewWorkflowView.outcomeText(.encryptedRequestOpened(opened)),
+            "The encrypted request was opened locally. This does not verify the sender's identity or establish delivery.")
         XCTAssertEqual(openSecret.withUnsafeBytes { $0.count }, 0)
 
         let sharedProtectSecret = try EphemeralPassphraseV1(
@@ -725,6 +769,12 @@ private final class C35Harness {
             )
         )
         XCTAssertEqual(protectedResponse.effect, .completed)
+        XCTAssertEqual(RecipientReviewWorkflowView.outcomeText(.encryptedResponseSealed(protectedResponse)),
+            "The encrypted response package was produced locally. It has not been sent; recipient identity and delivery are not established.")
+        XCTAssertEqual(RecipientReviewWorkflowView.outcomeText(.encryptedResponseSealed(.init(
+            effect: .completed, source: nil, receipt: protectedResponse.receipt,
+            filename: protectedResponse.filename, shareTitle: protectedResponse.shareTitle))),
+            "The encrypted response result is incomplete. No completed package is claimed.")
         XCTAssertEqual(protectedResponse.receipt?.innerKind, .reviewResponse)
         XCTAssertEqual(sharedProtectSecret.withUnsafeBytes { $0.count }, 0)
 
@@ -803,7 +853,8 @@ private final class C35Harness {
                        wrongError as? EncryptedPortableEnvelopeExternalFailureV1)
         XCTAssertEqual(wrongSecret.withUnsafeBytes { $0.count }, 0)
         XCTAssertEqual(tamperedSecret.withUnsafeBytes { $0.count }, 0)
-        XCTAssertEqual(try await store.statistics(for: .review), beforeStatistics)
+        let statisticsAfterTamper = try await store.statistics(for: .review)
+        XCTAssertEqual(statisticsAfterTamper, beforeStatistics)
         XCTAssertEqual(try transitionRows(), beforeTransitions)
     }
 
