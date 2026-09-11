@@ -41,11 +41,15 @@ struct ReportDeliveryValue: Equatable, Sendable {
     let subtitle: String
     private let canonicalDetailLines: [String]
     private let formattingLocale: Locale
+    /// Present only for the delivery created by this explicit request. Loading
+    /// a historical PDF never infers a request from current device preferences.
+    let languageRequest: ReportLanguageRenderRequestV1?
 
     init(
         reportID: UUID, pdfSHA256: String, pdfData: Data, filename: String,
         title: String, subtitle: String, detailLines: [String],
-        formattingLocale: Locale = .current
+        formattingLocale: Locale = .current,
+        languageRequest: ReportLanguageRenderRequestV1? = nil
     ) {
         self.reportID = reportID
         self.pdfSHA256 = pdfSHA256
@@ -55,6 +59,16 @@ struct ReportDeliveryValue: Equatable, Sendable {
         self.subtitle = subtitle
         self.canonicalDetailLines = detailLines
         self.formattingLocale = formattingLocale
+        self.languageRequest = languageRequest
+    }
+
+    fileprivate func carryingLanguageRequest(_ request: ReportLanguageRenderRequestV1?) -> Self {
+        Self(
+            reportID: reportID, pdfSHA256: pdfSHA256, pdfData: pdfData,
+            filename: filename, title: title, subtitle: subtitle,
+            detailLines: canonicalDetailLines, formattingLocale: formattingLocale,
+            languageRequest: request
+        )
     }
 
     var detailLines: [String] {
@@ -259,7 +273,10 @@ final class ReportDeliveryCoordinator {
         self.finalizationServiceOperationBarrier = finalizationServiceOperationBarrier
     }
 
-    func prepareFinalizedReport(id reportID: UUID) throws -> ReportDeliveryPreparation {
+    func prepareFinalizedReport(
+        id reportID: UUID, languageRequest: ReportLanguageRenderRequestV1? = nil
+    ) throws -> ReportDeliveryPreparation {
+        try languageRequest?.validate()
         guard !modelContext.hasChanges else {
             throw ReportDeliveryCoordinatorError.contextHasChanges
         }
@@ -296,9 +313,9 @@ final class ReportDeliveryCoordinator {
         }
 
         receiptAttempts.insert(reportID)
-        switch try renderService.attemptPendingReport(id: reportID) {
-        case .ready:
-            return .ready(try loadReadyReport(id: reportID))
+        switch try renderService.attemptPendingReport(id: reportID, languageRequest: languageRequest) {
+        case .ready(let rendered):
+            return .ready(try loadReadyReport(id: reportID).carryingLanguageRequest(rendered.languageRequest))
         case .failed(let failedID):
             guard failedID == reportID else {
                 throw ReportDeliveryCoordinatorError.invalidAuthority

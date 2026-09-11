@@ -7,6 +7,17 @@ protocol GlobalizationSystemSettingsPortV1 {
     func openAppSettings() async -> Bool
 }
 
+/// The established device-local preference envelope owns both axes. Updating
+/// report language preserves the latest formatting choice in the adapter.
+protocol GlobalizationPresentationPreferencesPortV1: Sendable {
+    func readGlobalizationPresentationPreference() throws -> GlobalizationPresentationPreferenceV1
+    func updateGlobalizationReportLanguage(
+        _ selection: ReportLanguageSelectionV1?, operationID: UUID
+    ) throws -> GlobalizationPresentationPreferenceV1
+}
+
+extension PreferencesAdapterV1: GlobalizationPresentationPreferencesPortV1 {}
+
 protocol SettingsRegistryPortV1: Sendable {
     func descriptor(for key: String) throws -> SettingDescriptorV1
 }

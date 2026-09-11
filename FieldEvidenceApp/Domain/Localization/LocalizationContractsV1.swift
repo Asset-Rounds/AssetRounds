@@ -7353,3 +7353,47 @@ struct V30EnglishMessageContractV1: Equatable, Sendable {
         }
     }
 }
+
+enum GlobalizationSettingsLocalizationKeyV1: String, CaseIterable, Sendable {
+    case effectiveAppLanguage = "v30.globalization-settings.effective-app-language"
+    case formattingRegion = "v30.globalization-settings.formatting-region"
+    case reportLanguage = "v30.globalization-settings.report-language"
+    case requestedReportLanguage = "v30.globalization-settings.requested-report-language"
+    case effectiveReportLanguage = "v30.globalization-settings.effective-report-language"
+    case useAppLanguage = "v30.globalization-settings.use-app-language"
+    case currentPDFEnglishOnly = "v30.globalization-settings.current-pdf-english-only"
+    case confirmationRequired = "v30.globalization-settings.confirmation-required"
+    case reportLanguageUnavailable = "v30.globalization-settings.report-language-unavailable"
+    case englishFallbackConfirmationTitle = "v30.globalization-settings.english-fallback-confirmation-title"
+    case englishFallbackConfirmationMessage = "v30.globalization-settings.english-fallback-confirmation-message"
+    case englishFallbackConfirmationAction = "v30.globalization-settings.english-fallback-confirmation-action"
+    case cancel = "v30.globalization-settings.cancel"
+    case preferenceUnavailable = "v30.globalization-settings.preference-unavailable"
+    case selectionSaveFailed = "v30.globalization-settings.selection-save-failed"
+    case frozenReportsNotice = "v30.globalization-settings.frozen-reports-notice"
+    case authoredContentNotice = "v30.globalization-settings.authored-content-notice"
+    case jurisdictionBoundaryNotice = "v30.globalization-settings.jurisdiction-boundary-notice"
+
+    var englishDefaultValue: String {
+        switch self {
+        case .effectiveAppLanguage: return "Effective app language"
+        case .formattingRegion: return "Formatting region"
+        case .reportLanguage: return "Report language"
+        case .requestedReportLanguage: return "Requested report language"
+        case .effectiveReportLanguage: return "Effective report language"
+        case .useAppLanguage: return "Use app language"
+        case .currentPDFEnglishOnly: return "Current PDF reports are available in English only."
+        case .confirmationRequired: return "English confirmation required"
+        case .reportLanguageUnavailable: return "Unavailable for current PDF reports"
+        case .englishFallbackConfirmationTitle: return "Use English for reports?"
+        case .englishFallbackConfirmationMessage: return "Current PDF reports are available in English only. Selecting this language keeps English as the effective report language."
+        case .englishFallbackConfirmationAction: return "Use English"
+        case .cancel: return "Cancel"
+        case .preferenceUnavailable: return "Report language preferences are unavailable. Try again when local settings are available."
+        case .selectionSaveFailed: return "The report language was not changed. Try again."
+        case .frozenReportsNotice: return "Existing reports keep their original language and formatting."
+        case .authoredContentNotice: return "This setting does not translate authored content."
+        case .jurisdictionBoundaryNotice: return "Worksite jurisdiction remains limited to the recorded United States jurisdiction; language and formatting do not enable another jurisdiction."
+        }
+    }
+}

@@ -711,6 +711,14 @@ struct GlobalizationPresentationPreferenceV1: Codable, Equatable, Sendable {
             )
         }
     }
+
+    /// A nil report choice follows the effective app language only when its
+    /// report resources are available. It never changes formatting or history.
+    func replacingReportLanguage(_ selection: ReportLanguageSelectionV1?) throws -> Self {
+        let next = Self(formatting: formatting, reportLanguage: selection)
+        try next.validate()
+        return next
+    }
 }
 
 /// Descriptor and defaults for the single V30 device-local globalization

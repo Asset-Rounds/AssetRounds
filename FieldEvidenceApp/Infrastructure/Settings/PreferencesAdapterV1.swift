@@ -815,6 +815,47 @@ extension PreferencesAdapterV1 {
 }
 
 extension PreferencesAdapterV1 {
+    /// One locked read/modify/write of the existing envelope. This avoids
+    /// replacing formatting with a stale value held by a settings screen.
+    func updateGlobalizationReportLanguage(
+        _ selection: ReportLanguageSelectionV1?, operationID: UUID
+    ) throws -> GlobalizationPresentationPreferenceV1 {
+        try withLock {
+            guard operationID != SettingsValidationV1.zeroUUID else {
+                throw PreferencesAdapterFailureV1.conflictingOperation
+            }
+            if let selection {
+                try ReportLanguageControlPolicyV1.validateForCurrentRenderer(selection)
+            }
+            let descriptor = try GlobalizationDevicePreferenceV1.descriptor()
+            try requireDeviceLocal(descriptor)
+            let prior = try storedEnvelope(for: descriptor)
+            let current = try CompatibilityCanonicalV1.decode(
+                GlobalizationPresentationPreferenceV1.self,
+                from: prior?.canonicalValue ?? descriptor.defaultCanonicalValue
+            )
+            try current.validate()
+            let next = try current.replacingReportLanguage(selection)
+            let bytes = try CompatibilityCanonicalV1.encode(next)
+            try validate(bytes, descriptor: descriptor)
+            let digest = CompatibilityCanonicalV1.sha256(bytes)
+            if let record = prior?.writeRecord, record.operationID == operationID {
+                guard record.canonicalValueDigest == digest else {
+                    throw PreferencesAdapterFailureV1.conflictingOperation
+                }
+                return current
+            }
+            try storeEnvelope(PreferenceStorageEnvelopeV1(
+                canonicalValue: bytes,
+                writeRecord: PreferenceWriteRecordV1(
+                    operationID: operationID, canonicalValueDigest: digest
+                ),
+                migrationRecord: prior?.migrationRecord
+            ), descriptor: descriptor)
+            return next
+        }
+    }
+
     func readGlobalizationPresentationPreference() throws
         -> GlobalizationPresentationPreferenceV1 {
         let descriptor = try GlobalizationDevicePreferenceV1.descriptor()

@@ -755,11 +755,6 @@ struct SettingsPlaceholderView: View {
     }
 
     @Environment(\.eraseAllAction) private var eraseAllAction
-    @Environment(\.scenePhase) private var globalizationScenePhase
-    @State private var effectiveLanguage = SystemLanguageResolverV1().resolve()
-    @State private var globalizationSettingsUnavailable = false
-    @AccessibilityFocusState private var globalizationSettingsErrorFocused: Bool
-    @State private var globalizationFallbackDiagnostic: EffectiveLanguageFallbackDiagnosticV1?
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
     @ObservedObject var lifecycleCoordinator: StoreKitLifecycleCoordinator
@@ -805,67 +800,17 @@ struct SettingsPlaceholderView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                    Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageAndRegionHeading))
-                        .font(.headline)
-                        .modifier(GlobalizationAdaptiveLayoutPolicyV1())
-                        .accessibilityAddTraits(.isHeader)
-                    Text(GlobalizationRTLSemanticsV1.opaqueFallback(
-                        Locale.autoupdatingCurrent.localizedString(
-                            forLanguageCode: effectiveLanguage.effectiveLanguage.rawValue
-                        ),
-                        identifier: effectiveLanguage.effectiveLanguage.rawValue
-                    ))
-                    Text(GlobalizationRTLSemanticsV1.opaqueFallback(
-                        Locale.autoupdatingCurrent.localizedString(
-                            forIdentifier: Locale.autoupdatingCurrent.identifier
-                        ),
-                        identifier: Locale.autoupdatingCurrent.identifier
-                    ))
-                    Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageAndRegionJurisdictionNotice))
-                        .font(.footnote)
-                    DisclosureGroup(BundledLocalizationCatalogV1.v30Text(.shellLanguageSupportDetails)) {
-                        if let diagnostic = globalizationFallbackDiagnostic {
-                            if diagnostic.usedEnglishFallback {
-                                Text(BundledLocalizationCatalogV1.v30Text(.shellEnglishFallbackExplanation))
-                            } else {
-                                Text(BundledLocalizationCatalogV1.v30Text(.shellBaseLanguageFallbackExplanation))
-                            }
-                        } else {
-                            Text(BundledLocalizationCatalogV1.v30Text(.shellSystemLanguageExplanation))
-                        }
-                        Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageSupportPrivacyNotice))
-                            .font(.footnote)
-                    }
-                    .accessibilityIdentifier("v30.language-region.support-summary")
-                    Button(BundledLocalizationCatalogV1.v30Text(.shellOpenSystemSettings)) {
-                        Task {
-                            globalizationSettingsUnavailable =
-                                !(await GlobalizationSettingsCoordinatorV1().openAppSettings())
-                        }
-                    }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityIdentifier("v30.language-region.open-settings")
-                    if globalizationSettingsUnavailable {
-                        Text(BundledLocalizationCatalogV1.v30Text(.shellSystemSettingsUnavailable))
-                            .font(.footnote)
-                            .modifier(GlobalizationAdaptiveLayoutPolicyV1())
-                            .accessibilityFocused($globalizationSettingsErrorFocused)
-                            .onAppear { globalizationSettingsErrorFocused = true }
-                    }
+                NavigationLink {
+                    GlobalizationSettingsViewV1()
+                } label: {
+                    Label(
+                        BundledLocalizationCatalogV1.v30Text(.shellLanguageAndRegionHeading),
+                        systemImage: "globe"
+                    )
+                    .frame(minHeight: DesignTokens.Control.minimumHitSize)
                 }
-                .accessibilityElement(children: .contain)
+                .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityIdentifier("v30.language-region.section")
-                .onAppear {
-                    effectiveLanguage = GlobalizationSettingsCoordinatorV1().refreshEffectiveLanguage()
-                    globalizationFallbackDiagnostic = try? PreferencesAdapterV1().readGlobalizationFallback()
-                }
-                .onChange(of: globalizationScenePhase) { _, phase in
-                    if phase == .active {
-                        effectiveLanguage = GlobalizationSettingsCoordinatorV1().refreshEffectiveLanguage()
-                        globalizationFallbackDiagnostic = try? PreferencesAdapterV1().readGlobalizationFallback()
-                    }
-                }
 
                 NavigationLink(BundledLocalizationCatalogV1.v30Text(.shellBackUpCurrentData)) {
                     BackupExportView(

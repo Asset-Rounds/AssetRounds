@@ -18,7 +18,8 @@ extension ReportRenderService {
     func renderPendingReport(
         id reportID: UUID,
         accessGate: any AppAccessGatePortV1,
-        practiceShareConfirmation: PracticeShareConfirmationV1? = nil
+        practiceShareConfirmation: PracticeShareConfirmationV1? = nil,
+        languageRequest: ReportLanguageRenderRequestV1? = nil
     ) async throws -> ReportRenderResult {
         let permit = try await accessGate.requireContentAccess(for: .render)
         guard permit.surface == .render, permit.state.permitsContentAccess else {
@@ -35,7 +36,8 @@ extension ReportRenderService {
         }
         return try renderPendingReport(
             id: reportID,
-            practiceShareConfirmation: practiceShareConfirmation
+            practiceShareConfirmation: practiceShareConfirmation,
+            languageRequest: languageRequest
         )
     }
 }
@@ -764,6 +766,23 @@ struct ReportRenderResult: Equatable, Sendable {
     let pageCount: Int
     let requirementAssuranceSnapshotSHA256: String?
     let requirementExplanations: [RequirementExplanationItemV1]
+    /// Transient caller intent, not frozen PDF formatting or catalog evidence.
+    let languageRequest: ReportLanguageRenderRequestV1?
+
+    init(
+        reportID: UUID, pdfRelativePath: String, pdfSHA256: String, pageCount: Int,
+        requirementAssuranceSnapshotSHA256: String?,
+        requirementExplanations: [RequirementExplanationItemV1],
+        languageRequest: ReportLanguageRenderRequestV1? = nil
+    ) {
+        self.reportID = reportID
+        self.pdfRelativePath = pdfRelativePath
+        self.pdfSHA256 = pdfSHA256
+        self.pageCount = pageCount
+        self.requirementAssuranceSnapshotSHA256 = requirementAssuranceSnapshotSHA256
+        self.requirementExplanations = requirementExplanations
+        self.languageRequest = languageRequest
+    }
 }
 
 enum ReportRenderAttemptResult: Equatable, Sendable {
@@ -911,9 +930,11 @@ final class ReportRenderService {
 
     /// Performs one bounded pending delivery attempt. Ordinary generation failures
     /// preserve the immutable report authority and durably leave only `failed`.
-    func attemptPendingReport(id reportID: UUID) throws -> ReportRenderAttemptResult {
+    func attemptPendingReport(
+        id reportID: UUID, languageRequest: ReportLanguageRenderRequestV1? = nil
+    ) throws -> ReportRenderAttemptResult {
         do {
-            return .ready(try renderPendingReport(id: reportID))
+            return .ready(try renderPendingReport(id: reportID, languageRequest: languageRequest))
         } catch {
             guard Self.isRetryableRenderFailure(error) else { throw error }
             try persistFailed(reportID: reportID)
@@ -1009,8 +1030,12 @@ final class ReportRenderService {
 
     func renderPendingReport(
         id reportID: UUID,
-        practiceShareConfirmation: PracticeShareConfirmationV1? = nil
+        practiceShareConfirmation: PracticeShareConfirmationV1? = nil,
+        languageRequest: ReportLanguageRenderRequestV1? = nil
     ) throws -> ReportRenderResult {
+        // A requested app locale cannot enable an unavailable report catalog.
+        // Validation precedes mutation; the historical renderer input is fixed.
+        try languageRequest?.validate()
         guard !modelContext.hasChanges else {
             throw ReportRenderServiceError.contextHasChanges
         }
@@ -1141,7 +1166,8 @@ final class ReportRenderService {
                 pageCount: rendered.pageCount,
                 requirementAssuranceSnapshotSHA256:
                     validated.snapshot.requirementAssurance?.snapshotSHA256,
-                requirementExplanations: validated.requirementExplanations
+                requirementExplanations: validated.requirementExplanations,
+                languageRequest: languageRequest
             )
         } catch {
             do {

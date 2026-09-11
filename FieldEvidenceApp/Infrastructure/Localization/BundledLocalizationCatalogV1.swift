@@ -5915,3 +5915,52 @@ extension BundledLocalizationCatalogV1 {
         return try base.appending(entries, localization: localization)
     }
 }
+
+// MARK: - V30 Language & Region settings
+
+extension BundledLocalizationCatalogV1 {
+    static func globalizationSettingsLocalized(
+        _ key: GlobalizationSettingsLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        switch key {
+        case .effectiveAppLanguage:
+            return String(localized: "v30.globalization-settings.effective-app-language", defaultValue: "Effective app language", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: labels the iOS-selected effective app language. Role: value-row label. App language remains iOS owned.")
+        case .formattingRegion:
+            return String(localized: "v30.globalization-settings.formatting-region", defaultValue: "Formatting region", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: labels the current device formatting region. Role: value-row label. This does not infer jurisdiction.")
+        case .reportLanguage:
+            return String(localized: "v30.globalization-settings.report-language", defaultValue: "Report language", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: names the device-local report-language preference. Role: section heading and picker label.")
+        case .requestedReportLanguage:
+            return String(localized: "v30.globalization-settings.requested-report-language", defaultValue: "Requested report language", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: labels the language the person requested for new reports. Role: value-row label.")
+        case .effectiveReportLanguage:
+            return String(localized: "v30.globalization-settings.effective-report-language", defaultValue: "Effective report language", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: labels the language the current PDF renderer can use. Role: value-row label.")
+        case .useAppLanguage:
+            return String(localized: "v30.globalization-settings.use-app-language", defaultValue: "Use app language", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: clears the saved report-language choice. Role: button title.")
+        case .currentPDFEnglishOnly:
+            return String(localized: "v30.globalization-settings.current-pdf-english-only", defaultValue: "Current PDF reports are available in English only.", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: discloses the present PDF resource limitation. Role: explanatory text.")
+        case .confirmationRequired:
+            return String(localized: "v30.globalization-settings.confirmation-required", defaultValue: "English confirmation required", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: reports that a non-English request needs explicit English fallback confirmation. Role: value text.")
+        case .reportLanguageUnavailable:
+            return String(localized: "v30.globalization-settings.report-language-unavailable", defaultValue: "Unavailable for current PDF reports", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: reports that a saved or unavailable choice cannot be used by the current PDF renderer. Role: value text.")
+        case .englishFallbackConfirmationTitle:
+            return String(localized: "v30.globalization-settings.english-fallback-confirmation-title", defaultValue: "Use English for reports?", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: asks before saving a non-English request with English fallback. Role: alert title.")
+        case .englishFallbackConfirmationMessage:
+            return String(localized: "v30.globalization-settings.english-fallback-confirmation-message", defaultValue: "Current PDF reports are available in English only. Selecting this language keeps English as the effective report language.", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: explains the English fallback before confirmation. Role: alert message.")
+        case .englishFallbackConfirmationAction:
+            return String(localized: "v30.globalization-settings.english-fallback-confirmation-action", defaultValue: "Use English", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: confirms the English fallback for a non-English report request. Role: alert button title.")
+        case .cancel:
+            return String(localized: "v30.globalization-settings.cancel", defaultValue: "Cancel", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: dismisses a report-language fallback confirmation without writing a preference. Role: alert cancel button title.")
+        case .preferenceUnavailable:
+            return String(localized: "v30.globalization-settings.preference-unavailable", defaultValue: "Report language preferences are unavailable. Try again when local settings are available.", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: reports a local preference read failure. Role: error text.")
+        case .selectionSaveFailed:
+            return String(localized: "v30.globalization-settings.selection-save-failed", defaultValue: "The report language was not changed. Try again.", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: reports that a requested report-language preference was not saved. Role: error text.")
+        case .frozenReportsNotice:
+            return String(localized: "v30.globalization-settings.frozen-reports-notice", defaultValue: "Existing reports keep their original language and formatting.", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: discloses that existing reports are unchanged. Role: explanatory text.")
+        case .authoredContentNotice:
+            return String(localized: "v30.globalization-settings.authored-content-notice", defaultValue: "This setting does not translate authored content.", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: discloses the authored-content translation boundary. Role: explanatory text.")
+        case .jurisdictionBoundaryNotice:
+            return String(localized: "v30.globalization-settings.jurisdiction-boundary-notice", defaultValue: "Worksite jurisdiction remains limited to the recorded United States jurisdiction; language and formatting do not enable another jurisdiction.", bundle: bundle, locale: locale, comment: "Screen: Language & Region settings. Meaning: discloses the current United States-only worksite-jurisdiction boundary. Role: explanatory text.")
+        }
+    }
+}
