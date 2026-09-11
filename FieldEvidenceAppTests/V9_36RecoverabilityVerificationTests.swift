@@ -462,12 +462,12 @@ final class V9_36RecoverabilityVerificationTests: XCTestCase {
         XCTAssertEqual(PersistentSchemaV21.models.count, 82)
         XCTAssertEqual(PersistentSchemaMigrationPlanV20.schemas.count, 2)
         try V21RecoverabilityImportBoundaryV1.validate(
-            persistentSchemaVersion: 21,
-            recordsSchemaVersion: 20
+            persistent: 21,
+            records: 20
         )
         XCTAssertThrowsError(try V21RecoverabilityImportBoundaryV1.validate(
-            persistentSchemaVersion: 20,
-            recordsSchemaVersion: 19
+            persistent: 20,
+            records: 19
         ))
 
         let workspace = C22RecoverabilityTestSupport.workspace()
@@ -751,8 +751,8 @@ final class V9_36RecoverabilityVerificationTests: XCTestCase {
             includeInArchiveBeingVerified: true
         ))
         XCTAssertThrowsError(try V21RecoverabilityImportBoundaryV1.validate(
-            persistentSchemaVersion: 22,
-            recordsSchemaVersion: 21
+            persistent: 22,
+            records: 21
         ))
         XCTAssertEqual(dryArtifacts.restoredRecordsSHA256, archive.recordsSHA256)
     }

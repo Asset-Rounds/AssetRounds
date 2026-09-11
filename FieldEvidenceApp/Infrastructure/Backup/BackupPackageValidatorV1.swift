@@ -2513,7 +2513,7 @@ private extension BackupPackageValidatorV1 {
         } catch { throw invalid() }
     }
 
-    func validateMeasurementIntegrity(
+    internal func validateMeasurementIntegrity(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
     ) throws {

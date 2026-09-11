@@ -241,6 +241,7 @@ final class V9_41AssetLocatorTests: XCTestCase {
         )
         let decoder = AssetLocatorInputDecoderV1()
         var results: [LocatorResolutionV1] = []
+        XCTAssertEqual(Set(LocatorInputSourceV1.allCases), [.camera, .manual, .imported, .search])
         for source in LocatorInputSourceV1.allCases {
             let input = try decoder.externalKey(
                 bytes,
@@ -263,7 +264,7 @@ final class V9_41AssetLocatorTests: XCTestCase {
         }
         XCTAssertEqual(Set(results.map(\.outcome)), [.matched])
         XCTAssertEqual(Set(results.compactMap(\.matchedAssetID)), [active.assetID])
-        XCTAssertEqual(results.map(\.inputSHA256), Array(repeating: KernelCanonicalHashV1.sha256(bytes), count: 3))
+        XCTAssertEqual(results.map(\.inputSHA256), Array(repeating: KernelCanonicalHashV1.sha256(bytes), count: 4))
         XCTAssertEqual(key.lookupKey, active.lookupKey)
 
         let encoded = try AssetLocatorCanonicalCodecV1.encode(active)
@@ -983,6 +984,8 @@ final class V9_41AssetLocatorTests: XCTestCase {
             return try await coordinator.resolveManual(input, workspaceID: workspaceID, evaluatedAt: evaluatedAt)
         case .imported:
             return try await coordinator.resolveImported(input, workspaceID: workspaceID, evaluatedAt: evaluatedAt)
+        case .search:
+            return try await coordinator.resolveSearch(input, workspaceID: workspaceID, evaluatedAt: evaluatedAt)
         }
     }
 

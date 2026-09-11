@@ -680,7 +680,8 @@ final class V9_46LightingPackageTests: XCTestCase {
         )
         XCTAssertEqual(alreadyLux.canonicalValue, try ExactDecimalV1(mantissa: 1_076_391, scale: 5))
         XCTAssertEqual(converted.canonicalValue, alreadyLux.canonicalValue)
-        XCTAssertEqual(converted.canonicalUnitID, alreadyLux.canonicalUnitID)
+        XCTAssertEqual(try KernelUnitRegistryV1.definition(unitID: "[fc_i]").canonicalUnitID,
+                       try KernelUnitRegistryV1.definition(unitID: "lx").canonicalUnitID)
 
         let encoded = try LightingCanonicalCodecV1.encode(system)
         let decoded = try LightingCanonicalCodecV1.decode(LightingSystemV1.self, from: encoded)
@@ -1407,6 +1408,16 @@ final class V9_46LightingPackageTests: XCTestCase {
             workspaceID: fixture.workspace.rawValue,
             canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(fixture.protocolRelease)
         )
+        let evaluatorRow = V11BackupAuthorityCriterionRecordV1(
+            kind: .derivedFactEvaluatorDescriptor,
+            id: fixture.evaluator.descriptorID,
+            workspaceID: fixture.workspace.rawValue,
+            canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(fixture.evaluator)
+        )
+        let completeAuthorityRows = [protocolRow, evaluatorRow].sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
         let measurementManifest = V4BackupManifestV1(
             backupSchemaVersion: 1,
             consumedEvaluationRootIDs: [],
@@ -1428,6 +1439,7 @@ final class V9_46LightingPackageTests: XCTestCase {
             authorityCriterion: [V11BackupAuthorityCriterionRecordV1]
         ) -> V4BackupRecordsV1 {
             V4BackupRecordsV1(
+                measurementIntegrity: measurementIntegrity,
                 authorityCriterion: authorityCriterion,
                 assets: [],
                 evidenceFiles: [],
@@ -1437,7 +1449,6 @@ final class V9_46LightingPackageTests: XCTestCase {
                 reports: [],
                 sites: [],
                 workflowRecords: [],
-                measurementIntegrity: measurementIntegrity,
                 lighting: lightingRows
             )
         }
@@ -1480,7 +1491,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         }
         try validateLightingPackage(
             measurementIntegrity: completeMeasurementRows,
-            authorityCriterion: [protocolRow],
+            authorityCriterion: completeAuthorityRows,
             captures: [fixture.capture],
             bindings: [captureBinding],
             quality: [fixture.qualityClear]
@@ -1492,7 +1503,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         XCTAssertThrowsError(
             try validateLightingPackage(
                 measurementIntegrity: missingCaptureRows,
-                authorityCriterion: [protocolRow],
+                authorityCriterion: completeAuthorityRows,
                 captures: [],
                 bindings: [],
                 quality: []
@@ -1511,7 +1522,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         XCTAssertThrowsError(
             try validateLightingPackage(
                 measurementIntegrity: mismatchedCaptureRows,
-                authorityCriterion: [protocolRow],
+                authorityCriterion: completeAuthorityRows,
                 captures: [fixture.capture],
                 bindings: [captureBinding],
                 quality: [fixture.qualityClear]
@@ -1524,7 +1535,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         XCTAssertThrowsError(
             try validateLightingPackage(
                 measurementIntegrity: missingInstrumentRows,
-                authorityCriterion: [protocolRow],
+                authorityCriterion: completeAuthorityRows,
                 captures: [fixture.capture],
                 bindings: [captureBinding],
                 quality: [fixture.qualityClear]
@@ -1543,7 +1554,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         XCTAssertThrowsError(
             try validateLightingPackage(
                 measurementIntegrity: mismatchedInstrumentRows,
-                authorityCriterion: [protocolRow],
+                authorityCriterion: completeAuthorityRows,
                 captures: [fixture.capture],
                 bindings: [captureBinding],
                 quality: [fixture.qualityClear]
@@ -1556,7 +1567,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         XCTAssertThrowsError(
             try validateLightingPackage(
                 measurementIntegrity: missingCalibrationRows,
-                authorityCriterion: [protocolRow],
+                authorityCriterion: completeAuthorityRows,
                 captures: [fixture.capture],
                 bindings: [captureBinding],
                 quality: [fixture.qualityClear]
@@ -1575,7 +1586,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         XCTAssertThrowsError(
             try validateLightingPackage(
                 measurementIntegrity: mismatchedCalibrationRows,
-                authorityCriterion: [protocolRow],
+                authorityCriterion: completeAuthorityRows,
                 captures: [fixture.capture],
                 bindings: [captureBinding],
                 quality: [fixture.qualityClear]
@@ -1588,7 +1599,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         XCTAssertThrowsError(
             try validateLightingPackage(
                 measurementIntegrity: missingQualityRows,
-                authorityCriterion: [protocolRow],
+                authorityCriterion: completeAuthorityRows,
                 captures: [fixture.capture],
                 bindings: [captureBinding],
                 quality: []
@@ -1607,7 +1618,7 @@ final class V9_46LightingPackageTests: XCTestCase {
         XCTAssertThrowsError(
             try validateLightingPackage(
                 measurementIntegrity: mismatchedQualityRows,
-                authorityCriterion: [protocolRow],
+                authorityCriterion: completeAuthorityRows,
                 captures: [fixture.capture],
                 bindings: [captureBinding],
                 quality: [fixture.qualityClear]
@@ -1623,7 +1634,13 @@ final class V9_46LightingPackageTests: XCTestCase {
                 quality: [fixture.qualityClear]
             )
         )
+        XCTAssertThrowsError(
+            try validateLightingPackage(measurementIntegrity: completeMeasurementRows,
+                authorityCriterion: [protocolRow], captures: [fixture.capture],
+                bindings: [captureBinding], quality: [fixture.qualityClear])
+        )
         let mismatchedC40ProvenanceRows = [
+            evaluatorRow,
             V11BackupAuthorityCriterionRecordV1(
                 kind: protocolRow.kind,
                 id: protocolRow.id,

@@ -554,7 +554,7 @@ final class V9_31IntegrationEventProjectionTests: XCTestCase {
                 workspaceID: workspaceID,
                 generationID: generationID,
                 writerInstanceID: writerInstanceID,
-                revision: serial - 1,
+                workspaceRevision: serial - 1,
                 entityRevisions: [
                     WorkspaceEntityRevisionV1(identity: siteIdentity, revision: 0),
                     WorkspaceEntityRevisionV1(identity: assetIdentity, revision: 0),

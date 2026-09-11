@@ -161,6 +161,7 @@ private enum C30EvidenceContextTestSupport {
         method: String = "C30_MANUAL_OBSERVATION"
     ) throws -> PairedObservationReferenceV1 {
         try PairedObservationReferenceV1(
+            workspaceID: context.workspaceID,
             evidenceID: context.evidenceID,
             evidenceSHA256: context.contextSHA256,
             evidenceRevision: context.evidenceRevision,

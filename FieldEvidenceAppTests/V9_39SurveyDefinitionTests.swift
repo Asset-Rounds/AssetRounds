@@ -120,7 +120,8 @@ enum C25SurveyDefinitionTestSupport {
         supersedesReleaseID: UUID? = nil,
         facts: [FactDefinitionV1] = [fact()],
         sections: [SurveySectionV1]? = nil,
-        completionRules: [CompletionRuleV1]? = nil
+        completionRules: [CompletionRuleV1]? = nil,
+        reportProjection: SurveyReportProjectionV1? = nil
     ) throws -> SurveyDefinitionReleaseV1 {
         let sortedFacts = facts.sorted { $0.factID < $1.factID }
         let releaseSections = sections ?? [section(facts: sortedFacts)]
@@ -146,7 +147,7 @@ enum C25SurveyDefinitionTestSupport {
                 forbiddenClaimKeys: ["approval", "release"],
                 limitationLocalizationKeys: ["survey.claims.limitation"]
             ),
-            reportProjection: SurveyReportProjectionV1(
+            reportProjection: reportProjection ?? SurveyReportProjectionV1(
                 projectionID: "report",
                 projectionVersion: "1",
                 headingLocalizationKey: "survey.report.heading",
@@ -447,7 +448,8 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
             facts: [
                 C25SurveyDefinitionTestSupport.fact("fact-a"),
                 C25SurveyDefinitionTestSupport.fact("fact-b", required: false)
-            ]
+            ],
+            reportProjection: source.reportProjection
         )
         try target.validateSuccessor(of: source)
         let diff = try SurveyDefinitionSemanticDiffV1(source: source, target: target)
@@ -1128,6 +1130,24 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
             from: forgedDiffData
         )
         XCTAssertThrowsError(try decodedForgedDiff.validate(source: source, target: wrongPredecessor))
+
+        let target = try C25SurveyDefinitionTestSupport.release(
+            releaseSlot: 94, revision: 2, supersedesReleaseID: source.releaseID,
+            facts: source.sections.flatMap(\.facts) + [C25SurveyDefinitionTestSupport.fact("fact-b", required: false)],
+            reportProjection: source.reportProjection
+        )
+        try target.validateSuccessor(of: source)
+        let diff = try SurveyDefinitionSemanticDiffV1(source: source, target: target)
+        try diff.validate(source: source, target: target)
+        XCTAssertEqual(diff.compatibility, .additiveDraftSafe)
+        XCTAssertEqual(diff.changes.map(\.kind), [.factAdded])
+        let affectedDraftID = C25SurveyDefinitionTestSupport.id(900)
+        let preview = try SurveyDefinitionAdoptionPreviewV1(workspaceID: source.workspaceID,
+            diff: diff, affectedDraftIDs: [affectedDraftID], pinnedActiveWorkCount: 0,
+            generatedAt: C25SurveyDefinitionTestSupport.fixedDate)
+        try preview.validate(source: source, target: target,
+            currentDraftIDs: [affectedDraftID], currentActiveWorkCount: 0)
+        XCTAssertEqual(preview.disposition, .explicitDraftAdoptionAvailable)
 
         let additiveDiffData = try SurveyDefinitionCanonicalCodecV1.encode(diff)
         let additiveDiffText = try XCTUnwrap(String(data: additiveDiffData, encoding: .utf8))

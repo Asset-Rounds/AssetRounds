@@ -238,20 +238,20 @@ final class V9_47CrossMarketConformanceTests: XCTestCase {
         })
         XCTAssertEqual(unicodeReceipt.canonicalValue, "Café", "Unicode NFC must be deterministic")
         XCTAssertNotNil(
-            hostileReceipts.first { $0.vector == .daylightSavingTransition },
+            hostileReceipts.first { $0.vector == .dstTimezoneBoundary },
             "DST timeZone transition hostile evidence must execute"
         )
         let requiredConcernReceipts: [(CrossMarketHostileVectorV1, String)] = [
-            (.unknownFallback, "UNKNOWN"),
-            (.stalePrerequisite, "stale"),
-            (.destinationCardinality, "cardinality"),
+            (.unknownBranchRepeatLimit, "UNKNOWN"),
+            (.staleRevision, "stale"),
+            (.relationshipCardinality, "cardinality"),
             (.qualificationExpired, "qualification"),
-            (.productIdentityCollision, "productIdentity"),
-            (.lowStorageBoundary, "lowStorage"),
+            (.duplicateProductIdentity, "productIdentity"),
+            (.lowStorage, "lowStorage"),
             (.symlinkEscape, "symlink"),
             (.decompressionBomb, "decompression"),
-            (.bundleTamper, "tamper"),
-            (.recoveryFrontier, "relaunch")
+            (.tamperedBytes, "tamper"),
+            (.recoveryFrontierDrift, "relaunch")
         ]
         for (vector, concern) in requiredConcernReceipts {
             XCTAssertNotNil(
@@ -279,10 +279,10 @@ final class V9_47CrossMarketConformanceTests: XCTestCase {
 
         let scenario = try CompositeAreaSafetyArchetypeV1.scenario()
         let failingScenario = try duplicateReplayScenario(from: scenario)
-        XCTAssertThrowsError(try ModelConformanceRunnerV1.run(failingScenario, expectedInvariant: .replayConverges)) { error in
-            guard let failure = error as? ModelConformanceRunFailureV1 else {
-                return XCTFail("expected deterministic model failure, got \(error)")
-            }
+        do {
+            _ = try ModelConformanceRunnerV1.run(failingScenario, expectedInvariant: .replayConverges)
+            XCTFail("expected deterministic model failure")
+        } catch let failure as ModelConformanceRunFailureV1 {
             XCTAssertEqual(failure.cause, .invariantViolated(.replayConverges))
             XCTAssertEqual(failure.fingerprint.invariant, .replayConverges)
             XCTAssertEqual(failure.fingerprint.faultBoundary, .replay)
@@ -303,15 +303,15 @@ final class V9_47CrossMarketConformanceTests: XCTestCase {
                 failingScenario.operations.count
             )
             XCTAssertGreaterThan(failure.counterexample.shrinkStepCount, 0)
+        } catch {
+            XCTFail("expected deterministic model failure, got \(error)")
         }
 
         let duplicateMutationScenario = try duplicateAcceptedMutationScenario(from: scenario)
-        XCTAssertThrowsError(try ModelConformanceRunnerV1.run(
-            duplicateMutationScenario, expectedInvariant: .oneWriterReceipt
-        )) { error in
-            guard let failure = error as? ModelConformanceRunFailureV1 else {
-                return XCTFail("expected duplicate-mutation model failure, got \(error)")
-            }
+        do {
+            _ = try ModelConformanceRunnerV1.run(duplicateMutationScenario, expectedInvariant: .oneWriterReceipt)
+            XCTFail("expected duplicate-mutation model failure")
+        } catch let failure as ModelConformanceRunFailureV1 {
             XCTAssertEqual(failure.cause, .preconditionRejected)
             XCTAssertEqual(failure.fingerprint.invariant, .oneWriterReceipt)
             let duplicateMutationID = failure.fingerprint.duplicateMutationID
@@ -331,6 +331,8 @@ final class V9_47CrossMarketConformanceTests: XCTestCase {
             XCTAssertNoThrow(try failure.counterexample.validate(
                 bounds: scenario.bounds, preserving: failure.fingerprint
             ))
+        } catch {
+            XCTFail("expected duplicate-mutation model failure, got \(error)")
         }
 
         XCTAssertThrowsError(try ReleaseExclusionObservationV1(
@@ -659,7 +661,7 @@ final class V9_47CrossMarketConformanceTests: XCTestCase {
             let forbiddenMatches = ReleaseExclusionReceiptV1.forbiddenReleaseSymbols.filter {
                 artifact.text.contains($0)
             }
-            try ReleaseExclusionObservationV1(
+            return try ReleaseExclusionObservationV1(
                 surface: surface,
                 sourceIdentity: surface.requiredSourceIdentity,
                 repositoryRelativeInputs: artifact.inputs,

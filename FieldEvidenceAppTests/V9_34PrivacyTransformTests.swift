@@ -83,11 +83,11 @@ enum C20PrivacyTransformTestSupport {
         )
         let postImages = try mutation.mutationPostImages
         let resultingRevision = try MutationPortableExpectedRevisionV1(
-            WorkspaceRevisionV1(
+            WorkspaceExpectedRevisionV1(
                 workspaceID: fixture.workspace,
                 generationID: generationID,
                 writerInstanceID: writerInstanceID,
-                revision: 1,
+                workspaceRevision: 1,
                 entityRevisions: try postImages.map {
                     WorkspaceEntityRevisionV1(identity: try $0.identity, revision: $0.revision)
                 }

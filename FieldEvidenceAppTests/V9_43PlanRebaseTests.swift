@@ -266,7 +266,7 @@ private enum C29PlanTestSupport {
             m11: PlanLimitsV1.transformScale,
             m12: 0,
             m21: 0,
-            m22: PlanAffineTransformV1.transformScale,
+            m22: PlanLimitsV1.transformScale,
             tx: 0,
             ty: 0
         )

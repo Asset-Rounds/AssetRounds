@@ -551,6 +551,7 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
 
     func testV9_30H01HostileCodecBudgetPrivacyAndCrossWorkspaceInputsFailClosed() throws {
         let fixture = try fixture()
+        let corpus = try corpus()
         let hostileBidi = "c36-hostile\u{202E}codec"
         XCTAssertThrowsError(
             try DraftPayloadCodecReleaseV1(

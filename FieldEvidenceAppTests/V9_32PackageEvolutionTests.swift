@@ -774,6 +774,7 @@ final class V9_32PackageEvolutionTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testV23P03C18R01RecoveryLifecycleSearchAndBrandExclusionsAreExact() throws {
         let corpus = try loadCorpus()
         let expectedConsumers = [
