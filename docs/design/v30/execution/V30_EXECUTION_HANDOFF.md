@@ -4434,3 +4434,49 @@ Implementation paths (7 within the 13-path fence):
 - `docs/design/v30/verification/V30P02C06ProvisionalScreenshotHarnessContractV1.json`
 
 Boundary: isolated provisional branch only, no main or Phase 10 read/poll/mutation. Replay/reimplement in graph order after S, preserve accepted Phase 10 design and rerun all invalidated/native evidence; never merge wholesale. Next unstarted card: V30-P02-C07 - Language & Region Settings and report-language controls. This entry does not self-record its containing commit.
+
+
+## Card 21 of 55 - V30-P02-C07 - Language & Region Settings and report-language controls
+
+State: PROVISIONAL_CHECKPOINTED. Graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `ccf39e0e3eaa74bbc5ad4ee64372f10101f38b4a`, tree `69048994543c2634af1d61287b12b18d4c80054c` (C06 checkpoint 43).
+- Observed G0 authority A: `2a35c1ce49912021adceac0b6bfce87cfa2a0981`; M..A is exactly four V30 execution documents. All 17 fence entries match immutable authority and frozen B pins. AppShell carries the exact pre-issued S10_SHARED_RECONCILIATION_REQUIRED tuple and writer lane V30-P02-C07-SETTINGS-SURFACE-INTEGRATOR.
+- Product implementation E: `60815291c28d232c021274fddd352fbe293296ef`, tree `765ec10f2e1034f25b7fe91646d0bb34482ed886`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 45: head `8b1e5cee0304f133e10529aecb8da8b2a0edc5dd`, ledger digest `69dc1d9c80feefcc8a089431749286589408191da1d211af8ffebfc69dfb0c52`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P02-C07/CHECKPOINT/1`. The append-only receipt preserves candidate history, committed paths/hashes, exact overlap tuple, inventory, static corrections and invalidated evidence. The checkpoint writer verified all prior event and request-result objects were semantically unchanged.
+
+Direct prerequisite evidence:
+- V30-P01-C06: `3a28f593e755ac952071777b7e8440457950a010`, tree `7f67173942a087f86770b10ed8bf99041425ee4f`, checkpoint 26.
+- V30-P01-C07: `36f9c62ef09bff21c47923add3ade6469a82650e`, tree `0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8`, checkpoint 28.
+- V30-P02-C04: `d804f60308bcfdcaadf01780d429132e4bcbd77d`, tree `0cde23d9cf27616f10d4465ef4ee5a9ac387791e`, checkpoint 39.
+
+The new scrollable/adaptive Language & Region screen is reachable through the existing Settings route. It shows the effective Apple-owned app language, current device formatting region using localized system names, a privacy-safe fallback support summary, public iOS Settings handoff and foreground refresh. It explains that language, formatting, report choice, authored content and United States worksite jurisdiction remain independent. App language is not stored or overridden. The entire C06 DEBUG harness prefix, shell navigation and unrelated unavailable-pack surface are unchanged.
+
+The independent report picker requests one of the six initial cohort language tags. Current PDF resources support English only; every non-English choice requires a visible user-confirmed English fallback. Cancel makes no preference write. Requested and effective states are separate; unavailable preferences and older unsupported selections are not labeled as effective. A same-language/default selection that still needs confirmation has a reachable confirmation action. Foreground refresh clears stale pending confirmation, and system versus report errors have separate accessibility focus targets. Buttons use the shared hit-size/style policy; navigation, scrolling and text expansion remain available.
+
+The report coordinator and typed port reuse the existing device-local globalization envelope. A locked adapter update preserves the latest formatting choice and existing migration record, with idempotency and conflict checks. Nil report preference follows app language only when a report catalog is available; an unsupported default requires confirmation. Saved confirmed English fallback survives relaunch, and reset/erase keep established behavior. No new preference key, app-language override, workspace/jurisdiction mutation or canonical data model was introduced.
+
+The existing render/delivery entry points accept an optional explicit validated request. Effective language must match the incumbent English renderer; invalid requests fail before report mutation and are not classified as retryable render failures. A fresh ready result carries this transient request; repeated preparation and historical loads have no inferred current preference. Canonical delivery equality ignores the request. Its formatting field is explicitly requested formatting, not evidence that a frozen PDF was reformatted. The renderer call, stored PDF/snapshot bytes, hashes, semantic/publication bindings and machine export inputs remain unchanged. Existing export UI callers keep their legacy behavior; translated PDF resources, formatting application and complete catalog/font/renderer provenance belong to P03-C04 under its own fence.
+
+Seven authored XCTest methods cover English label resolution without raw keys, all six report requests and confirmation branches, forged Codable/unavailable exact-language rejection, actual UserDefaults persistence/relaunch/default/reset/erase, format preservation, idempotency/conflicts/unconfirmed no-write/error propagation, independent axes, and a real SwiftData finalization/delivery fixture. That fixture is designed to compare snapshot/PDF/hash bytes before and after a confirmed request and verify that only the fresh delivery carries intent. The tests are unexecuted; no iOS Swift compilation, Simulator run or screenshot is claimed.
+
+Static validation PASS: immutable package 55 cards/107 edges and installed pins; typed WINDOWS_STATIC CI selection with null selector; 17 exact fence/B pins and authority-only M..A; twelve implementation paths and one exact S10 overlap; C06/unrelated-shell preservation; git diff --check; independent final reporting/preferences/UI/catalog/test-fixture audit. Precommit corrections included literal-key localization extraction, unavailable-state truth, reachable/stale confirmation behavior, error focus, and a copied private fixture error plus its opaque image pattern. All diagnosed static blockers were corrected before E.
+
+Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots are unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT. No hosted run was dispatched. Professional/native linguistic review and final product qualification remain pending after reconciliation. KNOWN_BUGS was read and remains its template; no defect was accepted. Eight historical C01 source-audit invalidations remain, including AppShell changed again. C06's whole-AppShell source hash is also invalidated while its actual debug harness prefix remains unchanged. Both exact old/new maps remain in the checkpoint; old tests, fixtures and receipts are immutable, and no whole-suite pass is claimed.
+
+Implementation paths (12 within the 17-path fence):
+- `FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift`
+- `FieldEvidenceApp/Application/Reporting/ReportLanguageCoordinatorV1.swift`
+- `FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift`
+- `FieldEvidenceApp/Domain/Reporting/ReportLanguageContractsV1.swift`
+- `FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift`
+- `FieldEvidenceApp/Features/Settings/GlobalizationSettingsViewV1.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift`
+- `FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift`
+- `FieldEvidenceAppTests/V30_P02_C07LanguageRegionSettingsTests.swift`
+
+Boundary: isolated provisional branch only; no main or Phase 10 read/poll/mutation. Replay/reimplement in graph order after S, preserve accepted Phase 10 design and rerun all invalidated/native evidence. Never merge wholesale. Next unstarted card: V30-P03-C01. This entry does not self-record its containing commit.
