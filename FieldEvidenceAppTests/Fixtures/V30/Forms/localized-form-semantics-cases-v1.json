@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "cardID": "V30-P03-C03",
+  "uiLocales": [
+    "en",
+    "es",
+    "zh-Hans",
+    "zh-Hant",
+    "vi",
+    "ko"
+  ],
+  "formSemantics": [
+    {
+      "key": "v30.form-semantics.required",
+      "english": "Required"
+    },
+    {
+      "key": "v30.form-semantics.optional",
+      "english": "Optional"
+    },
+    {
+      "key": "v30.form-semantics.invalid-response",
+      "english": "This response does not meet the field requirements."
+    },
+    {
+      "key": "v30.form-semantics.missing-required-response",
+      "english": "Enter a response for this required field."
+    },
+    {
+      "key": "v30.form-semantics.invalid-selection",
+      "english": "Choose an allowed option for this field."
+    },
+    {
+      "key": "v30.form-semantics.invalid-number",
+      "english": "Enter a number within this field’s allowed range and precision."
+    },
+    {
+      "key": "v30.form-semantics.invalid-unit",
+      "english": "Use an allowed unit for this measurement."
+    },
+    {
+      "key": "v30.form-semantics.invalid-condition",
+      "english": "This form’s conditions could not be validated."
+    }
+  ],
+  "authored": {
+    "key": "v30.parts-stock.work-entry-description",
+    "label": "Visible path: Work → Parts & Stock → catalog or search → item detail. Use and Return remain contextual actions in the supplied work/material lineage.",
+    "labelUTF8ByteCount": 155
+  },
+  "choiceIDsInCanonicalOrder": [
+    "choice.alpha",
+    "choice.omega"
+  ],
+  "numeric": {
+    "canonicalMantissa": 1250,
+    "canonicalScale": 2,
+    "canonicalText": "12.50",
+    "unsupportedOrAmbiguousInput": "12,50",
+    "allowedUnitID": "m",
+    "wrongUnitID": "lx"
+  },
+  "packageReleaseID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "workflowSHA256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "factID": "fact.choice"
+}

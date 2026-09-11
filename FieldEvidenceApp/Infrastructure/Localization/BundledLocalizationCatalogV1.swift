@@ -6270,3 +6270,76 @@ extension BundledLocalizationCatalogV1 {
         return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
     }
 }
+
+extension BundledLocalizationCatalogV1 {
+    /// App-owned form semantics only. Package-authored labels, instructions and
+    /// choices stay bound to their source release and never pass through here.
+    static func formSemanticsEnglish(_ key: LocalizedFormSemanticsMessageKeyV1) -> String {
+        switch key {
+        case .required: return "Required"
+        case .optional: return "Optional"
+        case .invalidResponse: return "This response does not meet the field requirements."
+        case .missingRequiredResponse: return "Enter a response for this required field."
+        case .invalidSelection: return "Choose an allowed option for this field."
+        case .invalidNumber: return "Enter a number within this field’s allowed range and precision."
+        case .invalidUnit: return "Use an allowed unit for this measurement."
+        case .invalidCondition: return "This form’s conditions could not be validated."
+        }
+    }
+
+    static func formSemanticsText(
+        _ key: LocalizedFormSemanticsMessageKeyV1,
+        bundle: Bundle = .main, locale: Locale? = nil
+    ) -> String {
+        let languageLocale = locale ?? Locale(identifier:
+            SystemLanguageResolverV1(bundle: bundle).resolve().effectiveLanguage.rawValue)
+        switch key {
+        case .required:
+            return String(localized: "v30.form-semantics.required", defaultValue: "Required",
+                bundle: bundle, locale: languageLocale,
+                comment: "Form field requirement. A response is required by the existing rule. Do not change the rule.")
+        case .optional:
+            return String(localized: "v30.form-semantics.optional", defaultValue: "Optional",
+                bundle: bundle, locale: languageLocale,
+                comment: "Form field requirement. A response is optional under the existing rule.")
+        case .invalidResponse:
+            return String(localized: "v30.form-semantics.invalid-response", defaultValue: "This response does not meet the field requirements.",
+                bundle: bundle, locale: languageLocale,
+                comment: "Form validation error from the existing canonical validator. Do not imply that a rejected response was saved or accepted.")
+        case .missingRequiredResponse:
+            return String(localized: "v30.form-semantics.missing-required-response", defaultValue: "Enter a response for this required field.",
+                bundle: bundle, locale: languageLocale,
+                comment: "Form validation error for a required unanswered field. Preserve the requirement.")
+        case .invalidSelection:
+            return String(localized: "v30.form-semantics.invalid-selection", defaultValue: "Choose an allowed option for this field.",
+                bundle: bundle, locale: languageLocale,
+                comment: "Form validation error for an invalid choice. Keep canonical choices and their existing order.")
+        case .invalidNumber:
+            return String(localized: "v30.form-semantics.invalid-number", defaultValue: "Enter a number within this field’s allowed range and precision.",
+                bundle: bundle, locale: languageLocale,
+                comment: "Form numeric validation error. The existing field owns bounds and precision; localization cannot relax them.")
+        case .invalidUnit:
+            return String(localized: "v30.form-semantics.invalid-unit", defaultValue: "Use an allowed unit for this measurement.",
+                bundle: bundle, locale: languageLocale,
+                comment: "Form measurement validation error. Units are explicit and cannot be inferred from app language.")
+        case .invalidCondition:
+            return String(localized: "v30.form-semantics.invalid-condition", defaultValue: "This form’s conditions could not be validated.",
+                bundle: bundle, locale: languageLocale,
+                comment: "Form definition condition validation failed. Do not suggest the condition was evaluated successfully or that the user must change an answer.")
+        }
+    }
+
+    static func formSemanticsRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try syncStateRegistry()
+        let additions = LocalizedFormSemanticsMessageKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey, meaningID: key.rawValue,
+                translatorComment: "Form presentation only. Preserve required/optional and error meaning, canonical rules, choice order, units and authored source text.",
+                englishDefaultValue: formSemanticsEnglish(key), arguments: [],
+                requiredEnglishPluralCategories: [], state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}

@@ -376,3 +376,30 @@ private final class C53SharedTypedResponseReliabilityTests: XCTestCase {
         XCTAssertFalse(ServiceReliabilityClaimBoundaryV1.restorationImpliesVerification)
     }
 }
+
+extension V9_13TypedResponseTests {
+    func testV30P03C03LocalizedFormValidationKeepsTypedResponseAdmissionCanonical() throws {
+        let fixture = try V30P03C03FormTestSupport.loadFixture()
+        let archive = try V30P03C03FormTestSupport.archive()
+        let fact = V30P03C03FormTestSupport.choiceFact(fixture: fixture, required: true)
+        let field = try V30P03C03FormTestSupport.choiceField(fixture: fixture)
+        let release = try V30P03C03FormTestSupport.release(
+            facts: [fact], archive: archive, fixture: fixture
+        )
+        let response = try BoundResponseValueV1(
+            fieldID: field.fieldID, value: .singleOption("choice.alpha")
+        )
+        let bytes = try ResponseValueCanonicalCodecV1.encode(response.value)
+        let coordinator = try V30P03C03FormTestSupport.coordinator(
+            uiLocale: "vi", formatLocale: "en-US"
+        )
+        let projection = try coordinator.project(
+            release: release, fact: fact, field: field, archive: archive
+        )
+        let presentation = coordinator.validate(response: response, against: field)
+        XCTAssertEqual(projection.requirement?.state, .required)
+        XCTAssertTrue(presentation.isValid)
+        XCTAssertNoThrow(try ResponseFieldValidatorV1.validate(response, against: field))
+        XCTAssertEqual(try ResponseValueCanonicalCodecV1.encode(response.value), bytes)
+    }
+}

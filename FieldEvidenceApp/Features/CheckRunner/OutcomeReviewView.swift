@@ -156,6 +156,9 @@ struct OutcomeReviewView: View {
                             minHeight: DesignTokens.Control.minimumHitSize,
                             alignment: .topLeading
                         )
+                        .accessibilityHint(
+                            BundledLocalizationCatalogV1.formSemanticsText(.optional)
+                        )
                         .accessibilityIdentifier(Self.recheckNoteAccessibilityIdentifier)
                         .onChange(of: recheckNote) { _, _ in
                             updateRecheckSelection()
@@ -171,6 +174,9 @@ struct OutcomeReviewView: View {
                     Text(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewLabel))
                         .font(.headline)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .accessibilityValue(
+                            BundledLocalizationCatalogV1.formSemanticsText(.required)
+                        )
                     ForEach(coordinator.signPackIssueLabels) { label in
                         choiceButton(
                             title: label.display,
@@ -197,6 +203,9 @@ struct OutcomeReviewView: View {
                     Text(BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckPrompt))
                         .font(.headline)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .accessibilityValue(
+                            BundledLocalizationCatalogV1.formSemanticsText(.required)
+                        )
                     ForEach(coordinator.couldNotVerifyReasons) { reason in
                         choiceButton(
                             title: reason.display,
@@ -218,6 +227,9 @@ struct OutcomeReviewView: View {
                         axis: .vertical
                     )
                     .lineLimit(3...6)
+                    .accessibilityHint(
+                        BundledLocalizationCatalogV1.formSemanticsText(.optional)
+                    )
                     .accessibilityIdentifier(
                         Self.couldNotVerifyNoteAccessibilityIdentifier
                     )

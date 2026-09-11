@@ -156,6 +156,9 @@ struct PreflightView: View {
                     )
                     .contentShape(.interaction, Rectangle())
                     .contentShape(.accessibility, Rectangle())
+                    .accessibilityHint(
+                        BundledLocalizationCatalogV1.formSemanticsText(.required)
+                    )
                     .accessibilityIdentifier(
                         acknowledgement.key == "after_dark"
                             ? Self.afterDarkAccessibilityIdentifier
@@ -195,6 +198,9 @@ struct PreflightView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityValue(
+                    BundledLocalizationCatalogV1.formSemanticsText(.required)
+                )
 
             TextField(BundledLocalizationCatalogV1.v30Text(.preflightTimeZonePlaceholder), text: $timeZoneID)
                 .textInputAutocapitalization(.never)

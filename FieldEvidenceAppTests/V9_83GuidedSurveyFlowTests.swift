@@ -98,3 +98,25 @@ final class V9_83GuidedSurveyFlowTests: XCTestCase {
         })
     }
 }
+
+extension V9_83GuidedSurveyFlowTests {
+    func testV30P03C03LocalizedFormProjectionDoesNotAlterWorkflowGraphValidation() throws {
+        let fixture = try V30P03C03FormTestSupport.loadFixture()
+        let archive = try V30P03C03FormTestSupport.archive()
+        let fact = V30P03C03FormTestSupport.choiceFact(fixture: fixture, required: true)
+        let field = try V30P03C03FormTestSupport.choiceField(fixture: fixture)
+        let release = try V30P03C03FormTestSupport.release(
+            facts: [fact], archive: archive, fixture: fixture
+        )
+        let before = try SurveyDefinitionCanonicalCodecV1.encode(release)
+        let projection = try V30P03C03FormTestSupport.coordinator(
+            uiLocale: "zh-Hant", formatLocale: "en-US"
+        ).project(release: release, fact: fact, field: field, archive: archive)
+        let workflow = try V30P03C03FormTestSupport.workflow(fieldID: fact.factID)
+        let receipt = try WorkflowGraphValidatorV1.validate(workflow)
+        XCTAssertEqual(projection.factID, fact.factID)
+        XCTAssertEqual(try SurveyDefinitionCanonicalCodecV1.encode(release), before)
+        XCTAssertTrue(receipt.valid)
+        XCTAssertEqual(receipt.orderedNodeIDs, ["node.done", "node.fact"])
+    }
+}

@@ -1583,3 +1583,16 @@ extension V9_39SurveyDefinitionTests {
         XCTAssertEqual(RouteRegistryV1.root(for: target.destination), .work)
     }
 }
+
+extension V9_39SurveyDefinitionTests {
+    func testV30P03C03LocalizedFormProjectionPreservesReleasedSurveyDefinitionBytes() throws {
+        let fixture = try V30P03C03FormTestSupport.loadFixture()
+        let archive = try V30P03C03FormTestSupport.archive()
+        let fact = try V30P03C03FormTestSupport.choiceFact(fixture: fixture, required: true)
+        let release = try V30P03C03FormTestSupport.release(facts: [fact], archive: archive, fixture: fixture)
+        let bytes = try SurveyDefinitionCanonicalCodecV1.encode(release)
+        let projection = try V30P03C03FormTestSupport.coordinator(uiLocale: "vi", formatLocale: "en-US").project(release: release, fact: fact, archive: archive)
+        XCTAssertNil(projection.requirement)
+        XCTAssertEqual(try SurveyDefinitionCanonicalCodecV1.encode(release), bytes)
+    }
+}

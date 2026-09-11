@@ -117,6 +117,9 @@ struct CaptureStepView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityValue(
+                        BundledLocalizationCatalogV1.formSemanticsText(.required)
+                    )
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
 
                 Text(purpose.instruction)
