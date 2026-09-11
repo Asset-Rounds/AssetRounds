@@ -167,7 +167,7 @@ enum CommunicationConsentSyntheticEvaluatorV1 {
     ) throws -> CommunicationPreferenceEvaluationV1 {
         try preference.validate()
         try consent.validate()
-        if preference.purpose != consent.purpose
+        if try preference.purpose != consent.purpose
             || preference.channel != consent.channel
             || preference.consent != (try consent.reference) {
             return .reviewRequired

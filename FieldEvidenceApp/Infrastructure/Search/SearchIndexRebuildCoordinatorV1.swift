@@ -1645,7 +1645,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         )
     }
 
-    static func makeExtendedRegistry(
+    internal static func makeExtendedRegistry(
         includeAccountability: Bool,
         includeAssetSemantics: Bool,
         includeAuthorityCriterion: Bool,

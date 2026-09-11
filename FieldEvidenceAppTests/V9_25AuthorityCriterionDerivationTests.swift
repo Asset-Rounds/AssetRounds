@@ -720,7 +720,7 @@ final class V9_25AuthorityCriterionDerivationTests: XCTestCase {
     }
 
     func testV23P03C40SearchProjectionUsesOnlyBoundedWorkFields() throws {
-        let registry = try SearchIndexRebuildCoordinatorV1.makeExtendedRegistry(
+        let registry = try SwiftDataSearchCanonicalProjectionSourceV1.makeExtendedRegistry(
             includeAccountability: true, includeAssetSemantics: true, includeAuthorityCriterion: true
         )
         XCTAssertEqual(registry.fields.count, SearchContractLimitsV1.maximumAllProjectionFieldRegistrations)

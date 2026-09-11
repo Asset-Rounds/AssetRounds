@@ -1217,29 +1217,29 @@ extension KernelConformanceFixtureHarnessV1 {
             let bytes = try decodeC42Hex(required(input.bytesUTF8Hex, fixture.vector))
             observedDisposition = String(data: bytes, encoding: .utf8) == nil ? .rejected : .accepted
         case .unknownFutureVersion:
-            observedDisposition = required(input.integer, fixture.vector) == 1 ? .accepted : .rejected
+            observedDisposition = try required(input.integer, fixture.vector) == 1 ? .accepted : .rejected
         case .noncanonicalKeyOrder:
-            let text = required(input.primaryText, fixture.vector)
+            let text = try required(input.primaryText, fixture.vector)
             let bytes = Data(text.utf8)
             let object = try JSONSerialization.jsonObject(with: bytes)
             let canonical = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
             observedDisposition = bytes == canonical ? .accepted : .rejected
         case .nondeterministicTimeUUID:
-            let text = required(input.primaryText, fixture.vector)
+            let text = try required(input.primaryText, fixture.vector)
             let forbidden = ["Date.now", "UUID()", "CFAbsoluteTimeGetCurrent"]
             observedDisposition = forbidden.contains(where: text.contains) ? .rejected : .accepted
         case .unicodeNonnormalized:
-            observedCanonicalValue = required(input.primaryText, fixture.vector)
+            observedCanonicalValue = try required(input.primaryText, fixture.vector)
                 .precomposedStringWithCanonicalMapping
             observedDisposition = .accepted
         case .rtlControlInjection:
-            let text = required(input.primaryText, fixture.vector)
+            let text = try required(input.primaryText, fixture.vector)
             let hasBidiControl = text.unicodeScalars.contains {
                 (0x202A...0x202E).contains($0.value) || (0x2066...0x2069).contains($0.value)
             }
             observedDisposition = hasBidiControl ? .rejected : .accepted
         case .longTextLimit:
-            observedDisposition = required(input.integer, fixture.vector)
+            observedDisposition = try required(input.integer, fixture.vector)
                 > required(input.secondaryInteger, fixture.vector) ? .rejected : .accepted
         case .dstTimezoneBoundary:
             let formatter = ISO8601DateFormatter()
@@ -1254,11 +1254,11 @@ extension KernelConformanceFixtureHarnessV1 {
             observedDisposition = .accepted
         case .unitThresholdRounding:
             let locale = Locale(identifier: "en_US_POSIX")
-            guard var value = Decimal(string: required(input.decimal, fixture.vector), locale: locale) else {
+            guard var value = Decimal(string: try required(input.decimal, fixture.vector), locale: locale) else {
                 throw KernelConformanceFixtureFailureV1.invalidArtifact(fixture.id)
             }
             var rounded = Decimal()
-            let scale = required(input.integer, fixture.vector)
+            let scale = try required(input.integer, fixture.vector)
             NSDecimalRound(&rounded, &value, scale, .plain)
             let formatter = NumberFormatter()
             formatter.locale = locale
@@ -1272,10 +1272,10 @@ extension KernelConformanceFixtureHarnessV1 {
             observedDisposition = .accepted
         case .unknownBranchRepeatLimit, .staleRevision, .relationshipCardinality,
              .lowStorage, .resourceExhaustion, .recoveryFrontierDrift:
-            observedDisposition = required(input.integer, fixture.vector)
+            observedDisposition = try required(input.integer, fixture.vector)
                 > required(input.secondaryInteger, fixture.vector) ? .rejected : .accepted
         case .pathInvalidation:
-            observedDisposition = required(input.path, fixture.vector) == "ACTIVE" ? .accepted : .rejected
+            observedDisposition = try required(input.path, fixture.vector) == "ACTIVE" ? .accepted : .rejected
         case .relationshipCycle:
             observedDisposition = try c42GraphContainsCycle(input.edges) ? .rejected : .accepted
         case .qualificationExpired:
@@ -1302,38 +1302,38 @@ extension KernelConformanceFixtureHarnessV1 {
                 observedDisposition = .accepted
             }
         case .archivePathTraversal:
-            let path = required(input.path, fixture.vector)
+            let path = try required(input.path, fixture.vector)
             let components = path.replacingOccurrences(of: "\\", with: "/")
                 .split(separator: "/", omittingEmptySubsequences: false)
             observedDisposition = path.hasPrefix("/") || components.contains("..")
                 ? .rejected : .accepted
         case .symlinkEscape:
-            let target = required(input.primaryText, fixture.vector)
+            let target = try required(input.primaryText, fixture.vector)
             let components = target.replacingOccurrences(of: "\\", with: "/")
                 .split(separator: "/", omittingEmptySubsequences: false)
             observedDisposition = target.hasPrefix("/") || components.contains("..")
                 ? .rejected : .accepted
         case .decompressionBomb:
-            let compressed = required(input.integer, fixture.vector)
-            let expanded = required(input.secondaryInteger, fixture.vector)
+            let compressed = try required(input.integer, fixture.vector)
+            let expanded = try required(input.secondaryInteger, fixture.vector)
             observedDisposition = compressed <= 0 || expanded > compressed * 128
                 ? .rejected : .accepted
         case .tamperedBytes:
             let bytes = try decodeC42Hex(required(input.bytesUTF8Hex, fixture.vector))
             let actual = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
-            let declared = required(input.digest, fixture.vector)
-            let expected = required(input.expectedDigest, fixture.vector)
+            let declared = try required(input.digest, fixture.vector)
+            let expected = try required(input.expectedDigest, fixture.vector)
             observedDisposition = actual == declared && declared == expected ? .accepted : .rejected
         case .interruptedEffectBeforeReceipt:
-            let staged = required(input.integer, fixture.vector)
-            let relaunched = required(input.secondaryInteger, fixture.vector)
+            let staged = try required(input.integer, fixture.vector)
+            let relaunched = try required(input.secondaryInteger, fixture.vector)
             if staged == 1, relaunched == 1, input.entityIDs.count == 1 {
                 observedEffectCount = 1
                 observedCanonicalValue = input.entityIDs[0]
                 observedDisposition = .recoveredExactlyOnce
             }
         case .releaseMembershipLeak:
-            let text = required(input.primaryText, fixture.vector)
+            let text = try required(input.primaryText, fixture.vector)
             observedDisposition = ReleaseExclusionReceiptV1.forbiddenReleaseSymbols.contains(where: text.contains)
                 ? .rejected : .accepted
         }
@@ -1450,8 +1450,8 @@ extension KernelConformanceFixtureHarnessV1 {
             sourceID: source.sourceID, sourceType: source.sourceType,
             designation: source.designation, editionOrRevision: "2",
             retrievedAt: recordedAt.addingTimeInterval(2),
-            supersedesReleaseID: source.releaseID,
             licenseStorageDisposition: .notStored,
+            supersedesReleaseID: source.releaseID,
             recordedAt: recordedAt.addingTimeInterval(3), revision: 2,
             mutationID: successorMutationID
         )
@@ -2847,13 +2847,13 @@ final class KernelConformanceProductionHarnessV1 {
         ) else {
             throw KernelConformanceFixtureFailureV1.incompleteCoverage("c06-old-profile-render")
         }
-        let oldProfileRendered = oldFixture.snapshot.payload.packageReleaseID
+        let oldProfileRendered = try oldFixture.snapshot.payload.packageReleaseID
             == legacyProfile.release.packageID
             && oldFixture.snapshot.payload.profileBinding.reportProfileID
                 == oldFixture.layout.profileID
             && oldFixture.snapshot.payload.profileBinding.reportProfileRelease
                 == oldFixture.layout.profileRelease
-            && (try DeterministicOpenJSONRendererV1.reopen(oldBundle.openJSON.data))
+            && DeterministicOpenJSONRendererV1.reopen(oldBundle.openJSON.data)
                 == oldBundle.semanticProjection
         guard oldProfileRendered else {
             throw KernelConformanceFixtureFailureV1.incompleteCoverage("c06-old-package-profile")
@@ -3012,7 +3012,7 @@ final class KernelConformanceProductionHarnessV1 {
             let recovered = try await SearchIndexRebuildCoordinatorV1(
                 store: reloaded, source: source, registry: registry
             ).rebuildIfNeeded()
-            guard recovered.disposition == .incompatibleFormatDropAndRebuild else {
+            guard recovered.disposition == SearchIndexReconciliationV1.incompatibleFormatDropAndRebuild else {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage(boundary)
             }
             return try await verifiedSearchFaultReceipt(
@@ -3627,7 +3627,7 @@ final class KernelConformanceProductionHarnessV1 {
         let sourceSiteCount = try sourceSession.modelContext.fetchCount(FetchDescriptor<Site>())
         let sourceAssetCount = try sourceSession.modelContext.fetchCount(FetchDescriptor<Asset>())
         let sourceLocationCount = try sourceSession.modelContext.fetchCount(
-            FetchDescriptor<LocationNode>()
+            FetchDescriptor<LocationNodeRow>()
         )
         let sourceDependencies = try sourceCoordinator.packageLifecycleDependencies(
             profileRegistry: registry
@@ -3714,7 +3714,7 @@ final class KernelConformanceProductionHarnessV1 {
         let expectedID = expectedOld ? oldID : newID
         let siteCount = try canonical.modelContext.fetchCount(FetchDescriptor<Site>())
         let assetCount = try canonical.modelContext.fetchCount(FetchDescriptor<Asset>())
-        let locationCount = try canonical.modelContext.fetchCount(FetchDescriptor<LocationNode>())
+        let locationCount = try canonical.modelContext.fetchCount(FetchDescriptor<LocationNodeRow>())
         let canonicalRows = try canonicalDomainRowCount(canonical.modelContext)
         let second = try recovery.reconcileAtStartup()
         let residualIntent = fileExists(
@@ -4287,7 +4287,7 @@ final class KernelConformanceProductionHarnessV1 {
     private func canonicalDomainRowCount(_ context: ModelContext) throws -> Int {
         try context.fetchCount(FetchDescriptor<Site>())
             + context.fetchCount(FetchDescriptor<Asset>())
-            + context.fetchCount(FetchDescriptor<LocationNode>())
+            + context.fetchCount(FetchDescriptor<LocationNodeRow>())
             + context.fetchCount(FetchDescriptor<WorkflowRecord>())
             + context.fetchCount(FetchDescriptor<EvidenceFile>())
             + context.fetchCount(FetchDescriptor<Issue>())
@@ -4685,7 +4685,7 @@ final class KernelConformanceProductionHarnessV1 {
         let reopenedContext = reopenedAfterErase.modelContext
         let recoveryCompleted = try reopenedContext.fetchCount(FetchDescriptor<Site>()) == 0
             && reopenedContext.fetchCount(FetchDescriptor<Asset>()) == 0
-            && reopenedContext.fetchCount(FetchDescriptor<LocationNode>()) == 0
+            && reopenedContext.fetchCount(FetchDescriptor<LocationNodeRow>()) == 0
             && reopenedContext.fetchCount(FetchDescriptor<WorkflowRecord>()) == 0
             && reopenedContext.fetchCount(FetchDescriptor<Issue>()) == 0
             && reopenedContext.fetchCount(FetchDescriptor<Packet>()) == 0

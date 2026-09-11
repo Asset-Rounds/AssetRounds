@@ -273,8 +273,14 @@ final class V9_19LocalSearchTests: XCTestCase {
         XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
         XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
     }
+    @MainActor
     func testV23P03C13AssuranceSearchIsMetadataOnlyAndOptIn() throws {
-        let registry = try SearchIndexRebuildCoordinatorV1.makeEvidenceAssuranceRegistry()
+        let registry = try SwiftDataSearchCanonicalProjectionSourceV1.makeExtendedRegistry(
+            includeAccountability: false,
+            includeAssetSemantics: false,
+            includeAuthorityCriterion: false,
+            includeAssurance: true
+        )
         XCTAssertEqual(
             registry.fields.count,
             SearchContractLimitsV1.maximumAssuranceFieldRegistrations
@@ -319,8 +325,9 @@ final class V9_19LocalSearchTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testV23P03C41FunctionalRelationshipSearchRegistryIsOptInAndBounded() throws {
-        let registry = try SearchIndexRebuildCoordinatorV1.makeExtendedRegistry(
+        let registry = try SwiftDataSearchCanonicalProjectionSourceV1.makeExtendedRegistry(
             includeAccountability: false,
             includeAssetSemantics: false,
             includeAuthorityCriterion: false,
