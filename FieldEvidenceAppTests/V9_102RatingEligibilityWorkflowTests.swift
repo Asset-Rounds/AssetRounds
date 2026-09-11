@@ -397,6 +397,19 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
         XCTAssertEqual((fixture["excludedCompletionCases"] as? [String])?.count, 15)
         XCTAssertEqual(Set((fixture["activeContextSuppressions"] as? [String]) ?? []),
                        Set(RatingActiveContextV1.allCases.map(\.rawValue)))
+        let validStop = C39.stop(completions: try C39.completions())
+        XCTAssertNoThrow(try validStop.validate())
+        let zeroIdentityStop = RatingNaturalStopV1(
+            eventID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+            successfullyRetrievedSnapshotSHA256: validStop.successfullyRetrievedSnapshotSHA256,
+            occurredAt: validStop.occurredAt,
+            isLaterVoluntaryReopen: validStop.isLaterVoluntaryReopen,
+            activeContexts: validStop.activeContexts,
+            activeSceneAvailable: validStop.activeSceneAvailable
+        )
+        XCTAssertThrowsError(try zeroIdentityStop.validate()) { error in
+            XCTAssertEqual(error as? RatingEligibilityFailureV1, .invalidValue)
+        }
         let duplicateSeries = try C39.completions().map {
             RatingEligibleCompletionProjectionV1(finalizationMutationID: $0.finalizationMutationID,
                 activitySeriesID: C39.id(99), completedAt: $0.completedAt, snapshotSHA256: $0.snapshotSHA256)

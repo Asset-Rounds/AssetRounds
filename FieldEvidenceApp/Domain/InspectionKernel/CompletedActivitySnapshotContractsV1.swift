@@ -1709,7 +1709,7 @@ struct CompletedActivitySnapshotPayloadV5: Codable, Equatable, Sendable {
         try activity.validate()
         try authorityCriterion.validate()
         guard authorityCriterion.workspaceID.rawValue.uuidString.lowercased()
-                == activity.activity.activity.workspaceID.lowercased() else {
+                == activity.activity.activity.activity.workspaceID.lowercased() else {
             throw SnapshotProjectionFailureV1.wrongWorkspace
         }
     }
@@ -2502,7 +2502,7 @@ struct CompletedInspectionReviewHistorySnapshotV1: Codable, Equatable, Sendable 
             c13AssuranceSHA256: assuranceSHA256,
             c38AccountabilitySHA256: accountability.snapshotSHA256,
             c40AuthorityCriterionSHA256: v5.authorityCriterion.snapshotSHA256,
-            c41FunctionalRelationshipsSHA256: v6.functionalRelationships.snapshotSHA256
+            c41FunctionalRelationshipsSHA256: v6.payload.functionalRelationships.snapshotSHA256
         )
         return try Self(
             workspaceID: binding.workspaceID,
@@ -2770,7 +2770,7 @@ struct CompletedActivitySnapshotPayloadV8: Codable, Equatable, Sendable {
               inspectionReviewHistory.binding.c40AuthorityCriterionSHA256
                 == v5.authorityCriterion.snapshotSHA256,
               inspectionReviewHistory.binding.c41FunctionalRelationshipsSHA256
-                == v6.functionalRelationships.snapshotSHA256 else {
+                == v6.payload.functionalRelationships.snapshotSHA256 else {
             throw SnapshotProjectionFailureV1.missingBinding
         }
     }
@@ -3148,10 +3148,10 @@ struct CompletedWorkPacketSnapshotV1: Codable, Equatable, Sendable {
         schemaVersion = Self.schemaVersion
         workspaceID = manifest.workspaceID
         self.manifest = manifest
-        claims = orderedClaims
-        leases = orderedLeases
-        releases = orderedReleases
-        handoffs = orderedHandoffs
+        self.claims = orderedClaims
+        self.leases = orderedLeases
+        self.releases = orderedReleases
+        self.handoffs = orderedHandoffs
         items = itemValues
         self.sourceRevision = sourceRevision
         self.createdAt = createdAt
@@ -3402,8 +3402,8 @@ struct CompletedWorkPacketSnapshotV1: Codable, Equatable, Sendable {
 }
 
 /// V9 is an additive wrapper. V8 and its C14 history remain byte-for-byte
-/// immutable while the packet snapshot is bound to the same completed
-/// workspace/packet identity.
+/// immutable while the packet proves an exact completed-artifact association.
+/// Packet identity belongs to the manifest, not the historical activity IDs.
 struct CompletedActivitySnapshotPayloadV9: Codable, Equatable, Sendable {
     static let schemaVersion = 9
     let schemaVersion: Int
@@ -3422,16 +3422,50 @@ struct CompletedActivitySnapshotPayloadV9: Codable, Equatable, Sendable {
             throw SnapshotProjectionFailureV1.incompatibleVersion
         }
         try activity.validate()
-        try workPacket.validate()
         let v7 = activity.payload.activity
         let v6 = v7.payload.activity
         let v5 = v6.payload.activity
         let v4 = v5.activity
         let v3 = v4.activity
         let base = v3.activity.activity
-        guard workPacket.workspaceID.rawValue.uuidString.lowercased() == base.workspaceID.lowercased(),
-              workPacket.manifest.packetID == base.packetID else {
+        try Self.validatePacketAssociation(
+            workPacket, workspaceID: base.workspaceID,
+            snapshotID: base.snapshotID, snapshotRevision: base.snapshotRevision,
+            snapshotSHA256: activity.snapshotSHA256
+        )
+    }
+
+    static func validatePacketAssociation(
+        _ workPacket: CompletedWorkPacketSnapshotV1,
+        workspaceID: String,
+        snapshotID: String,
+        snapshotRevision: Int,
+        snapshotSHA256: String
+    ) throws {
+        try workPacket.validate()
+        guard workPacket.workspaceID.rawValue.uuidString.lowercased() == workspaceID.lowercased() else {
             throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        guard SnapshotProjectionValidationV1.validID(snapshotID),
+              snapshotRevision > 0,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        let revision = UInt64(snapshotRevision)
+        let direct = workPacket.manifest.items.contains {
+            $0.kind == .inspection && $0.itemID == snapshotID
+                && $0.expectedRevision == revision && $0.itemSHA256 == snapshotSHA256
+        }
+        let results = workPacket.releases.flatMap(\.resultLinks)
+            + workPacket.handoffs.flatMap(\.resultLinks)
+        let recorded = results.contains { result in
+            result.evidence.contains {
+                $0.kind == .completedActivitySnapshot && $0.referenceID == snapshotID
+                    && $0.revision == revision && $0.sha256 == snapshotSHA256
+            }
+        }
+        guard direct || recorded else {
+            throw SnapshotProjectionFailureV1.missingBinding
         }
     }
 
@@ -3490,7 +3524,10 @@ struct CompletedActivitySnapshotV9: Codable, Equatable, Identifiable, Sendable {
                 try CompletedActivitySnapshotCanonicalCodecV9.encodePayload(payload)
             )
         )
-        try payload.activity.validateSupersession(of: prior.payload.activity)
+        _ = try CompletedActivitySnapshotV8.freezeAmendment(
+            payload.activity.payload,
+            superseding: prior.payload.activity
+        )
         try payload.workPacket.validateImmutableHistory(of: prior.payload.workPacket)
         return value
     }

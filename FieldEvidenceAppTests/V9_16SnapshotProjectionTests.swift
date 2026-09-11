@@ -818,6 +818,118 @@ extension V9_16SnapshotProjectionTests {
         XCTAssertEqual(item.currentLease, fixture.lease)
         XCTAssertNil(item.latestRelease)
         XCTAssertTrue(item.exceptions.isEmpty)
+
+        let active = try CompletedWorkPacketSnapshotV1(
+            manifest: fixture.manifest, claims: [fixture.claim], leases: [fixture.lease],
+            releases: [], handoffs: [], createdAt: fixture.lease.startsAt.addingTimeInterval(1)
+        )
+        XCTAssertEqual(active.claims, [fixture.claim])
+        XCTAssertEqual(active.leases, [fixture.lease])
+        // Exercise the exact tuple boundary used by V9, without fabricating
+        // an unrelated eight-layer completed-activity producer fixture.
+        func associate(_ packet: CompletedWorkPacketSnapshotV1, _ id: String,
+                       _ revision: Int, _ digest: String) throws {
+            try CompletedActivitySnapshotPayloadV9.validatePacketAssociation(
+                packet, workspaceID: fixture.workspaceID.rawValue.uuidString,
+                snapshotID: id, snapshotRevision: revision, snapshotSHA256: digest
+            )
+        }
+        let activeBytes = try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(active)
+        try associate(active, fixture.item.itemID, 1, fixture.item.itemSHA256)
+        XCTAssertTrue(active.releases.isEmpty)
+        XCTAssertTrue(active.handoffs.isEmpty)
+        let wrongDirectTuples: [(String, Int, String)] = [
+            ("unrelated-snapshot", 1, fixture.item.itemSHA256),
+            (fixture.item.itemID, 2, fixture.item.itemSHA256),
+            (fixture.item.itemID, 1, String(repeating: "0", count: 64)),
+            (fixture.secondItem.itemID, 1, fixture.secondItem.itemSHA256)
+        ]
+        for (id, revision, digest) in wrongDirectTuples {
+            XCTAssertThrowsError(try associate(active, id, revision, digest)) {
+                XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .missingBinding)
+            }
+        }
+        // A valid standalone active packet is not automatically associated
+        // with every completed artifact from the same workspace.
+        try active.validate()
+        XCTAssertThrowsError(try CompletedActivitySnapshotPayloadV9.validatePacketAssociation(
+            active, workspaceID: fixture.otherWorkspaceID.rawValue.uuidString,
+            snapshotID: fixture.item.itemID, snapshotRevision: 1,
+            snapshotSHA256: fixture.item.itemSHA256
+        )) {
+            XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .wrongWorkspace)
+        }
+        let frozen = try CompletedWorkPacketSnapshotV1(
+            manifest: fixture.manifest, claims: [fixture.successorClaim, fixture.claim],
+            leases: [fixture.successorLease, fixture.lease],
+            releases: [fixture.handoffRelease, fixture.completedRelease],
+            handoffs: [fixture.handoff], sourceRevision: 2,
+            createdAt: fixture.handoff.handedOffAt.addingTimeInterval(1)
+        )
+        XCTAssertEqual(frozen.claims, [fixture.claim, fixture.successorClaim])
+        XCTAssertEqual(frozen.leases, [fixture.lease, fixture.successorLease])
+        XCTAssertEqual(frozen.releases, [fixture.completedRelease, fixture.handoffRelease])
+        XCTAssertEqual(frozen.handoffs, [fixture.handoff])
+        try frozen.validateImmutableHistory(of: active)
+        let bytes = try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(frozen)
+        let decoded = try JSONDecoder().decode(CompletedWorkPacketSnapshotV1.self, from: bytes)
+        XCTAssertEqual(decoded, frozen)
+        XCTAssertEqual(try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(decoded), bytes)
+        let resultReference = try XCTUnwrap(fixture.result.evidence.first)
+        try associate(decoded, resultReference.referenceID, 1, resultReference.sha256)
+        for (id, revision, digest) in [
+            ("unrelated-result", 1, resultReference.sha256),
+            (resultReference.referenceID, 2, resultReference.sha256),
+            (resultReference.referenceID, 1, String(repeating: "0", count: 64))
+        ] {
+            XCTAssertThrowsError(try associate(decoded, id, revision, digest)) {
+                XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .missingBinding)
+            }
+        }
+        let wrongKindEvidence = try ReviewEvidenceReferenceV1(
+            kind: .externalEvidenceReference, referenceID: resultReference.referenceID,
+            revision: resultReference.revision, sha256: resultReference.sha256
+        )
+        let wrongKindResult = try WorkPacketResultLinkV1(
+            resultID: fixture.result.resultID, resultMutationID: fixture.result.resultMutationID,
+            itemExpectedRevision: fixture.result.itemExpectedRevision,
+            resultRevision: fixture.result.resultRevision, resultSHA256: fixture.result.resultSHA256,
+            evidence: [wrongKindEvidence]
+        )
+        let originalRelease = fixture.handoffRelease
+        let wrongKindRelease = try WorkReleaseV1(
+            releaseID: originalRelease.releaseID, workspaceID: originalRelease.workspaceID,
+            claimID: originalRelease.claimID, leaseID: originalRelease.leaseID,
+            item: originalRelease.item, holder: originalRelease.holder, reason: originalRelease.reason,
+            resultLinks: [wrongKindResult], releasedAt: originalRelease.releasedAt,
+            mutationID: originalRelease.mutationID
+        )
+        let wrongKindPacket = try CompletedWorkPacketSnapshotV1(
+            manifest: fixture.manifest, claims: [fixture.claim], leases: [fixture.lease],
+            releases: [wrongKindRelease], handoffs: [], createdAt: frozen.createdAt
+        )
+        XCTAssertThrowsError(try associate(
+            wrongKindPacket, resultReference.referenceID, 1, resultReference.sha256
+        )) {
+            XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .missingBinding)
+        }
+        XCTAssertEqual(try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(active), activeBytes)
+        XCTAssertEqual(try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(decoded), bytes)
+
+        let droppedHistory = try CompletedWorkPacketSnapshotV1(
+            manifest: fixture.manifest, claims: [fixture.claim], leases: [fixture.lease],
+            releases: [], handoffs: [], sourceRevision: 3,
+            createdAt: frozen.createdAt.addingTimeInterval(1)
+        )
+        XCTAssertThrowsError(try droppedHistory.validateImmutableHistory(of: frozen)) {
+            XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .historyRewrite)
+        }
+        var tampered = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        tampered["snapshotSHA256"] = String(repeating: "0", count: 64)
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            CompletedWorkPacketSnapshotV1.self,
+            from: JSONSerialization.data(withJSONObject: tampered, options: [.sortedKeys])
+        ))
     }
 }
 

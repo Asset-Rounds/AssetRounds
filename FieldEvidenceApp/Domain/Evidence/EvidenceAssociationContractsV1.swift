@@ -363,9 +363,10 @@ extension EvidenceAssociationV1 {
             }.map(\.rawValue)
         )
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        for key in [CodingKeys.contentID, .target, .previousContentID, .previousTarget, .supersedesAssociationEventID]
-        where c.contains(key) && (try c.decodeNil(forKey: key)) {
-            throw ContentContractFailureV1.invalidValue
+        for key in [CodingKeys.contentID, .target, .previousContentID, .previousTarget, .supersedesAssociationEventID] {
+            if c.contains(key), try c.decodeNil(forKey: key) {
+                throw ContentContractFailureV1.invalidValue
+            }
         }
         guard try c.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else { throw ContentContractFailureV1.incompatibleVersion }
         try self.init(

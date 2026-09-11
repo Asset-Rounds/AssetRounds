@@ -128,7 +128,7 @@ enum KernelUnitRegistryV1 {
             _ canonical: String,
             _ multiplier: ExactRationalV1,
             _ offset: ExactRationalV1 = rational(0),
-            _ scale: Int
+            scale: Int
         ) -> UnitDefinitionV1 {
             // Frozen literals are validated again by validateFrozenRegistry().
             try! UnitDefinitionV1(
@@ -141,26 +141,26 @@ enum KernelUnitRegistryV1 {
             )
         }
         return [
-            unit("1", .dimensionless, "1", rational(1), 9),
-            unit("A", .electricCurrent, "A", rational(1), 9),
-            unit("[degF]", .temperature, "K", rational(5, 9), rational(45_967, 180), 6),
-            unit("[fc_i]", .illuminance, "lx", rational(1_076_391, 100_000), 5),
-            unit("[ft_i]", .length, "m", rational(381, 1_250), 9),
-            unit("[in_i]", .length, "m", rational(127, 5_000), 9),
-            unit("Cel", .temperature, "K", rational(1), rational(27_315, 100), 6),
-            unit("K", .temperature, "K", rational(1), 6),
-            unit("Ohm", .electricResistance, "Ohm", rational(1), 9),
-            unit("V", .electricPotential, "V", rational(1), 9),
-            unit("cm", .length, "m", rational(1, 100), 9),
-            unit("h", .duration, "s", rational(3_600), 3),
-            unit("lx", .illuminance, "lx", rational(1), 5),
-            unit("m", .length, "m", rational(1), 9),
-            unit("min", .duration, "s", rational(60), 3),
-            unit("mm", .length, "m", rational(1, 1_000), 9),
-            unit("ms", .duration, "s", rational(1, 1_000), 3),
-            unit("kPa", .pressure, "kPa", rational(1), 9),
-            unit("psi", .pressure, "kPa", rational(6_894_757_293, 1_000_000_000), 9),
-            unit("s", .duration, "s", rational(1), 3),
+            unit("1", .dimensionless, "1", rational(1), scale: 9),
+            unit("A", .electricCurrent, "A", rational(1), scale: 9),
+            unit("[degF]", .temperature, "K", rational(5, 9), rational(45_967, 180), scale: 6),
+            unit("[fc_i]", .illuminance, "lx", rational(1_076_391, 100_000), scale: 5),
+            unit("[ft_i]", .length, "m", rational(381, 1_250), scale: 9),
+            unit("[in_i]", .length, "m", rational(127, 5_000), scale: 9),
+            unit("Cel", .temperature, "K", rational(1), rational(27_315, 100), scale: 6),
+            unit("K", .temperature, "K", rational(1), scale: 6),
+            unit("Ohm", .electricResistance, "Ohm", rational(1), scale: 9),
+            unit("V", .electricPotential, "V", rational(1), scale: 9),
+            unit("cm", .length, "m", rational(1, 100), scale: 9),
+            unit("h", .duration, "s", rational(3_600), scale: 3),
+            unit("lx", .illuminance, "lx", rational(1), scale: 5),
+            unit("m", .length, "m", rational(1), scale: 9),
+            unit("min", .duration, "s", rational(60), scale: 3),
+            unit("mm", .length, "m", rational(1, 1_000), scale: 9),
+            unit("ms", .duration, "s", rational(1, 1_000), scale: 3),
+            unit("kPa", .pressure, "kPa", rational(1), scale: 9),
+            unit("psi", .pressure, "kPa", rational(6_894_757_293, 1_000_000_000), scale: 9),
+            unit("s", .duration, "s", rational(1), scale: 3),
         ].sorted { $0.unitID < $1.unitID }
     }()
 
@@ -520,10 +520,10 @@ extension ExactMeasurementV1 {
             captureMethodID: c.decode(String.self, forKey: .captureMethodID),
             conversionPolicyVersion: c.decode(String.self, forKey: .conversionPolicyVersion)
         )
-        guard expected.canonicalValue == c.decode(ExactDecimalV1.self, forKey: .canonicalValue),
-              expected.canonicalUnitID == c.decode(String.self, forKey: .canonicalUnitID),
-              expected.dimension == c.decode(MeasurementDimensionV1.self, forKey: .dimension),
-              expected.roundingReceipt == c.decode(ExactRoundingReceiptV1.self, forKey: .roundingReceipt) else {
+        guard expected.canonicalValue == (try c.decode(ExactDecimalV1.self, forKey: .canonicalValue)),
+              expected.canonicalUnitID == (try c.decode(String.self, forKey: .canonicalUnitID)),
+              expected.dimension == (try c.decode(MeasurementDimensionV1.self, forKey: .dimension)),
+              expected.roundingReceipt == (try c.decode(ExactRoundingReceiptV1.self, forKey: .roundingReceipt)) else {
             throw ResponseContractFailureV1.invalidValue
         }
         self = expected
@@ -576,10 +576,7 @@ enum ExactMeasurementPrivacyRegionBridgeV1 {
         sourceSHA256: String
     ) throws -> PrivacyNormalizedRectV1 {
         try region.validate()
-        guard PrivacyTransformValidationV1.workspace(
-                region.workspaceID,
-                matches: workspaceID.rawValue
-            ),
+        guard region.workspaceID == workspaceID,
             supportedCoordinateSpaces.contains(region.coordinateSpace),
             region.sourceContentID == sourceContentID,
             region.sourceRevision == sourceRevision,

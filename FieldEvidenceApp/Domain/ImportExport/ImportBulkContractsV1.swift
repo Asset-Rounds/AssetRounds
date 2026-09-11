@@ -664,7 +664,7 @@ struct ImportProposedCommandV1: Codable, Equatable, Hashable, Comparable, Sendab
     func validate() throws {
         try ImportBulkCanonicalCodecV1.requireText(commandID)
         try targetStableID.map(ImportBulkCanonicalCodecV1.requireID)
-        try dependencyCommandIDs.forEach(ImportBulkCanonicalCodecV1.requireText)
+        try dependencyCommandIDs.forEach { try ImportBulkCanonicalCodecV1.requireText($0) }
         try ImportBulkCanonicalCodecV1.requireSortedUnique(dependencyCommandIDs)
         try ImportBulkCanonicalCodecV1.requireDigest(payloadSHA256)
         guard dependencyCommandIDs.count <= ImportBulkLimitsV1.maximumAdapterDependencies,
@@ -690,7 +690,7 @@ struct ImportProposedCommandV1: Codable, Equatable, Hashable, Comparable, Sendab
     ) throws -> String {
         try ImportBulkCanonicalCodecV1.requireText(commandID)
         try targetStableID.map(ImportBulkCanonicalCodecV1.requireID)
-        try dependencyCommandIDs.forEach(ImportBulkCanonicalCodecV1.requireText)
+        try dependencyCommandIDs.forEach { try ImportBulkCanonicalCodecV1.requireText($0) }
         try ImportBulkCanonicalCodecV1.requireSortedUnique(dependencyCommandIDs)
         try rowIdentity.validate()
         try schemaRelease.validate()
@@ -1710,7 +1710,7 @@ struct ExportSchemaReleaseV1: Codable, Equatable, Hashable, Sendable {
         try ImportBulkCanonicalCodecV1.requireText(stableExternalKeyColumn)
         try ImportBulkCanonicalCodecV1.requireText(expectedRevisionColumn)
         try ImportBulkCanonicalCodecV1.requireDigest(sourceImportSchemaSHA256)
-        try editableColumns.forEach(ImportBulkCanonicalCodecV1.requireText)
+        try editableColumns.forEach { try ImportBulkCanonicalCodecV1.requireText($0) }
         try ImportBulkCanonicalCodecV1.requireSortedUnique(editableColumns)
         guard schemaVersion == Self.schemaVersion,
               release > 0,
@@ -1865,8 +1865,8 @@ struct ImportAdapterRegistrationV1: Codable, Equatable, Hashable, Comparable, Se
          fixtureSHA256s: [String]) throws {
         try ImportBulkCanonicalCodecV1.requireText(adapterID)
         try ImportBulkCanonicalCodecV1.requireText(schemaReleaseID)
-        try requiredSourceKeys.forEach(ImportBulkCanonicalCodecV1.requireText)
-        try dependencyAdapterIDs.forEach(ImportBulkCanonicalCodecV1.requireText)
+        try requiredSourceKeys.forEach { try ImportBulkCanonicalCodecV1.requireText($0) }
+        try dependencyAdapterIDs.forEach { try ImportBulkCanonicalCodecV1.requireText($0) }
         try fixtureSHA256s.forEach(ImportBulkCanonicalCodecV1.requireDigest)
         self.adapterID = adapterID
         self.adapterVersion = adapterVersion

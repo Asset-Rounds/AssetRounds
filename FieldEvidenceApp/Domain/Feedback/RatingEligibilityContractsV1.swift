@@ -200,7 +200,7 @@ struct RatingNaturalStopV1: Equatable, Sendable {
     let activeSceneAvailable: Bool
 
     func validate() throws {
-        guard eventID != UUID.zero,
+        guard eventID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
               KernelCanonicalHashV1.validSHA256(successfullyRetrievedSnapshotSHA256),
               occurredAt.timeIntervalSinceReferenceDate.isFinite else {
             throw RatingEligibilityFailureV1.invalidValue

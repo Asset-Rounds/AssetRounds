@@ -119,6 +119,59 @@ final class V9_13TypedResponseTests: XCTestCase {
         XCTAssertThrowsError(try ExactUnitConverterV1.convert(ExactDecimalV1(mantissa: .max, scale: 0), from: "h"))
     }
 
+    func testFrozenUnitMetadataAndMeasurementDecoderIntegrity() throws {
+        try KernelUnitRegistryV1.validateFrozenRegistry()
+        let metadata = KernelUnitRegistryV1.definitions.map {
+            "\($0.unitID)|\($0.dimension.rawValue)|\($0.canonicalUnitID)|\($0.multiplier.numerator)/\($0.multiplier.denominator)|\($0.offset.numerator)/\($0.offset.denominator)|\($0.canonicalScale)"
+        }
+        XCTAssertEqual(metadata, [
+            "1|DIMENSIONLESS|1|1/1|0/1|9",
+            "A|ELECTRIC_CURRENT|A|1/1|0/1|9",
+            "Cel|TEMPERATURE|K|1/1|27315/100|6",
+            "K|TEMPERATURE|K|1/1|0/1|6",
+            "Ohm|ELECTRIC_RESISTANCE|Ohm|1/1|0/1|9",
+            "V|ELECTRIC_POTENTIAL|V|1/1|0/1|9",
+            "[degF]|TEMPERATURE|K|5/9|45967/180|6",
+            "[fc_i]|ILLUMINANCE|lx|1076391/100000|0/1|5",
+            "[ft_i]|LENGTH|m|381/1250|0/1|9",
+            "[in_i]|LENGTH|m|127/5000|0/1|9",
+            "cm|LENGTH|m|1/100|0/1|9",
+            "h|DURATION|s|3600/1|0/1|3",
+            "kPa|PRESSURE|kPa|1/1|0/1|9",
+            "lx|ILLUMINANCE|lx|1/1|0/1|5",
+            "m|LENGTH|m|1/1|0/1|9",
+            "min|DURATION|s|60/1|0/1|3",
+            "mm|LENGTH|m|1/1000|0/1|9",
+            "ms|DURATION|s|1/1000|0/1|3",
+            "psi|PRESSURE|kPa|6894757293/1000000000|0/1|9",
+            "s|DURATION|s|1/1|0/1|3",
+        ])
+        let measurement = try ExactMeasurementV1(
+            enteredValue: ExactDecimalV1(mantissa: 32, scale: 0),
+            enteredUnitID: "[degF]", precisionScale: 0,
+            uncertaintyCanonical: nil, source: .manualEntry, captureMethodID: "manual"
+        )
+        XCTAssertEqual(measurement.canonicalValue, try ExactDecimalV1(mantissa: 273_150_000, scale: 6))
+        let bytes = try JSONEncoder.sorted.encode(measurement)
+        XCTAssertEqual(try JSONDecoder().decode(ExactMeasurementV1.self, from: bytes), measurement)
+        XCTAssertEqual(try JSONEncoder.sorted.encode(JSONDecoder().decode(ExactMeasurementV1.self, from: bytes)), bytes)
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        var forgedReceipt = try XCTUnwrap(original["roundingReceipt"] as? [String: Any])
+        forgedReceipt["roundedMantissa"] = 0
+        let substitutions: [String: Any] = [
+            "canonicalValue": ["mantissa": 0, "scale": 6],
+            "canonicalUnitID": "m", "dimension": "LENGTH", "roundingReceipt": forgedReceipt,
+        ]
+        for (key, forgedValue) in substitutions {
+            for replacement in [forgedValue, NSNull()] {
+                var object = original
+                object[key] = replacement
+                let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+                XCTAssertThrowsError(try JSONDecoder().decode(ExactMeasurementV1.self, from: data), key)
+            }
+        }
+    }
+
     func testV9_13H01RepeatIdentitySurvivesReorderResumeAndRejectsCollisions() throws {
         let definition = try repeatField()
         let first = try repeatResponse(id: "repeat.001", order: 0, value: "option.visible")
@@ -308,6 +361,17 @@ extension V9_13TypedResponseTests {
 
     func testC20PrivacyTransformMetadataSanitationIsExplicit() throws {
         let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let region = try XCTUnwrap(fixture.regions.first)
+        XCTAssertEqual(try ExactMeasurementPrivacyRegionBridgeV1.normalizedBounds(
+            for: region, workspaceID: region.workspaceID,
+            sourceContentID: region.sourceContentID, sourceRevision: region.sourceRevision,
+            sourceSHA256: region.sourceSHA256
+        ), region.bounds)
+        XCTAssertThrowsError(try ExactMeasurementPrivacyRegionBridgeV1.normalizedBounds(
+            for: region, workspaceID: WorkspaceID(rawValue: C20PrivacyTransformTestSupport.id(999)),
+            sourceContentID: region.sourceContentID, sourceRevision: region.sourceRevision,
+            sourceSHA256: region.sourceSHA256
+        ))
         XCTAssertEqual(fixture.manifest.metadataSanitation.result, .complete)
         XCTAssertTrue(fixture.manifest.metadataSanitation.retainedSourceMetadataKeys.isEmpty)
         XCTAssertThrowsError(try PrivacyMetadataSanitationEvidenceV1(

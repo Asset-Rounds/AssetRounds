@@ -434,7 +434,7 @@ struct EncryptedPortableEnvelopePublicHeaderV1: Codable, Equatable, Hashable, Se
               noncePrefix.count == Int(aeadProfile.noncePrefixByteCount),
               !tagOverflow, !ciphertextOverflow,
               declaredCiphertextByteCount == expectedCiphertextBytes,
-              declaredFrameCount == try Self.canonicalFrameCount(
+              try declaredFrameCount == Self.canonicalFrameCount(
                 plaintextByteCount: declaredPlaintextByteCount,
                 frameByteLimit: UInt64(aeadProfile.framePlaintextByteLimit)
               ) else {
@@ -528,8 +528,8 @@ struct EncryptedPortableEnvelopeAuthenticatedManifestV1: Codable, Equatable, Sen
             publicHeader: c.decode(EncryptedPortableEnvelopePublicHeaderV1.self, forKey: .publicHeader),
             canonicalHeaderBytes: c.decode(Data.self, forKey: .canonicalHeaderBytes)
         )
-        guard c.decode(Data.self, forKey: .canonicalHeaderSHA256) == canonicalHeaderSHA256,
-              c.decode(Bool.self, forKey: .everyFrameAuthenticatesCanonicalHeader) else {
+        guard try c.decode(Data.self, forKey: .canonicalHeaderSHA256) == canonicalHeaderSHA256,
+              try c.decode(Bool.self, forKey: .everyFrameAuthenticatesCanonicalHeader) else {
             throw EncryptedPortableEnvelopeFailureV1.invalidPublicHeader
         }
     }
@@ -966,7 +966,7 @@ struct EncryptedEnvelopeFailureReceiptV1: Codable, Equatable, Hashable, Sendable
             failure: c.decode(EncryptedPortableEnvelopeExternalFailureV1.self, forKey: .failure),
             cleanupDisposition: c.decode(EncryptedEnvelopeCleanupDispositionV1.self, forKey: .cleanupDisposition)
         )
-        guard c.decode(Bool.self, forKey: .containsPassphraseOrKeyMaterial) == false else {
+        guard try c.decode(Bool.self, forKey: .containsPassphraseOrKeyMaterial) == false else {
             throw EncryptedPortableEnvelopeFailureV1.invalidPublicHeader
         }
     }
@@ -1177,11 +1177,11 @@ struct EncryptedEnvelopeSealReceiptV1: Codable, Equatable, Hashable, Sendable {
             errorCategory: c.decode(EncryptedEnvelopeErrorCategoryV1.self, forKey: .errorCategory),
             containsPassphraseOrKeyMaterial: c.decode(Bool.self, forKey: .containsPassphraseOrKeyMaterial)
         )
-        guard c.decode(String.self, forKey: .neutralFilename) == neutralFilename,
-              c.decode(String.self, forKey: .neutralShareTitle) == neutralShareTitle,
-              c.decode(EncryptedEnvelopeValidationResultV1.self, forKey: .outerValidation) == .passed,
-              c.decode(EncryptedEnvelopeValidationResultV1.self, forKey: .innerValidation) == .passed,
-              c.decode(EncryptionExportComplianceDispositionV1.self, forKey: .exportComplianceDisposition)
+        guard try c.decode(String.self, forKey: .neutralFilename) == neutralFilename,
+              try c.decode(String.self, forKey: .neutralShareTitle) == neutralShareTitle,
+              try c.decode(EncryptedEnvelopeValidationResultV1.self, forKey: .outerValidation) == .passed,
+              try c.decode(EncryptedEnvelopeValidationResultV1.self, forKey: .innerValidation) == .passed,
+              try c.decode(EncryptionExportComplianceDispositionV1.self, forKey: .exportComplianceDisposition)
                 == .released else {
             throw EncryptedPortableEnvelopeFailureV1.invalidPublicHeader
         }
@@ -1395,9 +1395,9 @@ struct EncryptedEnvelopeOpenReceiptV1: Codable, Equatable, Hashable, Sendable {
             errorCategory: c.decode(EncryptedEnvelopeErrorCategoryV1.self, forKey: .errorCategory),
             containsPassphraseOrKeyMaterial: c.decode(Bool.self, forKey: .containsPassphraseOrKeyMaterial)
         )
-        guard c.decode(String.self, forKey: .neutralFilename) == neutralFilename,
-              c.decode(String.self, forKey: .neutralShareTitle) == neutralShareTitle,
-              c.decode(EncryptionExportComplianceDispositionV1.self, forKey: .exportComplianceDisposition)
+        guard try c.decode(String.self, forKey: .neutralFilename) == neutralFilename,
+              try c.decode(String.self, forKey: .neutralShareTitle) == neutralShareTitle,
+              try c.decode(EncryptionExportComplianceDispositionV1.self, forKey: .exportComplianceDisposition)
                 == .released else {
             throw EncryptedPortableEnvelopeFailureV1.invalidPublicHeader
         }

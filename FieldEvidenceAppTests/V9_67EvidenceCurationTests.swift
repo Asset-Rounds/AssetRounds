@@ -536,6 +536,26 @@ final class V9_67EvidenceCurationTests: XCTestCase {
         XCTAssertEqual(previews[1].missingFallbackText, "Original evidence is unavailable on this device.")
         XCTAssertNil(previews[1].detailCard)
 
+        let missingBytes = try EvidenceCurationCanonicalCodecV1.encode(previews[1])
+        let missingObject = try XCTUnwrap(JSONSerialization.jsonObject(with: missingBytes) as? [String: Any])
+        for count in [0, EvidenceCurationLimitsV1.maximumAnnotationTextBytes,
+                      EvidenceCurationLimitsV1.maximumAnnotationTextBytes + 1] {
+            var changedFallback = missingObject
+            changedFallback["missingFallbackText"] = String(repeating: "a", count: count)
+            let changedBytes = try JSONSerialization.data(
+                withJSONObject: changedFallback, options: [.sortedKeys, .withoutEscapingSlashes]
+            )
+            if count == EvidenceCurationLimitsV1.maximumAnnotationTextBytes {
+                let decoded = try EvidenceCurationCanonicalCodecV1.decode(EvidenceVersionPinnedPreviewV1.self, from: changedBytes)
+                XCTAssertEqual(decoded.missingFallbackText?.utf8.count, count)
+                XCTAssertEqual(decoded.reference, previews[1].reference)
+            } else {
+                XCTAssertThrowsError(try EvidenceCurationCanonicalCodecV1.decode(EvidenceVersionPinnedPreviewV1.self, from: changedBytes)) { error in
+                    XCTAssertEqual(error as? EvidenceCurationFailureV1, .missingContent)
+                }
+            }
+        }
+
         let comparison = try coordinator.comparison(
             comparisonID: "c02-comparison-a01",
             workspaceID: fixture.workspace,

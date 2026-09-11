@@ -119,7 +119,7 @@ private enum CustomerLearningValidationV1 {
         guard values.count <= maximumCount, allowEmpty || !values.isEmpty else {
             throw CustomerLearningContractFailureV1.invalidValue
         }
-        try values.forEach(identifier)
+        try values.forEach { try identifier($0) }
         let ordered = values.sorted()
         guard ordered == values, Set(values).count == values.count else {
             throw CustomerLearningContractFailureV1.duplicateValue
@@ -489,7 +489,7 @@ struct AcquisitionSourceDefinitionV1: Codable, Equatable, Hashable, Sendable {
             semanticID: c.decode(String.self, forKey: .semanticID),
             ownerReadableName: c.decode(String.self, forKey: .ownerReadableName)
         )
-        guard value.definitionSHA256 == c.decode(String.self, forKey: .definitionSHA256) else {
+        guard value.definitionSHA256 == (try c.decode(String.self, forKey: .definitionSHA256)) else {
             throw CustomerLearningContractFailureV1.invalidDigest
         }
         self = value
@@ -585,7 +585,7 @@ struct AcquisitionSourceVocabularyV1: Codable, Equatable, Sendable {
             definitions: c.decode([AcquisitionSourceDefinitionV1].self, forKey: .definitions),
             supersedes: c.decodeIfPresent(AcquisitionSourceVocabularyReferenceV1.self, forKey: .supersedes)
         )
-        guard value.vocabularySHA256 == c.decode(String.self, forKey: .vocabularySHA256) else {
+        guard value.vocabularySHA256 == (try c.decode(String.self, forKey: .vocabularySHA256)) else {
             throw CustomerLearningContractFailureV1.invalidDigest
         }
         self = value
@@ -736,7 +736,7 @@ struct MeasurementSourceDescriptorV1: Codable, Equatable, Sendable {
             acquisitionVocabulary: c.decodeIfPresent(AcquisitionSourceVocabularyReferenceV1.self, forKey: .acquisitionVocabulary),
             supersedes: c.decodeIfPresent(MeasurementSourceReferenceV1.self, forKey: .supersedes)
         )
-        guard value.sourceSHA256 == c.decode(String.self, forKey: .sourceSHA256) else {
+        guard value.sourceSHA256 == (try c.decode(String.self, forKey: .sourceSHA256)) else {
             throw CustomerLearningContractFailureV1.invalidDigest
         }
         self = value
@@ -842,7 +842,7 @@ struct CustomerLearningQuestionV1: Codable, Equatable, Sendable {
             exclusions: c.decode([CustomerLearningRequiredExclusionV1].self, forKey: .exclusions),
             supersedes: c.decodeIfPresent(CustomerLearningQuestionReferenceV1.self, forKey: .supersedes)
         )
-        guard value.questionSHA256 == c.decode(String.self, forKey: .questionSHA256) else {
+        guard value.questionSHA256 == (try c.decode(String.self, forKey: .questionSHA256)) else {
             throw CustomerLearningContractFailureV1.invalidDigest
         }
         self = value
@@ -1051,7 +1051,7 @@ struct CustomerLearningMetricDefinitionV1: Codable, Equatable, Sendable {
             noncausalInterpretation: c.decode(String.self, forKey: .noncausalInterpretation),
             supersedes: c.decodeIfPresent(CustomerLearningMetricReferenceV1.self, forKey: .supersedes)
         )
-        guard value.metricSHA256 == c.decode(String.self, forKey: .metricSHA256) else {
+        guard value.metricSHA256 == (try c.decode(String.self, forKey: .metricSHA256)) else {
             throw CustomerLearningContractFailureV1.invalidDigest
         }
         self = value
@@ -1310,7 +1310,7 @@ struct CustomerLearningCatalogReleaseV1: Codable, Equatable, Sendable {
             releasedAt: c.decode(Date.self, forKey: .releasedAt),
             supersedes: c.decodeIfPresent(CustomerLearningCatalogReferenceV1.self, forKey: .supersedes)
         )
-        guard value.catalogSHA256 == c.decode(String.self, forKey: .catalogSHA256) else {
+        guard value.catalogSHA256 == (try c.decode(String.self, forKey: .catalogSHA256)) else {
             throw CustomerLearningContractFailureV1.invalidDigest
         }
         self = value
@@ -1739,7 +1739,7 @@ struct MeasurementActivationDecisionV1: Codable, Equatable, Sendable {
             expiresAt: c.decode(Date.self, forKey: .expiresAt),
             supersedes: c.decodeIfPresent(MeasurementActivationDecisionReferenceV1.self, forKey: .supersedes)
         )
-        guard value.decisionSHA256 == c.decode(String.self, forKey: .decisionSHA256) else {
+        guard value.decisionSHA256 == (try c.decode(String.self, forKey: .decisionSHA256)) else {
             throw CustomerLearningContractFailureV1.invalidDigest
         }
         self = value

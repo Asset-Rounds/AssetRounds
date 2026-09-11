@@ -150,7 +150,7 @@ private enum C54EncryptedEnvelopeTestSupport {
                 frameByteLimit: UInt64(aead.framePlaintextByteLimit)
             )
         }
-        try EncryptedPortableEnvelopePublicHeaderV1(
+        return try EncryptedPortableEnvelopePublicHeaderV1(
             innerKind: .workspaceBackup,
             innerProtocolVersion: try EncryptedPortableEnvelopeInnerProtocolVersionV1(1),
             reviewProtectionMode: nil,

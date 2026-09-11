@@ -595,6 +595,24 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         let tampered = Data(Array(canonical.dropLast()) + [UInt8(0)])
         XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: tampered))
 
+        let canonicalJSON = try XCTUnwrap(String(data: canonical, encoding: .utf8))
+        let originalPayloadDigest = "\"payloadSHA256\":\"\(fixture.activeCheckpoint.payloadSHA256)\""
+        let replacementDigest = fixture.activeCheckpoint.payloadSHA256 == String(repeating: "f", count: 64)
+            ? String(repeating: "e", count: 64)
+            : String(repeating: "f", count: 64)
+        let payloadDigestRange = try XCTUnwrap(canonicalJSON.range(of: originalPayloadDigest))
+        let semanticTamperJSON = canonicalJSON.replacingCharacters(
+            in: payloadDigestRange,
+            with: "\"payloadSHA256\":\"\(replacementDigest)\""
+        )
+        let semanticTamper = try XCTUnwrap(semanticTamperJSON.data(using: .utf8))
+        XCTAssertNoThrow(try JSONSerialization.jsonObject(with: semanticTamper))
+        XCTAssertThrowsError(
+            try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: semanticTamper)
+        ) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .digestMismatch)
+        }
+
         let wrongWorkspace = try AttachmentStagingItemV1(
             stageID: fixture.readyItem.stageID, draftID: fixture.draftID,
             workspaceID: fixture.otherWorkspaceID, attachmentKind: .photo,

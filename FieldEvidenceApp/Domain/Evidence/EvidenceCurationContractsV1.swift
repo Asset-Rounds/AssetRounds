@@ -232,7 +232,7 @@ struct EvidenceDetailPreviewBundleV1: Codable, Equatable, Sendable {
               renderReceipt.sourceSnapshotSHA256 == snapshot.snapshotSHA256,
               confirmation.sourceSnapshotSHA256 == snapshot.snapshotSHA256,
               card.workspaceID == snapshot.payload.workspaceID,
-              semanticTree.workspaceID == card.workspaceID else {
+              EvidenceCurationValidationV1.workspace(semanticTree.workspaceID, matches: card.workspaceID) else {
             throw EvidenceCurationFailureV1.invalidLineage
         }
         self.snapshot = snapshot; self.profile = profile; self.card = card
@@ -602,7 +602,7 @@ extension EvidenceVersionPinnedPreviewV1 {
         let availability = try c.decode(EvidencePreviewAvailabilityV1.self, forKey: .availability), fallback = try c.decodeIfPresent(String.self, forKey: .missingFallbackText), bundle = try c.decodeIfPresent(EvidenceDetailPreviewBundleV1.self, forKey: .availableBundle)
         let evidenceID = try c.decode(String.self, forKey: .evidenceID), revision = try c.decode(Int.self, forKey: .associationRevision), reference = try c.decode(ContentReferenceV1.self, forKey: .reference)
         guard EvidenceCurationValidationV1.id(evidenceID), revision > 0 else { throw EvidenceCurationFailureV1.invalidValue }
-        switch availability { case .available: guard fallback == nil, let bundle, bundle.card.workspaceID == reference.workspaceID && bundle.card.evidenceID == evidenceID else { throw EvidenceCurationFailureV1.invalidValue }; case .missing: guard bundle == nil, fallback.map(EvidenceCurationValidationV1.text) == true else { throw EvidenceCurationFailureV1.missingContent } }
+        switch availability { case .available: guard fallback == nil, let bundle, bundle.card.workspaceID == reference.workspaceID && bundle.card.evidenceID == evidenceID else { throw EvidenceCurationFailureV1.invalidValue }; case .missing: guard bundle == nil, fallback.map({ EvidenceCurationValidationV1.text($0) }) == true else { throw EvidenceCurationFailureV1.missingContent } }
         schemaVersion = Self.schemaVersion; self.evidenceID = evidenceID; associationRevision = revision; self.reference = reference; self.availability = availability; missingFallbackText = fallback; availableBundle = bundle
     }
 }
