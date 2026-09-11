@@ -1143,8 +1143,8 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
         // must not admit them as writable family data.
         let unknownSeed = try C47ActivityTestSupport.envelope(
             kind: .installation,
-            activityID: C47ActivityTestSupport.id(246),
-            mutationSlot: 247
+            mutationSlot: 247,
+            activityID: C47ActivityTestSupport.id(246)
         )
         var unknownObject = try XCTUnwrap(
             JSONSerialization.jsonObject(with: unknownSeed.canonicalData()) as? [String: Any]
@@ -1373,6 +1373,9 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
         // supplied references remain accepted without turning the no-plan
         // fallback into a requirement on the selected basis source.
         let installationWorkflowReference = retiredReference
+        let fallback = try NoPlanFallbackV1(
+            limitation: "Plan truth absent; manual lookup and recorded scope remain required."
+        )
         let punchBasis = try PunchReviewBasisSnapshotV1(
             basisID: C47ActivityTestSupport.id(180),
             workspaceID: C47ActivityTestSupport.workspace(),
@@ -3059,7 +3062,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
             assetID: subjectAssetID,
             sourceRevision: 7
         )
-        var completedReference: CompletedActivitySnapshotV2CompatibilityReferenceV1?
+        var pendingCompletedReference: CompletedActivitySnapshotV2CompatibilityReferenceV1?
         let sourceEvidence = try C47ActivityTestSupport.evidenceFixture(
             workspaceID: source.workspaceID,
             slot: 430,
@@ -3313,7 +3316,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
                     asBuiltSnapshotSHA256: asBuilt.snapshotSHA256
                 )
                 finalCloseout = closeout
-                completedReference = try CompletedActivitySnapshotV2CompatibilityReferenceV1(
+                pendingCompletedReference = try CompletedActivitySnapshotV2CompatibilityReferenceV1(
                     completedReport.snapshot,
                     activityCloseoutSHA256: closeout.closeoutSHA256
                 )
@@ -3336,7 +3339,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
                 readinessPolicy: readinessPolicy,
                 currentBasisReference: sourceBasisReference,
                 installationCloseout: finalCloseout,
-                completedSnapshotReference: state == .finalized ? completedReference : nil,
+                completedSnapshotReference: state == .finalized ? pendingCompletedReference : nil,
                 startedAt: state.hasStarted ? C47ActivityTestSupport.fixedDate : nil,
                 finalizedAt: state == .finalized
                     ? C47ActivityTestSupport.fixedDate.addingTimeInterval(60) : nil,
@@ -3401,7 +3404,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
                 predecessorEnvelope: currentEnvelope,
                 successorEnvelope: nextEnvelope,
                 transition: transition,
-                completedSnapshotReference: state == .finalized ? completedReference : nil,
+                completedSnapshotReference: state == .finalized ? pendingCompletedReference : nil,
                 installationTaskResults: finalTasks,
                 installationAsBuiltSnapshot: finalAsBuilt
             )
@@ -3413,7 +3416,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
         }
         let finalizedEnvelope = currentEnvelope
         XCTAssertEqual(finalizedEnvelope.state, .finalized)
-        let completedReference = try XCTUnwrap(completedReference)
+        let completedReference = try XCTUnwrap(pendingCompletedReference)
         let resolvedSnapshot = try CompletedActivitySnapshotResolutionContextV2(
             reference: completedReference,
             snapshot: completedReport.snapshot
@@ -3463,10 +3466,20 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
             .metadata(reportProjection)
         XCTAssertEqual(openJSONMetadata["activity_kind"], ActivityKindV2.installation.rawValue)
         XCTAssertEqual(openJSONMetadata["activity_state"], ActivityStateV2.finalized.rawValue)
+        let renderedCloseout = try XCTUnwrap(finalizedEnvelope.installationCloseout)
+        var expectedActivityLines = [
+            finalizedEnvelope.title, finalizedEnvelope.kind.rawValue, finalizedEnvelope.state.rawValue,
+            completedReport.snapshot.payload.activity.completedAt,
+            "source_closeout_sha256=\(completedReference.sourceCloseoutSHA256)",
+            "target_closeout_sha256=\(completedReference.targetCloseoutSHA256)",
+            renderedCloseout.completion.rawValue, renderedCloseout.asBuiltSnapshotSHA256,
+            "recorded_findings=\(renderedCloseout.openFindings.count)", renderedCloseout.closeoutSHA256,
+        ]
+        if let limitation = renderedCloseout.limitation { expectedActivityLines.append(limitation) }
         XCTAssertEqual(
-            try C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_DeterministicPDFRendererV1_swift
+            try C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Reporting_DeterministicPDFRendererV1_swift
                 .c47ActivityLines(reportProjection),
-            [finalizedEnvelope.title, finalizedEnvelope.kind.rawValue, finalizedEnvelope.state.rawValue]
+            expectedActivityLines
         )
         let renderedReport = try ReportRenderService(
             modelContext: source.modelContext,
@@ -3516,7 +3529,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
         let search = SearchCoordinatorV1(index: searchStore)
         let searchPlan = try search.makePlan(
             query: "lifecycle installation",
-            scope: .work,
+            scope: SearchScopeV1.work,
             sourceRevision: searchRevision.commitRevision
         )
         let searchResponse = try await search.search(

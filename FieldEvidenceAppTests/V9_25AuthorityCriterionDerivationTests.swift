@@ -219,9 +219,9 @@ final class V9_25AuthorityCriterionDerivationTests: XCTestCase {
             releaseID: id(8_400), workspaceID: fixture.workspaceID, sourceID: id(8_401),
             sourceType: .guidance, designation: "Lawful reference", editionOrRevision: "1",
             publisherDisplay: "Publisher", publicationAt: fixedDate,
-            effectiveFrom: fixedDate, licenseStorageDisposition: .lawfulContentReference,
-            lawfulContentReference: reference, retrievedAt: fixedDate,
-            sourceDigestSHA256: digest, recordedAt: fixedDate.addingTimeInterval(1), revision: 1,
+            effectiveFrom: fixedDate, retrievedAt: fixedDate, sourceDigestSHA256: digest,
+            licenseStorageDisposition: .lawfulContentReference,
+            lawfulContentReference: reference, recordedAt: fixedDate.addingTimeInterval(1), revision: 1,
             mutationID: fixture.mutationID
         )
         try reference.validateAuthoritySourceBinding(lawful)
@@ -230,7 +230,7 @@ final class V9_25AuthorityCriterionDerivationTests: XCTestCase {
         XCTAssertThrowsError(try AuthoritySourceReleaseV1(
             releaseID: id(8_410), workspaceID: fixture.workspaceID, sourceID: id(8_411),
             sourceType: .guidance, designation: "Missing lawful bytes", editionOrRevision: "1",
-            licenseStorageDisposition: .lawfulContentReference, retrievedAt: fixedDate,
+            retrievedAt: fixedDate, licenseStorageDisposition: .lawfulContentReference,
             recordedAt: fixedDate.addingTimeInterval(1), revision: 1, mutationID: fixture.mutationID
         )) { error in
             XCTAssertEqual(error as? AuthorityCriterionFailureV1, .invalidValue)
@@ -238,8 +238,8 @@ final class V9_25AuthorityCriterionDerivationTests: XCTestCase {
         XCTAssertThrowsError(try AuthoritySourceReleaseV1(
             releaseID: id(8_420), workspaceID: fixture.workspaceID, sourceID: id(8_421),
             sourceType: .guidance, designation: "Metadata with bytes", editionOrRevision: "1",
-            licenseStorageDisposition: .metadataAndLocatorOnly, lawfulContentReference: reference,
-            retrievedAt: fixedDate, recordedAt: fixedDate.addingTimeInterval(1), revision: 1,
+            retrievedAt: fixedDate, licenseStorageDisposition: .metadataAndLocatorOnly,
+            lawfulContentReference: reference, recordedAt: fixedDate.addingTimeInterval(1), revision: 1,
             mutationID: fixture.mutationID
         )) { error in
             XCTAssertEqual(error as? AuthorityCriterionFailureV1, .invalidValue)
@@ -247,12 +247,12 @@ final class V9_25AuthorityCriterionDerivationTests: XCTestCase {
         XCTAssertThrowsError(try AuthoritySourceReleaseV1(
             releaseID: id(8_430), workspaceID: fixture.workspaceID, sourceID: id(8_431),
             sourceType: .guidance, designation: "Wrong workspace bytes", editionOrRevision: "1",
-            licenseStorageDisposition: .lawfulContentReference,
+            retrievedAt: fixedDate, licenseStorageDisposition: .lawfulContentReference,
             lawfulContentReference: try ContentReferenceV1(
                 workspaceID: id(9_999).uuidString.lowercased(), contentID: "authority-c40-bytes",
                 byteLength: 128, mediaType: "application/pdf", digests: digestSet,
                 byteRole: .immutableOriginal, createdAt: "2026-08-27T00:00:00.000Z"
-            ), retrievedAt: fixedDate, recordedAt: fixedDate.addingTimeInterval(1), revision: 1,
+            ), recordedAt: fixedDate.addingTimeInterval(1), revision: 1,
             mutationID: fixture.mutationID
         )) { error in
             XCTAssertEqual(error as? AuthorityCriterionFailureV1, .wrongWorkspace)

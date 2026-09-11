@@ -257,7 +257,8 @@ private enum C57MyDayTestSupport {
             packageReleases: [],
             creationBasis: .explicitLocalSelection,
             creator: creator,
-            createdAt: instant
+            createdAt: instant,
+            mutationID: try MutationIDV1(rawValue: id(61_000 + seed))
         )
         return .workPacket(try WorkPacketManifestReferenceV1(manifest))
     }

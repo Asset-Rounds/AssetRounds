@@ -581,14 +581,15 @@ final class V9_41AssetLocatorTests: XCTestCase {
             try AssetLocatorLifecycleClosureV1(locators: [collisionA, collisionB], receipts: [])
         )
 
-        let many = try (0..<33).map { index in
-            try Self.externalLocator(
+        var many: [AssetLocatorV1] = []
+        for index in 0..<33 {
+            many.append(try Self.externalLocator(
                 workspaceID: workspaceID,
                 assetID: Self.id(UInt8(90 + index)),
                 locatorID: Self.id(UInt8(120 + index)),
                 value: "many",
                 mutationSlot: UInt8(index + 1)
-            )
+            ))
         }
         let manyInput = try decoder.externalKey(
             Data("many".utf8),

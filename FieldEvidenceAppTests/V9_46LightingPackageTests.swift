@@ -264,8 +264,8 @@ private enum C31LightingTestSupport {
             zoneIDs: [zoneOne.zoneID, zoneTwo.zoneID],
             controlGroupIDs: [controlOneID],
             supportAssemblyAssetID: id(150),
-            supportAssemblySemanticBinding: supportSemanticBinding,
             supportRelationship: firstSupportRelationship,
+            supportAssemblySemanticBinding: supportSemanticBinding,
             supportRelationshipEventID: id(124),
             maintenanceDisposition: .subordinate
         )
@@ -277,8 +277,8 @@ private enum C31LightingTestSupport {
             zoneIDs: [zoneTwo.zoneID],
             controlGroupIDs: [controlOneID, controlTwoID],
             supportAssemblyAssetID: id(150),
-            supportAssemblySemanticBinding: supportSemanticBinding,
             supportRelationship: secondSupportRelationship,
+            supportAssemblySemanticBinding: supportSemanticBinding,
             supportRelationshipEventID: id(125),
             maintenanceDisposition: .subordinate
         )
@@ -513,21 +513,22 @@ private enum C31LightingTestSupport {
         subjectAssetID: UUID,
         tier: LightingClaimTierV1,
         plan: MeasurementPlanV1? = nil,
-        captureID: UUID? = nil,
+        captureBinding: LightingMeasurementCaptureBindingV1? = nil,
         recordID: UUID = id(230),
         predecessor: LightingClaimStateV1? = nil,
         revision: UInt64 = 1,
         mutationSlot: Int = 5
     ) throws -> LightingClaimStateV1 {
         let measurement = try plan.map {
-            guard let captureID else {
+            guard let captureBinding else {
                 throw C31LightingTestError.invalidFixture
             }
-            try LightingMeasurementClaimReferenceV1(
+            return LightingMeasurementClaimReferenceV1(
+                workspaceID: workspaceID,
                 planID: $0.planID,
                 planRevision: $0.revision,
                 planSHA256: $0.planSHA256,
-                captureIDs: [captureID],
+                captures: [captureBinding],
                 seriesID: nil,
                 seriesRevision: nil,
                 seriesSHA256: nil
@@ -732,7 +733,7 @@ final class V9_46LightingPackageTests: XCTestCase {
             subjectAssetID: observation.assetID,
             tier: .measured,
             plan: plan,
-            captureID: C31LightingTestSupport.id(40)
+            captureBinding: C31LightingTestSupport.binding(plan: plan, capture: measurementFixture.capture)
         )
         XCTAssertEqual(measuredClaim.tier, .measured)
         try measuredClaim.validateIntrinsic()
@@ -1016,7 +1017,7 @@ final class V9_46LightingPackageTests: XCTestCase {
             subjectAssetID: observation.assetID,
             tier: .measured,
             plan: validPlan,
-            captureID: fixture.capture.captureID,
+            captureBinding: validBinding,
             recordID: C31LightingTestSupport.id(420),
             mutationSlot: 420
         )
@@ -1051,7 +1052,13 @@ final class V9_46LightingPackageTests: XCTestCase {
             subjectAssetID: observation.assetID,
             tier: .measured,
             plan: validPlan,
-            captureID: C31LightingTestSupport.id(421),
+            captureBinding: LightingMeasurementCaptureBindingV1(
+                pointID: validBinding.pointID,
+                sampleOrdinal: validBinding.sampleOrdinal,
+                captureID: C31LightingTestSupport.id(421),
+                captureRevision: validBinding.captureRevision,
+                captureSHA256: validBinding.captureSHA256
+            ),
             recordID: C31LightingTestSupport.id(422),
             mutationSlot: 422
         )
@@ -1243,7 +1250,7 @@ final class V9_46LightingPackageTests: XCTestCase {
             subjectAssetID: observation.assetID,
             tier: .measured,
             plan: plan,
-            captureID: fixture.capture.captureID,
+            captureBinding: C31LightingTestSupport.binding(plan: plan, capture: fixture.capture),
             recordID: C31LightingTestSupport.id(232),
             predecessor: observedClaim,
             revision: 2,

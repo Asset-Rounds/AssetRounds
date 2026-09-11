@@ -1069,9 +1069,9 @@ private final class V911WriterHarness {
     let store: MutationJournalStoreV1
     let writer: WorkspaceWriterV1
     private let identity: WorkspaceReplicaIdentityV1
-    private let generationID = Self.id(3)
-    private let writerInstanceID = Self.id(4)
-    private let assetID = Self.id(6)
+    private let generationID = V911WriterHarness.id(3)
+    private let writerInstanceID = V911WriterHarness.id(4)
+    private let assetID = V911WriterHarness.id(6)
 
     init(failureBoundary: MutationJournalFaultBoundaryV1, suffix: String) throws {
         let schema = Schema(

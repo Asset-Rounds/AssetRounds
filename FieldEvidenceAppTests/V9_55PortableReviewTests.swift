@@ -1691,6 +1691,10 @@ enum C50AuthoritativePrivacyTestSupport {
         workspaceID: WorkspaceID
     ) throws -> C50PrivacyPreviewApprovalReferenceV1 {
         let instant = Date(timeIntervalSince1970: 1_900_000_000)
+        let contentTimestampFormatter = ISO8601DateFormatter()
+        contentTimestampFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        contentTimestampFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        let contentTimestamp = contentTimestampFormatter.string(from: instant)
         let mutationID = try MutationIDV1(rawValue: UUID(
             uuidString: "c5000000-0000-4000-8000-000000000001"
         )!)
@@ -1717,7 +1721,7 @@ enum C50AuthoritativePrivacyTestSupport {
             mediaType: "image/jpeg",
             digests: originalObserved.digests,
             byteRole: .immutableOriginal,
-            createdAt: instant
+            createdAt: contentTimestamp
         )
         let derivative = try ContentReferenceV1(
             workspaceID: workspaceID.rawValue.uuidString.lowercased(),
@@ -1726,7 +1730,7 @@ enum C50AuthoritativePrivacyTestSupport {
             mediaType: "image/jpeg",
             digests: derivativeObserved.digests,
             byteRole: .derivative,
-            createdAt: instant
+            createdAt: contentTimestamp
         )
         let actor = try LocalActorReferenceV1(
             actorReferenceID: UUID(uuidString: "c5000000-0000-4000-8000-000000000010")!,

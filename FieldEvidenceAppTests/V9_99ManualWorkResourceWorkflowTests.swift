@@ -476,7 +476,7 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
                 mutationID: try C36Support.mutation(75),
                 receiptID: C36Support.id(73), movementID: C36Support.id(74),
                 frozenMaterialLineID: stockLine.lineID, part: part, source: location,
-                quantity: StockQuantityV1(mantissa: 4, scale: 0, unit: .each),
+                quantity: try StockQuantityV1(mantissa: 4, scale: 0, unit: .each),
                 sourceBalance: balance, actor: stockHarness.actor,
                 occurredAt: C36Support.date, recordedAt: C36Support.date,
                 workResourceSuccessor: stockSuccessor
@@ -590,7 +590,7 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
         let command = ManualWorkResourceUseStockCommandV1(
             mutationID: try C36Support.mutation(102),
             receiptID: C36Support.id(81), movementID: C36Support.id(82), frozenMaterialLineID: line.lineID,
-            part: part, source: location, quantity: StockQuantityV1(mantissa: 4, scale: 0, unit: .each),
+            part: part, source: location, quantity: try StockQuantityV1(mantissa: 4, scale: 0, unit: .each),
             sourceBalance: balance, actor: harness.actor, occurredAt: C36Support.date,
             recordedAt: C36Support.date, workResourceSuccessor: successorDraft
         )
@@ -620,7 +620,7 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
                 mutationID: try C36Support.mutation(103),
                 receiptID: C36Support.id(84), movementID: C36Support.id(85), sourceUse: use,
                 predecessorFrontier: nil, workResourcePredecessor: use.workResourceSuccessor,
-                destination: location, quantity: StockQuantityV1(mantissa: 2, scale: 0, unit: .each),
+                destination: location, quantity: try StockQuantityV1(mantissa: 2, scale: 0, unit: .each),
                 destinationBalance: postUse, actor: harness.actor, occurredAt: C36Support.date,
                 recordedAt: C36Support.date, workResourceSuccessor: returnDraft
             )

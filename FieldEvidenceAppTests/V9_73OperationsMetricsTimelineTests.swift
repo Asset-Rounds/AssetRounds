@@ -356,9 +356,9 @@ private enum C09OperationsMetricsTestSupport {
         mutationID: MutationIDV1? = nil
     ) throws -> QualifiedServiceExposureV1 {
         let event = eventID ?? uuid("8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A5413")
-        let resolvedMutation = mutationID ?? (try self.mutation(
+        let resolvedMutation = try mutationID ?? self.mutation(
             revision == 1 ? "8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A5415" : "8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A541C"
-        ))
+        )
         let exposureInterval = try interval(lower, upper)
         return try QualifiedServiceExposureV1(
             eventID: event,

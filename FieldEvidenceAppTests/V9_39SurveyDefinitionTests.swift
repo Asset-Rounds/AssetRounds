@@ -39,7 +39,7 @@ private final class C30EvidenceContextAnchorV9_39SurveyDefinition: XCTestCase {
     }
 }
 
-private enum C25SurveyDefinitionTestSupport {
+enum C25SurveyDefinitionTestSupport {
     static let fixedDate = Date(timeIntervalSince1970: 1_800_000_500)
 
     static func id(_ slot: Int) -> UUID {

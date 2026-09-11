@@ -2189,6 +2189,7 @@ final class V9_63PartsStockTests: XCTestCase {
             canonicalData: try WorkPacketCanonicalCodecV1.encode(manifest)
         )
         let backupRecords = V4BackupRecordsV1(
+            workPackets: [packetRecord],
             assets: [],
             evidenceFiles: [],
             issues: [],
@@ -2199,7 +2200,6 @@ final class V9_63PartsStockTests: XCTestCase {
             reports: [],
             sites: [],
             workflowRecords: [],
-            workPackets: [packetRecord],
             workResources: [workResourceRecord],
             partsStockSnapshot: applySnapshot
         )
@@ -2217,6 +2217,21 @@ final class V9_63PartsStockTests: XCTestCase {
         // receipt, event, and stream while keeping the terminal workspace
         // frontier must fail closed; deleting an earlier catalog receipt must
         // fail for the same reason.
+        let openingMovement = try C55PartsStockTestSupport.movement(
+            movementID: C55PartsStockTestSupport.id(302), workspaceID: workspaceID,
+            part: partReference, locationID: location.locationID, kind: .openingCount,
+            quantity: known, unit: unit, preBalance: .unknown, postBalance: known,
+            actor: try C55PartsStockTestSupport.actor(workspaceID: workspaceID, slot: 303),
+            expectedLocationRevision: 0, mutationSlot: 304
+        )
+        let counted = try C55PartsStockTestSupport.stock(fixture.golden.physicalCount, unit: unit)
+        let countMovement = try C55PartsStockTestSupport.movement(
+            movementID: C55PartsStockTestSupport.id(305), workspaceID: workspaceID,
+            part: partReference, locationID: location.locationID, kind: .physicalCount,
+            quantity: counted, unit: unit, preBalance: .known(known), postBalance: counted,
+            actor: try C55PartsStockTestSupport.actor(workspaceID: workspaceID, slot: 306),
+            expectedLocationRevision: 1, mutationSlot: 307, occurredOffset: 2
+        )
         let countHarness = try C55ProductionWriterHarness(
             workspaceID: workspaceID,
             configurationName: "C55-I01-Count-Erasure"
@@ -2235,10 +2250,11 @@ final class V9_63PartsStockTests: XCTestCase {
         ).snapshotForBackup(workspaceID: workspaceID)
         let countHistory = try countHarness.writer.sourceMutationHistorySnapshot()
         let countRecords = V4BackupRecordsV1(
+            workPackets: [],
             assets: [], evidenceFiles: [], issues: [], mutationHistory: countHistory,
             packets: [], partyAccountability: [],
             recordsSchemaVersion: C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
-            reports: [], sites: [], workflowRecords: [], workPackets: [],
+            reports: [], sites: [], workflowRecords: [],
             workResources: [], partsStockSnapshot: countSnapshot
         )
         XCTAssertNoThrow(
@@ -2277,10 +2293,10 @@ final class V9_63PartsStockTests: XCTestCase {
             part: try part.frozenReference(),
             locationID: location.locationID,
             kind: .physicalCount,
-            quantity: opening,
+            quantity: known,
             unit: unit,
             preBalance: .unknown,
-            postBalance: opening,
+            postBalance: known,
             actor: try C55PartsStockTestSupport.actor(workspaceID: workspaceID, slot: 323),
             expectedLocationRevision: 0,
             mutationSlot: 324
@@ -2385,10 +2401,11 @@ final class V9_63PartsStockTests: XCTestCase {
             uses: [], reversals: [], returns: [], abandonments: []
         )
         let projectedRecords = V4BackupRecordsV1(
+            workPackets: [],
             assets: [], evidenceFiles: [], issues: [], mutationHistory: projectedHistory,
             packets: [], partyAccountability: [],
             recordsSchemaVersion: C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
-            reports: [], sites: [], workflowRecords: [], workPackets: [],
+            reports: [], sites: [], workflowRecords: [],
             workResources: [], partsStockSnapshot: projectedSnapshot
         )
         XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(projectedHistory))
@@ -2491,10 +2508,11 @@ final class V9_63PartsStockTests: XCTestCase {
         XCTAssertEqual(largeTerminalRows.count, 1_026)
         XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(largeHistory))
         let largeRecords = V4BackupRecordsV1(
+            workPackets: [],
             assets: [], evidenceFiles: [], issues: [], mutationHistory: largeHistory,
             packets: [], partyAccountability: [],
             recordsSchemaVersion: C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
-            reports: [], sites: [], workflowRecords: [], workPackets: [],
+            reports: [], sites: [], workflowRecords: [],
             workResources: [], partsStockSnapshot: largeSnapshot
         )
         XCTAssertNoThrow(
@@ -2591,6 +2609,7 @@ final class V9_63PartsStockTests: XCTestCase {
             )
         )
         let missingSnapshotRecords = V4BackupRecordsV1(
+            workPackets: [packetRecord],
             assets: [],
             evidenceFiles: [],
             issues: [],
@@ -2601,7 +2620,6 @@ final class V9_63PartsStockTests: XCTestCase {
             reports: [],
             sites: [],
             workflowRecords: [],
-            workPackets: [packetRecord],
             workResources: [workResourceRecord],
             partsStockSnapshot: nil
         )
@@ -2627,6 +2645,7 @@ final class V9_63PartsStockTests: XCTestCase {
             abandonments: []
         )
         let extraSnapshotRecords = V4BackupRecordsV1(
+            workPackets: [packetRecord],
             assets: [],
             evidenceFiles: [],
             issues: [],
@@ -2637,7 +2656,6 @@ final class V9_63PartsStockTests: XCTestCase {
             reports: [],
             sites: [],
             workflowRecords: [],
-            workPackets: [packetRecord],
             workResources: [workResourceRecord],
             partsStockSnapshot: extraSnapshot
         )
@@ -4630,9 +4648,10 @@ final class V9_63PartsStockTests: XCTestCase {
             Set(abandonment.dispositions.map(\.locationID)),
             Set([location.locationID, reversalLocation.locationID])
         )
+        XCTAssertEqual(unknown.balance, .unknown)
+        XCTAssertEqual(unknownReversal.balance, .unknown)
         XCTAssertTrue(abandonment.dispositions.allSatisfy {
             $0.quantityRemainsUnknown
-                && $0.currentBalance == .unknown
                 && $0.lastMovementID == nil
                 && $0.lastLocationRevision == 0
         })

@@ -374,7 +374,7 @@ private struct C25Bundle {
 private enum C25Support {
     static func bundle(kind: TemporalEvidenceMediaKindV1, slot: Int) throws -> C25Bundle {
         let value = try C33TemporalEvidenceTestSupport.clip(slot: slot, kind: kind)
-        let actor = C26SurveySessionTestSupport.actor(
+        let actor = try C26SurveySessionTestSupport.actor(
             workspaceID: value.clip.workspaceID, slot: slot + 5, responsibility: .recordedBy
         )
         let consent = try TemporalEvidenceCaptureConsentV1(

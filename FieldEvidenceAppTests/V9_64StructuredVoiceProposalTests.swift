@@ -416,6 +416,23 @@ private final class C56VoicePayloadApplyingProbe: VoiceReviewedFieldDraftPayload
         return application
     }
 
+    func validateReviewedVoiceFieldApplication(
+        _ application: VoiceReviewedFieldDraftPayloadApplicationV1,
+        predecessor: FieldDraftCheckpointV1
+    ) throws {
+        try application.validate(predecessor: predecessor)
+        guard application.codec == registeredCodec else { throw FieldDraftFailureV1.invalidValue }
+        var expected = try decoded(predecessor)
+        expected.fields[application.fieldID] = encode(application.value)
+        let successor = try FieldDraftCanonicalCodecV1.decode(
+            C56VoiceDraftPayloadV1.self, from: application.successorPayloadData
+        )
+        guard successor == expected,
+              try FieldDraftCanonicalCodecV1.encode(successor) == application.successorPayloadData else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+    }
+
     func decoded(_ checkpoint: FieldDraftCheckpointV1) throws -> C56VoiceDraftPayloadV1 {
         try FieldDraftCanonicalCodecV1.decode(
             C56VoiceDraftPayloadV1.self,

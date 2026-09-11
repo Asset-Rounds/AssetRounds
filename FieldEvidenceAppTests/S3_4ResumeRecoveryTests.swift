@@ -782,8 +782,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 }
             }
 
-            await assertThrowsErrorAsync(
-                try await harness.runner.finalize(
+            do {
+                _ = try await harness.runner.finalize(
                     assetID: harness.asset.id,
                     selection: testCase.selection,
                     completedAt: harness.observedAt.addingTimeInterval(3),
@@ -791,7 +791,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                     sourceApp: SourceAppSnapshotV1(build: "34", version: "1.0"),
                     identifiers: testCase.identifiers
                 )
-            ) { error in
+                XCTFail("Interrupted finalization must fail before recovery")
+            } catch {
                 XCTAssertEqual(error as? CheckRunnerCoordinatorError, .finalizationFailed)
             }
 
@@ -1872,7 +1873,6 @@ private enum VisibleIssueRecoveryCase: String, CaseIterable {
     case wrongTime
 }
 
-@MainActor
 @MainActor
 private struct CurrentV2ProducerHarness {
     let applicationSupportURL: URL

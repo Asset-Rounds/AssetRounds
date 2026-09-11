@@ -79,7 +79,7 @@ private struct C43IDSource: ApplicationIDSource {
         } else {
             resolvedExpected = try self.expected(bundle.writer)
         }
-        try .init(workspaceID: session.workspaceID, subjectID: C43.id(99), subjectRevision: 1,
+        return try SignoffEnrollmentRequestV1(workspaceID: session.workspaceID, subjectID: C43.id(99), subjectRevision: 1,
             expectedRevision: resolvedExpected, actorSnapshot: actor,
             typedName: "Jordan Local", claimedRole: "Local responder", disclosure: .init(), routeChain: .init(),
             occurredAt: C43.now, recordedAt: C43.now, drawnMark: mark, mutationID: C43.mutation(mutation))
@@ -99,12 +99,12 @@ final class V9_106SignoffEnrollmentTests: XCTestCase {
         let store = try C43Store("golden"), bundle = try store.make(), actor = try store.actor(bundle)
         let plan = try bundle.coordinator.preview(store.request(bundle, actor: actor))
         XCTAssertEqual(plan.manifest, .workDetailCompletedResponseV1); XCTAssertEqual(plan.method, .typedLocalAssertion)
-        XCTAssertEqual(plan.partyPlan.basis.mutationID, C43.mutation(20)); XCTAssertEqual(plan.routeChain.actionRoot, .work)
+        XCTAssertEqual(plan.partyPlan.mutationID, try C43.mutation(20)); XCTAssertEqual(plan.routeChain.actionRoot, .work)
         XCTAssertEqual(C43SignoffEnrollmentBoundaryV1.actionTitle, "Record approval response")
         XCTAssertTrue(plan.routeChain.requiresVisibleWorkRoot)
         XCTAssertFalse(plan.routeChain.directDeepLinkOnlyIsEligible)
         let receipt = try bundle.coordinator.commit(plan); try receipt.validate()
-        XCTAssertEqual(receipt.mutationID, C43.mutation(20))
+        XCTAssertEqual(receipt.mutationID, try C43.mutation(20))
         XCTAssertEqual(try store.session.modelContext.fetchCount(FetchDescriptor<SignoffSnapshotRow>()), 1)
         let flags = SignoffEnrollmentProhibitedClaimFlagsV1(); try flags.validate()
         XCTAssertTrue(flags.disclaimsVerifiedIdentity && flags.disclaimsVerifiedAuthority && flags.disclaimsLegalSignature)

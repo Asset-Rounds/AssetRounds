@@ -2172,7 +2172,7 @@ private enum C45AssetLabelTestSupport {
         )
         XCTAssertEqual(sourceSearchMetadata, [try AcceptedLabelSearchMetadataV1(snapshot)])
         XCTAssertEqual(
-            try LocalSearchIndexStoreV1.metadata(snapshot),
+            try C45AcceptedLabelIndexStoreBoundaryV1.metadata(snapshot),
             try AcceptedLabelSearchMetadataV1(snapshot)
         )
         let searchRevisionBox = C45SearchRevisionBox(try SearchSourceRevisionV1(
@@ -2200,7 +2200,7 @@ private enum C45AssetLabelTestSupport {
         let searchCoordinator = SearchCoordinatorV1(index: searchStore)
         let searchPlan = try searchCoordinator.makePlan(
             query: snapshot.snapshotSHA256,
-            scope: .reports,
+            scope: SearchScopeV1.reports,
             sourceRevision: searchRevisionBox.value.commitRevision
         )
         let searchResponse = try await searchCoordinator.search(
@@ -2424,7 +2424,7 @@ private enum C45AssetLabelTestSupport {
         _ = try await searchRebuild.rebuildIfNeeded()
         let deletedSearchPlan = try searchCoordinator.makePlan(
             query: snapshot.snapshotSHA256,
-            scope: .reports,
+            scope: SearchScopeV1.reports,
             sourceRevision: searchRevisionBox.value.commitRevision
         )
         let deletedSearchResponse = try await searchCoordinator.search(

@@ -112,7 +112,7 @@ private enum C05RoundSessionTestSupport {
         let visit: RoundItemVisitV1?
         switch disposition {
         case .visited, .completed:
-            visit = item.visit ?? try RoundItemVisitV1(
+            visit = try item.visit ?? RoundItemVisitV1(
                 visitedAt: timestamp.addingTimeInterval(60), recordedBy: actor
             )
         case .pending, .inaccessible, .skipped, .deferred:
@@ -409,7 +409,7 @@ final class V9_70RoundSessionStateTests: XCTestCase {
         )
         XCTAssertThrowsError(try hostileSearch.validate())
         let bytes = try RoundSessionCanonicalCodecV1.encode(created)
-        let corrupt = Data(String(decoding: bytes.dropLast(), as: UTF8.self) + ",\"unknown\":true}", encoding: .utf8)!
+        let corrupt = Data((String(decoding: bytes.dropLast(), as: UTF8.self) + ",\"unknown\":true}").utf8)
         XCTAssertThrowsError(try RoundSessionCanonicalCodecV1.decode(RoundSessionV1.self, from: corrupt))
         XCTAssertTrue(Set(corpus.forbidden).isSuperset(of: Set(["ROUTE_AUTOMATION", "QR", "RECURRENCE", "DUE", "REMINDER", "NETWORK"])))
         XCTAssertTrue(corpus.hostileVectors.contains("asset-deletion-during-open-session"))
@@ -447,7 +447,7 @@ final class V9_70RoundSessionStateTests: XCTestCase {
         XCTAssertEqual(try sourceRow.value().workspaceID, source)
         XCTAssertEqual(try targetRow.value().workspaceID, target)
         XCTAssertEqual(try targetRow.value().sessionID, created.sessionID)
-        XCTAssertThrowsError(try RoundSessionCanonicalCodecV1.decode(RoundSessionV1.self, from: Data(String(decoding: exported.dropLast(), as: UTF8.self) + ",\"forwardFix\":true}", encoding: .utf8)!))
+        XCTAssertThrowsError(try RoundSessionCanonicalCodecV1.decode(RoundSessionV1.self, from: Data((String(decoding: exported.dropLast(), as: UTF8.self) + ",\"forwardFix\":true}").utf8)))
         XCTAssertTrue(Set(corpus.lifecycleInventory).isSuperset(of: Set(["MIGRATION", "BACKUP", "REPLACE_RESTORE", "CLONE", "FORK", "EXPORT", "REPORT", "SEARCH", "REBUILD", "DELETE", "ERASE", "STREAMING_ARCHIVE", "FORWARD_FIX"])))
         XCTAssertTrue(corpus.claims.existingSessionsDefaultAbsentUntilCreated)
         XCTAssertTrue(corpus.claims.completedHistorySurvivesOrdinaryAssetDeletion)

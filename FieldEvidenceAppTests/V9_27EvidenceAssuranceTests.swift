@@ -261,7 +261,7 @@ final class V9_27EvidenceAssuranceTests: XCTestCase {
             visibility: visibilitySuccessor,
             audience: .customerReport,
             evidenceID: fixture.customerLink.evidenceID,
-            claimID: fixture.customerLink.claimID,
+            claimID: try XCTUnwrap(fixture.customerLink.claimID),
             supersedesLinkID: fixture.customerLink.linkID,
             revision: 2
         )

@@ -14,7 +14,7 @@ final class V9_32PackageEvolutionTests: XCTestCase {
     }
 
     private struct Corpus: Decodable {
-        private struct ProvisionalFlags: Decodable {
+        struct ProvisionalFlags: Decodable {
             let native: Bool
             let hosted: Bool
             let adoption: Bool

@@ -594,12 +594,18 @@ private extension WorklightPDFRendererV1 {
         var minimum = lineHeight
         var maximum = lineHeight
         var alignment = alignment
-        let settings: [CTParagraphStyleSetting] = [
-            CTParagraphStyleSetting(spec: .minimumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: &minimum),
-            CTParagraphStyleSetting(spec: .maximumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: &maximum),
-            CTParagraphStyleSetting(spec: .alignment, valueSize: MemoryLayout<CTTextAlignment>.size, value: &alignment),
-        ]
-        let paragraph = CTParagraphStyleCreate(settings, settings.count)
+        let paragraph = withUnsafePointer(to: &minimum) { minimumPointer in
+            withUnsafePointer(to: &maximum) { maximumPointer in
+                withUnsafePointer(to: &alignment) { alignmentPointer in
+                    let settings: [CTParagraphStyleSetting] = [
+                        CTParagraphStyleSetting(spec: .minimumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: minimumPointer),
+                        CTParagraphStyleSetting(spec: .maximumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: maximumPointer),
+                        CTParagraphStyleSetting(spec: .alignment, valueSize: MemoryLayout<CTTextAlignment>.size, value: alignmentPointer),
+                    ]
+                    return CTParagraphStyleCreate(settings, settings.count)
+                }
+            }
+        }
         let attributed = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,

@@ -39,7 +39,8 @@ private enum C41 {
         let manifest = try WorkPacketManifestV1(manifestID: id(230 + value),
             packetID: id(240 + value), packetVersion: 1, workspaceID: workspaceID,
             items: [packetItem], packageReleases: [], creationBasis: .explicitLocalSelection,
-            creator: try actor(250 + value, workspaceID: workspaceID), createdAt: now)
+            creator: try actor(250 + value, workspaceID: workspaceID), createdAt: now,
+            mutationID: try mutation(260 + value))
         return .workPacket(try WorkPacketManifestReferenceV1(manifest))
     }
     static func item(_ value: Int, reference: MyDayEligibleReferenceV1,

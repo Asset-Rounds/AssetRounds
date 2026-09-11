@@ -76,7 +76,12 @@ private enum C45 {
 }
 
 @MainActor final class V9_108StructuredVoiceCaptureTests: XCTestCase {
-    private func coordinator(_ scratch: C45Scratch = C45Scratch(), capture: C45Capture = C45Capture(), review: C45Review = C45Review()) throws -> (VoicePushToTalkCoordinatorV1, C45Capture, C45Scratch, C45Review) { (try .init(capture: capture, scratch: scratch, structuring: C45.service(), review: review), capture, scratch, review) }
+    private func coordinator(_ scratch: C45Scratch? = nil, capture: C45Capture? = nil, review: C45Review? = nil) throws -> (VoicePushToTalkCoordinatorV1, C45Capture, C45Scratch, C45Review) {
+        let scratch = scratch ?? C45Scratch()
+        let capture = capture ?? C45Capture()
+        let review = review ?? C45Review()
+        return (try .init(capture: capture, scratch: scratch, structuring: C45.service(), review: review), capture, scratch, review)
+    }
     private func corpus() throws -> [String: Any] {
         let name = "V23P04C45StructuredVoiceCaptureCorpusV1"
         let url = Bundle(for: Self.self).url(forResource: name, withExtension: "json", subdirectory: "Fixtures/V23/VoiceCapture") ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/V23/VoiceCapture/\(name).json")
