@@ -4529,3 +4529,55 @@ Implementation paths (14 within the 22-path fence):
 - `FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift`
 
 Boundary: isolated provisional branch only; no main or Phase 10 read/poll/mutation. Replay/reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence. Never merge wholesale. Next unstarted card: V30-P03-C02. This entry does not self-record its containing commit.
+
+
+## Card 23 of 55 - V30-P03-C02 - Offline and sync-state localization integrity
+
+State: PROVISIONAL_CHECKPOINTED. Graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `c004b4bdd19bc037e3373e7f3a8f508343e5dca0`, tree `7d63520aabb3424f3a2fea35b0bd268400a7517d` (P03-C01 checkpoint 47).
+- Observed G0 authority A: `e3f34fb72fbcf31f0ef50a613e46d833a7ce96d9`; M..A is exactly four V30 execution documents. All 21 fence entries match immutable authority and frozen B pins; two exact S10 UI tuples apply.
+- Product implementation E: `de11273e4944974d644b6f5533f6137be7af9374`, tree `13e88b512a214a551648f8a3576dbf0597bfd790`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 49: head `dd40d3793fdb903016ad8739425dca55f6d08ff1`, ledger digest `85d0cef8c563002f8fba6ba8187dffa2dae116f2f3f9ca6a85360e827c607855`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C02/CHECKPOINT/1`. Receipt includes complete committed paths/hashes, candidate history, inventory, static evidence and limits. All prior ledger event/request objects were proved unchanged before append.
+
+Direct prerequisite evidence:
+- V30-P01-C08: `020c9da6df9c2d9afe741290ecab1b1893d8b2ec`, tree `a7b68fe27452c186cdd9e8c6a244a39c29b5c1ff`, checkpoint 31.
+- V30-P02-C04: `d804f60308bcfdcaadf01780d429132e4bcbd77d`, tree `0cde23d9cf27616f10d4465ef4ee5a9ac387791e`, checkpoint 39.
+
+The new non-Codable presentation maps incumbent local draft durability, attachment readback, validated local replay receipts, restore progress and recovery status to typed messages. Pending, locally saved, failed, conflicted and recovered states stay separate. The current product has no remote synchronization or acknowledgment service. Requested syncing and synchronized states therefore have distinct unavailable copy, no achieved state, and no success or remote delivery claim. Existing future replication eligibility cannot supply remote evidence.
+
+Replay validates the existing receipt and retains its identity and cursor. Rejected, unresolved-conflict, missing-content, deferred-gap and externally deferred outcomes prevent success. Empty or exclusion/rebuild-only receipts also withhold a recovery claim. Applied, already-applied or delete-won local replay evidence is needed for recovered copy. The adapter never advances a cursor, persists a batch or modifies the canonical mutation journal.
+
+Attachment presentation preserves the existing state/readback mapper. Local protected-data and low-storage conditions block readiness. The fixture covers exact mixed Unicode/NFC/NFD bytes, digest and byte count; tests compare canonical stage bytes across six language inputs. No locale operation changes attachment bytes, canonical identity or authored language. No new queue, upload, sync engine, translated-content store or schema was introduced.
+
+Seven startup maintenance reasons and four bootstrap forms have exhaustive typed keys. All existing startup operations and gates are unchanged. Recovery retains its eleven distinct states and existing callbacks, layout, colors, icons and accessibility identifiers. Partial, interrupted, validation-failed, file/restart/external-action states never become complete. Backup progress prioritizes actual error, then completed state, then restoring/checking. Its exact existing localized error detail remains visible and accessible alongside generic backup-operation failure copy.
+
+The renderer uses the existing bundled localization path and Apple effective app-language resolution. Formatting region cannot choose UI copy. Fifty-five literal keys/defaults compose the existing registry; offline missing resources fall back to English. Visible and accessible messages share the renderer. These source/fixture checks do not claim completed translations, device behavior or professional/native review. Existing notification permission and restore boundaries remain noncanonical; no notification is scheduled, delivered or treated as recovered truth and no deep-link/route is rewritten.
+
+Six new XCTest methods, one new existing-suite accessibility regression and one extended actual Unicode checkpoint/replay regression cover registry completeness, receipt readback, canonical stage/batch bytes, status distinction, failure precedence, startup/recovery mappings, unavailable remote states and notification boundaries. All tests remain unexecuted. Static review corrected a Swift canonical-equivalence comparison, stale fixture key/raw-state expectations and backup failure wording. Independent review checked constructors, typed-key usage, valid replay limits, conflict identity and checkpoint terminal receipts.
+
+Static validation PASS: immutable 55-card/107-edge package and installed pins; typed WINDOWS_STATIC null selector; 21 exact fence/B pins and authority-only M..A; thirteen scoped paths with two pre-issued S10 tuples; preserved operational bodies and canonical codecs; 55 literal catalog keys and exact fixture defaults; Unicode fixture byte/hash validation; source hygiene and git diff --check. Two earlier package-validator path attempts were absent-file errors without mutation; the discovered immutable validator path passed. No failed hosted candidate exists for this card.
+
+S10_SHARED_RECONCILIATION_REQUIRED:
+- `FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift`: B blob `0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed`, SHA-256 `700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0`, lane `V30-P03-C02-SYNC-STATE-INTEGRATOR`; REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT.
+- `FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift`: B blob `424f869477fe107d1595763c951abef7193c9c6b`, SHA-256 `64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f`, lane `V30-P03-C02-SYNC-STATE-INTEGRATOR`; REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT.
+
+Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots: unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT. No hosted run was dispatched. KNOWN_BUGS was read and remains its template; no defect was accepted. Prior source-audit receipts/fixtures remain immutable. Changed UI source hashes are recorded as invalidated evidence requiring post-reconciliation requalification; no whole-suite pass is claimed.
+
+Implementation paths (13 within the 21-path fence):
+- `FieldEvidenceApp/Domain/Globalization/LocalizedSyncStateContractsV1.swift`
+- `FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift`
+- `FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift`
+- `FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift`
+- `FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift`
+- `FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift`
+- `FieldEvidenceApp/Infrastructure/Localization/LocalizedSyncStateRendererV1.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/SyncStates/localized-sync-state-cases-v1.json`
+- `FieldEvidenceAppTests/V30_P03_C02OfflineSyncLocalizationTests.swift`
+- `FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift`
+- `FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift`
+
+Boundary: isolated provisional branch only; no main or Phase 10 read/poll/mutation. Replay/reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence. Never merge wholesale. Next unstarted card: V30-P03-C03. This entry does not self-record its containing commit.
