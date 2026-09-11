@@ -56,18 +56,12 @@ final class ReinspectionExceptionQueueCoordinatorV1 {
     }
 
     func saveAcknowledgement(
-        _ acknowledgement: ExceptionQueueAcknowledgementV1,
-        source: ExceptionQueueSourceSnapshotV1,
-        predecessor: ExceptionQueueAcknowledgementV1?,
-        expectedRevision: WorkspaceExpectedRevisionV1,
-        mutationID: MutationIDV1,
-        submittedAt: Date
+        _ intent: ExceptionQueueAcknowledgementIntentV1,
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1]
     ) throws -> ActionResult {
-        let command = try ReinspectionExceptionMutationCommandV1(
-            commandID: UUID(), workspaceID: acknowledgement.workspaceID, expectedRevision: expectedRevision,
-            mutationID: mutationID, payload: .recordAcknowledgement(acknowledgement, source, predecessor), submittedAt: submittedAt
+        let result = try writer.commitExceptionQueueAcknowledgement(
+            intent, providers: providers
         )
-        let receipt = try writer.commitReinspectionException(command)
-        return .acknowledgementSaved(acknowledgement, receipt)
+        return .acknowledgementSaved(result.acknowledgement, result.receipt)
     }
 }

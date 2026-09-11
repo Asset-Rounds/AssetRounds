@@ -321,7 +321,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
 
     func validateReinspectionExceptionCommand(
         _ command: ReinspectionExceptionMutationCommandV1,
-        currentRevision: WorkspaceRevisionV1
+        currentRevision: WorkspaceRevisionV1,
+        evaluatedAt: Date
     ) throws {
         guard let reinspectionCanonicalSourceResolver,
               let exceptionQueueCanonicalSourceResolver else {
@@ -330,7 +331,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         try command.validate(
             currentRevision: currentRevision,
             reinspectionResolver: reinspectionCanonicalSourceResolver,
-            exceptionResolver: exceptionQueueCanonicalSourceResolver
+            exceptionResolver: exceptionQueueCanonicalSourceResolver,
+            evaluatedAt: evaluatedAt
         )
     }
 
@@ -546,7 +548,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
 
     func reinspectionExceptionQuery(
         _ request: ReinspectionExceptionQueryV1,
-        providers: [any ExceptionQueueCanonicalSourceProvidingV1]
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1],
+        evaluatedAt: Date
     ) throws -> ReinspectionExceptionQueryResultV1 {
         try request.validate()
         guard let reinspectionResolver = reinspectionCanonicalSourceResolver,
@@ -584,9 +587,10 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             if let value = values.first {
                 let source = try exceptionResolver.resolveExceptionQueueSource(
                     workspaceID: value.workspaceID, kind: value.sourceKind,
-                    sourceID: value.sourceID, revision: value.sourceRevision
+                    sourceID: value.sourceID, revision: value.sourceRevision,
+                    evaluatedAt: value.recordedAt
                 )
-                try source.validateResolved(by: exceptionResolver)
+                try source.validateResolved(by: exceptionResolver, evaluatedAt: value.recordedAt)
                 try value.validateCurrentSource(source)
                 result = .acknowledgement(value)
             } else { result = .notFound(request) }
@@ -598,12 +602,12 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             let registry = try ExceptionQueueSourceRegistryV1(registeredKinds: registered)
             var sources: [ExceptionQueueSourceSnapshotV1] = []
             for provider in providers {
-                let produced = try provider.unresolvedExceptionSources(workspaceID: request.workspaceID)
+                let produced = try provider.unresolvedExceptionSources(workspaceID: request.workspaceID, evaluatedAt: evaluatedAt)
                 guard produced.count <= ReinspectionExceptionLimitsV1.maximumQueueItems,
                       sources.count <= ReinspectionExceptionLimitsV1.maximumQueueItems - produced.count else {
                     throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
-                try produced.forEach { try $0.validateResolved(by: exceptionResolver) }
+                try produced.forEach { try $0.validateResolved(by: exceptionResolver, evaluatedAt: evaluatedAt) }
                 guard produced.allSatisfy({ $0.workspaceID == request.workspaceID && $0.kind == provider.registeredSourceKind }) else {
                     throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
@@ -613,7 +617,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 .filter { $0.workspaceID == request.workspaceID }
             let projection = try ExceptionQueueProjectionV1(
                 workspaceID: request.workspaceID, registry: registry, sources: sources,
-                acknowledgements: acknowledgements, resolver: exceptionResolver
+                acknowledgements: acknowledgements, evaluatedAt: evaluatedAt, resolver: exceptionResolver
             )
             let values = Array(projection.items.filter(filter.includes).prefix(request.maximumResults))
             result = .queue(values)
@@ -621,9 +625,47 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         try result.validateResolved(
             for: request,
             reinspectionResolver: reinspectionResolver,
-            exceptionResolver: exceptionResolver
+            exceptionResolver: exceptionResolver,
+            evaluatedAt: evaluatedAt
         )
         return result
+    }
+
+    /// Local acknowledgement admission is distinct from historical source
+    /// resolution: the exact source must still be in the unresolved frontier
+    /// rebuilt at the writer's one trusted instant.
+    func validateCurrentUnresolvedExceptionSource(
+        _ source: ExceptionQueueSourceSnapshotV1,
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1],
+        evaluatedAt: Date
+    ) throws {
+        try source.validate()
+        guard let resolver = exceptionQueueCanonicalSourceResolver else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let registered = providers.map(\.registeredSourceKind).sorted { $0.rawValue < $1.rawValue }
+        guard providers.count == ExceptionQueueSourceKindV1.allCases.count,
+              Set(registered).count == registered.count else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        _ = try ExceptionQueueSourceRegistryV1(registeredKinds: registered)
+        var current: [ExceptionQueueSourceSnapshotV1] = []
+        for provider in providers {
+            let produced = try provider.unresolvedExceptionSources(
+                workspaceID: source.workspaceID, evaluatedAt: evaluatedAt
+            )
+            guard produced.count <= ReinspectionExceptionLimitsV1.maximumQueueItems,
+                  current.count <= ReinspectionExceptionLimitsV1.maximumQueueItems - produced.count,
+                  produced.allSatisfy({ $0.workspaceID == source.workspaceID && $0.kind == provider.registeredSourceKind }) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            try produced.forEach { try $0.validateResolved(by: resolver, evaluatedAt: evaluatedAt) }
+            current += produced
+        }
+        let matching = current.filter { $0.logicalExceptionKey == source.logicalExceptionKey }
+        guard matching.count == 1, matching[0] == source else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
     }
 
     /// C10 persists only through this adapter's existing journal-owned model
@@ -919,7 +961,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 throw WorkspaceMutationFailureV1.sequenceCollision
             }
             guard let resolver = exceptionQueueCanonicalSourceResolver else { throw WorkspaceMutationFailureV1.invalidCommand }
-            try source.validateResolved(by: resolver)
+            try source.validateResolved(by: resolver, evaluatedAt: value.recordedAt)
             if let predecessor {
                 guard acknowledgements.contains(predecessor) else { throw WorkspaceMutationFailureV1.invalidCommand }
             }

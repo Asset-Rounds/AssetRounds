@@ -40,12 +40,19 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
     func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1?
     func validateReinspectionExceptionCommand(
         _ command: ReinspectionExceptionMutationCommandV1,
-        currentRevision: WorkspaceRevisionV1
+        currentRevision: WorkspaceRevisionV1,
+        evaluatedAt: Date
     ) throws
     func reinspectionExceptionQuery(
         _ request: ReinspectionExceptionQueryV1,
-        providers: [any ExceptionQueueCanonicalSourceProvidingV1]
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1],
+        evaluatedAt: Date
     ) throws -> ReinspectionExceptionQueryResultV1
+    func validateCurrentUnresolvedExceptionSource(
+        _ source: ExceptionQueueSourceSnapshotV1,
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1],
+        evaluatedAt: Date
+    ) throws
     func validateEntityIdentityResolutionCommand(
         _ command: EntityIdentityResolutionMutationCommandV1,
         currentRevision: WorkspaceRevisionV1
@@ -121,9 +128,11 @@ extension WorkspaceWriterAdapterPortV1 {
     }
     func validateReinspectionExceptionCommand(
         _ command: ReinspectionExceptionMutationCommandV1,
-        currentRevision: WorkspaceRevisionV1
+        currentRevision: WorkspaceRevisionV1,
+        evaluatedAt: Date
     ) throws { throw WorkspaceMutationFailureV1.unsupportedCommand }
-    func reinspectionExceptionQuery(_ request: ReinspectionExceptionQueryV1, providers: [any ExceptionQueueCanonicalSourceProvidingV1]) throws -> ReinspectionExceptionQueryResultV1 { throw WorkspaceMutationFailureV1.unsupportedCommand }
+    func reinspectionExceptionQuery(_ request: ReinspectionExceptionQueryV1, providers: [any ExceptionQueueCanonicalSourceProvidingV1], evaluatedAt: Date) throws -> ReinspectionExceptionQueryResultV1 { throw WorkspaceMutationFailureV1.unsupportedCommand }
+    func validateCurrentUnresolvedExceptionSource(_ source: ExceptionQueueSourceSnapshotV1, providers: [any ExceptionQueueCanonicalSourceProvidingV1], evaluatedAt: Date) throws { throw WorkspaceMutationFailureV1.unsupportedCommand }
     func validateEntityIdentityResolutionCommand(_ command: EntityIdentityResolutionMutationCommandV1, currentRevision: WorkspaceRevisionV1) throws { throw WorkspaceMutationFailureV1.unsupportedCommand }
     func entityIdentityResolutionReceipt(for command: EntityIdentityResolutionMutationCommandV1) throws -> EntityIdentityResolutionMutationReceiptV1? { nil }
     func entityIdentityResolutionQuery(_ request: EntityIdentityResolutionQueryV1) throws -> EntityIdentityResolutionQueryResultV1 { throw WorkspaceMutationFailureV1.unsupportedCommand }
@@ -153,6 +162,16 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     private struct RememberedMutation {
         let digest: String
         let outcome: WorkspaceMutationOutcomeV1
+    }
+
+    /// Ephemeral proof that a first-seen acknowledgement entered through an
+    /// authorized writer path. It is deliberately absent from every encoded
+    /// command, receipt, backup, and replication record.
+    private enum ReinspectionAcknowledgementAdmission {
+        case locallyMinted(commandSHA256: String, trustedAt: Date)
+        case validatedImported(destinationCommandSHA256: String,
+                               sourceCommand: ReinspectionExceptionMutationCommandV1,
+                               sourceChangeSHA256: String)
     }
 
     private let identity: WorkspaceReplicaIdentityV1
@@ -388,6 +407,20 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         let locationOccurredAt = try change.envelope.command.canonicalLocationAffectedIdentities() == nil
             ? nil
             : change.receipt.committedAt
+        let acknowledgementAdmission: ReinspectionAcknowledgementAdmission?
+        if case let .applyReinspectionException(command) = request.command,
+           case .recordAcknowledgement = command.payload {
+            guard case let .applyReinspectionException(sourceCommand) = change.envelope.command else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            acknowledgementAdmission = .validatedImported(
+                destinationCommandSHA256: command.commandSHA256,
+                sourceCommand: sourceCommand,
+                sourceChangeSHA256: sourceInputSHA256
+            )
+        } else {
+            acknowledgementAdmission = nil
+        }
         return try executeInternal(
             request,
             reversalPlan: nil,
@@ -397,7 +430,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             contentDependencyIDs: change.envelope.contentDependencyIDs,
             correlationID: sourceCorrelationID,
             portableReversalPlan: change.portableReversalPlan,
-            occurredAtOverride: locationOccurredAt
+            occurredAtOverride: locationOccurredAt,
+            reinspectionAcknowledgementAdmission: acknowledgementAdmission
         )
     }
 
@@ -655,8 +689,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
         if let receipt = try journalStore.reinspectionExceptionReceipt(command) { return receipt }
+        if case .recordAcknowledgement = command.payload {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
         let current = try currentRevision()
-        try adapter.validateReinspectionExceptionCommand(command, currentRevision: current)
+        try adapter.validateReinspectionExceptionCommand(
+            command, currentRevision: current, evaluatedAt: command.submittedAt
+        )
         _ = try execute(.init(
             mutationID: command.mutationID,
             expectedRevision: command.expectedRevision,
@@ -667,6 +706,75 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         }
         try receipt.validate(command: command)
         return receipt
+    }
+
+    /// Creates a local acknowledgement and its command from one writer-owned
+    /// instant. Exact intent retry is resolved from durable journal truth before
+    /// sampling time or consulting today's source frontier.
+    func commitExceptionQueueAcknowledgement(
+        _ intent: ExceptionQueueAcknowledgementIntentV1,
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1]
+    ) throws -> ExceptionQueueAcknowledgementCommitResultV1 {
+        try intent.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard intent.source.workspaceID == identity.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let existing = try existingAcknowledgementResult(for: intent, journalStore: journalStore) {
+            return existing
+        }
+
+        let trustedAt = clock.now()
+        let acknowledgement = try intent.acknowledgement(recordedAt: trustedAt)
+        let command = try ReinspectionExceptionMutationCommandV1(
+            commandID: idSource.makeID(), workspaceID: intent.source.workspaceID,
+            expectedRevision: intent.expectedRevision, mutationID: intent.mutationID,
+            payload: .recordAcknowledgement(acknowledgement, intent.source, intent.predecessor),
+            submittedAt: trustedAt
+        )
+        let current = try currentRevision()
+        try adapter.validateReinspectionExceptionCommand(
+            command, currentRevision: current, evaluatedAt: trustedAt
+        )
+        try adapter.validateCurrentUnresolvedExceptionSource(
+            intent.source, providers: providers, evaluatedAt: trustedAt
+        )
+        _ = try executeInternal(
+            .init(mutationID: command.mutationID, expectedRevision: command.expectedRevision,
+                  command: .applyReinspectionException(command)),
+            reversalPlan: nil,
+            semanticReversalExecution: nil,
+            semanticReversalReplayIdentitySHA256: nil,
+            occurredAtOverride: trustedAt,
+            reinspectionAcknowledgementAdmission: .locallyMinted(
+                commandSHA256: command.commandSHA256, trustedAt: trustedAt
+            )
+        )
+        guard let receipt = try journalStore.reinspectionExceptionReceipt(command) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try receipt.validate(command: command)
+        return try .init(acknowledgement: acknowledgement, receipt: receipt)
+    }
+
+    private func existingAcknowledgementResult(
+        for intent: ExceptionQueueAcknowledgementIntentV1,
+        journalStore: MutationJournalStoreV1
+    ) throws -> ExceptionQueueAcknowledgementCommitResultV1? {
+        guard try journalStore.receipt(mutationID: intent.mutationID) != nil else { return nil }
+        let matching = try journalStore.reinspectionExceptionRecoveryPairs().filter {
+            $0.command.workspaceID == intent.source.workspaceID &&
+            $0.command.mutationID == intent.mutationID
+        }
+        guard matching.count == 1, let pair = matching.first,
+              try intent.matches(pair.command),
+              case let .recordAcknowledgement(value, source, predecessor) = pair.command.payload,
+              source == intent.source, predecessor == intent.predecessor else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        try pair.receipt.validate(command: pair.command)
+        return try .init(acknowledgement: value, receipt: pair.receipt)
     }
 
     func reinspectionExceptionReceipt(
@@ -785,7 +893,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         guard request.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
         // The adapter owns both incumbent canonical resolvers and returns only
         // a result already validated with `validateResolved(for:...)`.
-        return try adapter.reinspectionExceptionQuery(request, providers: providers)
+        let evaluatedAt = clock.now()
+        return try adapter.reinspectionExceptionQuery(
+            request, providers: providers, evaluatedAt: evaluatedAt
+        )
     }
 
     func evidenceMetadataReceipt(
@@ -1002,7 +1113,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         contentDependencyIDs: [String] = [],
         correlationID: UUID? = nil,
         portableReversalPlan: PortableReversalPlanV1? = nil,
-        occurredAtOverride: Date? = nil
+        occurredAtOverride: Date? = nil,
+        reinspectionAcknowledgementAdmission: ReinspectionAcknowledgementAdmission? = nil
     ) throws -> WorkspaceMutationOutcomeV1 {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard !isExecuting else { throw WorkspaceMutationFailureV1.persistenceFailed }
@@ -1359,6 +1471,41 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 throw WorkspaceMutationFailureV1.mutationIDQuarantined
             }
             return try notifyingSearchIndex(prior.outcome)
+        }
+        if case let .applyReinspectionException(command) = request.command {
+            // Durable replay returns above. Every first-seen C12 route,
+            // including generic execution and validated import, must retain
+            // the exact full-snapshot CAS plus only an absent target at zero.
+            try command.validate(currentRevision: currentRevision())
+        }
+        if case let .applyReinspectionException(command) = request.command,
+           case let .recordAcknowledgement(acknowledgement, _, _) = command.payload {
+            switch reinspectionAcknowledgementAdmission {
+            case let .locallyMinted(commandSHA256, trustedAt):
+                guard sourceKind == nil, semanticReversalExecution == nil,
+                      commandSHA256 == command.commandSHA256,
+                      trustedAt == occurredAt,
+                      acknowledgement.recordedAt == trustedAt,
+                      command.submittedAt == trustedAt else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            case let .validatedImported(destinationCommandSHA256, sourceCommand, sourceChangeSHA256):
+                guard sourceKind == .importedHistory,
+                      semanticReversalExecution == nil,
+                      destinationCommandSHA256 == command.commandSHA256,
+                      sourceCommand.commandID == command.commandID,
+                      sourceCommand.workspaceID == command.workspaceID,
+                      sourceCommand.mutationID == command.mutationID,
+                      sourceCommand.payload == command.payload,
+                      sourceCommand.submittedAt == command.submittedAt,
+                      KernelCanonicalHashV1.validSHA256(sourceChangeSHA256) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            case nil:
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        } else if let _ = reinspectionAcknowledgementAdmission {
+            throw WorkspaceMutationFailureV1.invalidCommand
         }
         guard remembered.count < maximumRememberedMutationCount else {
             throw WorkspaceMutationFailureV1.idempotencyCapacityReached
@@ -1730,23 +1877,48 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                     ($0.identity, $0.revision)
                 }
             )
-            expected = try WorkspaceExpectedRevisionV1(
-                workspaceID: identity.workspaceID,
-                generationID: generationID,
-                writerInstanceID: writerInstanceID,
-                workspaceRevision: current.revision,
-                entityRevisions: targets.map {
+            let expectedEntityRevisions: [WorkspaceEntityRevisionV1]
+            if case .applyReinspectionException = command {
+                // C12 validates an exact full-snapshot CAS and its command
+                // initializer enrolls only an absent append target at zero.
+                expectedEntityRevisions = current.entityRevisions
+            } else {
+                expectedEntityRevisions = targets.map {
                     WorkspaceEntityRevisionV1(
                         identity: $0,
                         revision: known[$0, default: 0]
                     )
                 }
+            }
+            expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: identity.workspaceID,
+                generationID: generationID,
+                writerInstanceID: writerInstanceID,
+                workspaceRevision: current.revision,
+                entityRevisions: expectedEntityRevisions
             )
+        }
+        let destinationCommand: WorkspaceCommandV1
+        let requestExpectedRevision: WorkspaceExpectedRevisionV1
+        if case let .applyReinspectionException(source) = command {
+            let rebound = try ReinspectionExceptionMutationCommandV1(
+                commandID: source.commandID,
+                workspaceID: source.workspaceID,
+                expectedRevision: expected,
+                mutationID: source.mutationID,
+                payload: source.payload,
+                submittedAt: source.submittedAt
+            )
+            destinationCommand = .applyReinspectionException(rebound)
+            requestExpectedRevision = rebound.expectedRevision
+        } else {
+            destinationCommand = command
+            requestExpectedRevision = expected
         }
         return WorkspaceMutationRequestV1(
             mutationID: mutationID,
-            expectedRevision: expected,
-            command: command
+            expectedRevision: requestExpectedRevision,
+            command: destinationCommand
         )
     }
 
@@ -1756,13 +1928,31 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         effectiveSourceKind: MutationSourceKindV1,
         journalStore: MutationJournalStoreV1
     ) throws -> Bool {
+        let commandBodyMatches: Bool
+        if case let .applyReinspectionException(sourceCommand) = change.envelope.command {
+            let pairs = try journalStore.reinspectionExceptionRecoveryPairs().filter {
+                $0.command.mutationID == change.envelope.mutationID
+            }
+            guard pairs.count == 1, let recorded = pairs.first else { return false }
+            let recordedExpected = try MutationPortableExpectedRevisionV1(recorded.command.expectedRevision)
+            let sourceExpected = try MutationPortableExpectedRevisionV1(sourceCommand.expectedRevision)
+            commandBodyMatches = recordedExpected == prior.expectedRevision
+                && sourceExpected == change.envelope.expectedRevision
+                && recorded.command.commandID == sourceCommand.commandID
+                && recorded.command.workspaceID == sourceCommand.workspaceID
+                && recorded.command.mutationID == sourceCommand.mutationID
+                && recorded.command.payload == sourceCommand.payload
+                && recorded.command.submittedAt == sourceCommand.submittedAt
+        } else {
+            commandBodyMatches = prior.commandBodySHA256 == change.envelope.commandBodySHA256
+        }
         let priorPostImageIdentities = try prior.postImages.map { try $0.identity }
         let incomingPostImageIdentities = try change.receipt.postImages.map {
             try $0.identity
         }
         guard prior.sourceKind == effectiveSourceKind,
               prior.mutationID == change.envelope.mutationID,
-              prior.commandBodySHA256 == change.envelope.commandBodySHA256,
+              commandBodyMatches,
               prior.contentDependencyIDs == change.envelope.contentDependencyIDs,
               prior.causationMutationID == change.envelope.causationMutationID,
               priorPostImageIdentities == incomingPostImageIdentities,

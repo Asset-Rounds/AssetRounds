@@ -298,19 +298,20 @@ struct ExceptionQueueSourceSnapshotV1: Codable, Equatable, Sendable {
 
 protocol ExceptionQueueCanonicalSourceProvidingV1 {
     var registeredSourceKind: ExceptionQueueSourceKindV1 { get }
-    func unresolvedExceptionSources(workspaceID: WorkspaceID) throws -> [ExceptionQueueSourceSnapshotV1]
+    func unresolvedExceptionSources(workspaceID: WorkspaceID, evaluatedAt: Date) throws -> [ExceptionQueueSourceSnapshotV1]
 }
 
 protocol ExceptionQueueCanonicalSourceResolvingV1 {
     func resolveExceptionQueueSource(workspaceID: WorkspaceID, kind: ExceptionQueueSourceKindV1,
-                                     sourceID: String, revision: UInt64) throws -> ExceptionQueueSourceSnapshotV1
+                                     sourceID: String, revision: UInt64,
+                                     evaluatedAt: Date) throws -> ExceptionQueueSourceSnapshotV1
 }
 
 extension ExceptionQueueSourceSnapshotV1 {
-    func validateResolved(by resolver: any ExceptionQueueCanonicalSourceResolvingV1) throws {
-        try validate()
+    func validateResolved(by resolver: any ExceptionQueueCanonicalSourceResolvingV1, evaluatedAt: Date) throws {
+        try validate(); try ReinspectionExceptionValidationV1.instant(evaluatedAt)
         let resolved = try resolver.resolveExceptionQueueSource(workspaceID: workspaceID, kind: kind,
-            sourceID: sourceID, revision: sourceRevision)
+            sourceID: sourceID, revision: sourceRevision, evaluatedAt: evaluatedAt)
         try resolved.validate(); guard resolved == self else { throw ReinspectionExceptionFailureV1.staleRevision }
     }
 }
@@ -395,6 +396,83 @@ struct ExceptionQueueAcknowledgementV1: Codable, Equatable, Sendable {
     private struct Basis: Codable { let schemaVersion: Int; let acknowledgementID: UUID; let workspaceID: WorkspaceID; let logicalExceptionKey: String; let sourceKind: ExceptionQueueSourceKindV1; let sourceID: String; let sourceRevision: UInt64; let sourceSHA256: String; let evidenceSHA256: String; let disposition: ExceptionQueueAcknowledgementDispositionV1; let revision: UInt64; let supersedesAcknowledgementID: UUID?; let predecessorSHA256: String?; let actor: ActorSnapshotV1; let recordedAt: Date; let mutationID: MutationIDV1 }
 }
 
+/// Nonpersistent local write intent. The canonical writer supplies the one
+/// trusted instant used for both acknowledgement and command construction.
+struct ExceptionQueueAcknowledgementIntentV1: Equatable, Sendable {
+    let acknowledgementID: UUID
+    let source: ExceptionQueueSourceSnapshotV1
+    let predecessor: ExceptionQueueAcknowledgementV1?
+    let disposition: ExceptionQueueAcknowledgementDispositionV1
+    let actor: ActorSnapshotV1
+    let expectedRevision: WorkspaceExpectedRevisionV1
+    let mutationID: MutationIDV1
+
+    init(acknowledgementID: UUID, source: ExceptionQueueSourceSnapshotV1,
+         predecessor: ExceptionQueueAcknowledgementV1? = nil,
+         disposition: ExceptionQueueAcknowledgementDispositionV1,
+         actor: ActorSnapshotV1, expectedRevision: WorkspaceExpectedRevisionV1,
+         mutationID: MutationIDV1) throws {
+        self.acknowledgementID = acknowledgementID; self.source = source; self.predecessor = predecessor
+        self.disposition = disposition; self.actor = actor
+        self.expectedRevision = try ReinspectionExceptionMutationCommandV1.canonicalExpectedRevision(
+            expectedRevision,
+            adding: ReinspectionExceptionMutationCommandV1.acknowledgementTarget(
+                logicalExceptionKey: source.logicalExceptionKey
+            )
+        )
+        self.mutationID = mutationID; try validate()
+    }
+
+    var acknowledgementRevision: UInt64 {
+        guard let predecessor else { return 1 }
+        return predecessor.revision.addingReportingOverflow(1).partialValue
+    }
+
+    func validate() throws {
+        try ReinspectionExceptionValidationV1.id(acknowledgementID); try source.validate(); try actor.validate()
+        guard actor.workspaceID == source.workspaceID, expectedRevision.workspaceID == source.workspaceID else {
+            throw ReinspectionExceptionFailureV1.wrongWorkspace
+        }
+        if let predecessor {
+            try predecessor.validate()
+            let (next, overflow) = predecessor.revision.addingReportingOverflow(1)
+            guard !overflow, next > predecessor.revision,
+                  predecessor.workspaceID == source.workspaceID,
+                  predecessor.logicalExceptionKey == source.logicalExceptionKey,
+                  predecessor.sourceKind == source.kind,
+                  predecessor.sourceID == source.sourceID,
+                  predecessor.sourceRevision == source.sourceRevision,
+                  predecessor.sourceSHA256 == source.sourceSHA256,
+                  predecessor.evidenceSHA256 == source.evidenceSHA256 else {
+                throw ReinspectionExceptionFailureV1.staleRevision
+            }
+        }
+    }
+
+    func acknowledgement(recordedAt: Date) throws -> ExceptionQueueAcknowledgementV1 {
+        try validate(); try ReinspectionExceptionValidationV1.instant(recordedAt)
+        return try .init(acknowledgementID: acknowledgementID, source: source,
+                         disposition: disposition, revision: acknowledgementRevision,
+                         predecessor: predecessor, actor: actor, recordedAt: recordedAt,
+                         mutationID: mutationID)
+    }
+
+    func matches(_ command: ReinspectionExceptionMutationCommandV1) throws -> Bool {
+        try validate(); try command.validate()
+        guard command.workspaceID == source.workspaceID,
+              command.expectedRevision == expectedRevision,
+              command.mutationID == mutationID,
+              case let .recordAcknowledgement(value, boundSource, boundPredecessor) = command.payload,
+              boundSource == source, boundPredecessor == predecessor,
+              value.acknowledgementID == acknowledgementID,
+              value.disposition == disposition, value.actor == actor,
+              value.revision == acknowledgementRevision,
+              value.recordedAt == command.submittedAt else { return false }
+        try value.validate(source: source, predecessor: predecessor)
+        return true
+    }
+}
+
 struct ExceptionQueueItemV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int; let queueItemID: String; let source: ExceptionQueueSourceSnapshotV1
@@ -415,8 +493,16 @@ struct ExceptionQueueItemV1: Codable, Equatable, Sendable {
             throw ReinspectionExceptionFailureV1.forgedSource
         }
     }
-    func validateResolved(by resolver: any ExceptionQueueCanonicalSourceResolvingV1) throws {
-        try validate(); try source.validateResolved(by: resolver)
+    func validateResolved(by resolver: any ExceptionQueueCanonicalSourceResolvingV1, evaluatedAt: Date) throws {
+        try validate(); try source.validateResolved(by: resolver, evaluatedAt: evaluatedAt)
+        if let acknowledgement {
+            let historic = try resolver.resolveExceptionQueueSource(
+                workspaceID: acknowledgement.workspaceID, kind: acknowledgement.sourceKind,
+                sourceID: acknowledgement.sourceID, revision: acknowledgement.sourceRevision,
+                evaluatedAt: acknowledgement.recordedAt
+            )
+            try acknowledgement.validateCurrentSource(historic)
+        }
     }
     private var basis: Basis { .init(schemaVersion: schemaVersion, queueItemID: queueItemID, source: source, acknowledgement: acknowledgement, isSourceResolved: isSourceResolved) }
     private struct Basis: Codable { let schemaVersion: Int; let queueItemID: String; let source: ExceptionQueueSourceSnapshotV1; let acknowledgement: ExceptionQueueAcknowledgementV1?; let isSourceResolved: Bool }
@@ -448,13 +534,22 @@ struct ExceptionQueueProjectionV1: Codable, Equatable, Sendable {
     init(workspaceID: WorkspaceID, registry: ExceptionQueueSourceRegistryV1,
          sources: [ExceptionQueueSourceSnapshotV1],
          acknowledgements: [ExceptionQueueAcknowledgementV1] = [],
+         evaluatedAt: Date,
          resolver: any ExceptionQueueCanonicalSourceResolvingV1) throws {
-        try registry.validate()
+        try registry.validate(); try ReinspectionExceptionValidationV1.instant(evaluatedAt)
         guard sources.count <= ReinspectionExceptionLimitsV1.maximumQueueItems else {
             throw ReinspectionExceptionFailureV1.arithmeticOverflow
         }
-        try sources.forEach { try $0.validateResolved(by: resolver) }
-        try acknowledgements.forEach { try $0.validate() }
+        try sources.forEach { try $0.validateResolved(by: resolver, evaluatedAt: evaluatedAt) }
+        try acknowledgements.forEach { acknowledgement in
+            try acknowledgement.validate()
+            let historic = try resolver.resolveExceptionQueueSource(
+                workspaceID: acknowledgement.workspaceID, kind: acknowledgement.sourceKind,
+                sourceID: acknowledgement.sourceID, revision: acknowledgement.sourceRevision,
+                evaluatedAt: acknowledgement.recordedAt
+            )
+            try acknowledgement.validateCurrentSource(historic)
+        }
         guard sources.allSatisfy({ $0.workspaceID == workspaceID }),
               acknowledgements.allSatisfy({ $0.workspaceID == workspaceID }) else {
             throw ReinspectionExceptionFailureV1.wrongWorkspace
@@ -508,8 +603,9 @@ enum ReinspectionExceptionMutationPayloadV1: Codable, Equatable, Sendable {
     var semanticSHA256s: [String] { switch self { case let .putPlan(v, _): return [v.planSHA256]; case let .recordAttestation(v, _): return [v.attestationSHA256]; case let .recordAcknowledgement(v, _, _): return [v.acknowledgementSHA256] } }
     func validate() throws { switch self { case let .putPlan(v, predecessor): try v.validate(predecessor: predecessor); case let .recordAttestation(v, p): try v.validate(plan: p); case let .recordAcknowledgement(v, s, predecessor): try v.validate(source: s, predecessor: predecessor) } }
     func validateResolved(reinspectionResolver: any ReinspectionCanonicalSourceResolvingV1,
-                          exceptionResolver: any ExceptionQueueCanonicalSourceResolvingV1) throws {
-        try validate()
+                          exceptionResolver: any ExceptionQueueCanonicalSourceResolvingV1,
+                          evaluatedAt: Date) throws {
+        try validate(); try ReinspectionExceptionValidationV1.instant(evaluatedAt)
         switch self {
         case let .putPlan(plan, predecessor):
             for item in plan.items { try item.prior.validateResolved(by: reinspectionResolver); try item.current.validateResolved(by: reinspectionResolver) }
@@ -518,7 +614,7 @@ enum ReinspectionExceptionMutationPayloadV1: Codable, Equatable, Sendable {
             try attestation.prior.validateResolved(by: reinspectionResolver); try attestation.current.validateResolved(by: reinspectionResolver)
             for item in plan.items { try item.prior.validateResolved(by: reinspectionResolver); try item.current.validateResolved(by: reinspectionResolver) }
         case let .recordAcknowledgement(_, source, _):
-            try source.validateResolved(by: exceptionResolver)
+            try source.validateResolved(by: exceptionResolver, evaluatedAt: evaluatedAt)
         }
     }
 }
@@ -530,10 +626,13 @@ struct ReinspectionExceptionMutationCommandV1: Codable, Equatable, Sendable {
     let payload: ReinspectionExceptionMutationPayloadV1; let submittedAt: Date; let commandSHA256: String
     init(commandID: UUID, workspaceID: WorkspaceID, expectedRevision: WorkspaceExpectedRevisionV1,
          mutationID: MutationIDV1, payload: ReinspectionExceptionMutationPayloadV1, submittedAt: Date) throws {
+        let enrolledExpected = try Self.canonicalExpectedRevision(expectedRevision, for: payload)
         schemaVersion = Self.schemaVersion; self.commandID = commandID; self.workspaceID = workspaceID
-        self.expectedRevision = expectedRevision; self.mutationID = mutationID; self.payload = payload; self.submittedAt = submittedAt
+        self.expectedRevision = enrolledExpected
+        self.mutationID = mutationID; self.payload = payload; self.submittedAt = submittedAt
         commandSHA256 = try ReinspectionExceptionValidationV1.hash(Basis(schemaVersion: Self.schemaVersion, commandID: commandID,
-            workspaceID: workspaceID, expectedRevision: expectedRevision, mutationID: mutationID, payload: payload, submittedAt: submittedAt)); try validate()
+            workspaceID: workspaceID, expectedRevision: enrolledExpected, mutationID: mutationID,
+            payload: payload, submittedAt: submittedAt)); try validate()
     }
     func validate() throws {
         try ReinspectionExceptionValidationV1.id(commandID); try payload.validate(); try ReinspectionExceptionValidationV1.instant(submittedAt)
@@ -543,15 +642,67 @@ struct ReinspectionExceptionMutationCommandV1: Codable, Equatable, Sendable {
               payload.workspaceID == workspaceID, payload.mutationID == mutationID,
               commandSHA256 == (try ReinspectionExceptionValidationV1.hash(basis)) else { throw ReinspectionExceptionFailureV1.wrongWorkspace }
     }
-    func validate(currentRevision: WorkspaceRevisionV1) throws { try validate(); guard WorkspaceExpectedRevisionV1(snapshot: currentRevision) == expectedRevision else { throw ReinspectionExceptionFailureV1.staleRevision } }
+    func validate(currentRevision: WorkspaceRevisionV1) throws {
+        try validate()
+        let canonical = try Self.canonicalExpectedRevision(
+            WorkspaceExpectedRevisionV1(snapshot: currentRevision), for: payload
+        )
+        guard canonical == expectedRevision else { throw ReinspectionExceptionFailureV1.staleRevision }
+    }
     func validate(currentRevision: WorkspaceRevisionV1,
                   reinspectionResolver: any ReinspectionCanonicalSourceResolvingV1,
-                  exceptionResolver: any ExceptionQueueCanonicalSourceResolvingV1) throws {
+                  exceptionResolver: any ExceptionQueueCanonicalSourceResolvingV1,
+                  evaluatedAt: Date) throws {
         try validate(currentRevision: currentRevision)
-        try payload.validateResolved(reinspectionResolver: reinspectionResolver, exceptionResolver: exceptionResolver)
+        try payload.validateResolved(reinspectionResolver: reinspectionResolver, exceptionResolver: exceptionResolver,
+                                     evaluatedAt: evaluatedAt)
     }
     private var basis: Basis { .init(schemaVersion: schemaVersion, commandID: commandID, workspaceID: workspaceID, expectedRevision: expectedRevision, mutationID: mutationID, payload: payload, submittedAt: submittedAt) }
     private struct Basis: Codable { let schemaVersion: Int; let commandID: UUID; let workspaceID: WorkspaceID; let expectedRevision: WorkspaceExpectedRevisionV1; let mutationID: MutationIDV1; let payload: ReinspectionExceptionMutationPayloadV1; let submittedAt: Date }
+
+    /// C12 commands enroll only their single absent append target at revision
+    /// zero. Every incumbent snapshot entry remains exact and is revalidated
+    /// against the full live snapshot before the writer transaction begins.
+    static func canonicalExpectedRevision(
+        _ supplied: WorkspaceExpectedRevisionV1,
+        for payload: ReinspectionExceptionMutationPayloadV1
+    ) throws -> WorkspaceExpectedRevisionV1 {
+        try payload.validate()
+        let target: WorkspaceEntityIdentityV1
+        switch payload {
+        case let .putPlan(plan, _):
+            target = try .init(kind: .reinspectionPlan, id: plan.planID)
+        case let .recordAttestation(attestation, _):
+            target = try .init(kind: .unchangedAttestation, id: attestation.attestationID)
+        case let .recordAcknowledgement(acknowledgement, _, _):
+            target = try acknowledgementTarget(logicalExceptionKey: acknowledgement.logicalExceptionKey)
+        }
+        return try canonicalExpectedRevision(supplied, adding: target)
+    }
+
+    static func canonicalExpectedRevision(
+        _ supplied: WorkspaceExpectedRevisionV1,
+        adding target: WorkspaceEntityIdentityV1
+    ) throws -> WorkspaceExpectedRevisionV1 {
+        var enrolled = supplied.entityRevisions
+        if !enrolled.contains(where: { $0.identity == target }) {
+            enrolled.append(WorkspaceEntityRevisionV1(identity: target, revision: 0))
+        }
+        return try WorkspaceExpectedRevisionV1(
+            workspaceID: supplied.workspaceID,
+            generationID: supplied.generationID,
+            writerInstanceID: supplied.writerInstanceID,
+            workspaceRevision: supplied.workspaceRevision,
+            entityRevisions: enrolled
+        )
+    }
+
+    static func acknowledgementTarget(logicalExceptionKey: String) throws -> WorkspaceEntityIdentityV1 {
+        try .init(
+            kind: .exceptionQueueAcknowledgement,
+            id: acknowledgementIdentity(logicalExceptionKey)
+        )
+    }
 }
 
 enum ReinspectionExceptionQueryTargetV1: Codable, Equatable, Sendable {
@@ -592,17 +743,19 @@ enum ReinspectionExceptionQueryResultV1: Codable, Equatable, Sendable {
     }
     func validateResolved(for query: ReinspectionExceptionQueryV1,
                           reinspectionResolver: any ReinspectionCanonicalSourceResolvingV1,
-                          exceptionResolver: any ExceptionQueueCanonicalSourceResolvingV1) throws {
-        try validate(for: query)
+                          exceptionResolver: any ExceptionQueueCanonicalSourceResolvingV1,
+                          evaluatedAt: Date) throws {
+        try validate(for: query); try ReinspectionExceptionValidationV1.instant(evaluatedAt)
         switch self {
         case let .plan(plan): try plan.validateResolved(by: reinspectionResolver)
         case let .attestation(attestation):
             try attestation.prior.validateResolved(by: reinspectionResolver); try attestation.current.validateResolved(by: reinspectionResolver)
         case let .acknowledgement(acknowledgement):
             let source = try exceptionResolver.resolveExceptionQueueSource(workspaceID: acknowledgement.workspaceID,
-                kind: acknowledgement.sourceKind, sourceID: acknowledgement.sourceID, revision: acknowledgement.sourceRevision)
+                kind: acknowledgement.sourceKind, sourceID: acknowledgement.sourceID,
+                revision: acknowledgement.sourceRevision, evaluatedAt: acknowledgement.recordedAt)
             try acknowledgement.validateCurrentSource(source)
-        case let .queue(items): try items.forEach { try $0.validateResolved(by: exceptionResolver) }
+        case let .queue(items): try items.forEach { try $0.validateResolved(by: exceptionResolver, evaluatedAt: evaluatedAt) }
         case .notFound: break
         }
     }
@@ -647,4 +800,21 @@ struct ReinspectionExceptionMutationReceiptV1: Codable, Equatable, Sendable {
         priorWorkspaceRevision: priorWorkspaceRevision, resultingWorkspaceRevision: resultingWorkspaceRevision,
         recoveryState: recoveryState, committedAt: committedAt) }
     private struct Basis: Codable { let schemaVersion: Int; let receiptID: UUID; let workspaceID: WorkspaceID; let generationID: UUID; let mutationID: MutationIDV1; let commandSHA256: String; let semanticSHA256s: [String]; let priorWorkspaceRevision: UInt64; let resultingWorkspaceRevision: UInt64; let recoveryState: ReinspectionExceptionRecoveryStateV1; let committedAt: Date }
+}
+
+struct ExceptionQueueAcknowledgementCommitResultV1: Equatable, Sendable {
+    let acknowledgement: ExceptionQueueAcknowledgementV1
+    let receipt: ReinspectionExceptionMutationReceiptV1
+
+    init(acknowledgement: ExceptionQueueAcknowledgementV1,
+         receipt: ReinspectionExceptionMutationReceiptV1) throws {
+        try acknowledgement.validate(); try receipt.validate()
+        guard acknowledgement.workspaceID == receipt.workspaceID,
+              acknowledgement.mutationID == receipt.mutationID,
+              acknowledgement.acknowledgementSHA256 == receipt.semanticSHA256s.first,
+              receipt.semanticSHA256s.count == 1 else {
+            throw ReinspectionExceptionFailureV1.receiptMismatch
+        }
+        self.acknowledgement = acknowledgement; self.receipt = receipt
+    }
 }

@@ -7,6 +7,26 @@ enum MyDaySourceReadFailureV1: Error, Equatable {
 
 enum MyDayReadinessAssessmentV1: Equatable, Sendable {
     case notAssessed
+    case roundManifest(OfflineReadinessManifestV1)
+    case unavailable(ProductionRoundReadinessUnavailableV1)
+
+    var readiness: MyDayReadinessV1 {
+        switch self {
+        case .notAssessed, .unavailable: return .unavailable
+        case let .roundManifest(manifest):
+            switch manifest.status {
+            case .ready: return .ready
+            case .blocked: return .blocked
+            case .warning, .stale: return .notReady
+            }
+        }
+    }
+}
+
+/// Ephemeral exact-source evidence, never a cached access capability.
+struct MyDaySourceReadinessAssessmentV1: Equatable, Sendable {
+    let reference: MyDayEligibleReferenceV1
+    let assessment: MyDayReadinessAssessmentV1
 }
 
 /// Derived source facts, not planning or readiness persistence. Packet versions
@@ -29,7 +49,7 @@ struct MyDaySourceSnapshotV1: Sendable {
     let frontiers: [MyDaySourceFrontierV1]
     let dueQueue: OccurrenceDueQueueStateV1
     let sourceClosureSHA256: String
-    let readinessAssessment: MyDayReadinessAssessmentV1 = .notAssessed
+    let readinessAssessments: [MyDaySourceReadinessAssessmentV1]
 
     var eligibleReferences: [MyDayEligibleReferenceV1] {
         sources.filter(\.isSelectable).map(\.reference)
@@ -46,6 +66,7 @@ struct MyDaySourceSnapshotV1: Sendable {
     private let generationID: UUID
     private let uiGenerationToken: UInt64
     private weak var originalWriter: WorkspaceWriterV1?
+    private let readinessAuthority: ProductionOfflineReadinessAuthorityV1?
 
     #if DEBUG
     /// Fault-injection only; cannot supply data, readiness or authorization.
@@ -59,6 +80,15 @@ struct MyDaySourceSnapshotV1: Sendable {
         generationID = session.generationID
         uiGenerationToken = session.uiGenerationToken
         originalWriter = session.workspaceWriter
+        readinessAuthority = nil
+    }
+
+    init(session: StoreSessionCoordinator, accessGate: AppAccessGateV1,
+         readinessAuthority: ProductionOfflineReadinessAuthorityV1) {
+        self.session = session; self.accessGate = accessGate
+        workspaceID = session.workspaceID; generationID = session.generationID
+        uiGenerationToken = session.uiGenerationToken; originalWriter = session.workspaceWriter
+        self.readinessAuthority = readinessAuthority
     }
 
     func snapshot(for plan: MyDayPlanV1? = nil, evaluatedAt: Date) async throws -> MyDaySourceSnapshotV1 {
@@ -71,8 +101,27 @@ struct MyDaySourceSnapshotV1: Sendable {
         }
         let current = try currentSession()
         let revision = try current.workspaceWriter.currentRevision()
-        let closure = try SourceClosure(context: current.modelContext, workspaceID: workspaceID)
-        let result = try closure.snapshot(workspaceID: workspaceID, plan: plan, evaluatedAt: evaluatedAt)
+        let closure = try SourceClosure(context: current.modelContext, workspaceID: workspaceID,
+                                        includeReadiness: readinessAuthority != nil)
+        let sourceResult = try closure.snapshot(workspaceID: workspaceID, plan: plan, evaluatedAt: evaluatedAt)
+        var assessments: [MyDaySourceReadinessAssessmentV1] = []
+        for source in sourceResult.sources {
+            if let readinessAuthority, case .roundSession = source.reference {
+                assessments.append(try await readinessAuthority.assess(source.reference))
+            } else {
+                assessments.append(.init(reference: source.reference, assessment: .notAssessed))
+            }
+        }
+        let frontiers = try sourceResult.frontiers.map { frontier in
+            let assessment = assessments.first { $0.reference == frontier.currentReference }
+            return try MyDaySourceFrontierV1(membershipID: frontier.membershipID,
+                plannedReference: frontier.plannedReference, currentReference: frontier.currentReference,
+                state: frontier.state, readiness: assessment?.assessment.readiness ?? .unavailable,
+                dueAt: frontier.dueAt, evaluatedAt: frontier.evaluatedAt)
+        }
+        let result = MyDaySourceSnapshotV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
+            sources: sourceResult.sources, frontiers: frontiers, dueQueue: sourceResult.dueQueue,
+            sourceClosureSHA256: sourceResult.sourceClosureSHA256, readinessAssessments: assessments)
         #if DEBUG
         try await afterSourceMaterializationForTesting?()
         #endif
@@ -80,11 +129,13 @@ struct MyDaySourceSnapshotV1: Sendable {
         // lock/unlock cycle during materialization invalidates this operation.
         try await accessGate.validateContentRead(token, for: .render)
         try Task.checkCancellation()
+        try readinessAuthority?.validateStorageForPublication(assessments)
         let rereadSession = try currentSession()
         guard try rereadSession.workspaceWriter.currentRevision() == revision else {
             throw MyDaySourceReadFailureV1.sourcesChanged
         }
-        let reread = try SourceClosure(context: rereadSession.modelContext, workspaceID: workspaceID)
+        let reread = try SourceClosure(context: rereadSession.modelContext, workspaceID: workspaceID,
+                                      includeReadiness: readinessAuthority != nil)
         guard try reread.sha256() == result.sourceClosureSHA256 else {
             throw MyDaySourceReadFailureV1.sourcesChanged
         }
@@ -110,8 +161,9 @@ struct MyDaySourceSnapshotV1: Sendable {
         let definitions: [ScheduleDefinitionReleaseV1]
         let occurrences: [OccurrenceHistoryEventV1]
         let drafts: [FieldDraftCheckpointV1]
+        let readinessSources: ProductionOfflineReadinessSourceClosureV1?
 
-        @MainActor init(context: ModelContext, workspaceID: WorkspaceID) throws {
+        @MainActor init(context: ModelContext, workspaceID: WorkspaceID, includeReadiness: Bool) throws {
             guard !context.hasChanges else { throw MyDaySourceReadFailureV1.sourcesChanged }
             let workspace = workspaceID.rawValue
             manifests = try context.fetch(FetchDescriptor<WorkPacketManifestRow>(predicate: #Predicate { $0.workspaceID == workspace }))
@@ -132,6 +184,7 @@ struct MyDaySourceSnapshotV1: Sendable {
                 .map { try $0.value() }.sorted { $0.eventID.uuidString < $1.eventID.uuidString }
             drafts = try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate { $0.workspaceID == workspace }))
                 .map { try $0.value() }.sorted { $0.draftID.uuidString < $1.draftID.uuidString }
+            readinessSources = includeReadiness ? try ProductionOfflineReadinessSourceClosureV1(context: context, workspaceID: workspaceID) : nil
         }
 
         func sha256() throws -> String { try MyDayCanonicalCodecV1.sha256(self) }
@@ -235,7 +288,8 @@ struct MyDaySourceSnapshotV1: Sendable {
                     readiness: .unavailable, dueAt: current?.dueAt, evaluatedAt: evaluatedAt)
             }
             return .init(workspaceID: workspaceID, evaluatedAt: evaluatedAt, sources: sources,
-                frontiers: frontiers, dueQueue: due, sourceClosureSHA256: try sha256())
+                frontiers: frontiers, dueQueue: due, sourceClosureSHA256: try sha256(),
+                readinessAssessments: sources.map { .init(reference: $0.reference, assessment: .notAssessed) })
         }
 
         private func validatePacketClosure() throws {

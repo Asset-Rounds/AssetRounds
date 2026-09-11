@@ -130,9 +130,10 @@ struct ReinspectionExceptionQueueLifecycleAdapterV1 {
             for pair in ordered {
                 let source = try exceptionSourceResolver.resolveExceptionQueueSource(
                     workspaceID: workspaceID, kind: pair.value.sourceKind,
-                    sourceID: pair.value.sourceID, revision: pair.value.sourceRevision
+                    sourceID: pair.value.sourceID, revision: pair.value.sourceRevision,
+                    evaluatedAt: pair.value.recordedAt
                 )
-                try source.validateResolved(by: exceptionSourceResolver)
+                try source.validateResolved(by: exceptionSourceResolver, evaluatedAt: pair.value.recordedAt)
                 try pair.value.validate(source: source, predecessor: predecessor)
                 let value = try pair.row.value(
                     source: source, predecessor: predecessor, resolver: exceptionSourceResolver
@@ -154,7 +155,11 @@ struct ReinspectionExceptionQueueLifecycleAdapterV1 {
                      acknowledgements: acknowledgements, receipts: receipts)
     }
 
-    func query(_ query: ReinspectionExceptionQueryV1) throws -> ReinspectionExceptionQueryResultV1 {
+    func query(_ query: ReinspectionExceptionQueryV1, evaluatedAt: Date) throws -> ReinspectionExceptionQueryResultV1 {
+        try query.validate()
+        guard evaluatedAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw ReinspectionExceptionFailureV1.invalidValue
+        }
         guard query.workspaceID == workspaceID else { throw ReinspectionExceptionFailureV1.wrongWorkspace }
         let state = try snapshot()
         switch query.target {
@@ -172,7 +177,7 @@ struct ReinspectionExceptionQueueLifecycleAdapterV1 {
             }
             var sources: [ExceptionQueueSourceSnapshotV1] = []
             for provider in sourceProviders {
-                let provided = try provider.unresolvedExceptionSources(workspaceID: workspaceID)
+                let provided = try provider.unresolvedExceptionSources(workspaceID: workspaceID, evaluatedAt: evaluatedAt)
                 guard provided.allSatisfy({ $0.kind == provider.registeredSourceKind }) else {
                     throw ReinspectionExceptionFailureV1.forgedSource
                 }
@@ -183,6 +188,7 @@ struct ReinspectionExceptionQueueLifecycleAdapterV1 {
             let registry = try ExceptionQueueSourceRegistryV1(registeredKinds: providerKinds.sorted { $0.rawValue < $1.rawValue })
             let projection = try ExceptionQueueProjectionV1(workspaceID: workspaceID, registry: registry,
                                                              sources: sources, acknowledgements: state.acknowledgements,
+                                                             evaluatedAt: evaluatedAt,
                                                              resolver: exceptionSourceResolver)
             return .queue(Array(projection.items.filter(filter.includes).prefix(query.maximumResults)))
         }
@@ -190,9 +196,9 @@ struct ReinspectionExceptionQueueLifecycleAdapterV1 {
 
     /// Rebuild is source-provider dependent and fails closed when source truth
     /// (including any related-work source) is unavailable.
-    func rebuild(_ filter: ExceptionQueueFilterV1) throws -> [ExceptionQueueItemV1] {
+    func rebuild(_ filter: ExceptionQueueFilterV1, evaluatedAt: Date) throws -> [ExceptionQueueItemV1] {
         let query = try ReinspectionExceptionQueryV1(workspaceID: workspaceID, target: .queue(filter), maximumResults: ReinspectionExceptionLimitsV1.maximumQueryResults)
-        guard case let .queue(values) = try self.query(query) else { throw ReinspectionExceptionFailureV1.missingSource }
+        guard case let .queue(values) = try self.query(query, evaluatedAt: evaluatedAt) else { throw ReinspectionExceptionFailureV1.missingSource }
         return values
     }
 

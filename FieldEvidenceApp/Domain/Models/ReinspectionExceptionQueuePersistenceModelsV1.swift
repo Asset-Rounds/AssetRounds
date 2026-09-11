@@ -180,7 +180,7 @@ private enum ReinspectionExceptionPersistenceCodecV1 {
          resolver: any ExceptionQueueCanonicalSourceResolvingV1,
          command: ReinspectionExceptionMutationCommandV1, resultingWorkspaceRevision: UInt64) throws {
         try value.validate(source: source, predecessor: predecessor); try ReinspectionExceptionPersistenceCodecV1.verify(command, result: resultingWorkspaceRevision)
-        try source.validateResolved(by: resolver)
+        try source.validateResolved(by: resolver, evaluatedAt: value.recordedAt)
         guard case let .recordAcknowledgement(payload, boundSource, boundPredecessor) = command.payload,
               payload == value, boundSource == source, boundPredecessor == predecessor else { throw ReinspectionExceptionPersistenceFailureV1.wrongPayload }
         rowID = ReinspectionExceptionPersistenceCodecV1.rowID(value.workspaceID, .acknowledgement, value.logicalExceptionKey, value.revision)
@@ -219,8 +219,9 @@ private enum ReinspectionExceptionPersistenceCodecV1 {
     }
     func value(source: ExceptionQueueSourceSnapshotV1, predecessor: ExceptionQueueAcknowledgementV1? = nil,
                resolver: any ExceptionQueueCanonicalSourceResolvingV1) throws -> ExceptionQueueAcknowledgementV1 {
-        try source.validateResolved(by: resolver)
-        let value = try value(); try value.validate(source: source, predecessor: predecessor); return value
+        let value = try value()
+        try source.validateResolved(by: resolver, evaluatedAt: value.recordedAt)
+        try value.validate(source: source, predecessor: predecessor); return value
     }
     func markReceiptCommitted(_ receipt: ReinspectionExceptionMutationReceiptV1) throws {
         try receipt.validate(); guard receiptID == nil, receipt.semanticSHA256s == [canonicalSHA256], receipt.workspaceID.rawValue == workspaceID,

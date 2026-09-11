@@ -45,6 +45,63 @@ private struct C14Corpus: Codable {
 
 @MainActor
 final class V9_28InspectionReviewCorrectiveActionTests: XCTestCase {
+    func testAtomicReviewBundlePreservesAbsentExactAndHostileDispositionBindings() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture()
+        for transition in fixture.transitions.prefix(2) {
+            let absent = try InspectionReviewAtomicBundleV1(transition: transition)
+            XCTAssertEqual(absent.transition, transition)
+            XCTAssertNil(absent.disposition)
+            XCTAssertTrue(absent.changeRequests.isEmpty)
+            try absent.validate()
+        }
+        let transition = fixture.transitions[2]
+        let disposition = fixture.changesRequestedDisposition
+        let request = fixture.changeRequest
+        let exact = try InspectionReviewAtomicBundleV1(transition: transition,
+            disposition: disposition, changeRequests: [request])
+        XCTAssertEqual(exact.transition, transition)
+        XCTAssertEqual(exact.disposition, disposition)
+        XCTAssertEqual(exact.changeRequests, [request])
+        try exact.validate()
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: transition,
+            changeRequests: [request]))
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: fixture.transitions[0],
+            disposition: disposition))
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: transition,
+            disposition: fixture.acceptedDisposition, changeRequests: [request]))
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: transition,
+            disposition: disposition))
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: fixture.transitions[1],
+            changeRequests: [request]))
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: transition,
+            disposition: disposition, changeRequests: [request, request]))
+
+        // Preserve IDs so these valid values reach the bundle's revision,
+        // mutation and workspace binding checks, not just missing-ID checks.
+        let wrongRevision = try ReviewDispositionV1(dispositionID: disposition.dispositionID,
+            reviewID: disposition.reviewID, workspaceID: disposition.workspaceID,
+            subject: disposition.subject, reviewRevision: disposition.reviewRevision + 1,
+            kind: disposition.kind, reviewer: disposition.reviewer, reason: disposition.reason,
+            changeRequestIDs: disposition.changeRequestIDs, recordedAt: disposition.recordedAt,
+            mutationID: disposition.mutationID)
+        try wrongRevision.validate()
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: transition,
+            disposition: wrongRevision, changeRequests: [request]))
+        try fixture.resolvedChangeRequest.validate()
+        XCTAssertEqual(fixture.resolvedChangeRequest.requestID, request.requestID)
+        XCTAssertNotEqual(fixture.resolvedChangeRequest.mutationID, transition.mutationID)
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: transition,
+            disposition: disposition, changeRequests: [fixture.resolvedChangeRequest]))
+        let foreignRequest = try request.rebound(to: C14InspectionReviewTestSupportV1.workspace(999_001))
+        try foreignRequest.validate()
+        XCTAssertEqual(foreignRequest.requestID, request.requestID)
+        XCTAssertThrowsError(try InspectionReviewAtomicBundleV1(transition: transition,
+            disposition: disposition, changeRequests: [foreignRequest]))
+        XCTAssertEqual(exact.disposition, disposition)
+        XCTAssertEqual(exact.changeRequests, [request])
+        try exact.validate()
+    }
+
     func testV23P03C14GoldenReviewRequestsResolutionAndCorrectiveClosure() throws {
         let fixture = try C14InspectionReviewTestSupportV1.makeFixture()
 

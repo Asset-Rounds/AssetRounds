@@ -152,6 +152,27 @@ final class StoreSessionCoordinator: ObservableObject {
         ProductionMyDaySourceProviderV1(session: self, accessGate: accessGate)
     }
 
+    /// Assessed round reads use this session's clock and exact generation root.
+    /// The caller supplies the existing ledger so active reservations are not
+    /// lost in a separate, empty admission ledger. Construction grants no access.
+    func makeMyDaySourceProvider(
+        accessGate: AppAccessGateV1,
+        ownedStorageLedger: OwnedStorageLedgerV1
+    ) -> ProductionMyDaySourceProviderV1 {
+        let readiness = ProductionOfflineReadinessAuthorityV1(
+            session: self,
+            accessGate: accessGate,
+            clock: clock,
+            ownedStorageLedger: ownedStorageLedger,
+            expectedApplicationSupportURL: Self.applicationSupportURL(for: session)
+        )
+        return ProductionMyDaySourceProviderV1(
+            session: self,
+            accessGate: accessGate,
+            readinessAuthority: readiness
+        )
+    }
+
     func dropSearchProjectionForRebuild() async throws {
         try await searchIndexStore.dropProjection(workspaceID: workspaceID.rawValue)
     }

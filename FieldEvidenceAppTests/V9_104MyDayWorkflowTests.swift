@@ -54,7 +54,7 @@ private enum C41 {
     static func emptyExceptions(workspaceID: WorkspaceID = workspace) throws -> ExceptionQueueProjectionV1 {
         try .init(workspaceID: workspaceID,
                   registry: .init(registeredKinds: ExceptionQueueSourceKindV1.allCases.sorted { $0.rawValue < $1.rawValue }),
-                  sources: [], resolver: C41EmptyExceptionResolver())
+                  sources: [], evaluatedAt: C41.now, resolver: C41EmptyExceptionResolver())
     }
     static func oneException(workspaceID: WorkspaceID = workspace) throws -> ExceptionQueueProjectionV1 {
         let source = try ExceptionQueueSourceSnapshotV1(workspaceID: workspaceID,
@@ -64,25 +64,40 @@ private enum C41 {
             deepLink: ExceptionQueueDeepLinkV1.allCases[0])
         return try .init(workspaceID: workspaceID,
             registry: .init(registeredKinds: ExceptionQueueSourceKindV1.allCases.sorted { $0.rawValue < $1.rawValue }),
-            sources: [source], resolver: C41ExactExceptionResolver(source: source))
+            sources: [source], evaluatedAt: C41.now, resolver: C41ExactExceptionResolver(source: source))
     }
 }
 
 private struct C41Clock: ApplicationClock { func now() -> Date { C41.now } }
+private final class C41CapacitySequence: @unchecked Sendable {
+    private let lock = NSLock()
+    private let values: [Int64]
+    private var next = 0
+    init(_ values: [Int64]) { self.values = values }
+    func read() -> Int64? {
+        lock.withLock {
+            guard !values.isEmpty else { return nil }
+            let value = values[min(next, values.count - 1)]
+            next += 1
+            return value
+        }
+    }
+    var count: Int { lock.withLock { next } }
+}
 private struct C41FixedID: ApplicationIDSource {
     let value: UUID
     func makeID() -> UUID { value }
 }
 private struct C41EmptyExceptionResolver: ExceptionQueueCanonicalSourceResolvingV1 {
     func resolveExceptionQueueSource(workspaceID: WorkspaceID, kind: ExceptionQueueSourceKindV1,
-                                     sourceID: String, revision: UInt64) throws -> ExceptionQueueSourceSnapshotV1 {
+                                     sourceID: String, revision: UInt64, evaluatedAt: Date) throws -> ExceptionQueueSourceSnapshotV1 {
         throw ReinspectionExceptionFailureV1.missingSource
     }
 }
 private struct C41ExactExceptionResolver: ExceptionQueueCanonicalSourceResolvingV1 {
     let source: ExceptionQueueSourceSnapshotV1
     func resolveExceptionQueueSource(workspaceID: WorkspaceID, kind: ExceptionQueueSourceKindV1,
-                                     sourceID: String, revision: UInt64) throws -> ExceptionQueueSourceSnapshotV1 {
+                                     sourceID: String, revision: UInt64, evaluatedAt: Date) throws -> ExceptionQueueSourceSnapshotV1 {
         guard source.workspaceID == workspaceID, source.kind == kind,
               source.sourceID == sourceID, source.sourceRevision == revision else {
             throw ReinspectionExceptionFailureV1.missingSource
@@ -399,6 +414,75 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
         let receipts: Int
         let files: [String: Data]
     }
+
+    struct ReadinessFixture {
+        let round: RoundSessionV1
+        let promoted: PromotedPackageReleaseV1
+        let content: ContentReferenceV1?
+        let contentRequest: DraftImmutableContentWriteRequestV1?
+        let originalBytes: Data
+        var reference: MyDayEligibleReferenceV1 {
+            .roundSession(workspaceID: round.workspaceID, sessionID: round.sessionID,
+                          revision: round.revision, sessionSHA256: round.sessionSHA256)
+        }
+    }
+
+    /// Published package/asset rows are explicit canonical test fixtures, not
+    /// package-promotion qualification. Rounds use the actual writer and bytes
+    /// use the real protected immutable-content owner.
+    func readinessRound(seed: Int, withContent: Bool, unknownGuidance: Bool = false) async throws -> ReadinessFixture {
+        let shipping = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+        let package = try InspectionPackageV2(packageID: shipping.packageID, contentVersion: shipping.contentVersion,
+            minimumRegistryVersion: shipping.minimumRegistryVersion, maximumRegistryVersion: shipping.maximumRegistryVersion,
+            capabilities: shipping.capabilities, permissions: shipping.permissions,
+            advisoryGuidance: unknownGuidance ? [.init(guidanceID: "unknown-local-guidance", kind: .limitation,
+                                                     localizationKey: "unknown.local.guidance")] : shipping.advisoryGuidance,
+            presentation: shipping.presentation)
+        let workflow = try WorkflowDefinitionV1(workflowID: "c41.readiness.\(seed)", entryNodeID: "readiness.section",
+            declaredFieldIDs: [], nodes: [
+                .init(nodeID: "readiness.section", kind: .section, localizationKey: "readiness.section", outgoingNodeIDs: ["readiness.terminal"]),
+                .init(nodeID: "readiness.terminal", kind: .terminal, localizationKey: "readiness.terminal", outgoingNodeIDs: []),
+            ])
+        let release = try InspectionPackageReleasePublisherV1.publish(
+            InspectionPackageReleasePublisherV1.test(.makeDraft(package: package, workflow: workflow))).release
+        let promoted = try PromotedPackageReleaseV1(releaseRecordID: C41.id(seed), workspaceID: store.workspaceID,
+            packageRelease: release, mutationID: C41.mutation(seed + 1), promotedAt: C41.now)
+        coordinator.modelContext.insert(try PromotedPackageReleaseRow(promoted))
+        coordinator.modelContext.insert(Site(id: C41.id(seed + 2), label: "Readiness site", createdAt: C41.now))
+        coordinator.modelContext.insert(Asset(id: C41.id(seed + 3), siteID: C41.id(seed + 2),
+            packID: package.packageID, packSchemaVersion: package.schemaVersion, packContentVersion: package.contentVersion,
+            label: "Readiness asset", createdAt: C41.now))
+        try coordinator.modelContext.save()
+        let bytes = Data("actual protected readiness original \(seed)".utf8)
+        let reference: ContentReferenceV1?
+        let request: DraftImmutableContentWriteRequestV1?
+        if withContent {
+            let digest = try ContentDigestV1(algorithm: .sha256, hexadecimalValue: KernelCanonicalHashV1.sha256(bytes))
+            let value = try ContentReferenceV1(workspaceID: store.workspaceID.rawValue.uuidString.lowercased(),
+                contentID: "readiness-\(seed)", byteLength: Int64(bytes.count), mediaType: "application/pdf",
+                digests: .init([digest]), byteRole: .immutableOriginal, createdAt: "2025-01-02T00:00:00Z")
+            let write = try DraftImmutableContentWriteRequestV1(workspaceID: store.workspaceID, contentID: value.contentID,
+                digest: digest, byteLength: value.byteLength, mediaType: value.mediaType,
+                mutationID: C41.mutation(seed + 4), createdAt: value.createdAt)
+            let receipt = try await EvidenceBundleStore(generationRootURL: coordinator.generationRootURL)
+                .persistImmutableOriginal(bytes: bytes, request: write)
+            try receipt.validate(request: write, bytes: bytes)
+            reference = value; request = write
+        } else { reference = nil; request = nil }
+        let requirement = try RoundPackageContentRequirementV1(packageRelease: .init(release), requiredContent: reference.map { [$0] } ?? [])
+        let item = try RoundItemV1(itemID: C41.id(seed + 5), order: 0,
+            selection: .init(assetID: C41.id(seed + 3), siteID: C41.id(seed + 2), labelAtSelection: "Readiness asset"), requirement: requirement)
+        let round = try RoundSessionV1(workspaceID: store.workspaceID, sessionID: C41.id(seed + 6), predecessor: nil,
+            revision: 1, mutationID: C41.mutation(seed + 7), state: .draft, transition: .create,
+            items: [item], recordedBy: recorder, recordedAt: C41.now)
+        _ = try coordinator.workspaceWriter.commitRoundSession(.init(workspaceID: store.workspaceID,
+            expectedRevision: 0, mutationID: round.mutationID, session: round))
+        return .init(round: round, promoted: promoted, content: reference, contentRequest: request, originalBytes: bytes)
+    }
+
+    func assessedProvider(ledger: OwnedStorageLedgerV1) -> ProductionMyDaySourceProviderV1 {
+        coordinator.makeMyDaySourceProvider(accessGate: gate, ownedStorageLedger: ledger)
+    }
     func baseline() throws -> Baseline {
         let revision = try coordinator.workspaceWriter.currentRevision()
         let receipts = try coordinator.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count
@@ -415,6 +499,249 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
 
 final class V9_104MyDayWorkflowTests: XCTestCase {
     @MainActor
+    func testProductionMyDayReadinessPreservesExactCapacityDriftSemantics() async throws {
+        let h = try C41ProductionSourceHarness()
+        let fixture = try await h.readinessRound(seed: 3400, withContent: false)
+        let plan = try h.plan(items: [.init(membershipID: C41.id(3410), reference: fixture.reference,
+            manualOrder: 0, estimate: nil)], seed: 3411)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline()
+        // Both observations have ample capacity. The incumbent full-source
+        // hash nevertheless marks their difference stale; later stable reads
+        // may publish that stale result, never silently upgrade it to ready.
+        let settles = C41CapacitySequence([1_000_000_000, 999_999_000, 999_999_000, 999_999_000])
+        let settledLedger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in settles.read() })
+        let settledBaseline = settledLedger.snapshot()
+        let stale = try await h.assessedProvider(ledger: settledLedger).snapshot(for: plan, evaluatedAt: C41.now)
+        guard case let .roundManifest(manifest)? = stale.readinessAssessments.first?.assessment else {
+            return XCTFail("Missing capacity-drift manifest")
+        }
+        XCTAssertEqual(manifest.status, .stale)
+        XCTAssertEqual(stale.frontiers.first?.readiness, .notReady)
+        XCTAssertEqual(settles.count, 4)
+        XCTAssertEqual(settledLedger.snapshot(), settledBaseline)
+        XCTAssertEqual(try h.baseline(), baseline)
+        // A healthy-but-different last publication sample is rejected by the
+        // added freshness check. No rounding or constant-capacity substitution
+        // is permitted; usable live behavior still requires native evidence.
+        let drifts = C41CapacitySequence([1_000_000_000, 1_000_000_000, 1_000_000_000, 999_999_000])
+        let driftingLedger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in drifts.read() })
+        let driftingBaseline = driftingLedger.snapshot()
+        do {
+            _ = try await h.assessedProvider(ledger: driftingLedger).snapshot(for: plan, evaluatedAt: C41.now)
+            XCTFail("Changed publication capacity was accepted")
+        } catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        XCTAssertEqual(drifts.count, 4)
+        XCTAssertEqual(driftingLedger.snapshot(), driftingBaseline)
+        XCTAssertEqual(try h.baseline(), baseline)
+    }
+
+    @MainActor
+    func testProductionMyDayAssessesRealRoundReadinessWithoutEffects() async throws {
+        let h = try C41ProductionSourceHarness()
+        let required = try await h.readinessRound(seed: 3000, withContent: true)
+        let empty = try await h.readinessRound(seed: 3020, withContent: false)
+        // Real ledger and reservations, injected stable capacity. Actual OS
+        // capacity observation is covered separately; this is not a claim
+        // that changing system free space always yields a ready manifest.
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+        _ = try ledger.reserve(attemptID: .init(workspaceID: h.store.workspaceID, generationID: h.store.generationID,
+            mutationID: C41.mutation(3040)), requiredBytes: 4096)
+        let provider = h.assessedProvider(ledger: ledger)
+        let plan = try h.plan(items: [
+            .init(membershipID: C41.id(3041), reference: required.reference, manualOrder: 0, estimate: nil),
+            .init(membershipID: C41.id(3042), reference: empty.reference, manualOrder: 1, estimate: nil),
+        ], seed: 3043)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline(), storageBaseline = ledger.snapshot()
+        let snapshot = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
+        XCTAssertEqual(snapshot.frontiers.map(\.readiness), [.ready, .ready])
+        XCTAssertEqual(snapshot.readinessAssessments.count, 2)
+        for record in snapshot.readinessAssessments {
+            guard case let .roundManifest(manifest) = record.assessment else { return XCTFail("Missing actual round manifest") }
+            try manifest.validate()
+            XCTAssertEqual(manifest.status, .ready)
+            XCTAssertFalse(manifest.guidanceReferenceIDs.isEmpty)
+            XCTAssertTrue(manifest.expectedFieldReferences.isEmpty)
+            XCTAssertEqual(manifest.storage.reservedBytes, 4096)
+            XCTAssertEqual(manifest.storage.operationReserveBytes, StoragePreflightService.reserveBytes)
+            XCTAssertEqual(manifest.contentRequirements.count, record.reference == required.reference ? 1 : 0)
+        }
+        XCTAssertEqual(try h.baseline(), baseline)
+        XCTAssertEqual(ledger.snapshot(), storageBaseline)
+        let authCalls = await h.authentication.count
+        XCTAssertEqual(authCalls, 0)
+        var prior = required.round
+        for (index, state) in [RoundSessionStateV1.active, .paused].enumerated() {
+            let successor = try RoundSessionV1(workspaceID: h.store.workspaceID, sessionID: prior.sessionID,
+                predecessor: prior, revision: prior.revision + 1, mutationID: C41.mutation(3050 + index),
+                state: state, transition: index == 0 ? .start : .pause, items: prior.items,
+                recordedBy: h.recorder, recordedAt: C41.now)
+            _ = try h.coordinator.workspaceWriter.commitRoundSession(.init(workspaceID: h.store.workspaceID,
+                expectedRevision: prior.revision, mutationID: successor.mutationID, session: successor))
+            prior = successor
+            try await h.coordinator.awaitSearchIndexLifecycle()
+            let stepBaseline = try h.baseline()
+            let step = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
+            XCTAssertEqual(step.frontiers[0].plannedReference, required.reference)
+            XCTAssertNotEqual(step.frontiers[0].currentReference, required.reference)
+            XCTAssertEqual(step.frontiers[0].state, index == 0 ? .active : .paused)
+            XCTAssertEqual(step.frontiers[0].readiness, .ready)
+            XCTAssertEqual(try h.baseline(), stepBaseline)
+            XCTAssertEqual(ledger.snapshot(), storageBaseline)
+        }
+    }
+
+    @MainActor
+    func testProductionMyDayReadinessRejectsMissingCorruptAndUnknownSources() async throws {
+        let h = try C41ProductionSourceHarness()
+        let fixture = try await h.readinessRound(seed: 3100, withContent: true)
+        let unknown = try await h.readinessRound(seed: 3120, withContent: false, unknownGuidance: true)
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+        let provider = h.assessedProvider(ledger: ledger)
+        func manifest(_ snapshot: MyDaySourceSnapshotV1, _ reference: MyDayEligibleReferenceV1) throws -> OfflineReadinessManifestV1 {
+            let record = try XCTUnwrap(snapshot.readinessAssessments.first { $0.reference == reference })
+            guard case let .roundManifest(value) = record.assessment else { throw MyDayFailureV1.invalidValue }
+            return value
+        }
+        let first = try await provider.snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(try manifest(first, unknown.reference).status, .blocked)
+        XCTAssertEqual(try manifest(first, fixture.reference).status, .ready)
+        let request = try XCTUnwrap(fixture.contentRequest)
+        let original = h.coordinator.generationRootURL.appendingPathComponent(request.relativePath)
+        // Hostile byte changes are explicit test setup; the observer must not
+        // restore, delete, or otherwise repair them.
+        try FileManager.default.removeItem(at: original)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let missingBaseline = try h.baseline()
+        let missing = try await provider.snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(try manifest(missing, fixture.reference).status, .blocked)
+        XCTAssertEqual(try manifest(missing, fixture.reference).contentObservations.first?.state, .missing)
+        XCTAssertEqual(try h.baseline(), missingBaseline)
+        _ = try await EvidenceBundleStore(generationRootURL: h.coordinator.generationRootURL)
+            .persistImmutableOriginal(bytes: fixture.originalBytes, request: request)
+        let handle = try FileHandle(forWritingTo: original)
+        try handle.write(contentsOf: Data(repeating: 120, count: fixture.originalBytes.count))
+        try handle.close()
+        let corruptBaseline = try h.baseline()
+        let corrupt = try await provider.snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(try manifest(corrupt, fixture.reference).status, .blocked)
+        XCTAssertNotEqual(try manifest(corrupt, fixture.reference).contentObservations.first?.state, .present)
+        XCTAssertEqual(try h.baseline(), corruptBaseline)
+        let unavailable = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in nil })
+        let noCapacity = try await h.assessedProvider(ledger: unavailable).snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(try manifest(noCapacity, unknown.reference).storage.capacityState, .unavailable)
+        let assetID = fixture.round.items[0].selection.assetID
+        let asset = try XCTUnwrap(h.coordinator.modelContext.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID })
+        h.coordinator.modelContext.delete(asset); try h.coordinator.modelContext.save()
+        let noAsset = try await provider.snapshot(evaluatedAt: C41.now)
+        XCTAssertTrue(try manifest(noAsset, fixture.reference).observedAssetIDs.isEmpty)
+        let releaseID = fixture.promoted.releaseRecordID
+        let row = try XCTUnwrap(h.coordinator.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).first { $0.releaseRecordID == releaseID })
+        h.coordinator.modelContext.delete(row); try h.coordinator.modelContext.save()
+        let noPackage = try await provider.snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(noPackage.readinessAssessments.first { $0.reference == fixture.reference }?.assessment, .unavailable(.missingExactPackage))
+    }
+
+    @MainActor
+    func testProductionMyDayReadinessKeepsUnsupportedBindingsAndCompletionUnavailable() async throws {
+        let h = try C41ProductionSourceHarness()
+        let fixture = try await h.readinessRound(seed: 3200, withContent: true)
+        let content = try XCTUnwrap(fixture.content)
+        let release = try FieldReferenceReleaseV1(releaseID: C41.id(3220), workspaceID: h.store.workspaceID,
+            referencePackID: "c41-readiness-reference", kind: .manual, semanticVersion: "1.0",
+            provenance: .init(kind: .synthetic, sourceName: "Explicit test reference", sourceReleaseIdentifier: "v1", licenseScope: .localUseOnly),
+            manifest: .init(manifestID: "c41-readiness-reference", workspaceID: content.workspaceID, manifestRevision: 1,
+                entries: [.init(contentID: content.contentID, expectedByteLength: content.byteLength, mediaType: content.mediaType,
+                    digest: XCTUnwrap(content.digests.digest(for: .sha256)), expectedLocatorRevision: 0, requiredForOpen: true)]),
+            issuedAt: C41.now, mutationID: C41.mutation(3221))
+        let binding = try FieldReferenceBindingV1(bindingID: C41.id(3222), workspaceID: h.store.workspaceID,
+            subjectKind: .roundSession, subjectID: fixture.round.sessionID, subjectRevision: fixture.round.revision,
+            subjectState: .active, release: release, boundAt: C41.now, mutationID: C41.mutation(3223))
+        h.coordinator.modelContext.insert(try FieldReferenceReleaseRow(release))
+        h.coordinator.modelContext.insert(try FieldReferenceBindingRow(binding, release: release))
+        try h.coordinator.modelContext.save()
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+        let provider = h.assessedProvider(ledger: ledger)
+        let bound = try await provider.snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(bound.readinessAssessments.first?.assessment, .unavailable(.fieldReferenceContentClosureUnavailable))
+        var prior = fixture.round
+        let item = prior.items[0]
+        for (index, transition) in [RoundSessionTransitionV1.start, .visitItem, .completeItem].enumerated() {
+            let visit = try RoundItemVisitV1(visitedAt: C41.now, recordedBy: h.recorder)
+            let updated = try RoundItemV1(itemID: item.itemID, order: item.order, selection: item.selection,
+                requirement: item.requirement, disposition: index == 0 ? .pending : (index == 1 ? .visited : .completed),
+                visit: index == 0 ? nil : visit, completion: index == 2 ? .init(completionID: C41.id(3230), revision: 1, completionSHA256: C41.digest("d")) : nil)
+            let round = try RoundSessionV1(workspaceID: h.store.workspaceID, sessionID: prior.sessionID, predecessor: prior,
+                revision: prior.revision + 1, mutationID: C41.mutation(3231 + index), state: .active,
+                transition: transition, transitionItemID: index == 0 ? nil : item.itemID,
+                items: [updated], recordedBy: h.recorder, recordedAt: C41.now)
+            _ = try h.coordinator.workspaceWriter.commitRoundSession(.init(workspaceID: h.store.workspaceID,
+                expectedRevision: prior.revision, mutationID: round.mutationID, session: round))
+            prior = round
+        }
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline(), storage = ledger.snapshot()
+        let completedItem = try await provider.snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(completedItem.readinessAssessments.first?.assessment, .unavailable(.completionAuthorityUnavailable))
+        XCTAssertEqual(try h.baseline(), baseline)
+        XCTAssertEqual(ledger.snapshot(), storage)
+    }
+
+    #if DEBUG
+    @MainActor
+    func testProductionMyDayAssessedPublicationRejectsAccessMetadataStorageAndSessionDrift() async throws {
+        let h = try C41ProductionSourceHarness()
+        let fixture = try await h.readinessRound(seed: 3300, withContent: false)
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+        let provider = h.assessedProvider(ledger: ledger)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline()
+        provider.afterSourceMaterializationForTesting = {
+            await h.gate.markConfigurationUnknown()
+            await h.gate.eraseAccessState()
+        }
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("Access ABA published readiness") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        XCTAssertEqual(try h.baseline(), baseline)
+        let assetID = fixture.round.items[0].selection.assetID
+        let asset = try XCTUnwrap(h.coordinator.modelContext.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID })
+        let originalSite = asset.siteID
+        provider.afterSourceMaterializationForTesting = {
+            // Canonical constructed-fixture mutation deliberately bypasses the
+            // writer revision, proving the expanded metadata hash is checked.
+            asset.siteID = C41.id(3320)
+            try h.coordinator.modelContext.save()
+        }
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("Changed asset metadata published readiness") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        asset.siteID = originalSite; try h.coordinator.modelContext.save()
+        let beforeReservation = ledger.snapshot()
+        provider.afterSourceMaterializationForTesting = {
+            _ = try ledger.reserve(attemptID: .init(workspaceID: h.store.workspaceID, generationID: h.store.generationID,
+                mutationID: C41.mutation(3321)), requiredBytes: 4096)
+        }
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("Changed live reservation published readiness") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        XCTAssertEqual(ledger.snapshot().activeReservationCount, beforeReservation.activeReservationCount + 1)
+        provider.afterSourceMaterializationForTesting = {
+            try h.coordinator.activateValidating(session: h.store)
+        }
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("Replaced session published readiness") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sessionChanged) }
+        provider.afterSourceMaterializationForTesting = nil
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("Stale assessed provider reused") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sessionChanged) }
+        let fresh = try await h.assessedProvider(ledger: ledger).snapshot(evaluatedAt: C41.now)
+        guard case let .roundManifest(manifest)? = fresh.readinessAssessments.first?.assessment else {
+            return XCTFail("Fresh provider did not assess actual round")
+        }
+        XCTAssertEqual(manifest.status, .ready)
+        XCTAssertEqual(manifest.storage.reservedBytes, 4096)
+    }
+    #endif
+
+    @MainActor
     func testProductionMyDayReadsExactPacketHistoryWithoutEffects() async throws {
         let h = try C41ProductionSourceHarness()
         let first = try h.packet(seed: 2000, version: 1)
@@ -428,7 +755,8 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         try await h.coordinator.awaitSearchIndexLifecycle()
         let baseline = try h.baseline()
         let initial = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
-        XCTAssertEqual(initial.readinessAssessment, .notAssessed)
+        XCTAssertEqual(initial.readinessAssessments.map(\.reference), initial.sources.map(\.reference))
+        XCTAssertTrue(initial.readinessAssessments.allSatisfy { $0.assessment == .notAssessed })
         XCTAssertEqual(initial.eligibleReferences, [.workPacket(try .init(first)), .workPacket(try .init(second))])
         XCTAssertEqual(initial.frontiers[0].currentReference, selected.reference)
         XCTAssertEqual(initial.frontiers[0].readiness, .unavailable)

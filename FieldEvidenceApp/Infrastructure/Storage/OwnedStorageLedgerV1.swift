@@ -166,6 +166,40 @@ final class OwnedStorageLedgerV1: WorkspaceStorageAdmissionPortV1, @unchecked Se
         lock.withLock { makeSnapshot() }
     }
 
+    /// Observation only. Use the live ledger, including its current reservations;
+    /// a preflight must never reserve, reconcile, or create another ledger.
+    func observeOfflineReadiness(
+        expectedApplicationSupportURL: URL
+    ) throws -> OfflineReadinessStorageObservationV1 {
+        guard expectedApplicationSupportURL.isFileURL,
+              expectedApplicationSupportURL.standardizedFileURL == capacityURL.standardizedFileURL else {
+            throw OwnedStorageLedgerFailureV1.invalidRoot
+        }
+        let before = try Self.rootIdentity(at: capacityURL)
+        try lock.withLock {
+            guard before.volume == volumeIdentity, before.inode == capacityRootInode else {
+                throw OwnedStorageLedgerFailureV1.volumeMismatch
+            }
+        }
+        let capacity: Int64?
+        do { capacity = try capacityProvider(capacityURL) }
+        catch { capacity = nil }
+        let after = try Self.rootIdentity(at: capacityURL)
+        guard after == before else { throw OwnedStorageLedgerFailureV1.volumeMismatch }
+        return try lock.withLock {
+            guard after.volume == volumeIdentity, after.inode == capacityRootInode else {
+                throw OwnedStorageLedgerFailureV1.volumeMismatch
+            }
+            let available = capacity.flatMap { $0 >= 0 ? $0 : nil }
+            return try OfflineReadinessStorageObservationV1(
+                capacityState: available == nil ? .unavailable : .checked,
+                availableBytes: available,
+                reservedBytes: Self.sum(reservations.values.map(\.requiredBytes)),
+                operationReserveBytes: StoragePreflightService.reserveBytes
+            )
+        }
+    }
+
     /// C16 pre-authentication cleanup reads only immediate directory metadata
     /// under the sole scratch root. It never opens `lease.json` or any payload
     /// file. An unexpired, malformed, symlinked, or otherwise uncertain entry

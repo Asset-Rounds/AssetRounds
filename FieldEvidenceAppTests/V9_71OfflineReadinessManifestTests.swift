@@ -116,6 +116,77 @@ private enum C06OfflineReadinessTestSupportV1 {
 }
 
 final class V9_71OfflineReadinessManifestTests: XCTestCase {
+    func testProductionReadinessObservesActualSystemCapacityWithoutEffects() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("c06-system-capacity-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: root)
+        let baseline = ledger.snapshot()
+        let files = try FileManager.default.contentsOfDirectory(atPath: root.path)
+        let observation = try ledger.observeOfflineReadiness(expectedApplicationSupportURL: root)
+        switch observation.capacityState {
+        case .checked:
+            XCTAssertGreaterThanOrEqual(try XCTUnwrap(observation.availableBytes), 0)
+        case .unavailable:
+            XCTAssertNil(observation.availableBytes)
+        }
+        XCTAssertEqual(observation.reservedBytes, baseline.reservedByteCount)
+        XCTAssertEqual(observation.operationReserveBytes, StoragePreflightService.reserveBytes)
+        XCTAssertEqual(ledger.snapshot(), baseline)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), files)
+        // OS free bytes are not expected to remain exactly constant; this
+        // test qualifies observation, not a complete native ready manifest.
+    }
+
+    func testProductionReadinessStorageObservationUsesLiveReservationsWithoutEffects() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("c06-readiness-ledger-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: root, capacityProvider: { _ in 1_000_000_000 })
+        let attempt = try OwnedStorageAttemptIDV1(workspaceID: C06OfflineReadinessTestSupportV1.workspace(),
+            generationID: C06OfflineReadinessTestSupportV1.id(975_001),
+            mutationID: MutationIDV1(rawValue: C06OfflineReadinessTestSupportV1.id(975_002)))
+        let reservation = try ledger.reserve(attemptID: attempt, requiredBytes: 4096)
+        let baseline = ledger.snapshot()
+        let observation = try ledger.observeOfflineReadiness(expectedApplicationSupportURL: root)
+        XCTAssertEqual(observation.capacityState, .checked)
+        XCTAssertEqual(observation.availableBytes, 1_000_000_000)
+        XCTAssertEqual(observation.reservedBytes, 4096)
+        XCTAssertEqual(observation.operationReserveBytes, StoragePreflightService.reserveBytes)
+        XCTAssertEqual(ledger.snapshot(), baseline)
+        XCTAssertThrowsError(try ledger.observeOfflineReadiness(expectedApplicationSupportURL: root.appendingPathComponent("wrong"))) {
+            XCTAssertEqual($0 as? OwnedStorageLedgerFailureV1, .invalidRoot)
+        }
+        XCTAssertEqual(ledger.snapshot(), baseline)
+        ledger.release(reservation: reservation)
+        XCTAssertEqual(try ledger.observeOfflineReadiness(expectedApplicationSupportURL: root).reservedBytes, 0)
+        let unavailable = try OwnedStorageLedgerV1(applicationSupportURL: root, capacityProvider: { _ in nil })
+        let unavailableBaseline = unavailable.snapshot()
+        XCTAssertEqual(try unavailable.observeOfflineReadiness(expectedApplicationSupportURL: root).capacityState, .unavailable)
+        XCTAssertEqual(unavailable.snapshot(), unavailableBaseline)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+    }
+
+    func testProductionReadinessStorageRejectsRootReplacementDuringObservation() throws {
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent("c06-readiness-root-\(UUID().uuidString)")
+        let root = parent.appendingPathComponent("live")
+        let moved = parent.appendingPathComponent("original")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        // Deterministic filesystem fault injection during the actual capacity
+        // observation, not a replacement ledger or readiness result.
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: root, capacityProvider: { _ in
+            try FileManager.default.moveItem(at: root, to: moved)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            return 1_000_000_000
+        })
+        let baseline = ledger.snapshot()
+        XCTAssertThrowsError(try ledger.observeOfflineReadiness(expectedApplicationSupportURL: root)) {
+            XCTAssertEqual($0 as? OwnedStorageLedgerFailureV1, .volumeMismatch)
+        }
+        XCTAssertEqual(ledger.snapshot(), baseline)
+    }
+
     func testV23P04C06G01ReadyManifestDeterministicRepeatAndRevisionInvalidation() throws {
         let corpus = try loadCorpus(); assertCorpus(corpus, selector: "G01", tier: "GOLDEN")
         let snapshot = try C06OfflineReadinessTestSupportV1.snapshot()
