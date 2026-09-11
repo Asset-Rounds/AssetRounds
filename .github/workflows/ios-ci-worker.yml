@@ -11,6 +11,11 @@ on:
         description: Closed runner provider supplied by the Phase 10 dispatcher
         required: true
         type: string
+      native_acceptance_contract:
+        description: Closed ordinary integration contract admitted by the exact-source dispatcher
+        required: false
+        default: none
+        type: string
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
@@ -88,11 +93,11 @@ on:
         type: string
     secrets:
       BITRISE_BUILD_CACHE_AUTH_TOKEN:
-        description: Bitrise Build Cache token used only by the closed Bitrise development lane
+        description: Bitrise Build Cache token used only by the closed Bitrise runner routes
         required: false
 
 concurrency:
-  group: ${{ inputs.s10_4_shared_build_mode }}-${{ inputs.s10_4_minimum_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-${{ inputs.s10_4_shared_matrix_id }}-${{ inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}
+  group: ${{ inputs.native_acceptance_contract != 'none' && format('v23-{0}-', inputs.runner_provider) || '' }}${{ inputs.s10_4_shared_build_mode }}-${{ inputs.s10_4_minimum_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-${{ inputs.s10_4_shared_matrix_id }}-${{ inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}
   cancel-in-progress: false
 
 jobs:
@@ -100,6 +105,7 @@ jobs:
     runs-on: ${{ inputs.runner_label }}
     timeout-minutes: 90
     env:
+      CI_NATIVE_ACCEPTANCE_CONTRACT: ${{ inputs.native_acceptance_contract }}
       CI_S10_4_SHARED_BUILD_MODE: ${{ inputs.s10_4_shared_build_mode }}
       CI_S10_4_SHARED_PAYLOAD_RUN_ID: ${{ inputs.s10_4_shared_payload_run_id }}
       WORKER_S10_4_MINIMUM_CORE_SMOKE_ID: ${{ inputs.s10_4_minimum_core_smoke_id }}
@@ -160,6 +166,7 @@ jobs:
           test -f Scripts/build-smoke.sh
           test -f Scripts/test-smoke.sh
           test -f Scripts/ui-smoke.sh
+          python3 Scripts/v23-native-ci.py admit --stage worker
           case "$WORKER_S10_4_MINIMUM_CORE_SMOKE_ID" in
             none) ;;
             s10.4.minimum-core-smoke.v1)
@@ -327,6 +334,12 @@ jobs:
           CI_TEST_TIMEOUT_SECONDS="$(jq -r '.testTimeoutSeconds' Scripts/ci-selection.json)"
           CI_UI_TIMEOUT_SECONDS="$(jq -r '.uiTimeoutSeconds' Scripts/ci-selection.json)"
           CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
+
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none; then
+            test "$CI_NATIVE_ACCEPTANCE_CONTRACT" = v23.integration.current-native.v1
+            SIMULATOR_RUNTIME_BUILD=23C54
+            printf 'SIMULATOR_RUNTIME_BUILD=%s\n' "$SIMULATOR_RUNTIME_BUILD" >> "$GITHUB_ENV"
+          fi
 
           CI_S10_4_SHARD_ID="none"
           CI_S10_4_SEGMENT_ID="none"
@@ -998,6 +1011,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-runner-Asset Roundddd"
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none; then
+            test "$CI_NATIVE_ACCEPTANCE_CONTRACT:$CI_TASK_ID:$CI_S10_4_SHARD_ID:$CI_S10_4_SEGMENT_ID" = v23.integration.current-native.v1:V23-INTEGRATION-20260910:none:none
+            test "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$SIMULATOR_NAME" = 'iOS 26.2:23C54:iPhone 17'
+          else
           case "$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID" in
             none:iphone-17-ios-26.2-current | none:iphone-se-3-ios-18.0-minimum) ;;
             segment-1:iphone-17-ios-26.2-current | segment-2:iphone-17-ios-26.2-current | segment-3:iphone-17-ios-26.2-current)
@@ -1005,6 +1022,7 @@ jobs:
               ;;
             *) exit 1 ;;
           esac
+          fi
           test -n "$BITRISE_BUILD_CACHE_AUTH_TOKEN"
           test "$BITRISE_BUILD_CACHE_WORKSPACE_ID" = "b8052f5a8394f80a"
           test "${RUNNER_ARCH:-}" = "ARM64"
@@ -1253,6 +1271,13 @@ jobs:
           xcodebuild -version | tee "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_VERSION" "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_BUILD" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none; then
+            native_sdk_version="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+            native_sdk_build="$(xcrun --sdk iphonesimulator --show-sdk-build-version)"
+            printf 'sdk=iphonesimulator\nversion=%s\nbuild=%s\n' "$native_sdk_version" "$native_sdk_build" \
+              | tee "$CI_ARTIFACT_DIR/native-sdk.txt"
+            test "$native_sdk_version:$native_sdk_build" = 26.5:23F81a
+          fi
           if test "${CI_S10_4_EXECUTION_ROLE:-independent}" != "payload-consumer"; then
             xcodebuild -list -json -project "$PROJECT_PATH" \
               | tee "$CI_ARTIFACT_DIR/xcode-list.json"
@@ -1278,13 +1303,17 @@ jobs:
               | tee "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt"
           fi
 
-          if test "${CI_TASK_ID:-}" = "S10.4" && \
-             test "$CI_RUNNER_PROVIDER" = "bitrise" && \
-             test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then
+          if test "$CI_RUNNER_PROVIDER" = "bitrise" && \
+             { { test "${CI_TASK_ID:-}" = "S10.4" && test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; } || \
+               test "$CI_NATIVE_ACCEPTANCE_CONTRACT" = v23.integration.current-native.v1; }; then
             bitrise_simulator_budget_start_epoch="$(date +%s)"
             printf 'CI_BITRISE_SIMULATOR_BUDGET_START_EPOCH=%s\n' \
               "$bitrise_simulator_budget_start_epoch" >> "$GITHUB_ENV"
-            case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" in
+            runtime_download_version="${CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION:-}"
+            if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none; then
+              runtime_download_version=23C54
+            fi
+            case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$runtime_download_version" in
               'iOS 26.2:23C54:23C54' | 'iOS 18.0:22A3351:18.0') ;;
               *) exit 1 ;;
             esac
@@ -1456,7 +1485,7 @@ jobs:
             "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
           test -n "$runtime_id"
           simulator_udid=""
-          if test "${CI_S10_4_PILOT_MODE:-false}" = "true" || test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none || test "${CI_S10_4_PILOT_MODE:-false}" = "true" || test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
             xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
             simulator_device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" \
               '.devicetypes[] | select(.name == $name) | .identifier' \
@@ -1470,8 +1499,12 @@ jobs:
             simulator_udid="$(xcrun simctl create \
               "$SIMULATOR_NAME" "$simulator_device_type_id" "$runtime_id")"
             test -n "$simulator_udid"
-            printf 'CI_S10_4_PILOT_CREATED_SIMULATOR_UDID=%s\n' \
-              "$simulator_udid" >> "$GITHUB_ENV"
+            if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none; then
+              printf 'CI_NATIVE_CREATED_SIMULATOR_UDID=%s\n' "$simulator_udid" >> "$GITHUB_ENV"
+            else
+              printf 'CI_S10_4_PILOT_CREATED_SIMULATOR_UDID=%s\n' \
+                "$simulator_udid" >> "$GITHUB_ENV"
+            fi
             xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
           else
             simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
@@ -1498,7 +1531,7 @@ jobs:
               else error("expected exactly one selected Simulator state")
               end
           ' "$CI_ARTIFACT_DIR/simulator-devices.json")"
-          if test "${CI_S10_4_PILOT_MODE:-false}" = "true" || test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none || test "${CI_S10_4_PILOT_MODE:-false}" = "true" || test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
             test "$simulator_state" = "Shutdown"
           else
             case "$simulator_state" in
@@ -1509,7 +1542,7 @@ jobs:
           selected_runtime_build="$(jq -er --arg runtime "$runtime_id" \
             '.runtimes[] | select(.identifier == $runtime) | .buildversion' \
             "$CI_ARTIFACT_DIR/simulator-runtimes.json")"
-          if test "${CI_TASK_ID:-}" = "S10.4"; then
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none || test "${CI_TASK_ID:-}" = "S10.4"; then
             test "$selected_runtime_build" = "$SIMULATOR_RUNTIME_BUILD"
           fi
           printf 'runtime=%s\nruntime_build=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
@@ -5506,6 +5539,22 @@ jobs:
             test ! -e "$CI_ARTIFACT_DIR/ui-final.png"
           fi
 
+      - name: Validate exact ordinary integration native checkpoint
+        if: ${{ always() && inputs.native_acceptance_contract != 'none' }}
+        shell: bash
+        env:
+          NATIVE_PRIOR_JOB_STATUS: ${{ job.status }}
+          DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
+          DISPATCH_S10_4_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
+          DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
+          DISPATCH_S10_4_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
+          DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID: ${{ inputs.s10_4_diagnostic_probe_id }}
+          DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE: ${{ inputs.s10_4_diagnostic_execution_lane }}
+          DISPATCH_S10_4_UNIT_ONLY: ${{ inputs.s10_4_unit_only }}
+        run: python3 Scripts/v23-native-ci.py verify
+
       - name: Record Bitrise compilation and five-unit development evidence
         if: ${{ always() && inputs.s10_4_unit_only == true }}
         shell: bash
@@ -5696,7 +5745,7 @@ jobs:
           ' "$CI_ARTIFACT_DIR/s10-4-segment-plan-development-binding-redacted.json" > /dev/null
 
       - name: Finalize Bitrise development-only shard evidence
-        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_unit_only == false && inputs.s10_4_pilot_mode == false && inputs.s10_4_execution_role != 'payload-consumer' && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id == 'none') }}
+        if: ${{ inputs.native_acceptance_contract != 'v23.integration.current-native.v1' && inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_unit_only == false && inputs.s10_4_pilot_mode == false && inputs.s10_4_execution_role != 'payload-consumer' && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id == 'none') }}
         shell: bash
         env:
           BITRISE_DISPATCH_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -6265,12 +6314,17 @@ jobs:
             and .fullEvidence.canonicalNormalizedEvidence.validationPassed == true
           ' "$CI_ARTIFACT_DIR/s10-4-pilot-receipt.json" > /dev/null
 
-      - name: Remove isolated S10.4 pilot Simulator
-        if: ${{ always() && (inputs.s10_4_pilot_mode == true || inputs.s10_4_shared_build_mode != 'none') }}
+      - name: Remove owned isolated Simulator
+        if: ${{ always() && (inputs.native_acceptance_contract == 'v23.integration.current-native.v1' || inputs.s10_4_pilot_mode == true || inputs.s10_4_shared_build_mode != 'none') }}
         shell: bash
         run: |
           set -euo pipefail
           pilot_simulator_udid="${CI_S10_4_PILOT_CREATED_SIMULATOR_UDID:-}"
+          simulator_lifecycle_record="$CI_ARTIFACT_DIR/s10-4-pilot-simulator-lifecycle.txt"
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" = v23.integration.current-native.v1; then
+            pilot_simulator_udid="${CI_NATIVE_CREATED_SIMULATOR_UDID:-}"
+            simulator_lifecycle_record="$CI_ARTIFACT_DIR/native-simulator-lifecycle.txt"
+          fi
           test -n "$pilot_simulator_udid"
           [[ "$pilot_simulator_udid" =~ ^[0-9A-Fa-f-]{36}$ ]]
           xcrun simctl shutdown "$pilot_simulator_udid" >/dev/null 2>&1 || true
@@ -6281,7 +6335,7 @@ jobs:
             all(.devices[][]?; .udid != $udid)
           ' "$pilot_simulator_inventory" > /dev/null
           printf 'isolated=true\ndeleted=true\nudid=%s\n' "$pilot_simulator_udid" \
-            > "$CI_ARTIFACT_DIR/s10-4-pilot-simulator-lifecycle.txt"
+            > "$simulator_lifecycle_record"
 
       - name: Hash collected evidence
         if: ${{ always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
@@ -6390,13 +6444,13 @@ jobs:
         if: ${{ always() && inputs.s10_4_execution_role != 'payload-producer' && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.s10_4_shared_build_mode != 'none' && format('ios-ci-shared-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_minimum_segment_id != 'none' && inputs.s10_4_minimum_segment_id || inputs.s10_4_segment_id) || inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)))))) }}
+          name: ${{ inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && format('ios-ci-native-{0}-{1}-{2}', inputs.runner_provider, github.run_id, github.run_attempt) || (inputs.s10_4_shared_build_mode != 'none' && format('ios-ci-shared-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_minimum_segment_id != 'none' && inputs.s10_4_minimum_segment_id || inputs.s10_4_segment_id) || inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))))))) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14
 
       - name: Fail closed after Bitrise development-only evidence
-        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'bitrise' && steps.upload_evidence.outcome == 'success') }}
+        if: ${{ inputs.native_acceptance_contract != 'v23.integration.current-native.v1' && inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'bitrise' && steps.upload_evidence.outcome == 'success') }}
         shell: bash
         run: |
           printf '%s\n' 'Bitrise Build Hub Xcode 26.6 development-only evidence is not eligible for S10.4 final acceptance.' >&2
