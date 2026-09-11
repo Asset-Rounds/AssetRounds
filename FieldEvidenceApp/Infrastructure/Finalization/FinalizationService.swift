@@ -174,7 +174,8 @@ final class FinalizationService {
         try validateFrozenInput(input)
         try validateEvidenceFiles(input.evidence)
         let frozen = try freeze(input)
-        let commitIntent = try writerBoundIntent(frozen.intent)
+        let inspectionRelease = try inspectionReleaseForOriginal(frozen.intent.finalizationPayload.workflowRecordAfter)
+        let commitIntent = try writerBoundIntent(frozen.intent, inspectionRelease: inspectionRelease)
         guard let commitBinding = commitIntent.writerCommitBinding else {
             throw FinalizationServiceError.preconditionFailed
         }
@@ -293,7 +294,12 @@ final class FinalizationService {
             return replay
         }
         let frozen = try freezeCorrection(input)
-        let commitIntent = try writerBoundIntent(frozen.intent)
+        let inspectionRelease = try inheritedInspectionRelease(
+            recordID: input.currentRecord.id, reportID: input.currentReport.id,
+            assetID: input.currentRecord.assetID, packetID: input.packet.id,
+            revisionRootID: input.currentRecord.recordRevisionRootID
+        )
+        let commitIntent = try writerBoundIntent(frozen.intent, inspectionRelease: inspectionRelease)
         guard let commitBinding = commitIntent.writerCommitBinding else {
             throw FinalizationServiceError.preconditionFailed
         }
@@ -349,6 +355,11 @@ final class FinalizationService {
                 throw FinalizationServiceError.preconditionFailed
             }
             try validateCorrectionDatabasePreconditions(input, plan: frozen.plan)
+            guard try inheritedInspectionRelease(
+                recordID: input.currentRecord.id, reportID: input.currentReport.id,
+                assetID: input.currentRecord.assetID, packetID: input.packet.id,
+                revisionRootID: input.currentRecord.recordRevisionRootID
+            ) == inspectionRelease else { throw FinalizationServiceError.preconditionFailed }
             if failureInjection?.consume(.modelSave) == true {
                 throw FinalizationServiceError.saveFailed
             }
@@ -396,6 +407,159 @@ final class FinalizationService {
         }
 
         return committedOutcome
+    }
+
+    /// Readback of an actual finalized inspection. Neither a PDF's availability
+    /// nor a later clerical correction replaces this original completion tuple.
+    func completedInspectionReference(
+        recordID: UUID,
+        expectedAssetID: UUID,
+        expectedRelease: InspectionPackageReleaseV1
+    ) throws -> RoundItemCompletionReferenceV1? {
+        try completedInspectionReferences(requests: [CompletedInspectionRequest(
+            recordID: recordID, expectedAssetID: expectedAssetID, expectedRelease: expectedRelease)])[0]
+    }
+
+    struct CompletedInspectionRequest {
+        let recordID: UUID
+        let expectedAssetID: UUID
+        let expectedRelease: InspectionPackageReleaseV1
+    }
+
+    private struct CompletedInspectionRead {
+        let requestIndex: Int
+        let reference: RoundItemCompletionReferenceV1
+        let report: Report
+        let originalSnapshot: Data
+    }
+
+    /// One synchronous operation owns these proofs. Nothing is returned until
+    /// every selected report and the final current-writer/root checks succeed.
+    func completedInspectionReferences(requests: [CompletedInspectionRequest]) throws
+        -> [RoundItemCompletionReferenceV1?] {
+        guard requests.count <= RoundSessionLimitsV1.maximumItems,
+              !modelContext.hasChanges, let workspaceWriter else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let current = try workspaceWriter.currentRevision()
+        guard current.generationID == generationID else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        try requireFrozenRootIdentity()
+        var checkedReleases: [InspectionPackageReleaseV1] = []
+        for request in requests where !checkedReleases.contains(request.expectedRelease) {
+            try request.expectedRelease.validate()
+            guard request.expectedRelease.state == .published else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            checkedReleases.append(request.expectedRelease)
+        }
+        let recordsByID = Dictionary(grouping: try modelContext.fetch(FetchDescriptor<WorkflowRecord>()), by: \.id)
+        let reportsByID = Dictionary(grouping: try modelContext.fetch(FetchDescriptor<Report>()), by: \.id)
+        var evidenceIDs = requests.map(\.recordID)
+        for request in requests {
+            let rows = recordsByID[request.recordID] ?? []
+            guard rows.count <= 1 else { throw FinalizationServiceError.preconditionFailed }
+            if let predecessorID = rows.first?.revisesRecordID { evidenceIDs.append(predecessorID) }
+        }
+        let evidenceByID = try workspaceWriter.finalizationEvidence(recordIDs: evidenceIDs)
+        var references = [RoundItemCompletionReferenceV1?](repeating: nil, count: requests.count)
+        var reads: [CompletedInspectionRead] = []
+        var expectedPackageBytes: Data?
+        var expectedStages: [String: (binding: FinalizationInspectionReleaseBindingV1, workflow: Data)] = [:]
+        for (index, request) in requests.enumerated() {
+            guard let evidence = evidenceByID[request.recordID] else { continue }
+            let authority: FinalizationWriterAuthorityV1?
+            switch evidence.envelope.command {
+            case let .finalizeCheck(value): authority = value.writerAuthority
+            case let .finalizeCorrection(value): authority = value.writerAuthority
+            default: throw FinalizationServiceError.preconditionFailed
+            }
+            guard let authority, let recordedRelease = authority.sourceBinding.inspectionRelease else {
+                // Proven legacy absence cannot acquire today's workflow binding.
+                continue
+            }
+            try authority.validate(envelope: evidence.envelope)
+            let recordValue = authority.payload.workflowRecordAfter
+            guard recordValue.id == request.recordID, recordValue.assetID == request.expectedAssetID,
+                  let stage = WorkflowStage(rawValue: recordValue.stage),
+                  let expectedReport = authority.payload.reportInsert,
+                  expectedReport.sourceRecordID == request.recordID else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            if expectedPackageBytes == nil {
+                expectedPackageBytes = try InspectionPackageCanonicalCodecV2.encode(
+                    ShippingIlluminatedSignAdapterV1.inspectionPackage(from: signPack))
+            }
+            if expectedStages[stage.rawValue] == nil {
+                expectedStages[stage.rawValue] = (
+                    try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(from: signPack, stage: stage),
+                    try WorkflowDefinitionCanonicalCodecV1.encode(
+                        ShippingIlluminatedSignAdapterV1.finalizationWorkflow(from: signPack, stage: stage)))
+            }
+            guard let expectedStage = expectedStages[stage.rawValue],
+                  recordedRelease == expectedStage.binding,
+                  request.expectedRelease.packageReleaseID == recordedRelease.packageReleaseID,
+                  request.expectedRelease.packageSHA256 == recordedRelease.packageSHA256,
+                  request.expectedRelease.workflowSHA256 == recordedRelease.workflowSHA256,
+                  request.expectedRelease.canonicalPackageBytes == expectedPackageBytes,
+                  request.expectedRelease.canonicalWorkflowBytes == expectedStage.workflow else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            let records = recordsByID[request.recordID] ?? []
+            let reports = reportsByID[expectedReport.id] ?? []
+            guard records.count == 1, reports.count == 1,
+                  recordPayload(records[0]) == recordValue,
+                  immutableReportPayload(reports[0], matches: expectedReport),
+                  expectedReport.snapshotRelativePath == authority.snapshotRelativePath,
+                  expectedReport.snapshotSHA256 == authority.snapshotSHA256 else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            if authority.payload.packetBefore != nil {
+                guard let priorRecordID = recordValue.revisesRecordID,
+                      let priorReportID = expectedReport.replacesReportID,
+                      try inheritedInspectionRelease(evidence: evidenceByID[priorRecordID],
+                        recordID: priorRecordID, reportID: priorReportID,
+                        assetID: request.expectedAssetID, packetID: authority.payload.packetAfter.id,
+                        revisionRootID: recordValue.recordRevisionRootID) == recordedRelease else {
+                    throw FinalizationServiceError.preconditionFailed
+                }
+            }
+            reads.append(CompletedInspectionRead(requestIndex: index,
+                reference: try .init(completionID: request.recordID,
+                    revision: evidence.workflowRecordRevision(recordID: request.recordID),
+                    completionSHA256: authority.snapshotSHA256),
+                report: reports[0], originalSnapshot: try anchoredSnapshotData(expectedReport.snapshotRelativePath)))
+        }
+        if !reads.isEmpty {
+            let validator = try SnapshotValidatorV1(modelContext: modelContext,
+                generationRootURL: generationRootURL, signPack: signPack)
+            var selectedIndex = 0
+            try validator.validateCompletedInspectionReports(reads.map(\.report), expectedRootIdentity: rootIdentity) { report, validated in
+                let selected = reads[selectedIndex]
+                let encoded = try ReportSnapshotEncoderV1().encode(validated.snapshot)
+                guard report.id == selected.report.id,
+                      encoded.data == selected.originalSnapshot,
+                      encoded.sha256 == selected.reference.completionSHA256,
+                      validated.snapshotSHA256 == selected.reference.completionSHA256 else {
+                    throw FinalizationServiceError.preconditionFailed
+                }
+                references[selected.requestIndex] = selected.reference
+                selectedIndex += 1
+            }
+            guard selectedIndex == reads.count else { throw FinalizationServiceError.preconditionFailed }
+        }
+        try requireFrozenRootIdentity()
+        guard !modelContext.hasChanges,
+              try workspaceWriter.currentRevision() == current else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        for selected in reads {
+            guard try anchoredSnapshotData(selected.report.snapshotRelativePath) == selected.originalSnapshot else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+        }
+        return references
     }
 
     private func validateReplayAuthority(mutationID: UUID, recordID: UUID,
@@ -446,9 +610,112 @@ final class FinalizationService {
                 throw FinalizationServiceError.preconditionFailed
             }
         }
+        if correction {
+            guard let priorRecordID = payload.workflowRecordAfter.revisesRecordID,
+                  let priorReportID = payload.reportInsert?.replacesReportID,
+                  try inheritedInspectionRelease(recordID: priorRecordID, reportID: priorReportID,
+                    assetID: payload.workflowRecordAfter.assetID, packetID: payload.packetAfter.id,
+                    revisionRootID: payload.workflowRecordAfter.recordRevisionRootID)
+                    == authority.sourceBinding.inspectionRelease else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+        } else if let binding = authority.sourceBinding.inspectionRelease {
+            guard try inspectionReleaseForOriginal(payload.workflowRecordAfter) == binding else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+        }
     }
 
-    private func writerBoundIntent(_ intent: FinalizationIntentV1) throws -> FinalizationIntentV1 {
+    private func inspectionReleaseForOriginal(
+        _ record: WorkflowRecordPayloadV1
+    ) throws -> FinalizationInspectionReleaseBindingV1? {
+        // Other existing package profiles retain their own legacy route.
+        guard signPack.packID == ShippingIlluminatedSignAdapterV1.packageID else { return nil }
+        guard record.packID == signPack.packID,
+              record.packSchemaVersion == signPack.schemaVersion,
+              record.packContentVersion == signPack.contentVersion,
+              let stage = WorkflowStage(rawValue: record.stage),
+              stage == .check || stage == .recheck else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        return try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(from: signPack, stage: stage)
+    }
+
+    /// A correction inherits its immediate predecessor's original authority.
+    /// Full journal validation distinguishes absent imported/legacy authority
+    /// from a corrupt or quarantined current transaction. It never substitutes
+    /// today's package/workflow for a predecessor that did not record one.
+    private func inheritedInspectionRelease(
+        recordID: UUID, reportID: UUID, assetID: UUID, packetID: UUID, revisionRootID: UUID
+    ) throws -> FinalizationInspectionReleaseBindingV1? {
+        guard let workspaceWriter else { throw FinalizationServiceError.preconditionFailed }
+        return try inheritedInspectionRelease(evidence: workspaceWriter.finalizationEvidence(recordID: recordID),
+            recordID: recordID, reportID: reportID, assetID: assetID, packetID: packetID, revisionRootID: revisionRootID)
+    }
+
+    private func inheritedInspectionRelease(
+        evidence: FinalizationCommittedEvidenceV1?,
+        recordID: UUID, reportID: UUID, assetID: UUID, packetID: UUID, revisionRootID: UUID
+    ) throws -> FinalizationInspectionReleaseBindingV1? {
+        guard let evidence else { return nil }
+        let authority: FinalizationWriterAuthorityV1?
+        switch evidence.envelope.command {
+        case let .finalizeCheck(value):
+            guard value.recordID == recordID, value.reportID == reportID,
+                  value.assetID == assetID, value.packetID == packetID else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            authority = value.writerAuthority
+        case let .finalizeCorrection(value):
+            guard value.correctionRecordID == recordID, value.reportID == reportID,
+                  value.assetID == assetID, value.packetID == packetID else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            authority = value.writerAuthority
+        default: throw FinalizationServiceError.preconditionFailed
+        }
+        _ = try evidence.workflowRecordRevision(recordID: recordID)
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter { $0.id == recordID }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>()).filter { $0.id == reportID }
+        guard records.count == 1, reports.count == 1,
+              records[0].assetID == assetID, records[0].packetID == packetID,
+              records[0].recordRevisionRootID == revisionRootID,
+              records[0].finalizationMutationID == evidence.envelope.mutationID.rawValue,
+              reports[0].sourceRecordID == recordID, reports[0].packetID == packetID,
+              reports[0].snapshotRelativePath == "snapshots/\(reportID.uuidString.lowercased()).json" else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let snapshotBytes = try anchoredSnapshotData(reports[0].snapshotRelativePath)
+        let snapshot = try ReportSnapshotEncoderV1().decode(snapshotBytes)
+        let encoded = try ReportSnapshotEncoderV1().encode(snapshot)
+        guard encoded.data == snapshotBytes, encoded.sha256 == reports[0].snapshotSHA256,
+              snapshot.sourceRecordID == recordID, snapshot.reportID == reportID,
+              snapshot.packetID == packetID else { throw FinalizationServiceError.preconditionFailed }
+        // A validated legacy scalar command records no inspection workflow.
+        // The caller's unchanged correction-rule/source validation still
+        // applies; preserve this absence instead of stamping today's graph.
+        guard let authority else { return nil }
+        try authority.validate(envelope: evidence.envelope)
+        guard let expectedReport = authority.payload.reportInsert,
+              authority.generationID == generationID,
+              authority.payload.workflowRecordAfter.assetID == assetID,
+              authority.payload.workflowRecordAfter.packetID == packetID,
+              authority.payload.workflowRecordAfter.recordRevisionRootID == revisionRootID,
+              authority.payload.packetAfter.id == packetID,
+              expectedReport.id == reportID, expectedReport.sourceRecordID == recordID,
+              recordPayload(records[0]) == authority.payload.workflowRecordAfter,
+              immutableReportPayload(reports[0], matches: expectedReport),
+              authority.snapshotRelativePath == expectedReport.snapshotRelativePath,
+              authority.snapshotSHA256 == expectedReport.snapshotSHA256 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        return authority.sourceBinding.inspectionRelease
+    }
+
+    private func writerBoundIntent(
+        _ intent: FinalizationIntentV1,
+        inspectionRelease: FinalizationInspectionReleaseBindingV1?
+    ) throws -> FinalizationIntentV1 {
         guard let workspaceWriter, let report = intent.finalizationPayload.reportInsert else {
             throw FinalizationServiceError.preconditionFailed
         }
@@ -470,7 +737,8 @@ final class FinalizationService {
             sourceBinding: .init(sourceRecordID: sourceRecordID,
                 observationBasisV1Data: companion.observationBasisV1Data,
                 temporalContextV1Data: companion.temporalContextV1Data,
-                requirementAssurance: try assuranceRows.first?.snapshot())
+                requirementAssurance: try assuranceRows.first?.snapshot(),
+                inspectionRelease: inspectionRelease)
         )
         let record = intent.finalizationPayload.workflowRecordAfter
         let command: WorkspaceCommandV1

@@ -303,6 +303,49 @@ struct SnapshotValidatorV1 {
         try validateOriginalSourceReports([report])[0]
     }
 
+    /// Reads a retained completed inspection without requiring a rendered PDF
+    /// or pretending that its record is still the packet's current tip.
+    /// The caller separately owns the current writer and selected receipt.
+    func validateCompletedInspection(
+        report: Report,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> ValidatedReportSnapshotV1 {
+        var result: ValidatedReportSnapshotV1?
+        try validateCompletedInspectionReports([report], expectedRootIdentity: expectedRootIdentity) { _, value in
+            result = value
+        }
+        guard let result else { throw SnapshotValidationErrorV1.invalidAuthority }
+        return result
+    }
+
+    /// The consumer is synchronous and nonescaping. Media for one selected
+    /// report can be discarded before validating the next selected report.
+    func validateCompletedInspectionReports(
+        _ reports: [Report],
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        consume: (Report, ValidatedReportSnapshotV1) throws -> Void
+    ) throws {
+        do {
+            guard reports.count <= 512, sourceRecoveryAuthority == nil, !modelContext.hasChanges,
+                  try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == expectedRootIdentity else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            try ReportRecoveryService.validateCompletedInspectionReplacementChains(
+                modelContext: modelContext, generationRootURL: generationRootURL,
+                expectedRootIdentity: expectedRootIdentity)
+            for report in reports {
+                let result = try validateAuthority(report: report, allowsOriginalPDFState: true)
+                try consume(report, result)
+            }
+            guard !modelContext.hasChanges,
+                  try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == expectedRootIdentity else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
     func validateOriginalSourceReports(_ reports: [Report]) throws -> [ValidatedReportSnapshotV1] {
         guard let sourceRecoveryAuthority else { throw SnapshotValidationErrorV1.invalidAuthority }
         try sourceRecoveryAuthority.recoveryMutationGuard().validateCurrent()

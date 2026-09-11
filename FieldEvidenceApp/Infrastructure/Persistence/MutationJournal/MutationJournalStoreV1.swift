@@ -1444,6 +1444,10 @@ final class MutationJournalStoreV1 {
     /// of a receipt sharing an identifier. The caller also validates the full
     /// journal before using absence as authority for file cleanup.
     func finalizationEnvelope(mutationID: MutationIDV1) throws -> MutationEnvelopeV1? {
+        try finalizationEvidence(mutationID: mutationID)?.envelope
+    }
+
+    func finalizationEvidence(mutationID: MutationIDV1) throws -> FinalizationCommittedEvidenceV1? {
         try validateCurrentWriterLease()
         let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: mutationID)
         guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
@@ -1456,10 +1460,11 @@ final class MutationJournalStoreV1 {
         ))
         guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         guard let row = rows.first else { return nil }
-        _ = try validate(row: row, expectedEnvelope: nil)
+        let receipt = try validate(row: row, expectedEnvelope: nil)
         let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
         switch envelope.command {
-        case .finalizeCheck, .finalizeCorrection: return envelope
+        case .finalizeCheck, .finalizeCorrection:
+            return try FinalizationCommittedEvidenceV1(envelope: envelope, receipt: receipt)
         default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
     }

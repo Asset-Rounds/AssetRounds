@@ -122,6 +122,7 @@ struct MyDaySourceSnapshotV1: Sendable {
         let result = MyDaySourceSnapshotV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
             sources: sourceResult.sources, frontiers: frontiers, dueQueue: sourceResult.dueQueue,
             sourceClosureSHA256: sourceResult.sourceClosureSHA256, readinessAssessments: assessments)
+        let completionRoot = try readinessAuthority?.validateCompletionsForPublication(assessments)
         #if DEBUG
         try await afterSourceMaterializationForTesting?()
         #endif
@@ -129,7 +130,8 @@ struct MyDaySourceSnapshotV1: Sendable {
         // lock/unlock cycle during materialization invalidates this operation.
         try await accessGate.validateContentRead(token, for: .render)
         try Task.checkCancellation()
-        try readinessAuthority?.validateStorageForPublication(assessments)
+        try readinessAuthority?.validateStorageForPublication(assessments,
+            expectedGenerationRootIdentity: completionRoot)
         let rereadSession = try currentSession()
         guard try rereadSession.workspaceWriter.currentRevision() == revision else {
             throw MyDaySourceReadFailureV1.sourcesChanged

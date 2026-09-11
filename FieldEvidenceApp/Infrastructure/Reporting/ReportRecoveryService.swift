@@ -508,6 +508,45 @@ final class ReportRecoveryService: ObservableObject {
         )
     }
 
+    /// Current-context history validation only; no recovery service, renderer
+    /// or migration authority is constructed and no rows or files are changed.
+    static func validateCompletedInspectionReplacementChains(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws {
+        guard !modelContext.hasChanges,
+              try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == expectedRootIdentity else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        func bounded<T: PersistentModel>(_ type: T.Type) throws -> [T] {
+            var descriptor = FetchDescriptor<T>()
+            descriptor.fetchLimit = 100_001
+            let values = try modelContext.fetch(descriptor)
+            guard values.count <= 100_000 else { throw ReportRecoveryServiceError.invalidAuthority }
+            return values
+        }
+        let reports = try bounded(Report.self)
+        let records = try bounded(WorkflowRecord.self)
+        let packets = try bounded(Packet.self)
+        let evidence = try bounded(EvidenceFile.self)
+        let companions = try validatedObservationAndTimeIndex(records: records, modelContext: modelContext)
+        try validateReplacementChains(
+            reports: reports, packets: packets, records: records, evidence: evidence,
+            payload: { try recordPayload($0, observationAndTime: companions) },
+            snapshot: { report in
+                guard report.snapshotRelativePath == "snapshots/\(report.id.uuidString.lowercased()).json" else {
+                    throw ReportRecoveryServiceError.invalidAuthority
+                }
+                return try canonicalSnapshot(report, generationRootURL: generationRootURL,
+                    rootIdentity: expectedRootIdentity)
+            })
+        guard !modelContext.hasChanges,
+              try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == expectedRootIdentity else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+    }
+
     private static func validateReplacementChains(
         reports: [Report], packets: [Packet], records: [WorkflowRecord], evidence: [EvidenceFile],
         payload: (WorkflowRecord) throws -> WorkflowRecordPayloadV1,
@@ -620,6 +659,14 @@ final class ReportRecoveryService: ObservableObject {
     }
 
     private func canonicalSnapshot(_ report: Report) throws -> ReportSnapshotV1 {
+        try Self.canonicalSnapshot(report, generationRootURL: generationRootURL, rootIdentity: rootIdentity)
+    }
+
+    private static func canonicalSnapshot(
+        _ report: Report,
+        generationRootURL: URL,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> ReportSnapshotV1 {
         let data: Data
         do {
             data = try ReportPDFAnchoredFile.readRegularFile(

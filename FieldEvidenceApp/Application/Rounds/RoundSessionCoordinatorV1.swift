@@ -12,7 +12,8 @@ import Foundation
     func publishedPackageRelease(for reference: RoundPackageReleaseReferenceV1) throws -> InspectionPackageReleaseV1?
     func contentReference(workspaceID: WorkspaceID, contentID: String) throws -> ContentReferenceV1?
     func assetExists(workspaceID: WorkspaceID, assetID: UUID) throws -> Bool
-    func completionMatches(workspaceID: WorkspaceID, reference: RoundItemCompletionReferenceV1) throws -> Bool
+    func completionMatches(workspaceID: WorkspaceID, reference: RoundItemCompletionReferenceV1,
+                           assetID: UUID, packageRelease: RoundPackageReleaseReferenceV1) throws -> Bool
 }
 
 @MainActor final class RoundSessionCoordinatorV1 {
@@ -135,7 +136,10 @@ import Foundation
                 }
             }
             if let completion = item.completion {
-                guard try authority.completionMatches(workspaceID: workspaceID, reference: completion) else { throw RoundSessionFailureV1.authorityMismatch }
+                guard try authority.completionMatches(workspaceID: workspaceID, reference: completion,
+                    assetID: item.selection.assetID, packageRelease: item.requirement.packageRelease) else {
+                    throw RoundSessionFailureV1.authorityMismatch
+                }
             }
             if !(try authority.assetExists(workspaceID: workspaceID, assetID: item.selection.assetID)) {
                 let priorItem = predecessor?.items.first(where: { $0.itemID == item.itemID })

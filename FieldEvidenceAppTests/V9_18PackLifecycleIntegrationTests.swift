@@ -30,6 +30,555 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
 
     private let fileManager = FileManager.default
 
+    func testFinalizationWorkflowBranchesMatchNativeOutcomeAndEvidenceRules() throws {
+        let prefix = "native.sign.finalization."
+        let stages: [(WorkflowStage, [String], String)] = [
+            (.check, ["no_visible_issue", "visible_issue", "could_not_verify"], "visible_issue"),
+            (.recheck, ["resolved", "issue_still_visible", "original_resolved_different_issue", "could_not_verify"],
+             "original_resolved_different_issue"),
+        ]
+        for (stage, outcomes, conditionOutcome) in stages {
+            let graph = try ShippingIlluminatedSignAdapterV1.finalizationWorkflow(from: .illuminatedSignV1, stage: stage)
+            for outcome in outcomes {
+                for wide in [false, true] {
+                    for close in [false, true] {
+                        var facts: [String: WorkflowFactValueV1] = [
+                            prefix + "after_dark": .option("accepted"),
+                            prefix + "safe_authorized_position": .option("accepted"),
+                            prefix + "wide_present": .option(wide ? "present" : "absent"),
+                            prefix + "close_present": .option(close ? "present" : "absent"),
+                            prefix + "outcome": .option(outcome),
+                            prefix + "condition": .option("physical_damage"),
+                            prefix + "could_not_verify_reason": .option("conditions_changed"),
+                        ]
+                        let isCNV = outcome == "could_not_verify"
+                        let expected = isCNV ? "completed_could_not_verify" : (wide && close ? "completed" : "blocked")
+                        let path = try traverseFinalization(graph, facts: facts)
+                        XCTAssertEqual(path.terminal, expected, "\(stage) \(outcome) wide=\(wide) close=\(close)")
+                        XCTAssertEqual(path.evidence, (wide ? ["wide_context"] : []) + (close ? ["close_detail"] : []))
+                        XCTAssertNil(facts[prefix + "could_not_verify_note"], "The native optional CNV note must stay optional")
+                        if outcome == conditionOutcome && wide && close {
+                            facts.removeValue(forKey: prefix + "condition")
+                            XCTAssertEqual(try traverseFinalization(graph, facts: facts).terminal, "blocked")
+                            facts[prefix + "condition"] = .option("unknown_condition")
+                            XCTAssertEqual(try traverseFinalization(graph, facts: facts).terminal, "blocked")
+                        }
+                    }
+                }
+            }
+            let baseline: [String: WorkflowFactValueV1] = [
+                prefix + "after_dark": .option("accepted"), prefix + "safe_authorized_position": .option("accepted"),
+                prefix + "wide_present": .option("present"), prefix + "close_present": .option("present"),
+                prefix + "outcome": .option("could_not_verify"),
+                prefix + "could_not_verify_reason": .option("conditions_changed"),
+            ]
+            let invalidFacts: [WorkflowFactValueV1?] = [nil, .unknown, .option("not_a_valid_choice")]
+            for field in ["after_dark", "safe_authorized_position", "wide_present", "close_present", "outcome", "could_not_verify_reason"] {
+                for value in invalidFacts {
+                    var hostile = baseline
+                    hostile[prefix + field] = value
+                    XCTAssertEqual(try traverseFinalization(graph, facts: hostile).terminal, "blocked", field)
+                }
+            }
+            for reason in SignPack.illuminatedSignV1.couldNotVerifyReasons.entries {
+                var facts = baseline
+                facts[prefix + "could_not_verify_reason"] = .option(reason.key)
+                XCTAssertEqual(try traverseFinalization(graph, facts: facts).terminal, "completed_could_not_verify")
+            }
+        }
+        XCTAssertThrowsError(try ShippingIlluminatedSignAdapterV1.finalizationWorkflow(from: .illuminatedSignV1, stage: .work))
+    }
+
+    private func traverseFinalization(_ graph: WorkflowDefinitionV1, facts: [String: WorkflowFactValueV1]) throws
+        -> (terminal: String, evidence: [String]) {
+        var nodeID = graph.entryNodeID
+        var visited = Set<String>()
+        var evidence: [String] = []
+        while visited.count < graph.nodes.count {
+            guard visited.insert(nodeID).inserted else { throw InspectionKernelFailureV1.cycleDetected }
+            let node = try XCTUnwrap(graph.nodes.first { $0.nodeID == nodeID })
+            if node.kind == .terminal { return (nodeID, evidence) }
+            if node.kind == .branch {
+                nodeID = try XCTUnwrap(node.branchDestinations).destination(
+                    for: XCTUnwrap(node.predicate).evaluate(facts: facts))
+            } else {
+                guard node.kind != .repeatGroup, node.outgoingNodeIDs.count == 1 else {
+                    throw InspectionKernelFailureV1.invalidValue
+                }
+                if let purpose = node.evidencePurposeID { evidence.append(purpose) }
+                nodeID = try XCTUnwrap(node.outgoingNodeIDs.first)
+            }
+        }
+        throw InspectionKernelFailureV1.limitExceeded
+    }
+
+    @MainActor
+    func testRealCheckCompletionsBindKnownAndPartialEvidenceOutcomes() async throws {
+        let cases: [(CheckOutcomeSelection, Int, String)] = [
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 1, "could_not_verify"),
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 2, "could_not_verify"),
+            (.noVisibleIssue, 2, "no_visible_issue"),
+            (.visibleIssue(labelKey: "physical_damage"), 2, "visible_issue"),
+        ]
+        for (selection, count, outcome) in cases {
+            let fixture = try await makeShippingCompletion("check-\(outcome)-\(count)", selection: selection, evidenceCount: count)
+            defer { fixture.harness.cleanup(fileManager: fileManager) }
+            XCTAssertEqual(fixture.record.outcomeKey, outcome)
+            let snapshot = try ReportSnapshotEncoderV1().decode(Data(contentsOf:
+                fixture.harness.session.generationRootURL.appendingPathComponent(fixture.report.snapshotRelativePath)))
+            XCTAssertEqual(snapshot.evidence.filter { $0.recordID == fixture.record.id }.count, count)
+            let reference = try XCTUnwrap(fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+                expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+            XCTAssertEqual(reference.completionSHA256, fixture.report.snapshotSHA256)
+            let paired = try XCTUnwrap(fixture.harness.dependencies.writer.finalizationEvidence(recordID: fixture.record.id))
+            XCTAssertEqual(reference.revision, try paired.workflowRecordRevision(recordID: fixture.record.id))
+        }
+    }
+
+    @MainActor
+    func testRealRecheckCompletionsRetainEveryNativeOutcomeAndOriginalHistory() async throws {
+        let cases: [(CheckOutcomeSelection, Int, String)] = [
+            (.resolved(note: nil), 2, "resolved"), (.issueStillVisible(note: nil), 2, "issue_still_visible"),
+            (.originalResolvedDifferentIssue(labelKey: "physical_damage", note: nil), 2, "original_resolved_different_issue"),
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 0, "could_not_verify"),
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 1, "could_not_verify"),
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 2, "could_not_verify"),
+        ]
+        for (selection, count, outcome) in cases {
+            let support = fileManager.temporaryDirectory.appendingPathComponent("completion-recheck-\(UUID().uuidString)", isDirectory: true)
+            let fixture = try await WorkCanonicalCurrentRouteFixtureV1.make(applicationSupportURL: support,
+                pack: .illuminatedSignV1, workPhotoData: nil)
+            defer { try? fixture.close(); try? fileManager.removeItem(at: support) }
+            let runner = try CheckRunnerCoordinator(modelContext: fixture.context,
+                packageLifecycleDependencies: fixture.lifecycleDependencies, packageLifecycleProfile: fixture.lifecycleProfile)
+            try runner.requestRecheck(assetID: fixture.assetID, issueID: fixture.issueID)
+            let observed = fixture.workSubmission.completedAt.addingTimeInterval(60)
+            _ = try runner.beginCheck(assetID: fixture.assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true,
+                afterDarkAccepted: true, safePositionAccepted: true, observedAt: observed)
+            runner.configureCapture(generationRootURL: fixture.session.generationRootURL)
+            for index in 0..<count {
+                let candidate = try await runner.importCandidate(assetID: fixture.assetID,
+                    sourceData: WorkCanonicalIntegrationTestSupportV1.makePNG(seed: UInt8(70 + index)),
+                    createdAt: observed.addingTimeInterval(TimeInterval(index + 1)))
+                _ = try await runner.accept(candidate: candidate, assetID: fixture.assetID)
+            }
+            let result = try await runner.finalize(assetID: fixture.assetID, selection: selection,
+                completedAt: observed.addingTimeInterval(10), snapshotCreatedAt: observed.addingTimeInterval(11),
+                sourceApp: .init(build: "completion-recheck", version: "1.0"))
+            let finalizer = try FinalizationService(modelContext: fixture.context, signPack: .illuminatedSignV1,
+                generationRootURL: fixture.session.generationRootURL, workspaceWriter: fixture.lifecycleDependencies.writer)
+            let release = try publishedShippingRelease(stage: .recheck)
+            let reference = try XCTUnwrap(finalizer.completedInspectionReference(recordID: result.recordID,
+                expectedAssetID: fixture.assetID, expectedRelease: release))
+            XCTAssertEqual(reference.completionSHA256, result.snapshotSHA256)
+            let snapshot = try ReportSnapshotEncoderV1().decode(Data(contentsOf:
+                fixture.session.generationRootURL.appendingPathComponent(result.snapshotRelativePath)))
+            XCTAssertEqual(snapshot.stage, "recheck")
+            XCTAssertEqual(snapshot.outcome, outcome)
+            XCTAssertEqual(snapshot.history.map(\.recordID), [fixture.openingRecordID, fixture.workRecordID])
+            XCTAssertEqual(snapshot.evidence.filter { $0.recordID == result.recordID }.count, count)
+            let paired = try XCTUnwrap(fixture.lifecycleDependencies.writer.finalizationEvidence(recordID: result.recordID))
+            guard case let .finalizeCheck(command) = paired.envelope.command else { return XCTFail("Recheck must use actual finalization receipt") }
+            XCTAssertEqual(command.writerAuthority?.sourceBinding.inspectionRelease?.workflowSHA256, release.workflowSHA256)
+            XCTAssertThrowsError(try finalizer.completedInspectionReference(recordID: result.recordID,
+                expectedAssetID: fixture.assetID, expectedRelease: publishedShippingRelease(stage: .check)))
+        }
+    }
+
+    @MainActor
+    func testFinalizedInspectionCompletionKeepsOriginalReceiptAcrossPDFStatesAndCorrections() async throws {
+        let fixture = try await makeShippingCompletion("completion-corrections")
+        let harness = fixture.harness
+        defer { harness.cleanup(fileManager: fileManager) }
+        let writer = harness.dependencies.writer
+        let original = try XCTUnwrap(fixture.finalizer.completedInspectionReference(
+            recordID: fixture.record.id, expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+        let evidence = try XCTUnwrap(writer.finalizationEvidence(recordID: fixture.record.id))
+        let mutationID = try MutationIDV1(rawValue: XCTUnwrap(fixture.record.finalizationMutationID))
+        XCTAssertEqual(try writer.finalizationEvidence(mutationID: mutationID), evidence)
+        XCTAssertEqual(original.revision, try evidence.workflowRecordRevision(recordID: fixture.record.id))
+        XCTAssertEqual(original.completionSHA256, fixture.report.snapshotSHA256)
+        guard case let .finalizeCheck(command) = evidence.envelope.command else {
+            return XCTFail("Shipping inspection must retain its actual finalize-check receipt")
+        }
+        let binding = try XCTUnwrap(command.writerAuthority?.sourceBinding.inspectionRelease)
+        XCTAssertEqual(binding, try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(
+            from: .illuminatedSignV1, stage: .check))
+        XCTAssertEqual(binding.packageReleaseID, fixture.release.packageReleaseID)
+        XCTAssertEqual(fixture.report.pdfState, ReportPDFState.pending.rawValue)
+
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let failingRenderer = try ReportRenderService(modelContext: harness.session.modelContext,
+            lifecycleDependencies: harness.dependencies, lifecycleProfile: profile,
+            failureInjection: .init(failOnceAt: .render))
+        XCTAssertEqual(try failingRenderer.attemptPendingReport(id: fixture.report.id), .failed(reportID: fixture.report.id))
+        XCTAssertEqual(fixture.report.pdfState, ReportPDFState.failed.rawValue)
+        XCTAssertEqual(try fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release), original)
+        let retry = try ReportRenderService.transitionMutation(report: fixture.report,
+            writer: writer, transition: .failedToPending)
+        _ = try writer.commitReportPDFTransition(retry)
+        let renderer = try ReportRenderService(modelContext: harness.session.modelContext,
+            lifecycleDependencies: harness.dependencies, lifecycleProfile: profile)
+        _ = try renderer.renderPendingReport(id: fixture.report.id)
+        let delivery = try ReportDeliveryCoordinator(modelContext: harness.session.modelContext,
+            lifecycleDependencies: harness.dependencies, lifecycleProfile: profile)
+        var record = fixture.record
+        var report = fixture.report
+        var preserved: [(recordID: UUID, reference: RoundItemCompletionReferenceV1,
+                         snapshotURL: URL, snapshot: Data, pdfURL: URL, pdf: Data)] = []
+        for iteration in 0...2 {
+            let completion = try XCTUnwrap(fixture.finalizer.completedInspectionReference(recordID: record.id,
+                expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+            let snapshotURL = harness.session.generationRootURL.appendingPathComponent(report.snapshotRelativePath)
+            let pdfURL = harness.session.generationRootURL.appendingPathComponent(try XCTUnwrap(report.pdfRelativePath))
+            preserved.append((record.id, completion, snapshotURL, try Data(contentsOf: snapshotURL),
+                              pdfURL, try Data(contentsOf: pdfURL)))
+            for prior in preserved {
+                XCTAssertEqual(try fixture.finalizer.completedInspectionReference(recordID: prior.recordID,
+                    expectedAssetID: fixture.asset.id, expectedRelease: fixture.release), prior.reference)
+                XCTAssertEqual(try Data(contentsOf: prior.snapshotURL), prior.snapshot)
+                XCTAssertEqual(try Data(contentsOf: prior.pdfURL), prior.pdf)
+            }
+            guard iteration < 2 else { break }
+            let validated = try delivery.validatedReadyReport(id: report.id)
+            let packet = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<Packet>())
+                .first { $0.id == report.packetID })
+            let corrected = try await fixture.finalizer.finalizeCorrection(.init(currentRecord: record,
+                packet: packet, currentReport: report, currentSnapshot: validated.snapshot,
+                note: "Clerical correction \(iteration + 1)",
+                snapshotCreatedAt: validated.snapshot.snapshotCreatedAt.addingTimeInterval(10),
+                sourceApp: .init(build: "completion-\(iteration + 1)", version: "1.0"),
+                identifiers: .init(mutationID: UUID(), recordID: UUID(), reportID: UUID())))
+            record = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+                .first { $0.id == corrected.recordID })
+            report = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<Report>())
+                .first { $0.id == corrected.reportID })
+            XCTAssertEqual(report.pdfState, ReportPDFState.pending.rawValue)
+            let correctedEvidence = try XCTUnwrap(writer.finalizationEvidence(recordID: record.id))
+            guard case let .finalizeCorrection(correction) = correctedEvidence.envelope.command else {
+                return XCTFail("Correction must use its original paired receipt")
+            }
+            XCTAssertEqual(correction.writerAuthority?.sourceBinding.inspectionRelease, binding)
+            XCTAssertNotNil(try fixture.finalizer.completedInspectionReference(recordID: record.id,
+                expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+            XCTAssertEqual(try fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+                expectedAssetID: fixture.asset.id, expectedRelease: fixture.release), original)
+            _ = try renderer.renderPendingReport(id: report.id)
+        }
+        XCTAssertEqual(preserved.count, 3)
+        let requests = preserved.reversed().map {
+            FinalizationService.CompletedInspectionRequest(recordID: $0.recordID,
+                expectedAssetID: fixture.asset.id, expectedRelease: fixture.release)
+        }
+        let ordered = try fixture.finalizer.completedInspectionReferences(requests: requests)
+        let expected: [RoundItemCompletionReferenceV1?] = preserved.reversed().map { $0.reference }
+        XCTAssertEqual(ordered, expected, "Every correction retains its own original paired receipt")
+        XCTAssertEqual(try harness.session.modelContext.fetchCount(FetchDescriptor<Report>()), 3)
+        XCTAssertEqual(try harness.session.modelContext.fetchCount(FetchDescriptor<Packet>()), 1)
+    }
+
+    @MainActor
+    func testCompletedInspectionBatchPreservesOrderBoundsAndRejectsAnyInvalidSelection() async throws {
+        let fixture = try await makeShippingCompletion("completion-batch")
+        defer { fixture.harness.cleanup(fileManager: fileManager) }
+        let finalizer = fixture.finalizer
+        let writer = fixture.harness.dependencies.writer
+        let revision = try writer.currentRevision()
+        let request = FinalizationService.CompletedInspectionRequest(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release)
+        let missing = FinalizationService.CompletedInspectionRequest(recordID: UUID(),
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release)
+        let reference = try XCTUnwrap(finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+        let expected: [RoundItemCompletionReferenceV1?] = [reference, nil, reference]
+        XCTAssertEqual(try finalizer.completedInspectionReferences(requests: [request, missing, request]), expected)
+        XCTAssertEqual(try finalizer.completedInspectionReferences(requests: Array(repeating: missing, count: 512)),
+            [RoundItemCompletionReferenceV1?](repeating: nil, count: 512))
+        XCTAssertThrowsError(try finalizer.completedInspectionReferences(requests: Array(repeating: missing, count: 513)))
+        let wrongAsset = FinalizationService.CompletedInspectionRequest(recordID: fixture.record.id,
+            expectedAssetID: UUID(), expectedRelease: fixture.release)
+        let wrongWorkflow = FinalizationService.CompletedInspectionRequest(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: try publishedShippingRelease(stage: .recheck))
+        XCTAssertThrowsError(try finalizer.completedInspectionReferences(requests: [request, missing, wrongAsset]))
+        XCTAssertThrowsError(try finalizer.completedInspectionReferences(requests: [request, wrongWorkflow]))
+
+        let validator = try SnapshotValidatorV1(modelContext: fixture.harness.session.modelContext,
+            generationRootURL: fixture.harness.session.generationRootURL, signPack: .illuminatedSignV1)
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: fixture.harness.session.generationRootURL)
+        var consumed: [UUID] = []
+        XCTAssertThrowsError(try validator.validateCompletedInspectionReports(
+            Array(repeating: fixture.report, count: 513), expectedRootIdentity: rootIdentity) { report, _ in
+                consumed.append(report.id)
+            })
+        XCTAssertTrue(consumed.isEmpty, "Raw report count is checked before any selected content is consumed")
+        try validator.validateCompletedInspectionReports([fixture.report, fixture.report], expectedRootIdentity: rootIdentity) { report, value in
+            XCTAssertEqual(value.snapshotSHA256, reference.completionSHA256)
+            consumed.append(report.id)
+        }
+        XCTAssertEqual(consumed, [fixture.report.id, fixture.report.id])
+
+        let snapshotURL = fixture.harness.session.generationRootURL.appendingPathComponent(fixture.report.snapshotRelativePath)
+        let originalBytes = try Data(contentsOf: snapshotURL)
+        try Data("altered selected snapshot".utf8).write(to: snapshotURL)
+        XCTAssertThrowsError(try finalizer.completedInspectionReferences(requests: [missing, request]))
+        try originalBytes.write(to: snapshotURL)
+        XCTAssertEqual(try finalizer.completedInspectionReferences(requests: [request, missing, request]), expected)
+        XCTAssertEqual(try Data(contentsOf: snapshotURL), originalBytes)
+        XCTAssertEqual(try writer.currentRevision(), revision)
+        writer.invalidate()
+        XCTAssertThrowsError(try finalizer.completedInspectionReferences(requests: [missing, request])) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+    }
+
+    @MainActor
+    func testProductionMyDayAcceptsActualInspectionCompletionAndRejectsChangedSnapshot() async throws {
+        let fixture = try await makeShippingCompletion("completion-my-day")
+        let harness = fixture.harness
+        defer { harness.cleanup(fileManager: fileManager) }
+        let writer = harness.dependencies.writer
+        let workspaceID = harness.session.workspaceID
+        let completedAt = try XCTUnwrap(fixture.record.completedAt)
+        let completion = try XCTUnwrap(fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+        // The publication owner produced these exact package/workflow bytes.
+        // Persist its canonical test input; this does not qualify UI promotion.
+        let promoted = try PromotedPackageReleaseV1(releaseRecordID: UUID(), workspaceID: workspaceID,
+            packageRelease: fixture.release, mutationID: writer.makeMutationID(), promotedAt: completedAt)
+        harness.session.modelContext.insert(try PromotedPackageReleaseRow(promoted))
+        try harness.session.modelContext.save()
+        let localActor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspaceID,
+            displayName: "Round inspector")
+        let recorder = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspaceID, actor: localActor,
+            responsibility: .recordedBy, displayNameAtTime: localActor.displayName, capturedAt: completedAt)
+        _ = try writer.execute(.applyPartyAccountability(.appendActorSnapshot(recorder)),
+            mutationID: writer.makeMutationID())
+        let item = try RoundItemV1(itemID: UUID(), order: 0,
+            selection: .init(assetID: fixture.asset.id, siteID: fixture.asset.siteID,
+                labelAtSelection: fixture.asset.label),
+            requirement: .init(packageRelease: .init(fixture.release), requiredContent: []))
+        var round = try RoundSessionV1(workspaceID: workspaceID, sessionID: UUID(), predecessor: nil,
+            revision: 1, mutationID: writer.makeMutationID(), state: .draft, transition: .create,
+            items: [item], recordedBy: recorder, recordedAt: completedAt)
+        _ = try writer.commitRoundSession(.init(workspaceID: workspaceID, expectedRevision: 0,
+            mutationID: round.mutationID, session: round))
+        for (index, transition) in [RoundSessionTransitionV1.start, .visitItem, .completeItem].enumerated() {
+            let visit = try RoundItemVisitV1(visitedAt: completedAt, recordedBy: recorder)
+            let successorItem = try RoundItemV1(itemID: item.itemID, order: item.order, selection: item.selection,
+                requirement: item.requirement, disposition: index == 0 ? .pending : (index == 1 ? .visited : .completed),
+                visit: index == 0 ? nil : visit, completion: index == 2 ? completion : nil)
+            let successor = try RoundSessionV1(workspaceID: workspaceID, sessionID: round.sessionID,
+                predecessor: round, revision: round.revision + 1, mutationID: writer.makeMutationID(),
+                state: .active, transition: transition, transitionItemID: index == 0 ? nil : item.itemID,
+                items: [successorItem], recordedBy: recorder,
+                recordedAt: completedAt.addingTimeInterval(TimeInterval(index + 1)))
+            _ = try writer.commitRoundSession(.init(workspaceID: workspaceID, expectedRevision: round.revision,
+                mutationID: successor.mutationID, session: successor))
+            round = successor
+        }
+        try await harness.coordinator.awaitSearchIndexLifecycle()
+        let authentication = CompletionReadAuthentication()
+        let gate = AppAccessGateV1(setting: .absentDisabled, authentication: authentication,
+            clock: SystemApplicationClock(), identifiers: SystemApplicationIDSource())
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: harness.root, capacityProvider: { _ in 1_000_000_000 })
+        let provider = harness.coordinator.makeMyDaySourceProvider(accessGate: gate, ownedStorageLedger: ledger)
+        let revision = try writer.currentRevision()
+        let receipts = try harness.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>())
+        let storage = ledger.snapshot()
+        let snapshotURL = harness.session.generationRootURL.appendingPathComponent(fixture.report.snapshotRelativePath)
+        let bytes = try Data(contentsOf: snapshotURL)
+        let evaluatedAt = completedAt.addingTimeInterval(100)
+        let assessed = try await provider.snapshot(evaluatedAt: evaluatedAt)
+        let reference = MyDayEligibleReferenceV1.roundSession(workspaceID: workspaceID,
+            sessionID: round.sessionID, revision: round.revision, sessionSHA256: round.sessionSHA256)
+        guard case let .roundManifest(manifest)? = assessed.readinessAssessments.first(where: { $0.reference == reference })?.assessment else {
+            return XCTFail("Actual matching completed inspection must reach production readiness")
+        }
+        try manifest.validate()
+        XCTAssertEqual(manifest.session, try round.reference)
+        XCTAssertEqual(manifest.status, .ready)
+        XCTAssertEqual(try writer.currentRevision(), revision)
+        XCTAssertEqual(try harness.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), receipts)
+        XCTAssertEqual(ledger.snapshot(), storage)
+        #if DEBUG
+        provider.afterSourceMaterializationForTesting = { await gate.markConfigurationUnknown() }
+        do { _ = try await provider.snapshot(evaluatedAt: evaluatedAt); XCTFail("Locked completed-inspection read published") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        provider.afterSourceMaterializationForTesting = nil
+        await gate.eraseAccessState()
+        #endif
+        try Data("changed after finalization".utf8).write(to: snapshotURL)
+        do { _ = try await provider.snapshot(evaluatedAt: evaluatedAt); XCTFail("Changed snapshot supplied Round readiness") }
+        catch { XCTAssertFalse(error is CancellationError) }
+        try bytes.write(to: snapshotURL)
+        let restored = try await provider.snapshot(evaluatedAt: evaluatedAt)
+        guard case .roundManifest? = restored.readinessAssessments.first(where: { $0.reference == reference })?.assessment else {
+            return XCTFail("Restored immutable bytes must remain readable")
+        }
+        XCTAssertEqual(try writer.currentRevision(), revision)
+        XCTAssertEqual(try harness.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), receipts)
+        // A later unavailable package must not prevent validation of the
+        // earlier supported completion's actual immutable snapshot.
+        let secondAssetMutation = try writer.makeMutationID()
+        _ = try writer.execute(try makeFirstAssetCommand(label: "completion-unavailable-neighbor",
+            mutationID: secondAssetMutation), mutationID: secondAssetMutation)
+        let secondAsset = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<Asset>())
+            .first { $0.id != fixture.asset.id })
+        let secondRunner = try CheckRunnerCoordinator(modelContext: harness.session.modelContext,
+            packageLifecycleDependencies: harness.dependencies,
+            packageLifecycleProfile: WorkspacePackageLifecycleCompatibilityV1.shippingProfile())
+        secondRunner.configureCapture(generationRootURL: harness.session.generationRootURL)
+        _ = try secondRunner.beginCheck(assetID: secondAsset.id, timeZoneID: "America/New_York", isTimeZoneConfirmed: true,
+            afterDarkAccepted: true, safePositionAccepted: true, observedAt: completedAt.addingTimeInterval(10))
+        let secondResult = try await secondRunner.finalize(assetID: secondAsset.id,
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil),
+            completedAt: completedAt.addingTimeInterval(20), snapshotCreatedAt: completedAt.addingTimeInterval(21),
+            sourceApp: .init(build: "completion-unavailable", version: "1.0"))
+        let secondCompletion = try XCTUnwrap(fixture.finalizer.completedInspectionReference(recordID: secondResult.recordID,
+            expectedAssetID: secondAsset.id, expectedRelease: fixture.release))
+        XCTAssertNotEqual(secondCompletion.completionID, completion.completionID)
+        let unavailableRelease = try publishedShippingRelease(stage: .recheck)
+        let secondItem = try RoundItemV1(itemID: UUID(), order: 1,
+            selection: .init(assetID: secondAsset.id, siteID: secondAsset.siteID, labelAtSelection: secondAsset.label),
+            requirement: .init(packageRelease: .init(unavailableRelease), requiredContent: []))
+        let mixedRecordedAt = completedAt.addingTimeInterval(30)
+        var mixed = try RoundSessionV1(workspaceID: workspaceID, sessionID: UUID(), predecessor: nil,
+            revision: 1, mutationID: writer.makeMutationID(), state: .draft, transition: .create,
+            items: [item, secondItem], recordedBy: recorder, recordedAt: mixedRecordedAt)
+        _ = try writer.commitRoundSession(.init(workspaceID: workspaceID, expectedRevision: 0,
+            mutationID: mixed.mutationID, session: mixed))
+        let started = try RoundSessionV1(workspaceID: workspaceID, sessionID: mixed.sessionID, predecessor: mixed,
+            revision: mixed.revision + 1, mutationID: writer.makeMutationID(), state: .active, transition: .start,
+            items: mixed.items, recordedBy: recorder, recordedAt: mixedRecordedAt)
+        _ = try writer.commitRoundSession(.init(workspaceID: workspaceID, expectedRevision: mixed.revision,
+            mutationID: started.mutationID, session: started))
+        mixed = started
+        for index in 0..<2 {
+            for disposition in [RoundItemDispositionV1.visited, .completed] {
+                var items = mixed.items
+                let selected = items[index]
+                items[index] = try .init(itemID: selected.itemID, order: selected.order, selection: selected.selection,
+                    requirement: selected.requirement, disposition: disposition,
+                    visit: .init(visitedAt: mixedRecordedAt, recordedBy: recorder),
+                    completion: disposition == .completed ? (index == 0 ? completion : secondCompletion) : nil)
+                let next = try RoundSessionV1(workspaceID: workspaceID, sessionID: mixed.sessionID, predecessor: mixed,
+                    revision: mixed.revision + 1, mutationID: writer.makeMutationID(), state: .active,
+                    transition: disposition == .visited ? .visitItem : .completeItem,
+                    transitionItemID: selected.itemID, items: items, recordedBy: recorder, recordedAt: mixedRecordedAt)
+                _ = try writer.commitRoundSession(.init(workspaceID: workspaceID, expectedRevision: mixed.revision,
+                    mutationID: next.mutationID, session: next))
+                mixed = next
+            }
+        }
+        try await harness.coordinator.awaitSearchIndexLifecycle()
+        let authority = ProductionOfflineReadinessAuthorityV1(session: harness.coordinator, accessGate: gate,
+            clock: SystemApplicationClock(), ownedStorageLedger: ledger, expectedApplicationSupportURL: harness.root)
+        let mixedReference = MyDayEligibleReferenceV1.roundSession(workspaceID: workspaceID,
+            sessionID: mixed.sessionID, revision: mixed.revision, sessionSHA256: mixed.sessionSHA256)
+        let missingPackage = try await authority.assess(mixedReference)
+        XCTAssertEqual(missingPackage.assessment, .unavailable(.completionAuthorityUnavailable))
+        let mixedRevision = try writer.currentRevision()
+        try Data("corrupt supported completion beside unavailable package".utf8).write(to: snapshotURL)
+        do { _ = try await authority.assess(mixedReference); XCTFail("Unavailable package hid a corrupt supported completion") }
+        catch { XCTAssertFalse(error is CancellationError) }
+        try bytes.write(to: snapshotURL)
+        let restoredMixed = try await authority.assess(mixedReference)
+        XCTAssertEqual(restoredMixed.assessment, .unavailable(.completionAuthorityUnavailable))
+        XCTAssertEqual(try writer.currentRevision(), mixedRevision)
+        let authenticationCount = await authentication.count
+        XCTAssertEqual(authenticationCount, 0)
+    }
+
+    @MainActor
+    func testFinalizedInspectionCompletionRejectsWrongSelectionTamperingAndRetiredWriter() async throws {
+        let fixture = try await makeShippingCompletion("completion-rejection")
+        let harness = fixture.harness
+        defer { harness.cleanup(fileManager: fileManager) }
+        let original = try XCTUnwrap(fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+        XCTAssertNil(try fixture.finalizer.completedInspectionReference(recordID: UUID(),
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+        XCTAssertThrowsError(try fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: UUID(), expectedRelease: fixture.release))
+        let wrongWorkflow = try publishedShippingRelease(stage: .recheck)
+        XCTAssertNotEqual(wrongWorkflow.workflowSHA256, fixture.release.workflowSHA256)
+        XCTAssertThrowsError(try fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: wrongWorkflow))
+        let snapshotURL = harness.session.generationRootURL.appendingPathComponent(fixture.report.snapshotRelativePath)
+        let bytes = try Data(contentsOf: snapshotURL)
+        try Data("tampered snapshot".utf8).write(to: snapshotURL)
+        XCTAssertThrowsError(try fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release))
+        try bytes.write(to: snapshotURL)
+        XCTAssertEqual(try fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release), original)
+        let originalWriterID = try harness.dependencies.writer.currentRevision().writerInstanceID
+        try harness.coordinator.invalidateAndReleaseWriter()
+        XCTAssertThrowsError(try fixture.finalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        let reopenedStore = try StoreGenerationFactory(applicationSupportURL: harness.root).openOrBootstrapCurrent()
+        let reopened = try StoreSessionCoordinator(validatingSession: reopenedStore)
+        defer { try? reopened.invalidateAndReleaseWriter() }
+        XCTAssertNotEqual(try reopened.workspaceWriter.currentRevision().writerInstanceID, originalWriterID)
+        let freshFinalizer = try FinalizationService(modelContext: reopened.modelContext, signPack: .illuminatedSignV1,
+            generationRootURL: reopened.generationRootURL, workspaceWriter: reopened.workspaceWriter)
+        XCTAssertEqual(try freshFinalizer.completedInspectionReference(recordID: fixture.record.id,
+            expectedAssetID: fixture.asset.id, expectedRelease: fixture.release), original)
+        XCTAssertEqual(try Data(contentsOf: snapshotURL), bytes)
+    }
+
+    private func publishedShippingRelease(stage: WorkflowStage) throws -> InspectionPackageReleaseV1 {
+        let draft = try InspectionPackageReleaseV1.makeDraft(
+            package: ShippingIlluminatedSignAdapterV1.inspectionPackage(),
+            workflow: ShippingIlluminatedSignAdapterV1.finalizationWorkflow(from: .illuminatedSignV1, stage: stage))
+        return try InspectionPackageReleasePublisherV1.publish(InspectionPackageReleasePublisherV1.test(draft)).release
+    }
+
+    @MainActor
+    private func makeShippingCompletion(_ label: String,
+        selection: CheckOutcomeSelection = .couldNotVerify(reasonKey: "conditions_changed", note: nil),
+        evidenceCount: Int = 0) async throws
+        -> (harness: Harness, asset: Asset, record: WorkflowRecord, report: Report,
+            release: InspectionPackageReleaseV1, finalizer: FinalizationService) {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let harness = try makeHarness(label, profile: profile)
+        do {
+            let runner = try CheckRunnerCoordinator(modelContext: harness.session.modelContext,
+                packageLifecycleDependencies: harness.dependencies, packageLifecycleProfile: profile)
+            runner.configureCapture(generationRootURL: harness.session.generationRootURL)
+            let mutationID = try harness.dependencies.writer.makeMutationID()
+            _ = try harness.dependencies.writer.execute(try makeFirstAssetCommand(label: label,
+                mutationID: mutationID), mutationID: mutationID)
+            let asset = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<Asset>()).first)
+            _ = try runner.beginCheck(assetID: asset.id, timeZoneID: "America/New_York", isTimeZoneConfirmed: true,
+                afterDarkAccepted: true, safePositionAccepted: true, observedAt: Date(timeIntervalSince1970: 1_768_800_000))
+            for index in 0..<evidenceCount {
+                let candidate = try await runner.importCandidate(assetID: asset.id,
+                    sourceData: WorkCanonicalIntegrationTestSupportV1.makePNG(seed: UInt8(80 + index)),
+                    createdAt: Date(timeIntervalSince1970: 1_768_800_001 + TimeInterval(index)))
+                _ = try await runner.accept(candidate: candidate, assetID: asset.id)
+            }
+            let result = try await runner.finalize(assetID: asset.id,
+                selection: selection,
+                completedAt: Date(timeIntervalSince1970: 1_768_800_010),
+                snapshotCreatedAt: Date(timeIntervalSince1970: 1_768_800_011),
+                sourceApp: .init(build: "completion", version: "1.0"))
+            let report = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<Report>())
+                .first { $0.id == result.reportID })
+            let record = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+                .first { $0.id == report.sourceRecordID })
+            let finalizer = try FinalizationService(modelContext: harness.session.modelContext, signPack: profile.package,
+                generationRootURL: harness.session.generationRootURL, workspaceWriter: harness.dependencies.writer)
+            return (harness, asset, record, report, try publishedShippingRelease(stage: .check), finalizer)
+        } catch {
+            harness.cleanup(fileManager: fileManager)
+            throw error
+        }
+    }
+
     @MainActor
     func testV9_18G01ShippingLifecycleParityUsesOneClosedProfile() throws {
         let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
@@ -116,6 +665,12 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         XCTAssertEqual(finalizationCommand.writerAuthority?.payload.workflowRecordAfter.packID,
                        profile.release.packageID)
         XCTAssertEqual(finalizationReceipt.mutationID, finalizationMutationID)
+        XCTAssertNil(finalizationCommand.writerAuthority?.sourceBinding.inspectionRelease)
+        let alternateFinalizer = try FinalizationService(modelContext: harness.session.modelContext,
+            signPack: package, generationRootURL: harness.session.generationRootURL,
+            workspaceWriter: harness.dependencies.writer)
+        XCTAssertNil(try alternateFinalizer.completedInspectionReference(recordID: record.id,
+            expectedAssetID: asset.id, expectedRelease: publishedShippingRelease(stage: .check)))
 
         let shippingProfile = try harness.dependencies.profileRegistry.resolve(
             PackageReleaseIdentityV1(package: .illuminatedSignV1)
@@ -728,6 +1283,16 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             )
         }
     }
+}
+
+private actor CompletionReadAuthentication: LocalAuthenticationClient {
+    private(set) var count = 0
+    func availability() -> LocalAuthenticationAvailabilityV1 { .systemValue(status: .available, biometry: .faceID) }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        count += 1
+        return .authenticated
+    }
+    func cancel(attemptID: UUID) {}
 }
 
 @MainActor

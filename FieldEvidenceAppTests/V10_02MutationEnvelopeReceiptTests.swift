@@ -3135,6 +3135,198 @@ private struct C05WriterMutationFixtureV1 {
 }
 
 extension V10_02MutationEnvelopeReceiptTests {
+    func testFinalizationInspectionBindingPreservesAbsentBytesAndRejectsHostileCoding() throws {
+        let fixture = try FinalizationCodecAdmissionFixtureV1.make()
+        // The pre-extension wire shape is retained explicitly so this test
+        // does not compare two encodings of the new implementation.
+        struct OriginalSourceBinding: Encodable {
+            let sourceRecordID: UUID
+            let observationBasisV1Data: Data
+            let temporalContextV1Data: Data
+            let requirementAssurance: RequirementAssuranceSnapshotV1?
+        }
+        let oldBytes = try WorkspaceMutationCanonicalV1.data(OriginalSourceBinding(
+            sourceRecordID: fixture.sourceBinding.sourceRecordID,
+            observationBasisV1Data: fixture.sourceBinding.observationBasisV1Data,
+            temporalContextV1Data: fixture.sourceBinding.temporalContextV1Data,
+            requirementAssurance: fixture.sourceBinding.requirementAssurance))
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(fixture.sourceBinding), oldBytes)
+        XCTAssertEqual(try JSONDecoder().decode(FinalizationWriterSourceBindingV1.self, from: oldBytes), fixture.sourceBinding)
+
+        let package = SignPack.illuminatedSignV1
+        let packageHash = fixture.digest("a"), workflowHash = fixture.digest("b")
+        let releaseID = KernelCanonicalHashV1.sha256(Data(
+            "\(package.packID)|\(package.contentVersion)|\(packageHash)|\(workflowHash)".utf8))
+        let binding = try FinalizationInspectionReleaseBindingV1(
+            packageReleaseID: releaseID, packageID: package.packID,
+            packageContentVersion: package.contentVersion, packageSHA256: packageHash,
+            workflowSHA256: workflowHash, sourcePackSHA256: fixture.digest("c"))
+        let boundFixture = try FinalizationCodecAdmissionFixtureV1.make(inspectionRelease: binding)
+        let envelope = try boundFixture.boundFinalizationEnvelope()
+        let bytes = try envelope.canonicalData()
+        XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes), envelope)
+        XCTAssertNotEqual(bytes, try fixture.boundFinalizationEnvelope().canonicalData())
+        let intent = boundFixture.intent(schemaVersion: 2, writerCommitBinding: .init(
+            envelopeData: bytes, occurredAt: boundFixture.occurredAt))
+        let intentBytes = try FinalizationContractEncoderV1().encodeIntent(intent).data
+        XCTAssertEqual(try FinalizationContractDecoderV1().decodeIntent(intentBytes), intent)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(
+            boundFixture.history(envelope: envelope, postImages: boundFixture.finalizationPostImages),
+            sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major))
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+            boundFixture.history(envelope: envelope, postImages: boundFixture.finalizationPostImages),
+            sourcePersistentSchemaVersion: PersistentSchemaV52.versionIdentifier.major))
+
+        var sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(with: oldBytes) as? [String: Any])
+        sourceObject["inspectionRelease"] = NSNull()
+        XCTAssertThrowsError(try JSONDecoder().decode(FinalizationWriterSourceBindingV1.self,
+            from: JSONSerialization.data(withJSONObject: sourceObject)))
+        sourceObject.removeValue(forKey: "inspectionRelease")
+        sourceObject["inventedAuthority"] = true
+        XCTAssertThrowsError(try JSONDecoder().decode(FinalizationWriterSourceBindingV1.self,
+            from: JSONSerialization.data(withJSONObject: sourceObject)))
+
+        let bindingBytes = try WorkspaceMutationCanonicalV1.data(binding)
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: bindingBytes) as? [String: Any])
+        let hostileFields: [(String, Any)] = [
+            ("unexpected", true), ("packageReleaseID", fixture.digest("f")),
+            ("packageID", "invalid package"), ("packageContentVersion", 0),
+            ("packageSHA256", "bad"), ("workflowSHA256", NSNull()), ("sourcePackSHA256", "bad"),
+        ]
+        for (key, value) in hostileFields {
+            var hostile = original
+            hostile[key] = value
+            XCTAssertThrowsError(try JSONDecoder().decode(FinalizationInspectionReleaseBindingV1.self,
+                from: JSONSerialization.data(withJSONObject: hostile)), key)
+        }
+        var missing = original
+        missing.removeValue(forKey: "sourcePackSHA256")
+        XCTAssertThrowsError(try JSONDecoder().decode(FinalizationInspectionReleaseBindingV1.self,
+            from: JSONSerialization.data(withJSONObject: missing)))
+
+        let otherPackage = "field.evidence.other.v1"
+        let wrongPackageBinding = try FinalizationInspectionReleaseBindingV1(
+            packageReleaseID: KernelCanonicalHashV1.sha256(Data("\(otherPackage)|1|\(packageHash)|\(workflowHash)".utf8)),
+            packageID: otherPackage, packageContentVersion: 1, packageSHA256: packageHash,
+            workflowSHA256: workflowHash, sourcePackSHA256: fixture.digest("c"))
+        XCTAssertThrowsError(try FinalizationCodecAdmissionFixtureV1.make(inspectionRelease: wrongPackageBinding))
+        let otherVersion = package.contentVersion + 1
+        let wrongVersionBinding = try FinalizationInspectionReleaseBindingV1(
+            packageReleaseID: KernelCanonicalHashV1.sha256(Data("\(package.packID)|\(otherVersion)|\(packageHash)|\(workflowHash)".utf8)),
+            packageID: package.packID, packageContentVersion: otherVersion, packageSHA256: packageHash,
+            workflowSHA256: workflowHash, sourcePackSHA256: fixture.digest("c"))
+        XCTAssertThrowsError(try FinalizationCodecAdmissionFixtureV1.make(inspectionRelease: wrongVersionBinding))
+    }
+
+    func testFinalizationCommittedEvidenceUsesOriginalReceiptRevisionAndExactPair() throws {
+        let fixture = try FinalizationCodecAdmissionFixtureV1.make()
+        let envelope = try fixture.boundFinalizationEnvelope()
+        let history = try fixture.history(envelope: envelope, postImages: fixture.finalizationPostImages)
+        let row = try XCTUnwrap(history.receipts.first)
+        let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
+        let evidence = try FinalizationCommittedEvidenceV1(envelope: envelope, receipt: receipt)
+        XCTAssertEqual(try evidence.workflowRecordRevision(recordID: fixture.recordID), 2)
+        XCTAssertEqual(evidence.receipt.committedAt, fixture.occurredAt)
+        XCTAssertEqual(evidence.envelope, try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData))
+        XCTAssertThrowsError(try evidence.workflowRecordRevision(recordID: fixture.id(99)))
+        XCTAssertThrowsError(try FinalizationCommittedEvidenceV1(
+            envelope: fixture.legacyFinalizationEnvelope(), receipt: receipt))
+        let receiptObject = try XCTUnwrap(JSONSerialization.jsonObject(with: row.receiptData) as? [String: Any])
+        let foreignID = try MutationIDV1(rawValue: fixture.id(98))
+        let foreignMutation = try JSONSerialization.jsonObject(with: WorkspaceMutationCanonicalV1.data(foreignID))
+        let metadataChanges: [(String, Any)] = [
+            ("causationMutationID", foreignMutation),
+            ("correlationID", fixture.id(98).uuidString),
+            ("reversesMutationID", foreignMutation),
+        ]
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        for (key, value) in metadataChanges {
+            var hostile = receiptObject
+            hostile[key] = value
+            let mismatched = try decoder.decode(MutationReceiptV1.self,
+                from: JSONSerialization.data(withJSONObject: hostile))
+            XCTAssertNoThrow(try mismatched.validate())
+            XCTAssertThrowsError(try FinalizationCommittedEvidenceV1(envelope: envelope, receipt: mismatched), key)
+        }
+        let malformedImageSets: [[MutationPostImageV1]] = [
+            try fixture.finalizationPostImages.filter { try $0.identity.kind != .workflowRecord },
+            try fixture.finalizationPostImages + [fixture.finalizationPostImages[0]],
+            try fixture.finalizationPostImages(recordRevision: 0),
+        ]
+        for images in malformedImageSets {
+            XCTAssertThrowsError(try {
+                let malformed = try fixture.history(envelope: envelope, postImages: images)
+                let raw = try XCTUnwrap(malformed.receipts.first)
+                let value = try FinalizationCommittedEvidenceV1(envelope: envelope,
+                    receipt: MutationReceiptV1.decodeCanonical(from: raw.receiptData))
+                _ = try value.workflowRecordRevision(recordID: fixture.recordID)
+            }())
+        }
+    }
+
+    @MainActor
+    func testFinalizationEvidenceBatchPreservesOriginalPairBoundsAndWholeReadFailure() async throws {
+        let fileManager = FileManager.default
+        let support = fileManager.temporaryDirectory.appendingPathComponent("finalization-batch-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        let fixture = try await WorkCanonicalCurrentRouteFixtureV1.make(
+            applicationSupportURL: support, pack: .illuminatedSignV1, workPhotoData: nil)
+        defer { try? fixture.close(); try? fileManager.removeItem(at: support) }
+        let writer = fixture.lifecycleDependencies.writer
+        let recordID = fixture.openingRecordID
+        let missing = UUID()
+        let original = try XCTUnwrap(writer.finalizationEvidence(recordID: recordID))
+        let revision = try writer.currentRevision()
+        let rows = try fixture.context.fetch(FetchDescriptor<MutationReceiptRow>())
+        let row = try XCTUnwrap(rows.first { $0.mutationID == original.envelope.mutationID.rawValue })
+        let envelopeData = row.envelopeData
+        let receiptData = row.receiptData
+        let batch = try writer.finalizationEvidence(recordIDs: [recordID, missing, recordID])
+        XCTAssertEqual(batch, [recordID: original])
+        XCTAssertNil(batch[missing])
+        XCTAssertEqual(try writer.finalizationEvidence(recordIDs: Array(repeating: recordID, count: 1_024)), batch)
+        XCTAssertThrowsError(try writer.finalizationEvidence(recordIDs: Array(repeating: recordID, count: 1_025))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try writer.currentRevision(), revision)
+        XCTAssertEqual(row.envelopeData, envelopeData)
+        XCTAssertEqual(row.receiptData, receiptData)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), rows.count)
+
+        // This is an original committed receipt from the real check/work route.
+        // One corrupt selected pair must fail the complete mixed lookup.
+        row.receiptData = Data("corrupt original receipt".utf8)
+        try fixture.context.save()
+        XCTAssertThrowsError(try writer.finalizationEvidence(recordIDs: [missing, recordID]))
+        row.receiptData = receiptData
+        try fixture.context.save()
+        XCTAssertEqual(try writer.finalizationEvidence(recordIDs: [recordID, missing]), batch)
+        XCTAssertEqual(try writer.currentRevision(), revision)
+        XCTAssertEqual(row.envelopeData, envelopeData)
+        XCTAssertEqual(row.receiptData, receiptData)
+        writer.invalidate()
+        XCTAssertThrowsError(try writer.finalizationEvidence(recordIDs: [missing, recordID])) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+    }
+
+    @MainActor
+    func testFinalizationEvidenceLookupPreservesAbsentUnsupportedAndInvalidatedWriter() throws {
+        let harness = try CompilerWriterAdmissionHarnessV1()
+        let missing = UUID()
+        XCTAssertNil(try harness.writer.finalizationEvidence(recordID: missing))
+        XCTAssertNil(try harness.writer.finalizationEvidence(mutationID: MutationIDV1(rawValue: missing)))
+        harness.writer.invalidate()
+        XCTAssertThrowsError(try harness.writer.finalizationEvidence(recordID: missing)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        let unsupported = try MutationJournalHarnessV1()
+        XCTAssertThrowsError(try unsupported.writer.finalizationEvidence(recordID: missing)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .unsupportedCommand)
+        }
+    }
+
     func testFinalizationLegacyEnvelopeAndSchemaOneIntentRoundTripWithoutWriterBinding() throws {
         let fixture = try FinalizationCodecAdmissionFixtureV1.make()
         let envelope = try fixture.legacyFinalizationEnvelope()
@@ -3337,7 +3529,7 @@ private struct FinalizationCodecAdmissionFixtureV1 {
     let sourceBinding: FinalizationWriterSourceBindingV1
     let report: ReportPayloadV1
 
-    static func make() throws -> Self {
+    static func make(inspectionRelease: FinalizationInspectionReleaseBindingV1? = nil) throws -> Self {
         let workspaceID = WorkspaceID(rawValue: Self.id(1))
         let generationID = Self.id(3)
         let mutationID = try MutationIDV1(rawValue: Self.id(4))
@@ -3403,7 +3595,7 @@ private struct FinalizationCodecAdmissionFixtureV1 {
             sourceRecordID: recordID,
             observationBasisV1Data: try XCTUnwrap(migratedObservation.observationBasisData),
             temporalContextV1Data: try XCTUnwrap(migratedObservation.temporalContextData),
-            requirementAssurance: nil
+            requirementAssurance: nil, inspectionRelease: inspectionRelease
         )
         let authority = FinalizationWriterAuthorityV1(
             workspaceID: workspaceID, generationID: generationID, payload: payload,

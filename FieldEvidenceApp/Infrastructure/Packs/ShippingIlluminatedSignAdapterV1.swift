@@ -197,6 +197,139 @@ enum ShippingIlluminatedSignAdapterV1 {
         )
     }
 
+    /// Identifies the native finalizer's concrete check or recheck contract.
+    /// Deriving these bytes does not publish an inspection-package release.
+    /// A Round must separately hold the published release with these exact
+    /// package and workflow bytes before it can use the resulting completion.
+    static func finalizationInspectionRelease(
+        from source: SignPack,
+        stage: WorkflowStage
+    ) throws -> FinalizationInspectionReleaseBindingV1 {
+        let package = try inspectionPackage(from: source)
+        let roundTrip = try signPack(from: package)
+        let sourceBytes = try canonicalSignPack(source)
+        guard roundTrip == source,
+              try canonicalSignPack(roundTrip) == sourceBytes else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        let workflow = try finalizationWorkflow(from: source, stage: stage)
+        let release = try InspectionPackageReleaseV1.makeDraft(package: package, workflow: workflow)
+        return try FinalizationInspectionReleaseBindingV1(
+            packageReleaseID: release.packageReleaseID,
+            packageID: release.packageID,
+            packageContentVersion: release.packageContentVersion,
+            packageSHA256: release.packageSHA256,
+            workflowSHA256: release.workflowSHA256,
+            sourcePackSHA256: digest(sourceBytes)
+        )
+    }
+
+    /// This is the closed finalization workflow over the incumbent native
+    /// runner's retained facts. The native finalizer still owns execution,
+    /// file validation, temporal truth and the canonical writer transaction.
+    /// Optional-view branches preserve its early could-not-verify outcomes,
+    /// including the validated zero-, one- and two-view cases.
+    static func finalizationWorkflow(
+        from source: SignPack,
+        stage: WorkflowStage
+    ) throws -> WorkflowDefinitionV1 {
+        _ = try inspectionPackage(from: source)
+        guard stage == .check || stage == .recheck else {
+            throw InspectionKernelFailureV1.invalidValue
+        }
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: source)
+        let selected = try profile.stage(stage.rawValue)
+        guard profile.requiredAcknowledgementKeys == ["after_dark", "safe_authorized_position"],
+              profile.evidencePurposeKeys(for: .captureRequired) == ["wide_context", "close_detail"] else {
+            throw InspectionKernelFailureV1.invalidValue
+        }
+        let couldNotVerify = selected.outcomes.filter { $0.role == .couldNotVerify }
+        let withCondition = selected.outcomes.filter {
+            stage == .check ? $0.role == .findingObserved : $0.role == .originalResolvedDifferentFinding
+        }
+        let completeOutcomes = selected.outcomes.filter { $0.role != .couldNotVerify }.map(\.key).sorted()
+        guard couldNotVerify.count == 1, withCondition.count == 1,
+              !completeOutcomes.isEmpty else { throw InspectionKernelFailureV1.invalidValue }
+
+        let prefix = "native.sign.finalization."
+        let afterDark = prefix + "after_dark"
+        let safePosition = prefix + "safe_authorized_position"
+        let wide = prefix + "wide_present"
+        let close = prefix + "close_present"
+        let outcome = prefix + "outcome"
+        let condition = prefix + "condition"
+        let reason = prefix + "could_not_verify_reason"
+        let note = prefix + "could_not_verify_note"
+        var nodes: [WorkflowNodeV1] = []
+        func fact(_ id: String, _ field: String, _ key: String, next: String) throws {
+            nodes.append(try .init(nodeID: id, kind: .fact, localizationKey: key,
+                                   fieldID: field, outgoingNodeIDs: [next]))
+        }
+        func equals(_ field: String, _ value: String) throws -> BranchPredicateV1 {
+            try .init(kind: .equals, fieldID: field, optionID: value)
+        }
+        func branch(_ id: String, _ predicate: BranchPredicateV1,
+                    yes: String, no: String, unknown: String = "blocked") throws {
+            nodes.append(try .init(nodeID: id, kind: .branch, predicate: predicate,
+                branchDestinations: .init(trueNodeID: yes, falseNodeID: no, unknownNodeID: unknown),
+                outgoingNodeIDs: [yes, no, unknown]))
+        }
+        func evidence(_ id: String, _ purpose: String, next: String) throws {
+            nodes.append(try .init(nodeID: id, kind: .evidenceRequest,
+                localizationKey: "illuminated.playbook.capture." + purpose,
+                evidencePurposeID: purpose, outgoingNodeIDs: [next]))
+        }
+
+        try fact("after_dark", afterDark, "illuminated.playbook.preflight.after_dark", next: "safe_position")
+        try fact("safe_position", safePosition, "illuminated.playbook.preflight.safe_authorized_position", next: "preflight")
+        try branch("preflight", .init(kind: .all, operands: [
+            equals(afterDark, "accepted"), equals(safePosition, "accepted")
+        ]), yes: "wide_present", no: "blocked")
+        try fact("wide_present", wide, "illuminated.playbook.capture.wide_context", next: "wide_known")
+        try branch("wide_known", .init(kind: .inSet, fieldID: wide, optionIDs: ["absent", "present"]),
+                   yes: "wide_branch", no: "blocked")
+        try branch("wide_branch", equals(wide, "present"), yes: "wide_evidence", no: "close_present")
+        try evidence("wide_evidence", "wide_context", next: "close_present")
+        try fact("close_present", close, "illuminated.playbook.capture.close_detail", next: "close_known")
+        try branch("close_known", .init(kind: .inSet, fieldID: close, optionIDs: ["absent", "present"]),
+                   yes: "close_branch", no: "blocked")
+        try branch("close_branch", equals(close, "present"), yes: "close_evidence", no: "outcome")
+        try evidence("close_evidence", "close_detail", next: "outcome")
+        try fact("outcome", outcome, "illuminated.playbook.facts.outcome", next: "could_not_verify")
+        try branch("could_not_verify", equals(outcome, couldNotVerify[0].key),
+                   yes: "could_not_verify_reason", no: "required_views")
+        try fact("could_not_verify_reason", reason, "illuminated.playbook.facts.could_not_verify_reason", next: "reason_allowed")
+        try branch("reason_allowed", .init(kind: .inSet, fieldID: reason,
+            optionIDs: source.couldNotVerifyReasons.entries.map(\.key).sorted()),
+            yes: "could_not_verify_note", no: "blocked")
+        try fact("could_not_verify_note", note, "illuminated.playbook.facts.report_trace", next: "review_could_not_verify")
+        try branch("required_views", .init(kind: .all, operands: [
+            equals(wide, "present"), equals(close, "present")
+        ]), yes: "outcome_allowed", no: "blocked")
+        try branch("outcome_allowed", .init(kind: .inSet, fieldID: outcome, optionIDs: completeOutcomes),
+                   yes: "condition_required", no: "blocked")
+        try branch("condition_required", equals(outcome, withCondition[0].key),
+                   yes: "condition", no: "review_completed")
+        try fact("condition", condition, "illuminated.playbook.facts.selected_condition", next: "condition_allowed")
+        try branch("condition_allowed", .init(kind: .inSet, fieldID: condition,
+            optionIDs: source.issueLabels.map(\.key).sorted()), yes: "review_completed", no: "blocked")
+        nodes.append(try .init(nodeID: "review_completed", kind: .review,
+            localizationKey: "illuminated.playbook.facts.report_trace", outgoingNodeIDs: ["completed"]))
+        nodes.append(try .init(nodeID: "review_could_not_verify", kind: .review,
+            localizationKey: "illuminated.playbook.facts.report_trace", outgoingNodeIDs: ["completed_could_not_verify"]))
+        nodes.append(try .init(nodeID: "completed", kind: .terminal,
+            localizationKey: "illuminated.playbook.facts.outcome", outgoingNodeIDs: []))
+        nodes.append(try .init(nodeID: "completed_could_not_verify", kind: .terminal,
+            localizationKey: "illuminated.playbook.facts.outcome.could_not_verify", outgoingNodeIDs: []))
+        nodes.append(try .init(nodeID: "blocked", kind: .terminal,
+            localizationKey: "illuminated.playbook.state.blocked", outgoingNodeIDs: []))
+        let value = try WorkflowDefinitionV1(workflowID: prefix + stage.rawValue + ".v1",
+            entryNodeID: "after_dark", declaredFieldIDs: [afterDark, safePosition, wide, close, outcome, condition, reason, note],
+            nodes: nodes)
+        _ = try WorkflowGraphValidatorV1.validate(value)
+        return value
+    }
+
     /// The only sign-specific response mapping. The neutral inspection kernel
     /// remains package-agnostic and receives only its closed typed values.
     static func typedResponses(

@@ -1581,6 +1581,18 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
     }
 
+    func finalizationMutationID(recordID: UUID) throws -> MutationIDV1? {
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }))
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard let record = rows.first else { return nil }
+        guard record.state == WorkflowState.completed.rawValue,
+              record.completedAt != nil else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard let mutationID = record.finalizationMutationID else { return nil }
+        return try MutationIDV1(rawValue: mutationID)
+    }
+
     func roundSessionHistory(
         workspaceID: WorkspaceID,
         sessionID: UUID

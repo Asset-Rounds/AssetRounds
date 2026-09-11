@@ -707,6 +707,43 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
 
     #if DEBUG
     @MainActor
+    func testProductionMyDayAssessedPublicationRejectsGenerationDirectorySubstitution() async throws {
+        let h = try C41ProductionSourceHarness()
+        _ = try await h.readinessRound(seed: 3340, withContent: false)
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+        let provider = h.assessedProvider(ledger: ledger)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline()
+        let root = h.coordinator.generationRootURL
+        let held = h.root.appendingPathComponent("held-generation-\(UUID().uuidString.lowercased())", isDirectory: true)
+        var moved = false
+        defer {
+            if moved {
+                try? FileManager.default.removeItem(at: root)
+                try? FileManager.default.moveItem(at: held, to: root)
+            }
+        }
+        provider.afterSourceMaterializationForTesting = {
+            try FileManager.default.moveItem(at: root, to: held)
+            moved = true
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        }
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("Replacement generation directory published readiness") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        XCTAssertTrue(moved)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+        try FileManager.default.removeItem(at: root)
+        try FileManager.default.moveItem(at: held, to: root)
+        moved = false
+        provider.afterSourceMaterializationForTesting = nil
+        XCTAssertEqual(try h.baseline(), baseline)
+        let restored = try await provider.snapshot(evaluatedAt: C41.now)
+        guard case .roundManifest? = restored.readinessAssessments.first?.assessment else {
+            return XCTFail("Restored original directory must remain readable")
+        }
+    }
+
+    @MainActor
     func testProductionMyDayAssessedPublicationRejectsAccessMetadataStorageAndSessionDrift() async throws {
         let h = try C41ProductionSourceHarness()
         let fixture = try await h.readinessRound(seed: 3300, withContent: false)

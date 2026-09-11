@@ -131,17 +131,107 @@ struct FinalizationWriterCommitBindingV1: Codable, Equatable, Sendable {
 
 /// Current writer-only capture of the existing companion data. Historical
 /// finalization payloads and schema-1 intent bytes remain unchanged.
+struct FinalizationInspectionReleaseBindingV1: Codable, Equatable, Sendable {
+    let packageReleaseID: String
+    let packageID: String
+    let packageContentVersion: Int
+    let packageSHA256: String
+    let workflowSHA256: String
+    let sourcePackSHA256: String
+
+    init(packageReleaseID: String, packageID: String, packageContentVersion: Int,
+         packageSHA256: String, workflowSHA256: String, sourcePackSHA256: String) throws {
+        self.packageReleaseID = packageReleaseID
+        self.packageID = packageID
+        self.packageContentVersion = packageContentVersion
+        self.packageSHA256 = packageSHA256
+        self.workflowSHA256 = workflowSHA256
+        self.sourcePackSHA256 = sourcePackSHA256
+        try validate()
+    }
+
+    /// Structural identity only. The production owner separately proves the
+    /// exact shipping package, workflow and source-pack correspondence.
+    func validate() throws {
+        guard WorkflowGrammarValidationV1.validID(packageID), packageContentVersion > 0,
+              [packageReleaseID, packageSHA256, workflowSHA256, sourcePackSHA256]
+                .allSatisfy(KernelCanonicalHashV1.validSHA256),
+              packageReleaseID == KernelCanonicalHashV1.sha256(
+                Data("\(packageID)|\(packageContentVersion)|\(packageSHA256)|\(workflowSHA256)".utf8)
+              ) else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case packageReleaseID, packageID, packageContentVersion
+        case packageSHA256, workflowSHA256, sourcePackSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            packageReleaseID: values.decode(String.self, forKey: .packageReleaseID),
+            packageID: values.decode(String.self, forKey: .packageID),
+            packageContentVersion: values.decode(Int.self, forKey: .packageContentVersion),
+            packageSHA256: values.decode(String.self, forKey: .packageSHA256),
+            workflowSHA256: values.decode(String.self, forKey: .workflowSHA256),
+            sourcePackSHA256: values.decode(String.self, forKey: .sourcePackSHA256))
+    }
+}
+
 struct FinalizationWriterSourceBindingV1: Codable, Equatable, Sendable {
     let sourceRecordID: UUID
     let observationBasisV1Data: Data
     let temporalContextV1Data: Data
     let requirementAssurance: RequirementAssuranceSnapshotV1?
+    let inspectionRelease: FinalizationInspectionReleaseBindingV1?
+
+    init(sourceRecordID: UUID, observationBasisV1Data: Data, temporalContextV1Data: Data,
+         requirementAssurance: RequirementAssuranceSnapshotV1?,
+         inspectionRelease: FinalizationInspectionReleaseBindingV1? = nil) {
+        self.sourceRecordID = sourceRecordID
+        self.observationBasisV1Data = observationBasisV1Data
+        self.temporalContextV1Data = temporalContextV1Data
+        self.requirementAssurance = requirementAssurance
+        self.inspectionRelease = inspectionRelease
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case sourceRecordID, observationBasisV1Data, temporalContextV1Data
+        case requirementAssurance, inspectionRelease
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let inspectionRelease: FinalizationInspectionReleaseBindingV1?
+        if values.contains(.inspectionRelease) {
+            inspectionRelease = try values.decode(FinalizationInspectionReleaseBindingV1.self, forKey: .inspectionRelease)
+        } else {
+            inspectionRelease = nil
+        }
+        self.init(
+            sourceRecordID: try values.decode(UUID.self, forKey: .sourceRecordID),
+            observationBasisV1Data: try values.decode(Data.self, forKey: .observationBasisV1Data),
+            temporalContextV1Data: try values.decode(Data.self, forKey: .temporalContextV1Data),
+            requirementAssurance: try values.decodeIfPresent(RequirementAssuranceSnapshotV1.self, forKey: .requirementAssurance),
+            inspectionRelease: inspectionRelease)
+    }
 
     func validate(workspaceID: WorkspaceID, payload: FinalizationPayloadV1) throws {
         let record = payload.workflowRecordAfter
         let expectedSourceID = payload.packetBefore?.currentRecordID ?? record.id
         guard sourceRecordID == expectedSourceID else {
             throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        if let inspectionRelease {
+            try inspectionRelease.validate()
+            guard inspectionRelease.packageID == record.packID,
+                  inspectionRelease.packageContentVersion == record.packContentVersion else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         }
         let observation = try ObservationAndTimeCodecV1.decodeObservationBasis(observationBasisV1Data)
         let temporal = try ObservationAndTimeCodecV1.decodeTemporalContext(temporalContextV1Data)
@@ -158,6 +248,61 @@ struct FinalizationWriterSourceBindingV1: Codable, Equatable, Sendable {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
         }
+    }
+}
+
+/// A read-only pair from one validated original journal row. This value is
+/// not a new receipt or a claim that the persisted report bytes still exist.
+struct FinalizationCommittedEvidenceV1: Equatable, Sendable {
+    let envelope: MutationEnvelopeV1
+    let receipt: MutationReceiptV1
+
+    init(envelope: MutationEnvelopeV1, receipt: MutationReceiptV1) throws {
+        try envelope.validate()
+        try receipt.validate()
+        guard receipt.mutationID == envelope.mutationID,
+              receipt.identity.workspaceID == envelope.workspaceID,
+              receipt.identity.replicaID == envelope.replicaID,
+              receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
+              receipt.commandBodySHA256 == envelope.commandBodySHA256,
+              receipt.expectedRevision == envelope.expectedRevision,
+              receipt.contentDependencyIDs == envelope.contentDependencyIDs,
+              receipt.sourceKind == envelope.sourceKind,
+              receipt.causationMutationID == envelope.causationMutationID,
+              receipt.correlationID == envelope.correlationID,
+              receipt.reversesMutationID == nil else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        switch envelope.command {
+        case let .finalizeCheck(value): try value.writerAuthority?.validate(envelope: envelope)
+        case let .finalizeCorrection(value): try value.writerAuthority?.validate(envelope: envelope)
+        default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        self.envelope = envelope
+        self.receipt = receipt
+    }
+
+    func workflowRecordRevision(recordID: UUID) throws -> UInt64 {
+        let finalizedRecordID: UUID
+        switch envelope.command {
+        case let .finalizeCheck(value): finalizedRecordID = value.recordID
+        case let .finalizeCorrection(value): finalizedRecordID = value.correctionRecordID
+        default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        guard recordID == finalizedRecordID else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let revisions = receipt.postImages.compactMap { image -> UInt64? in
+            guard case let .workflowRecord(id, revision, _) = image, id == recordID else { return nil }
+            return revision
+        }
+        let identity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: recordID)
+        let resulting = receipt.resultingRevision.entityRevisions.filter { $0.identity == identity }
+        guard revisions.count == 1, let revision = revisions.first, revision > 0,
+              resulting.count == 1, resulting.first?.revision == revision else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return revision
     }
 }
 

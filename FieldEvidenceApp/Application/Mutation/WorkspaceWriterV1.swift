@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 protocol WorkspaceWriterAdapterPortV1: AnyObject {
     var requiresInitialPlacementForFirstSign: Bool { get }
+    func finalizationMutationID(recordID: UUID) throws -> MutationIDV1?
     func apply(
         _ command: WorkspaceCommandV1,
         occurredAt: Date,
@@ -86,6 +87,9 @@ enum C50IncumbentSoleWriterDelegationBoundaryV1 {
 }
 
 extension WorkspaceWriterAdapterPortV1 {
+    func finalizationMutationID(recordID: UUID) throws -> MutationIDV1? {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
     var requiresInitialPlacementForFirstSign: Bool { false }
 }
 
@@ -322,10 +326,21 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     /// Returns original finalizer authority only after lease, checkpoint,
     /// quarantine and complete journal validation. Never fabricates a binding.
     func finalizationEnvelope(mutationID: MutationIDV1) throws -> MutationEnvelopeV1? {
+        try finalizationEvidence(mutationID: mutationID)?.envelope
+    }
+
+    func finalizationEvidence(mutationID: MutationIDV1) throws -> FinalizationCommittedEvidenceV1? {
         guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
         _ = try currentRevision()
         try journalStore.validateAll()
-        guard let envelope = try journalStore.finalizationEnvelope(mutationID: mutationID) else { return nil }
+        return try selectedFinalizationEvidence(mutationID: mutationID, journalStore: journalStore)
+    }
+
+    private func selectedFinalizationEvidence(
+        mutationID: MutationIDV1, journalStore: MutationJournalStoreV1
+    ) throws -> FinalizationCommittedEvidenceV1? {
+        guard let evidence = try journalStore.finalizationEvidence(mutationID: mutationID) else { return nil }
+        let envelope = evidence.envelope
         guard envelope.workspaceID == identity.workspaceID,
               envelope.generationID == generationID else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -335,7 +350,29 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         case let .finalizeCorrection(value): try value.writerAuthority?.validate(envelope: envelope)
         default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
-        return envelope
+        return evidence
+    }
+
+    func finalizationEvidence(recordID: UUID) throws -> FinalizationCommittedEvidenceV1? {
+        try finalizationEvidence(recordIDs: [recordID])[recordID]
+    }
+
+    /// A synchronous read: full journal validation is shared only by this call.
+    /// Missing keys are proved absence; any selected corruption fails the batch.
+    func finalizationEvidence(recordIDs: [UUID]) throws -> [UUID: FinalizationCommittedEvidenceV1] {
+        guard recordIDs.count <= 1_024 else { throw WorkspaceMutationFailureV1.invalidCommand }
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        try journalStore.validateAll()
+        var seen = Set<UUID>()
+        var result: [UUID: FinalizationCommittedEvidenceV1] = [:]
+        for recordID in recordIDs where seen.insert(recordID).inserted {
+            guard let mutationID = try adapter.finalizationMutationID(recordID: recordID),
+                  let evidence = try selectedFinalizationEvidence(mutationID: mutationID, journalStore: journalStore) else { continue }
+            _ = try evidence.workflowRecordRevision(recordID: recordID)
+            result[recordID] = evidence
+        }
+        return result
     }
 
     func prepareWorkEnvelope(_ authority: WorkWriterAuthorityV1) throws -> MutationEnvelopeV1 {

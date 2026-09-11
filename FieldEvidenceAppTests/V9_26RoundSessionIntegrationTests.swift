@@ -26,11 +26,100 @@ private enum C07 {
 }
 @MainActor private final class Reader: RoundSessionCurrentReadingV1 { let h: [RoundSessionV1]; init(_ h: [RoundSessionV1]) { self.h = h }; func roundSessionHistory(workspaceID: WorkspaceID, sessionID: UUID) throws -> [RoundSessionV1] { h } }
 @MainActor private final class Writer: RoundSessionCanonicalWritingV1 { func commitRoundSession(_ mutation: RoundSessionMutationV1) throws -> RoundSessionMutationReceiptV1 { throw RoundSessionFailureV1.staleRevision } }
-@MainActor private final class Authority: RoundSessionLiveAuthorityReadingV1 { func publishedPackageRelease(for reference: RoundPackageReleaseReferenceV1) throws -> InspectionPackageReleaseV1? { nil }; func contentReference(workspaceID: WorkspaceID, contentID: String) throws -> ContentReferenceV1? { nil }; func assetExists(workspaceID: WorkspaceID, assetID: UUID) throws -> Bool { true }; func completionMatches(workspaceID: WorkspaceID, reference: RoundItemCompletionReferenceV1) throws -> Bool { true } }
+@MainActor private final class Authority: RoundSessionLiveAuthorityReadingV1 {
+    struct CompletionCall: Equatable {
+        let workspaceID: WorkspaceID
+        let reference: RoundItemCompletionReferenceV1
+        let assetID: UUID
+        let packageRelease: RoundPackageReleaseReferenceV1
+    }
+    private let expectedCompletions: [CompletionCall]?
+    private(set) var completionCalls: [CompletionCall] = []
+    init(expectedCompletions: [CompletionCall]? = nil) { self.expectedCompletions = expectedCompletions }
+    func publishedPackageRelease(for reference: RoundPackageReleaseReferenceV1) throws -> InspectionPackageReleaseV1? { nil }
+    func contentReference(workspaceID: WorkspaceID, contentID: String) throws -> ContentReferenceV1? { nil }
+    func assetExists(workspaceID: WorkspaceID, assetID: UUID) throws -> Bool { true }
+    func completionMatches(workspaceID: WorkspaceID, reference: RoundItemCompletionReferenceV1,
+                           assetID: UUID, packageRelease: RoundPackageReleaseReferenceV1) throws -> Bool {
+        let call = CompletionCall(workspaceID: workspaceID, reference: reference,
+                                  assetID: assetID, packageRelease: packageRelease)
+        completionCalls.append(call)
+        return expectedCompletions?.contains(call) ?? true
+    }
+}
 @MainActor private final class ReceiptWriter: RoundSessionCanonicalWritingV1 { let receipt: RoundSessionMutationReceiptV1; private(set) var commits = 0; init(_ receipt: RoundSessionMutationReceiptV1) { self.receipt = receipt }; func commitRoundSession(_ mutation: RoundSessionMutationV1) throws -> RoundSessionMutationReceiptV1 { guard mutation.mutationID == receipt.mutation.mutationID else { throw RoundSessionFailureV1.staleRevision }; if commits == 0 { commits = 1 }; return receipt } }
 private struct FailingSearch: SearchIndexLifecyclePortV1 { func invalidateAfterCanonicalCommit(source: SearchSourceRevisionV1) async throws { throw RoundSessionFailureV1.staleRevision }; func dropProjection(workspaceID: UUID) async throws {}; func purgeWorkspace(_ workspaceID: UUID) async throws {}; func eraseAll() async throws {} }
 
 @MainActor final class V9_26RoundSessionIntegrationTests: XCTestCase {
+    func testRoundCoordinatorPassesEachExactCompletionAssetAndSelectedReleaseBeforeSave() throws {
+        let history = try C07.history(C07.workspace(6))
+        let closing = try XCTUnwrap(history.last)
+        let predecessor = history[history.count - 2]
+        let mutation = try RoundSessionMutationV1(workspaceID: closing.workspaceID,
+            expectedRevision: predecessor.revision, mutationID: closing.mutationID, session: closing)
+        let expected = try closing.items.map { item in
+            Authority.CompletionCall(workspaceID: closing.workspaceID,
+                reference: try XCTUnwrap(item.completion), assetID: item.selection.assetID,
+                packageRelease: item.requirement.packageRelease)
+        }
+        let authority = Authority(expectedCompletions: expected)
+        let receipt = try makeReceipt(mutation)
+        let writer = ReceiptWriter(receipt)
+        let coordinator = RoundSessionCoordinatorV1(workspaceID: closing.workspaceID,
+            reader: Reader(Array(history.dropLast())), writer: writer, authority: authority)
+        XCTAssertEqual(try coordinator.save(mutation), receipt)
+        XCTAssertEqual(authority.completionCalls, expected)
+        XCTAssertEqual(writer.commits, 1)
+        XCTAssertEqual(Set(authority.completionCalls.map(\.assetID)).count, 2)
+    }
+
+    func testRoundCoordinatorRejectsCompletionAuthorityMismatchBeforeWriterSave() throws {
+        let history = try C07.history(C07.workspace(7))
+        let closing = try XCTUnwrap(history.last)
+        let predecessor = history[history.count - 2]
+        let mutation = try RoundSessionMutationV1(workspaceID: closing.workspaceID,
+            expectedRevision: predecessor.revision, mutationID: closing.mutationID, session: closing)
+        let first = closing.items[0]
+        let completion = try XCTUnwrap(first.completion)
+        let release = first.requirement.packageRelease
+        let actual = Authority.CompletionCall(workspaceID: closing.workspaceID, reference: completion,
+            assetID: first.selection.assetID, packageRelease: release)
+        func expected(workspaceID: WorkspaceID? = nil, reference: RoundItemCompletionReferenceV1? = nil,
+                      assetID: UUID? = nil, packageRelease: RoundPackageReleaseReferenceV1? = nil) -> Authority.CompletionCall {
+            .init(workspaceID: workspaceID ?? actual.workspaceID, reference: reference ?? actual.reference,
+                  assetID: assetID ?? actual.assetID, packageRelease: packageRelease ?? actual.packageRelease)
+        }
+        func changedRelease(releaseID: String? = nil, packageID: String? = nil, version: Int? = nil,
+                            packageSHA: String? = nil, workflowSHA: String? = nil) throws -> RoundPackageReleaseReferenceV1 {
+            try .init(packageReleaseID: releaseID ?? release.packageReleaseID,
+                packageID: packageID ?? release.packageID, packageContentVersion: version ?? release.packageContentVersion,
+                packageSHA256: packageSHA ?? release.packageSHA256, workflowSHA256: workflowSHA ?? release.workflowSHA256)
+        }
+        let mismatches: [Authority.CompletionCall] = try [
+            expected(workspaceID: C07.workspace(8)),
+            expected(reference: .init(completionID: C07.id(933_099), revision: completion.revision, completionSHA256: completion.completionSHA256)),
+            expected(reference: .init(completionID: completion.completionID, revision: completion.revision + 1, completionSHA256: completion.completionSHA256)),
+            expected(reference: .init(completionID: completion.completionID, revision: completion.revision, completionSHA256: String(repeating: "d", count: 64))),
+            expected(assetID: closing.items[1].selection.assetID),
+            expected(packageRelease: changedRelease(releaseID: String(repeating: "e", count: 64))),
+            expected(packageRelease: changedRelease(packageID: "other-package")),
+            expected(packageRelease: changedRelease(version: release.packageContentVersion + 1)),
+            expected(packageRelease: changedRelease(packageSHA: String(repeating: "f", count: 64))),
+            expected(packageRelease: changedRelease(workflowSHA: String(repeating: "0", count: 64))),
+        ]
+        for mismatch in mismatches {
+            let authority = Authority(expectedCompletions: [mismatch])
+            let writer = ReceiptWriter(try makeReceipt(mutation))
+            let coordinator = RoundSessionCoordinatorV1(workspaceID: closing.workspaceID,
+                reader: Reader(Array(history.dropLast())), writer: writer, authority: authority)
+            XCTAssertThrowsError(try coordinator.save(mutation)) {
+                XCTAssertEqual($0 as? RoundSessionFailureV1, .authorityMismatch)
+            }
+            XCTAssertEqual(authority.completionCalls, [actual])
+            XCTAssertEqual(writer.commits, 0)
+        }
+    }
+
     func testV23P04C07G01MultiAssetSelectionOrderParityJumpAndCloseoutHandoff() throws { let c = try corpus(); check(c,"G01","GOLDEN"); let h = try C07.history(C07.workspace(1)), a = adapter(h), s = h.last!; let b = try s.items.map { try FieldSectionIndexRequirementBindingV1(itemID: $0.itemID, requirementSHA256: $0.requirement.requirementSHA256) }; let i = try a.fieldSectionIndex(at: s.reference, requirementBindings: b, packagePermissions: C07.permissions(s)); try i.validate(session:s); let p = try a.progress(at: s.reference), x = try a.closeout(at: s.reference), q = try a.searchProjection(at: s.reference), m = try a.handoffManifest(at: s.reference); XCTAssertEqual(i.completeCount, p.counts.completed); XCTAssertNil(i.nextIncomplete); XCTAssertNil(i.nextFlagged); XCTAssertEqual(x.progress,p); XCTAssertEqual(m.session,s.reference); XCTAssertEqual(m.closeoutSHA256,x.closeoutSHA256); XCTAssertEqual(m.searchProjectionSHA256,q.projectionSHA256) }
     func testV23P04C07A01PoseAnchorPositionResumeAndOutOfOrderRemainExplicit() throws { let c = try corpus(); check(c,"A01","ALTERNATE"); let h = try C07.history(C07.workspace(2)), a = adapter(h), s = h.last!; let d = try DraftResumeAnchorV1(sectionID:"round-item",fieldID:"pose-axis",selectedStableID:"pose.c36.anchor",boundedPosition:7); let b = try s.items.map { try FieldSectionIndexRequirementBindingV1(itemID:$0.itemID,requirementSHA256:$0.requirement.requirementSHA256) }; let draft = try FieldSectionIndexDraftAnchorV1(itemID:s.items[0].itemID,draftID:C07.id(940_001),anchor:d), permissions = try C07.permissions(s,permitted:[s.items[1].itemID]); let i = try a.fieldSectionIndex(at:s.reference,requirementBindings:b,draftAnchors:[draft],packagePermissions:permissions), repeatProjection = try a.fieldSectionIndex(at:s.reference,requirementBindings:b,draftAnchors:[draft],packagePermissions:permissions); try i.validate(session:s); try repeatProjection.validate(session:s); XCTAssertEqual(i.projectionSHA256,repeatProjection.projectionSHA256); XCTAssertEqual(i.sections[0].fields[0].draftAnchor,d); XCTAssertTrue(i.sections[1].fields[0].packagePermitsOutOfOrderNavigation); let changedPermissions = try C07.permissions(s); let permissionVariant = try a.fieldSectionIndex(at:s.reference,requirementBindings:b,draftAnchors:[draft],packagePermissions:changedPermissions); try permissionVariant.validate(session:s); XCTAssertNotEqual(i.projectionSHA256,permissionVariant.projectionSHA256); let changedDraft = try FieldSectionIndexDraftAnchorV1(itemID:s.items[0].itemID,draftID:C07.id(940_001),anchor:.init(sectionID:"round-item",fieldID:"pose-axis",selectedStableID:"pose.c36.anchor",boundedPosition:8)); let draftVariant = try a.fieldSectionIndex(at:s.reference,requirementBindings:b,draftAnchors:[changedDraft],packagePermissions:permissions); try draftVariant.validate(session:s); XCTAssertNotEqual(i.projectionSHA256,draftVariant.projectionSHA256); let stale = try a.fieldSectionIndex(at:s.reference,requirementBindings:[try .init(itemID:s.items[0].itemID,requirementSHA256:String(repeating:"d",count:64)),b[1]],packagePermissions:permissions); XCTAssertEqual(stale.sections[0].fields[0].anchorState,.staleRequirementFallback); XCTAssertNil(stale.sections[0].fields[0].anchor.fieldID) }
     func testV23P04C07H01DisagreementInaccessibleAndResourceFailuresRemainFailClosed() throws { let c = try corpus(); check(c,"H01","HOSTILE"); let h = try C07.inaccessibleHistory(C07.workspace(3)), a = adapter(h), s = h.last!; let stale = try RoundSessionReferenceV1(workspaceID:s.workspaceID,sessionID:s.sessionID,revision:s.revision,sessionSHA256:String(repeating:"e",count:64)); XCTAssertThrowsError(try a.progress(at:stale)); XCTAssertThrowsError(try FieldSectionIndexProjectionV1(session:s,requirementBindings:[],packagePermissions:[])); let b = try s.items.map { try FieldSectionIndexRequirementBindingV1(itemID:$0.itemID,requirementSHA256:$0.requirement.requirementSHA256) }; var foreign = try C07.permissions(s); foreign[0] = try .init(itemID:s.items[0].itemID,packageReleaseID:s.items[0].requirement.packageRelease.packageReleaseID,packageSHA256:String(repeating:"f",count:64),workflowSHA256:s.items[0].requirement.packageRelease.workflowSHA256,permitsOutOfOrderNavigation:false); XCTAssertThrowsError(try FieldSectionIndexProjectionV1(session:s,requirementBindings:b,packagePermissions:foreign)); XCTAssertEqual(s.state,.completed); XCTAssertEqual(s.counts.inaccessible,1); XCTAssertEqual(s.items[1].reason,.physicalAccessUnavailable); XCTAssertNil(s.items[1].visit); XCTAssertEqual(s.predecessor?.revision,s.revision-1); XCTAssertThrowsError(try a.closeout(at:s.reference)); XCTAssertThrowsError(try a.handoffManifest(at:s.reference)) }

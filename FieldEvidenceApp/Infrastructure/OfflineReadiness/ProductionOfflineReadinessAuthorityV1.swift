@@ -138,7 +138,7 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
             throw OfflineReadinessPreflightCoordinatorFailureV1.frontierChangedDuringReadback
         }
         let assessment: MyDayReadinessAssessmentV1
-        if round.items.contains(where: { $0.completion != nil }) {
+        if !(try completedItemsMatch(round, sources: initial)) {
             assessment = .unavailable(.completionAuthorityUnavailable)
         } else {
             let bindings = initial.currentBindings(for: round)
@@ -158,6 +158,8 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
                 assessment = .unavailable(.missingExactPackage)
             }
         }
+        let result = MyDaySourceReadinessAssessmentV1(reference: reference, assessment: assessment)
+        let completionRoot = try validateCompletionsForPublication([result])
         try await accessGate.validateContentRead(token, for: .render)
         try Task.checkCancellation()
         let reread = try currentSession()
@@ -165,8 +167,7 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
               try ProductionOfflineReadinessSourceClosureV1(context: reread.modelContext, workspaceID: workspaceID).sha256() == initialSHA else {
             throw MyDaySourceReadFailureV1.sourcesChanged
         }
-        let result = MyDaySourceReadinessAssessmentV1(reference: reference, assessment: assessment)
-        try validateStorageForPublication([result])
+        try validateStorageForPublication([result], expectedGenerationRootIdentity: completionRoot)
         return result
     }
 
@@ -178,16 +179,92 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
         return session
     }
 
-    /// The composing provider calls this after its last awaited gate check.
-    /// Storage reservations are not canonical rows and therefore need their
-    /// own fresh observation at publication, without acquiring a reservation.
-    func validateStorageForPublication(_ assessments: [MyDaySourceReadinessAssessmentV1]) throws {
+    /// Reuses the actual current writer and finalizer's immutable snapshot
+    /// readback. Package publication comes from the canonical source closure;
+    /// an old completion with no recorded workflow correspondence stays absent.
+    private func completedItemsMatch(
+        _ round: RoundSessionV1,
+        sources: ProductionOfflineReadinessSourceClosureV1
+    ) throws -> Bool {
+        let session = try currentSession()
+        guard round.items.count <= RoundSessionLimitsV1.maximumItems else {
+            throw MyDaySourceReadFailureV1.corruptSourceClosure
+        }
+        var packageOrder: [Data] = []
+        var groups: [Data: [(request: FinalizationService.CompletedInspectionRequest,
+                            expected: RoundItemCompletionReferenceV1)]] = [:]
+        var allMatch = true
+        for item in round.items {
+            guard let completion = item.completion else { continue }
+            guard let release = try sources.package(for: item.requirement.packageRelease),
+                  release.packageID == ShippingIlluminatedSignAdapterV1.packageID else {
+                allMatch = false
+                continue
+            }
+            let bytes = release.canonicalPackageBytes
+            if groups[bytes] == nil { packageOrder.append(bytes) }
+            groups[bytes, default: []].append((.init(recordID: completion.completionID,
+                expectedAssetID: item.selection.assetID, expectedRelease: release), completion))
+        }
+        for bytes in packageOrder {
+            guard let group = groups[bytes] else { throw MyDaySourceReadFailureV1.corruptSourceClosure }
+            let package = try InspectionPackageCanonicalCodecV2.decode(bytes)
+            let signPack = try ShippingIlluminatedSignAdapterV1.signPack(from: package)
+            let finalization = try FinalizationService(modelContext: session.modelContext,
+                signPack: signPack, generationRootURL: session.generationRootURL,
+                workspaceWriter: session.workspaceWriter)
+            let actual = try finalization.completedInspectionReferences(requests: group.map(\.request))
+            if actual.count != group.count || !zip(actual, group).allSatisfy({ $0.0 == $0.1.expected }) {
+                allMatch = false
+            }
+        }
+        // An unavailable item cannot hide a corrupt supported completion in
+        // another group. Validate every resolvable group before returning.
+        return allMatch
+    }
+
+    /// Reads protected completion content before the caller's final validation
+    /// of its original content-read token. No proof survives that operation.
+    func validateCompletionsForPublication(_ assessments: [MyDaySourceReadinessAssessmentV1]) throws
+        -> ReportPDFAnchoredFile.RootIdentity? {
         _ = try currentSession()
         let manifests = assessments.compactMap { record -> OfflineReadinessManifestV1? in
             if case let .roundManifest(manifest) = record.assessment { return manifest }
             return nil
         }
+        guard !manifests.isEmpty else { return nil }
+        let session = try currentSession()
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
+        let sources = try ProductionOfflineReadinessSourceClosureV1(context: session.modelContext, workspaceID: workspaceID)
+        for manifest in manifests {
+            guard let round = try RoundSessionHistoryValidatorV1.validate(
+                sources.rounds.filter { $0.sessionID == manifest.session.sessionID },
+                workspaceID: workspaceID, sessionID: manifest.session.sessionID),
+                  try round.reference == manifest.session,
+                  try completedItemsMatch(round, sources: sources) else {
+                throw MyDaySourceReadFailureV1.sourcesChanged
+            }
+        }
+        guard try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL) == rootIdentity else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        return rootIdentity
+    }
+
+    /// Fresh metadata-only observation after the last awaited access check.
+    /// Reservations are not canonical rows and need their own observation.
+    func validateStorageForPublication(_ assessments: [MyDaySourceReadinessAssessmentV1],
+        expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity?) throws {
+        let session = try currentSession()
+        let manifests = assessments.compactMap { record -> OfflineReadinessManifestV1? in
+            if case let .roundManifest(manifest) = record.assessment { return manifest }
+            return nil
+        }
         guard !manifests.isEmpty else { return }
+        guard let expectedGenerationRootIdentity,
+              try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL) == expectedGenerationRootIdentity else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
         let current = try ledger.observeOfflineReadiness(expectedApplicationSupportURL: applicationSupportURL)
         let protected = UIApplication.shared.isProtectedDataAvailable
         guard manifests.allSatisfy({ $0.storage == current && $0.protectedDataAvailable == protected }) else {
@@ -214,7 +291,8 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
             return current
         }
         func validateCurrentFrontier(_ reference: RoundSessionReferenceV1) throws -> RoundSessionV1 {
-            guard let round, try round.reference == reference, !round.items.contains(where: { $0.completion != nil }) else {
+            guard let round, try round.reference == reference,
+                  try owner.completedItemsMatch(round, sources: requireSources()) else {
                 throw OfflineReadinessPreflightCoordinatorFailureV1.frontierChangedDuringReadback
             }
             guard round.items.flatMap(\.requirement.requiredContent).allSatisfy({
