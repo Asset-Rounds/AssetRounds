@@ -373,6 +373,30 @@ final class S3_1DraftSchemaTests: XCTestCase {
         XCTAssertEqual(recheck.issueID, issue.id)
         XCTAssertEqual(recheck.parentRecordID, completedWork.id)
         XCTAssertEqual(recheck.draftStepKey, WorkflowDraftStep.wide.rawValue)
+
+        // Traverse both accepted child branches, not just the opening check.
+        context.delete(recheck)
+        let completedRecheck = completedRecord(id: UUID(), assetID: ids.asset,
+            issueID: issue.id, parentID: completedWork.id, stage: .recheck)
+        issue.status = IssueStatus.open.rawValue
+        context.insert(completedRecheck)
+        try context.save()
+        let nextWork = try coordinator.beginOrResumeDraft(
+            assetID: ids.asset, requestedStage: .work, issueID: issue.id)
+        XCTAssertEqual(nextWork.parentRecordID, completedRecheck.id)
+        XCTAssertEqual(nextWork.issueID, issue.id)
+        XCTAssertEqual(nextWork.stage, WorkflowStage.work.rawValue)
+
+        context.delete(nextWork)
+        completedRecheck.outcomeKey = "work_recorded"
+        try context.save()
+        let invalidSource = try lineageState(in: context)
+        XCTAssertThrowsError(try coordinator.beginOrResumeDraft(
+            assetID: ids.asset, requestedStage: .work, issueID: issue.id)) {
+            XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .invalidLineage)
+        }
+        XCTAssertEqual(try lineageState(in: context), invalidSource)
+        XCTAssertFalse(context.hasChanges)
     }
 
     @MainActor
@@ -390,6 +414,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         context.insert(opening); context.insert(issue); context.insert(firstChild); context.insert(secondChild)
         try context.save()
         let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let source = try lineageState(in: context)
 
         XCTAssertThrowsError(
             try coordinator.beginOrResumeDraft(
@@ -404,6 +429,8 @@ final class S3_1DraftSchemaTests: XCTestCase {
             }.count,
             0
         )
+        XCTAssertEqual(try lineageState(in: context), source)
+        XCTAssertFalse(context.hasChanges)
     }
 
     @MainActor
@@ -483,6 +510,34 @@ final class S3_1DraftSchemaTests: XCTestCase {
             }.map(\.id),
             [work.id]
         )
+
+        // The new issue's opening belongs to the resolved old issue. Its own
+        // later work/recheck rows must still form one exact accepted chain.
+        context.delete(work)
+        let completedWork = completedRecord(id: UUID(), assetID: ids.asset,
+            issueID: newIssue.id, parentID: openingRecheck.id, stage: .work)
+        let completedRecheck = completedRecord(id: UUID(), assetID: ids.asset,
+            issueID: newIssue.id, parentID: completedWork.id, stage: .recheck)
+        context.insert(completedWork); context.insert(completedRecheck)
+        try context.save()
+        let continued = try coordinator.beginOrResumeDraft(
+            assetID: ids.asset, requestedStage: .work, issueID: newIssue.id)
+        XCTAssertEqual(continued.parentRecordID, completedRecheck.id)
+        XCTAssertEqual(continued.issueID, newIssue.id)
+        XCTAssertEqual(continued.stage, WorkflowStage.work.rawValue)
+        XCTAssertEqual(oldIssue.resolvedByRecordID, openingRecheck.id)
+        XCTAssertEqual(oldIssue.status, IssueStatus.resolved.rawValue)
+
+        context.delete(continued)
+        completedRecheck.outcomeKey = "work_recorded"
+        try context.save()
+        let invalidSource = try lineageState(in: context)
+        XCTAssertThrowsError(try coordinator.beginOrResumeDraft(
+            assetID: ids.asset, requestedStage: .work, issueID: newIssue.id)) {
+            XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .invalidLineage)
+        }
+        XCTAssertEqual(try lineageState(in: context), invalidSource)
+        XCTAssertFalse(context.hasChanges)
     }
 
     @MainActor
@@ -504,6 +559,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         context.insert(terminalRecheck); context.insert(oldIssue); context.insert(newIssue)
         try context.save()
         let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let source = try lineageState(in: context)
 
         XCTAssertThrowsError(
             try coordinator.beginOrResumeDraft(
@@ -520,6 +576,28 @@ final class S3_1DraftSchemaTests: XCTestCase {
             }.count,
             0
         )
+        XCTAssertEqual(try lineageState(in: context), source)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    @MainActor
+    private func lineageState(in context: ModelContext) throws -> [[String]] {
+        let records = try context.fetch(FetchDescriptor<WorkflowRecord>()).map { row in
+            ["record", row.id.uuidString, row.assetID.uuidString, row.issueID?.uuidString ?? "nil",
+             row.parentRecordID?.uuidString ?? "nil", row.recordRevisionRootID.uuidString,
+             row.revisesRecordID?.uuidString ?? "nil", row.evidenceSourceRecordID?.uuidString ?? "nil",
+             row.revisionKind, row.stage, row.state, row.outcomeKey ?? "nil",
+             row.draftStepKey ?? "nil", row.finalizationMutationID?.uuidString ?? "nil",
+             String(row.startedAt.timeIntervalSince1970),
+             row.completedAt.map { String($0.timeIntervalSince1970) } ?? "nil"]
+        }
+        let issues = try context.fetch(FetchDescriptor<Issue>()).map { row in
+            ["issue", row.id.uuidString, row.assetID.uuidString, row.openedByRecordID.uuidString,
+             row.status, row.resolvedByRecordID?.uuidString ?? "nil", row.labelKey,
+             row.labelDisplaySnapshot, String(row.createdAt.timeIntervalSince1970),
+             String(row.updatedAt.timeIntervalSince1970)]
+        }
+        return (records + issues).sorted { $0.lexicographicallyPrecedes($1) }
     }
 
     private var pack: SignPack { .illuminatedSignV1 }

@@ -1674,7 +1674,7 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
 
-        let opensOrdinaryIssue = openingRecord.parentRecordID == nil
+        let opensOrdinaryIssue = try openingRecord.parentRecordID == nil
             && openingRecord.stage == WorkflowStage.check.rawValue
             && openingRecord.outcomeKey == (try packageOutcome(for: .findingObserved).key)
             && openingRecord.issueID == issue.id
@@ -1727,10 +1727,10 @@ final class CheckRunnerCoordinator {
                   child.assetID == assetID,
                   child.completedAt != nil,
                   child.finalizationMutationID != nil,
-                  (child.stage == WorkflowStage.work.rawValue
+                  try ((child.stage == WorkflowStage.work.rawValue
                     && child.outcomeKey == (try packageOutcome(for: .workRecorded).key))
                     || (child.stage == WorkflowStage.recheck.rawValue
-                    && Set(try recheckOutcomeKeys()).contains(child.outcomeKey ?? "")) else {
+                    && Set(try recheckOutcomeKeys()).contains(child.outcomeKey ?? ""))) else {
                 throw CheckRunnerCoordinatorError.invalidLineage
             }
             current = child
@@ -1772,10 +1772,10 @@ final class CheckRunnerCoordinator {
                   child.assetID == assetID,
                   child.completedAt != nil,
                   child.finalizationMutationID != nil,
-                  (child.stage == WorkflowStage.work.rawValue
+                  try ((child.stage == WorkflowStage.work.rawValue
                     && child.outcomeKey == (try packageOutcome(for: .workRecorded).key))
                     || (child.stage == WorkflowStage.recheck.rawValue
-                    && Set(try recheckOutcomeKeys()).contains(child.outcomeKey ?? "")) else {
+                    && Set(try recheckOutcomeKeys()).contains(child.outcomeKey ?? ""))) else {
                 throw CheckRunnerCoordinatorError.invalidLineage
             }
             current = child

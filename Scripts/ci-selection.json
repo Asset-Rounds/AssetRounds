@@ -9,13 +9,13 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testReportCorrectionRequiresExactV2ObservationAndTemporalSourceValues",
-    "FieldEvidenceAppTests/V9_41AssetLocatorTests/testWorkflowLocatorFreezeBindsExactReferenceReceiptAssetAndWorkspace",
-    "FieldEvidenceAppTests/S6_1DeletionGraphTests/testDeletionInventoriesUseValidatedEmptyValuesAndExactLocatorClosure",
-    "FieldEvidenceAppTests/V9_80LightingDayInventoryTests/testReportConstructionRequiresAdmittedBeamRoleAndExactDisplayedPose",
-    "FieldEvidenceAppTests/V9_40SurveySessionTests/testZeroSurveyIdentitiesRejectAndCaptureSuccessorsRequireExactReferences",
-    "FieldEvidenceAppTests/V9_42ScheduleTests/testResolvedOccurrenceBasisPreservesStrictGregorianDateAndTimeValidation",
-    "FieldEvidenceAppTests/V9_42ScheduleTests/testScheduleDeletionInventoryValidatesSourcesAndRetainsNonemptyHistory"
+    "FieldEvidenceAppTests/S3_1DraftSchemaTests/testNoDraftStageIssueAndLatestParentValidationIsExact",
+    "FieldEvidenceAppTests/S3_1DraftSchemaTests/testForkedIssueLineageFailsClosedWithoutCreatingDraft",
+    "FieldEvidenceAppTests/S3_1DraftSchemaTests/testDifferentIssueOpeningRecheckBecomesTheNewIssuesFirstParent",
+    "FieldEvidenceAppTests/S3_1DraftSchemaTests/testDifferentIssueOpeningRejectsAForkedOldIssueChain",
+    "FieldEvidenceAppTests/V9_21RequirementAssuranceTests/testProvisionalReachabilityKeepsDistinctCasesAndUnprovenDiagnosticText",
+    "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testCurationPreviewRendersAvailableAndMissingOriginalWithoutInvokingActions",
+    "FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests/testEveryUnavailableCoachStateRendersWithoutAcceptingOrRetakingEvidence"
   ],
   "uiTestSelectors": []
 }

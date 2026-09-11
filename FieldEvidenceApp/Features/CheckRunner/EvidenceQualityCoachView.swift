@@ -113,7 +113,7 @@ struct EvidenceQualityCoachView: View {
                 heading
                 switch state {
                 case let .review(warnings, limitation): review(warnings: warnings, limitation: limitation)
-                case let .unavailable(unavailable): unavailable(unavailable)
+                case let .unavailable(value): unavailable(value)
                 }
             }
             .padding(DesignTokens.Spacing.medium)

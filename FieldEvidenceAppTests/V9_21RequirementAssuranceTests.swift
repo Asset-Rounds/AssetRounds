@@ -3,6 +3,18 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_21RequirementAssuranceTests: XCTestCase {
+    func testProvisionalReachabilityKeepsDistinctCasesAndUnprovenDiagnosticText() {
+        let gate = RequirementAssuranceProvisionalReachabilityV1.universalFinalizationGate
+        let snapshot = RequirementAssuranceProvisionalReachabilityV1.completedSnapshotCreation
+        let accessibility = RequirementAssuranceProvisionalReachabilityV1.siteExitAccessibility
+        XCTAssertNotEqual(gate, snapshot)
+        XCTAssertNotEqual(gate, accessibility)
+        XCTAssertNotEqual(snapshot, accessibility)
+        XCTAssertEqual(gate.rawValue, "NOT_PROVEN_S10_RESERVED")
+        XCTAssertEqual(snapshot.rawValue, "NOT_PROVEN_S10_RESERVED")
+        XCTAssertEqual(accessibility.rawValue, "NOT_RUN_NO_CREDIT_S10_RESERVED")
+    }
+
     private let policy = String(repeating: "a", count: 64)
     private let workspaceID = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
     private let recordID = UUID(uuidString: "22222222-2222-4222-8222-222222222222")!

@@ -218,7 +218,7 @@ struct EvidenceCurationView: View {
         _ preview: EvidenceVersionPinnedPreviewV1
     ) -> some View {
         let metadata = sequenceItem(for: preview)
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
                 WorklightStatusBadge(
                     kind: preview.availability == .available ? .information : .blocked,

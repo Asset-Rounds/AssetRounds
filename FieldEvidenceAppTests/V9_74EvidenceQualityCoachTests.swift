@@ -1,11 +1,39 @@
 import Foundation
 import SwiftData
+import SwiftUI
+import UIKit
 import XCTest
 
 @testable import FieldEvidenceApp
 
 @MainActor
 final class V9_74EvidenceQualityCoachTests: XCTestCase {
+    func testEveryUnavailableCoachStateRendersWithoutAcceptingOrRetakingEvidence() throws {
+        let states: [EvidenceQualityCoachView.UnavailableState] = [
+            .unavailable, .corrupt, .stale, .cancelled, .protectedData, .offline, .storage
+        ]
+        var actionCount = 0
+        for state in states {
+            let view = EvidenceQualityCoachView(
+                state: .unavailable(state),
+                onRetake: { actionCount += 1 },
+                onAcceptWithReason: { _ in actionCount += 1 },
+                onCancel: { actionCount += 1 }
+            )
+            .environment(\.accessibilityDifferentiateWithoutColor, true)
+            .environment(\.accessibilityReduceMotion, true)
+            .environment(\.dynamicTypeSize, .accessibility3)
+            let controller = UIHostingController(rootView: view)
+            controller.loadViewIfNeeded()
+            let size = controller.sizeThatFits(in: CGSize(width: 390, height: 1_000))
+            XCTAssertTrue(size.width.isFinite && size.height.isFinite)
+            XCTAssertGreaterThan(size.width, 0)
+            XCTAssertGreaterThan(size.height, 0)
+            XCTAssertEqual(actionCount, 0)
+        }
+        // This is native view construction/layout, not pixel or AX acceptance.
+    }
+
     func testWriterBoundConvenienceReplaysExactRequestAndRejectsChangedMutationWithoutEffects() throws {
         let f = try C10ProductionFixture(useActiveSchema: true)
         let verifier: EvidenceQualityCoordinatorV1.ContentIntegrityVerifier = { binding, data in

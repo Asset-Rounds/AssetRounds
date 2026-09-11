@@ -517,10 +517,21 @@ struct RequirementAssuranceGatePreflightV1: Equatable, Sendable {
     }
 }
 
-enum RequirementAssuranceProvisionalReachabilityV1: String, Equatable, Sendable {
-    case universalFinalizationGate = "NOT_PROVEN_S10_RESERVED"
-    case completedSnapshotCreation = "NOT_PROVEN_S10_RESERVED"
-    case siteExitAccessibility = "NOT_RUN_NO_CREDIT_S10_RESERVED"
+enum RequirementAssuranceProvisionalReachabilityV1: Equatable, Sendable {
+    case universalFinalizationGate
+    case completedSnapshotCreation
+    case siteExitAccessibility
+
+    // Diagnostic text is intentionally shared by distinct unproven paths.
+    // It is not a unique identifier or a RawRepresentable decoding format.
+    var rawValue: String {
+        switch self {
+        case .universalFinalizationGate, .completedSnapshotCreation:
+            return "NOT_PROVEN_S10_RESERVED"
+        case .siteExitAccessibility:
+            return "NOT_RUN_NO_CREDIT_S10_RESERVED"
+        }
+    }
 }
 
 /// Read-only handoff from CheckRunner completion into the C14 review stream.

@@ -1,5 +1,7 @@
 import Foundation
 import SwiftData
+import SwiftUI
+import UIKit
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -227,7 +229,7 @@ private struct C02NullContentResolver: EvidenceCurationContentResolvingV1 {
 private actor C02ContentResolver: EvidenceCurationContentResolvingV1 {
     private let values: [String: ContentReferenceV1]
 
-    init(values: [String: ContentReferenceV1]) {
+    init(values: [ContentReferenceV1]) {
         self.values = Dictionary(uniqueKeysWithValues: values.map { ($0.contentID, $0) })
     }
 
@@ -493,6 +495,54 @@ final class V9_67EvidenceCurationTests: XCTestCase {
         )) { error in
             XCTAssertEqual(error as? EvidenceCurationFailureV1, .limitExceeded)
         }
+    }
+
+    @MainActor
+    func testCurationPreviewRendersAvailableAndMissingOriginalWithoutInvokingActions() async throws {
+        let fixture = try makeFixture()
+        let coordinator = EvidenceCurationCoordinatorV1(
+            contentResolver: C02ContentResolver(values: [fixture.references[0]])
+        )
+        let selection = try coordinator.eligibleSelection(
+            selectionID: "c02-native-preview",
+            workspaceID: fixture.workspace,
+            currentSequence: fixture.currentSequence,
+            associations: fixture.associations,
+            references: fixture.references,
+            originalProvenance: fixture.originalProvenance
+        )
+        let previews = try await coordinator.previews(
+            for: selection,
+            missingFallbackText: "Original evidence is unavailable on this device."
+        )
+        XCTAssertEqual(previews.map(\.availability), [.available, .missing])
+        let originalPreviews = try EvidenceCurationCanonicalCodecV1.encode(previews)
+        let originalSequence = fixture.currentSequence
+        let originalBytes = fixture.sources.map(\.bytes)
+        var actionCount = 0
+        let view = EvidenceCurationView(
+            previews: previews,
+            evidenceSequence: originalSequence,
+            onRetake: { _ in actionCount += 1 },
+            onRemoveFromWork: { _ in actionCount += 1 },
+            onMoveEarlier: { _ in actionCount += 1 },
+            onMoveLater: { _ in actionCount += 1 }
+        )
+        .environment(\.accessibilityDifferentiateWithoutColor, true)
+        .environment(\.accessibilityReduceMotion, true)
+        .environment(\.dynamicTypeSize, .accessibility3)
+        let controller = UIHostingController(rootView: view)
+        controller.loadViewIfNeeded()
+        let size = controller.sizeThatFits(in: CGSize(width: 390, height: 1_000))
+        XCTAssertTrue(size.width.isFinite && size.height.isFinite)
+        XCTAssertGreaterThan(size.width, 0)
+        XCTAssertGreaterThan(size.height, 0)
+        XCTAssertEqual(actionCount, 0)
+        XCTAssertEqual(try EvidenceCurationCanonicalCodecV1.encode(previews), originalPreviews)
+        XCTAssertEqual(fixture.currentSequence, originalSequence)
+        XCTAssertEqual(fixture.sources.map(\.bytes), originalBytes)
+        // Hosting exercises the preview body and its metadata/modifier chain.
+        // It is not a screenshot, accessibility audit, or human visual review.
     }
 
     func testV23P04C02A01VersionPinnedComparisonAndMissingFallback() async throws {
