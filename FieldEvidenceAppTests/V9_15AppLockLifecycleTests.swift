@@ -679,7 +679,7 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
     }
 
     nonisolated fileprivate static func id(_ byte: Int) -> UUID {
-        UUID(uuid: (0, 0, 0, 0, 0, 0x40, 0, 0, 0x80, 0, 0, 0, 0,
+        UUID(uuid: (0, 0, 0, 0, 0, 0x40, 0, 0, 0x80, 0, 0, 0, 0, 0,
                     UInt8(truncatingIfNeeded: byte >> 8), UInt8(truncatingIfNeeded: byte)))
     }
 

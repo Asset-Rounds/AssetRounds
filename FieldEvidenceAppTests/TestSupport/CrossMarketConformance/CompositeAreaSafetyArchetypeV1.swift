@@ -176,9 +176,9 @@ struct CompositeAreaSafetyModelV1: Codable, Equatable, Sendable {
               repair.completedSequence == 1,
               recheck.findingID == finding.id, recheck.repairID == repair.id,
               recheck.outcome == .resolved,
-              criteria.first(where: { $0.id == finding.selectedCriterionID }).map {
+              criteria.first(where: { $0.id == finding.selectedCriterionID }).map({
                   disposition(for: recheck.exactValue, criterion: $0) == .acceptable
-              } == true,
+              }) == true,
               signoff.recheckID == recheck.id,
               actorSnapshot.id != CrossMarketCanonicalV1.zeroUUID,
               !actorSnapshot.stableRoleKey.isEmpty, actorSnapshot.active,

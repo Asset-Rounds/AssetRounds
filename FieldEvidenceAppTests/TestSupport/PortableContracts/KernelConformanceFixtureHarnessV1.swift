@@ -211,7 +211,7 @@ enum C57MyDayExistingSuiteFixtureV1 {
     }
 
     private static func id(_ value: UInt8) -> UUID {
-        UUID(uuid: (0x57, value, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, value))
+        UUID(uuid: (0x57, value, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 0, value))
     }
 }
 

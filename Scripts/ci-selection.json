@@ -67,7 +67,8 @@
     "FieldEvidenceAppTests/V9_08GenerationLeaseTests/testLegacyAndV2RestorePublicationRetainsV3ManifestAndRejectsStalePointerBytes",
     "FieldEvidenceAppTests/V9_48AssistanceProposalTests/testV23P03C32G01ProposalReviewAcceptanceUsesOneCanonicalMutation",
     "FieldEvidenceAppTests/V9_63PartsStockTests/testV23P03C55I01PersistenceReplaySearchReportAndBackupClosure",
-    "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33R01BackupRestoreReplayDeleteEraseAndRetentionRemainExact"
+    "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33R01BackupRestoreReplayDeleteEraseAndRetentionRemainExact",
+    "FieldEvidenceAppTests/V9_47CrossMarketConformanceTests/testV23P03C42A01FixedSeedModelRunsAreByteIdenticalAndBounded"
   ],
   "uiTestSelectors": []
 }
