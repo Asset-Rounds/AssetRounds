@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -377,6 +378,110 @@ private enum C53AssetServiceReliabilityTestSupport {
 
 @MainActor
 final class V9_61AssetServiceReliabilityTests: XCTestCase {
+    func testSevenServiceReliabilityRowsPersistDistinctUUIDBindingsAndCanonicalBytes() throws {
+        typealias F = C53AssetServiceReliabilityTestSupport
+        func id(_ value: Int) -> UUID {
+            UUID(uuidString: String(format: "53000000-0000-4000-8000-%012x", value))!
+        }
+        let subject = try F.subject()
+        let actor = try F.actor()
+        let time = try F.temporal(at: F.fixedDate.timeIntervalSince1970)
+        let incident = try AssetServiceIncidentV1(
+            eventID: id(1), incidentID: F.incidentID, workspaceID: F.workspace, subject: subject,
+            continuation: .newOccurrence, observationBasis: F.observation(), time: time,
+            recordedBy: actor, revision: 1, mutationID: .init(rawValue: id(2))
+        )
+        let segment = try F.segment(
+            subject: subject, impact: .fullInterruption, origin: .unplanned, lower: 30, upper: 50,
+            segmentID: id(4), eventID: id(3), mutationID: .init(rawValue: id(5))
+        )
+        let cause = try ServiceCauseAssertionV1(
+            eventID: id(6), assertionID: id(7), incidentID: F.incidentID,
+            workspaceID: F.workspace, subject: subject, assessment: .unknown,
+            observationBasis: F.observation(), recordedTime: time, recordedBy: actor,
+            revision: 1, mutationID: .init(rawValue: id(8))
+        )
+        let remedy = try ServiceRemedyAssertionV1(
+            eventID: id(9), assertionID: id(10), incidentID: F.incidentID,
+            workspaceID: F.workspace, subject: subject,
+            work: .roundSession(sessionID: id(12), revision: 1, sessionSHA256: F.digest("e")),
+            recordedTime: time, recordedBy: actor, revision: 1, mutationID: .init(rawValue: id(11))
+        )
+        let repair = try F.repair(subject: subject)
+        let restoration = try F.restoration(subject: subject, restoredAt: 50)
+        let exposure = try F.exposure(subject: subject)
+
+        // Actual SwiftData persistence in a test-local in-memory store; not writer,
+        // migration, disk-relaunch, or referenced-work execution qualification.
+        let schema = Schema([
+            AssetServiceIncidentRow.self,
+            ServiceImpactSegmentRow.self,
+            ServiceCauseAssertionRow.self,
+            ServiceRemedyAssertionRow.self,
+            ServiceRepairIntervalRow.self,
+            ServiceRestorationAssertionRow.self,
+            QualifiedServiceExposureRow.self
+        ])
+        let container = try ModelContainer(for: schema, configurations: [
+            ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        ])
+        let writeContext = ModelContext(container)
+        writeContext.autosaveEnabled = false
+        writeContext.insert(try AssetServiceIncidentRow(incident))
+        writeContext.insert(try ServiceImpactSegmentRow(segment))
+        writeContext.insert(try ServiceCauseAssertionRow(cause))
+        writeContext.insert(try ServiceRemedyAssertionRow(remedy))
+        writeContext.insert(try ServiceRepairIntervalRow(repair))
+        writeContext.insert(try ServiceRestorationAssertionRow(restoration))
+        writeContext.insert(try QualifiedServiceExposureRow(exposure))
+        try writeContext.save()
+        XCTAssertFalse(writeContext.hasChanges)
+        let readContext = ModelContext(container)
+        readContext.autosaveEnabled = false
+
+        func verify<Row: PersistentModel, Value: Codable & Equatable & ServiceReliabilityCanonicalValidatingV1>(
+            _ type: Row.Type, expected: Value, expectedIDs: [UUID],
+            ids: (Row) -> [UUID], value: (Row) throws -> Value, bytes: (Row) -> Data
+        ) throws {
+            let rows = try readContext.fetch(FetchDescriptor<Row>())
+            XCTAssertEqual(rows.count, 1)
+            let row = try XCTUnwrap(rows.first)
+            XCTAssertEqual(Set(expectedIDs).count, expectedIDs.count, "Every UUID property has a distinct fixture value")
+            XCTAssertEqual(ids(row), expectedIDs)
+            XCTAssertEqual(try value(row), expected)
+            XCTAssertEqual(bytes(row), try ServiceReliabilityCanonicalCodecV1.encode(expected))
+        }
+        try verify(AssetServiceIncidentRow.self, expected: incident,
+            expectedIDs: [incident.eventID, incident.workspaceID.rawValue, incident.incidentID, incident.mutationID.rawValue],
+            ids: { [$0.eventID, $0.workspaceID, $0.incidentID, $0.mutationID] },
+            value: { try $0.value() }, bytes: { $0.canonicalData })
+        try verify(ServiceImpactSegmentRow.self, expected: segment,
+            expectedIDs: [segment.eventID, segment.workspaceID.rawValue, segment.segmentID, segment.incidentID, segment.mutationID.rawValue],
+            ids: { [$0.eventID, $0.workspaceID, $0.segmentID, $0.incidentID, $0.mutationID] },
+            value: { try $0.value() }, bytes: { $0.canonicalData })
+        try verify(ServiceCauseAssertionRow.self, expected: cause,
+            expectedIDs: [cause.eventID, cause.workspaceID.rawValue, cause.assertionID, cause.incidentID, cause.mutationID.rawValue],
+            ids: { [$0.eventID, $0.workspaceID, $0.assertionID, $0.incidentID, $0.mutationID] },
+            value: { try $0.value() }, bytes: { $0.canonicalData })
+        try verify(ServiceRemedyAssertionRow.self, expected: remedy,
+            expectedIDs: [remedy.eventID, remedy.workspaceID.rawValue, remedy.assertionID, remedy.incidentID, remedy.mutationID.rawValue],
+            ids: { [$0.eventID, $0.workspaceID, $0.assertionID, $0.incidentID, $0.mutationID] },
+            value: { try $0.value() }, bytes: { $0.canonicalData })
+        try verify(ServiceRepairIntervalRow.self, expected: repair,
+            expectedIDs: [repair.eventID, repair.workspaceID.rawValue, repair.repairID, repair.incidentID, repair.mutationID.rawValue],
+            ids: { [$0.eventID, $0.workspaceID, $0.repairID, $0.incidentID, $0.mutationID] },
+            value: { try $0.value() }, bytes: { $0.canonicalData })
+        try verify(ServiceRestorationAssertionRow.self, expected: restoration,
+            expectedIDs: [restoration.eventID, restoration.workspaceID.rawValue, restoration.assertionID, restoration.incidentID, restoration.mutationID.rawValue],
+            ids: { [$0.eventID, $0.workspaceID, $0.assertionID, $0.incidentID, $0.mutationID] },
+            value: { try $0.value() }, bytes: { $0.canonicalData })
+        try verify(QualifiedServiceExposureRow.self, expected: exposure,
+            expectedIDs: [exposure.eventID, exposure.workspaceID.rawValue, exposure.exposureID, exposure.mutationID.rawValue],
+            ids: { [$0.eventID, $0.workspaceID, $0.exposureID, $0.mutationID] },
+            value: { try $0.value() }, bytes: { $0.canonicalData })
+        XCTAssertFalse(readContext.hasChanges)
+    }
+
     func testV23P03C53G01GoldenProjectionUsesTypedExposureDowntimeAndOperatingIntervals() throws {
         let corpus = try C53AssetServiceReliabilityTestSupport.fixture()
         XCTAssertEqual(corpus.schema, "V22P03C53AssetServiceReliabilityCorpusV1")

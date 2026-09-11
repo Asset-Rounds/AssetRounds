@@ -9,7 +9,8 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_52AssetLabelTests/testEvidenceBundleExactPublicationRemovalPreservesSiblingJobs"
+    "FieldEvidenceAppTests/V9_61AssetServiceReliabilityTests/testSevenServiceReliabilityRowsPersistDistinctUUIDBindingsAndCanonicalBytes",
+    "FieldEvidenceAppTests/V9_61AssetServiceReliabilityTests/testV23P03C53R01RecoveryRoundTripPreservesProjectionAndErasePrivacyBoundary"
   ],
   "uiTestSelectors": []
 }
