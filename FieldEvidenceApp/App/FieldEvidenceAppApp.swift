@@ -67,17 +67,32 @@ struct FieldEvidenceAppApp: App {
         } else {
             mailComposerAdapter = .live
         }
-        let applicationSupportURL = FileManager.default.urls(
+        var applicationSupportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         )[0]
+        var startupPreparationFailure: StartupMaintenanceReason?
+#if DEBUG
+        if arguments.contains("--v23-ui-test-legacy-migration") {
+            if let rawID = ProcessInfo.processInfo.environment["V23_MIGRATION_TEST_ID"],
+               let id = UUID(uuidString: rawID), id.uuidString.lowercased() == rawID,
+               !arguments.contains(Self.emptyRestoreUITestLaunchArgument),
+               !arguments.contains(Self.replacementRestoreUITestLaunchArgument) {
+                applicationSupportURL = applicationSupportURL.appendingPathComponent("V23MigrationUITests").appendingPathComponent(rawID)
+                do { try StoreGenerationFactory(applicationSupportURL: applicationSupportURL).seedIsolatedLegacyStartupUITestIfEmpty() }
+                catch { startupPreparationFailure = .dataPointerInvalid }
+            } else {
+                startupPreparationFailure = .dataPointerInvalid
+            }
+        }
+#endif
         self.applicationSupportURL = applicationSupportURL
         let usesEmptyRestoreFixture = arguments.contains(
             Self.emptyRestoreUITestLaunchArgument
-        )
+        ) && startupPreparationFailure == nil
         let usesReplacementRestoreFixture = arguments.contains(
             Self.replacementRestoreUITestLaunchArgument
-        )
+        ) && startupPreparationFailure == nil
         if usesEmptyRestoreFixture {
             for name in [
                 "FieldEvidenceData",
@@ -113,7 +128,8 @@ struct FieldEvidenceAppApp: App {
                 applicationSupportURL: applicationSupportURL,
                 injectsReportRenderFailureOnce: arguments.contains(
                     Self.reportRenderFailureOnceLaunchArgument
-                )
+                ),
+                startupPreparationFailure: startupPreparationFailure
             )
         )
 
@@ -219,6 +235,11 @@ private struct StartupRootView: View {
                     eraseSession: router.maintenanceEraseSession,
                     applicationSupportURL: applicationSupportURL
                 )
+
+            case .awaitingIndependentValidation:
+                StartupMigrationValidationView {
+                    Task { await router.retryChecks() }
+                }
 
             case let .ready(coordinator, diagnosticsStore, reportRecoveryService):
                 ReadyAppView(

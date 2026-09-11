@@ -17,18 +17,32 @@ final class FinalizationRecoveryService {
     private let store: FinalizationIntentStore
     private let generationRootURL: URL
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity?
+    private let sourceRecoveryAuthority: StoreMigrationSourceRecoveryAuthorityV1?
 
-    init(modelContext: ModelContext, generationRootURL: URL) {
+    convenience init(modelContext: ModelContext, generationRootURL: URL) {
+        self.init(modelContext: modelContext, generationRootURL: generationRootURL,
+                  sourceRecoveryAuthority: nil, store: FinalizationIntentStore(generationRootURL: generationRootURL,
+                    expectedGenerationRootIdentity: try? ReportPDFAnchoredFile.rootIdentity(at: generationRootURL.standardizedFileURL)))
+    }
+
+    convenience init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        self.init(modelContext: try authority.recoveryContext(),
+                  generationRootURL: authority.generationRootURL,
+                  sourceRecoveryAuthority: authority,
+                  store: try FinalizationIntentStore(sourceRecoveryAuthority: authority))
+    }
+
+    private init(modelContext: ModelContext, generationRootURL: URL,
+                 sourceRecoveryAuthority: StoreMigrationSourceRecoveryAuthorityV1?,
+                 store: FinalizationIntentStore) {
         self.modelContext = modelContext
+        self.sourceRecoveryAuthority = sourceRecoveryAuthority
         self.generationRootURL = generationRootURL.standardizedFileURL
         let capturedRootIdentity = try? ReportPDFAnchoredFile.rootIdentity(
             at: generationRootURL.standardizedFileURL
         )
         self.rootIdentity = capturedRootIdentity
-        self.store = FinalizationIntentStore(
-            generationRootURL: generationRootURL,
-            expectedGenerationRootIdentity: capturedRootIdentity
-        )
+        self.store = store
     }
 
     func reconcile() async throws -> FinalizationRecoverySummary {
@@ -41,6 +55,12 @@ final class FinalizationRecoveryService {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         try requireCleanContext()
+        if !recoveries.isEmpty, let release = sourceRecoveryAuthority?.sourceRelease,
+           [.v2, .v3, .v4].contains(release) {
+            // These released layouts are not the seven-model source route.
+            // Keep their original operation pending until its recovery is qualified.
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
         try validateRecoverySet(recoveries)
         var draftIDs: [UUID] = []
         var completedIDs: [UUID] = []
@@ -60,6 +80,24 @@ final class FinalizationRecoveryService {
             recoveredDraftRecordIDs: draftIDs,
             completedRecordIDs: completedIDs
         )
+    }
+
+    func verifyOriginalRecoverySettled() async throws {
+        guard sourceRecoveryAuthority != nil else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        try requireCleanContext()
+        guard try await store.discoverRecoverableFinalizations().isEmpty else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        try requireCleanContext()
+    }
+
+    private func snapshotValidator() throws -> SnapshotValidatorV1 {
+        if let sourceRecoveryAuthority {
+            return try SnapshotValidatorV1(sourceRecoveryAuthority: sourceRecoveryAuthority)
+        }
+        return try SnapshotValidatorV1(modelContext: modelContext, generationRootURL: generationRootURL)
     }
 
     private enum Result {
@@ -221,8 +259,8 @@ final class FinalizationRecoveryService {
                 priorState = nil
             }
             let correctionPacketState = try correctionRecoveryPacketState(payload)
-            try apply(recovery.intent.finalizationPayload)
             do {
+                try apply(recovery.intent.finalizationPayload)
                 guard let reportValue = payload.reportInsert else {
                     throw FinalizationRecoveryServiceError.inconsistent
                 }
@@ -230,11 +268,14 @@ final class FinalizationRecoveryService {
                 guard reports.count == 1 else {
                     throw FinalizationRecoveryServiceError.inconsistent
                 }
-                _ = try SnapshotValidatorV1(
-                    modelContext: modelContext,
-                    generationRootURL: generationRootURL
-                ).validate(report: reports[0])
-                try modelContext.save()
+                _ = try snapshotValidator().validate(report: reports[0])
+                if let sourceRecoveryAuthority {
+                    try sourceRecoveryAuthority.recoveryMutationGuard().withAuthorizedMutation {
+                        try modelContext.save()
+                    }
+                } else {
+                    try modelContext.save()
+                }
             } catch {
                 priorState?.restore()
                 correctionPacketState?.restore()
@@ -263,6 +304,7 @@ final class FinalizationRecoveryService {
     }
 
     private func requireCleanContext() throws {
+        try sourceRecoveryAuthority?.recoveryMutationGuard().validateCurrent()
         guard !modelContext.hasChanges,
               let rootIdentity,
               (try? ReportPDFAnchoredFile.rootIdentity(at: generationRootURL))
@@ -957,10 +999,7 @@ final class FinalizationRecoveryService {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
             do {
-                _ = try SnapshotValidatorV1(
-                    modelContext: modelContext,
-                    generationRootURL: generationRootURL
-                ).validate(report: reports[0])
+                _ = try snapshotValidator().validate(report: reports[0])
             } catch {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
@@ -1671,6 +1710,26 @@ final class FinalizationRecoveryService {
         }
         let priorRecord = priorRecords[0]
         let value = payload.workflowRecordAfter
+        let requiresCompanion: Bool
+        switch sourceRecoveryAuthority?.sourceRelease {
+        case .some(.v1), .some(.v2), .some(.v3), .some(.v4): requiresCompanion = false
+        default: requiresCompanion = true
+        }
+        if requiresCompanion {
+            let prior = try ObservationAndTimeRowStoreV1.requireRow(
+                recordID: priorRecord.id, in: modelContext
+            )
+            guard try modelContext.fetch(FetchDescriptor<ObservationAndTimeRow>())
+                .allSatisfy({ $0.recordID != value.id }) else {
+                throw FinalizationRecoveryServiceError.inconsistent
+            }
+            modelContext.insert(try ObservationAndTimeRow(
+                recordID: value.id,
+                observationBasisV1Data: prior.observationBasisV1Data,
+                temporalContextV1Data: prior.temporalContextV1Data,
+                schemaVersion: prior.schemaVersion
+            ))
+        }
         modelContext.insert(WorkflowRecord(
             id: value.id, assetID: value.assetID, packetID: value.packetID,
             issueID: value.issueID, parentRecordID: value.parentRecordID,

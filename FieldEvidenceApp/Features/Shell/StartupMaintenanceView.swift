@@ -1,5 +1,32 @@
 import SwiftUI
 
+/// Successful publication still requires a genuinely separate process to
+/// validate the store. This is not the destructive maintenance fallback.
+struct StartupMigrationValidationView: View {
+    let retryChecks: () -> Void
+    var body: some View {
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    Text("Restart to finish updating local data")
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Your local data has been preserved. Close AssetRounds completely, then reopen it to finish validation. Retry checks cannot replace a restart.")
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    AssetRoundsPrimaryAction(action: retryChecks) {
+                        Label("Retry checks", systemImage: "arrow.clockwise")
+                    }
+                    .accessibilityIdentifier("v23.migration.awaiting-validation.retry")
+                }
+            }
+        }
+        .accessibilityIdentifier("v23.migration.awaiting-validation.screen")
+    }
+}
+
 struct StartupMaintenanceView: View {
     static let titleText = "Local data needs attention"
     static let messageText = "The app stopped to avoid changing or losing local records."

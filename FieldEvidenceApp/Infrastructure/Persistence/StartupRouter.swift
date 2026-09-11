@@ -37,6 +37,7 @@ enum StartupRecoveryBootstrapStateV1: Equatable, Sendable {
 final class StartupRouter: ObservableObject {
     enum Route {
         case checking
+        case awaitingIndependentValidation(StoreMigrationAwaitingValidationV1)
         case ready(
             StoreSessionCoordinator,
             DiagnosticsStore,
@@ -56,7 +57,7 @@ final class StartupRouter: ObservableObject {
     /// but cannot obtain a session or run a repair through it.
     var recoveryBootstrapState: StartupRecoveryBootstrapStateV1 {
         switch route {
-        case .checking:
+        case .checking, .awaitingIndependentValidation:
             return .checking
         case .ready:
             return .ready
@@ -73,6 +74,7 @@ final class StartupRouter: ObservableObject {
     private let fileManager: FileManager
     private let entitlementRuntime: StoreKitEntitlementRuntimeV1
     private let didBeginStep: (StartupStep) -> Void
+    private let startupPreparationFailure: StartupMaintenanceReason?
     private var injectsReportRenderFailureOnce: Bool
     private let reportLaunchAttemptRegistry = ReportLaunchAttemptRegistry()
     private(set) var entitlementProcessor: StoreKitTransactionProcessor?
@@ -132,6 +134,7 @@ final class StartupRouter: ObservableObject {
         fileManager: FileManager = .default,
         injectsReportRenderFailureOnce: Bool = false,
         entitlementRuntime: StoreKitEntitlementRuntimeV1 = .live(),
+        startupPreparationFailure: StartupMaintenanceReason? = nil,
         didBeginStep: @escaping (StartupStep) -> Void = { _ in }
     ) {
         self.applicationSupportURL = applicationSupportURL
@@ -147,6 +150,7 @@ final class StartupRouter: ObservableObject {
         self.entitlementRuntime = entitlementRuntime
         self.injectsReportRenderFailureOnce = injectsReportRenderFailureOnce
         self.didBeginStep = didBeginStep
+        self.startupPreparationFailure = startupPreparationFailure
     }
 
     func startIfNeeded() async {
@@ -169,6 +173,10 @@ final class StartupRouter: ObservableObject {
         guard !isRunning else {
             return
         }
+        if let startupPreparationFailure {
+            route = .maintenance(startupPreparationFailure)
+            return
+        }
         entitlementProcessor?.stop()
         entitlementProcessor = nil
         if let pendingEraseDrainProof {
@@ -187,13 +195,20 @@ final class StartupRouter: ObservableObject {
         var openedSession: StoreGenerationSession?
 
         do {
+            // The aggregate already proved the ordinary restore/erase owners
+            // clear before reservation. Their abandoned-staging cleanup must
+            // not mistake its bound candidate for an ordinary restore.
+            let resumesAggregate = try generationFactory.hasAggregateMigrationReservation()
             didBeginStep(.erase)
             let erasedSession: StoreGenerationSession?
             do {
-                erasedSession = try await EraseAllService(
-                    applicationSupportURL: applicationSupportURL,
-                    fileManager: fileManager
-                ).reconcileAtStartup(diagnosticsStore: diagnosticsStore)
+                if resumesAggregate { erasedSession = nil }
+                else {
+                    erasedSession = try await EraseAllService(
+                        applicationSupportURL: applicationSupportURL,
+                        fileManager: fileManager
+                    ).reconcileAtStartup(diagnosticsStore: diagnosticsStore)
+                }
             } catch {
                 throw StartupMaintenanceReason.eraseInconsistent
             }
@@ -201,10 +216,13 @@ final class StartupRouter: ObservableObject {
             didBeginStep(.restore)
             let restoredSession: StoreGenerationSession?
             do {
-                restoredSession = try await BackupRestoreService(
-                    applicationSupportURL: applicationSupportURL,
-                    fileManager: fileManager
-                ).reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                if resumesAggregate { restoredSession = nil }
+                else {
+                    restoredSession = try await BackupRestoreService(
+                        applicationSupportURL: applicationSupportURL,
+                        fileManager: fileManager
+                    ).reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                }
             } catch {
                 throw StartupMaintenanceReason.restoreInconsistent
             }
@@ -216,7 +234,14 @@ final class StartupRouter: ObservableObject {
             } else if let erasedSession {
                 session = erasedSession
             } else {
-                session = try openCurrentGeneration()
+                switch try await generationFactory.openForStartup(recoverOriginalSource: { authority in
+                    try await self.recoverOriginalSource(authority)
+                }) {
+                case .ready(let current): session = current
+                case .awaitingIndependentValidation(let pending):
+                    route = .awaitingIndependentValidation(pending)
+                    return
+                }
             }
             openedSession = session
             do {
@@ -224,10 +249,6 @@ final class StartupRouter: ObservableObject {
             } catch {
                 throw StartupMaintenanceReason.dataPointerInvalid
             }
-            let coordinator = try StoreSessionCoordinator(
-                validatingSession: session
-            )
-
             didBeginStep(.fieldDraft)
             do {
                 _ = try DraftCommitSagaRecoveryV1(
@@ -301,6 +322,9 @@ final class StartupRouter: ObservableObject {
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
 
+            // No writer is created until all store-local startup recovery has
+            // completed, including the final PDF pass.
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
             await diagnosticsStore.prepare()
             do {
                 try await installCommerceProcessor()
@@ -528,6 +552,36 @@ final class StartupRouter: ObservableObject {
             maintenanceEraseSession = nil
             route = .maintenance(.restoreInconsistent)
         }
+    }
+
+    private func recoverOriginalSource(_ authority: StoreMigrationSourceRecoveryAuthorityV1) async throws {
+        let finalization = try FinalizationRecoveryService(sourceRecoveryAuthority: authority)
+        _ = try await finalization.reconcile()
+        _ = try WholeSignDeletionService.reconcileOriginalSource(authority: authority)
+        func survivingMedia() throws -> [EvidenceBundleAuthority] {
+            let context = try authority.recoveryContext()
+            var descriptor = FetchDescriptor<EvidenceFile>()
+            descriptor.fetchLimit = 100_001
+            let rows = try context.fetch(descriptor)
+            guard rows.count <= 100_000 else { throw StartupMaintenanceReason.mediaInconsistent }
+            return rows.map {
+                EvidenceBundleAuthority(schemaVersion: $0.schemaVersion, id: $0.id,
+                    recordID: $0.recordID, purposeKey: $0.purposeKey,
+                    relativePath: $0.relativePath, mimeType: $0.mimeType,
+                    byteCount: $0.byteCount, sha256: $0.sha256,
+                    thumbnailRelativePath: $0.thumbnailRelativePath,
+                    thumbnailByteCount: $0.thumbnailByteCount, thumbnailSHA256: $0.thumbnailSHA256)
+            }
+        }
+        let media = try EvidenceBundleStore(sourceRecoveryAuthority: authority)
+        try await media.reconcile(authorities: survivingMedia())
+        try ReportRecoveryService.settleOriginalSourcePDFs(authority: authority)
+        // Re-enumerate original authorities after all effects. This callback
+        // returns no context, writer or service to the aggregate engine.
+        try await finalization.verifyOriginalRecoverySettled()
+        try WholeSignDeletionService.verifyOriginalRecoverySettled(authority: authority)
+        try await media.verifyOriginalRecoverySettled(authorities: survivingMedia())
+        try ReportRecoveryService.verifyOriginalRecoverySettled(authority: authority)
     }
 
     private func openCurrentGeneration() throws -> StoreGenerationSession {

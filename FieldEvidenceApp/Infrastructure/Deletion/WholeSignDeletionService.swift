@@ -168,6 +168,261 @@ struct WholeSignDeletionRecoverySummary: Equatable, Sendable {
     let completedCommittedCount: Int
 }
 
+@MainActor
+extension WholeSignDeletionService {
+    /// Recovery of a released schema1 journal is not a new deletion command.
+    /// No current writer, ledger, companion or later model is opened here.
+    static func reconcileOriginalSource(
+        authority: StoreMigrationSourceRecoveryAuthorityV1
+    ) throws -> WholeSignDeletionRecoverySummary {
+        let context = try authority.recoveryContext()
+        guard !context.hasChanges else { throw WholeSignDeletionServiceError.contextHasChanges }
+        if authority.sourceRelease == .v1 {
+            var descriptor = FetchDescriptor<Report>(); descriptor.fetchLimit = 100_001
+            let reports = try context.fetch(descriptor)
+            guard reports.count <= 100_000 else { throw WholeSignDeletionServiceError.graphInvalid }
+            let validator = try SnapshotValidatorV1(sourceRecoveryAuthority: authority)
+            _ = try validator.validateOriginalSourceReports(reports)
+        }
+        let mutationGuard = try authority.recoveryMutationGuard()
+        return try mutationGuard.withAuthorizedMutation {
+            let journal = try DeletionJournalStore(applicationSupportURL: authority.generationRootURL
+                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent())
+            let intents = try journal.loadAll()
+            let markers = try journal.loadAllSiteSearchPurgeMarkers()
+            guard markers.isEmpty else { throw WholeSignDeletionServiceError.journalInvalid }
+            guard !intents.isEmpty else {
+                return WholeSignDeletionRecoverySummary(cancelledPreparedCount: 0, completedCommittedCount: 0)
+            }
+            guard authority.sourceRelease == .v1 else { throw WholeSignDeletionServiceError.journalInvalid }
+            let files = try DeletionGenerationFiles(rootURL: authority.generationRootURL)
+            guard files.generationID == authority.sourceGenerationID else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            let rows = try OriginalDeletionRows(context: context)
+            let paths = intents.flatMap(\.relativePaths)
+            let tombstones = intents.flatMap(\.countedPacketTombstones)
+            guard paths.count <= 100_000,
+                  Set(intents.map(\.assetID)).count == intents.count,
+                  Set(intents.map(\.deletionID)).count == intents.count,
+                  Set(paths).count == paths.count,
+                  Set(tombstones.map(\.id)).count == tombstones.count else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            // Validate the complete operation set before touching any journal/file.
+            var prepared = Set<UUID>()
+            for intent in intents {
+                guard intent.generationID == authority.sourceGenerationID,
+                      intent.schemaVersion == 1, intent.ledgerEntries.isEmpty,
+                      intent.acceptedLabelOutputCleanups.isEmpty else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                if rows.assets.contains(where: { $0.id == intent.assetID }) {
+                    guard intent.phase == .prepared else { throw WholeSignDeletionServiceError.journalInvalid }
+                    let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
+                    guard dates.count <= 1 else { throw WholeSignDeletionServiceError.journalInvalid }
+                    let plan = try WholeSignDeletionRule.makePlan(rows.input(
+                        intent: intent, deletedAt: dates.first ?? .distantPast
+                    ))
+                    let expected = DeletionIntentV1(
+                        assetID: plan.intent.assetID, countedPacketTombstones: plan.intent.countedPacketTombstones,
+                        deletionID: plan.intent.deletionID, generationID: plan.intent.generationID,
+                        ledgerEntries: [], phase: plan.intent.phase,
+                        relativePaths: plan.intent.relativePaths, schemaVersion: 1
+                    )
+                    guard expected == intent else { throw WholeSignDeletionServiceError.journalInvalid }
+                    try rows.validateFiles(plan: plan, files: files)
+                    prepared.insert(intent.deletionID)
+                } else {
+                    try rows.validateCommitted(intent: intent)
+                    for path in intent.relativePaths { try files.validateOriginalIfPresent(relativePath: path) }
+                    let bundles = Dictionary(grouping: intent.relativePaths.filter { $0.hasPrefix("evidence/") }) {
+                        String($0.split(separator: "/")[1])
+                    }
+                    for (name, paths) in bundles {
+                        guard let id = UUID(uuidString: name) else { throw WholeSignDeletionServiceError.fileInvalid }
+                        try files.inspectOriginalEvidenceBundleIfPresent(id: id,
+                            ownedLeaves: Set(paths.map { String($0.split(separator: "/").last!) }))
+                    }
+                }
+            }
+            var cancelled = 0, completed = 0
+            for intent in intents {
+                if prepared.contains(intent.deletionID) {
+                    try journal.remove(intent)
+                    cancelled += 1
+                    continue
+                }
+                if intent.phase == .prepared { try journal.replace(intent.withPhase(.databaseCommitted)) }
+                for path in intent.relativePaths { try files.removeOriginalIfPresent(relativePath: path) }
+                let evidenceIDs = Set(intent.relativePaths.compactMap { path -> UUID? in
+                    let parts = path.split(separator: "/")
+                    guard parts.count == 3, parts[0] == "evidence" else { return nil }
+                    return UUID(uuidString: String(parts[1]))
+                })
+                for id in evidenceIDs { try files.inspectOriginalEvidenceBundleIfPresent(id: id, ownedLeaves: [], removeEmpty: true) }
+                try journal.remove(intent.withPhase(.databaseCommitted))
+                completed += 1
+            }
+            guard try journal.isEmpty(), !context.hasChanges else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            return WholeSignDeletionRecoverySummary(cancelledPreparedCount: cancelled, completedCommittedCount: completed)
+        }
+    }
+
+    static func verifyOriginalRecoverySettled(authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        let context = try authority.recoveryContext()
+        guard !context.hasChanges else { throw WholeSignDeletionServiceError.contextHasChanges }
+        let mutationGuard = try authority.recoveryMutationGuard()
+        try mutationGuard.withAuthorizedMutation {
+            let journal = try DeletionJournalStore(applicationSupportURL: authority.generationRootURL
+                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent())
+            guard try journal.isEmpty() else { throw WholeSignDeletionServiceError.journalInvalid }
+        }
+    }
+
+    private struct OriginalDeletionRows {
+        let sites: [Site], assets: [Asset], records: [WorkflowRecord]
+        let evidence: [EvidenceFile], issues: [Issue], packets: [Packet], reports: [Report]
+
+        init(context: ModelContext) throws {
+            func fetch<T: PersistentModel>(_ type: T.Type) throws -> [T] {
+                var descriptor = FetchDescriptor<T>(); descriptor.fetchLimit = 100_001
+                let rows = try context.fetch(descriptor)
+                guard rows.count <= 100_000 else { throw WholeSignDeletionServiceError.graphInvalid }
+                return rows
+            }
+            sites = try fetch(Site.self); assets = try fetch(Asset.self); records = try fetch(WorkflowRecord.self)
+            evidence = try fetch(EvidenceFile.self); issues = try fetch(Issue.self)
+            packets = try fetch(Packet.self); reports = try fetch(Report.self)
+        }
+
+        func input(intent: DeletionIntentV1, deletedAt: Date) -> WholeSignDeletionRuleInput {
+            WholeSignDeletionRuleInput(
+                assetID: intent.assetID, deletionID: intent.deletionID, deletedAt: deletedAt,
+                generationID: intent.generationID,
+                sites: sites.map { .init(id: $0.id, schemaVersion: $0.schemaVersion) },
+                assets: assets.map { .init(id: $0.id, schemaVersion: $0.schemaVersion, siteID: $0.siteID) },
+                records: records.map(Self.payload),
+                evidence: evidence.map { .init(id: $0.id, schemaVersion: $0.schemaVersion, recordID: $0.recordID,
+                    purposeKey: $0.purposeKey, relativePath: $0.relativePath, mimeType: $0.mimeType,
+                    byteCount: $0.byteCount, sha256: $0.sha256, thumbnailRelativePath: $0.thumbnailRelativePath,
+                    thumbnailByteCount: $0.thumbnailByteCount, thumbnailSHA256: $0.thumbnailSHA256) },
+                issues: issues.map { .init(id: $0.id, schemaVersion: $0.schemaVersion, assetID: $0.assetID,
+                    openedByRecordID: $0.openedByRecordID, labelKey: $0.labelKey, labelDisplaySnapshot: $0.labelDisplaySnapshot,
+                    status: $0.status, resolvedByRecordID: $0.resolvedByRecordID, createdAt: $0.createdAt, updatedAt: $0.updatedAt) },
+                packets: packets.map { .init(id: $0.id, schemaVersion: $0.schemaVersion, stableRootID: $0.stableRootID,
+                    currentRecordID: $0.currentRecordID, evaluationCounted: $0.evaluationCounted,
+                    contentDeletedAt: $0.contentDeletedAt, createdAt: $0.createdAt) },
+                reports: reports.map { .init(id: $0.id, schemaVersion: $0.schemaVersion, packetID: $0.packetID,
+                    sourceRecordID: $0.sourceRecordID, snapshotSchemaVersion: $0.snapshotSchemaVersion,
+                    snapshotRelativePath: $0.snapshotRelativePath, snapshotSHA256: $0.snapshotSHA256,
+                    pdfState: $0.pdfState, pdfRelativePath: $0.pdfRelativePath, pdfSHA256: $0.pdfSHA256,
+                    createdAt: $0.createdAt, replacesReportID: $0.replacesReportID) }
+            )
+        }
+
+        private static func payload(_ row: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+            WorkflowRecordPayloadV1(
+                id: row.id, schemaVersion: row.schemaVersion, assetID: row.assetID, packetID: row.packetID,
+                issueID: row.issueID, parentRecordID: row.parentRecordID, recordRevisionRootID: row.recordRevisionRootID,
+                revisesRecordID: row.revisesRecordID, evidenceSourceRecordID: row.evidenceSourceRecordID,
+                revisionKind: row.revisionKind, stage: row.stage, state: row.state, draftStepKey: row.draftStepKey,
+                startedAt: row.startedAt, completedAt: row.completedAt, observedAtUTC: row.observedAtUTC,
+                timeZoneID: row.timeZoneID, utcOffsetMinutes: row.utcOffsetMinutes, localDate: row.localDate, localTime: row.localTime,
+                afterDarkAcknowledgementKey: row.afterDarkAcknowledgementKey, afterDarkAcknowledgementCopy: row.afterDarkAcknowledgementCopy,
+                afterDarkAcknowledgementVersion: row.afterDarkAcknowledgementVersion, afterDarkAcknowledgementAccepted: row.afterDarkAcknowledgementAccepted,
+                safePositionAcknowledgementKey: row.safePositionAcknowledgementKey, safePositionAcknowledgementCopy: row.safePositionAcknowledgementCopy,
+                safePositionAcknowledgementVersion: row.safePositionAcknowledgementVersion, safePositionAcknowledgementAccepted: row.safePositionAcknowledgementAccepted,
+                packID: row.packID, packSchemaVersion: row.packSchemaVersion, packContentVersion: row.packContentVersion,
+                pdfTemplateID: row.pdfTemplateID, pdfTemplateVersion: row.pdfTemplateVersion, outcomeKey: row.outcomeKey,
+                couldNotVerifyKey: row.couldNotVerifyKey, couldNotVerifyDisplaySnapshot: row.couldNotVerifyDisplaySnapshot,
+                couldNotVerifyRegistryVersion: row.couldNotVerifyRegistryVersion, workPerformedLocalDate: row.workPerformedLocalDate,
+                workDescription: row.workDescription, note: row.note, finalizationMutationID: row.finalizationMutationID
+            )
+        }
+
+        func validateCommitted(intent: DeletionIntentV1) throws {
+            func unique<T: Hashable>(_ values: [T]) -> Bool { Set(values).count == values.count }
+            let tombstones = Dictionary(uniqueKeysWithValues: intent.countedPacketTombstones.map { ($0.id, $0) })
+            let livePaths = Set(evidence.flatMap { [$0.relativePath, $0.thumbnailRelativePath] }
+                + reports.flatMap { [$0.snapshotRelativePath] + [$0.pdfRelativePath].compactMap { $0 } })
+            guard unique(sites.map(\.id)), unique(assets.map(\.id)), unique(records.map(\.id)),
+                  unique(evidence.map(\.id)), unique(issues.map(\.id)), unique(packets.map(\.id)),
+                  unique(packets.map(\.stableRootID)), unique(reports.map(\.id)),
+                  livePaths.isDisjoint(with: Set(intent.relativePaths)),
+                  sites.allSatisfy({ $0.schemaVersion == 1 }),
+                  assets.allSatisfy({ asset in asset.schemaVersion == 1 && sites.contains(where: { $0.id == asset.siteID }) }),
+                  records.allSatisfy({ record in
+                      record.schemaVersion == 1 && record.assetID != intent.assetID
+                        && assets.contains(where: { $0.id == record.assetID })
+                        && (record.parentRecordID.map { parent in records.contains(where: { $0.id == parent && $0.assetID == record.assetID }) } ?? true)
+                  }),
+                  issues.allSatisfy({ $0.schemaVersion == 1 && $0.assetID != intent.assetID }),
+                  tombstones.allSatisfy({ id, expected in
+                      packets.filter({ $0.id == id }).count == 1 && packets.first(where: { $0.id == id }).map {
+                          $0.schemaVersion == expected.schemaVersion && $0.stableRootID == expected.stableRootID
+                            && $0.currentRecordID == nil && $0.evaluationCounted
+                            && $0.contentDeletedAt == expected.contentDeletedAt && $0.createdAt == expected.createdAt
+                      } == true
+                  }),
+                  evidence.allSatisfy({ file in file.schemaVersion == 1 && records.contains(where: { $0.id == file.recordID }) }),
+                  reports.allSatisfy({ report in report.schemaVersion == 1
+                      && records.contains(where: { $0.id == report.sourceRecordID }) && packets.contains(where: { $0.id == report.packetID }) }),
+                  packets.allSatisfy({ packet in
+                      if let id = packet.currentRecordID {
+                          return packet.contentDeletedAt == nil && records.contains(where: { $0.id == id && $0.packetID == packet.id })
+                      }
+                      return packet.evaluationCounted && packet.contentDeletedAt != nil
+                        && records.allSatisfy({ $0.packetID != packet.id }) && reports.allSatisfy({ $0.packetID != packet.id })
+                  }) else { throw WholeSignDeletionServiceError.journalInvalid }
+        }
+
+        func validateFiles(plan: WholeSignDeletionPlan, files: DeletionGenerationFiles) throws {
+            let evidenceByPath = Dictionary(uniqueKeysWithValues: evidence.flatMap {
+                [($0.relativePath, ($0.byteCount, $0.sha256)), ($0.thumbnailRelativePath, ($0.thumbnailByteCount, $0.thumbnailSHA256))]
+            })
+            let reportsByPath = Dictionary(uniqueKeysWithValues: reports.flatMap { report in
+                [(report.snapshotRelativePath, report.snapshotSHA256)]
+                    + (report.pdfRelativePath.flatMap { path in report.pdfSHA256.map { [(path, $0)] } } ?? [])
+            })
+            for path in plan.intent.relativePaths {
+                let data = try files.read(relativePath: path, maximumByteCount: path.hasPrefix("snapshots/") ? 32 * 1_024 * 1_024 : 128 * 1_024 * 1_024)
+                let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+                if let expected = evidenceByPath[path] {
+                    guard data.count == expected.0, digest == expected.1 else { throw WholeSignDeletionServiceError.fileInvalid }
+                    _ = try MediaNormalizerV1().validateCanonicalJPEG(data, kind: path.hasSuffix("thumbnail.jpg") ? .thumbnail : .original)
+                } else {
+                    guard reportsByPath[path] == digest else { throw WholeSignDeletionServiceError.fileInvalid }
+                    if path.hasPrefix("snapshots/") {
+                        let snapshot = try ReportSnapshotEncoderV1().decode(data)
+                        guard let report = reports.first(where: { $0.snapshotRelativePath == path }),
+                              snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
+                              snapshot.reportID == report.id, snapshot.packetID == report.packetID,
+                              snapshot.sourceRecordID == report.sourceRecordID,
+                              try ReportSnapshotEncoderV1().encode(snapshot).data == data else { throw WholeSignDeletionServiceError.fileInvalid }
+                    } else {
+                        guard data.count >= 6, data.starts(with: Data("%PDF-".utf8)) else { throw WholeSignDeletionServiceError.fileInvalid }
+                    }
+                }
+            }
+            for id in plan.evidenceIDs {
+                try files.validateEvidenceBundle(id: id)
+                try files.requireAbsent(components: [".staging", "evidence", id.uuidString.lowercased()])
+            }
+            for id in plan.reportIDs {
+                try files.requireAbsent(components: [".staging", "pdfs", id.uuidString.lowercased() + ".pdf"])
+            }
+            for record in records where plan.workflowRecordIDs.contains(record.id) {
+                if let id = record.finalizationMutationID {
+                    try files.requireAbsent(components: [".staging", "snapshots", id.uuidString.lowercased() + ".json"])
+                }
+            }
+        }
+    }
+}
+
 struct ExplicitSiteDeletionOutcomeV1: Equatable, Sendable {
     let siteID: UUID
     let deletionID: UUID
@@ -3353,6 +3608,124 @@ private final class DeletionGenerationFiles {
                   Darwin.fsync(parent) == 0 else {
                 throw WholeSignDeletionServiceError.cleanupFailed
             }
+        }
+    }
+
+    /// Original recovery may resume after an earlier pass removed an entire
+    /// evidence directory but had not yet removed its committed journal.
+    /// Only ENOENT on the descriptor-anchored chain is absence.
+    func removeOriginalIfPresent(relativePath: String) throws {
+        try inspectOriginalIfPresent(relativePath: relativePath, remove: true)
+    }
+
+    func validateOriginalIfPresent(relativePath: String) throws {
+        try inspectOriginalIfPresent(relativePath: relativePath, remove: false)
+    }
+
+    private func inspectOriginalIfPresent(relativePath: String, remove: Bool) throws {
+        guard DeletionIntentEncoderV1.validRelativePath(relativePath),
+              let rootURL, let identity else { throw WholeSignDeletionServiceError.fileInvalid }
+        let components = relativePath.split(separator: "/").map(String.init)
+        guard let leaf = components.last else { throw WholeSignDeletionServiceError.fileInvalid }
+        let root = try Self.openRoot(rootURL)
+        var descriptors = [root]
+        defer { for descriptor in descriptors.reversed() { Darwin.close(descriptor) } }
+        func verifyChain() throws {
+            guard try Self.identity(root, directory: true) == identity else {
+                throw WholeSignDeletionServiceError.fileInvalid
+            }
+            let currentRoot = try Self.openRoot(rootURL)
+            defer { Darwin.close(currentRoot) }
+            guard try Self.identity(currentRoot, directory: true) == identity else {
+                throw WholeSignDeletionServiceError.fileInvalid
+            }
+            for index in 1..<descriptors.count {
+                var linked = stat()
+                guard Darwin.fstatat(descriptors[index - 1], components[index - 1], &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                      (linked.st_mode & S_IFMT) == S_IFDIR,
+                      try Self.identity(descriptors[index], directory: true)
+                        == Identity(device: linked.st_dev, inode: linked.st_ino) else {
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+            }
+        }
+        for component in components.dropLast() {
+            let next = Darwin.openat(descriptors.last!, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            if next < 0, errno == ENOENT { try verifyChain(); return }
+            guard next >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
+            descriptors.append(next)
+        }
+        try verifyChain()
+        let parent = descriptors.last!
+        var before = stat()
+        if Darwin.fstatat(parent, leaf, &before, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw WholeSignDeletionServiceError.fileInvalid }
+            try verifyChain(); return
+        }
+        guard (before.st_mode & S_IFMT) == S_IFREG, before.st_nlink == 1,
+              before.st_size >= 0, before.st_size <= 128 * 1_024 * 1_024 else {
+            throw WholeSignDeletionServiceError.fileInvalid
+        }
+        let file = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        if file < 0, errno == ENOENT { try verifyChain(); return }
+        guard file >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
+        defer { Darwin.close(file) }
+        let opened = try Self.identity(file, directory: false)
+        var linked = stat()
+        guard Darwin.fstatat(parent, leaf, &linked, AT_SYMLINK_NOFOLLOW) == 0,
+              linked.st_nlink == 1, opened == Identity(device: linked.st_dev, inode: linked.st_ino),
+              opened == Identity(device: before.st_dev, inode: before.st_ino) else {
+            throw WholeSignDeletionServiceError.fileInvalid
+        }
+        try verifyChain()
+        guard remove else { return }
+        guard Darwin.unlinkat(parent, leaf, 0) == 0, Darwin.fsync(parent) == 0 else {
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
+    }
+
+    func inspectOriginalEvidenceBundleIfPresent(
+        id: UUID, ownedLeaves: Set<String>, removeEmpty: Bool = false
+    ) throws {
+        guard ownedLeaves.isSubset(of: ["original.jpg", "thumbnail.jpg"]),
+              let rootURL, let identity else { throw WholeSignDeletionServiceError.fileInvalid }
+        let root = try Self.openRoot(rootURL)
+        var descriptors = [root]
+        defer { for descriptor in descriptors.reversed() { Darwin.close(descriptor) } }
+        let components = ["evidence", id.uuidString.lowercased()]
+        func reprove() throws {
+            guard try Self.identity(root, directory: true) == identity else { throw WholeSignDeletionServiceError.fileInvalid }
+            let current = try Self.openRoot(rootURL)
+            defer { Darwin.close(current) }
+            guard try Self.identity(current, directory: true) == identity else { throw WholeSignDeletionServiceError.fileInvalid }
+            for index in 1..<descriptors.count {
+                var linked = stat()
+                guard Darwin.fstatat(descriptors[index - 1], components[index - 1], &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                      (linked.st_mode & S_IFMT) == S_IFDIR,
+                      try Self.identity(descriptors[index], directory: true) == Identity(device: linked.st_dev, inode: linked.st_ino) else {
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+            }
+        }
+        for component in components {
+            let next = Darwin.openat(descriptors.last!, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            if next < 0, errno == ENOENT { try reprove(); return }
+            guard next >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
+            descriptors.append(next)
+        }
+        let names = try Self.names(in: descriptors.last!)
+        guard Set(names).isSubset(of: ownedLeaves) else { throw WholeSignDeletionServiceError.fileInvalid }
+        for name in names {
+            var info = stat()
+            guard Darwin.fstatat(descriptors.last!, name, &info, AT_SYMLINK_NOFOLLOW) == 0,
+                  (info.st_mode & S_IFMT) == S_IFREG, info.st_nlink == 1 else {
+                throw WholeSignDeletionServiceError.fileInvalid
+            }
+        }
+        try reprove()
+        if removeEmpty {
+            guard names.isEmpty, Darwin.unlinkat(descriptors[1], components[1], AT_REMOVEDIR) == 0,
+                  Darwin.fsync(descriptors[1]) == 0 else { throw WholeSignDeletionServiceError.cleanupFailed }
         }
     }
 

@@ -7,6 +7,43 @@ final class S3_4ResumeUITests: XCTestCase {
     }
 
     @MainActor
+    func testLegacyAggregateRequiresRealColdLaunchBeforeCurrentWriterAdmission() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--v23-ui-test-legacy-migration", "--s1-ui-test-light-mode"]
+        app.launchEnvironment["V23_MIGRATION_TEST_ID"] = UUID().uuidString.lowercased()
+        app.launch()
+        let pending = element(in: app, identifier: "v23.migration.awaiting-validation.screen")
+        XCTAssertTrue(pending.waitForExistence(timeout: 120))
+        XCTAssertFalse(element(in: app, identifier: "s2.welcome.screen").exists)
+        XCTAssertFalse(element(in: app, identifier: "s6.4.maintenance.restore-data-backup").exists)
+        XCTAssertFalse(element(in: app, identifier: "s6.6.maintenance.erase-all").exists)
+        XCTAssertFalse(element(in: app, identifier: "s2.maintenance.recovery.button").exists)
+        element(in: app, identifier: "v23.migration.awaiting-validation.retry").tap()
+        XCTAssertTrue(pending.waitForExistence(timeout: 20))
+        XCTAssertFalse(element(in: app, identifier: "s2.welcome.screen").exists)
+        app.terminate()
+        XCTAssertEqual(app.state, .notRunning)
+        app.launch()
+        let welcome = element(in: app, identifier: "s2.welcome.screen")
+        XCTAssertTrue(welcome.waitForExistence(timeout: 60))
+        XCTAssertFalse(pending.exists)
+        element(in: app, identifier: "s2.welcome.add-first-sign").tap()
+        let site = element(in: app, identifier: "s2.new-sign.site-label")
+        let sign = element(in: app, identifier: "s2.new-sign.sign-label")
+        XCTAssertTrue(site.waitForExistence(timeout: 15))
+        site.tap(); site.typeText("Cold launch site")
+        sign.tap(); sign.typeText("Admitted current writer")
+        dismissKeyboard(in: app)
+        let save = element(in: app, identifier: "s2.new-sign.save")
+        scrollUntilHittable(save, in: app); save.tap()
+        XCTAssertTrue(element(in: app, identifier: "s2.sign-detail.start-check").waitForExistence(timeout: 20))
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "V23 aggregate real cold-launch current writer"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testRelaunchAfterWideResumesExactCloseAndFinishesOneReport() throws {
         let app = try launch()
         createDraft(in: app)

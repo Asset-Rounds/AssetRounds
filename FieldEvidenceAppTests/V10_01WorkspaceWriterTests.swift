@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import SwiftData
 import XCTest
 
@@ -10,6 +11,31 @@ private enum C52ServiceRequestBoundary_V10_01WorkspaceWriterTests {
 
 private enum C53AssetServiceReliabilityBoundary_V10_01WorkspaceWriterTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
+/// Test-side copy of the released V4 journal checkpoint envelope. The
+/// expected digest is produced from the historical recipe, independently of
+/// the validator under test.
+private struct HistoricalJournalMutableItemV1: Codable {
+    let stableIdentity: String
+    let revision: UInt64
+    let semanticSHA256: String
+}
+
+private struct HistoricalJournalMutableBasisV1: Codable {
+    let content: [HistoricalJournalMutableItemV1]
+    let deletionLedger: DeletionLedgerV2
+}
+
+private struct HistoricalJournalPostImageBasisV1<Value: Codable>: Codable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let value: Value
+}
+
+private struct HistoricalWorkflowPostImageV8: Codable {
+    let record: V4BackupWorkflowRecordDTO
+    let requirementAssurance: RequirementAssuranceSnapshotV1?
 }
 
 private final class C45WorkspaceWriterCompatibilityTests: XCTestCase {
@@ -597,6 +623,1578 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
             withIntermediateDirectories: true
         )
         return root
+    }
+}
+
+extension V10_01WorkspaceWriterTests {
+#if DEBUG
+    @MainActor
+    func testHistoricalJournalCheckpointValidationUsesActualReleasedSchemas() async throws {
+        for release in [PersistentSchemaReleaseV1.v4, .v9] {
+            let root = try Self.makeAbsentApplicationSupportURL(label: release.rawValue)
+            defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+            let generationID = UUID()
+            let migrationID = UUID()
+            let identity = try Self.historicalIdentity()
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            _ = try factory.seedReleasedCheckpointTestFixture(
+                release: release,
+                generationID: generationID,
+                migrationID: migrationID,
+                identity: identity
+            ) { context in
+                let checkpoint: String?
+                if release == .v4 {
+                    checkpoint = nil
+                } else {
+                    checkpoint = try Self.historicalCheckpoint([])
+                }
+                context.insert(WorkspaceMutationStateRow(
+                    workspaceID: identity.workspaceID.rawValue,
+                    generationID: generationID,
+                    activeReplicaID: identity.replicaID.rawValue,
+                    mutableSemanticSHA256: checkpoint
+                ))
+            }
+            Self.assertAwaitingIndependentValidation(
+                try await factory.openForStartup(recoverOriginalSource: { _ in })
+            )
+        }
+    }
+
+    @MainActor
+    func testAggregateTerminalNormalizationRetriesWholePostAndRejectsCandidateDrift() async throws {
+        for candidateFault in [
+            "none", "pre-retry", "mixed-tuple", "assurance-metadata", "observation",
+            "asset-semantics", "base", "revision", "receipt-anchor",
+        ] {
+        let root = try Self.makeAbsentApplicationSupportURL(
+            label: "terminal-normalization-retry-\(candidateFault)"
+        )
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let generationID = UUID()
+        let migrationID = UUID()
+        let identity = try Self.historicalIdentity()
+        let timestamp = Date(timeIntervalSince1970: 1_700_030_000)
+        let site = Site(id: UUID(), label: "Retry site", timeZoneID: "UTC", createdAt: timestamp)
+        let asset = Asset(
+            id: UUID(), siteID: site.id,
+            packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            label: "Retry asset", createdAt: timestamp
+        )
+        let record = Self.historicalWorkflowRecord(assetID: asset.id, timestamp: timestamp)
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: site.id)
+        let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: asset.id)
+        let workflowIdentity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: record.id)
+        let siteValue = try Self.historicalItem(
+            identity: siteIdentity, revision: 1,
+            value: V4BackupSiteDTO(
+                id: site.id, schemaVersion: site.schemaVersion, label: site.label,
+                address: site.address, timeZoneID: site.timeZoneID,
+                createdAt: site.createdAt, updatedAt: site.updatedAt
+            )
+        )
+        let assetValue = try Self.historicalItem(
+            identity: assetIdentity, revision: 1,
+            value: V4BackupAssetDTO(
+                id: asset.id, schemaVersion: asset.schemaVersion, siteID: asset.siteID,
+                packID: asset.packID, packSchemaVersion: asset.packSchemaVersion,
+                packContentVersion: asset.packContentVersion, label: asset.label,
+                createdAt: asset.createdAt, updatedAt: asset.updatedAt
+            )
+        )
+        let workflowValue = try Self.historicalItem(
+            identity: workflowIdentity, revision: 1,
+            value: Self.historicalWorkflowDTO(record, observationBasisData: nil, temporalContextData: nil)
+        )
+        let writerInstanceID = UUID()
+        let firstMutationID = try MutationIDV1(rawValue: UUID())
+        let firstExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: identity.workspaceID, generationID: generationID,
+            writerInstanceID: writerInstanceID, workspaceRevision: 0,
+            entityRevisions: [
+                .init(identity: siteIdentity, revision: 0),
+                .init(identity: assetIdentity, revision: 0),
+            ]
+        )
+        let firstEnvelope = try MutationEnvelopeV1(
+            request: .init(
+                mutationID: firstMutationID, expectedRevision: firstExpected,
+                command: .createFirstSign(.init(
+                    siteID: site.id,
+                    newSite: .init(
+                        id: site.id, label: site.label, address: site.address,
+                        timeZoneID: site.timeZoneID
+                    ),
+                    assetID: asset.id, assetLabel: asset.label,
+                    packID: asset.packID, packSchemaVersion: asset.packSchemaVersion,
+                    packContentVersion: asset.packContentVersion, createdAt: timestamp
+                ))
+            ),
+            identity: identity
+        )
+        let firstResulting = try WorkspaceExpectedRevisionV1(
+            workspaceID: identity.workspaceID, generationID: generationID,
+            writerInstanceID: writerInstanceID, workspaceRevision: 1,
+            entityRevisions: [
+                .init(identity: siteIdentity, revision: 1),
+                .init(identity: assetIdentity, revision: 1),
+            ]
+        )
+        let firstReceipt = try MutationReceiptV1(
+            identity: .init(
+                workspaceID: identity.workspaceID,
+                replicaID: identity.replicaID,
+                localSequence: 1
+            ),
+            envelope: firstEnvelope,
+            resultingRevision: MutationPortableExpectedRevisionV1(firstResulting),
+            postImages: [
+                .site(id: site.id, revision: 1, semanticSHA256: siteValue.semanticSHA256),
+                .asset(id: asset.id, revision: 1, semanticSHA256: assetValue.semanticSHA256),
+            ],
+            committedAt: timestamp
+        )
+        let firstReceiptRow = try MutationReceiptRow(
+            envelope: firstEnvelope, receipt: firstReceipt
+        )
+        let draftMutationID = try MutationIDV1(rawValue: UUID())
+        let draftExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: identity.workspaceID, generationID: generationID,
+            writerInstanceID: writerInstanceID, workspaceRevision: 1,
+            entityRevisions: [
+                .init(identity: siteIdentity, revision: 1),
+                .init(identity: assetIdentity, revision: 1),
+                .init(identity: workflowIdentity, revision: 0),
+            ]
+        )
+        let draftEnvelope = try MutationEnvelopeV1(
+            request: .init(
+                mutationID: draftMutationID, expectedRevision: draftExpected,
+                command: .createCheckDraft(Self.historicalCheckDraftCommand(record))
+            ),
+            identity: identity
+        )
+        let draftResulting = try WorkspaceExpectedRevisionV1(
+            workspaceID: identity.workspaceID, generationID: generationID,
+            writerInstanceID: writerInstanceID, workspaceRevision: 2,
+            entityRevisions: [
+                .init(identity: siteIdentity, revision: 1),
+                .init(identity: assetIdentity, revision: 1),
+                .init(identity: workflowIdentity, revision: 1),
+            ]
+        )
+        let draftReceipt = try MutationReceiptV1(
+            identity: .init(
+                workspaceID: identity.workspaceID,
+                replicaID: identity.replicaID,
+                localSequence: 2
+            ),
+            envelope: draftEnvelope,
+            resultingRevision: MutationPortableExpectedRevisionV1(draftResulting),
+            postImages: [
+                .workflowRecord(
+                    id: record.id, revision: 1,
+                    semanticSHA256: workflowValue.semanticSHA256
+                ),
+            ],
+            committedAt: timestamp
+        )
+        let draftReceiptRow = try MutationReceiptRow(
+            envelope: draftEnvelope, receipt: draftReceipt
+        )
+        let checkpoint = try Self.historicalCheckpoint([siteValue, assetValue, workflowValue])
+        let injection = StoreMigrationFailureInjection(
+            aggregateFault: candidateFault == "pre-retry"
+                ? .afterAdjacentMarkerSave : .afterFinalCheckpointSave,
+            targetRelease: .v53
+        )
+        let factory = StoreGenerationFactory(
+            applicationSupportURL: root,
+            migrationFailureInjection: injection
+        )
+        let sourceModelURL = try factory.seedReleasedCheckpointTestFixture(
+            release: .v4,
+            generationID: generationID,
+            migrationID: migrationID,
+            identity: identity
+        ) { context in
+            context.insert(site)
+            context.insert(asset)
+            context.insert(record)
+            context.insert(firstReceiptRow)
+            context.insert(draftReceiptRow)
+            context.insert(EntityMutationRevisionRow(
+                identity: siteIdentity,
+                revision: 1,
+                externalProjectionSHA256: siteValue.semanticSHA256
+            ))
+            context.insert(EntityMutationRevisionRow(identity: assetIdentity, revision: 1))
+            context.insert(EntityMutationRevisionRow(identity: workflowIdentity, revision: 1))
+            context.insert(WorkspaceMutationStateRow(
+                workspaceID: identity.workspaceID.rawValue,
+                generationID: generationID,
+                activeReplicaID: identity.replicaID.rawValue,
+                workspaceRevision: 2,
+                lastLocalSequence: 2,
+                mutableSemanticSHA256: checkpoint
+            ))
+        }
+        let sourceBytes = try Data(contentsOf: sourceModelURL)
+        let sourceSnapshot = try factory.makeRestoreGenerationAuthority()
+            .snapshotInstalledGeneration(id: generationID)
+        let pointerURL = root.appendingPathComponent("FieldEvidenceData/current.json")
+        let pointerBytes = try Data(contentsOf: pointerURL)
+        do {
+            _ = try await factory.openForStartup(recoverOriginalSource: { _ in })
+            XCTFail("Expected the exact post-save fault")
+        } catch let boundary as StoreAggregateMigrationFaultBoundaryV1 {
+            XCTAssertEqual(
+                boundary,
+                candidateFault == "pre-retry" ? .afterAdjacentMarkerSave : .afterFinalCheckpointSave
+            )
+        }
+        let interrupted = try XCTUnwrap(
+            StoreAggregateMigrationControlV1(applicationSupportURL: root)?.load()
+        )
+        XCTAssertEqual(interrupted.phase, .migrating)
+        XCTAssertEqual(interrupted.authorizedTargetRelease, .v53)
+        if candidateFault != "none" && candidateFault != "pre-retry" {
+            let candidateURL = factory.restoreStagingGenerationURL(
+                id: interrupted.targetGenerationID
+            ).appendingPathComponent("model.sqlite")
+            let schema = Schema(
+                PersistentSchemaV53.models,
+                version: PersistentSchemaV53.versionIdentifier
+            )
+            let configuration = ModelConfiguration(
+                "V10_01MixedTerminalTuple",
+                schema: schema,
+                url: candidateURL,
+                cloudKitDatabase: .none
+            )
+            weak var retainedCandidateContainer: ModelContainer?
+            weak var retainedCandidateContext: ModelContext?
+            try autoreleasepool {
+                let container = try ModelContainer(
+                    for: schema,
+                    migrationPlan: nil,
+                    configurations: [configuration]
+                )
+                let context = container.mainContext
+                context.autosaveEnabled = false
+                retainedCandidateContainer = container
+                retainedCandidateContext = context
+                if candidateFault == "mixed-tuple" {
+                    let rows = try context.fetch(FetchDescriptor<EntityMutationRevisionRow>())
+                    let row = try XCTUnwrap(rows.first { $0.entityID == asset.id })
+                    XCTAssertNotNil(row.externalProjectionSHA256)
+                    row.externalProjectionSHA256 = nil
+                } else if candidateFault == "assurance-metadata" {
+                    let old = try XCTUnwrap(context.fetch(FetchDescriptor<RequirementAssuranceRow>()).first)
+                    let snapshot = try old.snapshot()
+                    let originalMutationID = old.mutationID
+                    context.delete(old)
+                    try context.save()
+                    let hostileMutationID = UUID(uuidString: "ffffffff-ffff-4fff-bfff-ffffffffffff")!
+                    XCTAssertNotEqual(hostileMutationID, originalMutationID)
+                    context.insert(try RequirementAssuranceRow(
+                        snapshot: snapshot,
+                        mutationID: hostileMutationID,
+                        createdAt: timestamp,
+                        updatedAt: timestamp
+                    ))
+                } else if candidateFault == "observation" {
+                    let row = try XCTUnwrap(context.fetch(FetchDescriptor<ObservationAndTimeRow>()).first)
+                    let basis = try row.observationBasisV1()
+                    row.observationBasisV1Data = try ObservationAndTimeCodecV1.encode(ObservationBasisV1(
+                        kind: basis.kind, method: basis.method, source: basis.source,
+                        limitations: basis.limitations + ["Hostile candidate observation"]
+                    ))
+                } else if candidateFault == "asset-semantics" {
+                    let row = try XCTUnwrap(context.fetch(FetchDescriptor<AssetKindBindingEventRow>()).first)
+                    context.delete(row)
+                } else if candidateFault == "base" {
+                    let row = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first)
+                    row.label = "Hostile candidate base"
+                } else if candidateFault == "revision" {
+                    let rows = try context.fetch(FetchDescriptor<EntityMutationRevisionRow>())
+                    let row = try XCTUnwrap(rows.first { $0.entityID == asset.id })
+                    row.revision = 2
+                } else if candidateFault == "receipt-anchor" {
+                    let rows = try context.fetch(FetchDescriptor<MutationReceiptRow>())
+                    let row = try XCTUnwrap(rows.first {
+                        $0.mutationID == firstMutationID.rawValue
+                    })
+                    XCTAssertEqual(
+                        row.commandKind,
+                        WorkspaceCommandKindV1.createFirstSign.rawValue
+                    )
+                    row.commandKind = WorkspaceCommandKindV1.createCheckDraft.rawValue
+                }
+                try context.save()
+            }
+            XCTAssertNil(retainedCandidateContext)
+            XCTAssertNil(retainedCandidateContainer)
+            do {
+                _ = try await factory.openForStartup(recoverOriginalSource: { _ in
+                    XCTFail("A frozen source must not be recovered again")
+                })
+                XCTFail("Expected mixed PRE/POST terminal tuple rejection")
+            } catch {
+                XCTAssertTrue(error is StoreMigrationFailure || error is WorkspaceMutationFailureV1)
+            }
+        } else {
+            Self.assertAwaitingIndependentValidation(
+                try await factory.openForStartup(recoverOriginalSource: { _ in
+                    XCTFail("A frozen source must not be recovered again")
+                })
+            )
+        }
+        XCTAssertEqual(try Data(contentsOf: sourceModelURL), sourceBytes)
+        if candidateFault == "none" || candidateFault == "pre-retry" {
+            XCTAssertNotEqual(try Data(contentsOf: pointerURL), pointerBytes)
+        } else {
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBytes)
+        }
+        let sourceAfter = try factory.makeRestoreGenerationAuthority()
+            .snapshotInstalledGeneration(id: generationID)
+        XCTAssertEqual(sourceAfter.files, sourceSnapshot.files)
+        XCTAssertEqual(sourceAfter.frozenIdentityDigest, sourceSnapshot.frozenIdentityDigest)
+        }
+    }
+
+    @MainActor
+    func testHistoricalTerminalProjectionUsesV4V5V8V9RecipesAndMixedUnchangedRows() async throws {
+        for release in [PersistentSchemaReleaseV1.v4, .v5, .v8, .v9] {
+            let root = try Self.makeAbsentApplicationSupportURL(label: "\(release.rawValue)-workflow")
+            defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+            let generationID = UUID()
+            let migrationID = UUID()
+            let identity = try Self.historicalIdentity()
+            let timestamp = Date(timeIntervalSince1970: 1_700_040_000)
+            let site = Site(id: UUID(), label: "Workflow site", timeZoneID: "UTC", createdAt: timestamp)
+            let asset = Asset(
+                id: UUID(), siteID: site.id,
+                packID: SignPack.illuminatedSignV1.packID,
+                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                label: "Workflow asset", createdAt: timestamp
+            )
+            let record = Self.historicalWorkflowRecord(assetID: asset.id, timestamp: timestamp)
+            let observation = try ObservationAndTimeMigrationV1.migrate(
+                existingObservationBasisData: nil,
+                existingTemporalContextData: nil,
+                couldNotVerifyKey: record.couldNotVerifyKey,
+                couldNotVerifyDisplaySnapshot: record.couldNotVerifyDisplaySnapshot,
+                couldNotVerifyRegistryVersion: record.couldNotVerifyRegistryVersion,
+                observedAtUTC: record.observedAtUTC,
+                recordedAtUTC: record.startedAt,
+                timeZoneID: record.timeZoneID,
+                utcOffsetMinutes: record.utcOffsetMinutes,
+                localDate: record.localDate,
+                localTime: record.localTime
+            )
+            var observationBasisData = try XCTUnwrap(observation.observationBasisData)
+            var temporalContextData = try XCTUnwrap(observation.temporalContextData)
+            if release == .v5 {
+                let generatedBasis = try ObservationAndTimeCodecV1.decodeObservationBasis(observationBasisData)
+                let generatedTime = try ObservationAndTimeCodecV1.decodeTemporalContext(temporalContextData)
+                observationBasisData = try ObservationAndTimeCodecV1.encode(ObservationBasisV1(
+                    kind: generatedBasis.kind,
+                    method: generatedBasis.method,
+                    source: generatedBasis.source,
+                    limitations: ["Caller-provided canonical V5 observation"]
+                ))
+                temporalContextData = try ObservationAndTimeCodecV1.encode(TemporalContextV1(
+                    occurredAtUTC: generatedTime.occurredAtUTC,
+                    recordedAtUTC: generatedTime.recordedAtUTC.addingTimeInterval(17),
+                    localDate: generatedTime.localDate,
+                    localTime: generatedTime.localTime,
+                    utcOffsetSeconds: generatedTime.utcOffsetSeconds,
+                    ianaTimeZoneIdentifier: generatedTime.ianaTimeZoneIdentifier,
+                    localTimeDisposition: generatedTime.localTimeDisposition
+                ))
+                XCTAssertNotEqual(observationBasisData, observation.observationBasisData)
+                XCTAssertNotEqual(temporalContextData, observation.temporalContextData)
+            }
+            let assurance = try RequirementAssuranceRow.blockingUnknownBackfill(
+                workflowRecordID: record.id,
+                workspaceID: identity.workspaceID.rawValue,
+                evaluatedRevision: 1,
+                requirementID: "historical.workflow.required",
+                requirementVersion: 1,
+                requirementTypeID: "historical.workflow",
+                policySHA256: String(repeating: "a", count: 64),
+                mutationID: migrationID,
+                timestamp: timestamp
+            )
+            let recordDTO = Self.historicalWorkflowDTO(
+                record,
+                observationBasisData: release.versionIdentifier.major >= 5 ? observationBasisData : nil,
+                temporalContextData: release.versionIdentifier.major >= 5 ? temporalContextData : nil
+            )
+            let workflowValue: HistoricalJournalMutableItemV1
+            let workflowIdentity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: record.id)
+            if release.versionIdentifier.major >= 8 {
+                workflowValue = try Self.historicalItem(
+                    identity: workflowIdentity,
+                    revision: 1,
+                    value: HistoricalWorkflowPostImageV8(
+                        record: recordDTO,
+                        requirementAssurance: try assurance.snapshot()
+                    )
+                )
+            } else {
+                workflowValue = try Self.historicalItem(identity: workflowIdentity, revision: 1, value: recordDTO)
+            }
+            let siteDTO = V4BackupSiteDTO(
+                id: site.id, schemaVersion: site.schemaVersion, label: site.label,
+                address: site.address, timeZoneID: site.timeZoneID,
+                createdAt: site.createdAt, updatedAt: site.updatedAt
+            )
+            let assetDTO = V4BackupAssetDTO(
+                id: asset.id, schemaVersion: asset.schemaVersion, siteID: asset.siteID,
+                packID: asset.packID, packSchemaVersion: asset.packSchemaVersion,
+                packContentVersion: asset.packContentVersion, label: asset.label,
+                createdAt: asset.createdAt, updatedAt: asset.updatedAt
+            )
+            let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: site.id)
+            let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: asset.id)
+            let siteValue = try Self.historicalItem(identity: siteIdentity, revision: 1, value: siteDTO)
+            let assetValue = try Self.historicalItem(identity: assetIdentity, revision: 1, value: assetDTO)
+            let checkpoint = try Self.historicalCheckpoint([siteValue, assetValue, workflowValue])
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            _ = try factory.seedReleasedCheckpointTestFixture(
+                release: release,
+                generationID: generationID,
+                migrationID: migrationID,
+                identity: identity
+            ) { context in
+                context.insert(site)
+                context.insert(asset)
+                context.insert(record)
+                if release.versionIdentifier.major >= 5 {
+                    context.insert(try ObservationAndTimeRow(
+                        recordID: record.id,
+                        observationBasisV1Data: observationBasisData,
+                        temporalContextV1Data: temporalContextData
+                    ))
+                }
+                if release.versionIdentifier.major >= 8 { context.insert(assurance) }
+                if release.versionIdentifier.major < 8 {
+                    let writerInstanceID = UUID()
+                    let firstMutationID = try MutationIDV1(rawValue: UUID())
+                    let firstExpected = try WorkspaceExpectedRevisionV1(
+                        workspaceID: identity.workspaceID,
+                        generationID: generationID,
+                        writerInstanceID: writerInstanceID,
+                        workspaceRevision: 0,
+                        entityRevisions: [
+                            .init(identity: siteIdentity, revision: 0),
+                            .init(identity: assetIdentity, revision: 0),
+                        ]
+                    )
+                    let firstEnvelope = try MutationEnvelopeV1(
+                        request: .init(
+                            mutationID: firstMutationID,
+                            expectedRevision: firstExpected,
+                            command: .createFirstSign(.init(
+                                siteID: site.id,
+                                newSite: .init(
+                                    id: site.id, label: site.label,
+                                    address: site.address, timeZoneID: site.timeZoneID
+                                ),
+                                assetID: asset.id, assetLabel: asset.label,
+                                packID: asset.packID,
+                                packSchemaVersion: asset.packSchemaVersion,
+                                packContentVersion: asset.packContentVersion,
+                                createdAt: timestamp
+                            ))
+                        ),
+                        identity: identity
+                    )
+                    let firstResulting = try WorkspaceExpectedRevisionV1(
+                        workspaceID: identity.workspaceID,
+                        generationID: generationID,
+                        writerInstanceID: writerInstanceID,
+                        workspaceRevision: 1,
+                        entityRevisions: [
+                            .init(identity: siteIdentity, revision: 1),
+                            .init(identity: assetIdentity, revision: 1),
+                        ]
+                    )
+                    let firstReceipt = try MutationReceiptV1(
+                        identity: .init(
+                            workspaceID: identity.workspaceID,
+                            replicaID: identity.replicaID,
+                            localSequence: 1
+                        ),
+                        envelope: firstEnvelope,
+                        resultingRevision: MutationPortableExpectedRevisionV1(firstResulting),
+                        postImages: [
+                            .site(
+                                id: site.id, revision: 1,
+                                semanticSHA256: siteValue.semanticSHA256
+                            ),
+                            .asset(id: asset.id, revision: 1, semanticSHA256: assetValue.semanticSHA256),
+                        ],
+                        committedAt: timestamp
+                    )
+                    context.insert(try MutationReceiptRow(
+                        envelope: firstEnvelope, receipt: firstReceipt
+                    ))
+                    let draftMutationID = try MutationIDV1(rawValue: UUID())
+                    let draftExpected = try WorkspaceExpectedRevisionV1(
+                        workspaceID: identity.workspaceID,
+                        generationID: generationID,
+                        writerInstanceID: writerInstanceID,
+                        workspaceRevision: 1,
+                        entityRevisions: [
+                            .init(identity: siteIdentity, revision: 1),
+                            .init(identity: assetIdentity, revision: 1),
+                            .init(identity: workflowIdentity, revision: 0),
+                        ]
+                    )
+                    let draftEnvelope = try MutationEnvelopeV1(
+                        request: .init(
+                            mutationID: draftMutationID,
+                            expectedRevision: draftExpected,
+                            command: .createCheckDraft(Self.historicalCheckDraftCommand(
+                                record,
+                                observationBasisData: release == .v5
+                                    ? observationBasisData : nil,
+                                temporalContextData: release == .v5
+                                    ? temporalContextData : nil
+                            ))
+                        ),
+                        identity: identity
+                    )
+                    let draftResulting = try WorkspaceExpectedRevisionV1(
+                        workspaceID: identity.workspaceID,
+                        generationID: generationID,
+                        writerInstanceID: writerInstanceID,
+                        workspaceRevision: 2,
+                        entityRevisions: [
+                            .init(identity: siteIdentity, revision: 1),
+                            .init(identity: assetIdentity, revision: 1),
+                            .init(identity: workflowIdentity, revision: 1),
+                        ]
+                    )
+                    let draftReceipt = try MutationReceiptV1(
+                        identity: .init(
+                            workspaceID: identity.workspaceID,
+                            replicaID: identity.replicaID,
+                            localSequence: 2
+                        ),
+                        envelope: draftEnvelope,
+                        resultingRevision: MutationPortableExpectedRevisionV1(draftResulting),
+                        postImages: [
+                            .workflowRecord(
+                                id: record.id, revision: 1,
+                                semanticSHA256: workflowValue.semanticSHA256
+                            ),
+                        ],
+                        committedAt: timestamp
+                    )
+                    context.insert(try MutationReceiptRow(
+                        envelope: draftEnvelope, receipt: draftReceipt
+                    ))
+                }
+                context.insert(EntityMutationRevisionRow(
+                    identity: siteIdentity,
+                    revision: 1,
+                    externalProjectionSHA256: siteValue.semanticSHA256
+                ))
+                context.insert(EntityMutationRevisionRow(
+                    identity: assetIdentity,
+                    revision: 1,
+                    externalProjectionSHA256: release.versionIdentifier.major < 8
+                        ? nil : assetValue.semanticSHA256
+                ))
+                context.insert(EntityMutationRevisionRow(
+                    identity: workflowIdentity,
+                    revision: 1,
+                    externalProjectionSHA256: release.versionIdentifier.major < 8
+                        ? nil : workflowValue.semanticSHA256
+                ))
+                context.insert(WorkspaceMutationStateRow(
+                    workspaceID: identity.workspaceID.rawValue,
+                    generationID: generationID,
+                    activeReplicaID: identity.replicaID.rawValue,
+                    workspaceRevision: release.versionIdentifier.major < 8 ? 2 : 0,
+                    lastLocalSequence: release.versionIdentifier.major < 8 ? 2 : 0,
+                    mutableSemanticSHA256: checkpoint
+                ))
+            }
+            Self.assertAwaitingIndependentValidation(
+                try await factory.openForStartup(recoverOriginalSource: { _ in })
+            )
+        }
+    }
+
+    @MainActor
+    func testV9MixesOldReceiptBridgeWithIndependentCurrentWorkflowRecipe() async throws {
+        let root = try Self.makeAbsentApplicationSupportURL(label: "V9-mixed-workflow-recipes")
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let generationID = UUID(), migrationID = UUID(), identity = try Self.historicalIdentity()
+        let timestamp = Date(timeIntervalSince1970: 1_700_045_000)
+        let site = Site(id: UUID(), label: "Mixed V9 site", timeZoneID: "UTC", createdAt: timestamp)
+        let asset = Asset(id: UUID(), siteID: site.id, packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            label: "Mixed V9 asset", createdAt: timestamp)
+        let old = Self.historicalWorkflowRecord(assetID: asset.id, timestamp: timestamp)
+        let current = Self.historicalWorkflowRecord(assetID: asset.id, timestamp: timestamp.addingTimeInterval(60))
+        func observation(_ record: WorkflowRecord) throws -> ObservationAndTimeMigrationResultV1 {
+            try ObservationAndTimeMigrationV1.migrate(existingObservationBasisData: nil,
+                existingTemporalContextData: nil, couldNotVerifyKey: record.couldNotVerifyKey,
+                couldNotVerifyDisplaySnapshot: record.couldNotVerifyDisplaySnapshot,
+                couldNotVerifyRegistryVersion: record.couldNotVerifyRegistryVersion,
+                observedAtUTC: record.observedAtUTC, recordedAtUTC: record.startedAt,
+                timeZoneID: record.timeZoneID, utcOffsetMinutes: record.utcOffsetMinutes,
+                localDate: record.localDate, localTime: record.localTime)
+        }
+        let oldObservation = try observation(old), currentObservation = try observation(current)
+        let oldBasis = try XCTUnwrap(oldObservation.observationBasisData)
+        let oldTime = try XCTUnwrap(oldObservation.temporalContextData)
+        let currentBasis = try XCTUnwrap(currentObservation.observationBasisData)
+        let currentTime = try XCTUnwrap(currentObservation.temporalContextData)
+        let oldAssurance = try RequirementAssuranceRow.blockingUnknownBackfill(
+            workflowRecordID: old.id, workspaceID: identity.workspaceID.rawValue,
+            evaluatedRevision: 1, requirementID: "legacy_assurance_unknown", requirementVersion: 1,
+            requirementTypeID: "legacy_assurance_unknown",
+            policySHA256: StoreMigrationCanonicalJSONV1.sha256(Data("legacy-assurance-unknown-v1".utf8)),
+            mutationID: old.id, timestamp: old.startedAt)
+        let currentAssurance = try RequirementAssuranceRow.blockingUnknownBackfill(
+            workflowRecordID: current.id, workspaceID: identity.workspaceID.rawValue,
+            evaluatedRevision: 1, requirementID: "accepted.current.requirement", requirementVersion: 7,
+            requirementTypeID: "accepted.current.type", policySHA256: String(repeating: "c", count: 64),
+            mutationID: migrationID, timestamp: current.startedAt)
+        let oldIdentity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: old.id)
+        let currentIdentity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: current.id)
+        let oldDTO = Self.historicalWorkflowDTO(old, observationBasisData: oldBasis, temporalContextData: oldTime)
+        let currentDTO = Self.historicalWorkflowDTO(current, observationBasisData: currentBasis, temporalContextData: currentTime)
+        let oldV5 = try Self.historicalItem(identity: oldIdentity, revision: 1, value: oldDTO)
+        let oldV8 = try Self.historicalItem(identity: oldIdentity, revision: 1,
+            value: HistoricalWorkflowPostImageV8(record: oldDTO, requirementAssurance: try oldAssurance.snapshot()))
+        let currentV8 = try Self.historicalItem(identity: currentIdentity, revision: 1,
+            value: HistoricalWorkflowPostImageV8(record: currentDTO, requirementAssurance: try currentAssurance.snapshot()))
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: site.id)
+        let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: asset.id)
+        let siteItem = try Self.historicalItem(identity: siteIdentity, revision: 1,
+            value: V4BackupSiteDTO(id: site.id, schemaVersion: site.schemaVersion, label: site.label,
+                address: site.address, timeZoneID: site.timeZoneID, createdAt: site.createdAt, updatedAt: site.updatedAt))
+        let assetItem = try Self.historicalItem(identity: assetIdentity, revision: 1,
+            value: V4BackupAssetDTO(id: asset.id, schemaVersion: asset.schemaVersion, siteID: asset.siteID,
+                packID: asset.packID, packSchemaVersion: asset.packSchemaVersion,
+                packContentVersion: asset.packContentVersion, label: asset.label,
+                createdAt: asset.createdAt, updatedAt: asset.updatedAt))
+        let writerInstanceID = UUID()
+        let firstMutationID = try MutationIDV1(rawValue: UUID())
+        let firstExpected = try WorkspaceExpectedRevisionV1(workspaceID: identity.workspaceID,
+            generationID: generationID, writerInstanceID: writerInstanceID, workspaceRevision: 0,
+            entityRevisions: [
+                .init(identity: siteIdentity, revision: 0),
+                .init(identity: assetIdentity, revision: 0),
+            ])
+        let firstEnvelope = try MutationEnvelopeV1(request: .init(mutationID: firstMutationID,
+            expectedRevision: firstExpected, command: .createFirstSign(.init(
+                siteID: site.id,
+                newSite: .init(id: site.id, label: site.label, address: site.address,
+                    timeZoneID: site.timeZoneID),
+                assetID: asset.id, assetLabel: asset.label, packID: asset.packID,
+                packSchemaVersion: asset.packSchemaVersion,
+                packContentVersion: asset.packContentVersion, createdAt: timestamp))),
+            identity: identity)
+        let firstResulting = try WorkspaceExpectedRevisionV1(workspaceID: identity.workspaceID,
+            generationID: generationID, writerInstanceID: writerInstanceID, workspaceRevision: 1,
+            entityRevisions: [
+                .init(identity: siteIdentity, revision: 1),
+                .init(identity: assetIdentity, revision: 1),
+            ])
+        let firstReceipt = try MutationReceiptV1(identity: .init(
+            workspaceID: identity.workspaceID, replicaID: identity.replicaID, localSequence: 1),
+            envelope: firstEnvelope,
+            resultingRevision: MutationPortableExpectedRevisionV1(firstResulting),
+            postImages: [
+                .site(id: site.id, revision: 1, semanticSHA256: siteItem.semanticSHA256),
+                .asset(id: asset.id, revision: 1, semanticSHA256: assetItem.semanticSHA256),
+            ], committedAt: timestamp)
+        let draftMutationID = try MutationIDV1(rawValue: UUID())
+        let draftExpected = try WorkspaceExpectedRevisionV1(workspaceID: identity.workspaceID,
+            generationID: generationID, writerInstanceID: writerInstanceID, workspaceRevision: 1,
+            entityRevisions: [
+                .init(identity: siteIdentity, revision: 1),
+                .init(identity: assetIdentity, revision: 1),
+                .init(identity: oldIdentity, revision: 0),
+            ])
+        let draftEnvelope = try MutationEnvelopeV1(request: .init(mutationID: draftMutationID,
+            expectedRevision: draftExpected,
+            command: .createCheckDraft(Self.historicalCheckDraftCommand(
+                old, observationBasisData: oldBasis, temporalContextData: oldTime
+            ))), identity: identity)
+        let draftResulting = try WorkspaceExpectedRevisionV1(workspaceID: identity.workspaceID,
+            generationID: generationID, writerInstanceID: writerInstanceID, workspaceRevision: 2,
+            entityRevisions: [
+                .init(identity: siteIdentity, revision: 1),
+                .init(identity: assetIdentity, revision: 1),
+                .init(identity: oldIdentity, revision: 1),
+            ])
+        let draftReceipt = try MutationReceiptV1(identity: .init(workspaceID: identity.workspaceID,
+            replicaID: identity.replicaID, localSequence: 2), envelope: draftEnvelope,
+            resultingRevision: MutationPortableExpectedRevisionV1(draftResulting),
+            postImages: [
+                .workflowRecord(id: old.id, revision: 1, semanticSHA256: oldV5.semanticSHA256),
+            ], committedAt: timestamp)
+        let sourceReceiptData = try draftReceipt.canonicalData()
+        let checkpoint = try Self.historicalCheckpoint([siteItem, assetItem, oldV8, currentV8])
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        _ = try factory.seedReleasedCheckpointTestFixture(release: .v9, generationID: generationID,
+            migrationID: migrationID, identity: identity) { context in
+            context.insert(site); context.insert(asset)
+            context.insert(old); context.insert(current)
+            context.insert(try ObservationAndTimeRow(recordID: old.id,
+                observationBasisV1Data: oldBasis, temporalContextV1Data: oldTime))
+            context.insert(try ObservationAndTimeRow(recordID: current.id,
+                observationBasisV1Data: currentBasis, temporalContextV1Data: currentTime))
+            context.insert(oldAssurance); context.insert(currentAssurance)
+            context.insert(try MutationReceiptRow(envelope: firstEnvelope, receipt: firstReceipt))
+            context.insert(try MutationReceiptRow(envelope: draftEnvelope, receipt: draftReceipt))
+            context.insert(EntityMutationRevisionRow(identity: siteIdentity, revision: 1,
+                externalProjectionSHA256: siteItem.semanticSHA256))
+            context.insert(EntityMutationRevisionRow(identity: assetIdentity, revision: 1,
+                externalProjectionSHA256: assetItem.semanticSHA256))
+            context.insert(EntityMutationRevisionRow(identity: oldIdentity, revision: 1,
+                externalProjectionSHA256: oldV5.semanticSHA256))
+            context.insert(EntityMutationRevisionRow(identity: currentIdentity, revision: 1,
+                externalProjectionSHA256: currentV8.semanticSHA256))
+            context.insert(WorkspaceMutationStateRow(workspaceID: identity.workspaceID.rawValue,
+                generationID: generationID, activeReplicaID: identity.replicaID.rawValue,
+                workspaceRevision: 2, lastLocalSequence: 2, mutableSemanticSHA256: checkpoint))
+        }
+        Self.assertAwaitingIndependentValidation(try await factory.openForStartup(recoverOriginalSource: { _ in }))
+        let migrated = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: root)?.load())
+        let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+        let configuration = ModelConfiguration("V10_01V9ReceiptInspection", schema: schema,
+            url: factory.installedGenerationURL(id: migrated.targetGenerationID).appendingPathComponent("model.sqlite"),
+            allowsSave: false, cloudKitDatabase: .none)
+        try autoreleasepool {
+            let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [configuration])
+            container.mainContext.autosaveEnabled = false
+            let rows = try container.mainContext.fetch(FetchDescriptor<MutationReceiptRow>())
+            XCTAssertEqual(
+                try XCTUnwrap(rows.first { $0.mutationID == draftMutationID.rawValue }).receiptData,
+                sourceReceiptData
+            )
+        }
+    }
+
+    @MainActor
+    func testV4RejectsLaterCommandBeforeReferenceFetchWithoutChangingSource() async throws {
+        let root = try Self.makeAbsentApplicationSupportURL(label: "V4-future-command")
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let generationID = UUID()
+        let migrationID = UUID()
+        let identity = try Self.historicalIdentity()
+        let siteID = UUID()
+        let timestamp = Date(timeIntervalSince1970: 1_700_050_000)
+        let site = Site(
+            id: siteID, label: "Historical site", timeZoneID: "UTC",
+            createdAt: timestamp, updatedAt: timestamp
+        )
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: siteID)
+        let siteDTO = V4BackupSiteDTO(
+            id: site.id, schemaVersion: site.schemaVersion, label: site.label,
+            address: site.address, timeZoneID: site.timeZoneID,
+            createdAt: site.createdAt, updatedAt: site.updatedAt
+        )
+        let siteItem = try Self.historicalItem(identity: siteIdentity, revision: 1, value: siteDTO)
+        let mutationID = try MutationIDV1(rawValue: UUID())
+        let actor = try LocalActorReferenceV1(
+            actorReferenceID: UUID(), workspaceID: identity.workspaceID,
+            displayName: "Historical recorder"
+        )
+        let recordedBy = try ActorSnapshotV1(
+            snapshotID: UUID(), workspaceID: identity.workspaceID, actor: actor,
+            responsibility: .recordedBy, displayNameAtTime: actor.displayName,
+            capturedAt: timestamp
+        )
+        func reference(_ evidenceID: String, _ digest: Character) -> PairedObservationReferenceV1 {
+            PairedObservationReferenceV1(
+                workspaceID: identity.workspaceID, evidenceID: evidenceID,
+                evidenceSHA256: String(repeating: String(digest), count: 64),
+                evidenceRevision: 1, assetID: UUID(), assetRevision: 1,
+                controlGroupID: "historical-control", purpose: .conditionComparison,
+                purposeRevision: 1, planReferenceSHA256: nil,
+                viewpointReferenceSHA256: String(repeating: "c", count: 64),
+                temporalBucketID: "historical-bucket",
+                surfaceWeatherBasisSHA256: String(repeating: "d", count: 64),
+                measurementMethodID: "historical-method"
+            )
+        }
+        let firstReference = reference("historical-evidence-a", "a")
+        let secondReference = PairedObservationReferenceV1(
+            workspaceID: identity.workspaceID, evidenceID: "historical-evidence-b",
+            evidenceSHA256: String(repeating: "b", count: 64),
+            evidenceRevision: 1, assetID: firstReference.assetID, assetRevision: 1,
+            controlGroupID: firstReference.controlGroupID, purpose: firstReference.purpose,
+            purposeRevision: 1, planReferenceSHA256: firstReference.planReferenceSHA256,
+            viewpointReferenceSHA256: firstReference.viewpointReferenceSHA256,
+            temporalBucketID: firstReference.temporalBucketID,
+            surfaceWeatherBasisSHA256: firstReference.surfaceWeatherBasisSHA256,
+            measurementMethodID: firstReference.measurementMethodID
+        )
+        let pair = try PairedObservationLinkV1(
+            linkID: UUID(), workspaceID: identity.workspaceID,
+            first: firstReference, second: secondReference, predecessor: nil,
+            revision: 1, mutationID: mutationID, recordedBy: recordedBy,
+            recordedAt: timestamp
+        )
+        let laterOperation = EvidenceContextWriteOperationV1.appendPair(value: pair, predecessor: nil)
+        let laterIdentity = try laterOperation.concurrencyIdentity
+        let laterExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: identity.workspaceID, generationID: generationID,
+            writerInstanceID: UUID(), workspaceRevision: 0,
+            entityRevisions: [.init(identity: laterIdentity, revision: 0)]
+        )
+        let laterEnvelope = try MutationEnvelopeV1(
+            request: .init(
+                mutationID: mutationID,
+                expectedRevision: laterExpected,
+                command: .applyEvidenceContext(laterOperation)
+            ),
+            identity: identity
+        )
+        let laterResult = try WorkspaceExpectedRevisionV1(
+            workspaceID: identity.workspaceID, generationID: generationID,
+            writerInstanceID: UUID(), workspaceRevision: 1,
+            entityRevisions: [.init(identity: laterIdentity, revision: 1)]
+        )
+        let laterReceipt = try MutationReceiptV1(
+            identity: .init(
+                workspaceID: identity.workspaceID,
+                replicaID: identity.replicaID,
+                localSequence: 1
+            ),
+            envelope: laterEnvelope,
+            resultingRevision: MutationPortableExpectedRevisionV1(laterResult),
+            postImages: [try laterOperation.mutationPostImage],
+            committedAt: timestamp
+        )
+        let futureRow = try MutationReceiptRow(envelope: laterEnvelope, receipt: laterReceipt)
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let modelURL = try factory.seedReleasedCheckpointTestFixture(
+            release: .v4,
+            generationID: generationID,
+            migrationID: migrationID,
+            identity: identity
+        ) { context in
+            context.insert(site)
+            context.insert(futureRow)
+            context.insert(EntityMutationRevisionRow(identity: siteIdentity, revision: 1))
+            context.insert(WorkspaceMutationStateRow(
+                workspaceID: identity.workspaceID.rawValue,
+                generationID: generationID,
+                activeReplicaID: identity.replicaID.rawValue,
+                workspaceRevision: 1,
+                lastLocalSequence: 1,
+                mutableSemanticSHA256: try Self.historicalCheckpoint([siteItem])
+            ))
+        }
+        let pointerURL = root.appendingPathComponent("FieldEvidenceData/current.json")
+        let pointerBefore = try Data(contentsOf: pointerURL)
+        let sourceBytesBefore = try Data(contentsOf: modelURL)
+        let sourceSnapshotBefore = try factory.makeRestoreGenerationAuthority()
+            .snapshotInstalledGeneration(id: generationID)
+        let installedParent = factory.installedGenerationURL(id: UUID()).deletingLastPathComponent()
+        let stagingParent = factory.restoreStagingGenerationURL(id: UUID()).deletingLastPathComponent()
+        let installedBefore = Self.directoryEntryNames(at: installedParent)
+        let stagingBefore = Self.directoryEntryNames(at: stagingParent)
+        do {
+            _ = try await factory.openForStartup(recoverOriginalSource: { _ in })
+            XCTFail("Expected a V30 command in a V4 receipt to fail before its missing-model fetch")
+        } catch {
+            XCTAssertTrue(error is StoreMigrationFailure || error is WorkspaceMutationFailureV1)
+        }
+        XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBefore)
+        XCTAssertEqual(try Data(contentsOf: modelURL), sourceBytesBefore)
+        let sourceSnapshotAfter = try factory.makeRestoreGenerationAuthority()
+            .snapshotInstalledGeneration(id: generationID)
+        XCTAssertEqual(sourceSnapshotAfter.files, sourceSnapshotBefore.files)
+        XCTAssertEqual(sourceSnapshotAfter.sourceTreeDigest, sourceSnapshotBefore.sourceTreeDigest)
+        XCTAssertEqual(sourceSnapshotAfter.frozenIdentityDigest, sourceSnapshotBefore.frozenIdentityDigest)
+        XCTAssertEqual(Self.directoryEntryNames(at: installedParent), installedBefore)
+        XCTAssertEqual(Self.directoryEntryNames(at: stagingParent), stagingBefore)
+        let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: root))
+        if let journal = try control.load() {
+            XCTAssertFalse(FileManager.default.fileExists(
+                atPath: factory.installedGenerationURL(id: journal.targetGenerationID).path
+            ))
+            XCTAssertFalse(FileManager.default.fileExists(
+                atPath: factory.restoreStagingGenerationURL(id: journal.targetGenerationID).path
+            ))
+        }
+    }
+
+    @MainActor
+    func testV4AcceptsCanonicalReceiptMirrorsReversalBasisAndQuarantine() async throws {
+        let root = try Self.makeAbsentApplicationSupportURL(label: "V4-journal-history")
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let generationID = UUID()
+        let migrationID = UUID()
+        let identity = try Self.historicalIdentity()
+        let siteID = UUID()
+        let timestamp = Date(timeIntervalSince1970: 1_700_060_000)
+        let site = Site(
+            id: siteID, label: "Historical site", timeZoneID: "UTC",
+            createdAt: timestamp, updatedAt: timestamp
+        )
+        let entity = try WorkspaceEntityIdentityV1(kind: .site, id: siteID)
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: identity.workspaceID, generationID: generationID,
+            writerInstanceID: UUID(), workspaceRevision: 0,
+            entityRevisions: [.init(identity: entity, revision: 0)]
+        )
+        let mutationID = try MutationIDV1(rawValue: UUID())
+        let command = WorkspaceCommandV1.updateSiteTimeZone(.init(
+            siteID: siteID, timeZoneID: "UTC", confirmedAt: timestamp
+        ))
+        let plan = try SemanticReversalPlanV1(
+            mutationID: mutationID, commandKind: .updateSiteTimeZone,
+            expectedRevision: expected, prospectiveTargets: [entity],
+            requiredSemanticValues: [.init(key: "before", value: "UTC")],
+            contentReferences: [], dependencyGraph: [], conflicts: [],
+            compensatingCommands: [command]
+        )
+        let envelope = try MutationEnvelopeV1(
+            request: .init(mutationID: mutationID, expectedRevision: expected, command: command),
+            identity: identity,
+            reversalPlanDigest: plan.planDigest
+        )
+        let resulting = try WorkspaceExpectedRevisionV1(
+            workspaceID: identity.workspaceID, generationID: generationID,
+            writerInstanceID: UUID(), workspaceRevision: 1,
+            entityRevisions: [.init(identity: entity, revision: 1)]
+        )
+        let siteDTO = V4BackupSiteDTO(
+            id: site.id, schemaVersion: site.schemaVersion, label: site.label,
+            address: site.address, timeZoneID: site.timeZoneID,
+            createdAt: site.createdAt, updatedAt: site.updatedAt
+        )
+        let item = try Self.historicalItem(identity: entity, revision: 1, value: siteDTO)
+        let receipt = try MutationReceiptV1(
+            identity: .init(workspaceID: identity.workspaceID, replicaID: identity.replicaID, localSequence: 1),
+            envelope: envelope,
+            resultingRevision: MutationPortableExpectedRevisionV1(resulting),
+            postImages: [.site(id: siteID, revision: 1, semanticSHA256: item.semanticSHA256)],
+            committedAt: timestamp
+        )
+        let basis = try ReversalBasisV1(
+            targetMutationID: mutationID,
+            targetReceiptIdentity: receipt.identity,
+            plan: plan
+        )
+        let row = try MutationReceiptRow(envelope: envelope, receipt: receipt, reversalBasis: basis)
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        _ = try factory.seedReleasedCheckpointTestFixture(
+            release: .v4, generationID: generationID, migrationID: migrationID, identity: identity
+        ) { context in
+            context.insert(site)
+            context.insert(row)
+            context.insert(MutationQuarantineRow(
+                workspaceID: identity.workspaceID, mutationID: mutationID,
+                identityDomain: .mutationEnvelope,
+                acceptedIdentitySHA256: try envelope.canonicalSHA256(),
+                conflictingIdentitySHA256: String(repeating: "f", count: 64),
+                detectedAt: timestamp
+            ))
+            context.insert(EntityMutationRevisionRow(identity: entity, revision: 1))
+            context.insert(WorkspaceMutationStateRow(
+                workspaceID: identity.workspaceID.rawValue, generationID: generationID,
+                activeReplicaID: identity.replicaID.rawValue, workspaceRevision: 1,
+                lastLocalSequence: 1,
+                mutableSemanticSHA256: try Self.historicalCheckpoint([item])
+            ))
+        }
+        Self.assertAwaitingIndependentValidation(
+            try await factory.openForStartup(recoverOriginalSource: { _ in })
+        )
+
+        for hostile in ["receipt-mirror", "reversal-mirror", "quarantine-mirror"] {
+            let hostileRoot = try Self.makeAbsentApplicationSupportURL(label: "V4-\(hostile)")
+            defer { try? FileManager.default.removeItem(at: hostileRoot.deletingLastPathComponent()) }
+            let hostileFactory = StoreGenerationFactory(applicationSupportURL: hostileRoot)
+            let hostileRow = try MutationReceiptRow(
+                envelope: envelope, receipt: receipt, reversalBasis: basis
+            )
+            if hostile == "receipt-mirror" {
+                hostileRow.commandKind = WorkspaceCommandKindV1.createCheckDraft.rawValue
+            } else if hostile == "reversal-mirror" {
+                hostileRow.reversalBasisSHA256 = String(repeating: "e", count: 64)
+            }
+            let acceptedDigest = hostile == "quarantine-mirror"
+                ? String(repeating: "e", count: 64)
+                : try envelope.canonicalSHA256()
+            let hostileModelURL = try hostileFactory.seedReleasedCheckpointTestFixture(
+                release: .v4, generationID: generationID,
+                migrationID: migrationID, identity: identity
+            ) { context in
+                context.insert(Site(
+                    id: siteDTO.id, label: siteDTO.label, address: siteDTO.address,
+                    timeZoneID: siteDTO.timeZoneID, createdAt: siteDTO.createdAt,
+                    updatedAt: siteDTO.updatedAt
+                ))
+                context.insert(hostileRow)
+                context.insert(MutationQuarantineRow(
+                    workspaceID: identity.workspaceID, mutationID: mutationID,
+                    identityDomain: .mutationEnvelope,
+                    acceptedIdentitySHA256: acceptedDigest,
+                    conflictingIdentitySHA256: String(repeating: "f", count: 64),
+                    detectedAt: timestamp
+                ))
+                context.insert(EntityMutationRevisionRow(identity: entity, revision: 1))
+                context.insert(WorkspaceMutationStateRow(
+                    workspaceID: identity.workspaceID.rawValue,
+                    generationID: generationID,
+                    activeReplicaID: identity.replicaID.rawValue,
+                    workspaceRevision: 1, lastLocalSequence: 1,
+                    mutableSemanticSHA256: try Self.historicalCheckpoint([item])
+                ))
+            }
+            let pointerURL = hostileRoot.appendingPathComponent("FieldEvidenceData/current.json")
+            let pointerBefore = try Data(contentsOf: pointerURL)
+            let sourceBefore = try Data(contentsOf: hostileModelURL)
+            do {
+                _ = try await hostileFactory.openForStartup(recoverOriginalSource: { _ in })
+                XCTFail("Expected \(hostile) corruption to fail closed")
+            } catch {
+                XCTAssertTrue(error is StoreMigrationFailure || error is WorkspaceMutationFailureV1)
+            }
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBefore)
+            XCTAssertEqual(try Data(contentsOf: hostileModelURL), sourceBefore)
+            if let journal = try StoreAggregateMigrationControlV1(applicationSupportURL: hostileRoot)?.load() {
+                XCTAssertFalse(FileManager.default.fileExists(
+                    atPath: hostileFactory.installedGenerationURL(id: journal.targetGenerationID).path
+                ))
+                XCTAssertFalse(FileManager.default.fileExists(
+                    atPath: hostileFactory.restoreStagingGenerationURL(id: journal.targetGenerationID).path
+                ))
+            }
+        }
+    }
+
+    @MainActor
+    func testV10HistoricalAssetBackfillAcceptsOnlyItsFrozenV9Checkpoint() async throws {
+        let root = try Self.makeAbsentApplicationSupportURL(label: "V10-asset-backfill")
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let generationID = UUID()
+        let migrationID = UUID()
+        let identity = try Self.historicalIdentity()
+        let siteID = UUID()
+        let assetID = UUID()
+        let recordedAt = Date(timeIntervalSince1970: 1_700_100_000)
+        let site = Site(id: siteID, label: "V10 site", timeZoneID: "UTC", createdAt: recordedAt)
+        let asset = Asset(
+            id: assetID,
+            siteID: siteID,
+            packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            label: "V10 asset",
+            createdAt: recordedAt
+        )
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: siteID)
+        let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+        let siteDTO = V4BackupSiteDTO(
+            id: site.id, schemaVersion: site.schemaVersion, label: site.label,
+            address: site.address, timeZoneID: site.timeZoneID,
+            createdAt: site.createdAt, updatedAt: site.updatedAt
+        )
+        let assetDTO = V4BackupAssetDTO(
+            id: asset.id, schemaVersion: asset.schemaVersion, siteID: asset.siteID,
+            packID: asset.packID, packSchemaVersion: asset.packSchemaVersion,
+            packContentVersion: asset.packContentVersion, label: asset.label,
+            createdAt: asset.createdAt, updatedAt: asset.updatedAt
+        )
+        let checkpoint = try Self.historicalCheckpoint([
+            try Self.historicalItem(identity: siteIdentity, value: siteDTO),
+            try Self.historicalItem(identity: assetIdentity, value: assetDTO),
+        ])
+        let catalog = try BundledInspectionPackageRegistryV2.shippingAssetSemanticCatalog()
+        let mutationID = try MutationIDV1(rawValue: migrationID)
+        let kindEventID = Self.historicalAssetSemanticUUID(
+            domain: "asset-semantics/legacy-kind-binding/v1",
+            workspaceID: identity.workspaceID.rawValue,
+            assetID: assetID
+        )
+        let kind = try AssetKindBindingEventV1.canonical(
+            eventID: kindEventID,
+            workspaceID: identity.workspaceID,
+            assetID: assetID,
+            catalogRelease: catalog.reference,
+            semanticID: AssetSemanticPersistenceReleaseV1.acceptedLegacySignSemanticID,
+            predecessorEventID: nil,
+            revision: 1,
+            mutationID: mutationID,
+            recordedAt: recordedAt
+        )
+        let workflow = try AssetWorkflowCapabilityBindingEventV1(
+            eventID: Self.historicalAssetSemanticUUID(
+                domain: "asset-semantics/legacy-workflow-binding/v1",
+                workspaceID: identity.workspaceID.rawValue,
+                assetID: assetID
+            ),
+            workspaceID: identity.workspaceID,
+            assetID: assetID,
+            kindBindingEventID: kindEventID,
+            kindBindingRevision: 1,
+            workflowPackageRelease: catalog.packageRelease,
+            capabilityIDs: [],
+            disposition: .bound,
+            predecessorEventID: nil,
+            revision: 1,
+            mutationID: mutationID,
+            recordedAt: recordedAt
+        )
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        _ = try factory.seedReleasedCheckpointTestFixture(
+            release: .v10,
+            generationID: generationID,
+            migrationID: migrationID,
+            identity: identity
+        ) { context in
+            context.insert(site)
+            context.insert(asset)
+            context.insert(try AssetKindBindingEventRow(kind))
+            context.insert(try AssetWorkflowCapabilityBindingEventRow(workflow))
+            context.insert(WorkspaceMutationStateRow(
+                workspaceID: identity.workspaceID.rawValue,
+                generationID: generationID,
+                activeReplicaID: identity.replicaID.rawValue,
+                mutableSemanticSHA256: checkpoint
+            ))
+        }
+        Self.assertAwaitingIndependentValidation(
+            try await factory.openForStartup(recoverOriginalSource: { _ in })
+        )
+
+        let hostileRoot = try Self.makeAbsentApplicationSupportURL(label: "V10-malformed-backfill")
+        defer { try? FileManager.default.removeItem(at: hostileRoot.deletingLastPathComponent()) }
+        let hostileGenerationID = UUID()
+        let malformedKindEventID = UUID()
+        let malformedKind = try AssetKindBindingEventV1.canonical(
+            eventID: malformedKindEventID,
+            workspaceID: identity.workspaceID,
+            assetID: assetID,
+            catalogRelease: catalog.reference,
+            semanticID: AssetSemanticPersistenceReleaseV1.acceptedLegacySignSemanticID,
+            predecessorEventID: nil,
+            revision: 1,
+            mutationID: mutationID,
+            recordedAt: recordedAt
+        )
+        let malformedWorkflow = try AssetWorkflowCapabilityBindingEventV1(
+            eventID: Self.historicalAssetSemanticUUID(
+                domain: "asset-semantics/legacy-workflow-binding/v1",
+                workspaceID: identity.workspaceID.rawValue,
+                assetID: assetID
+            ),
+            workspaceID: identity.workspaceID,
+            assetID: assetID,
+            kindBindingEventID: malformedKindEventID,
+            kindBindingRevision: 1,
+            workflowPackageRelease: catalog.packageRelease,
+            capabilityIDs: [],
+            disposition: .bound,
+            predecessorEventID: nil,
+            revision: 1,
+            mutationID: mutationID,
+            recordedAt: recordedAt
+        )
+        let hostileFactory = StoreGenerationFactory(applicationSupportURL: hostileRoot)
+        let hostileModelURL = try hostileFactory.seedReleasedCheckpointTestFixture(
+            release: .v10,
+            generationID: hostileGenerationID,
+            migrationID: migrationID,
+            identity: identity
+        ) { context in
+            context.insert(Site(
+                id: siteDTO.id, label: siteDTO.label, address: siteDTO.address,
+                timeZoneID: siteDTO.timeZoneID, createdAt: siteDTO.createdAt,
+                updatedAt: siteDTO.updatedAt
+            ))
+            context.insert(Asset(
+                id: assetDTO.id, siteID: assetDTO.siteID, packID: assetDTO.packID,
+                packSchemaVersion: assetDTO.packSchemaVersion,
+                packContentVersion: assetDTO.packContentVersion, label: assetDTO.label,
+                createdAt: assetDTO.createdAt, updatedAt: assetDTO.updatedAt
+            ))
+            context.insert(try AssetKindBindingEventRow(malformedKind))
+            context.insert(try AssetWorkflowCapabilityBindingEventRow(malformedWorkflow))
+            context.insert(WorkspaceMutationStateRow(
+                workspaceID: identity.workspaceID.rawValue,
+                generationID: hostileGenerationID,
+                activeReplicaID: identity.replicaID.rawValue,
+                mutableSemanticSHA256: checkpoint
+            ))
+        }
+        let hostilePointerURL = hostileRoot.appendingPathComponent("FieldEvidenceData/current.json")
+        let hostilePointerBefore = try Data(contentsOf: hostilePointerURL)
+        let hostileSourceBytesBefore = try Data(contentsOf: hostileModelURL)
+        let hostileSnapshotBefore = try hostileFactory.makeRestoreGenerationAuthority()
+            .snapshotInstalledGeneration(id: hostileGenerationID)
+        do {
+            _ = try await hostileFactory.openForStartup(recoverOriginalSource: { _ in })
+            XCTFail("Expected a non-deterministic V10 legacy event identity to fail closed")
+        } catch {
+            XCTAssertTrue(error is StoreMigrationFailure || error is WorkspaceMutationFailureV1)
+        }
+        XCTAssertEqual(try Data(contentsOf: hostilePointerURL), hostilePointerBefore)
+        XCTAssertEqual(try Data(contentsOf: hostileModelURL), hostileSourceBytesBefore)
+        let hostileSnapshotAfter = try hostileFactory.makeRestoreGenerationAuthority()
+            .snapshotInstalledGeneration(id: hostileGenerationID)
+        XCTAssertEqual(hostileSnapshotAfter.files, hostileSnapshotBefore.files)
+        XCTAssertEqual(hostileSnapshotAfter.sourceTreeDigest, hostileSnapshotBefore.sourceTreeDigest)
+        XCTAssertEqual(hostileSnapshotAfter.frozenIdentityDigest, hostileSnapshotBefore.frozenIdentityDigest)
+        if let journal = try StoreAggregateMigrationControlV1(applicationSupportURL: hostileRoot)?.load() {
+            XCTAssertFalse(FileManager.default.fileExists(
+                atPath: hostileFactory.installedGenerationURL(id: journal.targetGenerationID).path
+            ))
+            XCTAssertFalse(FileManager.default.fileExists(
+                atPath: hostileFactory.restoreStagingGenerationURL(id: journal.targetGenerationID).path
+            ))
+        }
+    }
+
+    @MainActor
+    func testV14HistoricalCheckpointIncludesItsIntroducedMutableContributor() async throws {
+        let root = try Self.makeAbsentApplicationSupportURL(label: "V14-contributor")
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let generationID = UUID()
+        let migrationID = UUID()
+        let identity = try Self.historicalIdentity()
+        let releaseID = UUID()
+        let entity = try WorkspaceEntityIdentityV1(kind: .authoritySourceRelease, id: releaseID)
+        let value = try AuthoritySourceReleaseV1(
+            releaseID: releaseID,
+            workspaceID: identity.workspaceID,
+            sourceID: UUID(),
+            sourceType: .ownerPolicy,
+            designation: "Historical authority",
+            editionOrRevision: "V14",
+            retrievedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            licenseStorageDisposition: .notStored,
+            recordedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            mutationID: try MutationIDV1(rawValue: UUID())
+        )
+        let checkpoint = try Self.historicalCheckpoint([
+            .init(stableIdentity: entity.stableKey, revision: 1, semanticSHA256: value.releaseSHA256),
+        ])
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        _ = try factory.seedReleasedCheckpointTestFixture(
+            release: .v14,
+            generationID: generationID,
+            migrationID: migrationID,
+            identity: identity
+        ) { context in
+            context.insert(try AuthoritySourceReleaseRow(value))
+            context.insert(EntityMutationRevisionRow(
+                identity: entity,
+                revision: 1,
+                externalProjectionSHA256: value.releaseSHA256
+            ))
+            context.insert(WorkspaceMutationStateRow(
+                workspaceID: identity.workspaceID.rawValue,
+                generationID: generationID,
+                activeReplicaID: identity.replicaID.rawValue,
+                mutableSemanticSHA256: checkpoint
+            ))
+        }
+        Self.assertAwaitingIndependentValidation(
+            try await factory.openForStartup(recoverOriginalSource: { _ in })
+        )
+    }
+
+    @MainActor
+    func testHistoricalCheckpointRejectsCounterRevisionProjectionAndFutureKindDrift() async throws {
+        for hostile in [
+            "checkpoint-drift", "future-terminal-kind", "stale-v9-with-v14-contributor",
+            "negative-workspace-counter", "negative-sequence-counter", "missing-revision-row",
+            "divergent-revision-row",
+        ] {
+            let root = try Self.makeAbsentApplicationSupportURL(label: hostile)
+            defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+            let generationID = UUID()
+            let migrationID = UUID()
+            let identity = try Self.historicalIdentity()
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            _ = try factory.seedReleasedCheckpointTestFixture(
+                release: .v14,
+                generationID: generationID,
+                migrationID: migrationID,
+                identity: identity
+            ) { context in
+                let state = WorkspaceMutationStateRow(
+                    workspaceID: identity.workspaceID.rawValue,
+                    generationID: generationID,
+                    activeReplicaID: identity.replicaID.rawValue,
+                    workspaceRevision: hostile == "negative-workspace-counter" ? -1 : 0,
+                    lastLocalSequence: hostile == "negative-sequence-counter" ? -1 : 0,
+                    mutableSemanticSHA256: try Self.historicalCheckpoint([])
+                )
+                context.insert(state)
+                if hostile == "checkpoint-drift" {
+                    context.insert(Site(id: UUID(), label: "Uncheckpointed", timeZoneID: "UTC"))
+                } else if hostile == "future-terminal-kind" {
+                    context.insert(EntityMutationRevisionRow(
+                        identity: try WorkspaceEntityIdentityV1(kind: .lightingSystem, id: UUID()),
+                        revision: 1,
+                        externalProjectionSHA256: String(repeating: "a", count: 64)
+                    ))
+                } else if hostile == "stale-v9-with-v14-contributor" {
+                    let releaseID = UUID()
+                    let value = try AuthoritySourceReleaseV1(
+                        releaseID: releaseID, workspaceID: identity.workspaceID, sourceID: UUID(),
+                        sourceType: .ownerPolicy, designation: "Uncheckpointed authority",
+                        editionOrRevision: "V14", retrievedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                        licenseStorageDisposition: .notStored,
+                        recordedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                        mutationID: try MutationIDV1(rawValue: UUID())
+                    )
+                    context.insert(try AuthoritySourceReleaseRow(value))
+                    context.insert(EntityMutationRevisionRow(
+                        identity: try WorkspaceEntityIdentityV1(kind: .authoritySourceRelease, id: releaseID),
+                        revision: 1,
+                        externalProjectionSHA256: value.releaseSHA256
+                    ))
+                } else if hostile == "missing-revision-row" || hostile == "divergent-revision-row" {
+                    let site = Site(id: UUID(), label: "Revision-bound", timeZoneID: "UTC")
+                    let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: site.id)
+                    let siteDTO = V4BackupSiteDTO(
+                        id: site.id, schemaVersion: site.schemaVersion, label: site.label,
+                        address: site.address, timeZoneID: site.timeZoneID,
+                        createdAt: site.createdAt, updatedAt: site.updatedAt
+                    )
+                    let item = try Self.historicalItem(identity: siteIdentity, revision: 1, value: siteDTO)
+                    context.insert(site)
+                    state.mutableSemanticSHA256 = try Self.historicalCheckpoint([item])
+                    if hostile == "divergent-revision-row" {
+                        context.insert(EntityMutationRevisionRow(
+                            identity: siteIdentity,
+                            revision: 2,
+                            externalProjectionSHA256: item.semanticSHA256
+                        ))
+                    }
+                }
+            }
+            do {
+                _ = try await factory.openForStartup(recoverOriginalSource: { _ in })
+                XCTFail("Expected hostile historical checkpoint to be rejected")
+            } catch {
+                XCTAssertTrue(error is StoreMigrationFailure || error is WorkspaceMutationFailureV1)
+            }
+        }
+    }
+#endif
+
+    @MainActor
+    func testCurrentActiveValidateAllBehaviorRemainsStrict() throws {
+        let root = try Self.makeTemporaryApplicationSupportURL()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let journal = try MutationJournalStoreV1(
+            modelContext: session.modelContext,
+            identity: session.workspaceIdentity,
+            generationID: session.generationID
+        )
+        XCTAssertNoThrow(try journal.validateAll())
+        let state = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+        state.mutableSemanticSHA256 = String(repeating: "f", count: 64)
+        XCTAssertThrowsError(try journal.validateAll()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+    }
+
+    private static func historicalCheckpoint(_ content: [HistoricalJournalMutableItemV1]) throws -> String {
+        try WorkspaceMutationCanonicalV1.sha256(HistoricalJournalMutableBasisV1(
+            content: content.sorted { $0.stableIdentity < $1.stableIdentity },
+            deletionLedger: .empty
+        ))
+    }
+
+    private static func historicalItem<Value: Codable>(
+        identity: WorkspaceEntityIdentityV1,
+        revision: UInt64 = 0,
+        value: Value
+    ) throws -> HistoricalJournalMutableItemV1 {
+        .init(
+            stableIdentity: identity.stableKey,
+            revision: revision,
+            semanticSHA256: try WorkspaceMutationCanonicalV1.sha256(
+                HistoricalJournalPostImageBasisV1(identity: identity, revision: revision, value: value)
+            )
+        )
+    }
+
+    private static func historicalAssetSemanticUUID(
+        domain: String,
+        workspaceID: UUID,
+        assetID: UUID
+    ) -> UUID {
+        let material = Data(
+            "\(domain)|\(workspaceID.uuidString.lowercased())|\(assetID.uuidString.lowercased())".utf8
+        )
+        var bytes = Array(SHA256.hash(data: material).prefix(16))
+        bytes[6] = (bytes[6] & 0x0f) | 0x50
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+
+    private static func historicalWorkflowRecord(assetID: UUID, timestamp: Date) -> WorkflowRecord {
+        let recordID = UUID()
+        return WorkflowRecord(
+            id: recordID, assetID: assetID, packetID: nil, issueID: nil,
+            parentRecordID: nil, recordRevisionRootID: recordID,
+            revisesRecordID: nil, evidenceSourceRecordID: nil,
+            revisionKind: .original, stage: .check, state: .draft,
+            draftStepKey: .wide, startedAt: timestamp, completedAt: nil,
+            observedAtUTC: timestamp, timeZoneID: "UTC", utcOffsetMinutes: 0,
+            localDate: "2023-11-15", localTime: "09:20:00",
+            afterDarkAcknowledgementKey: nil,
+            afterDarkAcknowledgementCopy: nil,
+            afterDarkAcknowledgementVersion: nil,
+            afterDarkAcknowledgementAccepted: nil,
+            safePositionAcknowledgementKey: nil,
+            safePositionAcknowledgementCopy: nil,
+            safePositionAcknowledgementVersion: nil,
+            safePositionAcknowledgementAccepted: nil,
+            packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            pdfTemplateID: "historical.report",
+            pdfTemplateVersion: 1, outcomeKey: nil, couldNotVerifyKey: nil,
+            couldNotVerifyDisplaySnapshot: nil, couldNotVerifyRegistryVersion: nil,
+            workPerformedLocalDate: nil, workDescription: nil, note: nil,
+            finalizationMutationID: nil
+        )
+    }
+
+    private static func historicalWorkflowDTO(
+        _ row: WorkflowRecord,
+        observationBasisData: Data?,
+        temporalContextData: Data?
+    ) -> V4BackupWorkflowRecordDTO {
+        V4BackupWorkflowRecordDTO(
+            id: row.id, schemaVersion: row.schemaVersion, assetID: row.assetID,
+            packetID: row.packetID, issueID: row.issueID, parentRecordID: row.parentRecordID,
+            recordRevisionRootID: row.recordRevisionRootID, revisesRecordID: row.revisesRecordID,
+            evidenceSourceRecordID: row.evidenceSourceRecordID, revisionKind: row.revisionKind,
+            stage: row.stage, state: row.state, draftStepKey: row.draftStepKey,
+            startedAt: row.startedAt, completedAt: row.completedAt,
+            observedAtUTC: row.observedAtUTC, timeZoneID: row.timeZoneID,
+            utcOffsetMinutes: row.utcOffsetMinutes, localDate: row.localDate,
+            localTime: row.localTime,
+            afterDarkAcknowledgementKey: row.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: row.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: row.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: row.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: row.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: row.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: row.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: row.safePositionAcknowledgementAccepted,
+            packID: row.packID, packSchemaVersion: row.packSchemaVersion,
+            packContentVersion: row.packContentVersion, pdfTemplateID: row.pdfTemplateID,
+            pdfTemplateVersion: row.pdfTemplateVersion, outcomeKey: row.outcomeKey,
+            couldNotVerifyKey: row.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: row.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: row.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: row.workPerformedLocalDate,
+            workDescription: row.workDescription, note: row.note,
+            finalizationMutationID: row.finalizationMutationID,
+            observationBasisV1Data: observationBasisData,
+            temporalContextV1Data: temporalContextData
+        )
+    }
+
+    private static func historicalCheckDraftCommand(
+        _ row: WorkflowRecord,
+        observationBasisData: Data? = nil,
+        temporalContextData: Data? = nil
+    ) throws -> CheckDraftMutationV1 {
+        guard (observationBasisData == nil) == (temporalContextData == nil) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return try CheckDraftMutationV1(
+            recordID: row.id,
+            assetID: row.assetID,
+            issueID: row.issueID,
+            parentRecordID: row.parentRecordID,
+            stage: row.stage,
+            draftStepKey: row.draftStepKey,
+            startedAt: row.startedAt,
+            observedAtUTC: row.observedAtUTC,
+            timeZoneID: row.timeZoneID,
+            utcOffsetMinutes: row.utcOffsetMinutes,
+            localDate: row.localDate,
+            localTime: row.localTime,
+            afterDarkAcknowledgementKey: row.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: row.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: row.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: row.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: row.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: row.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: row.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: row.safePositionAcknowledgementAccepted,
+            packID: row.packID,
+            packSchemaVersion: row.packSchemaVersion,
+            packContentVersion: row.packContentVersion,
+            pdfTemplateID: row.pdfTemplateID,
+            pdfTemplateVersion: row.pdfTemplateVersion,
+            observationBasis: observationBasisData.map {
+                try ObservationAndTimeCodecV1.decodeObservationBasis($0)
+            },
+            temporalContext: temporalContextData.map {
+                try ObservationAndTimeCodecV1.decodeTemporalContext($0)
+            }
+        )
+    }
+
+    private static func historicalIdentity() throws -> WorkspaceReplicaIdentityV1 {
+        try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: UUID()),
+            replicaID: ReplicaID(rawValue: UUID())
+        )
+    }
+
+    private static func assertAwaitingIndependentValidation(
+        _ result: StoreStartupOpenResultV1,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard case .awaitingIndependentValidation = result else {
+            return XCTFail("Expected the first historical-source process to await validation", file: file, line: line)
+        }
+    }
+
+    private static func directoryEntryNames(at url: URL) -> Set<String> {
+        Set((try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? [])
+    }
+
+    private static func makeAbsentApplicationSupportURL(label: String) throws -> URL {
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V10_01HistoricalParent-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        return parent.appendingPathComponent(label, isDirectory: true)
     }
 }
 

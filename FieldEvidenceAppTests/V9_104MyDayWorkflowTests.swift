@@ -231,7 +231,308 @@ private enum C41InjectedFailure: Error, Equatable { case afterEffectBeforeReceip
     }
 }
 
+/// Inactive in-memory active-schema fixture: every post-bootstrap mutation
+/// goes through the actual adapter/journal/writer. This is not startup proof.
+@MainActor private final class C41CanonicalWriterHarness {
+    let container: ModelContainer
+    let context: ModelContext
+    let journal: MutationJournalStoreV1
+    let writer: WorkspaceWriterV1
+
+    init(historicalPlans: [MyDayPlanV1] = []) throws {
+        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
+            ModelConfiguration("C41Canonical", schema: schema, isStoredInMemoryOnly: true,
+                allowsSave: true, cloudKitDatabase: .none),
+        ])
+        context = container.mainContext
+        context.autosaveEnabled = false
+        for plan in historicalPlans {
+            context.insert(try MyDayPlanRowV1(plan))
+            let revision = EntityMutationRevisionRow(
+                identity: try .init(kind: .myDayPlan, id: plan.planID), revision: plan.revision)
+            revision.externalProjectionSHA256 = plan.planSHA256
+            context.insert(revision)
+        }
+        try context.save()
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: C41.workspace,
+            replicaID: ReplicaID(rawValue: C41.id(980)))
+        let generation = C41.id(981), writerID = C41.id(982)
+        journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: generation)
+        // A historical missing source is a valid plan baseline, not deletion
+        // or corruption of an existing journal's immutable source history.
+        try journal.validateAll()
+        writer = try WorkspaceWriterV1(identity: identity, generationID: generation,
+            initialRevision: journal.currentRevision(writerInstanceID: writerID),
+            clock: C41Clock(), idSource: C41FixedID(value: writerID),
+            fileAuthority: SystemApplicationFileAuthorityV1(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+    }
+
+    func save(_ items: [MyDayItemV1], seed: Int, predecessor: MyDayPlanV1? = nil,
+              key: MyDayKeyV1 = try! C41.key()) throws -> MyDayCommandResultV1 {
+        let plan = try MyDayPlanV1(planID: predecessor?.planID ?? C41.id(seed), key: key,
+            items: items, predecessor: predecessor, revision: (predecessor?.revision ?? 0) + 1,
+            mutationID: C41.mutation(seed + 1), authoredBy: C41.actor(), authoredAt: C41.now)
+        return try writer.commit(.save(successor: plan, predecessor: predecessor))
+    }
+
+    func planCount() throws -> Int { try context.fetch(FetchDescriptor<MyDayPlanRowV1>()).count }
+    func receiptCount() throws -> Int { try context.fetch(FetchDescriptor<MutationReceiptRow>()).count }
+
+    func carryCommand(source: MyDayPlanV1, predecessor: MyDayPlanV1,
+                      membershipID: UUID, seed: Int) throws -> MyDayCommandV1 {
+        let carry = try MyDayCarryoverPlanV1(sourcePlan: source, targetKey: predecessor.key,
+            membershipIDs: [membershipID], expectedTargetPlan: predecessor)
+        let selected = try XCTUnwrap(source.items.first { $0.membershipID == membershipID })
+        var items = predecessor.items.filter { $0.membershipID != membershipID }
+        items.append(try MyDayItemV1(membershipID: selected.membershipID,
+            reference: selected.reference, manualOrder: items.count, estimate: selected.estimate))
+        let target = try MyDayPlanV1(planID: predecessor.planID, key: predecessor.key, items: items,
+            predecessor: predecessor, revision: predecessor.revision + 1,
+            mutationID: C41.mutation(seed), authoredBy: C41.actor(), authoredAt: C41.now)
+        let receipt = try MyDayCarryoverReceiptV1(plan: carry, source: source, target: target,
+            mutationID: target.mutationID, committedAt: C41.now)
+        return .carryover(plan: carry, source: source, target: target, receipt: receipt)
+    }
+}
+
 final class V9_104MyDayWorkflowTests: XCTestCase {
+    @MainActor
+    func testActualWriterRetainsMissingHistoryAndRejectsNewOrReboundMembership() throws {
+        let originalItem = try MyDayItemV1(membershipID: C41.id(1001), reference: C41.round(1001),
+            manualOrder: 0, estimate: nil)
+        let original = try MyDayPlanV1(planID: C41.id(1002), key: C41.key(), items: [originalItem],
+            predecessor: nil, revision: 1, mutationID: C41.mutation(1003),
+            authoredBy: C41.actor(), authoredAt: C41.now)
+        let h = try C41CanonicalWriterHarness(historicalPlans: [original])
+        XCTAssertTrue(try h.context.fetch(FetchDescriptor<RoundSessionRevisionRowV1>()).isEmpty)
+        XCTAssertEqual(try h.receiptCount(), 0)
+        let changed = try MyDayItemV1(membershipID: originalItem.membershipID,
+            reference: originalItem.reference, manualOrder: 0, estimate: .init(wholeMinutes: 45))
+        let result = try h.save([changed], seed: 1010, predecessor: original)
+        let command = MyDayCommandV1.save(successor: result.plan, predecessor: original)
+        XCTAssertEqual(try h.writer.commit(command), result)
+        XCTAssertEqual(try h.planCount(), 2)
+        XCTAssertEqual(try h.receiptCount(), 1)
+        for rebound in [false, true] {
+            let invalid = try MyDayItemV1(
+                membershipID: rebound ? changed.membershipID : C41.id(1020),
+                reference: rebound ? C41.round(1001, revision: 2, sha: "c") : changed.reference,
+                manualOrder: 0, estimate: nil)
+            let before = try h.writer.currentRevision()
+            XCTAssertThrowsError(try h.save([invalid], seed: rebound ? 1030 : 1040,
+                predecessor: result.plan))
+            XCTAssertEqual(try h.writer.currentRevision(), before)
+            XCTAssertEqual(try h.planCount(), 2)
+            XCTAssertEqual(try h.receiptCount(), 1)
+        }
+        XCTAssertThrowsError(try h.save([], seed: 1050, predecessor: original))
+        let removed = try h.save([], seed: 1060, predecessor: result.plan)
+        XCTAssertTrue(removed.plan.items.isEmpty)
+        XCTAssertEqual(try h.writer.commit(.save(successor: removed.plan, predecessor: result.plan)), removed)
+        XCTAssertEqual(try h.planCount(), 3)
+        XCTAssertEqual(try h.receiptCount(), 2)
+        XCTAssertTrue(try h.context.fetch(FetchDescriptor<RoundSessionRevisionRowV1>()).isEmpty)
+        try h.journal.validateAll()
+    }
+
+    @MainActor
+    func testActualWriterRequiresCurrentNonterminalRoundTipWithoutMutatingRoundWork() throws {
+        let h = try C41CanonicalWriterHarness()
+        let requirement = try RoundPackageContentRequirementV1(packageRelease: .init(
+            packageReleaseID: C41.digest("a"), packageID: "c41-round", packageContentVersion: 1,
+            packageSHA256: C41.digest("b"), workflowSHA256: C41.digest("c")), requiredContent: [])
+        let item = try RoundItemV1(itemID: C41.id(1100), order: 0,
+            selection: .init(assetID: C41.id(1101), siteID: C41.id(1102),
+                labelAtSelection: "My Day source round"), requirement: requirement)
+        var history: [RoundSessionV1] = []
+        var retainedPlan: MyDayPlanV1?
+        let steps: [(RoundSessionStateV1, RoundSessionTransitionV1)] = [
+            (.draft, .create), (.active, .start), (.paused, .pause), (.active, .resume),
+            (.active, .skipItem), (.completed, .close), (.archived, .archive),
+        ]
+        for (index, step) in steps.enumerated() {
+            let items = index >= 4 ? [try RoundItemV1(itemID: item.itemID, order: item.order,
+                selection: item.selection, requirement: item.requirement,
+                disposition: .skipped, reason: .notRequired)] : [item]
+            let round = try RoundSessionV1(workspaceID: C41.workspace, sessionID: C41.id(1103),
+                predecessor: history.last, revision: UInt64(index + 1), mutationID: C41.mutation(1110 + index),
+                state: step.0, transition: step.1, transitionItemID: index == 4 ? item.itemID : nil,
+                items: items, recordedBy: C41.actor(), recordedAt: C41.now)
+            _ = try h.writer.commitRoundSession(.init(workspaceID: C41.workspace,
+                expectedRevision: UInt64(index), mutationID: round.mutationID, session: round))
+            history.append(round)
+            let reference = MyDayEligibleReferenceV1.roundSession(workspaceID: round.workspaceID,
+                sessionID: round.sessionID, revision: round.revision, sessionSHA256: round.sessionSHA256)
+            let membership = try MyDayItemV1(membershipID: C41.id(1120 + index), reference: reference,
+                manualOrder: 0, estimate: nil)
+            let count = try h.planCount(), receipts = try h.receiptCount()
+            if index < 5 {
+                let saved = try h.save([membership], seed: 1200 + index * 10,
+                    key: C41.key(String(format: "2026-09-%02d", index + 1)))
+                if index == 0 { retainedPlan = saved.plan }
+            } else {
+                XCTAssertThrowsError(try h.save([membership], seed: 1200 + index * 10,
+                    key: C41.key(String(format: "2026-09-%02d", index + 1))))
+                XCTAssertEqual(try h.planCount(), count)
+                XCTAssertEqual(try h.receiptCount(), receipts)
+            }
+            if index > 0 {
+                let old = history[index - 1]
+                let stale = try MyDayItemV1(membershipID: C41.id(1300 + index),
+                    reference: .roundSession(workspaceID: old.workspaceID, sessionID: old.sessionID,
+                        revision: old.revision, sessionSHA256: old.sessionSHA256),
+                    manualOrder: 0, estimate: nil)
+                let before = try h.writer.currentRevision()
+                XCTAssertThrowsError(try h.save([stale], seed: 1400 + index * 10,
+                    key: C41.key("2026-09-20")))
+                XCTAssertEqual(try h.writer.currentRevision(), before)
+            }
+            XCTAssertEqual(try h.context.fetch(FetchDescriptor<RoundSessionRevisionRowV1>())
+                .map { try $0.value() }.sorted { $0.revision < $1.revision }, history)
+        }
+        let prior = try XCTUnwrap(retainedPlan)
+        let changed = try MyDayItemV1(membershipID: prior.items[0].membershipID,
+            reference: prior.items[0].reference, manualOrder: 0, estimate: .init(wholeMinutes: 10))
+        let result = try h.save([changed], seed: 1500, predecessor: prior)
+        XCTAssertEqual(result.plan.items[0].reference, prior.items[0].reference)
+        XCTAssertEqual(try h.context.fetch(FetchDescriptor<RoundSessionRevisionRowV1>())
+            .map { try $0.value() }.sorted { $0.revision < $1.revision }, history)
+        try h.journal.validateAll()
+    }
+
+    @MainActor
+    func testActualWriterSelectsExactImmutablePacketVersions() throws {
+        let h = try C41CanonicalWriterHarness()
+        var manifests: [WorkPacketManifestV1] = []
+        for version in 1...2 {
+            let manifest = try WorkPacketManifestV1(manifestID: C41.id(1600 + version),
+                packetID: C41.id(1600), packetVersion: UInt64(version), workspaceID: C41.workspace,
+                items: [.init(itemID: "c41-packet-item", kind: .inspection, expectedRevision: 1,
+                    itemSHA256: C41.digest(version == 1 ? "a" : "b"))], packageReleases: [],
+                creationBasis: .explicitLocalSelection, creator: C41.actor(), createdAt: C41.now,
+                mutationID: C41.mutation(1610 + version))
+            let mutation = try WorkPacketMutationV1(workspaceID: C41.workspace, expectedRevision: 0,
+                mutationID: manifest.mutationID, postImage: .appendManifest(manifest))
+            _ = try h.writer.execute(.applyWorkPacket(mutation), mutationID: mutation.mutationID)
+            manifests.append(manifest)
+        }
+        for (index, manifest) in manifests.enumerated() {
+            let reference = MyDayEligibleReferenceV1.workPacket(try .init(manifest))
+            let item = try MyDayItemV1(membershipID: C41.id(1620 + index), reference: reference,
+                manualOrder: 0, estimate: nil)
+            let result = try h.save([item], seed: 1630 + index * 10,
+                key: C41.key(index == 0 ? "2026-09-01" : "2026-09-02"))
+            XCTAssertEqual(result.plan.items[0].reference, reference)
+        }
+        XCTAssertEqual(try h.context.fetch(FetchDescriptor<WorkPacketManifestRow>())
+            .map { try $0.value() }.sorted { $0.packetVersion < $1.packetVersion }, manifests)
+        try h.journal.validateAll()
+    }
+
+    @MainActor
+    func testActualWriterCarryoverChecksBothLiveTipsAndEverySelectedSource() throws {
+        let manifest = try WorkPacketManifestV1(manifestID: C41.id(1700), packetID: C41.id(1701),
+            packetVersion: 1, workspaceID: C41.workspace,
+            items: [.init(itemID: "c41-carry", kind: .inspection, expectedRevision: 1,
+                itemSHA256: C41.digest("a"))], packageReleases: [],
+            creationBasis: .explicitLocalSelection, creator: C41.actor(), createdAt: C41.now,
+            mutationID: C41.mutation(1702))
+        let selected = try MyDayItemV1(membershipID: C41.id(1703),
+            reference: .workPacket(.init(manifest)), manualOrder: 0, estimate: nil)
+        let missing = try MyDayItemV1(membershipID: C41.id(1704), reference: C41.round(1704),
+            manualOrder: 0, estimate: nil)
+        func initial(_ item: MyDayItemV1, key: MyDayKeyV1, seed: Int) throws -> MyDayPlanV1 {
+            try .init(planID: C41.id(seed), key: key, items: [item], predecessor: nil, revision: 1,
+                mutationID: C41.mutation(seed + 1), authoredBy: C41.actor(), authoredAt: C41.now)
+        }
+        let source = try initial(selected, key: C41.key(), seed: 1710)
+        let target = try initial(missing, key: C41.key("2026-09-02"), seed: 1720)
+        let h = try C41CanonicalWriterHarness(historicalPlans: [source, target])
+        let packetMutation = try WorkPacketMutationV1(workspaceID: C41.workspace, expectedRevision: 0,
+            mutationID: manifest.mutationID, postImage: .appendManifest(manifest))
+        _ = try h.writer.execute(.applyWorkPacket(packetMutation), mutationID: manifest.mutationID)
+        let staleSourceCommand = try h.carryCommand(source: source, predecessor: target,
+            membershipID: selected.membershipID, seed: 1730)
+        let currentSource = try h.save(source.items, seed: 1740, predecessor: source).plan
+        let beforeSource = try h.writer.currentRevision()
+        XCTAssertThrowsError(try h.writer.commit(staleSourceCommand))
+        XCTAssertEqual(try h.writer.currentRevision(), beforeSource)
+        let staleTargetCommand = try h.carryCommand(source: currentSource, predecessor: target,
+            membershipID: selected.membershipID, seed: 1750)
+        let currentTarget = try h.save(target.items, seed: 1760, predecessor: target, key: target.key).plan
+        let beforeTarget = try h.writer.currentRevision()
+        XCTAssertThrowsError(try h.writer.commit(staleTargetCommand))
+        XCTAssertEqual(try h.writer.currentRevision(), beforeTarget)
+        let command = try h.carryCommand(source: currentSource, predecessor: currentTarget,
+            membershipID: selected.membershipID, seed: 1770)
+        let accepted = try h.writer.commit(command)
+        let after = try h.writer.currentRevision(), count = try h.receiptCount()
+        XCTAssertEqual(try h.writer.commit(command), accepted)
+        XCTAssertEqual(try h.writer.currentRevision(), after)
+        XCTAssertEqual(try h.receiptCount(), count)
+        XCTAssertEqual(accepted.plan.items.map(\.membershipID), [missing.membershipID, selected.membershipID])
+        XCTAssertEqual(try h.context.fetch(FetchDescriptor<MyDayCarryoverReceiptRowV1>()).count, 1)
+        XCTAssertEqual(try h.writer.currentPlan(for: source.key), currentSource)
+        try h.journal.validateAll()
+
+        // An explicitly carried membership is not exempt merely because the
+        // target already contains that exact membership/reference.
+        let absentSource = try initial(missing, key: C41.key(), seed: 1780)
+        let absentTarget = try initial(missing, key: target.key, seed: 1790)
+        let absent = try C41CanonicalWriterHarness(historicalPlans: [absentSource, absentTarget])
+        let spoof = try absent.carryCommand(source: absentSource, predecessor: absentTarget,
+            membershipID: missing.membershipID, seed: 1800)
+        let baseline = try absent.writer.currentRevision()
+        XCTAssertThrowsError(try absent.writer.commit(spoof))
+        XCTAssertEqual(try absent.writer.currentRevision(), baseline)
+        XCTAssertEqual(try absent.planCount(), 2)
+        XCTAssertEqual(try absent.receiptCount(), 0)
+        XCTAssertTrue(try absent.context.fetch(FetchDescriptor<MyDayCarryoverReceiptRowV1>()).isEmpty)
+        try absent.journal.validateAll()
+    }
+
+    @MainActor
+    func testRetainedHistoricalDraftMembershipAndUnavailableRoutesRemainEditable() throws {
+        let h = C41Harness()
+        let selected = try C41.item(950, reference: C41.round(950), estimate: 20)
+        let preview = try h.preview(items: [selected], mutation: 951)
+        guard case let .saved(saved) = try h.workflow.execute(.save(preview)) else {
+            return XCTFail("save")
+        }
+        for state in [MyDaySourceStateV1.completed, .cancelled, .retired, .missing, .stale] {
+            h.sources.states[selected.membershipID] = state
+            let summary = try h.workflow.summary(plan: saved.plan, dueQueue: C41.emptyDue(),
+                exceptionQueue: C41.emptyExceptions())
+            try summary.validate()
+            XCTAssertNil(summary.items[0].routeIntent)
+        }
+        let retained = try h.workflow.draft(key: saved.plan.key, selectedItems: [selected],
+            eligibleReferences: [C41.round(950, revision: 2, sha: "c")], predecessor: saved.plan)
+        XCTAssertEqual(retained.eligibleReferences, [selected.reference])
+        XCTAssertThrowsError(try h.workflow.draft(key: saved.plan.key, selectedItems: [selected],
+            eligibleReferences: []))
+        XCTAssertThrowsError(try h.workflow.draft(key: C41.key("2026-09-02"),
+            selectedItems: [selected], eligibleReferences: [], predecessor: saved.plan))
+        let rebound = try C41.item(950, reference: C41.round(950, revision: 2, sha: "c"))
+        XCTAssertThrowsError(try h.workflow.draft(key: saved.plan.key, selectedItems: [rebound],
+            eligibleReferences: [], predecessor: saved.plan))
+        let newMembership = try C41.item(952, reference: selected.reference)
+        XCTAssertThrowsError(try h.workflow.draft(key: saved.plan.key, selectedItems: [newMembership],
+            eligibleReferences: [], predecessor: saved.plan))
+        let empty = try h.workflow.draft(key: saved.plan.key, selectedItems: [],
+            eligibleReferences: [], predecessor: saved.plan)
+        let removal = try h.workflow.previewSave(draft: empty, predecessor: saved.plan,
+            planID: saved.plan.planID, mutationID: C41.mutation(953), actor: C41.actor())
+        guard case let .saved(removed) = try h.workflow.execute(.save(removal)) else {
+            return XCTFail("remove")
+        }
+        XCTAssertTrue(removed.plan.items.isEmpty)
+        XCTAssertEqual(h.writer.committedCommands.count, 2)
+    }
+
     private func corpus() throws -> [String: Any] {
         let name = "V23P04C41MyDayWorkflowCorpusV1"
         let bundled = Bundle(for: Self.self).url(

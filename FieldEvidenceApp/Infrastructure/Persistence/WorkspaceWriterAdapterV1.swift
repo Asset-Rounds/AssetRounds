@@ -1566,9 +1566,17 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
 
     private func requireCurrentMyDaySources(
         _ items: [MyDayItemV1],
-        workspaceID: WorkspaceID
+        workspaceID: WorkspaceID,
+        retaining predecessor: MyDayPlanV1?,
+        revalidating membershipIDs: Set<UUID> = []
     ) throws {
+        let retained = Dictionary(uniqueKeysWithValues: (predecessor?.items ?? []).map {
+            ($0.membershipID, $0.reference)
+        })
         for item in items {
+            if !membershipIDs.contains(item.membershipID), retained[item.membershipID] == item.reference {
+                continue
+            }
             switch item.reference {
             case let .workPacket(reference):
                 let rows = try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>(
@@ -1581,19 +1589,15 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                     throw WorkspaceMutationFailureV1.invalidCommand
                 }
             case let .roundSession(referenceWorkspaceID, sessionID, revision, digest):
-                let rows = try modelContext.fetch(FetchDescriptor<RoundSessionRevisionRowV1>(
-                    predicate: #Predicate {
-                        $0.workspaceID == referenceWorkspaceID.rawValue
-                            && $0.sessionID == sessionID
-                            && $0.revision == revision
-                    }
-                ))
-                guard rows.count == 1,
-                      let value = try rows.first?.value(),
-                      referenceWorkspaceID == workspaceID,
+                guard referenceWorkspaceID == workspaceID else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let history = try roundSessionHistory(workspaceID: workspaceID, sessionID: sessionID)
+                guard let value = history.last,
                       value.workspaceID == workspaceID,
                       value.revision == revision,
-                      value.sessionSHA256 == digest else {
+                      value.sessionSHA256 == digest,
+                      [.draft, .active, .paused].contains(value.state) else {
                     throw WorkspaceMutationFailureV1.invalidCommand
                 }
             case let .scheduleOccurrence(anchor, digest):
@@ -1642,7 +1646,6 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         do {
             try mutation.validate()
             let successor = mutation.resultingPlan
-            try requireCurrentMyDaySources(successor.items, workspaceID: mutation.workspaceID)
             let planRows = try modelContext.fetch(FetchDescriptor<MyDayPlanRowV1>())
             let decodedPlans = try planRows.map { try $0.value() }
             func lineage(planID: UUID) throws -> [MyDayPlanV1] {
@@ -1681,11 +1684,15 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                         )
                     }
                     try value.validate(predecessor: predecessor)
+                    try requireCurrentMyDaySources(value.items, workspaceID: mutation.workspaceID,
+                                                   retaining: persistedTip)
                     modelContext.insert(try MyDayPlanRowV1(successor))
                 } else {
                     guard existingLineage.isEmpty, sameKey.isEmpty, successor.revision == 1 else {
                         throw WorkspaceMutationFailureV1.sequenceCollision
                     }
+                    try requireCurrentMyDaySources(value.items, workspaceID: mutation.workspaceID,
+                                                   retaining: nil)
                     modelContext.insert(try MyDayPlanRowV1(successor))
                 }
 
@@ -1697,7 +1704,9 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                     throw WorkspaceMutationFailureV1.invalidCommand
                 }
                 let sourceLineage = try lineage(planID: source.planID)
-                guard sourceLineage.contains(source),
+                let sourceKeyPlans = decodedPlans.filter { $0.key == source.key }
+                guard sourceLineage.last == source,
+                      Set(sourceKeyPlans.map(\.planID)) == Set([source.planID]),
                       try MyDayPlanReferenceV1(source) == plan.sourcePlan else {
                     throw WorkspaceMutationFailureV1.staleEntityRevision(
                         try .init(kind: .myDayPlan, id: source.planID)
@@ -1710,18 +1719,22 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                             try .init(kind: .myDayPlan, id: target.planID)
                         )
                     }
-                    guard persistedTip == expected,
+                    guard try MyDayPlanReferenceV1(persistedTip) == expected,
                           target.predecessorPlanSHA256 == persistedTip.planSHA256 else {
                         throw WorkspaceMutationFailureV1.staleEntityRevision(
                             try .init(kind: .myDayPlan, id: target.planID)
                         )
                     }
                     try target.validate(predecessor: persistedTip)
+                    try requireCurrentMyDaySources(target.items, workspaceID: mutation.workspaceID,
+                        retaining: persistedTip, revalidating: Set(plan.membershipIDs))
                     modelContext.insert(try MyDayPlanRowV1(target))
                 } else {
                     guard existingLineage.isEmpty, sameKey.isEmpty, target.revision == 1 else {
                         throw WorkspaceMutationFailureV1.sequenceCollision
                     }
+                    try requireCurrentMyDaySources(target.items, workspaceID: mutation.workspaceID,
+                        retaining: nil, revalidating: Set(plan.membershipIDs))
                     modelContext.insert(try MyDayPlanRowV1(target))
                 }
                 let receipts = try modelContext.fetch(FetchDescriptor<MyDayCarryoverReceiptRowV1>()).filter {

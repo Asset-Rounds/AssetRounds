@@ -22,6 +22,200 @@ final class MutationJournalFailureInjectionV1 {
     }
 }
 
+struct StoreMigrationLegacyAssurancePredictionV1: Equatable {
+    let snapshot: RequirementAssuranceSnapshotV1
+    let mutationID: UUID
+    let timestamp: Date
+}
+
+private struct StoreMigrationReceiptCollectionAnchorV1: Equatable {
+    let mutationID: UUID
+    let workspaceMutationKey: String
+    let receiptIdentity: String
+    let workspaceID: UUID
+    let replicaID: UUID
+    let localSequence: Int64
+    let commandKind: String
+    let envelopeData: Data
+    let envelopeSHA256: String
+    let receiptData: Data
+    let receiptSHA256: String
+    let reversalBasisData: Data?
+    let reversalBasisSHA256: String?
+    let semanticReversalData: Data?
+
+    init(row: MutationReceiptRow) {
+        mutationID = row.mutationID
+        workspaceMutationKey = row.workspaceMutationKey
+        receiptIdentity = row.receiptIdentity
+        workspaceID = row.workspaceID
+        replicaID = row.replicaID
+        localSequence = row.localSequence
+        commandKind = row.commandKind
+        envelopeData = row.envelopeData
+        envelopeSHA256 = row.envelopeSHA256
+        receiptData = row.receiptData
+        receiptSHA256 = row.receiptSHA256
+        reversalBasisData = row.reversalBasisData
+        reversalBasisSHA256 = row.reversalBasisSHA256
+        semanticReversalData = row.semanticReversalData
+    }
+
+    func matches(_ row: MutationReceiptRow) -> Bool {
+        mutationID == row.mutationID
+            && workspaceMutationKey == row.workspaceMutationKey
+            && receiptIdentity == row.receiptIdentity
+            && workspaceID == row.workspaceID
+            && replicaID == row.replicaID
+            && localSequence == row.localSequence
+            && commandKind == row.commandKind
+            && envelopeData == row.envelopeData
+            && envelopeSHA256 == row.envelopeSHA256
+            && receiptData == row.receiptData
+            && receiptSHA256 == row.receiptSHA256
+            && reversalBasisData == row.reversalBasisData
+            && reversalBasisSHA256 == row.reversalBasisSHA256
+            && semanticReversalData == row.semanticReversalData
+    }
+}
+
+private struct StoreMigrationReceiptRowAnchorV1: Equatable {
+    let mutationID: UUID
+    let workspaceMutationKey: String
+    let receiptIdentity: String
+    let workspaceID: UUID
+    let replicaID: UUID
+    let localSequence: Int64
+    let commandKind: String
+    let envelopeData: Data
+    let envelopeSHA256: String
+    let receiptData: Data
+    let receiptSHA256: String
+    let reversalBasisData: Data?
+    let reversalBasisSHA256: String?
+    let semanticReversalData: Data?
+    let postImage: MutationPostImageV1
+
+    init(row: MutationReceiptRow, postImage: MutationPostImageV1) {
+        mutationID = row.mutationID
+        workspaceMutationKey = row.workspaceMutationKey
+        receiptIdentity = row.receiptIdentity
+        workspaceID = row.workspaceID
+        replicaID = row.replicaID
+        localSequence = row.localSequence
+        commandKind = row.commandKind
+        envelopeData = row.envelopeData
+        envelopeSHA256 = row.envelopeSHA256
+        receiptData = row.receiptData
+        receiptSHA256 = row.receiptSHA256
+        reversalBasisData = row.reversalBasisData
+        reversalBasisSHA256 = row.reversalBasisSHA256
+        semanticReversalData = row.semanticReversalData
+        self.postImage = postImage
+    }
+
+    func matches(_ row: MutationReceiptRow) -> Bool {
+        mutationID == row.mutationID
+            && workspaceMutationKey == row.workspaceMutationKey
+            && receiptIdentity == row.receiptIdentity
+            && workspaceID == row.workspaceID
+            && replicaID == row.replicaID
+            && localSequence == row.localSequence
+            && commandKind == row.commandKind
+            && envelopeData == row.envelopeData
+            && envelopeSHA256 == row.envelopeSHA256
+            && receiptData == row.receiptData
+            && receiptSHA256 == row.receiptSHA256
+            && reversalBasisData == row.reversalBasisData
+            && reversalBasisSHA256 == row.reversalBasisSHA256
+            && semanticReversalData == row.semanticReversalData
+    }
+}
+
+private enum StoreMigrationTerminalSourceAnchorV1: Equatable {
+    case receipt(StoreMigrationReceiptRowAnchorV1)
+    case externalProjection(sha256: String, latestReceipt: StoreMigrationReceiptRowAnchorV1?)
+}
+
+private enum StoreMigrationReleasedPostImageRecipeV1: Equatable {
+    case assetV4
+    case assetV10
+    case workflowV4
+    case workflowV5
+    case workflowV8
+}
+
+private enum StoreMigrationTerminalBaseV1: Equatable {
+    case asset(V4BackupAssetDTO)
+    case workflow(V4BackupWorkflowRecordDTO)
+}
+
+private enum StoreMigrationTerminalAdditionsV1: Equatable {
+    case asset(AssetSemanticPersistentSnapshotV1)
+    case workflow(
+        observation: ObservationAndTimeMigrationResultV1,
+        assurance: StoreMigrationLegacyAssurancePredictionV1
+    )
+}
+
+private struct StoreMigrationSourceMutationStateAnchorV1: Equatable {
+    let workspaceID: UUID
+    let generationID: UUID
+    let activeReplicaID: UUID
+    let workspaceRevision: Int64
+    let lastLocalSequence: Int64
+    let mutableSemanticSHA256: String?
+}
+
+private struct StoreMigrationSourceRevisionAnchorV1: Equatable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let priorExternalProjectionSHA256: String?
+    let sourceCurrentPostImage: MutationPostImageV1
+    let sourceAnchor: StoreMigrationTerminalSourceAnchorV1
+}
+
+private struct StoreMigrationChangedTerminalImageV1: Equatable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let base: StoreMigrationTerminalBaseV1
+    let sourceRecipe: StoreMigrationReleasedPostImageRecipeV1
+    let sourceAuthoritativePostImage: MutationPostImageV1
+    let predictedActivePostImage: MutationPostImageV1
+    let additions: StoreMigrationTerminalAdditionsV1
+}
+
+/// Journal-created, value-only proof of the complete released terminal map.
+/// Factory capabilities may bind and carry this value, but cannot construct or
+/// inspect its anchors and cannot turn an observed candidate hash into truth.
+struct StoreMigrationValidatedTerminalImagesV1 {
+    fileprivate let sourceWorkspaceID: UUID?
+    fileprivate let sourceGenerationID: UUID
+    fileprivate let sourceRelease: PersistentSchemaReleaseV1
+    fileprivate let sourceState: StoreMigrationSourceMutationStateAnchorV1?
+    fileprivate let sourceReceiptAnchors: [StoreMigrationReceiptCollectionAnchorV1]
+    fileprivate let sourceRevisionAnchors: [StoreMigrationSourceRevisionAnchorV1]
+    fileprivate let changedEntries: [StoreMigrationChangedTerminalImageV1]
+
+    fileprivate init(
+        sourceWorkspaceID: UUID?,
+        sourceGenerationID: UUID,
+        sourceRelease: PersistentSchemaReleaseV1,
+        sourceState: StoreMigrationSourceMutationStateAnchorV1?,
+        sourceReceiptAnchors: [StoreMigrationReceiptCollectionAnchorV1],
+        sourceRevisionAnchors: [StoreMigrationSourceRevisionAnchorV1],
+        changedEntries: [StoreMigrationChangedTerminalImageV1]
+    ) {
+        self.sourceWorkspaceID = sourceWorkspaceID
+        self.sourceGenerationID = sourceGenerationID
+        self.sourceRelease = sourceRelease
+        self.sourceState = sourceState
+        self.sourceReceiptAnchors = sourceReceiptAnchors
+        self.sourceRevisionAnchors = sourceRevisionAnchors
+        self.changedEntries = changedEntries
+    }
+}
+
 @MainActor
 final class MutationJournalStoreV1 {
     nonisolated static let maximumReceiptValidationCount = 100_000
@@ -39,6 +233,7 @@ final class MutationJournalStoreV1 {
 
     private enum AccessMode {
         case canonicalWriter(StaleWriterFenceV1)
+        case aggregateCandidate(StoreMigrationFinalCandidateAuthorityV1)
         case maintenanceOrTest
     }
 
@@ -47,6 +242,320 @@ final class MutationJournalStoreV1 {
     private let generationID: UUID
     private let failureInjection: MutationJournalFailureInjectionV1?
     private let accessMode: AccessMode
+
+    /// Validates an original released journal before migration is allowed to
+    /// freeze or normalize its checkpoint. The authority binds the actual
+    /// source schema, generation, identity, root and reservation; this method
+    /// receives no independently forgeable source arguments and never saves.
+    static func validateOriginalCheckpoint(
+        _ authority: StoreMigrationHistoricalCheckpointAuthorityV1
+    ) throws -> StoreMigrationValidatedTerminalImagesV1 {
+        try authority.withReadContext { modelContext, release, generationID, identity in
+            guard !modelContext.hasChanges else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            // V1-V3 predate the mutation journal. Their source semantic
+            // projection is validated by the factory; do not query models the
+            // released schema cannot contain.
+            guard release.versionIdentifier.major >= 4 else {
+                return StoreMigrationValidatedTerminalImagesV1(
+                    sourceWorkspaceID: identity.workspaceID.rawValue,
+                    sourceGenerationID: generationID,
+                    sourceRelease: release,
+                    sourceState: nil,
+                    sourceReceiptAnchors: [],
+                    sourceRevisionAnchors: [],
+                    changedEntries: []
+                )
+            }
+            let store = try MutationJournalStoreV1(
+                modelContext: modelContext,
+                identity: identity,
+                generationID: generationID,
+                failureInjection: nil,
+                allowStateBootstrap: false,
+                allowMissingCheckpoint: release.versionIdentifier.major < 8,
+                accessMode: .maintenanceOrTest
+            )
+            let validated = try store.validateAll(
+                release: release,
+                historicalAuthority: authority
+            )
+            guard !modelContext.hasChanges else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            return validated
+        }
+    }
+
+    /// Final-schema, isolated-candidate checkpoint only. The private access mode
+    /// can validate recovery and save this candidate, never execute commands.
+    static func prepareAggregateCandidateForAdmission(_ authority: StoreMigrationFinalCandidateAuthorityV1) throws {
+        try authority.consumeTerminalNormalization { validated in
+            try authority.withAuthorizedContext { modelContext, aggregate in
+                guard aggregate.phase == .migrating,
+                      aggregate.authorizedTargetRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
+                      !modelContext.hasChanges else { throw StoreMigrationFailure.invalidPhaseTransition }
+                do {
+                    let classification = try classifyAggregateCandidate(
+                        modelContext: modelContext,
+                        aggregate: aggregate,
+                        validated: validated,
+                        authority: authority
+                    )
+                    switch classification.mode {
+                    case .prior:
+                        classification.state.generationID = aggregate.targetGenerationID
+                        for changed in validated.changedEntries {
+                            guard let row = classification.revisions[changed.identity] else {
+                                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                            }
+                            row.externalProjectionSHA256 = changed.predictedActivePostImage.semanticSHA256
+                        }
+                        classification.state.mutableSemanticSHA256 = classification.activeCheckpoint
+                    case .normalized:
+                        break
+                    }
+                    let store = try MutationJournalStoreV1(
+                        modelContext: modelContext,
+                        identity: try aggregate.identity(),
+                        generationID: aggregate.targetGenerationID,
+                        failureInjection: nil,
+                        allowStateBootstrap: false,
+                        allowMissingCheckpoint: false,
+                        accessMode: .aggregateCandidate(authority)
+                    )
+                    try MutationReceiptRecoveryServiceV1(store: store).recoverBeforeWriterActivation()
+                    if modelContext.hasChanges { try modelContext.save() }
+                } catch {
+                    modelContext.rollback()
+                    throw error
+                }
+            }
+        }
+    }
+
+    /// Runs a read against the exact pre-normalization projection without ever
+    /// saving that temporary view. This is used only to reprove the adjacent
+    /// transition input after the active terminal hashes have been admitted.
+    static func withAggregatePriorProjectionRestored<Value>(
+        _ authority: StoreMigrationFinalCandidateAuthorityV1,
+        _ body: (ModelContext) throws -> Value
+    ) throws -> Value {
+        try authority.withValidatedTerminalImages { validated in
+            try authority.withAuthorizedContext { modelContext, aggregate in
+                guard !modelContext.hasChanges else { throw StoreMigrationFailure.invalidPhaseTransition }
+                let classification = try classifyAggregateCandidate(
+                    modelContext: modelContext,
+                    aggregate: aggregate,
+                    validated: validated,
+                    authority: authority
+                )
+                guard let prior = aggregate.authorizedPriorMutationState else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                if classification.mode == .prior {
+                    return try body(modelContext)
+                }
+                classification.state.generationID = prior.generationID
+                classification.state.mutableSemanticSHA256 = prior.mutableSemanticSHA256
+                for changed in validated.changedEntries {
+                    guard let row = classification.revisions[changed.identity],
+                          let source = validated.sourceRevisionAnchors.first(where: {
+                              $0.identity == changed.identity
+                          }) else {
+                        modelContext.rollback()
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                    row.externalProjectionSHA256 = source.priorExternalProjectionSHA256
+                }
+                defer { modelContext.rollback() }
+                return try body(modelContext)
+            }
+        }
+    }
+
+    private enum AggregateCandidateProjectionModeV1: Equatable {
+        case prior
+        case normalized
+    }
+
+    private struct AggregateCandidateClassificationV1 {
+        let mode: AggregateCandidateProjectionModeV1
+        let state: WorkspaceMutationStateRow
+        let revisions: [WorkspaceEntityIdentityV1: EntityMutationRevisionRow]
+        let activeCheckpoint: String
+    }
+
+    private static func classifyAggregateCandidate(
+        modelContext: ModelContext,
+        aggregate: StoreAggregateMigrationJournalV1,
+        validated: StoreMigrationValidatedTerminalImagesV1,
+        authority: StoreMigrationFinalCandidateAuthorityV1
+    ) throws -> AggregateCandidateClassificationV1 {
+        guard aggregate.targetRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
+              aggregate.authorizedTargetRelease == aggregate.targetRelease,
+              validated.sourceWorkspaceID == aggregate.workspaceID,
+              validated.sourceGenerationID == aggregate.sourceGenerationID,
+              validated.sourceRelease == aggregate.sourceRelease,
+              let prior = aggregate.authorizedPriorMutationState else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let stateRows = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard stateRows.count == 1, let state = stateRows.first,
+              state.workspaceID == aggregate.workspaceID,
+              state.activeReplicaID == aggregate.replicaID,
+              state.workspaceRevision >= 0, state.lastLocalSequence >= 0 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let sourceState = validated.sourceState {
+            guard state.workspaceID == sourceState.workspaceID,
+                  state.activeReplicaID == sourceState.activeReplicaID,
+                  state.workspaceRevision == sourceState.workspaceRevision,
+                  state.lastLocalSequence == sourceState.lastLocalSequence else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        } else {
+            guard validated.sourceRelease.versionIdentifier.major < 4,
+                  validated.sourceReceiptAnchors.isEmpty,
+                  validated.sourceRevisionAnchors.isEmpty,
+                  validated.changedEntries.isEmpty,
+                  state.workspaceRevision == 0,
+                  state.lastLocalSequence == 0 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        var receiptDescriptor = FetchDescriptor<MutationReceiptRow>()
+        receiptDescriptor.fetchLimit = maximumReceiptValidationCount + 1
+        let receiptRows = try modelContext.fetch(receiptDescriptor)
+        guard receiptRows.count <= maximumReceiptValidationCount else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        var receiptsByKey: [String: MutationReceiptRow] = [:]
+        for row in receiptRows {
+            guard receiptsByKey.updateValue(row, forKey: row.workspaceMutationKey) == nil else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        var sourceReceiptsByKey: [String: StoreMigrationReceiptCollectionAnchorV1] = [:]
+        for receipt in validated.sourceReceiptAnchors {
+            guard sourceReceiptsByKey.updateValue(receipt, forKey: receipt.workspaceMutationKey) == nil else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        guard Set(receiptsByKey.keys) == Set(sourceReceiptsByKey.keys) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        for (key, source) in sourceReceiptsByKey {
+            guard let row = receiptsByKey[key], source.matches(row) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        var revisionDescriptor = FetchDescriptor<EntityMutationRevisionRow>()
+        revisionDescriptor.fetchLimit = maximumImportedEntityRevisionValidationCount + 1
+        let revisionRows = try modelContext.fetch(revisionDescriptor)
+        guard revisionRows.count <= maximumImportedEntityRevisionValidationCount else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        var revisions: [WorkspaceEntityIdentityV1: EntityMutationRevisionRow] = [:]
+        for row in revisionRows {
+            guard let kind = WorkspaceEntityKindV1(rawValue: row.kind) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let identity = try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
+            guard row.stableIdentity == identity.stableKey,
+                  revisions.updateValue(row, forKey: identity) == nil else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        let sourceByIdentity = Dictionary(
+            uniqueKeysWithValues: validated.sourceRevisionAnchors.map { ($0.identity, $0) }
+        )
+        let changedByIdentity = Dictionary(
+            uniqueKeysWithValues: validated.changedEntries.map { ($0.identity, $0) }
+        )
+        guard Set(revisions.keys) == Set(sourceByIdentity.keys),
+              Set(changedByIdentity.keys).isSubset(of: Set(sourceByIdentity.keys)) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let storeGeneration: UUID
+        if state.generationID == prior.generationID { storeGeneration = prior.generationID }
+        else if state.generationID == aggregate.targetGenerationID { storeGeneration = aggregate.targetGenerationID }
+        else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let store = try MutationJournalStoreV1(
+            modelContext: modelContext,
+            identity: try aggregate.identity(),
+            generationID: storeGeneration,
+            failureInjection: nil,
+            allowStateBootstrap: true,
+            allowMissingCheckpoint: false,
+            accessMode: .aggregateCandidate(authority)
+        )
+        for (identity, source) in sourceByIdentity {
+            guard let row = revisions[identity],
+                  try store.domainRevision(row.revision) == source.revision,
+                  try store.currentPostImage(identity: identity, revision: source.revision)
+                    == (changedByIdentity[identity]?.predictedActivePostImage ?? source.sourceCurrentPostImage) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            try requireCandidateSourceAnchor(source.sourceAnchor, in: modelContext)
+        }
+        for changed in validated.changedEntries {
+            try store.requireHistoricalAdditions(
+                changed.additions,
+                identity: changed.identity,
+                releaseVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
+            )
+        }
+        let activeCheckpoint = try store.mutableSemanticSHA256()
+        let priorFields = state.generationID == prior.generationID
+            && state.mutableSemanticSHA256 == prior.mutableSemanticSHA256
+            && sourceByIdentity.allSatisfy { identity, source in
+                revisions[identity]?.externalProjectionSHA256 == source.priorExternalProjectionSHA256
+            }
+        let normalizedFields = state.generationID == aggregate.targetGenerationID
+            && state.mutableSemanticSHA256 == activeCheckpoint
+            && sourceByIdentity.allSatisfy { identity, source in
+                revisions[identity]?.externalProjectionSHA256
+                    == (changedByIdentity[identity]?.predictedActivePostImage.semanticSHA256
+                        ?? source.priorExternalProjectionSHA256)
+            }
+        guard priorFields || normalizedFields else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return AggregateCandidateClassificationV1(
+            mode: priorFields && !normalizedFields ? .prior : .normalized,
+            state: state,
+            revisions: revisions,
+            activeCheckpoint: activeCheckpoint
+        )
+    }
+
+    private static func requireCandidateSourceAnchor(
+        _ anchor: StoreMigrationTerminalSourceAnchorV1,
+        in modelContext: ModelContext
+    ) throws {
+        let receipt: StoreMigrationReceiptRowAnchorV1?
+        switch anchor {
+        case .receipt(let value): receipt = value
+        case .externalProjection(let sha256, let latest):
+            guard MutationEnvelopeV1.isSHA256(sha256) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            receipt = latest
+        }
+        guard let receipt else { return }
+        let key = receipt.workspaceMutationKey
+        var descriptor = FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        )
+        descriptor.fetchLimit = 2
+        let rows = try modelContext.fetch(descriptor)
+        guard rows.count == 1, let row = rows.first, receipt.matches(row),
+              try MutationReceiptV1.decodeCanonical(from: row.receiptData).postImages.contains(receipt.postImage) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+    }
 
     convenience init(
         modelContext: ModelContext,
@@ -69,6 +578,7 @@ final class MutationJournalStoreV1 {
             generationID: generationID,
             failureInjection: failureInjection,
             allowStateBootstrap: allowStateBootstrap,
+            allowMissingCheckpoint: false,
             accessMode: .canonicalWriter(staleWriterFence)
         )
     }
@@ -89,6 +599,7 @@ final class MutationJournalStoreV1 {
             generationID: generationID,
             failureInjection: failureInjection,
             allowStateBootstrap: allowStateBootstrap,
+            allowMissingCheckpoint: false,
             accessMode: .maintenanceOrTest
         )
     }
@@ -99,6 +610,7 @@ final class MutationJournalStoreV1 {
         generationID: UUID,
         failureInjection: MutationJournalFailureInjectionV1?,
         allowStateBootstrap: Bool,
+        allowMissingCheckpoint: Bool,
         accessMode: AccessMode
     ) throws {
         self.modelContext = modelContext
@@ -106,7 +618,10 @@ final class MutationJournalStoreV1 {
         self.generationID = generationID
         self.failureInjection = failureInjection
         self.accessMode = accessMode
-        try bootstrapOrValidateState(allowBootstrap: allowStateBootstrap)
+        try bootstrapOrValidateState(
+            allowBootstrap: allowStateBootstrap,
+            allowMissingCheckpoint: allowMissingCheckpoint
+        )
     }
 
     func reach(_ boundary: MutationJournalFaultBoundaryV1) throws {
@@ -1977,27 +2492,46 @@ final class MutationJournalStoreV1 {
     }
 
     func validateAll() throws {
+        _ = try validateAll(
+            release: PersistentSchemaReleaseRegistryV1.activeRelease,
+            historicalAuthority: nil
+        )
+    }
+
+    private func validateAll(
+        release: PersistentSchemaReleaseV1,
+        historicalAuthority: StoreMigrationHistoricalCheckpointAuthorityV1?
+    ) throws -> StoreMigrationValidatedTerminalImagesV1 {
+        let releaseVersion = release.versionIdentifier.major
+        guard (4...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+                .contains(releaseVersion) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         guard C50IncumbentFileExchangeMutationJournalBoundaryV1.validate() else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
-        try validateRecoverabilityVerificationReceipts()
+        if releaseVersion >= 21 {
+            try validateRecoverabilityVerificationReceipts()
+        }
         var descriptor = FetchDescriptor<MutationReceiptRow>(sortBy: [SortDescriptor(\.receiptIdentity)])
         descriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
         let rows = try modelContext.fetch(descriptor)
         guard rows.count <= Self.maximumReceiptValidationCount else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+        let sourceReceiptAnchors = rows.map(StoreMigrationReceiptCollectionAnchorV1.init)
         var identities = Set<String>()
         var mutations = Set<String>()
         var sequenceKeys = Set<String>()
         var maximumSequenceByReplica: [String: UInt64] = [:]
         var maximumWorkspaceRevision: UInt64 = 0
         var latestPostImageByIdentity: [WorkspaceEntityIdentityV1: MutationPostImageV1] = [:]
+        var latestReceiptAnchorByIdentity: [WorkspaceEntityIdentityV1: StoreMigrationReceiptRowAnchorV1] = [:]
         var receiptsByMutation: [String: MutationReceiptV1] = [:]
         var rowsByMutation: [String: MutationReceiptRow] = [:]
         var assistanceMutationKeys = Set<String>()
         for row in rows {
-            let receipt = try validate(row: row, expectedEnvelope: nil)
+            let receipt = try validate(row: row, expectedEnvelope: nil, release: release)
             guard identities.insert(row.receiptIdentity).inserted,
                   mutations.insert(row.workspaceMutationKey).inserted else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -2017,6 +2551,9 @@ final class MutationJournalStoreV1 {
                 )
                 for image in receipt.postImages {
                     for entity in try Self.terminalStateIdentities(for: image) {
+                        guard Self.minimumRelease(for: entity.kind) <= releaseVersion else {
+                            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                        }
                         if let prior = latestPostImageByIdentity[entity] {
                             if prior.revision == image.revision, prior != image {
                                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -2024,6 +2561,10 @@ final class MutationJournalStoreV1 {
                             if prior.revision >= image.revision { continue }
                         }
                         latestPostImageByIdentity[entity] = image
+                        latestReceiptAnchorByIdentity[entity] = StoreMigrationReceiptRowAnchorV1(
+                            row: row,
+                            postImage: image
+                        )
                     }
                 }
             }
@@ -2039,20 +2580,22 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
-        let assistanceRows = try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>())
-        guard assistanceRows.count <= Self.maximumReceiptValidationCount else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
-        }
         var assistanceReceiptMutationKeys = Set<String>()
-        for row in assistanceRows {
-            let key = MutationWorkspaceKeyV1.value(
-                workspaceID: WorkspaceID(rawValue: row.workspaceID),
-                mutationID: try MutationIDV1(rawValue: row.mutationID)
-            )
-            guard assistanceReceiptMutationKeys.insert(key).inserted else {
+        if releaseVersion >= 32 {
+            let assistanceRows = try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>())
+            guard assistanceRows.count <= Self.maximumReceiptValidationCount else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
-            _ = try validateAssistanceAcceptanceRow(row)
+            for row in assistanceRows {
+                let key = MutationWorkspaceKeyV1.value(
+                    workspaceID: WorkspaceID(rawValue: row.workspaceID),
+                    mutationID: try MutationIDV1(rawValue: row.mutationID)
+                )
+                guard assistanceReceiptMutationKeys.insert(key).inserted else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                _ = try validateAssistanceAcceptanceRow(row)
+            }
         }
         guard assistanceReceiptMutationKeys == assistanceMutationKeys else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -2121,9 +2664,24 @@ final class MutationJournalStoreV1 {
         let state = try requireState()
         let activeKey = "\(state.workspaceID.uuidString.lowercased()):\(state.activeReplicaID.uuidString.lowercased())"
         guard try domainRevision(state.lastLocalSequence) >= maximumSequenceByReplica[activeKey, default: 0],
-              try domainRevision(state.workspaceRevision) >= maximumWorkspaceRevision,
-              MutationEnvelopeV1.isSHA256(state.mutableSemanticSHA256 ?? ""),
-              state.mutableSemanticSHA256 == (try mutableSemanticSHA256()) else {
+              try domainRevision(state.workspaceRevision) >= maximumWorkspaceRevision else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let checkpoint = state.mutableSemanticSHA256 {
+            guard MutationEnvelopeV1.isSHA256(checkpoint) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let releasedCheckpoint = try mutableSemanticSHA256(release: release)
+            if checkpoint != releasedCheckpoint {
+                guard releaseVersion >= 10,
+                      let historicalAuthority,
+                      releasedCheckpoint == (try mutableSemanticSHA256(release: .v10)),
+                      checkpoint == (try mutableSemanticSHA256(release: .v9)) else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                try historicalAuthority.requireOriginalV10LegacyBaseline()
+            }
+        } else if releaseVersion >= 8 {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         var balanceStreamFrontier: [WorkspaceEntityIdentityV1: UInt64] = [:]
@@ -2158,9 +2716,17 @@ final class MutationJournalStoreV1 {
                 balanceStreamFrontier[concurrency] = imageRevision
             }
         }
-        let revisionRows = try boundedTerminalRevisionRows()
+        let revisionRows: [EntityMutationRevisionRow]
+        if releaseVersion >= 41 {
+            revisionRows = try boundedTerminalRevisionRows()
+        } else {
+            revisionRows = try boundedFetch(FetchDescriptor<EntityMutationRevisionRow>())
+        }
         let revisionIdentities = try Set(revisionRows.map { row -> WorkspaceEntityIdentityV1 in
             guard let kind = WorkspaceEntityKindV1(rawValue: row.kind) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard Self.minimumRelease(for: kind) <= releaseVersion else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             return try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
@@ -2190,11 +2756,16 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
-        try validateTerminalRows(
+        return try validateTerminalRows(
             revisionRows: revisionRows,
             revisionIdentities: revisionIdentities,
             latestPostImageByIdentity: latestPostImageByIdentity,
-            balanceStreamFrontier: balanceStreamFrontier
+            latestReceiptAnchorByIdentity: latestReceiptAnchorByIdentity,
+            balanceStreamFrontier: balanceStreamFrontier,
+            release: release,
+            historicalAuthority: historicalAuthority,
+            state: state,
+            sourceReceiptAnchors: sourceReceiptAnchors
         )
     }
 
@@ -2202,18 +2773,25 @@ final class MutationJournalStoreV1 {
         revisionRows: [EntityMutationRevisionRow],
         revisionIdentities: Set<WorkspaceEntityIdentityV1>,
         latestPostImageByIdentity: [WorkspaceEntityIdentityV1: MutationPostImageV1],
-        balanceStreamFrontier: [WorkspaceEntityIdentityV1: UInt64]
-    ) throws {
+        latestReceiptAnchorByIdentity: [WorkspaceEntityIdentityV1: StoreMigrationReceiptRowAnchorV1],
+        balanceStreamFrontier: [WorkspaceEntityIdentityV1: UInt64],
+        release: PersistentSchemaReleaseV1 = PersistentSchemaReleaseRegistryV1.activeRelease,
+        historicalAuthority: StoreMigrationHistoricalCheckpointAuthorityV1?,
+        state: WorkspaceMutationStateRow,
+        sourceReceiptAnchors: [StoreMigrationReceiptCollectionAnchorV1]
+    ) throws -> StoreMigrationValidatedTerminalImagesV1 {
         guard Set(latestPostImageByIdentity.keys).isSubset(of: revisionIdentities) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
-        for row in revisionRows {
+        var sourceAnchors: [StoreMigrationSourceRevisionAnchorV1] = []
+        var changedEntries: [StoreMigrationChangedTerminalImageV1] = []
+        for row in revisionRows.sorted(by: { $0.stableIdentity < $1.stableIdentity }) {
             guard let kind = WorkspaceEntityKindV1(rawValue: row.kind) else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let entity = try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
             let revision = try domainRevision(row.revision)
-            let current = try currentPostImage(identity: entity, revision: revision)
+            let current = try currentPostImage(identity: entity, revision: revision, release: release)
             let validProjection: Bool
             if entity.kind == .stockBalanceStream {
                 validProjection = row.externalProjectionSHA256 == nil
@@ -2231,8 +2809,265 @@ final class MutationJournalStoreV1 {
             } else {
                 validProjection = latestPostImageByIdentity[entity] == current
             }
-            guard validProjection else {
+            let sourceAnchor: StoreMigrationTerminalSourceAnchorV1
+            if let external = row.externalProjectionSHA256 {
+                sourceAnchor = .externalProjection(
+                    sha256: external,
+                    latestReceipt: latestReceiptAnchorByIdentity[entity]
+                )
+            } else if let receipt = latestReceiptAnchorByIdentity[entity] {
+                sourceAnchor = .receipt(receipt)
+            } else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let historicalChange = try historicalTerminalChange(
+                identity: entity,
+                revision: revision,
+                current: current,
+                sourceAnchor: sourceAnchor,
+                strictProjectionIsValid: validProjection,
+                release: release,
+                authority: historicalAuthority
+            )
+            guard validProjection || historicalChange != nil else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            sourceAnchors.append(StoreMigrationSourceRevisionAnchorV1(
+                identity: entity,
+                revision: revision,
+                priorExternalProjectionSHA256: row.externalProjectionSHA256,
+                sourceCurrentPostImage: current,
+                sourceAnchor: sourceAnchor
+            ))
+            if let historicalChange { changedEntries.append(historicalChange) }
+        }
+        return StoreMigrationValidatedTerminalImagesV1(
+            sourceWorkspaceID: state.workspaceID,
+            sourceGenerationID: generationID,
+            sourceRelease: release,
+            sourceState: StoreMigrationSourceMutationStateAnchorV1(
+                workspaceID: state.workspaceID,
+                generationID: state.generationID,
+                activeReplicaID: state.activeReplicaID,
+                workspaceRevision: state.workspaceRevision,
+                lastLocalSequence: state.lastLocalSequence,
+                mutableSemanticSHA256: state.mutableSemanticSHA256
+            ),
+            sourceReceiptAnchors: sourceReceiptAnchors,
+            sourceRevisionAnchors: sourceAnchors,
+            changedEntries: changedEntries
+        )
+    }
+
+    private func historicalTerminalChange(
+        identity: WorkspaceEntityIdentityV1,
+        revision: UInt64,
+        current: MutationPostImageV1,
+        sourceAnchor: StoreMigrationTerminalSourceAnchorV1,
+        strictProjectionIsValid: Bool,
+        release: PersistentSchemaReleaseV1,
+        authority: StoreMigrationHistoricalCheckpointAuthorityV1?
+    ) throws -> StoreMigrationChangedTerminalImageV1? {
+        let sourceVersion = release.versionIdentifier.major
+        switch identity.kind {
+        case .asset:
+            guard sourceVersion < 10 || !strictProjectionIsValid else { return nil }
+            guard let authority else { return nil }
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<Asset>(predicate: #Predicate { $0.id == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return nil }
+            let base = v4AssetDTO(row)
+            let legacy = try semanticPostImage(identity, revision, base)
+            let semantic = try authority.predictedLegacyAssetSemantics(assetID: id)
+            try requireHistoricalAdditions(.asset(semantic), identity: identity, releaseVersion: sourceVersion)
+            let predicted = try semanticPostImage(
+                identity,
+                revision,
+                AssetSemanticAssetPostImageV1(asset: base, semantic: semantic)
+            )
+            let sourceExpected = sourceVersion < 10 ? legacy : predicted
+            guard current == sourceExpected else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let recipe: StoreMigrationReleasedPostImageRecipeV1
+            let authoritative: MutationPostImageV1
+            if strictProjectionIsValid {
+                recipe = sourceVersion < 10 ? .assetV4 : .assetV10
+                authoritative = current
+            } else {
+                guard sourceVersion >= 10,
+                      try sourceAnchorMatches(sourceAnchor, expected: legacy) else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                recipe = .assetV4
+                authoritative = legacy
+            }
+            guard predicted != authoritative || !strictProjectionIsValid else { return nil }
+            return StoreMigrationChangedTerminalImageV1(
+                identity: identity,
+                revision: revision,
+                base: .asset(base),
+                sourceRecipe: recipe,
+                sourceAuthoritativePostImage: authoritative,
+                predictedActivePostImage: predicted,
+                additions: .asset(semantic)
+            )
+
+        case .workflowRecord:
+            guard sourceVersion < 8 || !strictProjectionIsValid else { return nil }
+            guard let authority else { return nil }
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return nil }
+            let base = v4WorkflowDTO(row)
+            let observation: ObservationAndTimeMigrationResultV1
+            if sourceVersion >= 5 {
+                let companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: id, in: modelContext)
+                observation = try ObservationAndTimeMigrationV1.migrate(
+                    existingObservationBasisData: companion.observationBasisV1Data,
+                    existingTemporalContextData: companion.temporalContextV1Data,
+                    couldNotVerifyKey: row.couldNotVerifyKey,
+                    couldNotVerifyDisplaySnapshot: row.couldNotVerifyDisplaySnapshot,
+                    couldNotVerifyRegistryVersion: row.couldNotVerifyRegistryVersion,
+                    observedAtUTC: row.observedAtUTC,
+                    recordedAtUTC: row.completedAt ?? row.startedAt,
+                    timeZoneID: row.timeZoneID,
+                    utcOffsetMinutes: row.utcOffsetMinutes,
+                    localDate: row.localDate,
+                    localTime: row.localTime
+                )
+            } else {
+                observation = try authority.predictedObservationAndTime(recordID: id)
+            }
+            guard !observation.requiresForwardRepair,
+                  let observationBasisData = observation.observationBasisData,
+                  let temporalContextData = observation.temporalContextData else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let assurance = try authority.predictedLegacyAssurance(recordID: id)
+            let additions = StoreMigrationTerminalAdditionsV1.workflow(
+                observation: observation,
+                assurance: assurance
+            )
+            try requireHistoricalAdditions(additions, identity: identity, releaseVersion: sourceVersion)
+            let v4 = try semanticPostImage(identity, revision, base)
+            let v5Base = base.replacingObservationAndTime(
+                basisData: observationBasisData,
+                temporalData: temporalContextData
+            )
+            let v5 = try semanticPostImage(identity, revision, v5Base)
+            let v8 = try semanticPostImage(
+                identity,
+                revision,
+                WorkflowRecordPostImageV8(record: v5Base, requirementAssurance: assurance.snapshot)
+            )
+            let sourceExpected: MutationPostImageV1
+            if sourceVersion < 5 { sourceExpected = v4 }
+            else if sourceVersion < 8 { sourceExpected = v5 }
+            else { sourceExpected = v8 }
+            guard current == sourceExpected else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let recipe: StoreMigrationReleasedPostImageRecipeV1
+            let authoritative: MutationPostImageV1
+            if strictProjectionIsValid {
+                recipe = sourceVersion < 5 ? .workflowV4 : .workflowV5
+                authoritative = current
+            } else if sourceVersion >= 8, try sourceAnchorMatches(sourceAnchor, expected: v5) {
+                recipe = .workflowV5
+                authoritative = v5
+            } else if sourceVersion >= 5, try sourceAnchorMatches(sourceAnchor, expected: v4) {
+                let predictedObservation = try authority.predictedObservationAndTime(recordID: id)
+                guard predictedObservation.observationBasisData == observationBasisData,
+                      predictedObservation.temporalContextData == temporalContextData,
+                      !predictedObservation.requiresForwardRepair else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                recipe = .workflowV4
+                authoritative = v4
+            } else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard v8 != authoritative || !strictProjectionIsValid else { return nil }
+            return StoreMigrationChangedTerminalImageV1(
+                identity: identity,
+                revision: revision,
+                base: .workflow(base),
+                sourceRecipe: recipe,
+                sourceAuthoritativePostImage: authoritative,
+                predictedActivePostImage: v8,
+                additions: additions
+            )
+
+        default:
+            return nil
+        }
+    }
+
+    private func sourceAnchorMatches(
+        _ anchor: StoreMigrationTerminalSourceAnchorV1,
+        expected: MutationPostImageV1
+    ) throws -> Bool {
+        switch anchor {
+        case .receipt(let receipt):
+            return receipt.postImage == expected
+        case .externalProjection(let sha256, _):
+            return MutationEnvelopeV1.isSHA256(sha256)
+                && sha256 == expected.semanticSHA256
+        }
+    }
+
+    private func requireHistoricalAdditions(
+        _ additions: StoreMigrationTerminalAdditionsV1,
+        identity: WorkspaceEntityIdentityV1,
+        releaseVersion: Int
+    ) throws {
+        switch additions {
+        case .asset(let expected):
+            guard identity.kind == .asset else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            if releaseVersion >= 10 {
+                guard try AssetSemanticLifecycleAdapterV1.snapshot(
+                    workspaceID: self.identity.workspaceID,
+                    assetID: identity.id,
+                    in: modelContext
+                ) == expected else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            }
+        case .workflow(let observation, let assurance):
+            guard identity.kind == .workflowRecord,
+                  !observation.requiresForwardRepair,
+                  let basis = observation.observationBasisData,
+                  let temporal = observation.temporalContextData else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            if releaseVersion >= 5 {
+                let row = try ObservationAndTimeRowStoreV1.requireRow(
+                    recordID: identity.id,
+                    in: modelContext
+                )
+                guard row.schemaVersion == ObservationAndTimeRow.currentSchemaVersion,
+                      row.observationBasisV1Data == basis,
+                      row.temporalContextV1Data == temporal else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            }
+            if releaseVersion >= 8 {
+                let id = identity.id
+                var descriptor = FetchDescriptor<RequirementAssuranceRow>(
+                    predicate: #Predicate { $0.workflowRecordID == id }
+                )
+                descriptor.fetchLimit = 2
+                let rows = try modelContext.fetch(descriptor)
+                guard rows.count == 1, let row = rows.first,
+                      try row.snapshot() == assurance.snapshot,
+                      row.mutationID == assurance.mutationID,
+                      row.createdAt == assurance.timestamp,
+                      row.updatedAt == assurance.timestamp else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
             }
         }
     }
@@ -2625,7 +3460,10 @@ final class MutationJournalStoreV1 {
         state.mutableSemanticSHA256 = try mutableSemanticSHA256()
     }
 
-    private func bootstrapOrValidateState(allowBootstrap: Bool) throws {
+    private func bootstrapOrValidateState(
+        allowBootstrap: Bool,
+        allowMissingCheckpoint: Bool = false
+    ) throws {
         let workspace = identity.workspaceID.rawValue
         let rows = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>(
             predicate: #Predicate { $0.workspaceID == workspace }
@@ -2636,7 +3474,11 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             if row.mutableSemanticSHA256 == nil {
+                if allowMissingCheckpoint { return }
                 guard allowBootstrap else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                // Candidate initialization is one transaction: receipt recovery
+                // must succeed before either the rebind or checkpoint is saved.
+                if case .aggregateCandidate = accessMode { return }
                 row.mutableSemanticSHA256 = try mutableSemanticSHA256()
                 do { try saveWithMaintenanceAuthorization() } catch {
                     modelContext.rollback()
@@ -2665,7 +3507,10 @@ final class MutationJournalStoreV1 {
     func withAuthorizedRecovery<Value>(
         _ operation: () throws -> Value
     ) throws -> Value {
-        try withStaleWriterFence(operation)
+        if case let .aggregateCandidate(authority) = accessMode {
+            return try authority.withAuthorizedContext { _, _ in try operation() }
+        }
+        return try withStaleWriterFence(operation)
     }
 
     private func saveWithStaleWriterFence() throws {
@@ -2678,6 +3523,8 @@ final class MutationJournalStoreV1 {
         switch accessMode {
         case .canonicalWriter:
             try saveWithStaleWriterFence()
+        case let .aggregateCandidate(authority):
+            try authority.withAuthorizedContext { _, _ in try modelContext.save() }
         case .maintenanceOrTest:
             try modelContext.save()
         }
@@ -2699,6 +3546,8 @@ final class MutationJournalStoreV1 {
 #else
             throw WorkspaceMutationFailureV1.persistenceFailed
 #endif
+        case .aggregateCandidate:
+            throw WorkspaceMutationFailureV1.wrongGeneration
         }
     }
 
@@ -2724,6 +3573,8 @@ final class MutationJournalStoreV1 {
 #else
             throw WorkspaceMutationFailureV1.persistenceFailed
 #endif
+        case .aggregateCandidate:
+            throw WorkspaceMutationFailureV1.wrongGeneration
         }
     }
 
@@ -2756,8 +3607,193 @@ final class MutationJournalStoreV1 {
         return UInt64(value)
     }
 
-    private func validate(row: MutationReceiptRow, expectedEnvelope: MutationEnvelopeV1?) throws -> MutationReceiptV1 {
+    /// Release availability is derived from the released schema change points.
+    /// Historical validation rejects a future command before any command-
+    /// specific reference validator can fetch a model absent from that schema.
+    private static func minimumRelease(for kind: WorkspaceCommandKindV1) -> Int {
+        switch kind {
+        case .createFirstSign, .createCheckDraft, .acceptCheckEvidence,
+             .updateSiteTimeZone, .deleteAsset, .deleteSite, .eraseWorkspace,
+             .finalizeCheck, .finalizeCorrection, .recordWork,
+             .restoreWorkspace, .archiveEntities:
+            return PersistentSchemaV4.versionIdentifier.major
+        case .applyLocationHierarchyChange, .applyAssetPlacementChange,
+             .applyAssetCompositionChange:
+            return PersistentSchemaV6.versionIdentifier.major
+        case .applySavedSmartView: return PersistentSchemaV7.versionIdentifier.major
+        case .applyRequirementAssurance: return PersistentSchemaV8.versionIdentifier.major
+        case .applyPartyAccountability: return PersistentSchemaV9.versionIdentifier.major
+        case .applyAssetSemantics: return PersistentSchemaV10.versionIdentifier.major
+        case .applyAuthorityCriterion: return PersistentSchemaV11.versionIdentifier.major
+        case .applyFunctionalRelationship: return PersistentSchemaV12.versionIdentifier.major
+        case .applyEvidenceAssurance: return PersistentSchemaV13.versionIdentifier.major
+        case .applyInspectionReview: return PersistentSchemaV14.versionIdentifier.major
+        case .applyWorkPacket: return PersistentSchemaV15.versionIdentifier.major
+        case .applyFieldDraft: return PersistentSchemaV16.versionIdentifier.major
+        case .applyPackagePromotion: return PersistentSchemaV17.versionIdentifier.major
+        case .applyMeasurementIntegrity: return PersistentSchemaV18.versionIdentifier.major
+        case .applyPrivacyTransform: return PersistentSchemaV19.versionIdentifier.major
+        case .applyClientCapability: return PersistentSchemaV20.versionIdentifier.major
+        case .applyFieldReference: return PersistentSchemaV22.versionIdentifier.major
+        case .applyAccessibleDocumentAssessment: return PersistentSchemaV23.versionIdentifier.major
+        case .applySurveyDefinition: return PersistentSchemaV24.versionIdentifier.major
+        case .applySurveySession: return PersistentSchemaV25.versionIdentifier.major
+        case .applyAssetLocator: return PersistentSchemaV26.versionIdentifier.major
+        case .applySchedule: return PersistentSchemaV27.versionIdentifier.major
+        case .applyPlan: return PersistentSchemaV28.versionIdentifier.major
+        case .applyPlacementPose: return PersistentSchemaV29.versionIdentifier.major
+        case .applyEvidenceContext: return PersistentSchemaV30.versionIdentifier.major
+        case .applyLighting: return PersistentSchemaV31.versionIdentifier.major
+        case .applyAssistanceAcceptance: return PersistentSchemaV32.versionIdentifier.major
+        case .applyTemporalEvidence: return PersistentSchemaV33.versionIdentifier.major
+        case .applyAssetLabel: return PersistentSchemaV34.versionIdentifier.major
+        case .applyOperationalContact: return PersistentSchemaV35.versionIdentifier.major
+        case .applyActivityContract, .applyPortableReview:
+            return PersistentSchemaV36.versionIdentifier.major
+        case .applyWorkResource: return PersistentSchemaV37.versionIdentifier.major
+        case .applyServiceRequest: return PersistentSchemaV39.versionIdentifier.major
+        case .applyServiceReliability: return PersistentSchemaV40.versionIdentifier.major
+        case .applyPartsStock: return PersistentSchemaV41.versionIdentifier.major
+        case .applyMyDay: return PersistentSchemaV42.versionIdentifier.major
+        case .applyEvidenceMetadata: return PersistentSchemaV43.versionIdentifier.major
+        case .applyShopReportProfile: return PersistentSchemaV44.versionIdentifier.major
+        case .applyRoundSession: return PersistentSchemaV45.versionIdentifier.major
+        case .applyImportBulk: return PersistentSchemaV46.versionIdentifier.major
+        case .applyEvidenceQuality: return PersistentSchemaV47.versionIdentifier.major
+        case .applyFastSurveyInbox: return PersistentSchemaV48.versionIdentifier.major
+        case .applyReinspectionException: return PersistentSchemaV49.versionIdentifier.major
+        case .applyEntityIdentityResolution: return PersistentSchemaV50.versionIdentifier.major
+        case .applyWorkspaceExperience: return PersistentSchemaV51.versionIdentifier.major
+        case .applyLightingDayInventory: return PersistentSchemaV52.versionIdentifier.major
+        case .applyLightingNightWorkflow, .applyPartyContactSiteRoleImport:
+            return PersistentSchemaV53.versionIdentifier.major
+        }
+    }
+
+    /// The same released-schema boundary protects terminal images and revision
+    /// rows before `currentPostImage` can touch a future model family.
+    private static func minimumRelease(for kind: WorkspaceEntityKindV1) -> Int {
+        switch kind {
+        case .site, .asset, .workflowRecord, .evidenceFile, .issue, .packet,
+             .report, .deletionLedgerEntry:
+            return PersistentSchemaV4.versionIdentifier.major
+        case .locationNode, .assetPlacementEvent, .assetCompositionEdge,
+             .assetCompositionEvent:
+            return PersistentSchemaV6.versionIdentifier.major
+        case .savedSmartView: return PersistentSchemaV7.versionIdentifier.major
+        case .serviceParty, .sitePartyRoleEvent, .actorSnapshot,
+             .qualificationSnapshot, .signoffSnapshot:
+            return PersistentSchemaV9.versionIdentifier.major
+        case .authoritySourceRelease, .requirementBasisBinding,
+             .applicabilityContextSnapshot, .assessmentScopeSnapshot,
+             .severityScaleRelease, .findingClassificationBinding,
+             .measurementProtocolRelease, .derivedFactEvaluatorDescriptor,
+             .derivedFactProvenance:
+            return PersistentSchemaV11.versionIdentifier.major
+        case .functionalRelationshipTypeDescriptor, .assetFunctionalRelationshipEvent:
+            return PersistentSchemaV12.versionIdentifier.major
+        case .evidenceVisibility, .claimEvidenceLink, .assuranceManifest, .attestation:
+            return PersistentSchemaV13.versionIdentifier.major
+        case .inspectionReviewTransition, .reviewDisposition, .changeRequest,
+             .correctiveActionPolicy, .correctiveActionEvent:
+            return PersistentSchemaV14.versionIdentifier.major
+        case .workPacketManifest, .workItemClaim, .workLease, .workRelease, .workHandoff:
+            return PersistentSchemaV15.versionIdentifier.major
+        case .fieldDraftCheckpoint, .attachmentStagingItem, .draftCommitSaga,
+             .draftContentReservation, .draftCommitReceipt, .draftDiscardReceipt:
+            return PersistentSchemaV16.versionIdentifier.major
+        case .promotedPackageRelease, .packageSandboxRun, .packagePromotionReceipt,
+             .activePackageRegistryPointer:
+            return PersistentSchemaV17.versionIdentifier.major
+        case .instrumentReference, .calibrationStatusSnapshot, .measurementCapture,
+             .measurementSeries, .measurementQualityAssessment:
+            return PersistentSchemaV18.versionIdentifier.major
+        case .privacyTransformPolicy, .privacyRegion, .privacyTransformManifest,
+             .privacyReviewReceipt:
+            return PersistentSchemaV19.versionIdentifier.major
+        case .clientCapabilityProfile, .clientCapabilityAdmissionDecision,
+             .packageLifecyclePolicy, .packageLifecycleDisposition:
+            return PersistentSchemaV20.versionIdentifier.major
+        case .fieldReferenceRelease, .fieldReferenceBinding:
+            return PersistentSchemaV22.versionIdentifier.major
+        case .accessibleDocumentAssessmentReceipt:
+            return PersistentSchemaV23.versionIdentifier.major
+        case .surveyDefinitionIdentity, .surveyDefinitionRelease:
+            return PersistentSchemaV24.versionIdentifier.major
+        case .surveySession, .factCapture, .provisionalSubject,
+             .subjectPromotionReceipt, .surveyPublicationSnapshot:
+            return PersistentSchemaV25.versionIdentifier.major
+        case .assetLocator, .locatorBindingReceipt:
+            return PersistentSchemaV26.versionIdentifier.major
+        case .scheduleDefinitionRelease, .occurrenceHistoryEvent:
+            return PersistentSchemaV27.versionIdentifier.major
+        case .planDocument, .planRevision, .planPlacement, .planRebaseReceipt:
+            return PersistentSchemaV28.versionIdentifier.major
+        case .assetPoseEvent, .spatialAnchorObservation:
+            return PersistentSchemaV29.versionIdentifier.major
+        case .evidenceContext, .pairedObservationLink:
+            return PersistentSchemaV30.versionIdentifier.major
+        case .lightingSystem, .lightingObservation, .lightingIssue,
+             .lightingMeasurementPlan, .lightingClaimState:
+            return PersistentSchemaV31.versionIdentifier.major
+        case .temporalEvidenceClip, .timecodedEvidenceAnchor:
+            return PersistentSchemaV33.versionIdentifier.major
+        case .acceptedLabelGenerationSnapshot:
+            return PersistentSchemaV34.versionIdentifier.major
+        case .serviceContactPoint, .systemHandoffIntent:
+            return PersistentSchemaV35.versionIdentifier.major
+        case .activitySessionEnvelope, .activityStateTransition, .installationTaskResult,
+             .installationAsBuiltSnapshot, .punchReviewBasisSnapshot:
+            return PersistentSchemaV36.versionIdentifier.major
+        case .workResourceEntry: return PersistentSchemaV37.versionIdentifier.major
+        case .exceptionCalendarRelease, .scheduleOverrideEvent:
+            return PersistentSchemaV38.versionIdentifier.major
+        case .serviceRequestRecord, .serviceRequestDispositionEvent,
+             .serviceRequestWorkLinkEvent:
+            return PersistentSchemaV39.versionIdentifier.major
+        case .assetServiceIncident, .serviceImpactSegment, .serviceCauseAssertion,
+             .serviceRemedyAssertion, .serviceRepairInterval,
+             .serviceRestorationAssertion, .qualifiedServiceExposure:
+            return PersistentSchemaV40.versionIdentifier.major
+        case .localPartDefinition, .stockStorageLocation, .stockBalanceStream,
+             .stockMovementEvent, .stockUseReceipt, .stockUseReversalReceipt,
+             .stockReturnReceipt, .stockAbandonment:
+            return PersistentSchemaV41.versionIdentifier.major
+        case .myDayPlan, .myDayCarryoverReceipt:
+            return PersistentSchemaV42.versionIdentifier.major
+        case .evidenceAssociationEvent, .evidenceSequenceRevision:
+            return PersistentSchemaV43.versionIdentifier.major
+        case .shopReportProfile: return PersistentSchemaV44.versionIdentifier.major
+        case .roundSession: return PersistentSchemaV45.versionIdentifier.major
+        case .importMappingProfile, .bulkSession, .bulkCommitReceipt:
+            return PersistentSchemaV46.versionIdentifier.major
+        case .evidenceQualityRuleSet, .evidenceQualityAssessment, .evidenceQualityWaiverEvent:
+            return PersistentSchemaV47.versionIdentifier.major
+        case .captureInboxItem, .capturePromotion, .snippet, .snippetInsertion:
+            return PersistentSchemaV48.versionIdentifier.major
+        case .reinspectionPlan, .unchangedAttestation, .exceptionQueueAcknowledgement:
+            return PersistentSchemaV49.versionIdentifier.major
+        case .entityAliasLink, .entityConsolidationReceipt:
+            return PersistentSchemaV50.versionIdentifier.major
+        case .practiceWorkspaceProvenance:
+            return PersistentSchemaV51.versionIdentifier.major
+        case .lightingDayInventoryWorkflow:
+            return PersistentSchemaV52.versionIdentifier.major
+        case .lightingNightWorkflow:
+            return PersistentSchemaV53.versionIdentifier.major
+        }
+    }
+
+    private func validate(
+        row: MutationReceiptRow,
+        expectedEnvelope: MutationEnvelopeV1?,
+        release: PersistentSchemaReleaseV1 = PersistentSchemaReleaseRegistryV1.activeRelease
+    ) throws -> MutationReceiptV1 {
         let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+        let releaseVersion = release.versionIdentifier.major
+        guard Self.minimumRelease(for: envelope.commandKind) <= releaseVersion else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         if case let .applySurveySession(mutation) = envelope.command {
             try validateSurveySessionReferences(mutation)
         }
@@ -2787,6 +3823,12 @@ final class MutationJournalStoreV1 {
         if case let .applyFastSurveyInbox(mutation)=envelope.command{try mutation.validate()}
         if case let .applyReinspectionException(mutation)=envelope.command{try mutation.validate()}
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
+        let receiptIdentities = receipt.expectedRevision.entityRevisions.map(\.identity)
+            + receipt.resultingRevision.entityRevisions.map(\.identity)
+            + (try receipt.postImages.flatMap { try Self.terminalStateIdentities(for: $0) })
+        guard receiptIdentities.allSatisfy({ Self.minimumRelease(for: $0.kind) <= releaseVersion }) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         guard row.mutationID == envelope.mutationID.rawValue,
               row.workspaceID == envelope.workspaceID.rawValue,
               row.workspaceMutationKey == MutationWorkspaceKeyV1.value(
@@ -2881,10 +3923,54 @@ final class MutationJournalStoreV1 {
         return receipt
     }
 
+    private func v4AssetDTO(_ row: Asset) -> V4BackupAssetDTO {
+        V4BackupAssetDTO(
+            id: row.id, schemaVersion: row.schemaVersion, siteID: row.siteID,
+            packID: row.packID, packSchemaVersion: row.packSchemaVersion,
+            packContentVersion: row.packContentVersion, label: row.label,
+            createdAt: row.createdAt, updatedAt: row.updatedAt
+        )
+    }
+
+    private func v4WorkflowDTO(_ row: WorkflowRecord) -> V4BackupWorkflowRecordDTO {
+        V4BackupWorkflowRecordDTO(
+            id: row.id, schemaVersion: row.schemaVersion, assetID: row.assetID,
+            packetID: row.packetID, issueID: row.issueID, parentRecordID: row.parentRecordID,
+            recordRevisionRootID: row.recordRevisionRootID, revisesRecordID: row.revisesRecordID,
+            evidenceSourceRecordID: row.evidenceSourceRecordID, revisionKind: row.revisionKind,
+            stage: row.stage, state: row.state, draftStepKey: row.draftStepKey,
+            startedAt: row.startedAt, completedAt: row.completedAt,
+            observedAtUTC: row.observedAtUTC, timeZoneID: row.timeZoneID,
+            utcOffsetMinutes: row.utcOffsetMinutes, localDate: row.localDate,
+            localTime: row.localTime,
+            afterDarkAcknowledgementKey: row.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: row.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: row.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: row.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: row.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: row.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: row.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: row.safePositionAcknowledgementAccepted,
+            packID: row.packID, packSchemaVersion: row.packSchemaVersion,
+            packContentVersion: row.packContentVersion, pdfTemplateID: row.pdfTemplateID,
+            pdfTemplateVersion: row.pdfTemplateVersion, outcomeKey: row.outcomeKey,
+            couldNotVerifyKey: row.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: row.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: row.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: row.workPerformedLocalDate,
+            workDescription: row.workDescription, note: row.note,
+            finalizationMutationID: row.finalizationMutationID
+        )
+    }
+
     private func currentPostImage(
         identity: WorkspaceEntityIdentityV1,
-        revision: UInt64
+        revision: UInt64,
+        release: PersistentSchemaReleaseV1 = PersistentSchemaReleaseRegistryV1.activeRelease
     ) throws -> MutationPostImageV1 {
+        guard Self.minimumRelease(for: identity.kind) <= release.versionIdentifier.major else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         switch identity.kind {
         case .stockBalanceStream: return try tombstone(identity, revision)
         case .evidenceAssociationEvent, .evidenceSequenceRevision:
@@ -2948,12 +4034,10 @@ final class MutationJournalStoreV1 {
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<Asset>(predicate: #Predicate { $0.id == id }))
             guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
-            let asset = V4BackupAssetDTO(
-                id: row.id, schemaVersion: row.schemaVersion, siteID: row.siteID,
-                packID: row.packID, packSchemaVersion: row.packSchemaVersion,
-                packContentVersion: row.packContentVersion, label: row.label,
-                createdAt: row.createdAt, updatedAt: row.updatedAt
-            )
+            let asset = v4AssetDTO(row)
+            if release.versionIdentifier.major < 10 {
+                return try semanticPostImage(identity, revision, asset)
+            }
             let semantic = try AssetSemanticLifecycleAdapterV1.snapshot(
                 workspaceID: self.identity.workspaceID,
                 assetID: id,
@@ -3144,10 +4228,21 @@ final class MutationJournalStoreV1 {
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
             guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            var recordDTO = v4WorkflowDTO(row)
+            guard release.versionIdentifier.major >= 5 else {
+                return try semanticPostImage(identity, revision, recordDTO)
+            }
             let observationAndTime = try ObservationAndTimeRowStoreV1.requireRow(
                 recordID: id,
                 in: modelContext
             )
+            recordDTO = recordDTO.replacingObservationAndTime(
+                basisData: observationAndTime.observationBasisV1Data,
+                temporalData: observationAndTime.temporalContextV1Data
+            )
+            guard release.versionIdentifier.major >= 8 else {
+                return try semanticPostImage(identity, revision, recordDTO)
+            }
             var assuranceDescriptor = FetchDescriptor<RequirementAssuranceRow>(
                 predicate: #Predicate { $0.workflowRecordID == id }
             )
@@ -3156,36 +4251,6 @@ final class MutationJournalStoreV1 {
             guard assuranceRows.count <= 1 else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
-            let recordDTO = V4BackupWorkflowRecordDTO(
-                id: row.id, schemaVersion: row.schemaVersion, assetID: row.assetID,
-                packetID: row.packetID, issueID: row.issueID, parentRecordID: row.parentRecordID,
-                recordRevisionRootID: row.recordRevisionRootID, revisesRecordID: row.revisesRecordID,
-                evidenceSourceRecordID: row.evidenceSourceRecordID, revisionKind: row.revisionKind,
-                stage: row.stage, state: row.state, draftStepKey: row.draftStepKey,
-                startedAt: row.startedAt, completedAt: row.completedAt,
-                observedAtUTC: row.observedAtUTC, timeZoneID: row.timeZoneID,
-                utcOffsetMinutes: row.utcOffsetMinutes, localDate: row.localDate,
-                localTime: row.localTime,
-                afterDarkAcknowledgementKey: row.afterDarkAcknowledgementKey,
-                afterDarkAcknowledgementCopy: row.afterDarkAcknowledgementCopy,
-                afterDarkAcknowledgementVersion: row.afterDarkAcknowledgementVersion,
-                afterDarkAcknowledgementAccepted: row.afterDarkAcknowledgementAccepted,
-                safePositionAcknowledgementKey: row.safePositionAcknowledgementKey,
-                safePositionAcknowledgementCopy: row.safePositionAcknowledgementCopy,
-                safePositionAcknowledgementVersion: row.safePositionAcknowledgementVersion,
-                safePositionAcknowledgementAccepted: row.safePositionAcknowledgementAccepted,
-                packID: row.packID, packSchemaVersion: row.packSchemaVersion,
-                packContentVersion: row.packContentVersion, pdfTemplateID: row.pdfTemplateID,
-                pdfTemplateVersion: row.pdfTemplateVersion, outcomeKey: row.outcomeKey,
-                couldNotVerifyKey: row.couldNotVerifyKey,
-                couldNotVerifyDisplaySnapshot: row.couldNotVerifyDisplaySnapshot,
-                couldNotVerifyRegistryVersion: row.couldNotVerifyRegistryVersion,
-                workPerformedLocalDate: row.workPerformedLocalDate,
-                workDescription: row.workDescription, note: row.note,
-                finalizationMutationID: row.finalizationMutationID,
-                observationBasisV1Data: observationAndTime.observationBasisV1Data,
-                temporalContextV1Data: observationAndTime.temporalContextV1Data
-            )
             return try semanticPostImage(identity, revision, WorkflowRecordPostImageV8(
                 record: recordDTO,
                 requirementAssurance: try assuranceRows.first?.snapshot()
@@ -3250,8 +4315,20 @@ final class MutationJournalStoreV1 {
         }
     }
 
-    private func mutableSemanticSHA256() throws -> String {
-        let revisionRows = try boundedTerminalRevisionRows()
+    private func mutableSemanticSHA256(
+        release: PersistentSchemaReleaseV1 = PersistentSchemaReleaseRegistryV1.activeRelease
+    ) throws -> String {
+        let releaseVersion = release.versionIdentifier.major
+        guard (4...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+                .contains(releaseVersion) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let revisionRows: [EntityMutationRevisionRow]
+        if releaseVersion >= 41 {
+            revisionRows = try boundedTerminalRevisionRows()
+        } else {
+            revisionRows = try boundedFetch(FetchDescriptor<EntityMutationRevisionRow>())
+        }
         var revisionByIdentity: [String: UInt64] = [:]
         for row in revisionRows {
             guard revisionByIdentity[row.stableIdentity] == nil else {
@@ -3262,15 +4339,18 @@ final class MutationJournalStoreV1 {
         var identities: [WorkspaceEntityIdentityV1] = []
         identities += try boundedFetch(FetchDescriptor<Site>()).map { try .init(kind: .site, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<Asset>()).map { try .init(kind: .asset, id: $0.id) }
+        if releaseVersion >= 6 {
         identities += try boundedFetch(FetchDescriptor<LocationNodeRow>()).map { try .init(kind: .locationNode, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<AssetPlacementEventRow>()).map { try .init(kind: .assetPlacementEvent, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<AssetCompositionEdgeRow>()).map { try .init(kind: .assetCompositionEdge, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<AssetCompositionEventRow>()).map { try .init(kind: .assetCompositionEvent, id: $0.id) }
+        }
         identities += try boundedFetch(FetchDescriptor<WorkflowRecord>()).map { try .init(kind: .workflowRecord, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<EvidenceFile>()).map { try .init(kind: .evidenceFile, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<Issue>()).map { try .init(kind: .issue, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<Packet>()).map { try .init(kind: .packet, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<Report>()).map { try .init(kind: .report, id: $0.id) }
+        if releaseVersion >= 11 {
         identities += try boundedFetch(FetchDescriptor<AuthoritySourceReleaseRow>()).map { try .init(kind: .authoritySourceRelease, id: $0.releaseID) }
         identities += try boundedFetch(FetchDescriptor<RequirementBasisBindingRow>()).map { try .init(kind: .requirementBasisBinding, id: $0.bindingID) }
         identities += try boundedFetch(FetchDescriptor<ApplicabilityContextSnapshotRow>()).map { try .init(kind: .applicabilityContextSnapshot, id: $0.snapshotID) }
@@ -3280,56 +4360,86 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<MeasurementProtocolReleaseRow>()).map { try .init(kind: .measurementProtocolRelease, id: $0.releaseID) }
         identities += try boundedFetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()).map { try .init(kind: .derivedFactEvaluatorDescriptor, id: $0.descriptorID) }
         identities += try boundedFetch(FetchDescriptor<DerivedFactProvenanceRow>()).map { try .init(kind: .derivedFactProvenance, id: $0.provenanceID) }
+        }
+        if releaseVersion >= 12 {
         identities += try boundedFetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()).map { try .init(kind: .functionalRelationshipTypeDescriptor, id: $0.descriptorReleaseID) }
         identities += try boundedFetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>()).map { try .init(kind: .assetFunctionalRelationshipEvent, id: $0.eventID) }
+        }
+        if releaseVersion >= 13 {
         identities += try boundedFetch(FetchDescriptor<EvidenceVisibilityRow>()).map{try .init(kind:.evidenceVisibility,id:$0.visibilityID)}
         identities += try boundedFetch(FetchDescriptor<ClaimEvidenceLinkRow>()).map{try .init(kind:.claimEvidenceLink,id:$0.linkID)}
         identities += try boundedFetch(FetchDescriptor<AssuranceManifestRow>()).map{try .init(kind:.assuranceManifest,id:$0.manifestID)}
         identities += try boundedFetch(FetchDescriptor<AttestationRow>()).map{try .init(kind:.attestation,id:$0.attestationID)}
+        }
+        if releaseVersion >= 14 {
         identities += try boundedFetch(FetchDescriptor<InspectionReviewTransitionRow>()).map{try .init(kind:.inspectionReviewTransition,id:$0.transitionID)}
         identities += try boundedFetch(FetchDescriptor<ReviewDispositionRow>()).map{try .init(kind:.reviewDisposition,id:$0.dispositionID)}
         identities += try boundedFetch(FetchDescriptor<ChangeRequestRow>()).map{try .init(kind:.changeRequest,id:$0.requestRevisionID)}
         identities += try boundedFetch(FetchDescriptor<CorrectiveActionPolicyRow>()).map{try .init(kind:.correctiveActionPolicy,id:$0.releaseID)}
         identities += try boundedFetch(FetchDescriptor<CorrectiveActionEventRow>()).map{try .init(kind:.correctiveActionEvent,id:$0.eventID)}
+        }
+        if releaseVersion >= 15 {
         identities += try boundedFetch(FetchDescriptor<WorkPacketManifestRow>()).map{try .init(kind:.workPacketManifest,id:$0.manifestID)}
         identities += try boundedFetch(FetchDescriptor<WorkItemClaimRow>()).map{try .init(kind:.workItemClaim,id:$0.claimID)}
         identities += try boundedFetch(FetchDescriptor<WorkLeaseRow>()).map{try .init(kind:.workLease,id:$0.leaseID)}
         identities += try boundedFetch(FetchDescriptor<WorkReleaseRow>()).map{try .init(kind:.workRelease,id:$0.releaseID)}
         identities += try boundedFetch(FetchDescriptor<WorkHandoffRow>()).map{try .init(kind:.workHandoff,id:$0.handoffID)}
+        }
+        if releaseVersion >= 16 {
         identities += try boundedFetch(FetchDescriptor<FieldDraftCheckpointRow>()).map{try .init(kind:.fieldDraftCheckpoint,id:$0.draftID)}
         identities += try boundedFetch(FetchDescriptor<AttachmentStagingItemRow>()).map{try .init(kind:.attachmentStagingItem,id:$0.stageID)}
         identities += try boundedFetch(FetchDescriptor<DraftCommitSagaRow>()).map{try .init(kind:.draftCommitSaga,id:$0.sagaID)}
         identities += try boundedFetch(FetchDescriptor<DraftContentReservationRow>()).map{try .init(kind:.draftContentReservation,id:$0.reservationID)}
         identities += try boundedFetch(FetchDescriptor<DraftCommitReceiptRow>()).map{try .init(kind:.draftCommitReceipt,id:$0.receiptID)}
         identities += try boundedFetch(FetchDescriptor<DraftDiscardReceiptRow>()).map{try .init(kind:.draftDiscardReceipt,id:$0.receiptID)}
+        }
+        if releaseVersion >= 17 {
         identities += try boundedFetch(FetchDescriptor<PromotedPackageReleaseRow>()).map{try .init(kind:.promotedPackageRelease,id:$0.releaseRecordID)}
         identities += try boundedFetch(FetchDescriptor<PackageSandboxRunRow>()).map{try .init(kind:.packageSandboxRun,id:$0.runID)}
         identities += try boundedFetch(FetchDescriptor<PackagePromotionReceiptRow>()).map{try .init(kind:.packagePromotionReceipt,id:$0.receiptID)}
         identities += try boundedFetch(FetchDescriptor<ActivePackageRegistryPointerRow>()).map{try .init(kind:.activePackageRegistryPointer,id:$0.pointerID)}
+        }
+        if releaseVersion >= 18 {
         identities += try boundedFetch(FetchDescriptor<InstrumentReferenceRow>()).map{try .init(kind:.instrumentReference,id:$0.referenceID)}
         identities += try boundedFetch(FetchDescriptor<CalibrationStatusSnapshotRow>()).map{try .init(kind:.calibrationStatusSnapshot,id:$0.snapshotID)}
         identities += try boundedFetch(FetchDescriptor<MeasurementCaptureRow>()).map{try .init(kind:.measurementCapture,id:$0.captureID)}
         identities += try boundedFetch(FetchDescriptor<MeasurementSeriesRow>()).map{try .init(kind:.measurementSeries,id:$0.snapshotID)}
         identities += try boundedFetch(FetchDescriptor<MeasurementQualityAssessmentRow>()).map{try .init(kind:.measurementQualityAssessment,id:$0.assessmentID)}
+        }
+        if releaseVersion >= 19 {
         identities += try boundedFetch(FetchDescriptor<PrivacyTransformPolicyRow>()).map{try .init(kind:.privacyTransformPolicy,id:$0.policyID)}
         identities += try boundedFetch(FetchDescriptor<PrivacyRegionRow>()).map{try .init(kind:.privacyRegion,id:$0.regionID)}
         identities += try boundedFetch(FetchDescriptor<PrivacyTransformManifestRow>()).map{try .init(kind:.privacyTransformManifest,id:$0.manifestID)}
         identities += try boundedFetch(FetchDescriptor<PrivacyReviewReceiptRow>()).map{try .init(kind:.privacyReviewReceipt,id:$0.receiptID)}
+        }
+        if releaseVersion >= 20 {
         identities += try boundedFetch(FetchDescriptor<ClientCapabilityProfileRow>()).map{try .init(kind:.clientCapabilityProfile,id:$0.profileID)}
         identities += try boundedFetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>()).map{try .init(kind:.clientCapabilityAdmissionDecision,id:$0.decisionID)}
         identities += try boundedFetch(FetchDescriptor<PackageLifecyclePolicyRow>()).map{try .init(kind:.packageLifecyclePolicy,id:$0.policyID)}
         identities += try boundedFetch(FetchDescriptor<PackageLifecycleDispositionRow>()).map{try .init(kind:.packageLifecycleDisposition,id:$0.dispositionID)}
+        }
+        if releaseVersion >= 30 {
         identities += try boundedFetch(FetchDescriptor<EvidenceContextRow>()).map{try .init(kind:.evidenceContext,id:$0.contextID)}
         identities += try boundedFetch(FetchDescriptor<PairedObservationLinkRow>()).map{try .init(kind:.pairedObservationLink,id:$0.linkID)}
+        }
+        if releaseVersion >= 31 {
         identities += try boundedFetch(FetchDescriptor<LightingSystemRow>()).map{try .init(kind:.lightingSystem,id:$0.recordID)}
         identities += try boundedFetch(FetchDescriptor<LightingObservationRow>()).map{try .init(kind:.lightingObservation,id:$0.recordID)}
         identities += try boundedFetch(FetchDescriptor<LightingIssueRow>()).map{try .init(kind:.lightingIssue,id:$0.recordID)}
         identities += try boundedFetch(FetchDescriptor<MeasurementPlanRow>()).map{try .init(kind:.lightingMeasurementPlan,id:$0.recordID)}
         identities += try boundedFetch(FetchDescriptor<LightingClaimStateRow>()).map{try .init(kind:.lightingClaimState,id:$0.recordID)}
+        }
+        if releaseVersion >= 52 {
         identities += try boundedFetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>()).map{try .init(kind:.lightingDayInventoryWorkflow,id:$0.recordID)}
+        }
+        if releaseVersion >= 53 {
         identities += try boundedFetch(FetchDescriptor<LightingNightWorkflowRowV1>()).map{try .init(kind:.lightingNightWorkflow,id:$0.recordID)}
+        }
+        if releaseVersion >= 33 {
         identities += try boundedFetch(FetchDescriptor<TemporalEvidenceClipRow>()).map{try .init(kind:.temporalEvidenceClip,id:$0.clipID)}
         identities += try boundedFetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()).map{try .init(kind:.timecodedEvidenceAnchor,id:$0.anchorID)}
+        }
+        if releaseVersion >= 47 {
         identities += try boundedFetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { row in
             try .init(kind: .evidenceQualityRuleSet, id: try row.value().ruleSetID)
         }
@@ -3347,6 +4457,8 @@ final class MutationJournalStoreV1 {
             for assessment in assessments { if let value = try? row.value(assessment: assessment) { return try .init(kind: .evidenceQualityWaiverEvent, id: value.waiverEventID) } }
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+        }
+        if releaseVersion >= 48 {
         identities += try boundedFetch(FetchDescriptor<CaptureInboxItemRowV1>()).map { row in
             try .init(kind: .captureInboxItem, id: try row.value().inboxItemID)
         }
@@ -3356,6 +4468,8 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<SnippetRowV1>()).map { row in
             try .init(kind: .snippet, id: try row.value().snippetID)
         }
+        }
+        if releaseVersion >= 49 {
         identities += try boundedFetch(FetchDescriptor<ReinspectionPlanRowV1>()).map { row in
             try .init(kind: .reinspectionPlan, id: try row.value().planID)
         }
@@ -3366,16 +4480,21 @@ final class MutationJournalStoreV1 {
             try .init(kind: .exceptionQueueAcknowledgement,
                       id: ReinspectionExceptionMutationCommandV1.acknowledgementIdentity(try row.value().logicalExceptionKey))
         }
+        }
+        if releaseVersion >= 34 {
         identities += try boundedFetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()).filter{row in row.workspaceID==self.identity.workspaceID.rawValue && row.dispositionRawValue==AcceptedLabelSnapshotDispositionV1.activeSourceWorkspace.rawValue}.map{try .init(kind:.acceptedLabelGenerationSnapshot,id:$0.snapshotID)}
+        }
+        if releaseVersion >= 35 {
         identities += try boundedFetch(FetchDescriptor<ServiceContactPointRow>()).filter{$0.workspaceID==self.identity.workspaceID.rawValue}.map{try .init(kind:.serviceContactPoint,id:$0.contactPointID)}
         identities += try boundedFetch(FetchDescriptor<SystemHandoffIntentRow>()).filter{$0.workspaceID==self.identity.workspaceID.rawValue&&$0.dispositionRawValue==SystemHandoffIntentDispositionV1.activeSourceWorkspace.rawValue}.map{try .init(kind:.systemHandoffIntent,id:$0.intentID)}
+        }
         guard identities.count <= Self.maximumMutableContentValidationCount,
               Set(identities).count == identities.count else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         let items = try identities.map { entity -> MutableSemanticItem in
             let revision = revisionByIdentity[entity.stableKey, default: 0]
-            let image = try currentPostImage(identity: entity, revision: revision)
+            let image = try currentPostImage(identity: entity, revision: revision, release: release)
             return MutableSemanticItem(
                 stableIdentity: entity.stableKey,
                 revision: revision,

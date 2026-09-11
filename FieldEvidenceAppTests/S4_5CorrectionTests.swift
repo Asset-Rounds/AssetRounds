@@ -638,6 +638,11 @@ final class S4_5CorrectionTests: XCTestCase {
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         let priorSnapshot = try snapshot(report: harness.originalReport, in: harness)
         let priorRecord = recordPayload(harness.originalRecord)
+        let priorCompanion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: harness.originalRecord.id, in: harness.context
+        )
+        let priorBasisBytes = priorCompanion.observationBasisV1Data
+        let priorTimeBytes = priorCompanion.temporalContextV1Data
         let identifiers = ReportCorrectionIdentifiers(
             mutationID: UUID(), recordID: UUID(), reportID: UUID()
         )
@@ -695,6 +700,26 @@ final class S4_5CorrectionTests: XCTestCase {
             modelContext: harness.context,
             generationRootURL: harness.session.generationRootURL
         )
+        harness.context.delete(priorCompanion)
+        try harness.context.save()
+        do {
+            _ = try await recovery.reconcile()
+            XCTFail("current-schema recovery requires the historical companion")
+        } catch {
+            XCTAssertEqual(error as? FinalizationRecoveryServiceError, .inconsistent)
+        }
+        XCTAssertEqual(try counts(in: harness).records, 1)
+        XCTAssertEqual(try counts(in: harness).reports, 1)
+        XCTAssertEqual(harness.packet.currentRecordID, harness.originalRecord.id)
+        XCTAssertTrue(try harness.context.fetch(FetchDescriptor<ObservationAndTimeRow>())
+            .allSatisfy({ $0.recordID != identifiers.recordID }))
+        XCTAssertTrue(fileManager.fileExists(atPath: intentURL(identifiers, in: harness).path))
+        harness.context.insert(try ObservationAndTimeRow(
+            recordID: harness.originalRecord.id,
+            observationBasisV1Data: priorBasisBytes,
+            temporalContextV1Data: priorTimeBytes
+        ))
+        try harness.context.save()
         let summary = try await recovery.reconcile()
         XCTAssertEqual(summary.completedRecordIDs, [identifiers.recordID])
         let recoveredRecord = try record(id: identifiers.recordID, in: harness)
@@ -703,6 +728,20 @@ final class S4_5CorrectionTests: XCTestCase {
         XCTAssertEqual(recoveredRecord.observedAtUTC, priorRecord.observedAtUTC)
         XCTAssertEqual(recoveredRecord.completedAt, substantiveDate)
         XCTAssertEqual(harness.packet.currentRecordID, identifiers.recordID)
+        let recoveredCompanion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: identifiers.recordID, in: harness.context
+        )
+        XCTAssertEqual(recoveredCompanion.observationBasisV1Data, priorBasisBytes)
+        XCTAssertEqual(recoveredCompanion.temporalContextV1Data, priorTimeBytes)
+        let retainedCompanion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: harness.originalRecord.id, in: harness.context
+        )
+        XCTAssertEqual(retainedCompanion.observationBasisV1Data, priorBasisBytes)
+        XCTAssertEqual(retainedCompanion.temporalContextV1Data, priorTimeBytes)
+        let repeated = try await recovery.reconcile()
+        XCTAssertTrue(repeated.completedRecordIDs.isEmpty)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<ObservationAndTimeRow>())
+            .filter({ $0.recordID == identifiers.recordID }).count, 1)
         XCTAssertFalse(fileManager.fileExists(atPath: intentURL(identifiers, in: harness).path))
         guard case .ready = try makeCoordinator(in: harness)
             .prepareFinalizedReport(id: identifiers.reportID) else {

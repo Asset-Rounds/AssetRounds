@@ -151,6 +151,7 @@ fileprivate struct ValidatedEvidenceBytesV1: Sendable {
 
 @MainActor
 struct SnapshotValidatorV1 {
+    private let sourceRecoveryAuthority: StoreMigrationSourceRecoveryAuthorityV1?
     private let modelContext: ModelContext
     private let generationRootURL: URL
     private let resolvedGenerationRootURL: URL
@@ -198,11 +199,28 @@ struct SnapshotValidatorV1 {
         )
     }
 
+    init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: .illuminatedSignV1
+        )
+        try self.init(
+            modelContext: authority.recoveryContext(),
+            generationRootURL: authority.generationRootURL,
+            fileManager: .default,
+            lifecycleRoute: .expiringCompatibility(
+                profile: profile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            ),
+            sourceRecoveryAuthority: authority
+        )
+    }
+
     private init(
         modelContext: ModelContext,
         generationRootURL: URL,
         fileManager: FileManager,
-        lifecycleRoute: ReportingPackageLifecycleRouteV1
+        lifecycleRoute: ReportingPackageLifecycleRouteV1,
+        sourceRecoveryAuthority: StoreMigrationSourceRecoveryAuthorityV1? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
         try lifecycleRoute.validate(generationRootURL: root)
@@ -221,10 +239,12 @@ struct SnapshotValidatorV1 {
         self.signPack = lifecycleProfile.package
         self.lifecycleProfile = lifecycleProfile
         self.lifecycleRoute = lifecycleRoute
+        self.sourceRecoveryAuthority = sourceRecoveryAuthority
     }
 
     func validate(report: Report) throws -> ValidatedReportSnapshotV1 {
         do {
+            try sourceRecoveryAuthority?.recoveryMutationGuard().validateCurrent()
             return try validateAuthority(report: report)
         } catch let error as SnapshotValidationErrorV1 {
             throw error
@@ -233,16 +253,39 @@ struct SnapshotValidatorV1 {
         }
     }
 
-    private func validateAuthority(report: Report) throws -> ValidatedReportSnapshotV1 {
+    func validateOriginalSource(report: Report) throws -> ValidatedReportSnapshotV1 {
+        try validateOriginalSourceReports([report])[0]
+    }
+
+    func validateOriginalSourceReports(_ reports: [Report]) throws -> [ValidatedReportSnapshotV1] {
+        guard let sourceRecoveryAuthority else { throw SnapshotValidationErrorV1.invalidAuthority }
+        try sourceRecoveryAuthority.recoveryMutationGuard().validateCurrent()
+        try ReportRecoveryService.validateOriginalReplacementChains(authority: sourceRecoveryAuthority)
+        return try reports.map { try validateAuthority(report: $0, allowsOriginalPDFState: true) }
+    }
+
+    private func validateAuthority(
+        report: Report, allowsOriginalPDFState: Bool = false
+    ) throws -> ValidatedReportSnapshotV1 {
+        if usesReleasedObservationFields, report.snapshotSchemaVersion != 1 {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
         let reportID = canonicalID(report.id)
         let expectedSnapshotPath = "snapshots/\(reportID).json"
+        let pdfAuthorityMatches: Bool
+        if allowsOriginalPDFState && report.pdfState == ReportPDFState.ready.rawValue {
+            pdfAuthorityMatches = report.pdfRelativePath == "pdfs/\(reportID).pdf"
+                && report.pdfSHA256.map(isLowercaseSHA256) == true
+        } else {
+            pdfAuthorityMatches = (report.pdfState == ReportPDFState.pending.rawValue
+                || (allowsOriginalPDFState && report.pdfState == ReportPDFState.failed.rawValue))
+                && report.pdfRelativePath == nil && report.pdfSHA256 == nil
+        }
         guard report.schemaVersion == 1,
               (1...4).contains(report.snapshotSchemaVersion),
               report.snapshotRelativePath == expectedSnapshotPath,
               isLowercaseSHA256(report.snapshotSHA256),
-              report.pdfState == ReportPDFState.pending.rawValue,
-              report.pdfRelativePath == nil,
-              report.pdfSHA256 == nil else {
+              pdfAuthorityMatches else {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
 
@@ -308,11 +351,11 @@ struct SnapshotValidatorV1 {
         guard let packet = unique(packets.filter { $0.id == report.packetID }),
               packet.schemaVersion == 1,
               packet.stableRootID == snapshot.stableRootID,
-              packet.currentRecordID == report.sourceRecordID,
+              (allowsOriginalPDFState || packet.currentRecordID == report.sourceRecordID),
               packet.evaluationCounted,
               packet.contentDeletedAt == nil,
               packets.filter({ $0.stableRootID == packet.stableRootID }).count == 1,
-              packets.filter({ $0.currentRecordID == report.sourceRecordID }).count == 1 else {
+              (allowsOriginalPDFState || packets.filter({ $0.currentRecordID == report.sourceRecordID }).count == 1) else {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
 
@@ -748,11 +791,11 @@ struct SnapshotValidatorV1 {
         source: WorkflowRecord
     ) throws {
         let expectedCNV = frozenCNV(source)
-        let companion = try ObservationAndTimeRowStoreV1.requireRow(
-            recordID: source.id, in: modelContext
-        )
-        let expectedBasis = try companion.observationBasisV1()
-        let expectedTemporal = try companion.temporalContextV1()
+        let companion: ObservationAndTimeRow?
+        if usesReleasedObservationFields { companion = nil }
+        else { companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: source.id, in: modelContext) }
+        let expectedBasis = try companion?.observationBasisV1()
+        let expectedTemporal = try companion?.temporalContextV1()
         let observationAndTimeMatches: Bool
         if snapshot.snapshotSchemaVersion == 1 {
             // Released v1 snapshots intentionally remain byte-identical after
@@ -1168,11 +1211,11 @@ struct SnapshotValidatorV1 {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
         let expectedCNV = frozenCNV(record)
-        let companion = try ObservationAndTimeRowStoreV1.requireRow(
-            recordID: record.id, in: modelContext
-        )
-        let expectedBasis = try companion.observationBasisV1()
-        let expectedTemporal = try companion.temporalContextV1()
+        let companion: ObservationAndTimeRow?
+        if usesReleasedObservationFields { companion = nil }
+        else { companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: record.id, in: modelContext) }
+        let expectedBasis = try companion?.observationBasisV1()
+        let expectedTemporal = try companion?.temporalContextV1()
         let observationAndTimeMatches: Bool
         if snapshotSchemaVersion == 1 {
             observationAndTimeMatches = value.observationBasis == nil
@@ -1188,6 +1231,7 @@ struct SnapshotValidatorV1 {
     }
 
     private func validObservationAndTime(_ record: WorkflowRecord) -> Bool {
+        if usesReleasedObservationFields { return true }
         do {
             let companion = try ObservationAndTimeRowStoreV1.requireRow(
                 recordID: record.id, in: modelContext
@@ -1200,6 +1244,14 @@ struct SnapshotValidatorV1 {
                 && temporalData == companion.temporalContextV1Data
         } catch {
             return false
+        }
+    }
+
+    private var usesReleasedObservationFields: Bool {
+        guard let sourceRecoveryAuthority else { return false }
+        switch sourceRecoveryAuthority.sourceRelease {
+        case .v1, .v2, .v3, .v4: return true
+        default: return false
         }
     }
 

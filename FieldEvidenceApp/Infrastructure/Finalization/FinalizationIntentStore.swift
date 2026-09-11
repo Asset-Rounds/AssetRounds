@@ -195,6 +195,7 @@ final class FinalizationIntentStoreAuthorityBarrier: @unchecked Sendable {
 }
 
 actor FinalizationIntentStore {
+    private let sourceMutationGuard: StoreMigrationSourceMutationGuardV1?
     private let authorityResult: Result<PinnedAuthority, FinalizationIntentStoreError>
     private let failureInjection: FinalizationIntentStoreFailureInjection?
     private let authorityBarrier: FinalizationIntentStoreAuthorityBarrier?
@@ -213,14 +214,17 @@ actor FinalizationIntentStore {
         let root = generationRootURL.standardizedFileURL
         self.failureInjection = failureInjection
         self.authorityBarrier = authorityBarrier
+        self.sourceMutationGuard = nil
         _ = fileManager // Kept only for source compatibility; never storage authority.
         do {
-            authorityResult = .success(
+            let open = {
                 try PinnedAuthority(
                     generationRootURL: root,
                     expectedGenerationRootIdentity: expectedGenerationRootIdentity
                 )
-            )
+            }
+            let authority = try open()
+            authorityResult = .success(authority)
         } catch let error as FinalizationIntentStoreError {
             authorityResult = .failure(error)
         } catch {
@@ -228,7 +232,32 @@ actor FinalizationIntentStore {
         }
     }
 
+    @MainActor
+    init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        let guardValue = try authority.recoveryMutationGuard()
+        let root = authority.generationRootURL.standardizedFileURL
+        let pinned = try guardValue.withAuthorizedMutation {
+            try PinnedAuthority(generationRootURL: root,
+                                expectedGenerationRootIdentity: ReportPDFAnchoredFile.rootIdentity(at: root))
+        }
+        self.sourceMutationGuard = guardValue
+        self.authorityResult = .success(pinned)
+        self.failureInjection = nil
+        self.authorityBarrier = nil
+    }
+
     func discoverRecoverableFinalizations() throws -> [RecoverableFinalization] {
+        try withSourceMutationAuthority { try discoverRecoverableFinalizationsUnprotected() }
+    }
+
+    private func withSourceMutationAuthority<T>(_ operation: () throws -> T) throws -> T {
+        if let sourceMutationGuard {
+            return try sourceMutationGuard.withAuthorizedMutation(operation)
+        }
+        return try operation()
+    }
+
+    private func discoverRecoverableFinalizationsUnprotected() throws -> [RecoverableFinalization] {
         let authority = try requireAuthority()
         return try authority.enumeratedIntentNames().map { name in
             guard name.count == 41, name.hasSuffix(".json"),
@@ -285,12 +314,16 @@ actor FinalizationIntentStore {
     }
 
     func promoteForRecovery(_ recovery: RecoverableFinalization) throws -> RecoverableFinalization {
+        try withSourceMutationAuthority { try promoteForRecoveryUnprotected(recovery) }
+    }
+
+    private func promoteForRecoveryUnprotected(_ recovery: RecoverableFinalization) throws -> RecoverableFinalization {
         guard recovery.intent.phase == .prepared,
               recovery.hasStagingSnapshot,
               !recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
-        let promoted = try promoteSnapshot(
+        let promoted = try promoteSnapshotUnprotected(
             PreparedFinalization(
                 intent: recovery.intent,
                 intentRelativePath: recovery.intentRelativePath,
@@ -313,6 +346,12 @@ actor FinalizationIntentStore {
     }
 
     func removeIdenticalStagingForRecovery(
+        _ recovery: RecoverableFinalization
+    ) throws -> RecoverableFinalization {
+        try withSourceMutationAuthority { try removeIdenticalStagingForRecoveryUnprotected(recovery) }
+    }
+
+    private func removeIdenticalStagingForRecoveryUnprotected(
         _ recovery: RecoverableFinalization
     ) throws -> RecoverableFinalization {
         guard recovery.hasStagingSnapshot, recovery.hasFinalSnapshot else {
@@ -343,10 +382,16 @@ actor FinalizationIntentStore {
         _ recovery: RecoverableFinalization,
         to phase: FinalizationPhaseV1
     ) throws -> RecoverableFinalization {
+        try withSourceMutationAuthority { try advanceForRecoveryUnprotected(recovery, to: phase) }
+    }
+
+    private func advanceForRecoveryUnprotected(
+        _ recovery: RecoverableFinalization, to phase: FinalizationPhaseV1
+    ) throws -> RecoverableFinalization {
         guard recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.itemMissing
         }
-        let advanced = try advance(
+        let advanced = try advanceUnprotected(
             PromotedFinalization(
                 intent: recovery.intent,
                 intentRelativePath: recovery.intentRelativePath,
@@ -370,6 +415,10 @@ actor FinalizationIntentStore {
     }
 
     func abandonPreparedWithoutSnapshots(_ recovery: RecoverableFinalization) throws {
+        try withSourceMutationAuthority { try abandonPreparedWithoutSnapshotsUnprotected(recovery) }
+    }
+
+    private func abandonPreparedWithoutSnapshotsUnprotected(_ recovery: RecoverableFinalization) throws {
         guard recovery.intent.phase == .prepared,
               !recovery.hasStagingSnapshot,
               !recovery.hasFinalSnapshot else {
@@ -382,10 +431,14 @@ actor FinalizationIntentStore {
     }
 
     func rollbackForRecovery(_ recovery: RecoverableFinalization) throws {
+        try withSourceMutationAuthority { try rollbackForRecoveryUnprotected(recovery) }
+    }
+
+    private func rollbackForRecoveryUnprotected(_ recovery: RecoverableFinalization) throws {
         guard recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.itemMissing
         }
-        try rollbackUncommitted(
+        try rollbackUncommittedUnprotected(
             PromotedFinalization(
                 intent: recovery.intent,
                 intentRelativePath: recovery.intentRelativePath,
@@ -398,10 +451,14 @@ actor FinalizationIntentStore {
     }
 
     func cleanupCommittedForRecovery(_ recovery: RecoverableFinalization) throws {
+        try withSourceMutationAuthority { try cleanupCommittedForRecoveryUnprotected(recovery) }
+    }
+
+    private func cleanupCommittedForRecoveryUnprotected(_ recovery: RecoverableFinalization) throws {
         guard recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.itemMissing
         }
-        try cleanupCommitted(
+        try cleanupCommittedUnprotected(
             PromotedFinalization(
                 intent: recovery.intent,
                 intentRelativePath: recovery.intentRelativePath,
@@ -417,6 +474,7 @@ actor FinalizationIntentStore {
         intent: FinalizationIntentV1,
         snapshot: EncodedReportSnapshotV1
     ) throws -> PreparedFinalization {
+        try requireProducerAuthority()
         let authority = try requireAuthority()
         guard intent.generationID == authority.generationID else {
             throw FinalizationIntentStoreError.intentInvalid
@@ -499,6 +557,11 @@ actor FinalizationIntentStore {
     }
 
     func promoteSnapshot(_ prepared: PreparedFinalization) throws -> PromotedFinalization {
+        try requireProducerAuthority()
+        return try promoteSnapshotUnprotected(prepared)
+    }
+
+    private func promoteSnapshotUnprotected(_ prepared: PreparedFinalization) throws -> PromotedFinalization {
         let authority = try requireAuthority()
         let paths = try validatedPaths(for: prepared.intent)
         try verifyHandle(prepared, paths: paths, authority: authority)
@@ -597,6 +660,13 @@ actor FinalizationIntentStore {
         _ promoted: PromotedFinalization,
         to phase: FinalizationPhaseV1
     ) throws -> PromotedFinalization {
+        try requireProducerAuthority()
+        return try advanceUnprotected(promoted, to: phase)
+    }
+
+    private func advanceUnprotected(
+        _ promoted: PromotedFinalization, to phase: FinalizationPhaseV1
+    ) throws -> PromotedFinalization {
         let authority = try requireAuthority()
         let paths = try validatedPaths(for: promoted.intent)
         try verifyPromotedHandle(promoted, paths: paths, authority: authority)
@@ -615,7 +685,7 @@ actor FinalizationIntentStore {
         let advanced = promoted.intent.withPhase(phase)
         if phase == .snapshotPromoted,
            failureInjection?.consume(.intentPhaseWrite(phase)) == true {
-            try rollbackUncommitted(promoted)
+            try rollbackUncommittedUnprotected(promoted)
             throw FinalizationIntentStoreError.fileOperationFailed
         }
         let mutationProgress = MutationProgress()
@@ -681,6 +751,11 @@ actor FinalizationIntentStore {
     }
 
     func cleanupCommitted(_ committed: PromotedFinalization) throws {
+        try requireProducerAuthority()
+        try cleanupCommittedUnprotected(committed)
+    }
+
+    private func cleanupCommittedUnprotected(_ committed: PromotedFinalization) throws {
         guard committed.intent.phase == .databaseCommitted else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
@@ -697,6 +772,11 @@ actor FinalizationIntentStore {
     }
 
     func rollbackUncommitted(_ promoted: PromotedFinalization) throws {
+        try requireProducerAuthority()
+        try rollbackUncommittedUnprotected(promoted)
+    }
+
+    private func rollbackUncommittedUnprotected(_ promoted: PromotedFinalization) throws {
         guard promoted.intent.phase != .databaseCommitted else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
@@ -1100,6 +1180,10 @@ actor FinalizationIntentStore {
         } catch {
             throw FinalizationIntentStoreError.intentInvalid
         }
+    }
+
+    private func requireProducerAuthority() throws {
+        guard sourceMutationGuard == nil else { throw FinalizationIntentStoreError.generationRootInvalid }
     }
 
     private func requireAuthority() throws -> PinnedAuthority {

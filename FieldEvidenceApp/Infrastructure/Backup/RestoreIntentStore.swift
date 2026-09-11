@@ -153,6 +153,11 @@ final class RestoreIntentStore {
     }
 
     func create(_ value: RestoreIntentV1) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation { try createWithoutMigrationReservation(value) }
+    }
+
+    private func createWithoutMigrationReservation(_ value: RestoreIntentV1) throws {
         try verifyAuthority()
         guard try readIfPresent(Self.intentName) == nil,
               try readIfPresent(Self.nextName) == nil else {
@@ -197,6 +202,15 @@ final class RestoreIntentStore {
     func replace(
         expected: RestoreIntentV1,
         with replacement: RestoreIntentV1
+    ) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation {
+            try replaceWithoutMigrationReservation(expected: expected, with: replacement)
+        }
+    }
+
+    private func replaceWithoutMigrationReservation(
+        expected: RestoreIntentV1, with replacement: RestoreIntentV1
     ) throws {
         try verifyAuthority()
         let expectedData = try encode(expected)

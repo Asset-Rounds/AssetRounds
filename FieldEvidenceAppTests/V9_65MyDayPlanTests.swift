@@ -52,6 +52,7 @@ private struct C57MyDayCorpusV1: Decodable {
 
 @MainActor
 private final class C57MyDaySourceProbe: MyDaySourceFrontierReadingV1 {
+    var readCount = 0
     var states: [UUID: MyDaySourceStateV1] = [:]
     var readiness: [UUID: MyDayReadinessV1] = [:]
     var currentReferences: [UUID: MyDayEligibleReferenceV1] = [:]
@@ -60,7 +61,8 @@ private final class C57MyDaySourceProbe: MyDaySourceFrontierReadingV1 {
         for plan: MyDayPlanV1,
         evaluatedAt: Date
     ) throws -> [MyDaySourceFrontierV1] {
-        try plan.items.map { item in
+        readCount += 1
+        return try plan.items.map { item in
             let state = states[item.membershipID] ?? .active
             let current = state == .missing
                 ? nil
@@ -347,6 +349,74 @@ private func assertC57Failure(
 
 @MainActor
 final class V9_65MyDayPlanTests: XCTestCase {
+    func testMetadataEditsRetainExactMembershipWithoutReadingChangedSources() throws {
+        let key = try C57MyDayTestSupport.key()
+        for state in [MyDaySourceStateV1.completed, .cancelled, .retired, .missing, .stale] {
+            let sources = C57MyDaySourceProbe()
+            let writer = C57MyDayWriterProbe()
+            let coordinator = MyDayCoordinatorV1(writer: writer, sourceReader: sources)
+            let first = try C57MyDayTestSupport.item(301,
+                reference: C57MyDayTestSupport.roundReference(301), order: 0)
+            let second = try C57MyDayTestSupport.item(302,
+                reference: C57MyDayTestSupport.draftReference(302), order: 1)
+            let original = try C57MyDayTestSupport.plan(key: key, items: [first, second], seed: 301)
+            _ = try coordinator.save(successor: original, predecessor: nil)
+            sources.states[first.membershipID] = state
+            sources.states[second.membershipID] = state
+            sources.currentReferences[first.membershipID] = C57MyDayTestSupport.roundReference(301,
+                revision: 2, digestCharacter: "c")
+            let editedItems = try [
+                C57MyDayTestSupport.item(302, reference: second.reference, order: 0, estimate: 30),
+                C57MyDayTestSupport.item(301, reference: first.reference, order: 1, estimate: 15),
+            ]
+            let successor = try MyDayPlanV1(planID: original.planID, key: key, items: editedItems,
+                predecessor: original, revision: 2,
+                mutationID: MutationIDV1(rawValue: C57MyDayTestSupport.id(190_302)),
+                authoredBy: original.authoredBy, authoredAt: original.authoredAt)
+            let reads = sources.readCount
+            let result = try coordinator.save(successor: successor, predecessor: original)
+            XCTAssertEqual(result.plan.items.map(\.membershipID), [second.membershipID, first.membershipID])
+            XCTAssertEqual(sources.readCount, reads)
+            XCTAssertEqual(try coordinator.recoverSave(successor: successor, predecessor: original), result)
+            XCTAssertEqual(writer.commitCount, 2)
+            let removed = try MyDayPlanV1(planID: original.planID, key: key, items: [],
+                predecessor: successor, revision: 3,
+                mutationID: MutationIDV1(rawValue: C57MyDayTestSupport.id(190_303)),
+                authoredBy: successor.authoredBy, authoredAt: successor.authoredAt)
+            _ = try coordinator.save(successor: removed, predecessor: successor)
+            XCTAssertEqual(sources.readCount, reads)
+            XCTAssertThrowsError(try coordinator.save(successor: successor, predecessor: nil))
+        }
+    }
+
+    func testNewAndReboundMembershipsStillRequireExactCurrentSources() throws {
+        let sources = C57MyDaySourceProbe()
+        let writer = C57MyDayWriterProbe()
+        let coordinator = MyDayCoordinatorV1(writer: writer, sourceReader: sources)
+        let item = try C57MyDayTestSupport.item(311,
+            reference: C57MyDayTestSupport.roundReference(311), order: 0)
+        let original = try C57MyDayTestSupport.plan(key: C57MyDayTestSupport.key(), items: [item], seed: 311)
+        _ = try coordinator.save(successor: original, predecessor: nil)
+        for rebound in [false, true] {
+            let candidate = try MyDayItemV1(
+                membershipID: rebound ? item.membershipID : C57MyDayTestSupport.id(190_312),
+                reference: rebound ? C57MyDayTestSupport.roundReference(311, revision: 2,
+                    digestCharacter: "c") : item.reference, manualOrder: 0, estimate: nil)
+            sources.states[candidate.membershipID] = .completed
+            let successor = try MyDayPlanV1(planID: original.planID, key: original.key,
+                items: [candidate], predecessor: original, revision: 2,
+                mutationID: MutationIDV1(rawValue: C57MyDayTestSupport.id(rebound ? 190_314 : 190_313)),
+                authoredBy: original.authoredBy, authoredAt: original.authoredAt)
+            XCTAssertThrowsError(try coordinator.save(successor: successor, predecessor: original))
+            sources.states[candidate.membershipID] = .active
+            sources.currentReferences[candidate.membershipID] = C57MyDayTestSupport.roundReference(311,
+                revision: 3, digestCharacter: "d")
+            XCTAssertThrowsError(try coordinator.save(successor: successor, predecessor: original))
+            XCTAssertEqual(writer.commitCount, 1)
+            XCTAssertEqual(writer.plans[original.key.stableKey], original)
+        }
+    }
+
     private func corpus() throws -> C57MyDayCorpusV1 {
         let name = "V22P03C57MyDayPlanCorpusV1"
         let bundled = Bundle(for: V9_65MyDayPlanTests.self)

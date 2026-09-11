@@ -206,8 +206,8 @@ struct MyDaySummaryItemV1: Codable, Equatable, Hashable, Sendable {
               carryoverEligible == expectedEligible,
               (routeIntent != nil) == expectedEligible,
               (!expectedEligible || routeIntent?.reference == currentReference),
-              routeIntent?.workStarted == false,
-              routeIntent?.routeRequested == false,
+              (routeIntent?.workStarted ?? false) == false,
+              (routeIntent?.routeRequested ?? false) == false,
               (!expectedEligible || sourceState != .reopened || routeIntent?.action == .resume) else {
             throw MyDayWorkflowFailureV1.staleProjection
         }

@@ -1044,6 +1044,250 @@ struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Separate operational authority for a skipped-release upgrade. Activation
+/// manifests describe their original activation, never the latest user writes.
+struct StoreMigrationSourceCheckpointV1: Codable, Equatable, Sendable {
+    let files: [StoreGenerationFileDigestV1]
+    let directories: [String]
+    let frozenIdentityDigest: String
+    let semanticSHA256: String
+
+    func validate() throws {
+        guard !files.isEmpty, files.contains(where: { $0.relativePath == "model.sqlite" }),
+              files == files.sorted(by: { $0.relativePath < $1.relativePath }),
+              Set(files.map(\.relativePath)).count == files.count,
+              directories == directories.sorted(), Set(directories).count == directories.count,
+              Self.isDigest(frozenIdentityDigest), Self.isDigest(semanticSHA256) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        for file in files {
+            try file.validate()
+            let owned = try GenerationOwnedPathV1.classify(file.relativePath, nodeType: .regularFile)
+            guard !owned.recoveryOwned, owned.kind == file.kind else { throw StoreMigrationFailure.invalidPath }
+        }
+        for path in directories { _ = try GenerationOwnedPathV1.classify(path, nodeType: .directory) }
+    }
+
+    static func isDigest(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+    }
+}
+
+struct StoreAggregateMigrationTransitionV1: Codable, Equatable, Sendable {
+    let sourceRelease: PersistentSchemaReleaseV1
+    let targetRelease: PersistentSchemaReleaseV1
+    let sourceSemanticSHA256: String
+    let targetSemanticSHA256: String
+}
+
+enum StoreAggregateMigrationPhaseV1: Int, Codable, Equatable, Sendable {
+    case recoveringSource, sourceFrozen, cloned, migrating, targetValidated
+    case generationInstalled, pointerPublished, awaitingIndependentValidation, complete
+}
+
+struct StoreAggregateMutationNormalizationV1: Codable, Equatable, Sendable {
+    let generationID: UUID
+    let mutableSemanticSHA256: String?
+}
+
+struct StoreAggregateMigrationJournalV1: Codable, Equatable, Sendable {
+    var schemaVersion: Int = 1
+    let upgradeID: UUID
+    var ownerID: UUID
+    var revision: Int = 0
+    let sourceGenerationID: UUID
+    let sourceRelease: PersistentSchemaReleaseV1
+    let originalPointerData: Data
+    let sourceRootDevice: UInt64
+    let sourceRootInode: UInt64
+    let activationManifestSHA256: String?
+    let migrationID: UUID
+    let targetGenerationID: UUID
+    let targetRelease: PersistentSchemaReleaseV1
+    let workspaceID: UUID
+    let replicaID: UUID
+    let knownReplicaIDs: [UUID]
+    let originatingProcessID: UUID
+    var phase: StoreAggregateMigrationPhaseV1 = .recoveringSource
+    var sourceCheckpoint: StoreMigrationSourceCheckpointV1?
+    var candidateRootDevice: UInt64?
+    var candidateRootInode: UInt64?
+    var allocationID: UUID?
+    var transitions: [StoreAggregateMigrationTransitionV1] = []
+    var authorizedTargetRelease: PersistentSchemaReleaseV1?
+    var authorizedPriorMutationState: StoreAggregateMutationNormalizationV1?
+    var targetManifestSHA256: String?
+    var desiredPointerData: Data?
+    var publicationProcessID: UUID?
+    var firstValidationProcessID: UUID?
+    var secondValidationProcessID: UUID?
+
+    var reservationIsActive: Bool { phase != .complete }
+    var currentCandidateRelease: PersistentSchemaReleaseV1 { transitions.last?.targetRelease ?? sourceRelease }
+    var currentCandidateSemanticSHA256: String? { transitions.last?.targetSemanticSHA256 ?? sourceCheckpoint?.semanticSHA256 }
+
+    func identity() throws -> WorkspaceReplicaIdentityV1 {
+        try WorkspaceReplicaIdentityV1(workspaceID: WorkspaceID(rawValue: workspaceID), replicaID: ReplicaID(rawValue: replicaID))
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        guard schemaVersion == 1, revision >= 0,
+              [upgradeID, ownerID, sourceGenerationID, targetGenerationID, migrationID, originatingProcessID].allSatisfy({ $0 != zero }),
+              sourceGenerationID != targetGenerationID, upgradeID != sourceGenerationID, upgradeID != targetGenerationID,
+              sourceRelease.versionIdentifier.major < targetRelease.versionIdentifier.major,
+              targetRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
+              !originalPointerData.isEmpty, sourceRootInode != 0,
+              activationManifestSHA256.map(StoreMigrationSourceCheckpointV1.isDigest) ?? true,
+              Set(knownReplicaIDs).count == knownReplicaIDs.count,
+              knownReplicaIDs.contains(replicaID) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        _ = try identity()
+        let original = try CurrentPointerCodecV1.decode(originalPointerData)
+        guard original.generationID == sourceGenerationID.uuidString.lowercased() else { throw StoreMigrationFailure.invalidIdentity }
+        switch original {
+        case .legacy:
+            guard sourceRelease == .v1, activationManifestSHA256 == nil else { throw StoreMigrationFailure.invalidContract }
+        case .v2(let pointer, _):
+            guard sourceRelease == .v2, activationManifestSHA256 == pointer.generationManifestSHA256 else { throw StoreMigrationFailure.invalidContract }
+        case .v3(let pointer, _):
+            guard pointer.storeSchemaVersion == sourceRelease.versionIdentifier.major,
+                  activationManifestSHA256 == pointer.generationManifestSHA256,
+                  try pointer.identity() == identity(),
+                  Set(try pointer.knownReplicaIdentitySet().map(\.rawValue)) == Set(knownReplicaIDs) else { throw StoreMigrationFailure.invalidContract }
+        }
+        if let sourceCheckpoint { try sourceCheckpoint.validate() }
+        guard (phase == .recoveringSource) == (sourceCheckpoint == nil) else { throw StoreMigrationFailure.invalidContract }
+        guard (candidateRootDevice == nil) == (candidateRootInode == nil),
+              (allocationID == nil) == (candidateRootInode == nil),
+              allocationID.map({ $0 != zero && $0 != sourceGenerationID && $0 != targetGenerationID }) ?? true,
+              candidateRootInode.map({ $0 != 0 }) ?? true else { throw StoreMigrationFailure.invalidIdentity }
+        if phase == .recoveringSource, candidateRootInode != nil { throw StoreMigrationFailure.invalidPhaseTransition }
+        if phase.rawValue >= StoreAggregateMigrationPhaseV1.cloned.rawValue, candidateRootInode == nil { throw StoreMigrationFailure.invalidIdentity }
+        var release = sourceRelease
+        var semantic = sourceCheckpoint?.semanticSHA256
+        for transition in transitions {
+            guard transition.sourceRelease == release,
+                  transition.targetRelease.predecessorVersionIdentifier == release.versionIdentifier,
+                  transition.targetRelease.versionIdentifier.major <= targetRelease.versionIdentifier.major,
+                  transition.sourceSemanticSHA256 == semantic,
+                  StoreMigrationSourceCheckpointV1.isDigest(transition.targetSemanticSHA256) else {
+                throw StoreMigrationFailure.invalidPhaseTransition
+            }
+            release = transition.targetRelease
+            semantic = transition.targetSemanticSHA256
+        }
+        if let authorizedTargetRelease {
+            guard phase == .migrating,
+                  authorizedTargetRelease.predecessorVersionIdentifier == release.versionIdentifier else {
+                throw StoreMigrationFailure.invalidPhaseTransition
+            }
+        }
+        if let normalization = authorizedPriorMutationState {
+            guard authorizedTargetRelease != nil, currentCandidateRelease.versionIdentifier.major >= 4,
+                  [sourceGenerationID, targetGenerationID].contains(normalization.generationID),
+                  normalization.mutableSemanticSHA256.map(StoreMigrationSourceCheckpointV1.isDigest) ?? true else {
+                throw StoreMigrationFailure.invalidContract
+            }
+        }
+        if authorizedTargetRelease != nil, currentCandidateRelease.versionIdentifier.major >= 4,
+           authorizedPriorMutationState == nil { throw StoreMigrationFailure.invalidContract }
+        if phase.rawValue < StoreAggregateMigrationPhaseV1.migrating.rawValue {
+            guard transitions.isEmpty, authorizedTargetRelease == nil else { throw StoreMigrationFailure.invalidPhaseTransition }
+        }
+        if phase.rawValue >= StoreAggregateMigrationPhaseV1.targetValidated.rawValue {
+            guard release == targetRelease, authorizedTargetRelease == nil,
+                  targetManifestSHA256.map(StoreMigrationSourceCheckpointV1.isDigest) == true,
+                  desiredPointerData != nil else { throw StoreMigrationFailure.invalidContract }
+        } else {
+            guard targetManifestSHA256 == nil, desiredPointerData == nil else { throw StoreMigrationFailure.invalidContract }
+        }
+        if let desiredPointerData {
+            let pointer = try CurrentGenerationPointerV3.decodeCanonical(from: desiredPointerData)
+            guard pointer.generationID == targetGenerationID.uuidString.lowercased(),
+                  pointer.storeSchemaVersion == targetRelease.versionIdentifier.major,
+                  pointer.generationManifestSHA256 == targetManifestSHA256,
+                  try pointer.identity() == identity(),
+                  Set(try pointer.knownReplicaIdentitySet().map(\.rawValue)) == Set(knownReplicaIDs) else { throw StoreMigrationFailure.invalidContract }
+        }
+        if phase.rawValue >= StoreAggregateMigrationPhaseV1.pointerPublished.rawValue {
+            guard publicationProcessID != nil else { throw StoreMigrationFailure.invalidContract }
+        }
+        if phase.rawValue < StoreAggregateMigrationPhaseV1.generationInstalled.rawValue, publicationProcessID != nil {
+            throw StoreMigrationFailure.invalidContract
+        }
+        if phase.rawValue >= StoreAggregateMigrationPhaseV1.awaitingIndependentValidation.rawValue {
+            guard firstValidationProcessID != nil else { throw StoreMigrationFailure.invalidContract }
+        } else if firstValidationProcessID != nil { throw StoreMigrationFailure.invalidContract }
+        for processID in [publicationProcessID, firstValidationProcessID, secondValidationProcessID].compactMap({ $0 }) {
+            guard processID != zero else { throw StoreMigrationFailure.invalidIdentity }
+        }
+        if phase == .complete {
+            guard let secondValidationProcessID,
+                  secondValidationProcessID != originatingProcessID,
+                  secondValidationProcessID != publicationProcessID,
+                  secondValidationProcessID != firstValidationProcessID else { throw StoreMigrationFailure.invalidContract }
+        } else if secondValidationProcessID != nil { throw StoreMigrationFailure.invalidContract }
+    }
+
+    func validateReplacement(of previous: Self) throws {
+        try previous.validate(); try validate()
+        guard revision == previous.revision + 1,
+              upgradeID == previous.upgradeID, sourceGenerationID == previous.sourceGenerationID,
+              sourceRelease == previous.sourceRelease, originalPointerData == previous.originalPointerData,
+              sourceRootDevice == previous.sourceRootDevice, sourceRootInode == previous.sourceRootInode,
+              activationManifestSHA256 == previous.activationManifestSHA256, migrationID == previous.migrationID,
+              targetGenerationID == previous.targetGenerationID, targetRelease == previous.targetRelease,
+              workspaceID == previous.workspaceID, replicaID == previous.replicaID, knownReplicaIDs == previous.knownReplicaIDs,
+              originatingProcessID == previous.originatingProcessID,
+              phase.rawValue >= previous.phase.rawValue, phase.rawValue <= previous.phase.rawValue + 1,
+              previous.sourceCheckpoint.map({ sourceCheckpoint == $0 }) ?? true,
+              previous.candidateRootDevice.map({ candidateRootDevice == $0 }) ?? true,
+              previous.candidateRootInode.map({ candidateRootInode == $0 }) ?? true,
+              previous.allocationID.map({ allocationID == $0 }) ?? true,
+              transitions.starts(with: previous.transitions), transitions.count <= previous.transitions.count + 1,
+              previous.targetManifestSHA256.map({ targetManifestSHA256 == $0 }) ?? true,
+              previous.desiredPointerData.map({ desiredPointerData == $0 }) ?? true,
+              previous.publicationProcessID.map({ publicationProcessID == $0 }) ?? true,
+              previous.firstValidationProcessID.map({ firstValidationProcessID == $0 }) ?? true else {
+            throw StoreMigrationFailure.invalidPhaseTransition
+        }
+        if ownerID != previous.ownerID {
+            var transferred = previous
+            transferred.ownerID = ownerID; transferred.revision = revision
+            guard transferred == self else { throw StoreMigrationFailure.invalidPhaseTransition }
+        }
+        if let authorized = previous.authorizedTargetRelease {
+            guard authorizedTargetRelease == authorized ||
+                (authorizedTargetRelease == nil && transitions.count == previous.transitions.count + 1 && transitions.last?.targetRelease == authorized) else {
+                throw StoreMigrationFailure.invalidPhaseTransition
+            }
+            if authorizedTargetRelease != nil {
+                guard authorizedPriorMutationState == previous.authorizedPriorMutationState else {
+                    throw StoreMigrationFailure.invalidPhaseTransition
+                }
+            }
+        }
+        if transitions.count != previous.transitions.count {
+            guard let authorized = previous.authorizedTargetRelease,
+                  transitions.last?.targetRelease == authorized,
+                  transitions.last?.sourceRelease == previous.currentCandidateRelease,
+                  authorizedTargetRelease == nil else { throw StoreMigrationFailure.invalidPhaseTransition }
+        }
+    }
+
+    func canonicalData() throws -> Data { try validate(); return try StoreMigrationCanonicalJSONV1.encode(self) }
+    static func decodeCanonical(from data: Data) throws -> Self {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(Self.self, from: data, validate: { try $0.validate() })
+    }
+}
+
+struct StoreMigrationAwaitingValidationV1: Equatable, Sendable {
+    let upgradeID: UUID
+    let targetGenerationID: UUID
+}
+
 enum StoreMigrationCanonicalJSONV1 {
     static func encode<Value: Encodable>(_ value: Value) throws -> Data {
         do {
@@ -1642,16 +1886,40 @@ struct StoreMigrationIdentitySourceV1 {
 }
 
 #if DEBUG
+enum StoreAggregateMigrationFaultBoundaryV1: Error, CaseIterable, Equatable {
+    case afterAllocationCreation, afterAllocationBinding, afterAllocationRenameBeforeSync, afterAllocationPublication
+    case afterAdjacentMarkerSave, afterFinalCheckpointSave
+}
+
 @MainActor
 final class StoreMigrationFailureInjection {
     private var pending: StoreMigrationFaultBoundaryV1?
+    private var aggregatePending: StoreAggregateMigrationFaultBoundaryV1?
+    private var aggregateTargetRelease: PersistentSchemaReleaseV1?
 
     init(failOnceAt boundary: StoreMigrationFaultBoundaryV1) {
         pending = boundary
     }
 
+    init(aggregateFault boundary: StoreAggregateMigrationFaultBoundaryV1, targetRelease: PersistentSchemaReleaseV1? = nil) {
+        aggregatePending = boundary
+        aggregateTargetRelease = targetRelease
+    }
+
+    func reachAggregate(_ boundary: StoreAggregateMigrationFaultBoundaryV1, targetRelease: PersistentSchemaReleaseV1? = nil) throws {
+        guard aggregatePending == boundary,
+              aggregateTargetRelease == nil || aggregateTargetRelease == targetRelease else { return }
+        aggregatePending = nil
+        throw boundary
+    }
+
     func removeFailure() {
         pending = nil
+        aggregatePending = nil
+    }
+
+    func failNext(at boundary: StoreMigrationFaultBoundaryV1) {
+        pending = boundary
     }
 
     func reach(_ boundary: StoreMigrationFaultBoundaryV1) throws {

@@ -7,6 +7,56 @@ final class S2PersistenceLedgerTests: XCTestCase {
     private let fileManager = FileManager.default
 
     @MainActor
+    func testLegitimatelyWrittenActiveStoreReopensWithoutRepinningItsActivationManifest() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let generationID: UUID
+        let pointerBytes: Data
+        let manifestBytes: Data
+        let siteID = UUID(), assetID = UUID(), placementID = UUID()
+        do {
+            let session = try factory.openOrBootstrapCurrent()
+            generationID = session.generationID
+            pointerBytes = try Data(contentsOf: currentPointerURL(in: root))
+            let store = try StoreMigrationJournalStoreV1(applicationSupportURL: root)
+            manifestBytes = try XCTUnwrap(store.loadManifestIfPresent(targetGenerationID: generationID)).manifest.canonicalData()
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            let writer = coordinator.workspaceWriter
+            let current = try writer.currentRevision()
+            let mutation = try MutationIDV1(rawValue: UUID())
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+                generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision, entityRevisions: [
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0),
+                ])
+            let outcome = try writer.execute(.init(mutationID: mutation, expectedRevision: expected,
+                command: .createFirstSign(.init(siteID: siteID,
+                    newSite: .init(id: siteID, label: "Written current site", address: nil, timeZoneID: "UTC"),
+                    assetID: assetID, assetLabel: "Written current asset", packID: "test.pack",
+                    packSchemaVersion: 1, packContentVersion: 1,
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+                    initialPlacementMutationID: mutation, initialPlacementEventID: placementID,
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())))))
+            XCTAssertEqual(outcome.after.revision, 1)
+            _ = try factory.reconcileGenerationLeasesAndPrune()
+            XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointerBytes)
+            XCTAssertEqual(try XCTUnwrap(store.loadManifestIfPresent(targetGenerationID: generationID)).manifest.canonicalData(), manifestBytes)
+        }
+        let reopened = try await factory.openForStartup { _ in XCTFail("Active current store must not enter migration") }
+        guard case .ready(let session) = reopened else { return XCTFail("Already accepted active store must reopen") }
+        XCTAssertEqual(session.generationID, generationID)
+        XCTAssertEqual(session.storeSchemaRelease, .v53)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<Site>()).map(\.id), [siteID])
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<Asset>()).map(\.id), [assetID])
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count, 1)
+        XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointerBytes)
+        XCTAssertEqual(try XCTUnwrap(StoreMigrationJournalStoreV1(applicationSupportURL: root).loadManifestIfPresent(targetGenerationID: generationID)).manifest.canonicalData(), manifestBytes)
+    }
+
+    @MainActor
     func testBootstrapPersistsReleasesAndReopensTheExactGenerationLedger() throws {
         let root = try makeTemporaryApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }

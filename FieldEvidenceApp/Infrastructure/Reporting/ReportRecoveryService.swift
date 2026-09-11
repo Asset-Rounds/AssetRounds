@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import SwiftData
 import SwiftUI
@@ -488,7 +489,19 @@ final class ReportRecoveryService: ObservableObject {
         let packets = try modelContext.fetch(FetchDescriptor<Packet>())
         let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
         let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
-        let observationAndTime = try validatedObservationAndTimeIndex(records: records)
+        let observationAndTime = try Self.validatedObservationAndTimeIndex(records: records, modelContext: modelContext)
+        try Self.validateReplacementChains(
+            reports: reports, packets: packets, records: records, evidence: evidence,
+            payload: { try Self.recordPayload($0, observationAndTime: observationAndTime) },
+            snapshot: canonicalSnapshot
+        )
+    }
+
+    private static func validateReplacementChains(
+        reports: [Report], packets: [Packet], records: [WorkflowRecord], evidence: [EvidenceFile],
+        payload: (WorkflowRecord) throws -> WorkflowRecordPayloadV1,
+        snapshot: (Report) throws -> ReportSnapshotV1
+    ) throws {
         guard Set(reports.map(\.id)).count == reports.count,
               Set(records.map(\.id)).count == records.count,
               Set(reports.map(\.sourceRecordID)).count == reports.count else {
@@ -553,15 +566,12 @@ final class ReportRecoveryService: ObservableObject {
                           report.createdAt >= priorReports[0].createdAt else {
                         throw ReportRecoveryServiceError.invalidAuthority
                     }
-                    let priorSnapshot = try canonicalSnapshot(priorReports[0])
-                    let correctionSnapshot = try canonicalSnapshot(report)
+                    let priorSnapshot = try snapshot(priorReports[0])
+                    let correctionSnapshot = try snapshot(report)
                     do {
                         try ReportCorrectionRule().validateEdge(
                             prior: ReportCorrectionRuleSource(
-                                currentRecord: try recordPayload(
-                                    priorRecords[0],
-                                    observationAndTime: observationAndTime
-                                ),
+                                currentRecord: try payload(priorRecords[0]),
                                 packet: PacketPayloadV1(
                                     id: packet.id,
                                     schemaVersion: packet.schemaVersion,
@@ -574,10 +584,7 @@ final class ReportRecoveryService: ObservableObject {
                                 currentReport: reportPayload(priorReports[0]),
                                 currentSnapshot: priorSnapshot
                             ),
-                            correctionRecord: try recordPayload(
-                                source,
-                                observationAndTime: observationAndTime
-                            ),
+                            correctionRecord: try payload(source),
                             correctionReport: reportPayload(report),
                             correctionSnapshot: correctionSnapshot
                         )
@@ -626,11 +633,13 @@ final class ReportRecoveryService: ObservableObject {
         }
     }
 
-    private func recordPayload(
+    private static func recordPayload(
         _ value: WorkflowRecord,
-        observationAndTime: [UUID: ObservationAndTimeRow]
+        observationAndTime: [UUID: ObservationAndTimeRow],
+        usesReleasedObservationFields: Bool = false
     ) throws -> WorkflowRecordPayloadV1 {
-        guard let companion = observationAndTime[value.id] else {
+        let companion = observationAndTime[value.id]
+        guard usesReleasedObservationFields || companion != nil else {
             throw ReportRecoveryServiceError.invalidAuthority
         }
         return WorkflowRecordPayloadV1(
@@ -665,13 +674,13 @@ final class ReportRecoveryService: ObservableObject {
             workPerformedLocalDate: value.workPerformedLocalDate,
             workDescription: value.workDescription, note: value.note,
             finalizationMutationID: value.finalizationMutationID,
-            observationBasisV1Data: companion.observationBasisV1Data,
-            temporalContextV1Data: companion.temporalContextV1Data
+            observationBasisV1Data: companion?.observationBasisV1Data,
+            temporalContextV1Data: companion?.temporalContextV1Data
         )
     }
 
-    private func validatedObservationAndTimeIndex(
-        records: [WorkflowRecord]
+    private static func validatedObservationAndTimeIndex(
+        records: [WorkflowRecord], modelContext: ModelContext
     ) throws -> [UUID: ObservationAndTimeRow] {
         guard records.count <= ObservationAndTimeRowStoreV1.maximumRows else {
             throw ReportRecoveryServiceError.invalidAuthority
@@ -712,7 +721,7 @@ final class ReportRecoveryService: ObservableObject {
         return result
     }
 
-    private func reportPayload(_ value: Report) -> ReportPayloadV1 {
+    private static func reportPayload(_ value: Report) -> ReportPayloadV1 {
         ReportPayloadV1(
             id: value.id, schemaVersion: value.schemaVersion,
             packetID: value.packetID, sourceRecordID: value.sourceRecordID,
@@ -862,6 +871,239 @@ final class ReportRecoveryService: ObservableObject {
 
     private static func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+@MainActor
+extension ReportRecoveryService {
+    /// Reuses the ordinary recovery edge/coverage validator without constructing
+    /// a renderer or changing the live packet pointer for archived reports.
+    static func validateOriginalReplacementChains(
+        authority: StoreMigrationSourceRecoveryAuthorityV1
+    ) throws {
+        let context = try authority.recoveryContext()
+        func bounded<T: PersistentModel>(_ type: T.Type) throws -> [T] {
+            var descriptor = FetchDescriptor<T>(); descriptor.fetchLimit = 100_001
+            let values = try context.fetch(descriptor)
+            guard values.count <= 100_000 else { throw ReportRecoveryServiceError.invalidAuthority }
+            return values
+        }
+        let reports = try bounded(Report.self)
+        let records = try bounded(WorkflowRecord.self)
+        let packets = try bounded(Packet.self)
+        let evidence = try bounded(EvidenceFile.self)
+        let legacy: Bool
+        switch authority.sourceRelease {
+        case .v1, .v2, .v3, .v4: legacy = true
+        default: legacy = false
+        }
+        let companions: [UUID: ObservationAndTimeRow]
+        if legacy { companions = [:] }
+        else { companions = try validatedObservationAndTimeIndex(records: records, modelContext: context) }
+        let root = authority.generationRootURL
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        try validateReplacementChains(
+            reports: reports, packets: packets, records: records, evidence: evidence,
+            payload: { try recordPayload($0, observationAndTime: companions, usesReleasedObservationFields: legacy) },
+            snapshot: { report in
+                guard report.snapshotRelativePath == "snapshots/\(report.id.uuidString.lowercased()).json" else {
+                    throw ReportRecoveryServiceError.invalidAuthority
+                }
+                let data = try ReportPDFAnchoredFile.readRegularFile(
+                    at: root.appendingPathComponent(report.snapshotRelativePath), within: root, rootIdentity: identity
+                )
+                let value = try ReportSnapshotEncoderV1().decode(data)
+                guard sha256(data) == report.snapshotSHA256,
+                      try ReportSnapshotEncoderV1().encode(value).data == data else {
+                    throw ReportRecoveryServiceError.invalidAuthority
+                }
+                return value
+            }
+        )
+        try authority.recoveryMutationGuard().validateCurrent()
+    }
+
+    /// Settles only attempt-owned files in the original generation. Pending
+    /// rows stay pending; rendering is a later current-generation operation.
+    static func settleOriginalSourcePDFs(authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        let context = try authority.recoveryContext()
+        guard !context.hasChanges else { throw ReportRecoveryServiceError.contextHasChanges }
+        let reports = try originalSourceReports(authority: authority, context: context)
+        let mutationGuard = try authority.recoveryMutationGuard()
+        try mutationGuard.withAuthorizedMutation {
+            let root = authority.generationRootURL
+            let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+            let plans = try originalPDFPlans(reports: reports, root: root, rootIdentity: rootIdentity)
+            // All report, snapshot, path and byte checks complete before cleanup.
+            for plan in plans {
+                guard let bytes = plan.attemptBytes else { continue }
+                let target = root.appendingPathComponent(plan.attemptPath)
+                let quarantine = root.appendingPathComponent(plan.quarantinePath)
+                if plan.quarantinePath.hasPrefix(".staging/") {
+                    try ReportPDFAnchoredFile.ensureDirectory(relativePath: ".staging", within: root, rootIdentity: rootIdentity)
+                    try ReportPDFAnchoredFile.ensureDirectory(relativePath: ".staging/pdfs", within: root, rootIdentity: rootIdentity)
+                } else {
+                    try ReportPDFAnchoredFile.ensureDirectory(relativePath: "pdfs", within: root, rootIdentity: rootIdentity)
+                }
+                try ReportPDFAnchoredFile.removeMatchingRegularFile(
+                    at: target, expectedData: bytes, quarantineAt: quarantine,
+                    within: root, rootIdentity: rootIdentity
+                )
+            }
+            guard try originalPDFPlans(reports: reports, root: root, rootIdentity: rootIdentity)
+                .allSatisfy({ $0.attemptBytes == nil }) else {
+                throw ReportRecoveryServiceError.cleanupFailed
+            }
+        }
+        guard !context.hasChanges else { throw ReportRecoveryServiceError.contextHasChanges }
+    }
+
+    static func verifyOriginalRecoverySettled(authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        let context = try authority.recoveryContext()
+        guard !context.hasChanges else { throw ReportRecoveryServiceError.contextHasChanges }
+        let reports = try originalSourceReports(authority: authority, context: context)
+        let mutationGuard = try authority.recoveryMutationGuard()
+        try mutationGuard.withAuthorizedMutation {
+            let identity = try ReportPDFAnchoredFile.rootIdentity(at: authority.generationRootURL)
+            guard try originalPDFPlans(reports: reports, root: authority.generationRootURL, rootIdentity: identity)
+                .allSatisfy({ $0.attemptBytes == nil }) else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
+    }
+
+    private static func originalSourceReports(
+        authority: StoreMigrationSourceRecoveryAuthorityV1, context: ModelContext
+    ) throws -> [Report] {
+        var descriptor = FetchDescriptor<Report>()
+        descriptor.fetchLimit = 100_001
+        let reports = try context.fetch(descriptor)
+        guard reports.count <= 100_000,
+              Set(reports.map(\.id)).count == reports.count else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        if !reports.isEmpty {
+            switch authority.sourceRelease {
+            case .v2, .v3, .v4: throw ReportRecoveryServiceError.invalidAuthority
+            default: break
+            }
+        }
+        let validator = try SnapshotValidatorV1(sourceRecoveryAuthority: authority)
+        _ = try validator.validateOriginalSourceReports(reports)
+        return reports
+    }
+
+    private struct OriginalPDFPlan {
+        let attemptPath: String
+        let quarantinePath: String
+        let attemptBytes: Data?
+    }
+
+    private static func originalPDFPlans(
+        reports: [Report], root: URL, rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> [OriginalPDFPlan] {
+        let staged = try originalPDFNames(root: root, relativeDirectory: ".staging/pdfs", rootIdentity: rootIdentity)
+        let final = try originalPDFNames(root: root, relativeDirectory: "pdfs", rootIdentity: rootIdentity)
+        let expectedNames = Set(reports.map { $0.id.uuidString.lowercased() + ".pdf" })
+        guard staged.isSubset(of: expectedNames), final.isSubset(of: expectedNames) else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        return try reports.map { report in
+            let name = report.id.uuidString.lowercased() + ".pdf"
+            let stagePath = ".staging/pdfs/" + name
+            let finalPath = "pdfs/" + name
+            let hasStage = staged.contains(name), hasFinal = final.contains(name)
+            guard !(hasStage && hasFinal), let state = ReportPDFState(rawValue: report.pdfState) else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            if state == .ready {
+                guard !hasStage, hasFinal, report.pdfRelativePath == finalPath,
+                      let digest = report.pdfSHA256 else { throw ReportRecoveryServiceError.invalidAuthority }
+                let bytes = try ReportPDFAnchoredFile.readRegularFile(
+                    at: root.appendingPathComponent(finalPath), within: root, rootIdentity: rootIdentity
+                )
+                guard sha256(bytes) == digest, bytes.starts(with: Data("%PDF-".utf8)) else {
+                    throw ReportRecoveryServiceError.invalidAuthority
+                }
+                return OriginalPDFPlan(attemptPath: finalPath, quarantinePath: stagePath, attemptBytes: nil)
+            }
+            guard report.pdfRelativePath == nil, report.pdfSHA256 == nil else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            let path = hasStage ? stagePath : finalPath
+            let bytes: Data?
+            if hasStage || hasFinal {
+                bytes = try ReportPDFAnchoredFile.readRegularFile(
+                    at: root.appendingPathComponent(path), within: root, rootIdentity: rootIdentity
+                )
+            } else { bytes = nil }
+            return OriginalPDFPlan(attemptPath: path, quarantinePath: hasStage ? finalPath : stagePath, attemptBytes: bytes)
+        }
+    }
+
+    /// Bounded, no-follow enumeration; the existing PDF owner still performs
+    /// every read/quarantine/unlink and its full descriptor identity checks.
+    private static func originalPDFNames(
+        root: URL, relativeDirectory: String, rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> Set<String> {
+        let rootFD = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard rootFD >= 0 else { throw ReportRecoveryServiceError.invalidAuthority }
+        var descriptors = [rootFD]
+        defer { for fd in descriptors.reversed() { Darwin.close(fd) } }
+        var info = stat()
+        guard Darwin.fstat(rootFD, &info) == 0,
+              info.st_dev == rootIdentity.device, info.st_ino == rootIdentity.inode else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        let components = relativeDirectory.split(separator: "/").map(String.init)
+        func reproveOpenedAncestry() throws {
+            for index in 0..<(descriptors.count - 1) {
+                var linked = stat(), opened = stat()
+                guard Darwin.fstatat(descriptors[index], components[index], &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                      Darwin.fstat(descriptors[index + 1], &opened) == 0,
+                      linked.st_dev == opened.st_dev, linked.st_ino == opened.st_ino,
+                      (linked.st_mode & S_IFMT) == S_IFDIR else { throw ReportRecoveryServiceError.invalidAuthority }
+            }
+            guard try ReportPDFAnchoredFile.rootIdentity(at: root) == rootIdentity else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
+        for component in components {
+            let fd = Darwin.openat(descriptors.last!, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            if fd < 0, errno == ENOENT {
+                try reproveOpenedAncestry()
+                return []
+            }
+            guard fd >= 0 else { throw ReportRecoveryServiceError.invalidAuthority }
+            descriptors.append(fd)
+        }
+        let duplicate = Darwin.dup(descriptors.last!)
+        guard duplicate >= 0 else { throw ReportRecoveryServiceError.invalidAuthority }
+        guard let directory = Darwin.fdopendir(duplicate) else {
+            Darwin.close(duplicate); throw ReportRecoveryServiceError.invalidAuthority
+        }
+        defer { Darwin.closedir(directory) }
+        var names = Set<String>()
+        while true {
+            errno = 0
+            guard let entry = Darwin.readdir(directory) else {
+                guard errno == 0 else { throw ReportRecoveryServiceError.invalidAuthority }
+                break
+            }
+            let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) { String(cString: $0) }
+            }
+            if name == "." || name == ".." { continue }
+            var fileInfo = stat()
+            guard names.count < 100_000, names.insert(name).inserted,
+                  Darwin.fstatat(descriptors.last!, name, &fileInfo, AT_SYMLINK_NOFOLLOW) == 0,
+                  (fileInfo.st_mode & S_IFMT) == S_IFREG, fileInfo.st_nlink == 1,
+                  fileInfo.st_size >= 0, fileInfo.st_size <= 128 * 1_024 * 1_024 else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
+        try reproveOpenedAncestry()
+        return names
     }
 }
 

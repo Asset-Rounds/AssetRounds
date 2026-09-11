@@ -602,6 +602,7 @@ private final class EvidenceBundleStoreAssetLabelPublicationV1: @unchecked Senda
 }
 
 actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
+    private let sourceMutationGuard: StoreMigrationSourceMutationGuardV1?
     private struct FileIdentity: Equatable {
         let device: dev_t
         let inode: ino_t
@@ -617,6 +618,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         fileManager: FileManager = .default,
         failureInjection: EvidenceBundleStoreFailureInjection? = nil
     ) {
+        self.sourceMutationGuard = nil
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.fileManager = fileManager
         self.failureInjection = failureInjection
@@ -627,12 +629,24 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         )
     }
 
+    @MainActor
+    init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        generationRootURL = authority.generationRootURL.standardizedFileURL
+        fileManager = .default
+        failureInjection = nil
+        sourceMutationGuard = try authority.recoveryMutationGuard()
+        assetLabelPublications = EvidenceBundleStoreAssetLabelPublicationV1(
+            rootURL: authority.generationRootURL, fileManager: .default, failureInjection: nil
+        )
+    }
+
     nonisolated func publishOrAdoptAssetLabelArtifacts(
         job: ResumableLocalJobV1,
         plan: AssetLabelGenerationPlanV1,
         projection: LabelProjectionResultV1
     ) throws -> AssetLabelPublishedContentReadbackV1 {
-        try assetLabelPublications.publishOrAdopt(job: job, plan: plan, projection: projection)
+        try requireProducerAuthority()
+        return try assetLabelPublications.publishOrAdopt(job: job, plan: plan, projection: projection)
     }
 
     nonisolated func adoptAssetLabelArtifacts(
@@ -640,7 +654,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         planSHA256: String,
         outputSHA256: String
     ) throws -> AssetLabelPublishedContentReadbackV1? {
-        try assetLabelPublications.adoptOnly(jobID: jobID, planSHA256: planSHA256, outputSHA256: outputSHA256)
+        try requireProducerAuthority()
+        return try assetLabelPublications.adoptOnly(jobID: jobID, planSHA256: planSHA256, outputSHA256: outputSHA256)
     }
 
     nonisolated func readAssetLabelArtifacts(jobID: LocalJobIDV1) throws -> AssetLabelPublishedContentReadbackV1? {
@@ -648,6 +663,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     nonisolated func removeAssetLabelPublishedOutput(_ binding: AssetLabelRenderPublicationBindingV1) throws {
+        try requireProducerAuthority()
         try assetLabelPublications.remove(binding: binding)
     }
 
@@ -656,14 +672,17 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         plan: AssetLabelGenerationPlanV1,
         projection: LabelProjectionResultV1
     ) throws {
+        try requireProducerAuthority()
         try assetLabelPublications.discardUncommitted(job: job, plan: plan, projection: projection)
     }
 
     nonisolated func removeAssetLabelPublishedWorkspace(_ workspaceID: WorkspaceID) throws {
+        try requireProducerAuthority()
         try assetLabelPublications.removeWorkspace(workspaceID)
     }
 
     nonisolated func eraseAllAssetLabelPublishedArtifacts() throws {
+        try requireProducerAuthority()
         try assetLabelPublications.eraseAll()
     }
 
@@ -676,6 +695,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         bytes: Data,
         request: DraftImmutableContentWriteRequestV1
     ) async throws -> DraftImmutableContentWriteReceiptV1 {
+        try requireProducerAuthority()
         try request.validate()
         guard Int64(bytes.count) == request.byteLength else {
             throw DraftImmutableContentWriterFailureV1.byteLengthMismatch
@@ -840,6 +860,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         _ package: EvidenceDerivativeStorePackageV1,
         cancellation: EvidenceDerivativeCancellationV1
     ) throws -> EvidenceDerivativeContentPublicationReceiptV1 {
+        try requireProducerAuthority()
         let workspace = package.workspaceID.rawValue.uuidString.lowercased()
         let derivative = package.result.derivative
         guard derivative.workspaceID == workspace,
@@ -1082,6 +1103,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         evidenceID: UUID,
         input: EvidenceBundleInput
     ) throws -> StagedEvidenceBundle {
+        try requireProducerAuthority()
         try validateCanonicalJPEG(input.originalJPEG, kind: .original)
         try validateCanonicalJPEG(input.thumbnailJPEG, kind: .thumbnail)
 
@@ -1164,6 +1186,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func promote(_ staged: StagedEvidenceBundle) throws -> PromotedEvidenceBundle {
+        try requireProducerAuthority()
         let paths = paths(for: staged.evidenceID)
         try validateGenerationRoot()
         try ensureDirectory(relativeComponents: ["evidence"])
@@ -1250,6 +1273,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func discardStaging(evidenceID: UUID) throws {
+        try requireProducerAuthority()
         let target = paths(for: evidenceID).stagingDirectoryURL
         try validateGenerationRoot()
         guard let type = try itemType(at: target) else {
@@ -1263,6 +1287,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func removePromotedBundleIfOwned(_ promoted: PromotedEvidenceBundle) throws {
+        try requireProducerAuthority()
         let paths = paths(for: promoted.evidenceID)
         try validateGenerationRoot()
         guard try itemType(at: paths.promotedDirectoryURL) != nil else {
@@ -1308,6 +1333,36 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func reconcile(authorities: [EvidenceBundleAuthority]) throws {
+        if let sourceMutationGuard {
+            try sourceMutationGuard.withAuthorizedMutation {
+                try reconcileUnprotected(authorities: authorities)
+            }
+        } else {
+            try reconcileUnprotected(authorities: authorities)
+        }
+    }
+
+    nonisolated private func requireProducerAuthority() throws {
+        // Original recovery can settle existing intent-owned bytes only. A
+        // retained actor never becomes a producer, including after revocation.
+        guard sourceMutationGuard == nil else { throw EvidenceBundleStoreError.generationRootInvalid }
+    }
+
+    func verifyOriginalRecoverySettled(authorities: [EvidenceBundleAuthority]) throws {
+        guard let sourceMutationGuard else { throw EvidenceBundleStoreError.generationRootInvalid }
+        try sourceMutationGuard.withAuthorizedMutation {
+            try validateGenerationRoot()
+            let staged = try bundleIDs(parentComponents: [".staging"], bundleDirectoryName: "evidence")
+            let promoted = try bundleIDs(parentComponents: [], bundleDirectoryName: "evidence")
+            guard staged.isEmpty, Set(promoted) == Set(authorities.map(\.id)) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            // With exact membership and no staging, this pass validates bytes only.
+            try reconcileUnprotected(authorities: authorities)
+        }
+    }
+
+    private func reconcileUnprotected(authorities: [EvidenceBundleAuthority]) throws {
         try validateGenerationRoot()
 
         var authorityByID: [UUID: EvidenceBundleAuthority] = [:]

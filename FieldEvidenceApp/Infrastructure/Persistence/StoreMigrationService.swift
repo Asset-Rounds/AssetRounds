@@ -1,6 +1,452 @@
 import Darwin
 import Foundation
 
+/// The one aggregate control reader is also used by lease admission/owner
+/// cleanup. Opening it never creates paths; its caller owns the mutation lock.
+final class StoreAggregateMigrationControlV1 {
+    static let name = "aggregate.json"
+    static let temporaryName = "aggregate.next.json"
+    private static let maximumBytes = 4 * 1024 * 1024
+
+    struct FileIdentity: Equatable {
+        let device: UInt64
+        let inode: UInt64
+        let size: Int64
+        let modifiedSeconds: Int64
+        let modifiedNanoseconds: Int64
+        let changedSeconds: Int64
+        let changedNanoseconds: Int64
+    }
+    private struct Directory {
+        let descriptor: Int32
+        let name: String
+        let device: UInt64
+        let inode: UInt64
+    }
+    private let rootURL: URL
+    private var chain: [Directory] = []
+    private var descriptor: Int32 { chain.last!.descriptor }
+
+    final class Allocation {
+        let id: UUID
+        let descriptor: Int32
+        let device: UInt64
+        let inode: UInt64
+        fileprivate init(id: UUID, descriptor: Int32, device: UInt64, inode: UInt64) {
+            self.id = id; self.descriptor = descriptor; self.device = device; self.inode = inode
+        }
+        deinit { _ = Darwin.close(descriptor) }
+    }
+
+    static func allocationID(for name: String) -> UUID? {
+        guard name.hasPrefix("allocation-"), let id = UUID(uuidString: String(name.dropFirst(11))),
+              name == "allocation-" + id.uuidString.lowercased(), id != GenerationEpochV1.zeroUUID else { return nil }
+        return id
+    }
+
+    func requireNoConflictingIntentAuthority() throws {
+        try verify()
+        for name in ["FieldEvidenceRestore", "FieldEvidenceErase"] {
+            let opened = Darwin.openat(chain[0].descriptor, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            if opened < 0, errno == ENOENT { continue }
+            guard opened >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+            defer { _ = Darwin.close(opened) }
+            var initial = stat(), named = stat()
+            guard Darwin.fstat(opened, &initial) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+            let names = try StoreRestoreGenerationAuthority.names(in: opened)
+            if name == "FieldEvidenceErase" {
+                guard names.isEmpty else { throw StoreMigrationFailure.maintenanceRequired(.invalidJournal) }
+            } else {
+                guard Set(names).isDisjoint(with: ["restore.json", ".restore.json.next"]) else {
+                    throw StoreMigrationFailure.maintenanceRequired(.invalidJournal)
+                }
+            }
+            guard Darwin.fstatat(chain[0].descriptor, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  named.st_mode & S_IFMT == S_IFDIR,
+                  named.st_dev == initial.st_dev, named.st_ino == initial.st_ino else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        try verify()
+    }
+
+    func createAllocation(expected: StoreAggregateMigrationJournalV1) throws -> Allocation {
+        guard expected.phase == .sourceFrozen, expected.allocationID == nil,
+              try load() == expected else { throw StoreMigrationFailure.invalidPhaseTransition }
+        try verify()
+        let id = UUID(), name = "allocation-" + id.uuidString.lowercased()
+        guard Darwin.mkdirat(descriptor, name, mode_t(0o700)) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+        // A crash here leaves only unbound evidence. No retry will adopt it.
+        let opened = Darwin.openat(descriptor, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard opened >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        var info = stat()
+        guard Darwin.fstat(opened, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else {
+            _ = Darwin.close(opened); throw StoreMigrationFailure.invalidIdentity
+        }
+        let allocation = Allocation(id: id, descriptor: opened, device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
+        try verifyAllocation(allocation)
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory,
+            at: rootURL.appendingPathComponent("FieldEvidenceOperations/schema-migration/" + name),
+            authorityCheck: { try self.verifyAllocation(allocation) })
+        guard Darwin.fsync(opened) == 0, Darwin.fsync(descriptor) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+        try verifyAllocation(allocation)
+        return allocation
+    }
+
+    func verifyAllocation(_ allocation: Allocation) throws {
+        try verify()
+        var opened = stat(), named = stat()
+        guard Darwin.fstat(allocation.descriptor, &opened) == 0,
+              Darwin.fstatat(descriptor, "allocation-" + allocation.id.uuidString.lowercased(), &named, AT_SYMLINK_NOFOLLOW) == 0,
+              opened.st_mode & S_IFMT == S_IFDIR, named.st_mode & S_IFMT == S_IFDIR,
+              UInt64(opened.st_dev) == allocation.device, UInt64(opened.st_ino) == allocation.inode,
+              UInt64(named.st_dev) == allocation.device, UInt64(named.st_ino) == allocation.inode else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    func publishBoundAllocation(_ journal: StoreAggregateMigrationJournalV1,
+                                afterRenameBeforeSync: () throws -> Void = {}) throws {
+        guard journal.phase == .sourceFrozen, let allocationID = journal.allocationID,
+              let device = journal.candidateRootDevice, let inode = journal.candidateRootInode,
+              try load() == journal else { throw StoreMigrationFailure.invalidPhaseTransition }
+        try verify()
+        // Derive the actual destination from this control owner's pinned root;
+        // no independently supplied FD, URL or callback grants authority.
+        let restore = Darwin.openat(chain[0].descriptor, "FieldEvidenceRestore", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard restore >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        defer { _ = Darwin.close(restore) }
+        let destinationParent = Darwin.openat(restore, "generations", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard destinationParent >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        defer { _ = Darwin.close(destinationParent) }
+        var restoreInfo = stat(), destinationInfo = stat()
+        guard Darwin.fstat(restore, &restoreInfo) == 0, Darwin.fstat(destinationParent, &destinationInfo) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        func reproveDestination() throws {
+            try verify()
+            for (parent, name, opened, expected) in [
+                (chain[0].descriptor, "FieldEvidenceRestore", restore, restoreInfo),
+                (restore, "generations", destinationParent, destinationInfo),
+            ] {
+                var named = stat(), current = stat()
+                guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      Darwin.fstat(opened, &current) == 0,
+                      named.st_mode & S_IFMT == S_IFDIR, current.st_mode & S_IFMT == S_IFDIR,
+                      named.st_dev == expected.st_dev, named.st_ino == expected.st_ino,
+                      current.st_dev == expected.st_dev, current.st_ino == expected.st_ino else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+        try reproveDestination()
+        var parent = stat()
+        guard Darwin.fstat(destinationParent, &parent) == 0, parent.st_mode & S_IFMT == S_IFDIR,
+              UInt64(parent.st_dev) == device else { throw StoreMigrationFailure.invalidIdentity }
+        let allocationName = "allocation-" + allocationID.uuidString.lowercased()
+        let targetName = journal.targetGenerationID.uuidString.lowercased()
+        func presence(_ parent: Int32, _ name: String) throws -> Bool {
+            var info = stat()
+            if Darwin.fstatat(parent, name, &info, AT_SYMLINK_NOFOLLOW) != 0 {
+                if errno == ENOENT { return false }
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            guard info.st_mode & S_IFMT == S_IFDIR, UInt64(info.st_dev) == device, UInt64(info.st_ino) == inode else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return true
+        }
+        let atAllocation = try presence(descriptor, allocationName)
+        let atTarget = try presence(destinationParent, targetName)
+        guard atAllocation != atTarget else { throw StoreMigrationFailure.invalidIdentity }
+        if atAllocation {
+            let opened = Darwin.openat(descriptor, allocationName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard opened >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+            let allocation = Allocation(id: allocationID, descriptor: opened, device: device, inode: inode)
+            try verifyAllocation(allocation)
+            guard try StoreRestoreGenerationAuthority.names(in: opened).isEmpty else { throw StoreMigrationFailure.invalidIdentity }
+            try reproveDestination(); try verifyAllocation(allocation)
+            guard Darwin.renameatx_np(descriptor, allocationName, destinationParent, targetName, UInt32(RENAME_EXCL)) == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try afterRenameBeforeSync()
+        }
+        try verify(); try reproveDestination()
+        guard try !presence(descriptor, allocationName), try presence(destinationParent, targetName) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        // A target-only retry may be the first process after rename but before
+        // either parent sync. Complete both durability obligations every time.
+        guard Darwin.fsync(descriptor) == 0, Darwin.fsync(destinationParent) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try verify(); try reproveDestination()
+        guard try !presence(descriptor, allocationName), try presence(destinationParent, targetName) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    init?(applicationSupportURL: URL) throws {
+        rootURL = applicationSupportURL.standardizedFileURL
+        guard rootURL.isFileURL else { throw StoreMigrationFailure.invalidPath }
+        let root = Darwin.open(rootURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        if root < 0, errno == ENOENT { return nil }
+        guard root >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        do {
+            var info = stat()
+            guard Darwin.fstat(root, &info) == 0 else { _ = Darwin.close(root); throw StoreMigrationFailure.invalidIdentity }
+            chain.append(Directory(descriptor: root, name: "", device: UInt64(info.st_dev), inode: UInt64(info.st_ino)))
+            for name in ["FieldEvidenceOperations", "schema-migration"] {
+                let child = Darwin.openat(descriptor, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                if child < 0, errno == ENOENT { close(); return nil }
+                guard child >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+                guard Darwin.fstat(child, &info) == 0 else { _ = Darwin.close(child); throw StoreMigrationFailure.invalidIdentity }
+                chain.append(Directory(descriptor: child, name: name, device: UInt64(info.st_dev), inode: UInt64(info.st_ino)))
+            }
+            try verify()
+        } catch { close(); throw error }
+    }
+    deinit { close() }
+    private func close() { for entry in chain.reversed() { _ = Darwin.close(entry.descriptor) }; chain.removeAll() }
+
+    private func verify() throws {
+        guard !chain.isEmpty else { throw StoreMigrationFailure.invalidIdentity }
+        for (index, entry) in chain.enumerated() {
+            var info = stat()
+            guard Darwin.fstat(entry.descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
+                  UInt64(info.st_dev) == entry.device, UInt64(info.st_ino) == entry.inode else { throw StoreMigrationFailure.invalidIdentity }
+            let result = index == 0
+                ? Darwin.lstat(rootURL.path, &info)
+                : Darwin.fstatat(chain[index - 1].descriptor, entry.name, &info, AT_SYMLINK_NOFOLLOW)
+            guard result == 0, info.st_mode & S_IFMT == S_IFDIR,
+                  UInt64(info.st_dev) == entry.device, UInt64(info.st_ino) == entry.inode else { throw StoreMigrationFailure.invalidIdentity }
+        }
+    }
+
+    private static func identity(_ descriptor: Int32) throws -> FileIdentity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
+              info.st_nlink == 1, info.st_size >= 0, info.st_size <= maximumBytes else { throw StoreMigrationFailure.invalidIdentity }
+        return FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino), size: Int64(info.st_size),
+            modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
+            changedSeconds: Int64(info.st_ctimespec.tv_sec), changedNanoseconds: Int64(info.st_ctimespec.tv_nsec))
+    }
+
+    static func readFile(parent: Int32, name: String) throws -> (Data, FileIdentity)? {
+        let fd = Darwin.openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+        if fd < 0, errno == ENOENT { return nil }
+        guard fd >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        defer { _ = Darwin.close(fd) }
+        let before = try identity(fd)
+        var bytes = Data(count: Int(before.size))
+        try bytes.withUnsafeMutableBytes { buffer in
+            var offset = 0
+            while offset < buffer.count {
+                let count = Darwin.read(fd, buffer.baseAddress!.advanced(by: offset), buffer.count - offset)
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else { throw StoreMigrationFailure.invalidIdentity }
+                offset += count
+            }
+        }
+        guard try identity(fd) == before else { throw StoreMigrationFailure.invalidIdentity }
+        var named = stat()
+        guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1,
+              UInt64(named.st_dev) == before.device, UInt64(named.st_ino) == before.inode else { throw StoreMigrationFailure.invalidIdentity }
+        return (bytes, before)
+    }
+
+    /// A not-yet-published initial temporary is still exclusive intent. Readers
+    /// must deny admission until the journal owner reconciles it.
+    func load() throws -> StoreAggregateMigrationJournalV1? {
+        try verify()
+        let current = try Self.readFile(parent: descriptor, name: Self.name)
+        let temporary = try Self.readFile(parent: descriptor, name: Self.temporaryName)
+        let value = try current.map { try StoreAggregateMigrationJournalV1.decodeCanonical(from: $0.0) }
+        if let temporary {
+            let pending = try StoreAggregateMigrationJournalV1.decodeCanonical(from: temporary.0)
+            if let value {
+                if pending.revision == value.revision + 1 { try pending.validateReplacement(of: value) }
+                else if value.revision == pending.revision + 1 { try value.validateReplacement(of: pending) }
+                else { throw StoreMigrationFailure.invalidPhaseTransition }
+            } else {
+                guard pending.phase == .recoveringSource, pending.revision == 0 else { throw StoreMigrationFailure.invalidPhaseTransition }
+            }
+            try verify()
+            return value ?? pending
+        }
+        try verify()
+        return value
+    }
+
+    func reconcile() throws {
+        _ = try load()
+        guard let temporary = try Self.readFile(parent: descriptor, name: Self.temporaryName) else { return }
+        let pending = try StoreAggregateMigrationJournalV1.decodeCanonical(from: temporary.0)
+        if let current = try Self.readFile(parent: descriptor, name: Self.name) {
+            let value = try StoreAggregateMigrationJournalV1.decodeCanonical(from: current.0)
+            if pending.revision == value.revision + 1 { try pending.validateReplacement(of: value) }
+            else if value.revision == pending.revision + 1 { try value.validateReplacement(of: pending) }
+            else { throw StoreMigrationFailure.invalidPhaseTransition }
+            guard try Self.readFile(parent: descriptor, name: Self.name)?.1 == current.1 else { throw StoreMigrationFailure.invalidIdentity }
+            try unlink(Self.temporaryName, expected: temporary.1)
+        } else {
+            guard pending.phase == .recoveringSource, pending.revision == 0 else { throw StoreMigrationFailure.invalidPhaseTransition }
+            try verify()
+            guard try Self.readFile(parent: descriptor, name: Self.temporaryName)?.1 == temporary.1,
+                  Darwin.renameatx_np(descriptor, Self.temporaryName, descriptor, Self.name, UInt32(RENAME_EXCL)) == 0,
+                  Darwin.fsync(descriptor) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+            guard let published = try Self.readFile(parent: descriptor, name: Self.name),
+                  published.0 == temporary.0, published.1.device == temporary.1.device,
+                  published.1.inode == temporary.1.inode else { throw StoreMigrationFailure.invalidIdentity }
+        }
+        try verify()
+    }
+
+    func write(_ value: StoreAggregateMigrationJournalV1, expected: StoreAggregateMigrationJournalV1?) throws {
+        try value.validate()
+        if let expected { try value.validateReplacement(of: expected) }
+        else { guard value.phase == .recoveringSource, value.revision == 0 else { throw StoreMigrationFailure.invalidPhaseTransition } }
+        try reconcile()
+        guard try load() == expected else { throw StoreMigrationFailure.invalidPhaseTransition }
+        let prior = try Self.readFile(parent: descriptor, name: Self.name)
+        let data = try value.canonicalData()
+        guard data.count <= Self.maximumBytes else { throw StoreMigrationFailure.invalidContract }
+        let fd = Darwin.openat(descriptor, Self.temporaryName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, mode_t(0o600))
+        guard fd >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        defer { _ = Darwin.close(fd) }
+        try data.withUnsafeBytes { buffer in
+                var offset = 0
+                while offset < buffer.count {
+                    let count = Darwin.write(fd, buffer.baseAddress!.advanced(by: offset), buffer.count - offset)
+                    if count < 0, errno == EINTR { continue }
+                    guard count > 0 else { throw StoreMigrationFailure.invalidIdentity }
+                    offset += count
+                }
+        }
+        guard Darwin.fsync(fd) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+        let created = try Self.identity(fd)
+        func reproveCreated(_ name: String) throws {
+            try verify()
+            let openIdentity = try Self.identity(fd)
+            guard openIdentity.device == created.device, openIdentity.inode == created.inode,
+                  let named = try Self.readFile(parent: descriptor, name: name),
+                  named.1.device == created.device, named.1.inode == created.inode else { throw StoreMigrationFailure.invalidIdentity }
+        }
+        let temporaryURL = rootURL.appendingPathComponent("FieldEvidenceOperations/schema-migration/\(Self.temporaryName)")
+        try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary, at: temporaryURL,
+            authorityCheck: { try reproveCreated(Self.temporaryName) })
+        try reproveCreated(Self.temporaryName)
+        guard let temporary = try Self.readFile(parent: descriptor, name: Self.temporaryName), temporary.0 == data else { throw StoreMigrationFailure.invalidIdentity }
+        try verify()
+        guard try Self.readFile(parent: descriptor, name: Self.name)?.0 == prior?.0 else { throw StoreMigrationFailure.invalidIdentity }
+        if let prior {
+            guard try Self.readFile(parent: descriptor, name: Self.temporaryName)?.1 == temporary.1,
+                  try Self.readFile(parent: descriptor, name: Self.name)?.1 == prior.1,
+                  Darwin.renameatx_np(descriptor, Self.temporaryName, descriptor, Self.name, UInt32(RENAME_SWAP)) == 0,
+                  Darwin.fsync(descriptor) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+            guard let displaced = try Self.readFile(parent: descriptor, name: Self.temporaryName),
+                  displaced.0 == prior.0, displaced.1.device == prior.1.device, displaced.1.inode == prior.1.inode else {
+                throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+            }
+            try unlink(Self.temporaryName, expected: displaced.1)
+        } else {
+            guard try Self.readFile(parent: descriptor, name: Self.temporaryName)?.1 == temporary.1,
+                  Darwin.renameatx_np(descriptor, Self.temporaryName, descriptor, Self.name, UInt32(RENAME_EXCL)) == 0,
+                  Darwin.fsync(descriptor) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+        }
+        try reproveCreated(Self.name)
+        guard try load() == value else { throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired) }
+        try ProtectedFilePolicyV1.applyAndVerify(.journal,
+            at: rootURL.appendingPathComponent("FieldEvidenceOperations/schema-migration/\(Self.name)"),
+            authorityCheck: { try reproveCreated(Self.name) })
+    }
+
+    private func unlink(_ name: String, expected: FileIdentity) throws {
+        try verify()
+        guard try Self.readFile(parent: descriptor, name: name)?.1 == expected,
+              Darwin.unlinkat(descriptor, name, 0) == 0, Darwin.fsync(descriptor) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+    }
+
+    func withOriginalSource<T>(_ journal: StoreAggregateMigrationJournalV1,
+                               _ operation: () throws -> T) throws -> T {
+        try verify()
+        var sourceChain = [Directory]()
+        defer { for entry in sourceChain.reversed() { _ = Darwin.close(entry.descriptor) } }
+        var parent = chain[0].descriptor
+        for name in ["FieldEvidenceData", "generations", journal.sourceGenerationID.uuidString.lowercased()] {
+            let fd = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard fd >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+            var info = stat()
+            guard Darwin.fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else {
+                _ = Darwin.close(fd); throw StoreMigrationFailure.invalidIdentity
+            }
+            sourceChain.append(Directory(descriptor: fd, name: name, device: UInt64(info.st_dev), inode: UInt64(info.st_ino)))
+            parent = fd
+        }
+        guard let source = sourceChain.last, source.device == journal.sourceRootDevice,
+              source.inode == journal.sourceRootInode,
+              let pointer = try Self.readFile(parent: sourceChain[0].descriptor, name: "current.json"),
+              pointer.0 == journal.originalPointerData else { throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch) }
+        func reprove() throws {
+            try verify()
+            var parent = chain[0].descriptor
+            for entry in sourceChain {
+                var info = stat()
+                guard Darwin.fstat(entry.descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
+                      UInt64(info.st_dev) == entry.device, UInt64(info.st_ino) == entry.inode,
+                      Darwin.fstatat(parent, entry.name, &info, AT_SYMLINK_NOFOLLOW) == 0,
+                      info.st_mode & S_IFMT == S_IFDIR, UInt64(info.st_dev) == entry.device,
+                      UInt64(info.st_ino) == entry.inode else { throw StoreMigrationFailure.invalidIdentity }
+                parent = entry.descriptor
+            }
+            guard let current = try Self.readFile(parent: sourceChain[0].descriptor, name: "current.json"),
+                  current.0 == pointer.0, current.1 == pointer.1 else { throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch) }
+        }
+        try reprove()
+        let result = try operation()
+        try reprove()
+        return result
+    }
+
+    func verifyOriginalSource(_ journal: StoreAggregateMigrationJournalV1) throws { try withOriginalSource(journal) {} }
+}
+
+/// No ModelContext or actor state crosses this synchronization seam. Every
+/// recovery save/filesystem mutation is fenced inside one synchronous body.
+final class StoreMigrationSourceMutationGuardV1: @unchecked Sendable {
+    private let registry: GenerationLeaseRegistryV1
+    private let control: StoreAggregateMigrationControlV1
+    private let expected: StoreAggregateMigrationJournalV1
+    // Registry lock -> capability lock is the sole operation lock ordering.
+    // Revocation takes only the capability lock before any fallible FS proof.
+    private let capabilityLock = NSRecursiveLock()
+    private var revoked = false
+
+    init(registry: GenerationLeaseRegistryV1, control: StoreAggregateMigrationControlV1,
+         expected: StoreAggregateMigrationJournalV1) throws {
+        self.registry = registry; self.control = control; self.expected = expected
+        try validateCurrent()
+    }
+    func validateCurrent() throws { try withAuthorizedMutation {} }
+    func withAuthorizedMutation<T>(_ operation: () throws -> T) throws -> T {
+        try registry.withExclusiveGenerationMutationLock {
+            capabilityLock.lock()
+            defer { capabilityLock.unlock() }
+            guard !revoked, expected.phase == .recoveringSource, expected.ownerID == registry.ownerID,
+                  try control.load() == expected else { throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch) }
+            return try control.withOriginalSource(expected, operation)
+        }
+    }
+    func revoke() throws {
+        capabilityLock.lock()
+        revoked = true
+        capabilityLock.unlock()
+        // Failure here is still reported, but cannot revive the local latch.
+        try registry.withExclusiveGenerationMutationLock {}
+    }
+}
+
 /// Descriptor-pinned storage for the one active schema-migration journal and
 /// immutable activation manifests. All artifacts are operational evidence and
 /// therefore use the backup-excluded journal policy from P01-C02.
@@ -226,6 +672,14 @@ final class StoreMigrationJournalStoreV1 {
             expected: captured.identity
         )
         return value
+    }
+
+    func aggregateControl() throws -> StoreAggregateMigrationControlV1 {
+        try verify()
+        guard let control = try StoreAggregateMigrationControlV1(applicationSupportURL: applicationSupportURL) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return control
     }
 
     /// Durably commits the coupled prepared state. The envelope is the commit
@@ -1203,9 +1657,19 @@ final class StoreMigrationJournalStoreV1 {
                 || name == Self.journalTemporaryName
                 || name == Self.preparedEnvelopeName
                 || name == Self.preparedEnvelopeTemporaryName
+                || name == StoreAggregateMigrationControlV1.name
+                || name == StoreAggregateMigrationControlV1.temporaryName
+                || StoreAggregateMigrationControlV1.allocationID(for: name) != nil
                 || Self.isManifestName(name)
         }) else {
             throw StoreMigrationFailure.invalidPath
+        }
+        // Unbound allocation residues are never opened, protected or adopted.
+        // Check only exact spelling/type, preserving all their unknown contents.
+        for name in names where StoreAggregateMigrationControlV1.allocationID(for: name) != nil {
+            var info = stat()
+            guard Darwin.fstatat(migrationDescriptor, name, &info, AT_SYMLINK_NOFOLLOW) == 0,
+                  info.st_mode & S_IFMT == S_IFDIR else { throw StoreMigrationFailure.invalidPath }
         }
         guard validateManifests else { return }
         for name in names where Self.isManifestName(name) {
@@ -1732,6 +2196,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     ) throws -> GenerationLeaseTokenV1 {
         try epoch.validate()
         return try withExclusiveGenerationMutationLock {
+            try requireNoMigrationReservationLocked()
             var state = try loadStateLocked()
             guard state.leases.count < Self.maximumActiveLeaseCount else {
                 throw GenerationLeaseRegistryFailureV1.registryLimitExceeded
@@ -1816,6 +2281,76 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         }
     }
 
+    private func migrationReservationLocked() throws -> StoreAggregateMigrationJournalV1? {
+        guard let control = try StoreAggregateMigrationControlV1(applicationSupportURL: applicationSupportURL),
+              let journal = try control.load(), journal.reservationIsActive else { return nil }
+        return journal
+    }
+
+    fileprivate func requireNoMigrationReservationLocked() throws {
+        guard try migrationReservationLocked() == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+    }
+
+    func requireNoMigrationReservation() throws {
+        try withExclusiveGenerationMutationLock { try requireNoMigrationReservationLocked() }
+    }
+
+    func withNoMigrationReservation<T>(_ operation: () throws -> T) throws -> T {
+        try withExclusiveGenerationMutationLock {
+            try requireNoMigrationReservationLocked()
+            return try operation()
+        }
+    }
+
+    /// Only this exact operation owner may act inside its durable reservation.
+    /// This does not grant an ordinary lease or a canonical writer capability.
+    func withMigrationReservation<T>(expected: StoreAggregateMigrationJournalV1,
+                                      _ operation: () throws -> T) throws -> T {
+        try withExclusiveGenerationMutationLock {
+            guard expected.ownerID == ownerID, expected.reservationIsActive,
+                  try migrationReservationLocked() == expected else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard let control = try StoreAggregateMigrationControlV1(applicationSupportURL: applicationSupportURL) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try control.requireNoConflictingIntentAuthority()
+            return try operation()
+        }
+    }
+
+    /// Retains the exact abandoned owner's guard through CAS transfer. A
+    /// missing file or process-ID difference is never proof of abandonment.
+    func withProvenAbandonedMigrationOwner<T>(ownerID previousOwner: UUID,
+                                               _ replaceReservation: () throws -> T) throws -> T {
+        try withExclusiveGenerationMutationLock {
+            guard previousOwner != ownerID,
+                  let expected = try migrationReservationLocked(), expected.ownerID == previousOwner else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let name = Self.ownerLockName(previousOwner)
+            let fd = Darwin.openat(ownersDescriptor, name, O_RDWR | O_NONBLOCK | O_NOFOLLOW)
+            guard fd >= 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            defer { _ = Darwin.close(fd) }
+            let identity = try Self.regularFileIdentity(fd)
+            try requireNamedIdentity(parent: ownersDescriptor, name: name, expected: identity)
+            guard Darwin.flock(fd, LOCK_EX | LOCK_NB) == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            defer { _ = Darwin.flock(fd, LOCK_UN) }
+            try requireNamedIdentity(parent: ownersDescriptor, name: name, expected: identity)
+            let result = try replaceReservation()
+            guard let replacement = try migrationReservationLocked(), replacement.ownerID == ownerID else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try replacement.validateReplacement(of: expected)
+            try requireNamedIdentity(parent: ownersDescriptor, name: name, expected: identity)
+            let state = try loadStateLocked()
+            if !state.leases.contains(where: { $0.ownerID == previousOwner }) {
+                guard Darwin.unlinkat(ownersDescriptor, name, 0) == 0, Darwin.fsync(ownersDescriptor) == 0 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            return result
+        }
+    }
+
     /// Removes only leases whose exact owner guard is provably unlocked. A
     /// missing, malformed, or unprobeable owner guard is uncertain and retains
     /// all associated lease records.
@@ -1823,6 +2358,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     func reconcileAbandonedOwners() throws -> Int {
         try withExclusiveGenerationMutationLock {
             let state = try loadStateLocked()
+            let reservedOwner = try migrationReservationLocked()?.ownerID
             let owners = Set(state.leases.map(\.ownerID)).subtracting(
                 Set([ownerID])
             )
@@ -1874,6 +2410,9 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             )
             try replaceStateLocked(with: replacement)
             for (candidate, descriptor, identity) in retainedDescriptors {
+                // The aggregate can reference an owner with no ordinary lease.
+                // Its guard survives until exact guarded reservation takeover.
+                if candidate == reservedOwner { continue }
                 try requireNamedIdentity(
                     parent: ownersDescriptor,
                     name: Self.ownerLockName(candidate),
@@ -2175,7 +2714,8 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             verifyAfterOperation: false
         ) {
             let state = try loadStateLocked()
-            guard !state.leases.contains(where: { $0.ownerID == ownerID }) else {
+            guard !state.leases.contains(where: { $0.ownerID == ownerID }),
+                  try migrationReservationLocked()?.ownerID != ownerID else {
                 return
             }
             try requireNamedIdentity(
@@ -2948,6 +3488,7 @@ final class StaleWriterFenceV1 {
     }
 
     private func validateCurrentLocked() throws {
+        try registry.requireNoMigrationReservationLocked()
         try registry.validateActiveLocked(
             writerLeaseToken,
             requiredRole: .writer

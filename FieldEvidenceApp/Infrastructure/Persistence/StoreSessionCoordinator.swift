@@ -247,7 +247,8 @@ final class StoreSessionCoordinator: ObservableObject {
         fileAuthority: any ApplicationFileAuthorityV1,
         generationFactory: StoreGenerationFactory
     ) throws -> WriterBinding {
-        guard let generationEpoch = session.generationEpoch else {
+        guard session.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
+              let generationEpoch = session.generationEpoch else {
             throw GenerationLeaseRegistryFailureV1.staleGeneration
         }
         let registry = try generationFactory.makeGenerationLeaseRegistry()

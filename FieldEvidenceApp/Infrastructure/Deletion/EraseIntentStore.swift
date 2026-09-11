@@ -678,6 +678,11 @@ final class EraseIntentStore {
     }
 
     func createPreparation(_ value: ErasePreparationV2) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation { try createPreparationWithoutMigrationReservation(value) }
+    }
+
+    private func createPreparationWithoutMigrationReservation(_ value: ErasePreparationV2) throws {
         try verifyAuthority()
         try verifyExistingPolicy(.journal, name: Self.preparationName)
         try verifyExistingPolicy(
@@ -734,6 +739,15 @@ final class EraseIntentStore {
     func replacePreparation(
         expected: ErasePreparationV2,
         with replacement: ErasePreparationV2
+    ) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation {
+            try replacePreparationWithoutMigrationReservation(expected: expected, with: replacement)
+        }
+    }
+
+    private func replacePreparationWithoutMigrationReservation(
+        expected: ErasePreparationV2, with replacement: ErasePreparationV2
     ) throws {
         try verifyAuthority()
         try verifyExistingPolicy(.journal, name: Self.preparationName)
@@ -836,6 +850,11 @@ final class EraseIntentStore {
     }
 
     func create(_ value: EraseIntentV1) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation { try createWithoutMigrationReservation(value) }
+    }
+
+    private func createWithoutMigrationReservation(_ value: EraseIntentV1) throws {
         try AssetLocatorEraseIntentEnrollmentV1.validate()
         try verifyAuthority()
         try verifyExistingPolicy(.journal, name: Self.intentName)
@@ -887,6 +906,15 @@ final class EraseIntentStore {
     func replace(
         expected: EraseIntentV1,
         with replacement: EraseIntentV1
+    ) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation {
+            try replaceWithoutMigrationReservation(expected: expected, with: replacement)
+        }
+    }
+
+    private func replaceWithoutMigrationReservation(
+        expected: EraseIntentV1, with replacement: EraseIntentV1
     ) throws {
         try verifyAuthority()
         try verifyExistingPolicy(.journal, name: Self.intentName)

@@ -44,6 +44,543 @@ private final class C30EvidenceContextAnchorV9_03MigrationRecovery: XCTestCase {
 
 @MainActor
 final class V9_03MigrationRecoveryTests: XCTestCase {
+    func testAggregatePopulatedLegacyPublishesOnlyActiveThenRequiresIndependentProcessAndPreservesSource() async throws {
+        let fixture = try makeLegacyFixture(suffix: "aggregate-full-golden-\(UUID().uuidString)")
+        defer { try? fileManager.removeItem(at: fixture.root) }
+        var processID = UUID()
+        let factory = StoreGenerationFactory(applicationSupportURL: fixture.root,
+            migrationIdentitySource: StoreMigrationIdentitySourceV1(makeMigrationID: UUID.init,
+                makeGenerationID: UUID.init, makeProcessID: { processID }))
+        let pointerURL = fixture.root.appendingPathComponent("FieldEvidenceData/current.json")
+        let originalPointer = try Data(contentsOf: pointerURL)
+        var recoveries = 0
+        let first = try await factory.openForStartup { source in
+            recoveries += 1
+            XCTAssertEqual(try Data(contentsOf: pointerURL), originalPointer)
+            XCTAssertEqual(source.sourceRelease, .v1)
+            XCTAssertEqual(source.sourceGenerationID, fixture.sourceID)
+        }
+        guard case .awaitingIndependentValidation(let awaiting) = first else {
+            return XCTFail("First process cannot expose a ready session")
+        }
+        let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+        let firstJournal = try XCTUnwrap(control.load())
+        XCTAssertEqual(firstJournal.phase, .awaitingIndependentValidation)
+        XCTAssertEqual(firstJournal.transitions.map { $0.targetRelease.versionIdentifier.major }, Array(2...53))
+        XCTAssertEqual(firstJournal.targetGenerationID, awaiting.targetGenerationID)
+        XCTAssertNotEqual(firstJournal.targetGenerationID, fixture.sourceID)
+        let authority = try factory.makeRestoreGenerationAuthority()
+        let frozenSource = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+        XCTAssertFalse(try authority.retiredGenerationIDs().contains(fixture.sourceID))
+        let publishedPointer = try Data(contentsOf: pointerURL)
+        XCTAssertEqual(try CurrentGenerationPointerV3.decodeCanonical(from: publishedPointer).storeSchemaVersion, 53)
+        let retry = try await factory.openForStartup { _ in XCTFail("Source recovery occurs once") }
+        guard case .awaitingIndependentValidation = retry else { return XCTFail("Same-process retry must hold") }
+        XCTAssertEqual(try control.load(), firstJournal)
+        XCTAssertEqual(try Data(contentsOf: pointerURL), publishedPointer)
+        processID = UUID() // Unit analogue; the UI test performs a real terminate/relaunch.
+        let independent = try await factory.openForStartup { _ in XCTFail("Independent validation does not recover source") }
+        guard case .ready(let session) = independent else { return XCTFail("Independent process must validate active target") }
+        XCTAssertEqual(session.generationID, firstJournal.targetGenerationID)
+        try assertMigratedRows(in: session.modelContext, fixture: fixture)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>()).first?.schemaVersion, 53)
+        XCTAssertEqual(try control.load()?.phase, .complete)
+        XCTAssertTrue(try authority.retiredGenerationIDs().contains(fixture.sourceID))
+        XCTAssertEqual(try Data(contentsOf: pointerURL), publishedPointer)
+        let preserved = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+        XCTAssertEqual(preserved.files, frozenSource.files)
+        XCTAssertEqual(preserved.frozenIdentityDigest, frozenSource.frozenIdentityDigest)
+
+        // Admission uses the real active session, retained writer lease and
+        // stale-writer fence. No second container or journal owner is created.
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        try withExtendedLifetime(coordinator) {
+            XCTAssertTrue(coordinator.modelContext === session.modelContext)
+            XCTAssertEqual(coordinator.generationID, firstJournal.targetGenerationID)
+            let epoch = try XCTUnwrap(session.generationEpoch)
+            XCTAssertEqual(epoch.generationID, firstJournal.targetGenerationID)
+            XCTAssertEqual(epoch.generationManifestSHA256,
+                try CurrentGenerationPointerV3.decodeCanonical(from: publishedPointer).generationManifestSHA256)
+            let writer = coordinator.workspaceWriter
+            // This delegates to the admitted writer's own journal.exportSnapshot,
+            // which runs strict validateAll before returning receipt history.
+            let originalHistory = try writer.sourceMutationHistorySnapshot()
+            XCTAssertTrue(originalHistory.receipts.isEmpty)
+            let current = try writer.currentRevision()
+            let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: fixture.siteID)
+            let siteRevision = current.entityRevisions.first(where: { $0.identity == siteIdentity })?.revision ?? 0
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+                generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision,
+                entityRevisions: [.init(identity: siteIdentity, revision: siteRevision)])
+            let mutationID = try MutationIDV1(rawValue: UUID())
+            let request = WorkspaceMutationRequestV1(mutationID: mutationID, expectedRevision: expected,
+                command: .updateSiteTimeZone(.init(siteID: fixture.siteID, timeZoneID: "Europe/London",
+                    confirmedAt: Date(timeIntervalSince1970: 1_800_000_100))))
+            let site = try XCTUnwrap(coordinator.modelContext.fetch(FetchDescriptor<Site>()).first)
+            XCTAssertEqual(site.timeZoneID, "America/New_York")
+            let outcome = try writer.execute(request)
+            XCTAssertEqual(outcome.after.revision, current.revision + 1)
+            XCTAssertEqual(site.timeZoneID, "Europe/London")
+            let receipt = try XCTUnwrap(writer.durableReceipt(mutationID: mutationID))
+            let receiptBytes = try receipt.canonicalData()
+            XCTAssertEqual(receipt.expectedRevision, try MutationPortableExpectedRevisionV1(expected))
+            XCTAssertEqual(receipt.postImages.count, 1)
+            XCTAssertEqual(try receipt.postImages.first?.identity, siteIdentity)
+            let writtenHistory = try writer.sourceMutationHistorySnapshot()
+            XCTAssertEqual(writtenHistory.receipts.count, 1)
+            XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+            let replay = try writer.execute(request)
+            XCTAssertEqual(replay.mutationID, outcome.mutationID)
+            XCTAssertEqual(replay.after.revision, outcome.after.revision)
+            XCTAssertEqual(try XCTUnwrap(writer.durableReceipt(mutationID: mutationID)).canonicalData(), receiptBytes)
+            XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), writtenHistory)
+            XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+            XCTAssertFalse(coordinator.modelContext.hasChanges)
+            try assertMigratedRows(in: coordinator.modelContext, fixture: fixture)
+            XCTAssertEqual(try Data(contentsOf: pointerURL), publishedPointer)
+            let afterWrite = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+            XCTAssertEqual(afterWrite.files, frozenSource.files)
+            XCTAssertEqual(afterWrite.frozenIdentityDigest, frozenSource.frozenIdentityDigest)
+            XCTAssertTrue(try authority.retiredGenerationIDs().contains(fixture.sourceID))
+            XCTAssertEqual(try control.load()?.sourceCheckpoint, firstJournal.sourceCheckpoint)
+            XCTAssertEqual(try control.load()?.phase, .complete)
+        }
+        XCTAssertEqual(recoveries, 1)
+    }
+
+    func testAggregatePublishedMarkerTamperHoldsWithoutRepairingTargetOrRetiringSource() async throws {
+        let fixture = try makeLegacyFixture(suffix: "aggregate-marker-tamper-\(UUID().uuidString)")
+        defer { try? fileManager.removeItem(at: fixture.root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: fixture.root,
+            migrationIdentitySource: StoreMigrationIdentitySourceV1(makeMigrationID: UUID.init,
+                makeGenerationID: UUID.init, makeProcessID: UUID.init))
+        let first = try await factory.openForStartup { _ in }
+        guard case .awaitingIndependentValidation = first else { return XCTFail("Expected published awaiting target") }
+        let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+        let journal = try XCTUnwrap(control.load())
+        let authority = try factory.makeRestoreGenerationAuthority()
+        let source = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+        let targetURL = factory.installedGenerationURL(id: journal.targetGenerationID)
+        try autoreleasepool {
+            let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+            let configuration = ModelConfiguration("FieldEvidenceV53", schema: schema,
+                url: targetURL.appendingPathComponent("model.sqlite"), allowsSave: true, cloudKitDatabase: .none)
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            container.mainContext.autosaveEnabled = false
+            let marker = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>()).first)
+            marker.schemaVersion = 52
+            try container.mainContext.save()
+        }
+        let tampered = try authority.snapshotInstalledGeneration(id: journal.targetGenerationID)
+        let pointerURL = fixture.root.appendingPathComponent("FieldEvidenceData/current.json")
+        let pointer = try Data(contentsOf: pointerURL)
+        do {
+            _ = try await factory.openForStartup { _ in XCTFail("Published marker corruption cannot recover source") }
+            XCTFail("Altered marker must not be normalized into success")
+        } catch {}
+        XCTAssertEqual(try control.load(), journal)
+        XCTAssertEqual(try Data(contentsOf: pointerURL), pointer)
+        XCTAssertFalse(try authority.retiredGenerationIDs().contains(fixture.sourceID))
+        let preservedSource = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+        XCTAssertEqual(preservedSource.files, source.files)
+        XCTAssertEqual(preservedSource.frozenIdentityDigest, source.frozenIdentityDigest)
+        let preservedTarget = try authority.snapshotInstalledGeneration(id: journal.targetGenerationID)
+        XCTAssertEqual(preservedTarget.files, tampered.files)
+        XCTAssertEqual(preservedTarget.frozenIdentityDigest, tampered.frozenIdentityDigest)
+    }
+
+#if DEBUG
+    func testReleasedCheckpointFixtureRefusesExistingRootsWithoutPopulationOrMutation() throws {
+        for nonempty in [false, true] {
+            let root = fileManager.temporaryDirectory.appendingPathComponent("checkpoint-existing-" + UUID().uuidString)
+            try fileManager.createDirectory(at: root, withIntermediateDirectories: false)
+            defer { try? fileManager.removeItem(at: root) }
+            let sentinel = root.appendingPathComponent("preserve.bin")
+            let bytes = Data("Preexisting fixture authority is never reset".utf8)
+            if nonempty { try bytes.write(to: sentinel) }
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            let identity = try WorkspaceReplicaIdentityV1(workspaceID: WorkspaceID(rawValue: UUID()),
+                replicaID: ReplicaID(rawValue: UUID()))
+            let names = try fileManager.contentsOfDirectory(atPath: root.path)
+            XCTAssertThrowsError(try factory.seedReleasedCheckpointTestFixture(release: .v9,
+                generationID: UUID(), migrationID: UUID(), identity: identity) { _ in
+                    XCTFail("Existing roots cannot expose a fixture population context")
+                })
+            XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: root.path), names)
+            if nonempty { XCTAssertEqual(try Data(contentsOf: sentinel), bytes) }
+        }
+    }
+
+    func testAggregateAllocationCrashRecoveryPreservesUnboundResidueAndOneBoundCandidate() async throws {
+        for boundary: StoreAggregateMigrationFaultBoundaryV1 in [
+            .afterAllocationCreation, .afterAllocationBinding, .afterAllocationRenameBeforeSync, .afterAllocationPublication,
+        ] {
+            let fixture = try makeLegacyFixture(suffix: "aggregate-allocation-\(boundary)-\(UUID().uuidString)")
+            defer { try? fileManager.removeItem(at: fixture.root) }
+            let injection = StoreMigrationFailureInjection(aggregateFault: boundary)
+            let factory = StoreGenerationFactory(applicationSupportURL: fixture.root, migrationFailureInjection: injection)
+            let pointerURL = fixture.root.appendingPathComponent("FieldEvidenceData/current.json")
+            let pointer = try Data(contentsOf: pointerURL)
+            do {
+                _ = try await factory.openForStartup { _ in }
+                XCTFail("Expected allocation crash boundary \(boundary)")
+            } catch let reached as StoreAggregateMigrationFaultBoundaryV1 {
+                XCTAssertEqual(reached, boundary)
+            }
+            let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+            let before = try XCTUnwrap(control.load())
+            XCTAssertEqual(before.phase, .sourceFrozen)
+            let migrationRoot = fixture.root.appendingPathComponent("FieldEvidenceOperations/schema-migration")
+            let allocations = try fileManager.contentsOfDirectory(atPath: migrationRoot.path).filter {
+                StoreAggregateMigrationControlV1.allocationID(for: $0) != nil
+            }
+            var residue: URL?
+            let sentinelBytes = Data("Unknown unbound allocation content must survive".utf8)
+            if boundary == .afterAllocationCreation {
+                XCTAssertNil(before.allocationID)
+                XCTAssertNil(before.candidateRootInode)
+                XCTAssertEqual(allocations.count, 1)
+                residue = migrationRoot.appendingPathComponent(try XCTUnwrap(allocations.first)).appendingPathComponent("unknown.bin")
+                try sentinelBytes.write(to: try XCTUnwrap(residue))
+            } else {
+                XCTAssertNotNil(before.allocationID)
+                XCTAssertNotNil(before.candidateRootInode)
+            }
+            // Reproduce both original temp states: an uncommitted binding,
+            // or the old original left after an atomic binding swap.
+            var interrupted = before
+            if let allocationID = before.allocationID {
+                interrupted.revision -= 1
+                interrupted.allocationID = nil; interrupted.candidateRootDevice = nil; interrupted.candidateRootInode = nil
+                XCTAssertNotEqual(allocationID, interrupted.allocationID)
+                try before.validateReplacement(of: interrupted)
+            } else {
+                let name = try XCTUnwrap(allocations.first)
+                var info = stat()
+                XCTAssertEqual(Darwin.lstat(migrationRoot.appendingPathComponent(name).path, &info), 0)
+                interrupted.revision += 1
+                interrupted.allocationID = try XCTUnwrap(StoreAggregateMigrationControlV1.allocationID(for: name))
+                interrupted.candidateRootDevice = UInt64(info.st_dev); interrupted.candidateRootInode = UInt64(info.st_ino)
+                try interrupted.validateReplacement(of: before)
+            }
+            try interrupted.canonicalData().write(to: migrationRoot.appendingPathComponent(StoreAggregateMigrationControlV1.temporaryName))
+            injection.failNext(at: .beforeSourceClone)
+            do {
+                _ = try await factory.openForStartup { _ in XCTFail("Frozen source must not recover again") }
+                XCTFail("Expected pre-clone stop after exact allocation recovery")
+            } catch let failure as StoreMigrationFailure {
+                XCTAssertEqual(failure, .injectedFault(.beforeSourceClone))
+            }
+            let after = try XCTUnwrap(control.load())
+            XCTAssertEqual(after.phase, .sourceFrozen)
+            XCTAssertEqual(after.targetGenerationID, before.targetGenerationID)
+            XCTAssertEqual(after.sourceCheckpoint, before.sourceCheckpoint)
+            XCTAssertFalse(fileManager.fileExists(atPath: migrationRoot.appendingPathComponent(StoreAggregateMigrationControlV1.temporaryName).path))
+            let target = factory.restoreStagingGenerationURL(id: after.targetGenerationID)
+            var info = stat()
+            XCTAssertEqual(Darwin.lstat(target.path, &info), 0)
+            XCTAssertEqual(UInt64(info.st_dev), after.candidateRootDevice)
+            XCTAssertEqual(UInt64(info.st_ino), after.candidateRootInode)
+            XCTAssertTrue(try fileManager.contentsOfDirectory(atPath: target.path).isEmpty)
+            XCTAssertFalse(fileManager.fileExists(atPath: migrationRoot.appendingPathComponent(
+                "allocation-" + (try XCTUnwrap(after.allocationID)).uuidString.lowercased()).path))
+            if before.allocationID != nil {
+                XCTAssertEqual(after.allocationID, before.allocationID)
+                XCTAssertEqual(after.candidateRootInode, before.candidateRootInode)
+            }
+            if let residue { XCTAssertEqual(try Data(contentsOf: residue), sentinelBytes) }
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointer)
+        }
+    }
+
+    func testAggregateBoundAllocationRejectsBothNeitherReplacementAndSymlinkWithoutCleanup() async throws {
+        for attack in ["both", "neither", "replacement", "symlink", "malformed-name", "destination-symlink"] {
+            let fixture = try makeLegacyFixture(suffix: "aggregate-allocation-\(attack)-\(UUID().uuidString)")
+            defer { try? fileManager.removeItem(at: fixture.root) }
+            let injection = StoreMigrationFailureInjection(aggregateFault: .afterAllocationBinding)
+            let factory = StoreGenerationFactory(applicationSupportURL: fixture.root, migrationFailureInjection: injection)
+            do { _ = try await factory.openForStartup { _ in }; XCTFail("Expected bound allocation stop") }
+            catch let reached as StoreAggregateMigrationFaultBoundaryV1 { XCTAssertEqual(reached, .afterAllocationBinding) }
+            let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+            let before = try XCTUnwrap(control.load())
+            let migrationRoot = fixture.root.appendingPathComponent("FieldEvidenceOperations/schema-migration")
+            let allocation = migrationRoot.appendingPathComponent("allocation-" + (try XCTUnwrap(before.allocationID)).uuidString.lowercased())
+            let target = factory.restoreStagingGenerationURL(id: before.targetGenerationID)
+            let retained = fixture.root.appendingPathComponent("retained-bound-allocation")
+            let movesAllocation = ["neither", "replacement", "symlink"].contains(attack)
+            if movesAllocation {
+                try fileManager.moveItem(at: allocation, to: retained)
+            }
+            if attack == "both" { try fileManager.createDirectory(at: target, withIntermediateDirectories: false) }
+            if attack == "replacement" {
+                try fileManager.createDirectory(at: allocation, withIntermediateDirectories: false)
+                // Plausible SQLite never substitutes for the exact allocation
+                // inode. Retain the valid source and this foreign copy.
+                let sourceModel = factory.installedGenerationURL(id: fixture.sourceID).appendingPathComponent("model.sqlite")
+                try fileManager.copyItem(at: sourceModel, to: allocation.appendingPathComponent("model.sqlite"))
+                try Data("foreign plausible allocation".utf8).write(to: allocation.appendingPathComponent("sentinel.bin"))
+            }
+            if attack == "symlink" { try fileManager.createSymbolicLink(at: allocation, withDestinationURL: retained) }
+            if attack == "malformed-name" { try fileManager.createDirectory(at: migrationRoot.appendingPathComponent("allocation-NOT-A-UUID"), withIntermediateDirectories: false) }
+            let destination = target.deletingLastPathComponent()
+            let foreignDestination = fixture.root.appendingPathComponent("foreign-destination")
+            if attack == "destination-symlink" {
+                try fileManager.moveItem(at: destination, to: foreignDestination)
+                try fileManager.createSymbolicLink(at: destination, withDestinationURL: foreignDestination)
+            }
+            let pointerURL = fixture.root.appendingPathComponent("FieldEvidenceData/current.json")
+            let pointer = try Data(contentsOf: pointerURL)
+            let names = try fileManager.contentsOfDirectory(atPath: migrationRoot.path).sorted()
+            do {
+                _ = try await factory.openForStartup { _ in XCTFail("Frozen source cannot recover again") }
+                XCTFail("Uncertain allocation must hold: \(attack)")
+            } catch {}
+            XCTAssertEqual(try control.load(), before)
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointer)
+            XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: migrationRoot.path).sorted(), names)
+            if attack == "both" { XCTAssertTrue(fileManager.fileExists(atPath: target.path)) }
+            if movesAllocation { XCTAssertTrue(fileManager.fileExists(atPath: retained.path)) }
+            if attack == "replacement" {
+                XCTAssertEqual(try Data(contentsOf: allocation.appendingPathComponent("model.sqlite")),
+                    try Data(contentsOf: factory.installedGenerationURL(id: fixture.sourceID).appendingPathComponent("model.sqlite")))
+                XCTAssertEqual(try Data(contentsOf: allocation.appendingPathComponent("sentinel.bin")), Data("foreign plausible allocation".utf8))
+            }
+            if attack == "destination-symlink" { XCTAssertTrue(try fileManager.contentsOfDirectory(atPath: foreignDestination.path).isEmpty) }
+        }
+    }
+#endif
+
+    func testAggregateOwnerRemainsLiveAfterFactoryReleaseWhileContextOrActorEscapes() async throws {
+        for retention in ["context", "actor"] {
+            let fixture = try makeLegacyFixture(suffix: "aggregate-factory-release-\(retention)-\(UUID().uuidString)")
+            defer { try? fileManager.removeItem(at: fixture.root) }
+            var factory: StoreGenerationFactory? = StoreGenerationFactory(applicationSupportURL: fixture.root)
+            var escapedContext: ModelContext?
+            var escapedActor: EvidenceBundleStore?
+            do {
+                _ = try await factory!.openForStartup { authority in
+                    if retention == "context" { escapedContext = try authority.recoveryContext() }
+                    else { escapedActor = try EvidenceBundleStore(sourceRecoveryAuthority: authority) }
+                }
+                XCTFail("Escaped recovery object must hold before checkpoint")
+            } catch {}
+            factory = nil
+            await Task.yield()
+            XCTAssertNil(factory, "The registry lifetime must not depend on retaining the factory value")
+            let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+            let before = try XCTUnwrap(control.load())
+            XCTAssertEqual(before.phase, .recoveringSource)
+            XCTAssertNil(before.sourceCheckpoint)
+            let rival = StoreGenerationFactory(applicationSupportURL: fixture.root)
+            var rivalReachedRecovery = false
+            do {
+                _ = try await rival.openForStartup { _ in rivalReachedRecovery = true }
+                XCTFail("Leaked recovery object retains the original owner guard")
+            } catch {}
+            XCTAssertFalse(rivalReachedRecovery)
+            XCTAssertEqual(try control.load(), before)
+            XCTAssertFalse(fileManager.fileExists(atPath: rival.restoreStagingGenerationURL(id: before.targetGenerationID).path))
+            if let actor = escapedActor {
+                do { try await actor.verifyOriginalRecoverySettled(authorities: []); XCTFail("Escaped actor is revoked") }
+                catch {}
+            }
+            if retention == "context" { XCTAssertNotNil(escapedContext) }
+            escapedContext = nil; escapedActor = nil
+        }
+    }
+
+    func testAggregateReservationSerializesRestoreStagingAndOriginalIntentAdmission() async throws {
+        for ordering in ["staging-first", "restore-first", "erase-first", "aggregate-first"] {
+            let fixture = try makeLegacyFixture(suffix: "aggregate-admission-\(ordering)-\(UUID().uuidString)")
+            defer { try? fileManager.removeItem(at: fixture.root) }
+            let factory = StoreGenerationFactory(applicationSupportURL: fixture.root)
+            let authority = try factory.makeRestoreGenerationAuthority()
+            let target = UUID()
+            let restore = RestoreIntentV1(newGenerationID: target,
+                newGenerationRelativePath: "FieldEvidenceData/generations/" + target.uuidString.lowercased(),
+                oldGenerationID: fixture.sourceID, phase: .prepared, restoreID: UUID(), schemaVersion: 1,
+                stagingGenerationRelativePath: "FieldEvidenceRestore/generations/" + target.uuidString.lowercased())
+            let erase = EraseIntentV1(auxiliaryRoots: EraseIntentV1.canonicalAuxiliaryRoots,
+                eraseID: UUID(), generationIDsToDelete: [fixture.sourceID], newGenerationID: target,
+                oldGenerationID: fixture.sourceID, phase: .emptyGenerationPrepared, schemaVersion: 1)
+            XCTAssertTrue(RestoreIntentCodecV1.valid(restore))
+            XCTAssertTrue(EraseIntentCodecV1.valid(erase))
+            let restoreStore = try RestoreIntentStore(applicationSupportURL: fixture.root)
+            let eraseStore = try EraseIntentStore(applicationSupportURL: fixture.root)
+            if ordering == "staging-first" { try authority.createStagingGeneration(id: target) }
+            if ordering == "restore-first" { try restoreStore.create(restore) }
+            if ordering == "erase-first" { try eraseStore.create(erase) }
+            let pointerURL = fixture.root.appendingPathComponent("FieldEvidenceData/current.json")
+            let pointer = try Data(contentsOf: pointerURL)
+            let source = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+            var callbackReached = false
+            do {
+                _ = try await factory.openForStartup { _ in
+                    callbackReached = true
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
+                }
+                XCTFail("Expected original authority/admission hold")
+            } catch {}
+            if ordering == "aggregate-first" {
+                XCTAssertTrue(callbackReached)
+                let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+                let before = try XCTUnwrap(control.load())
+                XCTAssertThrowsError(try authority.createStagingGeneration(id: target))
+                XCTAssertThrowsError(try restoreStore.create(restore))
+                XCTAssertThrowsError(try eraseStore.create(erase))
+                XCTAssertThrowsError(try authority.removeInstalledGeneration(id: fixture.sourceID))
+                XCTAssertThrowsError(try authority.installStagingGeneration(id: target))
+                XCTAssertFalse(fileManager.fileExists(atPath: factory.restoreStagingGenerationURL(id: target).path))
+                XCTAssertNil(try restoreStore.load())
+                XCTAssertNil(try eraseStore.load())
+                XCTAssertEqual(try control.load(), before)
+            } else {
+                XCTAssertFalse(callbackReached)
+                XCTAssertNil(try StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root)?.load())
+                if ordering == "staging-first" { XCTAssertTrue(fileManager.fileExists(atPath: factory.restoreStagingGenerationURL(id: target).path)) }
+                if ordering == "restore-first" { XCTAssertEqual(try restoreStore.load(), restore) }
+                if ordering == "erase-first" { XCTAssertEqual(try eraseStore.load(), erase) }
+            }
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointer)
+            let retainedSource = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+            XCTAssertEqual(retainedSource.files.first(where: { $0.relativePath == "model.sqlite" })?.sha256,
+                source.files.first(where: { $0.relativePath == "model.sqlite" })?.sha256)
+            if ordering != "aggregate-first" {
+                XCTAssertEqual(retainedSource.files, source.files)
+                XCTAssertEqual(retainedSource.frozenIdentityDigest, source.frozenIdentityDigest)
+            }
+        }
+    }
+
+    func testAggregateReservationRejectsInjectedConflictingAuthorityWithoutRecoveryOrCleanup() async throws {
+        for conflict in ["restore", "erase"] {
+            let fixture = try makeLegacyFixture(suffix: "aggregate-coexistence-\(conflict)-\(UUID().uuidString)")
+            defer { try? fileManager.removeItem(at: fixture.root) }
+            let factory = StoreGenerationFactory(applicationSupportURL: fixture.root)
+            do {
+                _ = try await factory.openForStartup { _ in throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable) }
+                XCTFail("Expected retained source-recovery reservation")
+            } catch {}
+            let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+            let original = try XCTUnwrap(control.load())
+            XCTAssertTrue(original.reservationIsActive)
+            let target = UUID()
+            let directory = fixture.root.appendingPathComponent(conflict == "restore" ? "FieldEvidenceRestore" : "FieldEvidenceErase")
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            let intentURL = directory.appendingPathComponent(conflict + ".json")
+            let intent: Data
+            if conflict == "restore" {
+                intent = try RestoreIntentCodecV1.encode(RestoreIntentV1(newGenerationID: target,
+                    newGenerationRelativePath: "FieldEvidenceData/generations/" + target.uuidString.lowercased(),
+                    oldGenerationID: fixture.sourceID, phase: .prepared, restoreID: UUID(), schemaVersion: 1,
+                    stagingGenerationRelativePath: "FieldEvidenceRestore/generations/" + target.uuidString.lowercased()))
+            } else {
+                intent = try EraseIntentCodecV1.encode(EraseIntentV1(auxiliaryRoots: EraseIntentV1.canonicalAuxiliaryRoots,
+                    eraseID: UUID(), generationIDsToDelete: [fixture.sourceID], newGenerationID: target,
+                    oldGenerationID: fixture.sourceID, phase: .emptyGenerationPrepared, schemaVersion: 1))
+            }
+            // Bypass the cooperating admission API only to model conflicting
+            // on-disk authority. Neither authority may resolve the other.
+            try intent.write(to: intentURL)
+            let pointerURL = fixture.root.appendingPathComponent("FieldEvidenceData/current.json")
+            let pointer = try Data(contentsOf: pointerURL)
+            let authority = try factory.makeRestoreGenerationAuthority()
+            let source = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+            let names = try fileManager.contentsOfDirectory(atPath: directory.path).sorted()
+            XCTAssertThrowsError(try factory.hasAggregateMigrationReservation())
+            do {
+                _ = try await factory.openForStartup { _ in XCTFail("Conflicting authority must prevent source recovery") }
+                XCTFail("Coexisting original authority must hold")
+            } catch {}
+            XCTAssertEqual(try control.load(), original)
+            XCTAssertEqual(try Data(contentsOf: intentURL), intent)
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointer)
+            XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: directory.path).sorted(), names)
+            let retained = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+            XCTAssertEqual(retained.files, source.files)
+            XCTAssertEqual(retained.frozenIdentityDigest, source.frozenIdentityDigest)
+            XCTAssertFalse(fileManager.fileExists(atPath: factory.restoreStagingGenerationURL(id: original.targetGenerationID).path))
+        }
+    }
+
+    func testAggregateMissingSourceRootCannotBootstrapOrDeleteBootstrapResidue() async throws {
+        let fixture = try makeLegacyFixture(suffix: "aggregate-missing-root-\(UUID().uuidString)")
+        defer { try? fileManager.removeItem(at: fixture.root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: fixture.root)
+        do {
+            _ = try await factory.openForStartup { _ in throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable) }
+            XCTFail("Injected source recovery failure must retain aggregate authority")
+        } catch {}
+        let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+        let journal = try XCTUnwrap(control.load())
+        let dataRoot = fixture.root.appendingPathComponent("FieldEvidenceData")
+        let retained = fixture.root.appendingPathComponent("retained-source")
+        try fileManager.moveItem(at: dataRoot, to: retained)
+        let bootstrap = fixture.root.appendingPathComponent(".FieldEvidenceData.bootstrap")
+        try fileManager.createDirectory(at: bootstrap, withIntermediateDirectories: false)
+        let sentinel = bootstrap.appendingPathComponent("unknown-preserve.bin")
+        let sentinelBytes = Data("Retain preexisting bootstrap evidence".utf8)
+        try sentinelBytes.write(to: sentinel)
+        let controlRoot = fixture.root.appendingPathComponent("FieldEvidenceOperations/schema-migration")
+        let names = try fileManager.contentsOfDirectory(atPath: controlRoot.path).sorted()
+        do {
+            _ = try await factory.openForStartup { _ in XCTFail("Missing root cannot expose recovery context") }
+            XCTFail("An extant aggregate cannot be replaced by a fresh bootstrap")
+        } catch {}
+        XCTAssertFalse(fileManager.fileExists(atPath: dataRoot.path))
+        XCTAssertEqual(try Data(contentsOf: sentinel), sentinelBytes)
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: controlRoot.path).sorted(), names)
+        XCTAssertEqual(try control.load(), journal)
+        XCTAssertTrue(fileManager.fileExists(atPath: retained.appendingPathComponent("current.json").path))
+    }
+
+    func testAggregateOriginalRecoveryRevokesEscapedAuthorityAndRetainsSourceBeforeClone() async throws {
+        let fixture = try makeLegacyFixture(suffix: "aggregate-drain-\(UUID().uuidString)")
+        defer { try? fileManager.removeItem(at: fixture.root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: fixture.root)
+        let pointerURL = fixture.root.appendingPathComponent("FieldEvidenceData/current.json")
+        let pointer = try Data(contentsOf: pointerURL)
+        var escapedContext: ModelContext?
+        var escapedGuard: StoreMigrationSourceMutationGuardV1?
+        do {
+            _ = try await factory.openForStartup { authority in
+                XCTAssertEqual(authority.sourceRelease, .v1)
+                XCTAssertEqual(authority.sourceGenerationID, fixture.sourceID)
+                let context = try authority.recoveryContext()
+                XCTAssertFalse(context.autosaveEnabled)
+                XCTAssertEqual(try context.fetch(FetchDescriptor<Site>()).map(\.id), [fixture.siteID])
+                escapedContext = context
+                escapedGuard = try authority.recoveryMutationGuard()
+            }
+            XCTFail("An escaped context must prevent checkpointing and cloning")
+        } catch {}
+        XCTAssertNotNil(escapedContext)
+        let revoked = try XCTUnwrap(escapedGuard)
+        XCTAssertThrowsError(try revoked.validateCurrent())
+        var effects = 0
+        XCTAssertThrowsError(try revoked.withAuthorizedMutation { effects += 1 })
+        XCTAssertEqual(effects, 0)
+        XCTAssertEqual(try Data(contentsOf: pointerURL), pointer)
+        let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+        let journal = try XCTUnwrap(control.load())
+        XCTAssertEqual(journal.phase, .recoveringSource)
+        XCTAssertNil(journal.sourceCheckpoint)
+        XCTAssertNil(journal.candidateRootInode)
+        XCTAssertFalse(fileManager.fileExists(atPath: factory.restoreStagingGenerationURL(id: journal.targetGenerationID).path))
+        let rival = StoreGenerationFactory(applicationSupportURL: fixture.root)
+        var rivalCallback = false
+        do {
+            _ = try await rival.openForStartup { _ in rivalCallback = true }
+            XCTFail("A live reservation owner cannot be replaced")
+        } catch {}
+        XCTAssertFalse(rivalCallback)
+        XCTAssertEqual(try Data(contentsOf: pointerURL), pointer)
+        XCTAssertEqual(try control.load(), journal)
+        escapedContext = nil
+        escapedGuard = nil
+    }
+
     func testOwnedGenerationPathGrammarAndManifestKindsStayClosed() throws {
         let id = "a0000000-0000-4000-8000-000000000001"
         let durable: [String: OwnedFileKindV1] = [

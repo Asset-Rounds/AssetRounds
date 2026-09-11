@@ -25,21 +25,36 @@ final class MyDayWorkflowCoordinatorV1 {
     func draft(
         key: MyDayKeyV1,
         selectedItems: [MyDayDraftItemV1],
-        eligibleReferences: [MyDayEligibleReferenceV1]
+        eligibleReferences: [MyDayEligibleReferenceV1],
+        predecessor: MyDayPlanV1? = nil
     ) throws -> MyDayPlanDraftV1 {
         try key.validate()
+        try predecessor?.validate()
         try eligibleReferences.forEach { try $0.validate() }
-        guard eligibleReferences.allSatisfy({ $0.workspaceID == key.workspaceID }),
-              Set(eligibleReferences.map(\.stableKey)).count == eligibleReferences.count,
-              selectedItems.allSatisfy({ selected in
-                  eligibleReferences.contains(selected.reference)
-              }) else {
+        guard predecessor == nil || predecessor?.key == key,
+              eligibleReferences.allSatisfy({ $0.workspaceID == key.workspaceID }),
+              Set(eligibleReferences.map(\.stableKey)).count == eligibleReferences.count else {
             throw MyDayWorkflowFailureV1.ineligibleReference
+        }
+        let retained = Dictionary(uniqueKeysWithValues: (predecessor?.items ?? []).map {
+            ($0.membershipID, $0.reference)
+        })
+        var projectedEligibility = Dictionary(uniqueKeysWithValues: eligibleReferences.map {
+            ($0.stableKey, $0)
+        })
+        for selected in selectedItems {
+            guard retained[selected.membershipID] == selected.reference
+                    || eligibleReferences.contains(selected.reference) else {
+                throw MyDayWorkflowFailureV1.ineligibleReference
+            }
+            // This projection supports editing a historical membership; it
+            // does not replace the canonical writer's current-source check.
+            projectedEligibility[selected.reference.stableKey] = selected.reference
         }
         return try .init(
             key: key,
             items: selectedItems,
-            eligibleReferences: eligibleReferences
+            eligibleReferences: Array(projectedEligibility.values)
         )
     }
 

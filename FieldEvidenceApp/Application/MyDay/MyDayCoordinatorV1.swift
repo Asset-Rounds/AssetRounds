@@ -14,10 +14,11 @@ import Foundation
 /// Sole-writer application boundary for My Day canonical mutations.
 ///
 /// `commit` must execute in the incumbent WorkspaceWriter transaction. Before
-/// changing My Day rows it must re-resolve every eligible source reference and
-/// require its exact workspace, stable identity, revision, and digest to equal
-/// the command reference. It must also compare the command predecessor(s) with
-/// the live plan frontier and commit the plan, carryover receipt, journal entry,
+/// changing My Day rows it must compare the command predecessor(s) with the
+/// live plan frontier. New/rebound and explicitly carried memberships require
+/// an exact current eligible source; exact retained memberships permit only
+/// planning metadata changes without requiring their source to remain active.
+/// It commits the plan, carryover receipt, journal entry,
 /// and mutation receipt atomically. A repeated MutationID may return the prior
 /// result only when its canonical command digest is identical.
 @MainActor protocol MyDayWritingV1: AnyObject {
@@ -64,7 +65,7 @@ import Foundation
 
         let live = try writer.currentPlan(for: successor.key)
         try requireExactPlanFrontier(live, expected: predecessor)
-        try requireLiveSources(for: successor, evaluatedAt: successor.authoredAt)
+        try requireLiveSources(for: successor, retaining: live, evaluatedAt: successor.authoredAt)
 
         return try commit(command, expectedPlan: successor)
     }
@@ -122,7 +123,8 @@ import Foundation
         }
         try requireExactPlanFrontier(liveTarget, expected: expectedTarget)
         try target.validate(predecessor: expectedTarget)
-        try requireLiveSources(for: target, evaluatedAt: target.authoredAt)
+        try requireLiveSources(for: target, retaining: expectedTarget,
+                               revalidating: Set(plan.membershipIDs), evaluatedAt: target.authoredAt)
 
         return try commit(command, expectedPlan: target)
     }
@@ -227,14 +229,24 @@ import Foundation
 
     private func requireLiveSources(
         for plan: MyDayPlanV1,
+        retaining predecessor: MyDayPlanV1?,
+        revalidating membershipIDs: Set<UUID> = [],
         evaluatedAt: Date
     ) throws {
+        let retained = Dictionary(uniqueKeysWithValues: (predecessor?.items ?? []).map {
+            ($0.membershipID, $0.reference)
+        })
+        let required = Set(plan.items.filter {
+            membershipIDs.contains($0.membershipID) || retained[$0.membershipID] != $0.reference
+        }.map(\.membershipID))
+        // A metadata-only edit does not require its retained work to exist or
+        // remain active. The predecessor above has already passed live CAS.
+        guard !required.isEmpty else { return }
         let frontiers = try validatedFrontiers(for: plan, evaluatedAt: evaluatedAt)
         guard zip(frontiers, plan.items).allSatisfy({ pair in
-            pair.0.currentReference == pair.1.reference
-                && pair.0.state != .missing
-                && pair.0.state != .retired
-                && pair.0.state != .stale
+            !required.contains(pair.1.membershipID)
+                || (pair.0.currentReference == pair.1.reference
+                    && (pair.0.state == .active || pair.0.state == .reopened))
         }) else { throw MyDayFailureV1.staleRevision }
     }
 
