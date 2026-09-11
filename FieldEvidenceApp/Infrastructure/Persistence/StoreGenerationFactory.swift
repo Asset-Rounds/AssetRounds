@@ -9109,7 +9109,8 @@ struct StoreGenerationFactory {
         populate: (ModelContext) throws -> Void
     ) throws {
         guard (1...C05EvidenceCurationMigrationBoundaryV1.currentRecordsSchemaVersion)
-                .contains(recordsSchemaVersion),
+                .contains(recordsSchemaVersion)
+                || recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
               CompatibilityCanonicalV1.validSHA256(archiveProvenanceSHA256),
               (recordsSchemaVersion >= 5) == (sourceGenerationID != nil) else {
             throw StoreGenerationFailure.dataPointerInvalid

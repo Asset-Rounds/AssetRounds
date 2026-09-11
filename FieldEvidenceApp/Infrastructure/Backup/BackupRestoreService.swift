@@ -9401,7 +9401,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion
                 || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -9435,7 +9436,8 @@ private extension BackupRestoreService {
              (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion, let ledger?, _),
              (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
-             (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
+             (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
+             (LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)

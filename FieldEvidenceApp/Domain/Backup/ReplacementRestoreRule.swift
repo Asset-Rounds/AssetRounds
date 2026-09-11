@@ -369,7 +369,8 @@ private extension ReplacementRestoreRule {
              (35, let ledger?, let history?), (36, let ledger?, let history?),
              (37, let ledger?, let history?), (38, let ledger?, let history?),
              (39, let ledger?, let history?), (40, let ledger?, let history?),
-             (41, let ledger?, let history?), (42, let ledger?, let history?):
+             (41, let ledger?, let history?), (42, let ledger?, let history?),
+             (LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
@@ -1467,8 +1468,10 @@ enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              current.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
-              incoming.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion else {
+              (current.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+                || current.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion),
+              (incoming.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+                || incoming.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion) else {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
         do {
