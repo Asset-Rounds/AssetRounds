@@ -1,0 +1,1529 @@
+{
+  "schema_version": "1.0.0",
+  "document_status": "frozen",
+  "amendment_id": "assetrounds-s10.4-automation-amendment-v1",
+  "purpose": "Append-only correction for truthful sharded S10.4 automated visual and accessibility evidence. H412 owner-approved prospective S10.4 efficiency/diagnostic policy extends only the selected runbook support envelope; it does not qualify implementation or alter product, environment, native/human acceptance or release authority. Prior K491 runbook SHA-256 CB7B55F7A2060382D3C1D0955F9C43A80BBD26B1557A2331D125AE96ECCF8CEC and activation SHA-256 DC45DD4681D4F654A12D0FCE74F76A16803C0CB6C975436DE255D27FB3F674E7 remain historical provenance; active base_authority pins bind the resulting files. H414 owner-approved finite app diagnostic (2026-09-09) permits only the DEBUG SignsRootView passive path/lifecycle observer, exact current Reduce Transparency test opt-in and causal active test/scope/pin contracts. It preserves released product literals, navigation actions, strict assertions and the exact existing runner/toolchain/runtime, while acknowledging DEBUG timing and coalescing limits. This is not a navigation repair or hosted qualification. Prior K497 runbook SHA-256 5150E09244778A0A6295AFB51850C69C06028BD5E850ABCBAA85F7AFF3047771 and activation SHA-256 2CC8A06F26E027C00D421240518A415B55B8E525F0D183F1990FC87B356E5A9E remain historical; new native proof and the separately rebased H413 required-nine evidence policy/human review remain mandatory before acceptance.",
+  "base_authority": {
+    "activation_path": "docs/design/s10/s10-activation.json",
+    "activation_sha256": "71F309C6915997ECBCF31442859E3FD8A106AB7EE5CC5721F904E08797E87EA8",
+    "package_path": "docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip",
+    "package_sha256": "D05ACDC8195B1C7C05230BCBD0AC59E436681D93FCA9AC12108B2BE98A408400",
+    "asset_manifest_path": "docs/design/s10/authority/asset-manifest.json",
+    "asset_manifest_sha256": "F771EB8FBD3D42960FC4B8C0A516A05E8B0FD16EBA2C88107ADD6A4E0D74F551",
+    "runbook_path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+    "runbook_sha256": "92DD7C953BAC22E7CE69DA2A3C9B5FFF89C6628C53542650914FF70C7856FEA0",
+    "workflow_path": ".github/workflows/ios-ci.yml",
+    "workflow_sha256_before_amendment": "BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7",
+    "v4_1_visual_schema_sha256": "EA0F3305B29117A8773285426AF362C7667E25171773CAAE2CFF37594AF8C0AB",
+    "v4_1_accessibility_schema_sha256": "DF5259ADA9BADD1CF54110FC2DE0D335C84BCF3AAA350A92FB30752E1D48F9EA",
+    "v4_1_validator_sha256": "01758757075941E35C298CB692C17A82C90167A283BBBEC0AF1CC05C963266D7",
+    "accepted_migration_product_head": "e1004c9cfeff932e904046e0ad1aa31d2bb2c139",
+    "accepted_migration_evidence_head": "9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284",
+    "accepted_migration_receipt_head": "d4661ef2096fb55c824842965bee06630cc0aeb7"
+  },
+  "lineage_contract": {
+    "automation_product_head_rule": "Every shard run head and every candidate/accessibility source_product_head equals the accepted exact-head-green S10.4 E.",
+    "protected_product_rule": "The application, project, runtime assets, fixtures, and accepted S10.1-S10.3 evidence bytes at S10.4 E equal the accepted S10.3 protected product tree except for the current-card authority, selector, workflow support, and two bounded S10.4 tests.",
+    "evidence_head_rule": "K is a descendant of E and changes only s10-accessibility-common-tasks.json, s10-token-coverage.json, s10-visual-regression.json, and required CURRENT_TASK evidence pins.",
+    "receipt_rule": "C is a descendant of K and changes only s10-stage-checkpoints.json, append-only HANDOFF, and required CURRENT_TASK receipt pins; the AutomatedLab row binds E, K, this manifest, and the three historical K evidence blobs.",
+    "receipt_model": "E_product_K_evidence_C_receipt"
+  },
+  "composite_validation_contract": {
+    "frozen_schema_documents": [
+      "s10-activation",
+      "s10-stage-checkpoints",
+      "s10-screen-state-inventory",
+      "s10-token-coverage",
+      "s10-experience-validation",
+      "s10-store-readiness",
+      "s10-evidence-lock.template"
+    ],
+    "overlay_schema_documents": [
+      "s10-accessibility-common-tasks",
+      "s10-visual-regression"
+    ],
+    "rule": "The unchanged V4.1 schema subset validator validates every unaffected canonical contract plus the frozen evidence-lock template; the audited amendment schemas validate only the intentionally expanded accessibility and visual evidence documents."
+  },
+  "runtime_contract": {
+    "shard_contract_path": "Scripts/s10-4-shards.json",
+    "shard_contract_sha256": "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4",
+    "screen_state_inventory_path": "docs/design/s10/s10-screen-state-inventory.json",
+    "screen_state_inventory_sha256": "6C820E8A1160297F561EABF1873BE82403589B408E4A8FA3318269293242F507",
+    "minimum_runtime": "iOS 18.0",
+    "minimum_runtime_build": "22A3351",
+    "minimum_simulator_name": "iPhone SE (3rd generation)"
+  },
+  "github_environment_contract": {
+    "contract_version": "s10.4-github-image-adoption-v3",
+    "authority_head": "af107f2edf76202e2f1764efdab01fd973043e04",
+    "worker_source_sha256": "DA888041E1743303935415DD6BEE50D185E892784FC9570C123B888290E4EE25",
+    "image_os": "macos26",
+    "macos_product_name": "macOS",
+    "macos_product_version": "26.6.2",
+    "macos_build_version": "25G83",
+    "architecture": "arm64",
+    "image_versions": [
+      "20260831.0337.3",
+      "20260907.0351.1"
+    ]
+  },
+  "hybrid_execution_contract": {
+    "profile_id": "s10.4-hybrid-exact-head-xctestrun-v1",
+    "github_toolchain_baseline": "docs/design/s10/s10-activation.json#toolchain",
+    "github_runner_provider": "github_actions",
+    "github_required_minimum_shard_ids": [
+      "s10.4.minimum.minimum-os",
+      "s10.4.minimum.double-length",
+      "s10.4.minimum.rtl",
+      "s10.4.minimum.rtl-string",
+      "s10.4.minimum.tall",
+      "s10.4.minimum.accented",
+      "s10.4.minimum.bounded"
+    ],
+    "github_minimum_device_profile": {
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_os_build": "22A3351",
+      "simulator_name": "iPhone SE (3rd generation)"
+    },
+    "bitrise_provider": "bitrise_build_hub",
+    "bitrise_eligible_current_shard_ids": [
+      "s10.4.current.default-light",
+      "s10.4.current.default-dark"
+    ],
+    "bitrise_current_device_profile": {
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_os_build": "23C54",
+      "simulator_name": "iPhone 17"
+    },
+    "payload_profile": {
+      "profile_id": "s10.4-exact-head-xctestrun-build-products-v1",
+      "producer_provider": "bitrise_build_hub",
+      "artifact_transport_provider": "github_actions",
+      "one_exact_head_payload_required": true,
+      "required_members": [
+        "relocatable .xctestrun",
+        "complete Build/Products closure"
+      ],
+      "checksummed_immutable": true,
+      "consumer_execution_mode": "test-without-building",
+      "consumer_rebuild_forbidden": true,
+      "consumer_fallback_forbidden": true,
+      "mixed_head_forbidden": true
+    },
+    "equivalence_gate": {
+      "same_shard_github_to_bitrise_required_before_bitrise_receipt_counts": true,
+      "exact_head_required": true,
+      "xcode_version": "Xcode 26.6",
+      "xcode_build": "17F113",
+      "selector": "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests",
+      "state_count": 67,
+      "accessibility_task_count": 6,
+      "provider_local_screenshot_bytes_must_be_checksummed": true,
+      "cross_provider_screenshot_byte_equality_required": false
+    },
+    "unchanged_matrix_and_watchdogs": {
+      "requirement_count": 14,
+      "state_count": 67,
+      "candidate_cell_count": 938,
+      "accessibility_row_count": 84,
+      "task_count": 6,
+      "simulator_readiness_seconds": 900,
+      "setup_seconds": 420,
+      "build_seconds": 900,
+      "test_seconds": 1200,
+      "ui_seconds": 2520,
+      "total_seconds": 4500,
+      "job_watchdog_seconds": 5400
+    }
+  },
+  "harness_correction_allowlist": [
+    ".github/workflows/ios-ci.yml",
+    ".github/workflows/ios-ci-worker.yml",
+    "Scripts/build-smoke.sh",
+    "Scripts/test-smoke.sh",
+    "Scripts/ui-smoke.sh",
+    "Scripts/run-with-timeout.sh",
+    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+    "docs/execution/CURRENT_TASK.md"
+  ],
+  "harness_correction_scope": "Only the listed S10.4 execution-harness paths may implement this profile; no product, project, test selector, fixture, asset, matrix, or watchdog expansion is authorized.",
+  "product_delta_allowlist": [
+    ".github/workflows/ios-ci.yml",
+    "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+    "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+    "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+    "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+    "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+    "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+    "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+    "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+    "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+    "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+    "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+    "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+    "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+    "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+    "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+    "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+    "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+    "Scripts/ci-selection.json",
+    "Scripts/s10-4-shards.json",
+    "Scripts/ui-smoke.sh",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+    "docs/design/s10/s10-experience-validation.json",
+    "docs/design/s10/s10-screen-state-inventory.json",
+    "docs/design/s10/s10-stage-checkpoints.json",
+    "docs/design/s10/s10-token-coverage.json",
+    "docs/execution/CURRENT_TASK.md",
+    "docs/execution/HANDOFF.md",
+    ".github/workflows/bitrise-build-hub-probe.yml",
+    ".github/workflows/ios-ci-worker.yml",
+    "AGENTS.md",
+    "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+    "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+    "Scripts/build-smoke.sh",
+    "Scripts/s10-4-build-payload.py",
+    "Scripts/s10-4-ci.py",
+    "Scripts/s10-4-segment-assembler.sh",
+    "Scripts/s10-4-segment-plan.json",
+    "Scripts/s10-4-source-preflight.py",
+    "Scripts/test-s10-4-ci.py",
+    "Scripts/test-smoke.sh",
+    "docs/design/s10/s10-activation.json",
+    "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+    "docs/execution/S10_4_CI_OPERATING_BRIEF.md",
+    "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+    "docs/product/BUILD_PLAN_V4.md"
+  ],
+  "matrix_contract": {
+    "state_count": 67,
+    "requirement_count": 14,
+    "candidate_cell_count": 938,
+    "shard_count": 14,
+    "task_count": 6,
+    "device_profile_count": 2,
+    "accessibility_feature_count": 7,
+    "accessibility_row_count": 84,
+    "state_set_sha256": "5F704F0ED4510CFFC24E162EFFE1D85A536686473E6B23FED2965D864AEC87A3",
+    "requirement_set_sha256": "09FB8805FF15E7C6D63FEFA901F7721CDB31EF72D0CFBB2F8EF5921BD5004A52",
+    "candidate_tuple_set_sha256": "BFB5DF390854EAA970A4B80CEDEAF315949D36B1712AA1DA4C584290A7FA2045",
+    "task_set_sha256": "BAC94780D3AA60B036E370F1FF1EAF12DE9E5CBB1EB4C6D1A58E6C19AD72C33B",
+    "accessibility_tuple_set_sha256": "E8F43E18BF400FA3BC229436DA0598EE3F67914710A729673C591BE6B49D76BE",
+    "source_test": "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift::S10_4AutomatedBrandLabUITests.testAutomatedBrandLabShard",
+    "attachment_name_format": "S10.4 candidate {shard_id} {screen_state_id}",
+    "attachment_locator_format": "https://github.com/palatis3/AssetRounds/actions/runs/{run_id}/artifacts/{artifact_id} :: attachment={attachment_name}",
+    "candidate_ax_evidence_id_format": "s10.4-ax-{shard_id}-{screen_state_id}",
+    "candidate_ax_evidence_locator_format": "https://github.com/palatis3/AssetRounds/actions/runs/{run_id}/artifacts/{artifact_id} :: entry=ax/{shard_id}/{screen_state_id}.json",
+    "candidate_contrast_evidence_id_format": "s10.4-contrast-{shard_id}-{screen_state_id}",
+    "candidate_contrast_evidence_locator_format": "https://github.com/palatis3/AssetRounds/actions/runs/{run_id}/artifacts/{artifact_id} :: entry=contrast/{shard_id}/{screen_state_id}.json",
+    "candidate_review_evidence_id_format": "owner-review-{shard_id}-{screen_state_id}",
+    "common_task_evidence_locator_format": "https://github.com/palatis3/AssetRounds/actions/runs/{run_id}/artifacts/{artifact_id} :: entry=accessibility/{shard_id}/{task_id}.json",
+    "comparison_method": "Exact provider-local PNG-byte XCT attachment exported from UISmoke.xcresult and reconstructed byte-for-byte at evidence K; cross-provider equivalence is receipt-bound and does not require PNG byte equality",
+    "legacy_baseline_candidate_fields": "immutable_blank",
+    "manual_accessibility_status": "NOT_RUN"
+  },
+  "required_requirement_ids": [
+    "default_light",
+    "default_dark",
+    "increased_contrast",
+    "ax_text",
+    "double_length",
+    "rtl",
+    "rtl_string",
+    "tall",
+    "accented",
+    "bounded",
+    "differentiate_without_color",
+    "reduce_motion",
+    "reduce_transparency",
+    "minimum_os"
+  ],
+  "required_task_ids": [
+    "one_handed_start",
+    "capture_and_review",
+    "force_quit_draft_resume",
+    "history_recovery",
+    "work_and_recheck",
+    "report_comprehension"
+  ],
+  "required_accessibility_features": [
+    "voiceover",
+    "voice_control",
+    "larger_text",
+    "dark_interface",
+    "differentiate_without_color",
+    "sufficient_contrast",
+    "reduced_motion"
+  ],
+  "shards": [
+    {
+      "ordinal": 1,
+      "shard_id": "s10.4.current.default-light",
+      "requirement_id": "default_light",
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_name": "iPhone 17",
+      "os_build": "23C54",
+      "accessibility_feature": "voiceover",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 2,
+      "shard_id": "s10.4.current.default-dark",
+      "requirement_id": "default_dark",
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_name": "iPhone 17",
+      "os_build": "23C54",
+      "accessibility_feature": "dark_interface",
+      "appearance": "dark",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 3,
+      "shard_id": "s10.4.current.increased-contrast",
+      "requirement_id": "increased_contrast",
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_name": "iPhone 17",
+      "os_build": "23C54",
+      "accessibility_feature": "sufficient_contrast",
+      "appearance": "light",
+      "contrast": "increased",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 4,
+      "shard_id": "s10.4.current.ax-text",
+      "requirement_id": "ax_text",
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_name": "iPhone 17",
+      "os_build": "23C54",
+      "accessibility_feature": "larger_text",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryAccessibilityXXXL",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 5,
+      "shard_id": "s10.4.current.differentiate-without-color",
+      "requirement_id": "differentiate_without_color",
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_name": "iPhone 17",
+      "os_build": "23C54",
+      "accessibility_feature": "differentiate_without_color",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": true,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 6,
+      "shard_id": "s10.4.current.reduce-motion",
+      "requirement_id": "reduce_motion",
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_name": "iPhone 17",
+      "os_build": "23C54",
+      "accessibility_feature": "reduced_motion",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": true,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 7,
+      "shard_id": "s10.4.current.reduce-transparency",
+      "requirement_id": "reduce_transparency",
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_name": "iPhone 17",
+      "os_build": "23C54",
+      "accessibility_feature": "voice_control",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": true
+    },
+    {
+      "ordinal": 8,
+      "shard_id": "s10.4.minimum.minimum-os",
+      "requirement_id": "minimum_os",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_name": "iPhone SE (3rd generation)",
+      "os_build": "22A3351",
+      "accessibility_feature": "voiceover",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 9,
+      "shard_id": "s10.4.minimum.double-length",
+      "requirement_id": "double_length",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_name": "iPhone SE (3rd generation)",
+      "os_build": "22A3351",
+      "accessibility_feature": "larger_text",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryAccessibilityXXXL",
+      "locale_profile_id": "en-US-double-length",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 10,
+      "shard_id": "s10.4.minimum.rtl",
+      "requirement_id": "rtl",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_name": "iPhone SE (3rd generation)",
+      "os_build": "22A3351",
+      "accessibility_feature": "dark_interface",
+      "appearance": "dark",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "ar-RTL",
+      "layout_direction": "right_to_left",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 11,
+      "shard_id": "s10.4.minimum.rtl-string",
+      "requirement_id": "rtl_string",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_name": "iPhone SE (3rd generation)",
+      "os_build": "22A3351",
+      "accessibility_feature": "voice_control",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "ar-RTL-string",
+      "layout_direction": "right_to_left",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 12,
+      "shard_id": "s10.4.minimum.tall",
+      "requirement_id": "tall",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_name": "iPhone SE (3rd generation)",
+      "os_build": "22A3351",
+      "accessibility_feature": "reduced_motion",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-tall",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": true,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 13,
+      "shard_id": "s10.4.minimum.accented",
+      "requirement_id": "accented",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_name": "iPhone SE (3rd generation)",
+      "os_build": "22A3351",
+      "accessibility_feature": "sufficient_contrast",
+      "appearance": "light",
+      "contrast": "increased",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-accented",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": false,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    },
+    {
+      "ordinal": 14,
+      "shard_id": "s10.4.minimum.bounded",
+      "requirement_id": "bounded",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_name": "iPhone SE (3rd generation)",
+      "os_build": "22A3351",
+      "accessibility_feature": "differentiate_without_color",
+      "appearance": "light",
+      "contrast": "standard",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "locale_profile_id": "en-US-bounded",
+      "layout_direction": "left_to_right",
+      "differentiate_without_color": true,
+      "reduce_motion": false,
+      "reduce_transparency": false
+    }
+  ],
+  "shared_execution_contract": {
+    "contract_version": "s10.4-shared-logical-shards-v1",
+    "execution_models": [
+      "shared-native-v1",
+      "shared-segment-assembly-v1"
+    ],
+    "initial_consumer_provider": "github_actions",
+    "producer_provider": "bitrise_build_hub",
+    "shard_ids": [
+      "s10.4.current.default-light",
+      "s10.4.current.default-dark",
+      "s10.4.current.increased-contrast",
+      "s10.4.current.ax-text",
+      "s10.4.current.differentiate-without-color",
+      "s10.4.current.reduce-motion",
+      "s10.4.current.reduce-transparency",
+      "s10.4.minimum.minimum-os",
+      "s10.4.minimum.double-length",
+      "s10.4.minimum.rtl",
+      "s10.4.minimum.rtl-string",
+      "s10.4.minimum.tall",
+      "s10.4.minimum.accented",
+      "s10.4.minimum.bounded"
+    ],
+    "local_unit_test_count": 0,
+    "producer_unit_test_count": 5,
+    "producer_unit_test_selectors": [
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract"
+    ],
+    "unit_evidence_origin": "shared-producer",
+    "consumer_execution_mode": "test-without-building",
+    "one_exact_head_and_payload": true,
+    "logical_shard_count": 14,
+    "states_per_logical_shard": 67,
+    "visual_cell_count": 938,
+    "accessibility_row_count": 84,
+    "common_task_count": 6,
+    "human_visual_review_required": true,
+    "minimum_segment_ids": [
+      "minimum-segment-1",
+      "minimum-segment-2",
+      "minimum-segment-3"
+    ],
+    "current_ax_segment_ids": [
+      "segment-1",
+      "segment-2",
+      "segment-3"
+    ],
+    "diagnostic_promotion_forbidden": true,
+    "legacy_hybrid_gate_unchanged": true
+  },
+  "overlay_files": [
+    {
+      "path": "s10-visual-regression.schema.json",
+      "byte_length": 91840,
+      "sha256": "0ED3A5A975C26A4A0962DD509D3AC8590410F1339B63FCCCB7D0EE7136B076DD"
+    },
+    {
+      "path": "s10-accessibility-common-tasks.schema.json",
+      "byte_length": 9907,
+      "sha256": "7BA70EB2F9032059EAD2DF1DD12B43B472A59C73E7DB754336E724A58580B6E0"
+    },
+    {
+      "path": "validate-s10-contracts.ps1",
+      "byte_length": 209886,
+      "sha256": "19822476945C224BE756E9967ACEC76847AAD818E483142E0F40FA2A88D7D584"
+    }
+  ],
+  "manifest_excludes_self": true,
+  "text_policy": "UTF-8 without BOM; LF only",
+  "hashing_method": "SHA-256 over exact raw file bytes",
+  "required_profile_acceptance_policy": {
+    "policy_id": "s10.4.current-seven-with-minimum-verification-deferred.v1",
+    "authority_id": "H420",
+    "required_visual_cell_count": 469,
+    "deferred_visual_cell_count": 469,
+    "required_accessibility_row_count": 42,
+    "deferred_accessibility_row_count": 42,
+    "minimum_core_smoke": {
+      "schema_version": 1,
+      "contract_id": "s10.4.minimum-core-smoke.v1",
+      "acceptance_scope": "DEFERRED",
+      "shard_id": "s10.4.minimum.minimum-os",
+      "segment_id": "none",
+      "execution_lane": "github-xcode-26.6-shared-build-acceptance",
+      "runner_provider": "github",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_os_build": "22A3351",
+      "appearance": "light",
+      "contrast": "standard",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "checkpoint_count": 6,
+      "checkpoint_ids": [
+        "launch",
+        "sign-saved",
+        "capture-review",
+        "report-saved",
+        "report-reopened",
+        "settings"
+      ],
+      "attachment_count": 7,
+      "catalog_visual_cell_credit": 0,
+      "catalog_accessibility_row_credit": 0,
+      "full_matrix_eligible": false,
+      "full_shard_complete": false,
+      "full_segment_complete": false,
+      "human_review_required": false,
+      "native_pass_required": false,
+      "complete_original_integrity_required": true
+    },
+    "evidence_policy_path_allowlist": [
+      "Scripts/s10-4-ci.py",
+      "Scripts/test-s10-4-ci.py",
+      "AGENTS.md",
+      "docs/product/BUILD_PLAN_V4.md",
+      "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+      "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+      "docs/execution/S10_4_CI_OPERATING_BRIEF.md",
+      "docs/execution/CURRENT_TASK.md",
+      "docs/design/s10/s10-activation.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+      "docs/design/s10/s10-accessibility-common-tasks.json",
+      "docs/design/s10/s10-token-coverage.json",
+      "docs/design/s10/s10-visual-regression.json"
+    ],
+    "native_evidence_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+    "native_manifest_sha256": "F29BB5F29C0876BEAE1C32C7D6A418BC29AB43C8882CCDC0F622922FD042238C",
+    "selected_producer_run_id": 34477382489,
+    "selected_shared_build_identity_sha256": "0BE9475570B1F0B9CC5C9520DA4F2D11308D034033ABD17C4F6E61F1901DADAE",
+    "selected_producer_qualification_sha256": "A1A9BF1B92B4CABFD150702EF3F2E218590C290B52B685E598926CF5D158542B",
+    "required_shard_ids": [
+      "s10.4.current.default-light",
+      "s10.4.current.default-dark",
+      "s10.4.current.increased-contrast",
+      "s10.4.current.ax-text",
+      "s10.4.current.differentiate-without-color",
+      "s10.4.current.reduce-motion",
+      "s10.4.current.reduce-transparency"
+    ],
+    "deferred_shard_ids": [
+      "s10.4.minimum.minimum-os",
+      "s10.4.minimum.double-length",
+      "s10.4.minimum.rtl",
+      "s10.4.minimum.rtl-string",
+      "s10.4.minimum.tall",
+      "s10.4.minimum.accented",
+      "s10.4.minimum.bounded"
+    ]
+  },
+  "historical_native_ancestry_authorization_repair": {
+    "authority_id": "H413",
+    "scope": "Bookkeeping repair for exact native ProductHead E only; retains factual H414/H415 proof and binds H416/K499 without granting new native/product path mutation.",
+    "native_evidence_head": "2927b049bfdd8d5219a70e4d7e2f877ffb9b4000",
+    "native_original_manifest_sha256": "1F26E7392E4EB2446DD03DBF09A6ACFF945FEC00B55AC0C80D870315BD3E6F08",
+    "original_path_count": 40,
+    "verified_added_path_count": 18,
+    "total_authorized_native_ancestry_paths": 58,
+    "verified_added_paths": [
+      ".github/workflows/bitrise-build-hub-probe.yml",
+      ".github/workflows/ios-ci-worker.yml",
+      "AGENTS.md",
+      "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "Scripts/build-smoke.sh",
+      "Scripts/s10-4-build-payload.py",
+      "Scripts/s10-4-ci.py",
+      "Scripts/s10-4-segment-assembler.sh",
+      "Scripts/s10-4-segment-plan.json",
+      "Scripts/s10-4-source-preflight.py",
+      "Scripts/test-s10-4-ci.py",
+      "Scripts/test-smoke.sh",
+      "docs/design/s10/s10-activation.json",
+      "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+      "docs/execution/S10_4_CI_OPERATING_BRIEF.md",
+      "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+      "docs/product/BUILD_PLAN_V4.md"
+    ],
+    "provenance_report_sha256": "257BDE095858ED35BE46BFDAF5E56E172F3F76730366753CD2F4B8DF237FC005",
+    "authority_rows": [
+      {
+        "path": ".github/workflows/bitrise-build-hub-probe.yml",
+        "firstNativeAncestryChangeCommit": "226bcfab2f42c0dfd0737d2d3e6addc29044cf96",
+        "firstChangeParent": "be59ab67f46d96b422c2a0d54b3f8800feca2e6e",
+        "authorityKeys": [
+          "H315"
+        ],
+        "purposeAndPreservedInvariant": "Manual development-only cache probe; pinned installer/cache/runtime proof, immutable existing acceptance.",
+        "certainty": "Explicit authority before K168; later scoped K169\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u0153K171 refinements recorded.",
+        "nativeHeadFileSHA256": "12CAD82A7A5627D367C5AD6619C855E19FEE14784AA5845B4EF6C6075334C14A"
+      },
+      {
+        "path": ".github/workflows/ios-ci-worker.yml",
+        "firstNativeAncestryChangeCommit": "0d09735995906b17b1b0c581564c9f6483e3943e",
+        "firstChangeParent": "546846c673cc955fcf35e8116e534ad3cac0bea1",
+        "authorityKeys": [
+          "H254",
+          "H314",
+          "H388_K350",
+          "H411_support",
+          "H412_controller"
+        ],
+        "purposeAndPreservedInvariant": "Owner-created reusable location for already authorized worker; preserved native body/strict evidence, later exact scoped harness changes.",
+        "certainty": "Explicit owner-created inheritance/admission at H254; do not claim a prior CURRENT_TASK grant existed at W2.",
+        "nativeHeadFileSHA256": "752DFCB991A1352491D957D8184E99F6FF3B8DE83D87607F04F9B611F77A5692"
+      },
+      {
+        "path": "AGENTS.md",
+        "firstNativeAncestryChangeCommit": "873114eaa6e4554e93d0871f2513882ab657662e",
+        "firstChangeParent": "1b3a8332863fda0784a07b0e6fa0f46e61ea8ce1",
+        "authorityKeys": [
+          "H388",
+          "H401_docs",
+          "H411_policy",
+          "H412_docs",
+          "H414"
+        ],
+        "purposeAndPreservedInvariant": "Recorded hybrid/efficiency/shared-build operating authority, not product permission.",
+        "certainty": "Explicit named policy envelope. H414 exact direct-child git-object change verified.",
+        "nativeHeadFileSHA256": "2FE63F86B97218E472999EF776F19982EA3989F23DB461E17D8A3339783836F6"
+      },
+      {
+        "path": "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+        "firstNativeAncestryChangeCommit": "9a89f532df7aa0e093b6152d695ab688477bb326",
+        "firstChangeParent": "318aafdf3a48b06ff4edd225dbd6080e34bdd0a4",
+        "authorityKeys": [
+          "H311"
+        ],
+        "purposeAndPreservedInvariant": "Only Test action systemAttachmentLifetime=keepNever: suppress ambient XCTest system captures; preserve both native Testables, explicit keepAlways evidence, StoreKit, targets/configuration/commands.",
+        "certainty": "Explicit predecessor H311; sole native-ancestry scheme change K107.",
+        "nativeHeadFileSHA256": "27223DC9B082AA6469892C66AB8CE27B40312E345DDD5A029E5D77748E62FAA2"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+        "firstNativeAncestryChangeCommit": "20eddeec76c79f42153ffee501f30c2c70ebd459",
+        "firstChangeParent": "765cae08f8c7c498e65d6038c64e4fa60370d237",
+        "authorityKeys": [
+          "H201",
+          "H202",
+          "H203"
+        ],
+        "purposeAndPreservedInvariant": "Final net change retries nil subscriptionStatus on the same verified purchased Transaction:20reads/19cancellable250ms sleeps; first nonnil feeds unchanged verified status/renewal facts once; preserve durable apply/reopen-before-finish and fail-closed nil. Temporary diagnostic removed.",
+        "certainty": "Explicit H201 predecessor for diagnostic and H202/H203 predecessors for final I195 correction; net delta reviewed.",
+        "nativeHeadFileSHA256": "C7CD2DB4B51310DCD5670519453B6AE9DF95E125B1AA4A8E001DCEC539C47A7C"
+      },
+      {
+        "path": "Scripts/build-smoke.sh",
+        "firstNativeAncestryChangeCommit": "c730162840d54d0625c20fca648bb13fdc394256",
+        "firstChangeParent": "ede8844fd9ec3da8f806748e3beae629bbdd4791",
+        "authorityKeys": [
+          "H411_support",
+          "K482_build_condition"
+        ],
+        "purposeAndPreservedInvariant": "Record source build argv before existing shared build; preserve full wrapper-expanded native log and ordinary command.",
+        "certainty": "H411 conditional path grant, concretely discharged in K482 by original K481 build-log binding conflict; not a blanket grant.",
+        "nativeHeadFileSHA256": "1FBA2AF708AC653E61B7B3F63D22202D80AE3A116E3201958A232C59CCF3A419"
+      },
+      {
+        "path": "Scripts/s10-4-build-payload.py",
+        "firstNativeAncestryChangeCommit": "c730162840d54d0625c20fca648bb13fdc394256",
+        "firstChangeParent": "ede8844fd9ec3da8f806748e3beae629bbdd4791",
+        "authorityKeys": [
+          "H411_support"
+        ],
+        "purposeAndPreservedInvariant": "Finite shared prepare/qualify/seal/admit/restore/verify-consumer proof and extraction of existing verifier.",
+        "certainty": "Explicit H411 support path before K482.",
+        "nativeHeadFileSHA256": "5BA8C08431A626C78DCC73E3C473BBB1AF2F82DF778035EC784A784BE7DB9E13"
+      },
+      {
+        "path": "Scripts/s10-4-ci.py",
+        "firstNativeAncestryChangeCommit": "f4879ff336a1c6da682fc9c2e6a00432a77c57cd",
+        "firstChangeParent": "ca8f18bc2d1b0fdb796e405efb29e52fccae0258",
+        "authorityKeys": [
+          "H412_controller"
+        ],
+        "purposeAndPreservedInvariant": "Finite source-derived controller/audit with original exact-run identity and gates.",
+        "certainty": "Explicit owner-approved H412 same-transaction policy/implementation; K493\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u0153K496 causal corrections retain that finite envelope.",
+        "nativeHeadFileSHA256": "57F0254A7DE734C1A10F7E7A21EF4075E173E3C13341DEC6D840BCD757513ECA"
+      },
+      {
+        "path": "Scripts/s10-4-segment-assembler.sh",
+        "firstNativeAncestryChangeCommit": "0437ad0cbff56ca3e3a0c06c2ef35f0b9720fb5a",
+        "firstChangeParent": "679d8c5b1782bb79ba0e569dc161ace4a1324adf",
+        "authorityKeys": [
+          "H314",
+          "H411_support"
+        ],
+        "purposeAndPreservedInvariant": "Validate original segmented identity/state/journey/checksum union before receipt; later shared-build accounting.",
+        "certainty": "Explicit H314 predecessor for K111; expanded minimum/shared support H411.",
+        "nativeHeadFileSHA256": "DE97E9B2B7E4906824A5308A321A02EBF79FAB932B1D23AC7E0F2DF64EE21736"
+      },
+      {
+        "path": "Scripts/s10-4-segment-plan.json",
+        "firstNativeAncestryChangeCommit": "0437ad0cbff56ca3e3a0c06c2ef35f0b9720fb5a",
+        "firstChangeParent": "679d8c5b1782bb79ba0e569dc161ace4a1324adf",
+        "authorityKeys": [
+          "H314",
+          "H411_support"
+        ],
+        "purposeAndPreservedInvariant": "Source-defined ordered owned/replay states and continuous journey segments; later all-minimum segmentation.",
+        "certainty": "Explicit H314 predecessor for K111; H411 prospective expansion.",
+        "nativeHeadFileSHA256": "349468A270CD88F614BF64F17D47B310F968DAF6C9F5ECCE729D6F40F4398004"
+      },
+      {
+        "path": "Scripts/s10-4-source-preflight.py",
+        "firstNativeAncestryChangeCommit": "c531b01ae0d489096ed32a14e21f9cb1449c83ac",
+        "firstChangeParent": "cecc4d781f0c3885bef574011e907d4eebe9fb68",
+        "authorityKeys": [
+          "H401_checker"
+        ],
+        "purposeAndPreservedInvariant": "Read-only standard-library nonaccepting deterministic source checker; evaluated/skipped truth, no native or acceptance substitution.",
+        "certainty": "Explicit H401 predecessor for K401; subsequent supported-parser corrections stay checker scope.",
+        "nativeHeadFileSHA256": "CFCBC9DF19845996D7EB5F17FA92785FF13AB305B3BB0E243AB12715B1CEA0EF"
+      },
+      {
+        "path": "Scripts/test-s10-4-ci.py",
+        "firstNativeAncestryChangeCommit": "f4879ff336a1c6da682fc9c2e6a00432a77c57cd",
+        "firstChangeParent": "ca8f18bc2d1b0fdb796e405efb29e52fccae0258",
+        "authorityKeys": [
+          "H412_controller"
+        ],
+        "purposeAndPreservedInvariant": "Positive/hostile protocol checks for the finite controller, no synthetic native pass.",
+        "certainty": "Explicit owner-approved H412 same-transaction policy/implementation; later causal controller test corrections within same path.",
+        "nativeHeadFileSHA256": "2519145431287A2F13EDBBA8A0739C73EB1CB58F6223D210088B47B4077D8FF7"
+      },
+      {
+        "path": "Scripts/test-smoke.sh",
+        "firstNativeAncestryChangeCommit": "87916f8188becad687b85ed43e1eb626a44487d7",
+        "firstChangeParent": "873114eaa6e4554e93d0871f2513882ab657662e",
+        "authorityKeys": [
+          "H388_K350",
+          "H411_support"
+        ],
+        "purposeAndPreservedInvariant": "Nonaccepting hybrid producer/consumer unit evidence initially; later own-head shared producer native-five proof and consumer local-zero.",
+        "certainty": "Explicit H388 predecessor for K350; H411 later shared support.",
+        "nativeHeadFileSHA256": "B867B89806AD6864E2F7569226C3DD0FF00A5559B75DB7ECECAE46198BEDECD7"
+      },
+      {
+        "path": "docs/design/s10/s10-activation.json",
+        "firstNativeAncestryChangeCommit": "873114eaa6e4554e93d0871f2513882ab657662e",
+        "firstChangeParent": "1b3a8332863fda0784a07b0e6fa0f46e61ea8ce1",
+        "authorityKeys": [
+          "H388",
+          "H411_policy",
+          "H412_docs",
+          "H414"
+        ],
+        "purposeAndPreservedInvariant": "Only resulting plan/runbook authority pins; retain original activation/asset/rights/release truth.",
+        "certainty": "Explicit named owner-policy envelopes. H414 exact direct-child git-object change verified.",
+        "nativeHeadFileSHA256": "804DD9E6D6DC87E358F16CB9A9C5DAAE0727D192067836C6687B5890485CD184"
+      },
+      {
+        "path": "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+        "firstNativeAncestryChangeCommit": "873114eaa6e4554e93d0871f2513882ab657662e",
+        "firstChangeParent": "1b3a8332863fda0784a07b0e6fa0f46e61ea8ce1",
+        "authorityKeys": [
+          "H388",
+          "H411_policy"
+        ],
+        "purposeAndPreservedInvariant": "Document exact hybrid-equivalence/shared-build execution exceptions and gates.",
+        "certainty": "Explicit named owner-policy envelopes; no H412 change.",
+        "nativeHeadFileSHA256": "D1F7DBB8BB8C862B598A08A02D7A0B60038B68EA68CD0EEE1E24B7D6FF664EA0"
+      },
+      {
+        "path": "docs/execution/S10_4_CI_OPERATING_BRIEF.md",
+        "firstNativeAncestryChangeCommit": "cecc4d781f0c3885bef574011e907d4eebe9fb68",
+        "firstChangeParent": "03beae8232c0dd9a73853584dae2ef3f906786e1",
+        "authorityKeys": [
+          "H401_docs",
+          "H411_policy",
+          "H412_docs",
+          "H414"
+        ],
+        "purposeAndPreservedInvariant": "Navigation/operating clarity and later exact shared/controller rules, no independent acceptance authority.",
+        "certainty": "Explicit H401 new-file grant; later named policy envelopes. H414 exact direct-child git-object change verified.",
+        "nativeHeadFileSHA256": "A6E35DE14131FF74E50B9B91DC554C585552BA49B78597328988D074F95E8196"
+      },
+      {
+        "path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+        "firstNativeAncestryChangeCommit": "873114eaa6e4554e93d0871f2513882ab657662e",
+        "firstChangeParent": "1b3a8332863fda0784a07b0e6fa0f46e61ea8ce1",
+        "authorityKeys": [
+          "H388",
+          "H411_policy",
+          "H412_docs",
+          "H414"
+        ],
+        "purposeAndPreservedInvariant": "Selected S10.4 route/support/evidence exception catalog and causal pins.",
+        "certainty": "Explicit named owner-policy envelopes. H414 exact direct-child git-object change verified.",
+        "nativeHeadFileSHA256": "4AEB0D438DCF1D3F82C25F2D343D3D5A69FBEB66F056AB5762BF010AB634DB69"
+      },
+      {
+        "path": "docs/product/BUILD_PLAN_V4.md",
+        "firstNativeAncestryChangeCommit": "873114eaa6e4554e93d0871f2513882ab657662e",
+        "firstChangeParent": "1b3a8332863fda0784a07b0e6fa0f46e61ea8ce1",
+        "authorityKeys": [
+          "H388",
+          "H411_policy"
+        ],
+        "purposeAndPreservedInvariant": "Owner-approved exact hybrid/shared-build acceptance-execution exceptions, preserving product scope/order.",
+        "certainty": "Explicit named owner-policy envelopes; no H412 change.",
+        "nativeHeadFileSHA256": "8A3212BE7710AC24DE8EA4F5FDF6C7A7543B737F277D94FD181331F6DA251BDF"
+      }
+    ],
+    "caveats": [
+      "Worker W2 is an owner-created change specifically inherited/admitted by H254; prior-to-W2 written CURRENT_TASK authorization was not found and is not invented.",
+      "H254 genealogical prose uses parent wording in reverse; actual git is I245 -> W2 -> W3 -> H254. Path admission and preserved-worker identity are explicit.",
+      "This proves path provenance and reviewed final scheme/StoreKit purposes, not a new exhaustive replay of every historical implementation or hosted run.",
+      "Future evidence K must preserve all ProductHead E protected bytes and exact E bindings. Adding historical ancestry paths must not grant new product or CI implementation scope.",
+      "Future evidence K must preserve all ProductHead E protected bytes and exact E bindings. Producer 34406212253 has complete-original audit GO for its qualified five-method payload; all nine required profiles, genuine new-head human review, and coherent evidence gates remain pending. Old producer 34400638112 transfers no evidence."
+    ],
+    "h414_exact_commit": "2ce166c2196d90b9d7fdd255e2453bcbed3af1cc",
+    "h414_exact_parent": "b9d0fa0579c4e0a563c0cfae31cda4bb91cf20bf",
+    "h414_verified_path_count": 9,
+    "h414_verified_paths": [
+      {
+        "path": "AGENTS.md",
+        "parentBlobOID": "5a7d57f273399860e549660adfd85b398aa88738",
+        "headBlobOID": "5cc096dc8660ee038fba82a7bc2e22b8c0539f76",
+        "parentSHA256": "2EF47BD87462012A6A94A4E0E21D63933E143FDE2A1EA159DB4C1F82F75F1B0E",
+        "headSHA256": "2FE63F86B97218E472999EF776F19982EA3989F23DB461E17D8A3339783836F6",
+        "changed": true
+      },
+      {
+        "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+        "parentBlobOID": "2a0ce6a51ec12107ba13917d9160b3d309f96695",
+        "headBlobOID": "8206ade4a1ff141977f0204b59b5f9cef317a671",
+        "parentSHA256": "A70196AB513C3F7B4C461E811DA7555718458E6038FA5D03A24A889D7AF952A6",
+        "headSHA256": "44DEAE09B1C26194A00969DB405FC6247B320194F627D3576F289D7B01FD71EC",
+        "changed": true
+      },
+      {
+        "path": "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+        "parentBlobOID": "5f5edb2bac6770efaa1f88a4defecf987ed59aaa",
+        "headBlobOID": "5538b7451a5398e449fa10ba48624e396915657d",
+        "parentSHA256": "6E53D5C1966E81E17ED1BDFFBF40D7FA00C7ED84AE52F2B061B2E47A384D83C9",
+        "headSHA256": "A6FD39C9AC850173B63D29B8A1FF59C747A31DB43DEB0784DC03AA1C7391A618",
+        "changed": true
+      },
+      {
+        "path": "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+        "parentBlobOID": "e668f5dada3b313d009cf2d4deba45f1fe950c38",
+        "headBlobOID": "be2ab6968341e7709b1a907c332d304287692da4",
+        "parentSHA256": "89CDD2B0B1A2750C4D84F19C2650F716D80A8193555CE16E807704D2FACFEFCB",
+        "headSHA256": "DC2A0C7D738C60BD28495BBE07C17E586FE4519935C2C44A50A5663492BF1BF2",
+        "changed": true
+      },
+      {
+        "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+        "parentBlobOID": "9bc65ee1c9be3ec210fe234e34d0bbe6c442abd9",
+        "headBlobOID": "275643fa21fd1a1938e425fcab1762d54a87a383",
+        "parentSHA256": "344800CEBBE69E00DDE164E72F92A25911194F5AFC412B1B1CAAE349A9830D72",
+        "headSHA256": "76D93B8EA5EB6FB71F15F93A8D6085A1845261E74E4A2A8374CA38591B37C443",
+        "changed": true
+      },
+      {
+        "path": "docs/design/s10/s10-activation.json",
+        "parentBlobOID": "2c62ac05ba018ffe27acaa9f889b4267621be51c",
+        "headBlobOID": "535f71e479f6d047b8de64f1b9e24cd9d0226c7a",
+        "parentSHA256": "2CC8A06F26E027C00D421240518A415B55B8E525F0D183F1990FC87B356E5A9E",
+        "headSHA256": "804DD9E6D6DC87E358F16CB9A9C5DAAE0727D192067836C6687B5890485CD184",
+        "changed": true
+      },
+      {
+        "path": "docs/execution/CURRENT_TASK.md",
+        "parentBlobOID": "a2bcee84107d8d4c5ab40fedb5eede280d67a3c7",
+        "headBlobOID": "2f15fced5e44e4d693fc4e85fbce4aa6e2ac3eb9",
+        "parentSHA256": "9824C7975A526C203A9ACCBBBE29D672B52D99A902041D8AB66F7D93EC8721CB",
+        "headSHA256": "37B922C55EB94EE0D481DE8D28A6AB713241FA2D2E5B82CC847E6BC6F450F81D",
+        "changed": true
+      },
+      {
+        "path": "docs/execution/S10_4_CI_OPERATING_BRIEF.md",
+        "parentBlobOID": "0b2c545b191c356fe25fb52c392e0bebc930ad36",
+        "headBlobOID": "9f81c0008dc4d059bbebc5a9d868a02184fd8a65",
+        "parentSHA256": "A9E8AB73FCB2ECB478B0E0F9545247287C4BCF0C6907601AE0840019575EB4AA",
+        "headSHA256": "B2470AD3C3A9EC0CC2CC03736D78AEE3373C02DB832A880CD728BAFF6AC8E684",
+        "changed": true
+      },
+      {
+        "path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+        "parentBlobOID": "417db8e45e2a8502618dac3f933d3bdd4a19f054",
+        "headBlobOID": "29dff475d3634e751e2627b082d4695cc19aba83",
+        "parentSHA256": "5150E09244778A0A6295AFB51850C69C06028BD5E850ABCBAA85F7AFF3047771",
+        "headSHA256": "4AEB0D438DCF1D3F82C25F2D343D3D5A69FBEB66F056AB5762BF010AB634DB69",
+        "changed": true
+      }
+    ],
+    "h416_exact_commit": "f838d508f1aa4630f299b937d4db775b12824c91",
+    "h416_exact_parent": "7facdb5902ea14d8fdd72e25e510dc58fe833422",
+    "h416_verified_path_count": 13,
+    "h416_verified_paths": [
+      {
+        "path": ".github/workflows/bitrise-build-hub-probe.yml",
+        "parentBlobOID": "ce6522dcaa1d3c63fd900e58bb019a5dcdb657db",
+        "headBlobOID": "5edf8126501d9749c9ca6d456a3e0d53febd7c44",
+        "parentSHA256": "A0064EE27D79ECE5974CAB913AF5C1D9237A4F2FE726C4666BB2F6353279A83C",
+        "headSHA256": "12CAD82A7A5627D367C5AD6619C855E19FEE14784AA5845B4EF6C6075334C14A",
+        "changed": true
+      },
+      {
+        "path": ".github/workflows/ios-ci-worker.yml",
+        "parentBlobOID": "8e6e4164e46bdf413077caeb4abda18938badeee",
+        "headBlobOID": "e6c44f053c03f715b56968cdceff7e09f28b3b17",
+        "parentSHA256": "AA349864850707098871D2A08F9B53EFF12AE84474423085DADB95DC9F506841",
+        "headSHA256": "4E2470CA7698926B46614E234D178167B91B684ADB75FC976C86F1F817BC8B1B",
+        "changed": true
+      },
+      {
+        "path": ".github/workflows/ios-ci.yml",
+        "parentBlobOID": "3571d11d1eda1be287e0089a74bdbef54c6a5789",
+        "headBlobOID": "febf4a6d36aaf372f63b061eff368d482fd399d6",
+        "parentSHA256": "0DA5CD316AFE9016609B27F5F16C14C1CC4DF54E4397AB376430761760546BBE",
+        "headSHA256": "C4FE0A028B034B00493E4A1E8BB0FE19D44E75F2F06478E390AFF90267D9F04C",
+        "changed": true
+      },
+      {
+        "path": "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+        "parentBlobOID": "17d8b96ca8853b7cfedd43db4a8a2d2eef73823c",
+        "headBlobOID": "63fccc59ee2fd780b6ccc302cd637af118031ace",
+        "parentSHA256": "0F8D4BF8E8FB8FF128EB8AE5AF97EF11FF72180DD942D4CB4CBC699858E39895",
+        "headSHA256": "F735FCAA3B384626278A310AF1BDE764D29E883EE7F56F8869D558C1FEF48A7A",
+        "changed": true
+      },
+      {
+        "path": "Scripts/build-smoke.sh",
+        "parentBlobOID": "88a7c0919925dcbb95c2bf6d0461e3a8c233be15",
+        "headBlobOID": "1b501459c45212ac2a8cc6ff3f2f9b8aaffa3e28",
+        "parentSHA256": "CC0A9EA9FD55DAB2BC5F54517A0FDBC68148B053399993BBEB750BB3A1CE101B",
+        "headSHA256": "1FBA2AF708AC653E61B7B3F63D22202D80AE3A116E3201958A232C59CCF3A419",
+        "changed": true
+      },
+      {
+        "path": "Scripts/s10-4-segment-plan.json",
+        "parentBlobOID": "78d13d33654a4d8846d10c30e48e26fdfbb4b728",
+        "headBlobOID": "e0c7c588299e05a99394d77f8e579dbba1db4f7c",
+        "parentSHA256": "DDA41A01D00C9842DD790F996CB9B616CEDA0A1ED0E71901B9E86DFC2F7BBE36",
+        "headSHA256": "349468A270CD88F614BF64F17D47B310F968DAF6C9F5ECCE729D6F40F4398004",
+        "changed": true
+      },
+      {
+        "path": "Scripts/test-smoke.sh",
+        "parentBlobOID": "38b62ee5790a3d6a832d505abfa2b4618e42f8ea",
+        "headBlobOID": "93ea7e6b26d59ec558bf982b2d0fae1c2e01bbfc",
+        "parentSHA256": "344B4DCCD10EFAA4BF402AD8EF3B3F597263808F14DD16BD6F4E2E702A919126",
+        "headSHA256": "B867B89806AD6864E2F7569226C3DD0FF00A5559B75DB7ECECAE46198BEDECD7",
+        "changed": true
+      },
+      {
+        "path": "Scripts/ui-smoke.sh",
+        "parentBlobOID": "85a5a3fc7475e0a42270a5f796a2431e47dbfbe4",
+        "headBlobOID": "a4b9d090b71929acd53dbd4db3560d9717e3694e",
+        "parentSHA256": "72896D9EEF11311D4DDE05CB4457D81E3D47EA1BC0623007D10E2AF5C949D68E",
+        "headSHA256": "501B0F848A69B8D409F55AF098C1ADFE1BB8D10C66DEC5BA236D3C2F5F0FBE39",
+        "changed": true
+      },
+      {
+        "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+        "parentBlobOID": "9432b4208851ab6514a0090c83b6eb7db67eb3b4",
+        "headBlobOID": "b936ba6c674a83ede9af755501c970d62efc717a",
+        "parentSHA256": "EBA232A756D0B3DA98E65B8A438506BF24836FC3B705AE545AC2C5E24878D200",
+        "headSHA256": "A5D54420FEBCAB0F6A29580E4C3F48E4C7B5AEC650E595E6AD4E7F7D5D8A7CAD",
+        "changed": true
+      },
+      {
+        "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+        "parentBlobOID": "fb7a63eea39a8747c2afb3518c33a08c7bc3e7bc",
+        "headBlobOID": "b5396204b0f4fe852ee7cc6f508ebfb033c0cb2a",
+        "parentSHA256": "86FD6D1EFF7E2CDCB196C4F4CA498DF3561E89741C808DB7A03F4332A64241A5",
+        "headSHA256": "76A569D8C128581F96338C8E355EA8A5A9ECD93506FEEC98028FF1C09285DA4F",
+        "changed": true
+      },
+      {
+        "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+        "parentBlobOID": "7023d8baebe75720f48dbd8caad63bd320eced90",
+        "headBlobOID": "85b3595d430995bf34ab9635e32b74ad5ea2312d",
+        "parentSHA256": "3FD46F2A1815F32B3C3BB66805E2961464076F2CC5BC4C028F72A2CB0C75498B",
+        "headSHA256": "930375A63BEE9A391749F1852E3EDC5A74265CAE61883AAA6A1599791BAC2036",
+        "changed": true
+      },
+      {
+        "path": "docs/execution/CURRENT_TASK.md",
+        "parentBlobOID": "dd4553a8dfb18b2af379909eb52e6dc3048dc862",
+        "headBlobOID": "39d4b7935a02630d8c604229496ebec43f617aff",
+        "parentSHA256": "4406F87D916ACC5100C82CC8A56865135B65D4B747FDDDBE81AA5E4008965402",
+        "headSHA256": "95A5B69F58D6E2A1FA2133BBCB1709A26B028BBF99757F126485D4CFBCDEC319",
+        "changed": true
+      },
+      {
+        "path": "docs/execution/S10_4_CI_OPERATING_BRIEF.md",
+        "parentBlobOID": "8885c0a399ab7e4d2949f70128b004dd4000f793",
+        "headBlobOID": "0d7ff3b89ca61fec37682a83ae5191a148d7766b",
+        "parentSHA256": "7F3A423CE06BFAAE9B019FBEBB983637C36E62AB02CFD3C539C6EF0A446BD08E",
+        "headSHA256": "587C3A17274FDDD80B3B80D85C1800A402C6AB1649DC4DBE0CDEA9D9F1B1F296",
+        "changed": true
+      }
+    ],
+    "h417_authority_commit": "af107f2edf76202e2f1764efdab01fd973043e04",
+    "h417_authority_parent": "f838d508f1aa4630f299b937d4db775b12824c91",
+    "h417_authority_path_count": 2,
+    "h417_authority_paths": [
+      {
+        "path": "docs/execution/CURRENT_TASK.md",
+        "parentBlobOID": "39d4b7935a02630d8c604229496ebec43f617aff",
+        "headBlobOID": "d9a648ba3acc67d7e5bc7642deed7098c0cb89d3",
+        "parentSHA256": "95A5B69F58D6E2A1FA2133BBCB1709A26B028BBF99757F126485D4CFBCDEC319",
+        "headSHA256": "D56E7EAB70863D8D43A60CB635B1F1CF8B31B6A2CA05DE996AC4293EBFD562BD",
+        "changed": true
+      },
+      {
+        "path": "docs/execution/S10_4_CI_OPERATING_BRIEF.md",
+        "parentBlobOID": "0d7ff3b89ca61fec37682a83ae5191a148d7766b",
+        "headBlobOID": "e5eb518d56e724eef08d650be4eb2f0e9124af62",
+        "parentSHA256": "587C3A17274FDDD80B3B80D85C1800A402C6AB1649DC4DBE0CDEA9D9F1B1F296",
+        "headSHA256": "A6E35DE14131FF74E50B9B91DC554C585552BA49B78597328988D074F95E8196",
+        "changed": true
+      }
+    ],
+    "h417_exact_commit": "2927b049bfdd8d5219a70e4d7e2f877ffb9b4000",
+    "h417_exact_parent": "af107f2edf76202e2f1764efdab01fd973043e04",
+    "h417_verified_path_count": 8,
+    "h417_verified_paths": [
+      {
+        "path": ".github/workflows/ios-ci-worker.yml",
+        "parentBlobOID": "e6c44f053c03f715b56968cdceff7e09f28b3b17",
+        "headBlobOID": "ad9b02b87e674e62909eec41cf0f390fdd98e696",
+        "parentSHA256": "4E2470CA7698926B46614E234D178167B91B684ADB75FC976C86F1F817BC8B1B",
+        "headSHA256": "752DFCB991A1352491D957D8184E99F6FF3B8DE83D87607F04F9B611F77A5692",
+        "changed": true
+      },
+      {
+        "path": "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+        "parentBlobOID": "63fccc59ee2fd780b6ccc302cd637af118031ace",
+        "headBlobOID": "29cf1e3f0aeb97eab6f5b03e552039bb67e04b0d",
+        "parentSHA256": "F735FCAA3B384626278A310AF1BDE764D29E883EE7F56F8869D558C1FEF48A7A",
+        "headSHA256": "5F6D6F6DEC1F0C4A458C32DE58D7FAD2E2B68B5A033AC4701318D47D60199720",
+        "changed": true
+      },
+      {
+        "path": "Scripts/s10-4-ci.py",
+        "parentBlobOID": "7d2146b30cd77870f7227feee57e10db376a0be0",
+        "headBlobOID": "0a136ebc4f2c384f5bc930f2cb45b134dbd3c07d",
+        "parentSHA256": "5E96A1266B1D358DD03B02DA9EAD8AF8A2D71E1DA19EDEC87EA4043E46A748B6",
+        "headSHA256": "57F0254A7DE734C1A10F7E7A21EF4075E173E3C13341DEC6D840BCD757513ECA",
+        "changed": true
+      },
+      {
+        "path": "Scripts/test-s10-4-ci.py",
+        "parentBlobOID": "95cd4e62cacbf72379a5058c4c968c3b946a266a",
+        "headBlobOID": "e294f817b395f54f8d94957a6160292d87f21609",
+        "parentSHA256": "E114515AD8337589A96D6A5757042070D1F503CE8D939A1D5DE83FD06ACEF538",
+        "headSHA256": "2519145431287A2F13EDBBA8A0739C73EB1CB58F6223D210088B47B4077D8FF7",
+        "changed": true
+      },
+      {
+        "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+        "parentBlobOID": "b936ba6c674a83ede9af755501c970d62efc717a",
+        "headBlobOID": "8456b8e3858fd3ffd51072909d1b1bd9320da0ef",
+        "parentSHA256": "A5D54420FEBCAB0F6A29580E4C3F48E4C7B5AEC650E595E6AD4E7F7D5D8A7CAD",
+        "headSHA256": "1F26E7392E4EB2446DD03DBF09A6ACFF945FEC00B55AC0C80D870315BD3E6F08",
+        "changed": true
+      },
+      {
+        "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+        "parentBlobOID": "b5396204b0f4fe852ee7cc6f508ebfb033c0cb2a",
+        "headBlobOID": "fc5b3a56e34bf14892449ae8cee47f4d43cbed6c",
+        "parentSHA256": "76A569D8C128581F96338C8E355EA8A5A9ECD93506FEEC98028FF1C09285DA4F",
+        "headSHA256": "46C2DE3BE87CCA26CDFFA4F952E248732C7827134828B4BB9E5EE36943DC9B0A",
+        "changed": true
+      },
+      {
+        "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+        "parentBlobOID": "85b3595d430995bf34ab9635e32b74ad5ea2312d",
+        "headBlobOID": "15c7581d9af158c7b78cce4b339ce1170539c7fc",
+        "parentSHA256": "930375A63BEE9A391749F1852E3EDC5A74265CAE61883AAA6A1599791BAC2036",
+        "headSHA256": "9C8F3ED23CCE2A8C2517A9B3E46DAE5AFD40DC5EF4857FF5164AD84228043678",
+        "changed": true
+      },
+      {
+        "path": "docs/execution/CURRENT_TASK.md",
+        "parentBlobOID": "d9a648ba3acc67d7e5bc7642deed7098c0cb89d3",
+        "headBlobOID": "9bdcab491edf46387e7887e1348d6c0c6a670242",
+        "parentSHA256": "D56E7EAB70863D8D43A60CB635B1F1CF8B31B6A2CA05DE996AC4293EBFD562BD",
+        "headSHA256": "B358105534842B0490652F035E40ADC30FB075E2AB8B4544E79B79E2CE60C86E",
+        "changed": true
+      }
+    ]
+  },
+  "collector_correction_contract": {
+    "contract_id": "s10.4.collector-assembly-bound-and-failed-start-audit.v2",
+    "native_evidence_head": "2927b049bfdd8d5219a70e4d7e2f877ffb9b4000",
+    "scope": "Original collection plus the exact approved failed-original factual audit only; native dispatch, successful marker parsing, segment/full-shard qualification and ProductHead E remain unchanged.",
+    "ordinary_archive_limit_bytes": 2147483648,
+    "assembly_archive_limit_bytes": 8589934592,
+    "expanded_archive_limit_bytes": 8589934592,
+    "member_limit": 100000,
+    "collector_ceiling_review_sha256": "11D1214D3E68EBA239935EF7CCD9E625AF1014F5800159C0AF4B76C159503CD3",
+    "failed_marker_release_id": "s10.4-failed-segment-start-audit-v1",
+    "owner_approval_receipt_sha256": "96C08778A13C985088CEF00905C16C7F2F6641A39523638D89F99A9126CCB75D",
+    "owner_approval_recorded_at_utc": "2026-09-10T02:19:12.853808Z",
+    "owner_approval_answer": "Approve audit-only exception",
+    "proposal_sha256": "B2D6134CD82B6D0E10121D15C6B7AFE7E5AC369B36E48178381A9412483BBEA9",
+    "failed_marker_independent_review_sha256": "AAA9AFEC53B0F7369C0C8BF5338C3E90C01B2D079BC5D5854D6B9CE2BADD04E9",
+    "implementation_report_sha256": "078C373E87EC9A413B03CEC487497CD3023B7E808234DA6F9C4EE56E28FC001C",
+    "first_request_id": "25ca31a0246643f7b2b26d6391369f99",
+    "first_run_id": 34423087881,
+    "original_rejected_audit_sha256": "07D154CC4BD80B3CADA568336657FC35E04FDD68F13AAF699153FA2FBF22D806",
+    "original_files_sha256": "C0D561BF488B3D88B3947FDB788D31BF1DD0CC81BB33A4545DAB83048BDD5EAD",
+    "supplemental_audit_status": "COMPLETE_REVIEWED_NONACCEPTING",
+    "supplemental_audit_sha256": "664DD9460540564E73755CECD3D8066C3B31E94F572F33142AC86D326ED44684",
+    "files": [
+      {
+        "path": "Scripts/s10-4-ci.py",
+        "native_sha256": "57F0254A7DE734C1A10F7E7A21EF4075E173E3C13341DEC6D840BCD757513ECA",
+        "collector_ceiling_sha256": "BD06609A78B77F3B4BA3CBB568FB8EB61D8D6655A41529E39C44F48DFD9C93AF",
+        "audit_release_sha256": "E34BC9924C1F6AA650509184A1C66B2F7D4AB7E014DFF7BB2998FC5A1B80CCE0",
+        "actual_native_e_sha256": "58BFD7988C9A4DDD847D96532BBE5A9BB617ADDC5C3B1521F9FEE06F28228354"
+      },
+      {
+        "path": "Scripts/test-s10-4-ci.py",
+        "native_sha256": "2519145431287A2F13EDBBA8A0739C73EB1CB58F6223D210088B47B4077D8FF7",
+        "collector_ceiling_sha256": "898CDC2F2514CE363187D06A6CDA6E576E547F019DB9B804CC4D89E69EDA98EC",
+        "audit_release_sha256": "303DCF4558A2BBCF6CCD7D425DC31A5A78F2E8620338557204DBDCCB8C3547E3",
+        "actual_native_e_sha256": "857AA47537D225FE2DF7AFAAD0C0EF4DB60509CCCE910E334920927571FB74B0"
+      }
+    ],
+    "preexecution_sha256": "82E3C5CE6EA958F9562C37E5E3CF3A9C364ED92B6E75823B40D6E361CAB62ABE",
+    "supplemental_audit_path": "audits/20260910T022225-bb30a942fa544361a96737625ce6d971.json",
+    "postexecution_result_sha256": "C464BE1085B8F851A9CF36302BA3330B89AE72CEB44EDE700E90D7733451A30A",
+    "postexecution_report_sha256": "37555147E1C427AE3F47FD0DBC6F0E01D5050524806829665892052E4A24FD29"
+  },
+  "operational_evidence_contract": {
+    "contract_id": "s10.4.operational-controller-evidence.v1",
+    "binding_status": "READY",
+    "native_evidence_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+    "repository": "Asset-Rounds/AssetRounds",
+    "ref": "phase/s10-brand-refresh",
+    "main_sha": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "source_identity_sha256": "FA2E57BD20754B0E9844D8939B7BB4887448DC02D026F5EB635189B80C8E5F7A",
+    "producer": {
+      "producerQualificationSHA256": "A1A9BF1B92B4CABFD150702EF3F2E218590C290B52B685E598926CF5D158542B",
+      "runID": 34477382489,
+      "sharedBuildIdentitySHA256": "0BE9475570B1F0B9CC5C9520DA4F2D11308D034033ABD17C4F6E61F1901DADAE"
+    },
+    "baseline_files": {
+      "Scripts/s10-4-ci.py": "58BFD7988C9A4DDD847D96532BBE5A9BB617ADDC5C3B1521F9FEE06F28228354",
+      "Scripts/test-s10-4-ci.py": "857AA47537D225FE2DF7AFAAD0C0EF4DB60509CCCE910E334920927571FB74B0"
+    },
+    "baseline_review_sha256": "407A261A82F058D4AFF040DA7E0C4356FBE8DF1A5DA2CD2C87B36AFA447DB7FF",
+    "owner_approval": {
+      "path": "Temp/S10_4_CI/unacquired-hosted-worker/owner-exception-proposal/OWNER_APPROVAL_20260910.json",
+      "sha256": "CB0CC46E78EFF32439B7A1D8A430D68C1130051AC960D74F90C8F5AD6D673116"
+    },
+    "proposal_sha256": "917509BAC9D40A572C04AFC9880B51A79E5C17CD272BADDA79583AEE4CFDC51A",
+    "preserved_human_receipts": [
+      {
+        "path": "Temp/S10_4_CI/review-preparation/0adebd72ae0226a80e14eaf515ca133072fb1c76/OWNER_LIGHT_DARK_APPROVAL_20260910.json",
+        "sha256": "E26B264BAD7A8EA35AC1428F3CA0637839257BD92E0F665BF32F61D4828632AF"
+      },
+      {
+        "path": "Temp/S10_4_CI/review-preparation/0adebd72ae0226a80e14eaf515ca133072fb1c76/OWNER_DWC_RM_AX_APPROVAL_20260910.json",
+        "sha256": "0879B2C35AFC4FE548329B9D0D3E2038B37F10D165FA7ACA6D78CA4CFF29BE58"
+      }
+    ],
+    "matrix": {
+      "path": "Temp/S10_4_CI/matrices/0adebd7-qualified.json",
+      "sha256": "382CA5389DDD0D53311C46FE0ADA1E963D1B80A7BC1CC3FCF141BCB74EFA84A4"
+    },
+    "final_pair": {
+      "controller": {
+        "path": "Scripts/s10-4-ci.py",
+        "sha256": "0306E6BC8F4F89AFA6E983259A612481BC9807AEB911FB2C3AE0103673B0F6A0"
+      },
+      "protocol": {
+        "path": "Scripts/test-s10-4-ci.py",
+        "sha256": "1FC4EC83DB296C1BE54533D21C95E13D8FF0FBCD355D01ADC4FC247919D24632"
+      }
+    },
+    "operational_review": {
+      "path": "Temp/S10_4_CI/unacquired-hosted-worker/independent-review/OPERATIONAL_REVIEW_0306.json",
+      "sha256": "91B229BB01B767639D93CBE76CFA6EBD7E4B6545DD816F5A6D4BD51B94C4A025"
+    },
+    "operational_records": [
+      {
+        "request_id": "160ad18ce5324d8f98d8e024b1c65b7b",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/160ad18ce5324d8f98d8e024b1c65b7b/audits/20260910T155133-66ac971723d04190bd4d88a95d75f825.json",
+          "sha256": "EAEB7BF6822E855681FC0D572A43C67E24BF05A68CCD965D037214347FBF63CC"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34495651276/20260910T155025482094-E090702E7A1DC281FD4FC8E7E9492BB1A72F5AAF0F326BE6B08B0C493A2A8F99.json",
+          "sha256": "E090702E7A1DC281FD4FC8E7E9492BB1A72F5AAF0F326BE6B08B0C493A2A8F99"
+        }
+      },
+      {
+        "request_id": "2c2d366f683f42a6b4df8ee6da2e5c1e",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/2c2d366f683f42a6b4df8ee6da2e5c1e/audits/20260910T183645-943f9786a33b4f998379be934f8675ba.json",
+          "sha256": "4FA329BE22967385333079100A99246905444FCEA9DC9EA3EBB08A0EE833525D"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34511363515/20260910T183625681185-7C24DCF35AB596484B9716A94242AB8FB58A25CC3FCCB49B40B5BA064FF7325D.json",
+          "sha256": "7C24DCF35AB596484B9716A94242AB8FB58A25CC3FCCB49B40B5BA064FF7325D"
+        }
+      },
+      {
+        "request_id": "3279fa0c3b0e4c17b3014a839b5c9c6a",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/3279fa0c3b0e4c17b3014a839b5c9c6a/audits/20260910T154839-7ff067d30586497492e6970c6abbcb83.json",
+          "sha256": "D9981F77F4F04DF84C0B2EBAAC7C10C41C0032F5B135ACA949ABD23A453EF0A5"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34487026789/20260910T154813795306-A58BA74AD6B46CA271839A2F81F28BF17BF204C427DE6D48D5FCF7781B7DBBEB.json",
+          "sha256": "A58BA74AD6B46CA271839A2F81F28BF17BF204C427DE6D48D5FCF7781B7DBBEB"
+        }
+      },
+      {
+        "request_id": "35a1d5e5e4464089afd6107d3254c3a7",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/35a1d5e5e4464089afd6107d3254c3a7/audits/20260910T164133-2c8e24bb53a54940876e8553ab168f37.json",
+          "sha256": "B7F9319B8E5A0BFF7D6F9DCA5996A455EEBE1D3F9C43BAB5B64F28EC1B571493"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34498424607/20260910T164101508650-2504CD299846135A765D01F94A4EBF855E517830EC8B804084AB3E539D87783D.json",
+          "sha256": "2504CD299846135A765D01F94A4EBF855E517830EC8B804084AB3E539D87783D"
+        }
+      },
+      {
+        "request_id": "36b252570bb743b09f53b1d4ce282976",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/36b252570bb743b09f53b1d4ce282976/audits/20260910T171334-6bc7c4c100674e53bc8cc39d54dc4f9f.json",
+          "sha256": "677834DE3B2E01A68C1950961324295B0102CF2884A1BA905BE434521CEDE7A5"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34502909462/20260910T171325392899-66AB983F41D2A38DF54A6C405061BBEFD1B0FC920C27834ECEA2482D043FEEC1.json",
+          "sha256": "66AB983F41D2A38DF54A6C405061BBEFD1B0FC920C27834ECEA2482D043FEEC1"
+        }
+      },
+      {
+        "request_id": "48b9f5a78d2f4398a580712986248826",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/48b9f5a78d2f4398a580712986248826/audits/20260910T161852-1d471aa3984b49dba949ca66c9ae7bdb.json",
+          "sha256": "720CB52557B0FD92994AA061484930AAB47433E11A2CE08C145E14F0E6FE2F7D"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34499306576/20260910T161831308781-2BF1AC94F782EFA42CEE8E6EFA191E27B9C0D9A6D2DBAA37883C1B6AFB51F946.json",
+          "sha256": "2BF1AC94F782EFA42CEE8E6EFA191E27B9C0D9A6D2DBAA37883C1B6AFB51F946"
+        }
+      },
+      {
+        "request_id": "81bcc2a133874daf9af708e4c0339355",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/81bcc2a133874daf9af708e4c0339355/audits/20260910T171742-5d8595167b0d4f6db60006a55c3de980.json",
+          "sha256": "CCF142731667DB1ADB34E0E447EF653A704CE7D11A761F13DE4FE4A446DDC77F"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34503516448/20260910T171711119863-8FA88D51614F2CFC7A4E79407AEC0001CD46E3E980ADD0F45542EF927FE15B11.json",
+          "sha256": "8FA88D51614F2CFC7A4E79407AEC0001CD46E3E980ADD0F45542EF927FE15B11"
+        }
+      },
+      {
+        "request_id": "932fa115f175490fbd8e38ff3a152313",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/932fa115f175490fbd8e38ff3a152313/audits/20260910T154849-218c4f5dd8a24369bc175c74dacc311a.json",
+          "sha256": "C2FD7F8A35C802B53DCBF4B219DC124AAE978BC6C6F0A6F521E97BDF1EB3BC7A"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34487679270/20260910T154803694778-780521EC928F9CF90C0348C545A8880A712D71182F3EE8265D119F6E713047D9.json",
+          "sha256": "780521EC928F9CF90C0348C545A8880A712D71182F3EE8265D119F6E713047D9"
+        }
+      },
+      {
+        "request_id": "ae5b092e2e6244f69f17d5f53083c8c2",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/ae5b092e2e6244f69f17d5f53083c8c2/audits/20260910T161730-e9387537c5ac457d940c8ac206d0a43e.json",
+          "sha256": "AA1034B9F2B63B08C4AF02F58DE4F868B4DA5938B3E0B0EB4BBA869EAB1C620E"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34498876688/20260910T161652001148-0A9698A105B13617AC13897F947C8CF5A1DBC99A8A806416D2E7239E70C02AD2.json",
+          "sha256": "0A9698A105B13617AC13897F947C8CF5A1DBC99A8A806416D2E7239E70C02AD2"
+        }
+      }
+    ]
+  },
+  "minimum_verification_deferral_contract": {
+    "contract_id": "s10.4.minimum-verification-deferred.v1",
+    "authority_id": "H420",
+    "binding_status": "ACTIVE_OWNER_DIRECTED",
+    "owner_instruction": {
+      "path": "Temp/S10_4_CI/minimum-core-smoke/owner-final-minimum-decision/OWNER_DIRECT_DEFERRAL_20260910.json",
+      "sha256": "2ECB823298BEA8716A7A358F9C69D37FDA36BB824077D6DC8F688A06BB03FA43"
+    },
+    "native_evidence_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+    "source_identity_sha256": "FA2E57BD20754B0E9844D8939B7BB4887448DC02D026F5EB635189B80C8E5F7A",
+    "main_sha": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "producer": {
+      "runID": 34477382489,
+      "sharedBuildIdentitySHA256": "0BE9475570B1F0B9CC5C9520DA4F2D11308D034033ABD17C4F6E61F1901DADAE",
+      "producerQualificationSHA256": "A1A9BF1B92B4CABFD150702EF3F2E218590C290B52B685E598926CF5D158542B"
+    },
+    "boundary_request_id": "36b252570bb743b09f53b1d4ce282976",
+    "boundary_run_id": 34502909462,
+    "attempt_request_ids": [
+      "2c2d366f683f42a6b4df8ee6da2e5c1e"
+    ],
+    "original_history": [
+      {
+        "request_id": "160ad18ce5324d8f98d8e024b1c65b7b",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/160ad18ce5324d8f98d8e024b1c65b7b/audits/20260910T155133-66ac971723d04190bd4d88a95d75f825.json",
+          "sha256": "EAEB7BF6822E855681FC0D572A43C67E24BF05A68CCD965D037214347FBF63CC"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34495651276/20260910T155025482094-E090702E7A1DC281FD4FC8E7E9492BB1A72F5AAF0F326BE6B08B0C493A2A8F99.json",
+          "sha256": "E090702E7A1DC281FD4FC8E7E9492BB1A72F5AAF0F326BE6B08B0C493A2A8F99"
+        }
+      },
+      {
+        "request_id": "2c2d366f683f42a6b4df8ee6da2e5c1e",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/2c2d366f683f42a6b4df8ee6da2e5c1e/audits/20260910T183645-943f9786a33b4f998379be934f8675ba.json",
+          "sha256": "4FA329BE22967385333079100A99246905444FCEA9DC9EA3EBB08A0EE833525D"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34511363515/20260910T183625681185-7C24DCF35AB596484B9716A94242AB8FB58A25CC3FCCB49B40B5BA064FF7325D.json",
+          "sha256": "7C24DCF35AB596484B9716A94242AB8FB58A25CC3FCCB49B40B5BA064FF7325D"
+        }
+      },
+      {
+        "request_id": "2d79f50a18a0435e937bc6ff5cabc637",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/2d79f50a18a0435e937bc6ff5cabc637/audits/20260910T141358-3431af03c8144a47adf848886cc3204f.json",
+          "sha256": "9A1227946FBCEE3AA4E0D6F30F1C52159B5D66E8046DC03F4428E82634DD1712"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34484849799/20260910T141337867093-61B6ABF3E67B231D31717856EEBB9CD2F6222757A619F6A544235A2D3A2F3D22.json",
+          "sha256": "61B6ABF3E67B231D31717856EEBB9CD2F6222757A619F6A544235A2D3A2F3D22"
+        }
+      },
+      {
+        "request_id": "364d902e3db54e5fb4740eb919e012b1",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/364d902e3db54e5fb4740eb919e012b1/audits/20260910T151510-b8fd7e7f0a114a06a7a4e3a448aedf6c.json",
+          "sha256": "84B865B6C5FB595415471C2424D9257E5CB95D85AC89E1D6BD1C164E7D804665"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34489259863/20260910T151444227105-FE816AD195BCB3D2885F21A301C5AC81C87E0A102B40B771D0D9FEDD269F05B0.json",
+          "sha256": "FE816AD195BCB3D2885F21A301C5AC81C87E0A102B40B771D0D9FEDD269F05B0"
+        }
+      },
+      {
+        "request_id": "36b252570bb743b09f53b1d4ce282976",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/36b252570bb743b09f53b1d4ce282976/audits/20260910T171334-6bc7c4c100674e53bc8cc39d54dc4f9f.json",
+          "sha256": "677834DE3B2E01A68C1950961324295B0102CF2884A1BA905BE434521CEDE7A5"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34502909462/20260910T171325392899-66AB983F41D2A38DF54A6C405061BBEFD1B0FC920C27834ECEA2482D043FEEC1.json",
+          "sha256": "66AB983F41D2A38DF54A6C405061BBEFD1B0FC920C27834ECEA2482D043FEEC1"
+        }
+      },
+      {
+        "request_id": "48b9f5a78d2f4398a580712986248826",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/48b9f5a78d2f4398a580712986248826/audits/20260910T161852-1d471aa3984b49dba949ca66c9ae7bdb.json",
+          "sha256": "720CB52557B0FD92994AA061484930AAB47433E11A2CE08C145E14F0E6FE2F7D"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34499306576/20260910T161831308781-2BF1AC94F782EFA42CEE8E6EFA191E27B9C0D9A6D2DBAA37883C1B6AFB51F946.json",
+          "sha256": "2BF1AC94F782EFA42CEE8E6EFA191E27B9C0D9A6D2DBAA37883C1B6AFB51F946"
+        }
+      },
+      {
+        "request_id": "c95c56b65fa747c59b04752488032438",
+        "audit": {
+          "path": "Temp/S10_4_CI/registry/requests/c95c56b65fa747c59b04752488032438/audits/20260910T133545-1d34d7d959b04f71be5f0bb580212c03.json",
+          "sha256": "5C76FE6BC640B2C36D190476A738014A52C381E7493FAF31F16398CB701DA180"
+        },
+        "original_cache": {
+          "path": "Temp/S10_4_CI/registry/verified-originals/34478474336/20260910T133526171749-58F8BEBFB9D4726AB97D8C99C015D758C3980A6902147986AC4B57F4E19647CC.json",
+          "sha256": "58F8BEBFB9D4726AB97D8C99C015D758C3980A6902147986AC4B57F4E19647CC"
+        }
+      }
+    ],
+    "quarantine_ledger": {
+      "path": "Temp/S10_4_CI/registry/quarantine-ledger.json",
+      "sha256": "2E78CC48AFD74E883F0808FF04E1624BCD87DCFA7615AAA63EB67F8AC6D09246"
+    },
+    "ios_deployment_target": "18.0",
+    "follow_up": "PENDING_HANDOFF_ONLY",
+    "functional_pass_claimed": false,
+    "catalog_visual_cell_credit": 0,
+    "catalog_accessibility_row_credit": 0
+  }
+}

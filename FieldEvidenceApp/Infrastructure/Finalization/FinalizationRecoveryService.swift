@@ -832,25 +832,11 @@ final class FinalizationRecoveryService {
             current = child
         }
         let issueOriginals = originals.filter { $0.issueID == issue.id }
-        let workRecords = chain.filter {
-            $0.stage == WorkflowStage.work.rawValue
-        }
-        let recordsAfterWork = workRecords.first.flatMap { work in
-            chain.firstIndex(where: { $0 === work }).map { index in
-                Array(chain.dropFirst(index + 1))
-            }
-        } ?? []
-        guard current === parents[0],
-              workRecords.count == 1,
-              canonicalOptionalDateEqual(
-                workRecords[0].completedAt,
-                transition.before.updatedAt
-              ),
-              recordsAfterWork.allSatisfy({ record in
-                  record.stage == WorkflowStage.recheck.rawValue
-                    && record.outcomeKey == "could_not_verify"
-                    && recoveryCouldNotVerify(record) != nil
-              }),
+        guard let issueState = reducedRecoveryIssueState(chain),
+              current === parents[0],
+              issueState.status == transition.before.status,
+              issueState.resolvedByRecordID == transition.before.resolvedByRecordID,
+              canonicalDateEqual(issueState.updatedAt, transition.before.updatedAt),
               Set(issueOriginals.map(\.id)) == Set(chain.map(\.id)) else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
@@ -1067,6 +1053,59 @@ final class FinalizationRecoveryService {
         return rows.count == 2
             && keys.filter { $0 == "wide_context" }.count == 1
             && keys.filter { $0 == "close_detail" }.count == 1
+    }
+
+    private struct RecoveryRecheckIssueState {
+        let status: String
+        let resolvedByRecordID: UUID?
+        let updatedAt: Date
+    }
+
+    private func reducedRecoveryIssueState(
+        _ chain: [WorkflowRecord]
+    ) -> RecoveryRecheckIssueState? {
+        guard let opening = chain.first,
+              opening.stage == WorkflowStage.check.rawValue,
+              opening.outcomeKey == "visible_issue",
+              let openingCompletedAt = opening.completedAt else {
+            return nil
+        }
+        var status = IssueStatus.open.rawValue
+        var resolvedByRecordID: UUID?
+        var updatedAt = openingCompletedAt
+        for record in chain.dropFirst() {
+            guard let completedAt = record.completedAt else { return nil }
+            switch WorkflowStage(rawValue: record.stage) {
+            case .work:
+                guard status == IssueStatus.open.rawValue else { return nil }
+                status = IssueStatus.recheckDue.rawValue
+                resolvedByRecordID = nil
+                updatedAt = completedAt
+            case .recheck:
+                guard status == IssueStatus.recheckDue.rawValue else { return nil }
+                switch record.outcomeKey {
+                case "resolved", "original_resolved_different_issue":
+                    status = IssueStatus.resolved.rawValue
+                    resolvedByRecordID = record.id
+                    updatedAt = completedAt
+                case "issue_still_visible":
+                    status = IssueStatus.open.rawValue
+                    resolvedByRecordID = nil
+                    updatedAt = completedAt
+                case "could_not_verify":
+                    break
+                default:
+                    return nil
+                }
+            case .check, nil:
+                return nil
+            }
+        }
+        return RecoveryRecheckIssueState(
+            status: status,
+            resolvedByRecordID: resolvedByRecordID,
+            updatedAt: updatedAt
+        )
     }
 
     private func validRecoveryOpening(_ record: WorkflowRecord, issue: Issue) -> Bool {

@@ -205,13 +205,11 @@ private struct StartupRootView: View {
         Group {
             switch router.route {
             case .checking:
-                ProgressView("Checking local data")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background {
-                        DesignTokens.Colors.canvas
-                            .ignoresSafeArea()
-                    }
-                    .accessibilityIdentifier("s2.startup.checking")
+                AssetRoundsScreenFoundation {
+                    ProgressView("Checking local data")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .accessibilityIdentifier("s2.startup.checking")
 
             case let .maintenance(reason):
                 MaintenanceRestoreHost(
@@ -458,24 +456,26 @@ private struct MaintenanceRestoreHost: View {
 
 private struct EraseCleanupPendingView: View {
     var body: some View {
-        ScrollView {
-            WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Field Evidence")
-                Text("Local data erased")
-                    .font(.largeTitle.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                Text("Close and reopen the app to finish secure cleanup.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                ProgressView("Finishing erase")
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(kind: .warning, "Field Evidence")
+                        .accessibilityLabel("Information: Field Evidence")
+                        .accessibilityValue(Text(verbatim: String()))
+                    Text("Local data erased")
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Close and reopen the app to finish secure cleanup.")
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ProgressView("Finishing erase")
+                        .tint(DesignTokens.SemanticColors.primaryAction)
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(
             SignsRootView.welcomeScreenAccessibilityIdentifier
         )

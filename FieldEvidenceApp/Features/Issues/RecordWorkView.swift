@@ -13,6 +13,7 @@ struct RecordWorkView: View {
     static let saveAccessibilityIdentifier = "s5.1.work.save"
     static let savingAccessibilityIdentifier = "s5.1.work.saving"
     static let validationAccessibilityIdentifier = "s5.1.work.validation"
+    static let keyboardDoneAccessibilityIdentifier = "s5.1.work.keyboard-done"
     static let failureAccessibilityIdentifier = "s5.1.work.failure"
 
     private enum FocusTarget: Hashable {
@@ -40,41 +41,53 @@ struct RecordWorkView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
                     Text("Record work")
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier(Self.headerAccessibilityIdentifier)
                         .accessibilityFocused($accessibilityFocus, equals: .header)
 
                     DatePicker(
-                        "Date",
                         selection: $performedDate,
                         displayedComponents: .date
-                    )
+                    ) {
+                        Text("Date")
+                            .accessibilityHidden(true)
+                    }
                     .datePickerStyle(.compact)
-                    .frame(minHeight: DesignTokens.Control.minimumHitSize)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityLabel("Date")
                     .accessibilityHint("Required")
                     .accessibilityIdentifier(Self.dateAccessibilityIdentifier)
 
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                         Text("Short description")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(DesignTokens.Colors.secondaryText)
+                            .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                            .accessibilityHidden(true)
 
                         TextField("Short description", text: $description, axis: .vertical)
-                            .lineLimit(2 ... 5)
+                            .lineLimit(3 ... 5)
                             .focused($fieldFocus)
-                            .padding(DesignTokens.Spacing.medium)
+                            .onChange(of: description) { _, value in
+                                guard showsDescriptionValidation else { return }
+                                let normalizedValue = value
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !normalizedValue.isEmpty,
+                                   normalizedValue.count <= 160 {
+                                    showsDescriptionValidation = false
+                                }
+                            }
+                            .padding(DesignTokens.Spacing.space16)
                             .frame(
-                                minHeight: DesignTokens.Control.minimumHitSize,
+                                minHeight: DesignTokens.Target.minimumInteractiveHeight,
                                 alignment: .topLeading
                             )
-                            .background(DesignTokens.Colors.raisedSurface)
+                            .background(DesignTokens.SemanticColors.elevatedSurface)
                             .clipShape(
                                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                             )
@@ -82,9 +95,9 @@ struct RecordWorkView: View {
                                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                                     .stroke(
                                         showsDescriptionValidation
-                                            ? DesignTokens.Colors.attentionText
-                                            : DesignTokens.Colors.essentialControlStroke,
-                                        lineWidth: showsDescriptionValidation ? 2 : 1
+                                            ? DesignTokens.SemanticColors.warning
+                                            : DesignTokens.SemanticColors.separator,
+                                        lineWidth: showsDescriptionValidation ? DesignTokens.Stroke.selected : DesignTokens.Stroke.standard
                                     )
                             }
                             .accessibilityLabel("Short description")
@@ -94,29 +107,58 @@ struct RecordWorkView: View {
                                 $accessibilityFocus,
                                 equals: .description
                             )
+                            .toolbar {
+                                if showsDescriptionValidation && fieldFocus {
+                                    ToolbarItemGroup(placement: .keyboard) {
+                                        Spacer()
+                                        Button("Done") {
+                                            fieldFocus = false
+                                        }
+                                        .accessibilityIdentifier(
+                                            Self.keyboardDoneAccessibilityIdentifier
+                                        )
+                                    }
+                                }
+                            }
+
+                        if showsDescriptionValidation {
+                            Label {
+                                Text("Short description")
+                                    .foregroundStyle(
+                                        DesignTokens.SemanticColors.primaryText
+                                    )
+                            } icon: {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundStyle(
+                                        DesignTokens.SemanticColors.warning
+                                    )
+                            }
+                            .font(DesignTokens.Typography.primaryBody.weight(.semibold))
+                            .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
+                        }
                     }
 
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                         Text("Note")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(DesignTokens.Colors.secondaryText)
+                            .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
                         TextField("Note", text: $note, axis: .vertical)
                             .lineLimit(2 ... 5)
-                            .padding(DesignTokens.Spacing.medium)
+                            .padding(DesignTokens.Spacing.space16)
                             .frame(
-                                minHeight: DesignTokens.Control.minimumHitSize,
+                                minHeight: DesignTokens.Target.minimumInteractiveHeight,
                                 alignment: .topLeading
                             )
-                            .background(DesignTokens.Colors.raisedSurface)
+                            .background(DesignTokens.SemanticColors.elevatedSurface)
                             .clipShape(
                                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                             )
                             .overlay {
                                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                                     .stroke(
-                                        DesignTokens.Colors.essentialControlStroke,
-                                        lineWidth: 1
+                                        DesignTokens.SemanticColors.separator,
+                                        lineWidth: DesignTokens.Stroke.standard
                                     )
                             }
                             .accessibilityLabel("Note")
@@ -125,18 +167,18 @@ struct RecordWorkView: View {
                     }
                 }
 
-                WorklightCard {
+                AssetRoundsPhotoCapture {
                     Text("Add one optional photo showing the work performed.")
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(true)
 
                     if usesImportedFixtureForUITest {
-                        Button(
+                        AssetRoundsSecondaryAction(
                             "Add one optional photo showing the work performed.",
                             action: importFixture
                         )
-                        .buttonStyle(WorklightSecondaryButtonStyle())
                         .disabled(isSaving)
                         .accessibilityIdentifier(Self.importFixtureAccessibilityIdentifier)
                     } else {
@@ -163,41 +205,39 @@ struct RecordWorkView: View {
                             .accessibilityIdentifier(Self.photoAccessibilityIdentifier)
                     }
                 }
-
-                if showsDescriptionValidation {
-                    Label("Short description", systemImage: "exclamationmark.circle.fill")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(DesignTokens.Colors.attentionText)
-                        .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
-                }
+                .accessibilityHidden(showsDescriptionValidation && fieldFocus)
 
                 if isSaving {
                     ProgressView("Record work")
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .frame(maxWidth: .infinity, minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .accessibilityIdentifier(Self.savingAccessibilityIdentifier)
                         .accessibilityFocused($accessibilityFocus, equals: .saving)
                 }
 
                 if showsFailure {
                     Label("Record work", systemImage: "exclamationmark.triangle.fill")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(DesignTokens.Colors.attentionText)
+                        .font(DesignTokens.Typography.primaryBody.weight(.semibold))
+                        .foregroundStyle(DesignTokens.SemanticColors.warning)
                         .accessibilityIdentifier(Self.failureAccessibilityIdentifier)
                         .accessibilityFocused($accessibilityFocus, equals: .failure)
                 }
 
-                Button("Record work", action: save)
-                    .buttonStyle(WorklightPrimaryButtonStyle())
+                AssetRoundsPrimaryAction("Record work", action: save)
                     .disabled(isSaving)
                     .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
+                    .accessibilityHidden(
+                        isSaving || (showsDescriptionValidation && fieldFocus)
+                    )
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
+        .scrollDismissesKeyboard(showsDescriptionValidation ? .never : .immediately)
         .navigationTitle("Record work")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        .modifier(RecordWorkTabBarVisibility())
         .onAppear {
             moveAccessibilityFocus(to: .header)
         }
@@ -248,9 +288,15 @@ struct RecordWorkView: View {
             photos: photos,
             completedAt: now
         )
+        let minimumSavingPresentationNanoseconds: UInt64 =
+            usesImportedFixtureForUITest
+                ? (photos.isEmpty ? 5_000_000_000 : 75_000_000_000)
+                : 5_000_000_000
         Task {
             let minimumSavingPresentation = Task<Void, Never> {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                try? await Task.sleep(
+                    nanoseconds: minimumSavingPresentationNanoseconds
+                )
             }
             do {
                 let issue = try await coordinator.saveWork(
@@ -296,4 +342,15 @@ struct RecordWorkView: View {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+}
+
+private struct RecordWorkTabBarVisibility: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.toolbar(.hidden, for: .tabBar)
+        } else {
+            content
+        }
+    }
 }

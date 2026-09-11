@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct ValueReceiptView: View {
@@ -7,6 +8,8 @@ struct ValueReceiptView: View {
     static let shareAccessibilityIdentifier = "s3.receipt.share"
     static let doneAccessibilityIdentifier = "s3.receipt.done"
     static let deliveryErrorAccessibilityIdentifier = "s4.3.receipt.delivery-error"
+    private static let defersReceiptPreparationForRecoveryUITest =
+        "--s4-2-ui-test-render-failure-once"
 
     let result: FinalizationResult
     let coordinator: CheckRunnerCoordinator
@@ -23,13 +26,18 @@ struct ValueReceiptView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
-                    WorklightStatusBadge(kind: .complete, text: "Check complete")
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(
+                        kind: .completed,
+                        text: Text("Check complete")
+                    )
+                    .accessibilityLabel("Complete: Check complete")
+                    .accessibilityValue(Text(verbatim: String()))
 
                     Text("Report saved on this device.")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier(Self.savedAccessibilityIdentifier)
@@ -39,36 +47,33 @@ struct ValueReceiptView: View {
                 }
 
                 if delivery != nil {
-                    Button("View report") {
+                    AssetRoundsPrimaryAction("View report") {
                         showsReport = true
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityHint("Opens the report PDF stored on this device")
                     .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
 
-                    Button("Share PDF") {
+                    AssetRoundsSecondaryAction("Share PDF") {
                         showsShareSheet = true
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityHint("Opens the system share sheet for this report PDF")
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
                 } else if !deliveryUnavailable {
                     ProgressView("Preparing report PDF")
-                        .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
+                        .frame(maxWidth: .infinity, minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .accessibilityIdentifier("s4.3.receipt.preparing")
                 }
 
-                Button("Done") {
+                AssetRoundsSecondaryAction("Done") {
                     dismiss()
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
                 .accessibilityHint("Returns to this sign")
                 .accessibilityIdentifier(Self.doneAccessibilityIdentifier)
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Saved")
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .navigationDestination(isPresented: $showsReport) {
             if let delivery, let deliveryCoordinator {
@@ -95,6 +100,11 @@ struct ValueReceiptView: View {
         .task {
             guard !didPrepareDelivery else { return }
             didPrepareDelivery = true
+            guard !ProcessInfo.processInfo.arguments.contains(
+                Self.defersReceiptPreparationForRecoveryUITest
+            ) else {
+                return
+            }
             do {
                 let preparedCoordinator = try coordinator.makeReportDeliveryCoordinator()
                 deliveryCoordinator = preparedCoordinator
@@ -124,8 +134,8 @@ struct ValueReceiptView: View {
 
     private func receiptStatus(_ copy: String) -> some View {
         Text(copy)
-            .font(.body)
-            .foregroundStyle(DesignTokens.Colors.secondaryText)
+            .font(DesignTokens.Typography.primaryBody)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

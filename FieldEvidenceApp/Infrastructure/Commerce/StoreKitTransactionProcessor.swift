@@ -419,6 +419,10 @@ private extension StoreKitTransactionProcessor {
 }
 
 private enum StoreKitRuntimeAdapterV1 {
+    private static let subscriptionStatusMaximumReads = 20
+    private static let subscriptionStatusReadDelayNanoseconds: UInt64 =
+        250_000_000
+
     static func initialEvents(
         productLoader: StoreKitProductLoader
     ) async throws -> [EntitlementProcessorEventV1] {
@@ -460,8 +464,10 @@ private enum StoreKitRuntimeAdapterV1 {
     ) async -> VerifiedEntitlementProcessorEventV1? {
         guard transaction.productID == EntitlementReducerV1.productID,
               transaction.productType == .autoRenewable,
-              transaction.ownershipType == .purchased,
-              let status = await transaction.subscriptionStatus,
+              transaction.ownershipType == .purchased else {
+            return nil
+        }
+        guard let status = await resolvedSubscriptionStatus(for: transaction),
               let fact = fact(from: status) else {
             return nil
         }
@@ -476,6 +482,30 @@ private enum StoreKitRuntimeAdapterV1 {
             transactionID: shouldFinish ? transaction.id : nil,
             finish: finish
         )
+    }
+
+    private static func resolvedSubscriptionStatus(
+        for transaction: Transaction
+    ) async -> Product.SubscriptionInfo.Status? {
+        guard !Task<Never, Never>.isCancelled else { return nil }
+        if let status = await transaction.subscriptionStatus {
+            return status
+        }
+
+        for _ in 1..<subscriptionStatusMaximumReads {
+            do {
+                try await Task<Never, Never>.sleep(
+                    nanoseconds: subscriptionStatusReadDelayNanoseconds
+                )
+            } catch {
+                return nil
+            }
+            guard !Task<Never, Never>.isCancelled else { return nil }
+            if let status = await transaction.subscriptionStatus {
+                return status
+            }
+        }
+        return nil
     }
 
     static func event(

@@ -38,19 +38,14 @@ struct IssueDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
-                    WorklightStatusBadge(
-                        kind: issue.status == .resolved
-                            ? .complete
-                            : issue.status == .recheckDue ? .attention : .information,
-                        text: statusDisplay
-                    )
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
+                    statusLabel
                     .accessibilityIdentifier(Self.statusAccessibilityIdentifier)
 
                     Text(issue.label)
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier(Self.headerAccessibilityIdentifier)
@@ -82,19 +77,17 @@ struct IssueDetailView: View {
                     }
 
                     if issue.canRecordWork {
-                        Button("Record work", action: recordWork)
-                            .buttonStyle(WorklightPrimaryButtonStyle())
+                        AssetRoundsPrimaryAction("Record work", action: recordWork)
                             .accessibilityIdentifier(Self.recordWorkAccessibilityIdentifier)
                     } else if issue.status == .recheckDue {
-                        Button("Start recheck", action: startRecheck)
-                            .buttonStyle(WorklightPrimaryButtonStyle())
+                        AssetRoundsPrimaryAction("Start recheck", action: startRecheck)
                             .accessibilityIdentifier(Self.startRecheckAccessibilityIdentifier)
                     }
                 }
                 .accessibilityIdentifier(Self.signoffImmutableDetailAccessibilityIdentifier)
 
                 ForEach(issue.records) { record in
-                    WorklightCard {
+                    AssetRoundsEvidenceCard {
                         detailRow(
                             title: "Date",
                             value: record.performedLocalDate,
@@ -128,14 +121,14 @@ struct IssueDetailView: View {
                     .accessibilityIdentifier(Self.workRecordAccessibilityIdentifier)
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.signoffWorkRootAccessibilityIdentifier)
         }
         .navigationTitle(statusDisplay)
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .onAppear {
             focusesHeader = false
@@ -154,14 +147,40 @@ struct IssueDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private var statusLabel: some View {
+        switch issue.status {
+        case .open:
+            Label(statusDisplay, systemImage: "info.circle.fill")
+                .font(DesignTokens.Typography.secondaryBody.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text("Information: \(statusDisplay)"))
+        case .recheckDue:
+            AssetRoundsStateLabel(
+                kind: .warning,
+                text: Text(statusDisplay)
+            )
+            .accessibilityLabel(Text("Attention: \(statusDisplay)"))
+            .accessibilityValue(Text(verbatim: String()))
+        case .resolved:
+            AssetRoundsStateLabel(
+                kind: .completed,
+                text: Text(statusDisplay)
+            )
+            .accessibilityLabel(Text("Complete: \(statusDisplay)"))
+            .accessibilityValue(Text(verbatim: String()))
+        }
+    }
+
     private func detailRow(title: String, value: String, identifier: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             Text(value)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

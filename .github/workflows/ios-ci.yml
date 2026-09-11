@@ -1,29 +1,1212 @@
 name: iOS CI
+run-name: iOS CI · lane=${{ inputs.execution_lane }} · shard=${{ inputs.s10_4_shard_id }} · head=${{ github.sha }}${{ inputs.s10_4_minimum_core_smoke_id != 'none' && format(' · smoke={0}', inputs.s10_4_minimum_core_smoke_id) || '' }}
 
 on:
   workflow_dispatch:
     inputs:
+      execution_lane:
+        description: Select GitHub acceptance or one exact development-only execution lane
+        required: true
+        default: github-xcode-26.6-acceptance
+        type: choice
+        options:
+          - github-xcode-26.6-acceptance
+          - s10-4-shared-build-producer
+          - github-xcode-26.6-shared-build-acceptance
+          - s10-4-shared-segment-assembly
+          - github-xcode-26.6-segmented-acceptance
+          - getmac-xcode-26.6-development-only
+          - warp-xcode-26.5-development-only
+          - bitrise-build-hub-cache-probe-development-only
+          - bitrise-build-hub-xcode-26.6-development-only
+          - bitrise-build-hub-xcode-26.6-unit-development-only
+          - bitrise-build-hub-xcode-26.6-segmented-development-only
+          - s10-4-hybrid-equivalence-pilot
+          - s10-4-minimum-diagnostic-pilot
+          - s10-4-focused-diagnostics-development-only
+      s10_4_minimum_core_smoke_id:
+        description: Explicit minimum functional smoke; none preserves full legacy behavior
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - s10.4.minimum-core-smoke.v1
+      s10_4_shared_payload_run_id:
+        description: Original qualified shared producer run ID
+        required: false
+        default: ""
+        type: string
+      s10_4_shared_segment_id:
+        description: Exact shared UI segment; none means all 67 states
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - segment-1
+          - segment-2
+          - segment-3
+          - minimum-segment-1
+          - minimum-segment-2
+          - minimum-segment-3
+      s10_4_segment_source_run_ids:
+        description: Exact JSON segment-ID to original successful consumer run-ID map
+        required: false
+        default: ""
+        type: string
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
         default: false
         type: boolean
+      s10_4_shard_id:
+        description: Select one exact S10.4 shard, or none for other tasks
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - s10.4.current.default-light
+          - s10.4.current.default-dark
+          - s10.4.current.increased-contrast
+          - s10.4.current.ax-text
+          - s10.4.current.differentiate-without-color
+          - s10.4.current.reduce-motion
+          - s10.4.current.reduce-transparency
+          - s10.4.minimum.minimum-os
+          - s10.4.minimum.double-length
+          - s10.4.minimum.rtl
+          - s10.4.minimum.rtl-string
+          - s10.4.minimum.tall
+          - s10.4.minimum.accented
+          - s10.4.minimum.bounded
 
 permissions:
   contents: read
 
 concurrency:
-  group: ios-ci-${{ github.ref }}
+  group: ${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}
   cancel-in-progress: false
 
 jobs:
-  verify:
-    runs-on: macos-26
+  shared-selection:
+    name: Validate shared build selection and dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      matrix_id: ${{ steps.selection.outputs.matrix_id }}
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate closed shared selection and original dependencies
+        id: selection
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHARED_LANE: ${{ inputs.execution_lane }}
+          SHARED_SHARD: ${{ inputs.s10_4_shard_id }}
+          SHARED_SEGMENT: ${{ inputs.s10_4_shared_segment_id }}
+          SHARED_SOURCE_RUN: ${{ inputs.s10_4_shared_payload_run_id }}
+          SHARED_SOURCE_MAP: ${{ inputs.s10_4_segment_source_run_ids }}
+          SHARED_UI: ${{ inputs.run_ui_smoke }}
+          SMOKE_ID: ${{ inputs.s10_4_minimum_core_smoke_id }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+
+          root=Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          lane=os.environ['SHARED_LANE']
+          shard=os.environ['SHARED_SHARD']
+          segment=os.environ['SHARED_SEGMENT']
+          source=os.environ['SHARED_SOURCE_RUN']
+          map_text=os.environ['SHARED_SOURCE_MAP']
+          ui=os.environ['SHARED_UI']
+          temp=Path(os.environ['RUNNER_TEMP'])
+          new_lanes=['s10-4-shared-build-producer','github-xcode-26.6-shared-build-acceptance','s10-4-shared-segment-assembly']
+          assert ui in ('true','false')
+          smoke=os.environ['SMOKE_ID']
+          import runpy
+          kernel=runpy.run_path(str(root/'Scripts/s10-4-build-payload.py'))
+          assert smoke in ('none',kernel['smoke_contract'](root)['contractID'])
+          if smoke!='none':
+              assert lane=='github-xcode-26.6-shared-build-acceptance' and shard=='s10.4.minimum.minimum-os' and segment=='none' and ui=='true' and map_text==''
+          if lane not in new_lanes:
+              assert source=='' and segment=='none' and map_text==''
+              sys.exit(0)
+          assert os.environ['GITHUB_REPOSITORY']=='Asset-Rounds/AssetRounds'
+          assert os.environ['GITHUB_REF']=='refs/heads/phase/s10-brand-refresh'
+          head=os.environ['GITHUB_SHA']
+          assert re.fullmatch('[0-9a-f]{40}',head)
+          assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()==head
+          if lane=='s10-4-shared-build-producer':
+              assert ui=='false' and shard=='none' and source=='' and segment=='none' and map_text==''
+              sys.exit(0)
+          assert re.fullmatch('[1-9][0-9]*',source)
+          assert segment in ('none','segment-1','segment-2','segment-3','minimum-segment-1','minimum-segment-2','minimum-segment-3')
+          def pairs(values):
+              result={}
+              for k,v in values:
+                  assert k not in result
+                  result[k]=v
+              return result
+          mapping={} if map_text=='' else json.loads(map_text,object_pairs_hook=pairs)
+          assert isinstance(mapping,dict)
+          assert all(isinstance(v,str) and re.fullmatch('[1-9][0-9]*',v) for v in mapping.values())
+          if map_text:
+              assert map_text==json.dumps(mapping,sort_keys=True,separators=(',',':'),ensure_ascii=True)
+          if lane=='s10-4-shared-segment-assembly':
+              assert ui=='false' and segment=='none' and len(mapping)==3
+          else:
+              assert ui=='true'
+              assert (len(mapping)==2) if segment in ('segment-3','minimum-segment-3') else (mapping=={})
+          request=dict(schemaVersion=1,contractID='s10.4.shared-build.v1',checkoutRoot=str(root),head=head,
+                       sourceRunID=source,selection=dict(shardID=shard,segmentID=segment,purpose='acceptance'))
+          if smoke!='none': request['selection']['nativeMode']=smoke
+          request_path=temp/'s10-4-shared-admission-request.json'
+          request_path.write_text(json.dumps(request,sort_keys=True,separators=(',',':'))+'\n',encoding='utf-8')
+          admission=temp/'FieldEvidenceSharedDispatchAdmission'
+          subprocess.run([sys.executable,str(root/'Scripts/s10-4-build-payload.py'),'admit','--request',str(request_path),'--output',str(admission)],check=True)
+          source_map=temp/'s10-4-shared-source-map.json'
+          source_map.write_text(json.dumps(mapping,sort_keys=True,separators=(',',':'))+'\n',encoding='utf-8')
+          if lane=='github-xcode-26.6-shared-build-acceptance':
+              output=temp/'FieldEvidenceSharedDispatchMatrix'
+              if smoke!='none':
+                  output.mkdir()
+                  matrix=kernel['smoke_binding'](root,kernel['load'](admission/'admission.json'))
+                  (output/'matrix-binding.json').write_text(json.dumps(matrix,sort_keys=True,separators=(',',':'))+'\n')
+              else:
+                  subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--admit-shared-selection',str(admission),shard,segment,str(source_map),str(output)],check=True,cwd=root)
+                  matrix=json.loads((output/'matrix-binding.json').read_text())
+              assert re.fullmatch('[0-9A-F]{64}',matrix['matrixID'])
+              with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as stream:
+                  stream.write('matrix_id='+matrix['matrixID']+'\n')
+          else:
+              output=temp/'FieldEvidenceSharedAssembly'
+              subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--assemble-shared',str(admission),shard,str(source_map),str(output)],check=True,cwd=root)
+          PY
+      - name: Seal shared dispatch or assembled evidence
+        id: shared_dispatch_seal
+        if: ${{ always() && (inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' || inputs.execution_lane == 's10-4-shared-segment-assembly') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import stat
+          import time
+
+          started=time.monotonic()
+          temp=Path(os.environ['RUNNER_TEMP'])
+          destination=temp/'FieldEvidenceSharedDispatchUpload'
+          assert not destination.exists() and not destination.is_symlink()
+          names=('FieldEvidenceSharedDispatchAdmission','FieldEvidenceSharedDispatchMatrix',
+                 'FieldEvidenceSharedAssembly','s10-4-shared-admission-request.json','s10-4-shared-source-map.json')
+          def inventory(path):
+              rows={}
+              def visit(item,relative):
+                  mode=item.lstat().st_mode
+                  assert not stat.S_ISLNK(mode), 'symlink in dispatch evidence'
+                  assert stat.S_ISDIR(mode) or stat.S_ISREG(mode), 'nonregular dispatch evidence'
+                  assert not stat.S_IMODE(mode)&0o7000, 'special dispatch evidence permissions'
+                  assert all(part not in ('','.', '..') and not part.startswith('.') and
+                             all(ord(c)>=32 and ord(c)!=127 and c not in '\\:' for c in part)
+                             for part in relative.split('/')), 'unsafe or hidden dispatch evidence path'
+                  if stat.S_ISDIR(mode):
+                      rows[relative]=('directory',)
+                      for child in sorted(item.iterdir()): visit(child,relative+'/'+child.name)
+                  else:
+                      digest=hashlib.sha256()
+                      with item.open('rb') as stream:
+                          for block in iter(lambda:stream.read(1024*1024),b''): digest.update(block)
+                      rows[relative]=('file',item.stat().st_size,digest.hexdigest().upper())
+              visit(path,path.name)
+              assert len({key.casefold() for key in rows})==len(rows), 'case collision'
+              return rows
+          original={}
+          for name in names:
+              source=temp/name
+              if source.exists() or source.is_symlink(): original[name]=inventory(source)
+          assert any(value[0]=='file' for rows in original.values() for value in rows.values()), 'no dispatch evidence'
+          destination.mkdir()
+          for name,before in original.items():
+              source=temp/name
+              if source.is_dir(): shutil.copytree(source,destination/name,copy_function=shutil.copy2)
+              else: shutil.copy2(source,destination/name)
+              assert inventory(destination/name)==before and inventory(source)==before, 'dispatch evidence copy changed'
+          # Keep the exact retained closure and measured copy/seal preparation cost.
+          receipt={'schemaVersion':1,'originalPaths':list(original),'copyPreparationElapsedSeconds':time.monotonic()-started,
+                   'nativeExecutionClaim':False,'originalBytesPreserved':True}
+          (destination/'dispatch-retention.json').write_text(json.dumps(receipt,sort_keys=True,separators=(',',':'))+'\n',encoding='utf-8')
+          def manifest():
+              rows=inventory(destination)
+              prefix=destination.name+'/'
+              return ''.join(value[2]+'  '+name[len(prefix):]+'\n' for name,value in sorted(rows.items())
+                             if value[0]=='file' and name!=prefix+'SHA256SUMS.txt').encode('utf-8')
+          expected=manifest()
+          (destination/'SHA256SUMS.txt').write_bytes(expected)
+          assert (destination/'SHA256SUMS.txt').read_bytes()==manifest(), 'incomplete dispatch checksum closure'
+          for name,before in original.items():
+              assert inventory(temp/name)==before and inventory(destination/name)==before, 'dispatch original changed during seal'
+          print('shared_dispatch_retention_elapsed_seconds='+str(time.monotonic()-started))
+          PY
+      - name: Retain shared dispatch or assembled evidence
+        if: ${{ always() && steps.shared_dispatch_seal.outcome == 'success' && (inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' || inputs.execution_lane == 's10-4-shared-segment-assembly') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-shared-admission-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.s10_4_shard_id }}
+          path: ${{ runner.temp }}/FieldEvidenceSharedDispatchUpload
+          if-no-files-found: error
+          retention-days: 14
+
+  github-shard:
+    name: GitHub Xcode 26.6 acceptance · ${{ inputs.s10_4_shard_id }} · ${{ inputs.s10_4_shared_segment_id }}
+    needs: shared-selection
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance') }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: ${{ inputs.run_ui_smoke }}
+      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
+      s10_4_segment_id: ${{ startsWith(inputs.s10_4_shared_segment_id, 'segment-') && inputs.s10_4_shared_segment_id || 'none' }}
+      s10_4_execution_role: ${{ inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' && 'payload-consumer' || 'independent' }}
+      s10_4_shared_build_mode: ${{ inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' && 'consumer' || 'none' }}
+      s10_4_shared_payload_run_id: ${{ inputs.s10_4_shared_payload_run_id }}
+      s10_4_minimum_core_smoke_id: ${{ inputs.s10_4_minimum_core_smoke_id }}
+      s10_4_minimum_segment_id: ${{ startsWith(inputs.s10_4_shared_segment_id, 'minimum-segment-') && inputs.s10_4_shared_segment_id || 'none' }}
+      s10_4_shared_matrix_id: ${{ needs.shared-selection.outputs.matrix_id }}
+      s10_4_segment_source_run_ids: ${{ inputs.s10_4_segment_source_run_ids }}
+
+  getmac-shard:
+    name: GetMac Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'getmac-xcode-26.6-development-only') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: getmac-tahoe
+      runner_provider: getmac
+      run_ui_smoke: ${{ inputs.run_ui_smoke }}
+      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
+      s10_4_segment_id: none
+
+  bitrise-build-hub-cache-probe:
+    name: Bitrise Build Hub cache probe development-only
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/bitrise-build-hub-probe.yml
+    secrets: inherit
+
+  bitrise-shard:
+    name: Bitrise Build Hub Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && ((inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none') || (inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 's10.4.current.default-light') || inputs.execution_lane == 's10-4-shared-build-producer') }}
+    needs: shared-selection
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: 'bitrise-runner-Asset Roundddd'
+      runner_provider: bitrise
+      run_ui_smoke: ${{ inputs.run_ui_smoke }}
+      s10_4_shard_id: ${{ inputs.execution_lane == 's10-4-shared-build-producer' && 's10.4.current.default-light' || inputs.s10_4_shard_id }}
+      s10_4_segment_id: none
+      s10_4_shared_build_mode: ${{ inputs.execution_lane == 's10-4-shared-build-producer' && 'producer' || 'none' }}
+      s10_4_unit_only: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' }}
+    secrets: inherit
+
+  reject-invalid-bitrise-development-selection:
+    name: Reject invalid Bitrise development selection
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id == 'none') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reject invalid Bitrise shard or UI selection
+        shell: bash
+        run: exit 1
+
+  reject-invalid-bitrise-unit-only-selection:
+    name: Reject invalid Bitrise compilation and units selection
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && (inputs.run_ui_smoke != false || inputs.s10_4_shard_id != 's10.4.current.default-light') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the fixed Bitrise compilation and units selection
+        shell: bash
+        run: exit 1
+
+  reject-invalid-segmented-selection:
+    name: Reject invalid segmented selection
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && (inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 's10.4.current.ax-text') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reject invalid segmented provider, shard, or UI selection
+        shell: bash
+        run: exit 1
+
+  reject-invalid-s10-4-hybrid-equivalence-pilot-selection:
+    name: Reject invalid S10.4 hybrid-equivalence pilot selection
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 'none') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the fixed pilot dispatch selection
+        shell: bash
+        run: exit 1
+
+  s10-4-hybrid-payload-producer:
+    name: S10.4 hybrid pilot payload producer · Bitrise M4
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: 'bitrise-runner-Asset Roundddd'
+      runner_provider: bitrise
+      # The fixed S10.4 selector requires UI=true. The producer role gates test execution.
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-producer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-hybrid-bitrise-default-light:
+    name: S10.4 hybrid pilot consumer · Bitrise current default-light
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: 'bitrise-runner-Asset Roundddd'
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-hybrid-bitrise-default-dark:
+    name: S10.4 hybrid pilot consumer · Bitrise current default-dark
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: 'bitrise-runner-Asset Roundddd'
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-dark
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-hybrid-github-default-light:
+    name: S10.4 hybrid pilot consumer · GitHub current default-light
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+
+  s10-4-hybrid-github-default-dark:
+    name: S10.4 hybrid pilot consumer · GitHub current default-dark
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-dark
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+
+  s10-4-hybrid-github-minimum-os:
+    name: S10.4 hybrid pilot consumer · GitHub minimum-OS portability
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.minimum.minimum-os
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+
+  assemble-s10-4-hybrid-equivalence-pilot:
+    name: Assemble deliberately nonaccepting S10.4 hybrid-equivalence pilot
+    needs:
+      - s10-4-hybrid-payload-producer
+      - s10-4-hybrid-bitrise-default-light
+      - s10-4-hybrid-bitrise-default-dark
+      - s10-4-hybrid-github-default-light
+      - s10-4-hybrid-github-default-dark
+      - s10-4-hybrid-github-minimum-os
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && always() && inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Download immutable producer payload
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/payload
+
+      - name: Download Bitrise default-light pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-development-only-bitrise-xcode-26.6-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.default-light-none
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/bitrise-default-light
+
+      - name: Download Bitrise default-dark pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-development-only-bitrise-xcode-26.6-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.default-dark-none
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/bitrise-default-dark
+
+      - name: Download GitHub default-light pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.default-light
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/github-default-light
+
+      - name: Download GitHub default-dark pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.default-dark
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/github-default-dark
+
+      - name: Download GitHub minimum-OS pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.minimum.minimum-os
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/github-minimum-os
+
+      - name: Verify pilot bindings and assemble nonaccepting report
+        id: assemble
+        shell: bash
+        env:
+          PRODUCER_RESULT: ${{ needs.s10-4-hybrid-payload-producer.result }}
+          BITRISE_DEFAULT_LIGHT_RESULT: ${{ needs.s10-4-hybrid-bitrise-default-light.result }}
+          BITRISE_DEFAULT_DARK_RESULT: ${{ needs.s10-4-hybrid-bitrise-default-dark.result }}
+          GITHUB_DEFAULT_LIGHT_RESULT: ${{ needs.s10-4-hybrid-github-default-light.result }}
+          GITHUB_DEFAULT_DARK_RESULT: ${{ needs.s10-4-hybrid-github-default-dark.result }}
+          GITHUB_MINIMUM_OS_RESULT: ${{ needs.s10-4-hybrid-github-minimum-os.result }}
+          EXPECTED_PAYLOAD_ARTIFACT: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+        run: |
+          set -uo pipefail
+          pilot_root="$RUNNER_TEMP/S10_4_HYBRID_PILOT"
+          report_dir="$RUNNER_TEMP/FieldEvidenceCI"
+          report="$report_dir/s10-4-hybrid-equivalence-pilot-report.json"
+          mkdir -p "$pilot_root" "$report_dir"
+          failures=0
+          require() {
+            if ! "$@"; then
+              failures=1
+              printf 'FAILED: %q' "$1" >> "$report_dir/s10-4-hybrid-equivalence-pilot-verification.log"
+              shift
+              printf ' %q' "$@" >> "$report_dir/s10-4-hybrid-equivalence-pilot-verification.log"
+              printf '\n' >> "$report_dir/s10-4-hybrid-equivalence-pilot-verification.log"
+            fi
+          }
+          for result in \
+            "$PRODUCER_RESULT" \
+            "$BITRISE_DEFAULT_LIGHT_RESULT" \
+            "$BITRISE_DEFAULT_DARK_RESULT" \
+            "$GITHUB_DEFAULT_LIGHT_RESULT" \
+            "$GITHUB_DEFAULT_DARK_RESULT" \
+            "$GITHUB_MINIMUM_OS_RESULT"; do
+            require test "$result" = success
+          done
+
+          payload_transport_root="$pilot_root/payload"
+          if test -d "$payload_transport_root/FieldEvidencePayloadTransport"; then
+            payload_transport_root="$payload_transport_root/FieldEvidencePayloadTransport"
+          fi
+          payload_extract_root="$pilot_root/payload-extracted"
+          if ! python3 - "$payload_transport_root" "$payload_extract_root" <<'PY'
+          import hashlib
+          import os
+          import pathlib
+          import re
+          import shutil
+          import stat
+          import sys
+          import tarfile
+
+          transport_root = pathlib.Path(sys.argv[1])
+          extraction_root = pathlib.Path(sys.argv[2])
+          expected_names = {"FieldEvidencePayload.tar", "FieldEvidencePayload.tar.sha256"}
+          if not transport_root.is_dir() or transport_root.is_symlink():
+              raise SystemExit("invalid payload transport root")
+          entries = list(transport_root.iterdir())
+          if {entry.name for entry in entries} != expected_names:
+              raise SystemExit("unexpected payload transport membership")
+          for entry in entries:
+              mode = entry.lstat().st_mode
+              if not stat.S_ISREG(mode) or entry.is_symlink():
+                  raise SystemExit("payload transport member is not a regular file")
+
+          archive_path = transport_root / "FieldEvidencePayload.tar"
+          digest_path = transport_root / "FieldEvidencePayload.tar.sha256"
+          digest_record = digest_path.read_text(encoding="utf-8")
+          match = re.fullmatch(
+              r"([0-9A-F]{64}) ([1-9][0-9]*) FieldEvidencePayload[.]tar\n",
+              digest_record,
+          )
+          if match is None:
+              raise SystemExit("invalid payload archive digest record")
+          archive_bytes = archive_path.read_bytes()
+          if len(archive_bytes) != int(match.group(2)):
+              raise SystemExit("payload archive size mismatch")
+          if hashlib.sha256(archive_bytes).hexdigest().upper() != match.group(1):
+              raise SystemExit("payload archive digest mismatch")
+
+          members = []
+          seen = set()
+          seen_folded = set()
+          with tarfile.open(archive_path, mode="r:") as archive:
+              for member in archive.getmembers():
+                  name = member.name
+                  if not name or "\\" in name or name.startswith("/"):
+                      raise SystemExit("unsafe payload archive member")
+                  parts = pathlib.PurePosixPath(name).parts
+                  if not parts or parts[0] != "FieldEvidencePayload":
+                      raise SystemExit("payload member outside the required root")
+                  if any(part in {"", ".", ".."} for part in parts):
+                      raise SystemExit("unsafe payload archive path component")
+                  if name in seen or name.casefold() in seen_folded:
+                      raise SystemExit("duplicate or case-colliding payload member")
+                  seen.add(name)
+                  seen_folded.add(name.casefold())
+                  if not (member.isdir() or member.isreg()):
+                      raise SystemExit("unsupported payload archive member type")
+                  members.append(member)
+
+              if not members or members[0].name.rstrip("/") != "FieldEvidencePayload" or not members[0].isdir():
+                  raise SystemExit("missing payload archive root")
+              if extraction_root.exists() or extraction_root.is_symlink():
+                  raise SystemExit("payload extraction root already exists")
+              extraction_root.mkdir(parents=True, mode=0o700)
+              for member in members:
+                  destination = extraction_root.joinpath(*pathlib.PurePosixPath(member.name).parts)
+                  if member.isdir():
+                      destination.mkdir(parents=True, exist_ok=True)
+                      os.chmod(destination, member.mode & 0o777)
+                      continue
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  source = archive.extractfile(member)
+                  if source is None:
+                      raise SystemExit("missing payload archive file body")
+                  with source, destination.open("xb") as output:
+                      shutil.copyfileobj(source, output)
+                  os.chmod(destination, member.mode & 0o777)
+          PY
+          then
+            failures=1
+            printf '%s\n' 'FAILED: immutable producer payload transport verification' \
+              >> "$report_dir/s10-4-hybrid-equivalence-pilot-verification.log"
+          fi
+
+          payload_root="$payload_extract_root/FieldEvidencePayload"
+          require test -s "$payload_root/s10-4-payload-sha256sums.txt"
+          require test -s "$payload_root/s10-4-pilot-receipt.json"
+          require test -s "$payload_root/s10-4-payload-metadata.json"
+          require jq -e --arg head "$GITHUB_SHA" --arg artifact "$EXPECTED_PAYLOAD_ARTIFACT" '
+            .head == $head
+            and .payloadArtifactName == $artifact
+            and .executionRole == "payload-producer"
+            and .finalAcceptanceEligible == false
+            and (.toolchain | type == "object")
+          ' "$payload_root/s10-4-pilot-receipt.json"
+          require jq -e --arg head "$GITHUB_SHA" --arg artifact "$EXPECTED_PAYLOAD_ARTIFACT" '
+            .head == $head
+            and .payloadArtifactName == $artifact
+          ' "$payload_root/s10-4-payload-metadata.json"
+          require test ! -e "$payload_root/s10-4/s10.4.current.default-light/shard-receipt.json"
+          if test -s "$payload_root/s10-4-payload-sha256sums.txt"; then
+            require bash -c 'cd "$1" && shasum -a 256 -c s10-4-payload-sha256sums.txt' _ "$payload_root"
+          fi
+
+          receipt_count=0
+          while IFS='|' read -r evidence_dir provider shard profile; do
+            receipt="$evidence_dir/s10-4-pilot-receipt.json"
+            receipt_count=$((receipt_count + 1))
+            require test -s "$receipt"
+            require test -s "$evidence_dir/SHA256SUMS.txt"
+            require test ! -e "$evidence_dir/s10-4/$shard/shard-receipt.json"
+            require jq -e \
+              --arg head "$GITHUB_SHA" \
+              --arg payload "$EXPECTED_PAYLOAD_ARTIFACT" \
+              --arg provider "$provider" \
+              --arg shard "$shard" '
+                .head == $head
+                and .payloadArtifactName == $payload
+                and .executionRole == "payload-consumer"
+                and .finalAcceptanceEligible == false
+                and .runnerProvider == $provider
+                and .shardID == $shard
+                and (.toolchain | type == "object")
+              ' "$receipt"
+            require jq -e \
+              --arg head "$GITHUB_SHA" \
+              --arg payload "$EXPECTED_PAYLOAD_ARTIFACT" \
+              --arg provider "$provider" \
+              --arg shard "$shard" \
+              --arg profile "$profile" '
+                def sha256:
+                  type == "string" and test("^[0-9A-F]{64}$");
+                .pilotFullEvidenceValidationPassed == true
+                and (.fullEvidence | type == "object")
+                and (.fullEvidence.validationPassed == true)
+                and (.fullEvidence.units
+                  | .selectorCount == 5
+                    and (.selectorsSHA256 | sha256)
+                    and (.resultsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.states
+                  | .count == 67
+                    and (.idsSHA256 | sha256)
+                    and (.rowsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.accessibility
+                  | .count == 67
+                    and (.idsSHA256 | sha256)
+                    and (.rowsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.contrast
+                  | .count == 67
+                    and (.idsSHA256 | sha256)
+                    and (.rowsSHA256 | sha256)
+                    and (.strictExceptionSemanticsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.tasks
+                  | .count == 6
+                    and (.idsSHA256 | sha256)
+                    and (.rowsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.artifacts
+                  | (.manifestSHA256 | sha256)
+                    and (.checksumsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.watchdogs
+                  | (.setupElapsedSeconds | type == "number")
+                    and .setupBudgetSeconds == 420
+                    and .buildTimeoutSeconds == 900
+                    and .unitTimeoutSeconds == 1200
+                    and .uiTimeoutSeconds == 2520
+                    and (.totalElapsedSeconds | type == "number")
+                    and .totalBudgetSeconds == 4500
+                    and .simulatorReadyBudgetSeconds == 900
+                    and (.setupElapsedSeconds <= .setupBudgetSeconds)
+                    and (.totalElapsedSeconds <= .totalBudgetSeconds)
+                    and .validationPassed == true)
+                and (.fullEvidence.canonicalNormalizedEvidence
+                  | (.sha256 | sha256) and .validationPassed == true)
+                and (.provenance
+                  | .head == $head
+                    and .runnerProvider == $provider
+                    and .shardID == $shard
+                    and .profileID == $profile
+                    and .payloadArtifactName == $payload
+                    and .producerHead == $head
+                    and .producerRunnerProvider == "bitrise"
+                    and .producerShardID == "s10.4.current.default-light")
+              ' "$receipt"
+            if test -s "$evidence_dir/SHA256SUMS.txt"; then
+              require bash -c 'cd "$1" && shasum -a 256 -c SHA256SUMS.txt' _ "$evidence_dir"
+            fi
+          done <<EOF
+          $pilot_root/bitrise-default-light|bitrise|s10.4.current.default-light|iphone-17-ios-26.2-current
+          $pilot_root/bitrise-default-dark|bitrise|s10.4.current.default-dark|iphone-17-ios-26.2-current
+          $pilot_root/github-default-light|github|s10.4.current.default-light|iphone-17-ios-26.2-current
+          $pilot_root/github-default-dark|github|s10.4.current.default-dark|iphone-17-ios-26.2-current
+          $pilot_root/github-minimum-os|github|s10.4.minimum.minimum-os|iphone-se-3-ios-18.0-minimum
+          EOF
+          require test "$receipt_count" -eq 5
+
+          require jq -s -e '
+            def sameCanonicalEvidence:
+              .[0].fullEvidence.canonicalNormalizedEvidence.sha256
+                == .[1].fullEvidence.canonicalNormalizedEvidence.sha256
+              and .[0].fullEvidence.units.selectorCount
+                == .[1].fullEvidence.units.selectorCount
+              and .[0].fullEvidence.units.resultsSHA256
+                == .[1].fullEvidence.units.resultsSHA256
+              and .[0].fullEvidence.states.count
+                == .[1].fullEvidence.states.count
+              and .[0].fullEvidence.states.rowsSHA256
+                == .[1].fullEvidence.states.rowsSHA256
+              and .[0].fullEvidence.accessibility.count
+                == .[1].fullEvidence.accessibility.count
+              and .[0].fullEvidence.accessibility.rowsSHA256
+                == .[1].fullEvidence.accessibility.rowsSHA256
+              and .[0].fullEvidence.contrast.count
+                == .[1].fullEvidence.contrast.count
+              and .[0].fullEvidence.contrast.rowsSHA256
+                == .[1].fullEvidence.contrast.rowsSHA256
+              and .[0].fullEvidence.contrast.strictExceptionSemanticsSHA256
+                == .[1].fullEvidence.contrast.strictExceptionSemanticsSHA256
+              and .[0].fullEvidence.tasks.count
+                == .[1].fullEvidence.tasks.count
+              and .[0].fullEvidence.tasks.rowsSHA256
+                == .[1].fullEvidence.tasks.rowsSHA256
+              and .[0].provenance.head == .[1].provenance.head
+              and .[0].provenance.profileID == .[1].provenance.profileID
+              and .[0].provenance.payloadArtifactName == .[1].provenance.payloadArtifactName
+              and .[0].provenance.producerHead == .[1].provenance.producerHead
+              and .[0].provenance.producerRunnerProvider == .[1].provenance.producerRunnerProvider
+              and .[0].provenance.producerShardID == .[1].provenance.producerShardID;
+            length == 2 and sameCanonicalEvidence
+          ' \
+            "$pilot_root/bitrise-default-light/s10-4-pilot-receipt.json" \
+            "$pilot_root/github-default-light/s10-4-pilot-receipt.json"
+          require jq -s -e '
+            def sameCanonicalEvidence:
+              .[0].fullEvidence.canonicalNormalizedEvidence.sha256
+                == .[1].fullEvidence.canonicalNormalizedEvidence.sha256
+              and .[0].fullEvidence.units.selectorCount
+                == .[1].fullEvidence.units.selectorCount
+              and .[0].fullEvidence.units.resultsSHA256
+                == .[1].fullEvidence.units.resultsSHA256
+              and .[0].fullEvidence.states.count
+                == .[1].fullEvidence.states.count
+              and .[0].fullEvidence.states.rowsSHA256
+                == .[1].fullEvidence.states.rowsSHA256
+              and .[0].fullEvidence.accessibility.count
+                == .[1].fullEvidence.accessibility.count
+              and .[0].fullEvidence.accessibility.rowsSHA256
+                == .[1].fullEvidence.accessibility.rowsSHA256
+              and .[0].fullEvidence.contrast.count
+                == .[1].fullEvidence.contrast.count
+              and .[0].fullEvidence.contrast.rowsSHA256
+                == .[1].fullEvidence.contrast.rowsSHA256
+              and .[0].fullEvidence.contrast.strictExceptionSemanticsSHA256
+                == .[1].fullEvidence.contrast.strictExceptionSemanticsSHA256
+              and .[0].fullEvidence.tasks.count
+                == .[1].fullEvidence.tasks.count
+              and .[0].fullEvidence.tasks.rowsSHA256
+                == .[1].fullEvidence.tasks.rowsSHA256
+              and .[0].provenance.head == .[1].provenance.head
+              and .[0].provenance.profileID == .[1].provenance.profileID
+              and .[0].provenance.payloadArtifactName == .[1].provenance.payloadArtifactName
+              and .[0].provenance.producerHead == .[1].provenance.producerHead
+              and .[0].provenance.producerRunnerProvider == .[1].provenance.producerRunnerProvider
+              and .[0].provenance.producerShardID == .[1].provenance.producerShardID;
+            length == 2 and sameCanonicalEvidence
+          ' \
+            "$pilot_root/bitrise-default-dark/s10-4-pilot-receipt.json" \
+            "$pilot_root/github-default-dark/s10-4-pilot-receipt.json"
+
+          jq -n \
+            --arg head "$GITHUB_SHA" \
+            --arg payloadArtifactName "$EXPECTED_PAYLOAD_ARTIFACT" \
+            --arg producerResult "$PRODUCER_RESULT" \
+            --arg bitriseDefaultLightResult "$BITRISE_DEFAULT_LIGHT_RESULT" \
+            --arg bitriseDefaultDarkResult "$BITRISE_DEFAULT_DARK_RESULT" \
+            --arg githubDefaultLightResult "$GITHUB_DEFAULT_LIGHT_RESULT" \
+            --arg githubDefaultDarkResult "$GITHUB_DEFAULT_DARK_RESULT" \
+            --arg githubMinimumOSResult "$GITHUB_MINIMUM_OS_RESULT" \
+            --argjson verificationPassed "$([ "$failures" -eq 0 ] && echo true || echo false)" \
+            '{
+              schemaVersion: 1,
+              finalAcceptanceEligible: false,
+              deliberatelyNonaccepting: true,
+              head: $head,
+              payloadArtifactName: $payloadArtifactName,
+              producerResult: $producerResult,
+              consumers: {
+                bitriseDefaultLight: $bitriseDefaultLightResult,
+                bitriseDefaultDark: $bitriseDefaultDarkResult,
+                githubDefaultLight: $githubDefaultLightResult,
+                githubDefaultDark: $githubDefaultDarkResult,
+                githubMinimumOS: $githubMinimumOSResult
+              },
+              verificationPassed: $verificationPassed
+            }' > "$report"
+          printf 'finalAcceptanceEligible=false\nverificationPassed=%s\nhead=%s\npayloadArtifactName=%s\n' \
+            "$([ "$failures" -eq 0 ] && echo true || echo false)" "$GITHUB_SHA" "$EXPECTED_PAYLOAD_ARTIFACT" \
+            > "$report_dir/s10-4-hybrid-equivalence-pilot-report.txt"
+
+      - name: Upload deliberately nonaccepting pilot report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-s10-4-hybrid-equivalence-pilot-report-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/FieldEvidenceCI
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Intentionally fail the nonaccepting hybrid-equivalence pilot
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          printf '%s\n' 'S10.4 hybrid-equivalence pilot is deliberately nonaccepting.' >&2
+          exit 1
+
+  reject-invalid-s10-4-minimum-diagnostic-pilot-selection:
+    name: Reject invalid S10.4 minimum diagnostic selection
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 'none') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the fixed minimum diagnostic selection
+        shell: bash
+        run: exit 1
+
+  s10-4-minimum-diagnostic-producer:
+    name: S10.4 minimum diagnostic payload producer · Bitrise M4
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: 'bitrise-runner-Asset Roundddd'
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-producer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-minimum-diagnostic-consumer:
+    name: S10.4 minimum diagnostic consumer · GitHub iOS 18.0
+    needs: s10-4-minimum-diagnostic-producer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.minimum.minimum-os
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+
+  summarize-s10-4-minimum-diagnostic-pilot:
+    name: Summarize deliberately nonaccepting S10.4 minimum diagnostic
+    needs:
+      - s10-4-minimum-diagnostic-producer
+      - s10-4-minimum-diagnostic-consumer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && always() && inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Record diagnostic dispositions without claiming verification
+        shell: bash
+        env:
+          PRODUCER_RESULT: ${{ needs.s10-4-minimum-diagnostic-producer.result }}
+          MINIMUM_RESULT: ${{ needs.s10-4-minimum-diagnostic-consumer.result }}
+          EXPECTED_PAYLOAD_ARTIFACT: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          report_dir="$RUNNER_TEMP/FieldEvidenceMinimumDiagnostic"
+          mkdir -p "$report_dir"
+          jq -n --arg head "$GITHUB_SHA" --arg runID "$GITHUB_RUN_ID" \
+            --arg attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg producerResult "$PRODUCER_RESULT" --arg minimumResult "$MINIMUM_RESULT" \
+            --arg payloadArtifactName "$EXPECTED_PAYLOAD_ARTIFACT" \
+            '{schemaVersion: 1, diagnosticOnly: true, finalAcceptanceEligible: false,
+              equivalenceEstablished: false, deliberatelyNonaccepting: true,
+              evidenceInspectionRequired: true, head: $head, runID: $runID,
+              attempt: $attempt, producerResult: $producerResult,
+              minimumResult: $minimumResult, payloadArtifactName: $payloadArtifactName}' \
+            > "$report_dir/s10-4-minimum-diagnostic-summary.json"
+          (cd "$report_dir" && sha256sum s10-4-minimum-diagnostic-summary.json > SHA256SUMS.txt)
+
+      - name: Upload nonaccepting minimum diagnostic summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-s10-4-minimum-diagnostic-summary-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/FieldEvidenceMinimumDiagnostic
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Intentionally fail the nonaccepting minimum diagnostic
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          printf '%s\n' 'S10.4 minimum diagnostic is deliberately nonaccepting.' >&2
+          exit 1
+
+  reject-invalid-s10-4-focused-diagnostics-selection:
+    name: Reject invalid S10.4 focused diagnostics selection
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 'none') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the closed development-only probe selection
+        shell: bash
+        run: exit 1
+
+  s10-4-focused-diagnostics-producer:
+    name: S10.4 focused diagnostics payload producer · Bitrise M4
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: 'bitrise-runner-Asset Roundddd'
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-producer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-focused-new-sign-probe:
+    name: S10.4 New-sign query diagnostic · GitHub iOS 18.0
+    needs: s10-4-focused-diagnostics-producer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.minimum.minimum-os
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+      s10_4_diagnostic_probe_id: minimum-new-sign
+      s10_4_diagnostic_execution_lane: s10-4-focused-diagnostics-development-only
+
+  s10-4-focused-preflight-probe:
+    name: S10.4 preflight audit diagnostic · GitHub iOS 18.0
+    needs: s10-4-focused-diagnostics-producer
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.minimum.bounded
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+      s10_4_diagnostic_probe_id: minimum-preflight
+      s10_4_diagnostic_execution_lane: s10-4-focused-diagnostics-development-only
+
+  summarize-s10-4-focused-diagnostics:
+    name: Summarize deliberately nonaccepting S10.4 focused diagnostics
+    needs:
+      - s10-4-focused-diagnostics-producer
+      - s10-4-focused-new-sign-probe
+      - s10-4-focused-preflight-probe
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && always() && inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Record separate raw probe dispositions without claiming acceptance
+        shell: bash
+        env:
+          PRODUCER_RESULT: ${{ needs.s10-4-focused-diagnostics-producer.result }}
+          NEW_SIGN_RESULT: ${{ needs.s10-4-focused-new-sign-probe.result }}
+          PREFLIGHT_RESULT: ${{ needs.s10-4-focused-preflight-probe.result }}
+          EXPECTED_PAYLOAD_ARTIFACT: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          report_dir="$RUNNER_TEMP/FieldEvidenceFocusedDiagnostics"
+          mkdir -p "$report_dir"
+          jq -n --arg head "$GITHUB_SHA" --arg ref "$GITHUB_REF" \
+            --arg runID "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg producerResult "$PRODUCER_RESULT" \
+            --arg newSignResult "$NEW_SIGN_RESULT" --arg preflightResult "$PREFLIGHT_RESULT" \
+            --arg payloadArtifactName "$EXPECTED_PAYLOAD_ARTIFACT" \
+            '{schemaVersion: 1, diagnosticOnly: true, finalAcceptanceEligible: false,
+              equivalenceEstablished: false, feedsAcceptanceAssembler: false,
+              deliberatelyNonaccepting: true, evidenceInspectionRequired: true,
+              head: $head, ref: $ref, runID: $runID, attempt: $attempt,
+              producerResult: $producerResult, payloadArtifactName: $payloadArtifactName,
+              probes: [{probeID: "minimum-new-sign", result: $newSignResult},
+                       {probeID: "minimum-preflight", result: $preflightResult}]}' \
+            > "$report_dir/s10-4-focused-diagnostics-summary.json"
+          (cd "$report_dir" && sha256sum s10-4-focused-diagnostics-summary.json > SHA256SUMS.txt)
+
+      - name: Upload nonaccepting focused diagnostic summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-s10-4-focused-diagnostics-summary-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/FieldEvidenceFocusedDiagnostics
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Intentionally fail the nonaccepting focused diagnostic workflow
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          printf '%s\n' 'S10.4 focused diagnostics never count as acceptance or equivalence.' >&2
+          exit 1
+
+  github-segmented-shard:
+    name: GitHub Xcode 26.6 segmented acceptance · ${{ matrix.segment_id }}
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text') }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        segment_id:
+          - segment-1
+          - segment-2
+          - segment-3
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.ax-text
+      s10_4_segment_id: ${{ matrix.segment_id }}
+
+  assemble-segmented-shard:
+    name: Assemble GitHub Xcode 26.6 segmented acceptance
+    needs: github-segmented-shard
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && always() && inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download exact segment artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.ax-text-segment-*
+          path: ${{ runner.temp }}/S10_4_SEGMENT_SOURCES
+          merge-multiple: false
+
+      - name: Assemble fail-closed segmented evidence
+        id: assemble
+        shell: bash
+        env:
+          SEGMENT_MATRIX_RESULT: ${{ needs.github-segmented-shard.result }}
+        run: |
+          set -euo pipefail
+          test -f Scripts/s10-4-segment-plan.json
+          test -f Scripts/s10-4-segment-assembler.sh
+          mkdir -p "$RUNNER_TEMP/S10_4_SEGMENT_SOURCES" "$RUNNER_TEMP/FieldEvidenceCI"
+          export S10_4_SEGMENT_MATRIX_RESULT="$SEGMENT_MATRIX_RESULT"
+          set +e
+          bash Scripts/s10-4-segment-assembler.sh \
+            "$RUNNER_TEMP/S10_4_SEGMENT_SOURCES" \
+            "$RUNNER_TEMP/FieldEvidenceCI"
+          assembler_status=$?
+          set -e
+          if test "$SEGMENT_MATRIX_RESULT" = "success"; then
+            test "$assembler_status" -eq 0
+            test "$(find "$RUNNER_TEMP/S10_4_SEGMENT_SOURCES" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" -eq 3
+          else
+            test "$assembler_status" -ne 0
+            test ! -e "$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text/shard-receipt.json"
+            exit "$assembler_status"
+          fi
+          test -s "$RUNNER_TEMP/FieldEvidenceCI/SHA256SUMS.txt"
+          test -s "$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text/shard-receipt.json"
+          test -s "$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text/segment-aggregation.json"
+
+      - name: Remove nonaccepting partial aggregate receipts
+        if: ${{ always() && steps.assemble.outcome != 'success' }}
+        shell: bash
+        env:
+          SEGMENT_MATRIX_RESULT: ${{ needs.github-segmented-shard.result }}
+          ASSEMBLER_OUTCOME: ${{ steps.assemble.outcome }}
+        run: |
+          set -euo pipefail
+          shard_evidence_path="$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text"
+          mkdir -p "$RUNNER_TEMP/FieldEvidenceCI"
+          rm -f \
+            "$shard_evidence_path/shard-receipt.json" \
+            "$shard_evidence_path/segment-aggregation.json" \
+            "$RUNNER_TEMP/FieldEvidenceCI/SHA256SUMS.txt"
+          test ! -e "$shard_evidence_path/shard-receipt.json"
+          test ! -e "$shard_evidence_path/segment-aggregation.json"
+          test ! -e "$RUNNER_TEMP/FieldEvidenceCI/SHA256SUMS.txt"
+          printf '%s\n' \
+            "finalAcceptanceEligible=false" \
+            "matrixResult=$SEGMENT_MATRIX_RESULT" \
+            "assemblerOutcome=${ASSEMBLER_OUTCOME:-not-run}" \
+            "runID=$GITHUB_RUN_ID" \
+            "runAttempt=$GITHUB_RUN_ATTEMPT" \
+            "head=$GITHUB_SHA" \
+            > "$RUNNER_TEMP/FieldEvidenceCI/segment-aggregation-failure.txt"
+
+      - name: Upload assembled acceptance evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.ax-text-assembled
+          path: ${{ runner.temp }}/FieldEvidenceCI
+          if-no-files-found: error
+          retention-days: 14
+
+  bitrise-segmented-development-shard:
+    name: Bitrise Build Hub Xcode 26.6 segmented development-only · ${{ matrix.segment_id }}
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text') }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        segment_id:
+          - segment-1
+          - segment-2
+          - segment-3
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: 'bitrise-runner-Asset Roundddd'
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.ax-text
+      s10_4_segment_id: ${{ matrix.segment_id }}
+    secrets: inherit
+
+  warpbuild-shard:
+    name: WarpBuild Xcode 26.5 development-only · ${{ inputs.s10_4_shard_id }}
+    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'warp-xcode-26.5-development-only') }}
+    runs-on: warp-macos-26-arm64-6x
     timeout-minutes: 90
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-      EXPECTED_XCODE_VERSION: "Xcode 26.6"
-      EXPECTED_XCODE_BUILD: "Build version 17F113"
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+      EXPECTED_XCODE_VERSION: "Xcode 26.5"
+      EXPECTED_XCODE_BUILD: "Build version 17F42"
       EXPECTED_MINIMUM_IOS: "18.0"
       PROJECT_PATH: FieldEvidenceApp.xcodeproj
       SCHEME: FieldEvidenceApp
@@ -35,6 +1218,17 @@ jobs:
       NSUnbufferedIO: "YES"
 
     steps:
+      - name: Enforce WarpBuild current-profile development scope
+        shell: bash
+        env:
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+        run: |
+          set -euo pipefail
+          case "$DISPATCH_S10_4_SHARD_ID" in
+            s10.4.current.*) ;;
+            *) exit 1 ;;
+          esac
+
       - name: Prepare evidence directory
         shell: bash
         run: |
@@ -54,6 +1248,7 @@ jobs:
         shell: bash
         env:
           DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
         run: |
           set -euo pipefail
           test -f Scripts/ci-selection.json
@@ -112,7 +1307,7 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [300, 900, 1200, 1800, 4500]
+                ] == [420, 900, 1200, 2520, 4500]
               else false
               end;
             exact_keys
@@ -145,6 +1340,243 @@ jobs:
           CI_UI_TIMEOUT_SECONDS="$(jq -r '.uiTimeoutSeconds' Scripts/ci-selection.json)"
           CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
 
+          CI_S10_4_SHARD_ID="none"
+          CI_S10_4_SEGMENT_ID="none"
+          CI_ARTIFACT_SUFFIX=""
+          if test "$CI_TASK_ID" = "S10.4"; then
+            test "$DISPATCH_S10_4_SHARD_ID" != "none"
+            test -f Scripts/s10-4-shards.json
+            jq -e '
+              def exact_keys($expected):
+                ($expected | sort) == (keys | sort);
+              def nonempty_string:
+                type == "string" and test("\\S");
+              def exact_environment_keys:
+                exact_keys([
+                  "appearance",
+                  "contrast",
+                  "contentSizeCategory",
+                  "locale",
+                  "layoutDirection",
+                  "differentiateWithoutColor",
+                  "reduceMotion",
+                  "reduceTransparency"
+                ]);
+              [
+                "voiceover",
+                "voice_control",
+                "larger_text",
+                "dark_interface",
+                "differentiate_without_color",
+                "sufficient_contrast",
+                "reduced_motion"
+              ] as $features
+              | [
+                  "default_light",
+                  "default_dark",
+                  "increased_contrast",
+                  "ax_text",
+                  "differentiate_without_color",
+                  "reduce_motion",
+                  "reduce_transparency",
+                  "minimum_os",
+                  "double_length",
+                  "rtl",
+                  "rtl_string",
+                  "tall",
+                  "accented",
+                  "bounded"
+                ] as $requirements
+              | [
+                  "s10.4.current.default-light",
+                  "s10.4.current.default-dark",
+                  "s10.4.current.increased-contrast",
+                  "s10.4.current.ax-text",
+                  "s10.4.current.differentiate-without-color",
+                  "s10.4.current.reduce-motion",
+                  "s10.4.current.reduce-transparency",
+                  "s10.4.minimum.minimum-os",
+                  "s10.4.minimum.double-length",
+                  "s10.4.minimum.rtl",
+                  "s10.4.minimum.rtl-string",
+                  "s10.4.minimum.tall",
+                  "s10.4.minimum.accented",
+                  "s10.4.minimum.bounded"
+                ] as $shardIDs
+              | exact_keys([
+                  "schemaVersion",
+                  "taskID",
+                  "expectedStateCount",
+                  "expectedVisualCellCount",
+                  "expectedAccessibilityRowCount",
+                  "commonTaskCount",
+                  "deviceProfiles",
+                  "shards"
+                ])
+                and (.schemaVersion == 1)
+                and (.taskID == "S10.4")
+                and (.expectedStateCount == 67)
+                and (.expectedVisualCellCount == 938)
+                and (.expectedAccessibilityRowCount == 84)
+                and (.commonTaskCount == 6)
+                and (.deviceProfiles == [
+                  {
+                    deviceProfileID: "iphone-17-ios-26.2-current",
+                    simulatorRuntime: "iOS 26.2",
+                    simulatorRuntimeBuild: "23C54",
+                    simulatorName: "iPhone 17",
+                    provisionRuntime: false,
+                    runtimeDownloadVersion: ""
+                  },
+                  {
+                    deviceProfileID: "iphone-se-3-ios-18.0-minimum",
+                    simulatorRuntime: "iOS 18.0",
+                    simulatorRuntimeBuild: "22A3351",
+                    simulatorName: "iPhone SE (3rd generation)",
+                    provisionRuntime: true,
+                    runtimeDownloadVersion: "18.0"
+                  }
+                ])
+                and (.shards | type == "array" and length == 14)
+                and ([.shards[].shardID] == $shardIDs)
+                and ([.shards[].requirementID] == $requirements)
+                and ([.shards[].ordinal] == [range(1; 15)])
+                and ([.shards[].shardID] | unique | length == 14)
+                and all(.shards[];
+                  exact_keys([
+                    "ordinal",
+                    "shardID",
+                    "requirementID",
+                    "deviceProfileID",
+                    "accessibilityFeatures",
+                    "environment"
+                  ])
+                  and (.ordinal | type == "number" and floor == .)
+                  and (.shardID | type == "string" and test("^s10\\.4\\.(current|minimum)\\.[a-z0-9-]+$"))
+                  and (.requirementID | nonempty_string)
+                  and (.deviceProfileID | IN(
+                    "iphone-17-ios-26.2-current",
+                    "iphone-se-3-ios-18.0-minimum"
+                  ))
+                  and (.accessibilityFeatures | type == "array" and length == 1)
+                  and ((.accessibilityFeatures | unique | length) == (.accessibilityFeatures | length))
+                  and all(.accessibilityFeatures[]; IN($features[]))
+                  and (.environment | exact_environment_keys)
+                  and (.environment.appearance | IN("light", "dark"))
+                  and (.environment.contrast | IN("standard", "increased"))
+                  and (.environment.contentSizeCategory | IN(
+                    "UICTContentSizeCategoryL",
+                    "UICTContentSizeCategoryAccessibilityXXXL"
+                  ))
+                  and (.environment.locale | IN(
+                    "en-US-release",
+                    "en-US-double-length",
+                    "ar-RTL",
+                    "ar-RTL-string",
+                    "en-US-tall",
+                    "en-US-accented",
+                    "en-US-bounded"
+                  ))
+                  and (.environment.layoutDirection | IN("left_to_right", "right_to_left"))
+                  and (.environment.differentiateWithoutColor | type == "boolean")
+                  and (.environment.reduceMotion | type == "boolean")
+                  and (.environment.reduceTransparency | type == "boolean")
+                )
+                and ([
+                  .shards[]
+                  | {
+                      shardID,
+                      deviceProfileID,
+                      accessibilityFeature: .accessibilityFeatures[0]
+                    }
+                ] == [
+                  {shardID: "s10.4.current.default-light", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voiceover"},
+                  {shardID: "s10.4.current.default-dark", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "dark_interface"},
+                  {shardID: "s10.4.current.increased-contrast", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "sufficient_contrast"},
+                  {shardID: "s10.4.current.ax-text", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "larger_text"},
+                  {shardID: "s10.4.current.differentiate-without-color", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "differentiate_without_color"},
+                  {shardID: "s10.4.current.reduce-motion", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "reduced_motion"},
+                  {shardID: "s10.4.current.reduce-transparency", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voice_control"},
+                  {shardID: "s10.4.minimum.minimum-os", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "voiceover"},
+                  {shardID: "s10.4.minimum.double-length", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "larger_text"},
+                  {shardID: "s10.4.minimum.rtl", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "dark_interface"},
+                  {shardID: "s10.4.minimum.rtl-string", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "voice_control"},
+                  {shardID: "s10.4.minimum.tall", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "reduced_motion"},
+                  {shardID: "s10.4.minimum.accented", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "sufficient_contrast"},
+                  {shardID: "s10.4.minimum.bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color"}
+                ])
+                and ([
+                  .shards[]
+                  | select(.deviceProfileID == "iphone-17-ios-26.2-current")
+                  | .accessibilityFeatures[]
+                ] | sort) == ($features | sort)
+                and ([
+                  .shards[]
+                  | select(.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
+                  | .accessibilityFeatures[]
+                ] | sort) == ($features | sort)
+                and (([.shards[].accessibilityFeatures | length] | add) * .commonTaskCount
+                  == .expectedAccessibilityRowCount)
+                and (.expectedStateCount * (.shards | length) == .expectedVisualCellCount)
+                and (.shards[] | select(.requirementID == "default_dark")
+                  | .environment.appearance == "dark")
+                and (.shards[] | select(.requirementID == "increased_contrast")
+                  | .environment.contrast == "increased")
+                and (.shards[] | select(.requirementID == "ax_text")
+                  | .environment.contentSizeCategory == "UICTContentSizeCategoryAccessibilityXXXL")
+                and (.shards[] | select(.requirementID == "double_length")
+                  | .environment.contentSizeCategory == "UICTContentSizeCategoryAccessibilityXXXL")
+                and (.shards[] | select(.requirementID == "rtl")
+                  | .environment.appearance == "dark")
+                and (.shards[] | select(.requirementID == "tall")
+                  | .environment.reduceMotion == true)
+                and (.shards[] | select(.requirementID == "accented")
+                  | .environment.contrast == "increased")
+                and (.shards[] | select(.requirementID == "bounded")
+                  | .environment.differentiateWithoutColor == true)
+                and (.shards[] | select(.requirementID == "differentiate_without_color")
+                  | .environment.differentiateWithoutColor == true)
+                and (.shards[] | select(.requirementID == "reduce_motion")
+                  | .environment.reduceMotion == true)
+                and (.shards[] | select(.requirementID == "reduce_transparency")
+                  | .environment.reduceTransparency == true)
+            ' Scripts/s10-4-shards.json > /dev/null
+
+            shard_count="$(jq -r --arg shard "$DISPATCH_S10_4_SHARD_ID" \
+              '[.shards[] | select(.shardID == $shard)] | length' Scripts/s10-4-shards.json)"
+            test "$shard_count" -eq 1
+            shard_json="$(jq -cer --arg shard "$DISPATCH_S10_4_SHARD_ID" \
+              '.shards[] | select(.shardID == $shard)' Scripts/s10-4-shards.json)"
+            device_profile_id="$(jq -r '.deviceProfileID' <<< "$shard_json")"
+            profile_json="$(jq -cer --arg profile "$device_profile_id" \
+              '.deviceProfiles[] | select(.deviceProfileID == $profile)' Scripts/s10-4-shards.json)"
+
+            CI_S10_4_SHARD_ID="$DISPATCH_S10_4_SHARD_ID"
+            CI_ARTIFACT_SUFFIX="-$CI_S10_4_SHARD_ID"
+            SIMULATOR_RUNTIME="$(jq -r '.simulatorRuntime' <<< "$profile_json")"
+            SIMULATOR_RUNTIME_BUILD="$(jq -r '.simulatorRuntimeBuild' <<< "$profile_json")"
+            SIMULATOR_NAME="$(jq -r '.simulatorName' <<< "$profile_json")"
+            CI_S10_4_PROVISION_RUNTIME="$(jq -r '.provisionRuntime | tostring' <<< "$profile_json")"
+            CI_S10_4_RUNTIME_DOWNLOAD_VERSION="$(jq -r '.runtimeDownloadVersion' <<< "$profile_json")"
+            CI_S10_4_DEVICE_PROFILE_ID="$device_profile_id"
+            CI_S10_4_SHARD_ORDINAL="$(jq -r '.ordinal' <<< "$shard_json")"
+            CI_S10_4_REQUIREMENT_ID="$(jq -r '.requirementID' <<< "$shard_json")"
+            CI_S10_4_ACCESSIBILITY_FEATURE="$(jq -er \
+              '.accessibilityFeatures | if length == 1 then .[0] else error("expected one feature") end' \
+              <<< "$shard_json")"
+            CI_S10_4_ACCESSIBILITY_FEATURES="$(jq -r '.accessibilityFeatures | join(",")' <<< "$shard_json")"
+            CI_S10_4_APPEARANCE="$(jq -r '.environment.appearance' <<< "$shard_json")"
+            CI_S10_4_CONTRAST="$(jq -r '.environment.contrast' <<< "$shard_json")"
+            CI_S10_4_CONTENT_SIZE_CATEGORY="$(jq -r '.environment.contentSizeCategory' <<< "$shard_json")"
+            CI_S10_4_LOCALE="$(jq -r '.environment.locale' <<< "$shard_json")"
+            CI_S10_4_LAYOUT_DIRECTION="$(jq -r '.environment.layoutDirection' <<< "$shard_json")"
+            CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR="$(jq -r '.environment.differentiateWithoutColor | tostring' <<< "$shard_json")"
+            CI_S10_4_REDUCE_MOTION="$(jq -r '.environment.reduceMotion | tostring' <<< "$shard_json")"
+            CI_S10_4_REDUCE_TRANSPARENCY="$(jq -r '.environment.reduceTransparency | tostring' <<< "$shard_json")"
+          else
+            test "$DISPATCH_S10_4_SHARD_ID" = "none"
+          fi
+
           printf '%s\n' \
             "CI_TASK_ID=$CI_TASK_ID" \
             "CI_TIER=$CI_TIER" \
@@ -154,10 +1586,60 @@ jobs:
             "CI_TEST_TIMEOUT_SECONDS=$CI_TEST_TIMEOUT_SECONDS" \
             "CI_UI_TIMEOUT_SECONDS=$CI_UI_TIMEOUT_SECONDS" \
             "CI_TOTAL_BUDGET_SECONDS=$CI_TOTAL_BUDGET_SECONDS" \
+            "CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+            "CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID" \
+            "CI_ARTIFACT_SUFFIX=$CI_ARTIFACT_SUFFIX" \
             >> "$GITHUB_ENV"
+          if test "$CI_TASK_ID" = "S10.4"; then
+            printf '%s\n' \
+              "SIMULATOR_RUNTIME=$SIMULATOR_RUNTIME" \
+              "SIMULATOR_RUNTIME_BUILD=$SIMULATOR_RUNTIME_BUILD" \
+              "SIMULATOR_NAME=$SIMULATOR_NAME" \
+              "CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \
+              "CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              "CI_S10_4_DEVICE_PROFILE_ID=$CI_S10_4_DEVICE_PROFILE_ID" \
+              "CI_S10_4_SHARD_ORDINAL=$CI_S10_4_SHARD_ORDINAL" \
+              "CI_S10_4_REQUIREMENT_ID=$CI_S10_4_REQUIREMENT_ID" \
+              "CI_S10_4_ACCESSIBILITY_FEATURE=$CI_S10_4_ACCESSIBILITY_FEATURE" \
+              "CI_S10_4_ACCESSIBILITY_FEATURES=$CI_S10_4_ACCESSIBILITY_FEATURES" \
+              "CI_S10_4_APPEARANCE=$CI_S10_4_APPEARANCE" \
+              "CI_S10_4_CONTRAST=$CI_S10_4_CONTRAST" \
+              "CI_S10_4_CONTENT_SIZE_CATEGORY=$CI_S10_4_CONTENT_SIZE_CATEGORY" \
+              "CI_S10_4_LOCALE=$CI_S10_4_LOCALE" \
+              "CI_S10_4_LAYOUT_DIRECTION=$CI_S10_4_LAYOUT_DIRECTION" \
+              "CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR=$CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR" \
+              "CI_S10_4_REDUCE_MOTION=$CI_S10_4_REDUCE_MOTION" \
+              "CI_S10_4_REDUCE_TRANSPARENCY=$CI_S10_4_REDUCE_TRANSPARENCY" \
+              "TEST_RUNNER_CI_TASK_ID=$CI_TASK_ID" \
+              "TEST_RUNNER_SIMULATOR_RUNTIME=$SIMULATOR_RUNTIME" \
+              "TEST_RUNNER_SIMULATOR_RUNTIME_BUILD=$SIMULATOR_RUNTIME_BUILD" \
+              "TEST_RUNNER_SIMULATOR_NAME=$SIMULATOR_NAME" \
+              "TEST_RUNNER_CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+              "TEST_RUNNER_CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID" \
+              "TEST_RUNNER_CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \
+              "TEST_RUNNER_CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              "TEST_RUNNER_CI_S10_4_DEVICE_PROFILE_ID=$CI_S10_4_DEVICE_PROFILE_ID" \
+              "TEST_RUNNER_CI_S10_4_SHARD_ORDINAL=$CI_S10_4_SHARD_ORDINAL" \
+              "TEST_RUNNER_CI_S10_4_REQUIREMENT_ID=$CI_S10_4_REQUIREMENT_ID" \
+              "TEST_RUNNER_CI_S10_4_ACCESSIBILITY_FEATURE=$CI_S10_4_ACCESSIBILITY_FEATURE" \
+              "TEST_RUNNER_CI_S10_4_ACCESSIBILITY_FEATURES=$CI_S10_4_ACCESSIBILITY_FEATURES" \
+              "TEST_RUNNER_CI_S10_4_APPEARANCE=$CI_S10_4_APPEARANCE" \
+              "TEST_RUNNER_CI_S10_4_CONTRAST=$CI_S10_4_CONTRAST" \
+              "TEST_RUNNER_CI_S10_4_CONTENT_SIZE_CATEGORY=$CI_S10_4_CONTENT_SIZE_CATEGORY" \
+              "TEST_RUNNER_CI_S10_4_LOCALE=$CI_S10_4_LOCALE" \
+              "TEST_RUNNER_CI_S10_4_LAYOUT_DIRECTION=$CI_S10_4_LAYOUT_DIRECTION" \
+              "TEST_RUNNER_CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR=$CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR" \
+              "TEST_RUNNER_CI_S10_4_REDUCE_MOTION=$CI_S10_4_REDUCE_MOTION" \
+              "TEST_RUNNER_CI_S10_4_REDUCE_TRANSPARENCY=$CI_S10_4_REDUCE_TRANSPARENCY" \
+              >> "$GITHUB_ENV"
+          fi
           cp Scripts/ci-selection.json "$CI_ARTIFACT_DIR/ci-selection.json"
-          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\n' \
-            "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" \
+          if test "$CI_TASK_ID" = "S10.4"; then
+            cp Scripts/s10-4-shards.json "$CI_ARTIFACT_DIR/s10-4-shards.json"
+          fi
+          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\ns10_4_segment_id=%s\n' \
+            "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" \
+            "$CI_S10_4_SEGMENT_ID" \
             | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
 
       - name: Verify pinned toolchain, shared scheme, and simulator
@@ -196,15 +1678,111 @@ jobs:
           target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
           test "$target_count" -eq 1
           test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
+
+          if test "${CI_TASK_ID:-}" = "S10.4" && \
+             test "${CI_S10_4_PROVISION_RUNTIME:-}" = "true"; then
+            test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0"
+            setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+            runtime_provision_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - setup_elapsed_seconds ))"
+            test "$runtime_provision_budget_seconds" -gt 0
+            set +e
+            bash Scripts/run-with-timeout.sh "$runtime_provision_budget_seconds" \
+              xcodebuild -downloadPlatform iOS \
+                -buildVersion "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              2>&1 | tee "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            provision_pipeline_status=( "${PIPESTATUS[@]}" )
+            set -e
+            if test "${#provision_pipeline_status[@]}" -ne 2; then
+              exit 1
+            fi
+            printf '\nprovision_exit=%s\nprovision_tee_exit=%s\n' \
+              "${provision_pipeline_status[0]}" "${provision_pipeline_status[1]}" \
+              | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            if test "${provision_pipeline_status[1]}" -ne 0; then
+              exit "${provision_pipeline_status[1]}"
+            fi
+            xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+            exact_runtime_available=false
+            if jq -e --arg name "$SIMULATOR_RUNTIME" \
+              --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
+              'any(.runtimes[]; .name == $name and .isAvailable == true and ($build == "" or .buildversion == $build))' \
+              "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
+              exact_runtime_available=true
+            fi
+            if test "$exact_runtime_available" != true && \
+               test -n "${SIMULATOR_RUNTIME_BUILD:-}"; then
+              setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+              runtime_recovery_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - setup_elapsed_seconds ))"
+              test "$runtime_recovery_budget_seconds" -gt 0
+              set +e
+              bash Scripts/run-with-timeout.sh "$runtime_recovery_budget_seconds" \
+                xcodebuild -downloadPlatform iOS \
+                  -buildVersion "$SIMULATOR_RUNTIME_BUILD" \
+                  -architectureVariant universal \
+                2>&1 | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+              recovery_pipeline_status=( "${PIPESTATUS[@]}" )
+              set -e
+              if test "${#recovery_pipeline_status[@]}" -ne 2; then
+                exit 1
+              fi
+              printf 'recovery_provision_exit=%s\nrecovery_provision_tee_exit=%s\n' \
+                "${recovery_pipeline_status[0]}" "${recovery_pipeline_status[1]}" \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+              if test "${recovery_pipeline_status[1]}" -ne 0; then
+                exit "${recovery_pipeline_status[1]}"
+              fi
+              xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+              if jq -e --arg name "$SIMULATOR_RUNTIME" \
+                --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
+                'any(.runtimes[]; .name == $name and .isAvailable == true and ($build == "" or .buildversion == $build))' \
+                "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
+                exact_runtime_available=true
+              fi
+            fi
+            if test "$exact_runtime_available" != true; then
+              if test "${provision_pipeline_status[0]}" -ne 0; then
+                exit "${provision_pipeline_status[0]}"
+              fi
+              exit 70
+            fi
+            if test "${provision_pipeline_status[0]}" -ne 0; then
+              printf 'provision_nonzero_but_exact_runtime_available=true\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            else
+              printf 'provision_zero_but_exact_runtime_verified=true\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            fi
+          fi
+
           xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
           xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
           runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" \
-            '.runtimes[] | select(.name == $name and .isAvailable == true) | .identifier' \
+            --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
+            '.runtimes[]
+              | select(
+                  .name == $name
+                  and .isAvailable == true
+                  and ($build == "" or .buildversion == $build)
+                )
+              | .identifier' \
             "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
           test -n "$runtime_id"
           simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
             '.devices[$runtime][] | select(.name == $name and .isAvailable == true) | .udid' \
             "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
+          if test -z "$simulator_udid" && \
+             test "${CI_TASK_ID:-}" = "S10.4" && \
+             test "${CI_S10_4_PROVISION_RUNTIME:-}" = "true"; then
+            xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
+            simulator_device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" \
+              '.devicetypes[] | select(.name == $name) | .identifier' \
+              "$CI_ARTIFACT_DIR/simulator-device-types.json" | head -n 1)"
+            test -n "$simulator_device_type_id"
+            simulator_udid="$(xcrun simctl create \
+              "$SIMULATOR_NAME" "$simulator_device_type_id" "$runtime_id")"
+            test -n "$simulator_udid"
+            xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+          fi
           test -n "$simulator_udid"
           simulator_state="$(jq -er --arg runtime "$runtime_id" --arg udid "$simulator_udid" '
             [.devices[$runtime][] | select(.udid == $udid) | .state]
@@ -216,11 +1794,21 @@ jobs:
             Shutdown | Booted) ;;
             *) exit 1 ;;
           esac
-          printf 'runtime=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
-            "$SIMULATOR_RUNTIME" "$SIMULATOR_NAME" "$simulator_udid" "$simulator_state" \
+          selected_runtime_build="$(jq -er --arg runtime "$runtime_id" \
+            '.runtimes[] | select(.identifier == $runtime) | .buildversion' \
+            "$CI_ARTIFACT_DIR/simulator-runtimes.json")"
+          if test "${CI_TASK_ID:-}" = "S10.4"; then
+            test "$selected_runtime_build" = "$SIMULATOR_RUNTIME_BUILD"
+          fi
+          printf 'runtime=%s\nruntime_build=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
+            "$SIMULATOR_RUNTIME" "$selected_runtime_build" "$SIMULATOR_NAME" \
+            "$simulator_udid" "$simulator_state" \
             | tee "$CI_ARTIFACT_DIR/simulator-selection.txt"
           printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\nCI_SIMULATOR_INITIAL_STATE=%s\n' \
             "$simulator_udid" "$simulator_udid" "$simulator_state" >> "$GITHUB_ENV"
+          if test "${CI_TASK_ID:-}" = "S10.4"; then
+            printf 'TEST_RUNNER_CI_SIMULATOR_UDID=%s\n' "$simulator_udid" >> "$GITHUB_ENV"
+          fi
 
       - name: Verify setup budget before build
         shell: bash
@@ -330,187 +1918,174 @@ jobs:
           bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
 
-      - name: Begin evidence-finalization budget
-        if: always()
+      - name: Record WarpBuild development-only lane
+        if: ${{ always() }}
+        shell: bash
+        env:
+          DEVELOPMENT_EXECUTION_LANE: ${{ inputs.execution_lane }}
+          DEVELOPMENT_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DEVELOPMENT_RUNNER_NAME: ${{ runner.name }}
+          DEVELOPMENT_RUNNER_ARCHITECTURE: ${{ runner.arch }}
+          DEVELOPMENT_PRIOR_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}"
+          finalization_start_epoch="$(date +%s)"
+          mkdir -p "$artifact_dir"
+          printf 'CI_ARTIFACT_DIR=%s\nCI_DEVELOPMENT_ONLY_FINALIZATION_START_EPOCH=%s\n' \
+            "$artifact_dir" "$finalization_start_epoch" >> "$GITHUB_ENV"
+          jq -n \
+            --arg laneID "$DEVELOPMENT_EXECUTION_LANE" \
+            --arg runnerName "$DEVELOPMENT_RUNNER_NAME" \
+            --arg runnerArchitecture "$DEVELOPMENT_RUNNER_ARCHITECTURE" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF" \
+            --arg headSHA "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg shardID "$DEVELOPMENT_SHARD_ID" \
+            --arg priorJobStatus "$DEVELOPMENT_PRIOR_JOB_STATUS" \
+            '{
+              schemaVersion: 1,
+              laneID: $laneID,
+              provider: "WarpBuild",
+              runnerLabel: "warp-macos-26-arm64-6x",
+              runnerName: $runnerName,
+              runnerArchitecture: $runnerArchitecture,
+              repository: $repository,
+              ref: $ref,
+              headSHA: $headSHA,
+              runID: $runID,
+              runAttempt: $runAttempt,
+              shardID: $shardID,
+              expectedXcodeVersion: "Xcode 26.5",
+              expectedXcodeBuild: "Build version 17F42",
+              priorJobStatus: $priorJobStatus,
+              rawEvidenceOnly: true,
+              acceptanceRetentionPerformed: false,
+              finalAcceptanceEligible: false
+            }' > "$artifact_dir/development-only-lane.json"
+          jq -e \
+            --arg laneID "$DEVELOPMENT_EXECUTION_LANE" \
+            --arg runnerName "$DEVELOPMENT_RUNNER_NAME" \
+            --arg runnerArchitecture "$DEVELOPMENT_RUNNER_ARCHITECTURE" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF" \
+            --arg headSHA "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg shardID "$DEVELOPMENT_SHARD_ID" \
+            --arg priorJobStatus "$DEVELOPMENT_PRIOR_JOB_STATUS" \
+            '
+              (keys == [
+                "acceptanceRetentionPerformed",
+                "expectedXcodeBuild",
+                "expectedXcodeVersion",
+                "finalAcceptanceEligible",
+                "headSHA",
+                "laneID",
+                "priorJobStatus",
+                "provider",
+                "rawEvidenceOnly",
+                "ref",
+                "repository",
+                "runAttempt",
+                "runID",
+                "runnerArchitecture",
+                "runnerLabel",
+                "runnerName",
+                "schemaVersion",
+                "shardID"
+              ])
+              and (.schemaVersion == 1)
+              and (.laneID == "warp-xcode-26.5-development-only")
+              and (.laneID == $laneID)
+              and (.provider == "WarpBuild")
+              and (.runnerLabel == "warp-macos-26-arm64-6x")
+              and (.runnerName == $runnerName)
+              and (.runnerArchitecture == $runnerArchitecture)
+              and (.repository == $repository)
+              and (.ref == $ref)
+              and (.headSHA == $headSHA)
+              and (.runID == $runID)
+              and (.runAttempt == $runAttempt)
+              and (.shardID == $shardID)
+              and (.expectedXcodeVersion == "Xcode 26.5")
+              and (.expectedXcodeBuild == "Build version 17F42")
+              and (.priorJobStatus == $priorJobStatus)
+              and (.runID | type == "string")
+              and (.runAttempt | type == "string")
+              and (.priorJobStatus | type == "string")
+              and (.rawEvidenceOnly == true)
+              and (.acceptanceRetentionPerformed == false)
+              and (.finalAcceptanceEligible == false)
+            ' "$artifact_dir/development-only-lane.json" > /dev/null
+
+      - name: Hash WarpBuild development-only raw evidence
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
-          CI_ARTIFACT_START_EPOCH="$(date +%s)"
-          printf 'CI_ARTIFACT_START_EPOCH=%s\n' "$CI_ARTIFACT_START_EPOCH" >> "$GITHUB_ENV"
-
-      - name: Validate required build and test evidence
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          require_nonempty_directory() {
-            test -d "$1"
-            test -n "$(find "$1" -mindepth 1 -print -quit)"
-          }
-
-          verify_executed_selectors() {
-            local result_bundle="$1"
-            local selectors_key="$2"
-            local bundle_type="$3"
-            local output_stem="$4"
-            local test_results="$CI_ARTIFACT_DIR/${output_stem}-test-results.json"
-            local executed_tests="$CI_ARTIFACT_DIR/${output_stem}-executed-tests.json"
-
-            xcrun xcresulttool get test-results tests \
-              --path "$result_bundle" --compact > "$test_results"
-            test -s "$test_results"
-
-            jq --arg bundleType "$bundle_type" '
-              def normalize_identifier:
-                sub("\\(\\)$"; "");
-              def executed_cases($bundleName; $bundleType):
-                . as $node
-                | (
-                    if $node.nodeType? == $bundleType
-                    then ($node.name? // "")
-                    else $bundleName
-                    end
-                  ) as $nextBundle
-                | if (
-                    $node.nodeType? == "Test Case"
-                    and ($nextBundle | type == "string" and length > 0)
-                    and ($node.nodeIdentifier? | type == "string" and length > 0)
-                    and (
-                      ($node.result? == "Passed")
-                      or ($node.result? == "Failed")
-                      or ($node.result? == "Expected Failure")
-                    )
-                  )
-                  then
-                    ($node.nodeIdentifier | normalize_identifier) as $identifier
-                    | {
-                        identifier: (
-                          if ($identifier | startswith($nextBundle + "/"))
-                          then $identifier
-                          else ($nextBundle + "/" + $identifier)
-                          end
-                        ),
-                        result: $node.result
-                      }
-                  else
-                    ($node.children[]? | executed_cases($nextBundle; $bundleType))
-                  end;
-              [
-                .testNodes[]?
-                | executed_cases(null; $bundleType)
-              ]
-              | sort_by(.identifier)
-              | unique_by(.identifier)
-            ' "$test_results" > "$executed_tests"
-            test -s "$executed_tests"
-
-            jq -e --arg key "$selectors_key" --slurpfile executed "$executed_tests" '
-              def normalize_identifier:
-                sub("\\(\\)$"; "");
-              .[$key] as $selectors
-              | ($executed[0] // []) as $actual
-              | (($actual | type) == "array" and ($actual | length) > 0)
-                and all(
-                  $selectors[];
-                  . as $selector
-                  | ($selector | normalize_identifier) as $wanted
-                  | any(
-                      $actual[];
-                      (.identifier | normalize_identifier) as $observed
-                      | ($observed == $wanted)
-                        or ($observed | startswith($wanted + "/"))
-                    )
-                )
-            ' Scripts/ci-selection.json > /dev/null
-          }
-
-          test -s "$CI_ARTIFACT_DIR/simulator-boot-start.log"
-          test -s "$CI_ARTIFACT_DIR/simulator-boot.log"
-          test -s "$CI_ARTIFACT_DIR/build-smoke.log"
-          test -s "$CI_ARTIFACT_DIR/test-smoke.log"
-          require_nonempty_directory "$CI_ARTIFACT_DIR/Build.xcresult"
-          require_nonempty_directory "$CI_ARTIFACT_DIR/UnitTests.xcresult"
-          verify_executed_selectors \
-            "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
-            unitTestSelectors "Unit test bundle" unit
-
-          if test "${CI_RUN_UI_SMOKE:-}" = "true"; then
-            test -s "$CI_ARTIFACT_DIR/ui-smoke.log"
-            require_nonempty_directory "$CI_ARTIFACT_DIR/UISmoke.xcresult"
-            test -s "$CI_ARTIFACT_DIR/ui-final.png"
-            verify_executed_selectors \
-              "$CI_ARTIFACT_DIR/UISmoke.xcresult" \
-              uiTestSelectors "UI test bundle" ui
-          else
-            test "${CI_RUN_UI_SMOKE:-}" = "false"
-            test ! -e "$CI_ARTIFACT_DIR/ui-smoke.log"
-            test ! -e "$CI_ARTIFACT_DIR/UISmoke.xcresult"
-            test ! -e "$CI_ARTIFACT_DIR/ui-final.png"
-          fi
-
-      - name: Hash collected evidence
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$CI_ARTIFACT_DIR"
-          checksum_file="$RUNNER_TEMP/FieldEvidenceCI-checksums.txt"
-          rm -f "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
-          test -n "${CI_ARTIFACT_START_EPOCH:-}"
-          test -n "${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-}"
-          test -n "${CI_SETUP_ELAPSED_SECONDS:-}"
-          artifact_elapsed_seconds="$(( $(date +%s) - CI_ARTIFACT_START_EPOCH ))"
-          setup_artifact_elapsed_seconds="$(( CI_SETUP_ELAPSED_SECONDS + artifact_elapsed_seconds ))"
-          printf 'setup_elapsed_seconds=%s\nartifact_elapsed_seconds=%s\nsetup_artifact_elapsed_seconds=%s\nsetup_artifact_budget_seconds=%s\n' \
-            "$CI_SETUP_ELAPSED_SECONDS" "$artifact_elapsed_seconds" \
-            "$setup_artifact_elapsed_seconds" "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
-            > "$CI_ARTIFACT_DIR/artifact-budget.txt"
+          artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}"
+          mkdir -p "$artifact_dir"
+          finalization_start_epoch="${CI_DEVELOPMENT_ONLY_FINALIZATION_START_EPOCH:-$(date +%s)}"
+          budget_start_epoch="${CI_BUDGET_START_EPOCH:-$finalization_start_epoch}"
+          setup_artifact_budget_seconds="${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-420}"
+          total_budget_seconds="${CI_TOTAL_BUDGET_SECONDS:-4500}"
+          setup_elapsed_seconds="${CI_SETUP_ELAPSED_SECONDS:-$(( finalization_start_epoch - budget_start_epoch ))}"
+          case "$finalization_start_epoch:$budget_start_epoch:$setup_artifact_budget_seconds:$total_budget_seconds:$setup_elapsed_seconds" in
+            *[!0-9:]*) exit 1 ;;
+          esac
+          test "$finalization_start_epoch" -ge "$budget_start_epoch"
+          pre_hash_epoch="$(date +%s)"
+          finalization_elapsed_seconds="$(( pre_hash_epoch - finalization_start_epoch ))"
+          setup_finalization_elapsed_seconds="$(( setup_elapsed_seconds + finalization_elapsed_seconds ))"
+          total_elapsed_seconds="$(( pre_hash_epoch - budget_start_epoch ))"
+          printf 'setup_elapsed_seconds=%s\nfinalization_elapsed_seconds=%s\nsetup_finalization_elapsed_seconds=%s\nsetup_finalization_budget_seconds=%s\ntotal_elapsed_seconds=%s\ntotal_budget_seconds=%s\n' \
+            "$setup_elapsed_seconds" "$finalization_elapsed_seconds" \
+            "$setup_finalization_elapsed_seconds" "$setup_artifact_budget_seconds" \
+            "$total_elapsed_seconds" "$total_budget_seconds" \
+            > "$artifact_dir/development-only-budget.txt"
+          test "$setup_finalization_elapsed_seconds" -le "$setup_artifact_budget_seconds"
+          test "$total_elapsed_seconds" -le "$total_budget_seconds"
+          checksum_file="$RUNNER_TEMP/FieldEvidenceCIDevelopmentOnly-checksums.txt"
+          rm -f "$artifact_dir/SHA256SUMS.txt" "$checksum_file"
           (
-            cd "$CI_ARTIFACT_DIR"
+            cd "$artifact_dir"
             find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
               shasum -a 256 "$file"
             done
           ) > "$checksum_file"
-          mv "$checksum_file" "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          mv "$checksum_file" "$artifact_dir/SHA256SUMS.txt"
           (
-            cd "$CI_ARTIFACT_DIR"
+            cd "$artifact_dir"
+            test "$(grep -cF '  ./SHA256SUMS.txt' SHA256SUMS.txt || true)" -eq 0
+            payload_file_count="$(find . -type f ! -name 'SHA256SUMS.txt' -print | wc -l | tr -d '[:space:]')"
+            checksum_row_count="$(wc -l < SHA256SUMS.txt | tr -d '[:space:]')"
+            test "$checksum_row_count" -eq "$payload_file_count"
             shasum -a 256 -c SHA256SUMS.txt
           )
-          test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
+          post_hash_epoch="$(date +%s)"
+          post_hash_finalization_elapsed_seconds="$(( post_hash_epoch - finalization_start_epoch ))"
+          post_hash_setup_finalization_elapsed_seconds="$(( setup_elapsed_seconds + post_hash_finalization_elapsed_seconds ))"
+          post_hash_total_elapsed_seconds="$(( post_hash_epoch - budget_start_epoch ))"
+          test "$post_hash_setup_finalization_elapsed_seconds" -le "$setup_artifact_budget_seconds"
+          test "$post_hash_total_elapsed_seconds" -le "$total_budget_seconds"
 
-      - name: Recheck evidence-finalization budget
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${CI_ARTIFACT_START_EPOCH:-}"
-          test -n "${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-}"
-          test -n "${CI_SETUP_ELAPSED_SECONDS:-}"
-          artifact_elapsed_seconds="$(( $(date +%s) - CI_ARTIFACT_START_EPOCH ))"
-          setup_artifact_elapsed_seconds="$(( CI_SETUP_ELAPSED_SECONDS + artifact_elapsed_seconds ))"
-          test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
-
-      - name: Verify selected total budget before upload
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${CI_BUDGET_START_EPOCH:-}"
-          test -n "${CI_TOTAL_BUDGET_SECONDS:-}"
-          case "$CI_BUDGET_START_EPOCH:$CI_TOTAL_BUDGET_SECONDS" in
-            *[!0-9:]*) exit 1 ;;
-          esac
-          elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
-          printf 'elapsed_seconds=%s\ntotal_budget_seconds=%s\n' \
-            "$elapsed_seconds" "$CI_TOTAL_BUDGET_SECONDS"
-          test "$elapsed_seconds" -le "$CI_TOTAL_BUDGET_SECONDS"
-
-      - name: Upload build evidence
-        if: always()
+      - name: Upload WarpBuild development-only raw evidence
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ios-ci-development-only-xcode-26.5-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.s10_4_shard_id }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
+
+      - name: Fail closed after WarpBuild development-only evidence
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'WarpBuild Xcode 26.5 development-only evidence is never eligible for S10.4 final acceptance.' >&2
+          exit 1

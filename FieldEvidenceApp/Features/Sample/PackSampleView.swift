@@ -7,28 +7,31 @@ struct PackSampleView: View {
     let pack: SignPack
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                identityCard
-                nounsCard
-                evidenceCard
-                acknowledgementsCard
-                registryCard(title: "Visible issue labels", entries: pack.issueLabels)
-                couldNotVerifyCard
-                registryCard(title: "Stages", entries: pack.stageDisplays)
-                registryCard(title: "Outcomes", entries: pack.outcomeDisplays)
-                disclaimerCard
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                    identityCard
+                    nounsCard
+                    evidenceCard
+                    acknowledgementsCard
+                    registryCard(title: "Visible issue labels", entries: pack.issueLabels)
+                    couldNotVerifyCard
+                    registryCard(title: "Stages", entries: pack.stageDisplays)
+                    registryCard(title: "Outcomes", entries: pack.outcomeDisplays)
+                    disclaimerCard
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .modifier(SampleTabBarVisibility())
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.scrollAccessibilityIdentifier)
     }
 
     private var identityCard: some View {
-        WorklightCard {
-            sectionTitle("Illuminated sign pack")
+        AssetRoundsEvidenceCard {
+            AssetRoundsReportBrandHeader(
+                title: Text("Illuminated sign pack"),
+                symbolRendering: .original
+            )
             SampleValue(label: "Pack ID", value: pack.packID)
             SampleValue(label: "Schema version", value: String(pack.schemaVersion))
             SampleValue(label: "Content version", value: String(pack.contentVersion))
@@ -36,7 +39,7 @@ struct PackSampleView: View {
     }
 
     private var nounsCard: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionTitle("Nouns")
             SampleValue(
                 label: "Asset",
@@ -54,7 +57,7 @@ struct PackSampleView: View {
     }
 
     private var evidenceCard: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionTitle("Evidence purposes")
             ForEach(pack.evidencePurposes) { purpose in
                 SampleRegistryRow(
@@ -67,7 +70,7 @@ struct PackSampleView: View {
     }
 
     private var acknowledgementsCard: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionTitle("Preflight acknowledgements")
             ForEach(pack.acknowledgements) { acknowledgement in
                 SampleRegistryRow(
@@ -80,7 +83,7 @@ struct PackSampleView: View {
     }
 
     private var couldNotVerifyCard: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionTitle("Could not verify")
             SampleValue(label: "Registry version", value: pack.couldNotVerifyReasons.version)
             ForEach(pack.couldNotVerifyReasons.entries) { entry in
@@ -90,18 +93,18 @@ struct PackSampleView: View {
     }
 
     private var disclaimerCard: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionTitle("Report disclaimer")
             Text(pack.disclaimer)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.disclaimerAccessibilityIdentifier)
         }
     }
 
     private func registryCard(title: String, entries: [SignPack.RegistryEntry]) -> some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionTitle(title)
             ForEach(entries) { entry in
                 SampleRegistryRow(key: entry.key, display: entry.display)
@@ -111,10 +114,21 @@ struct PackSampleView: View {
 
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.sectionHeading)
+            .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+private struct SampleTabBarVisibility: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.toolbar(.hidden, for: .tabBar)
+        } else {
+            content
+        }
     }
 }
 
@@ -123,19 +137,19 @@ private struct SampleValue: View {
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(value)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, DesignTokens.Spacing.small)
+        .padding(.vertical, DesignTokens.Spacing.space8)
         .accessibilityElement(children: .combine)
     }
 }
@@ -146,26 +160,27 @@ private struct SampleRegistryRow: View {
     var detail: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(display)
-                .font(.body.weight(.medium))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody.weight(.medium))
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(key)
-                .font(.caption.monospaced())
-                .foregroundStyle(DesignTokens.Colors.interactionAccent)
+                .font(DesignTokens.Typography.numericOrTimestamp)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryAction)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let detail {
                 Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .font(DesignTokens.Typography.secondaryBody)
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, DesignTokens.Spacing.small)
+        .padding(.vertical, DesignTokens.Spacing.space8)
+        .background(DesignTokens.SemanticColors.elevatedSurface)
         .accessibilityElement(children: .combine)
     }
 }

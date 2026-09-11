@@ -19,10 +19,10 @@ struct BackupValidationSummaryView: View {
 
     var body: some View {
         ScrollView {
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text("Backup")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
                     .accessibilityFocused($headingFocused)
@@ -64,10 +64,10 @@ struct BackupValidationSummaryView: View {
                     identifier: Self.slotsAccessibilityIdentifier
                 )
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .task {
             await Task.yield()
@@ -81,13 +81,13 @@ struct BackupValidationSummaryView: View {
         value: String,
         identifier: String
     ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.fieldLabel)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             Text(value)
-                .font(.body.monospacedDigit())
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.numericOrTimestamp)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -109,8 +109,8 @@ struct BackupValidationSummaryView: View {
 private extension View {
     func summaryValue(identifier: String) -> some View {
         self
-            .font(.headline)
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.sectionHeading)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(identifier)
     }

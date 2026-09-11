@@ -19,6 +19,8 @@ struct PreflightView: View {
     let cannotComplete: () -> Void
     let cancel: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var timeZoneID: String
     @State private var isTimeZoneConfirmed: Bool
     @State private var confirmedTimeZoneID: String?
@@ -76,14 +78,17 @@ struct PreflightView: View {
                     Group {
                         if isCheckingForDraft {
                             ProgressView("Checking for an active check")
-                                .frame(maxWidth: .infinity, minHeight: 160)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    minHeight: DesignTokens.Target.minimumInteractiveHeight
+                                )
                         } else if didFailDraftCheck {
                             loadFailure
                         } else {
                             preflight
                         }
                     }
-                    .padding(DesignTokens.Spacing.medium)
+                    .padding(DesignTokens.Spacing.space16)
                 }
                 .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
             }
@@ -96,7 +101,7 @@ struct PreflightView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .task {
             guard !didCheckForDraft else { return }
             didCheckForDraft = true
@@ -119,13 +124,17 @@ struct PreflightView: View {
     }
 
     private var preflight: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-            WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Ready for night check")
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+            AssetRoundsEvidenceCard {
+                Label("Ready for night check", systemImage: "info.circle.fill")
+                    .font(DesignTokens.Typography.secondaryBody.weight(.semibold))
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Information: Ready for night check")
 
                 Text(snapshot.signLabel)
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
 
@@ -135,11 +144,17 @@ struct PreflightView: View {
                     detailRow(title: "Confirmed time zone", value: confirmedTimeZoneID)
                 }
             }
+            .padding(
+                .bottom,
+                dynamicTypeSize == .accessibility5 && confirmedTimeZoneID == nil
+                    ? DesignTokens.Spacing.space32 + DesignTokens.Spacing.space32
+                    : 0
+            )
 
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text("Before you begin")
-                    .font(.headline)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.sectionHeading)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
                 ForEach(pack.acknowledgements) { acknowledgement in
@@ -148,9 +163,9 @@ struct PreflightView: View {
                         isOn: acknowledgementBinding(for: acknowledgement.key)
                     )
                     .frame(
-                        minWidth: DesignTokens.Control.minimumHitSize,
+                        minWidth: DesignTokens.Target.minimumInteractiveWidth,
                         maxWidth: .infinity,
-                        minHeight: DesignTokens.Control.minimumHitSize,
+                        minHeight: DesignTokens.Target.minimumInteractiveHeight,
                         alignment: .leading
                     )
                     .contentShape(.interaction, Rectangle())
@@ -164,35 +179,38 @@ struct PreflightView: View {
             }
 
             if let errorMessage {
-                WorklightCard {
-                    WorklightStatusBadge(kind: .blocked, text: "Check not started")
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(
+                        kind: .error,
+                        text: Text("Check not started")
+                    )
+                    .accessibilityLabel("Blocked: Check not started")
+                    .accessibilityValue(Text(verbatim: String()))
 
                     Text(errorMessage)
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Button("Begin check") {
-                begin()
-            }
-            .buttonStyle(WorklightPrimaryButtonStyle())
+            AssetRoundsPrimaryAction("Begin check", action: begin)
             .disabled(!canBegin || isBeginning)
             .accessibilityHint(canBegin ? "Creates or resumes this sign's check" : beginDisabledHint)
             .accessibilityIdentifier(Self.beginAccessibilityIdentifier)
+            .accessibilityHidden(focusedField == .timeZone)
 
-            Button("Cancel — no check started", action: cancel)
-                .buttonStyle(WorklightSecondaryButtonStyle())
+            AssetRoundsSecondaryAction("Cancel — no check started", action: cancel)
                 .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
+                .accessibilityHidden(focusedField == .timeZone)
         }
     }
 
     private var timeZoneConfirmation: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text("Site time zone")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.fieldLabel)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
             TextField("IANA time zone, for example America/New_York", text: $timeZoneID)
                 .textInputAutocapitalization(.never)
@@ -200,13 +218,16 @@ struct PreflightView: View {
                 .textContentType(.none)
                 .submitLabel(.done)
                 .focused($focusedField, equals: .timeZone)
-                .padding(.horizontal, DesignTokens.Spacing.small)
-                .frame(minHeight: DesignTokens.Control.minimumHitSize)
-                .background(DesignTokens.Colors.surface)
+                .onSubmit {
+                    focusedField = nil
+                }
+                .padding(.horizontal, DesignTokens.Spacing.space8)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                .background(DesignTokens.SemanticColors.elevatedSurface)
                 .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
                 .overlay {
                     RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
-                        .stroke(DesignTokens.Colors.essentialControlStroke, lineWidth: 1)
+                        .stroke(DesignTokens.SemanticColors.separator, lineWidth: DesignTokens.Stroke.standard)
                 }
                 .accessibilityLabel("IANA time zone")
                 .accessibilityHint("Enter a time zone such as America slash New York")
@@ -220,9 +241,9 @@ struct PreflightView: View {
                 Text("I confirm this is the site's time zone.")
             }
                 .frame(
-                    minWidth: DesignTokens.Control.minimumHitSize,
+                    minWidth: DesignTokens.Target.minimumInteractiveWidth,
                     maxWidth: .infinity,
-                    minHeight: DesignTokens.Control.minimumHitSize,
+                    minHeight: DesignTokens.Target.minimumInteractiveHeight,
                     alignment: .leading
                 )
                 .contentShape(.interaction, Rectangle())
@@ -234,16 +255,26 @@ struct PreflightView: View {
                         : "Enter a valid IANA time zone first"
                 )
                 .accessibilityIdentifier(Self.timeZoneConfirmationAccessibilityIdentifier)
+                .onChange(of: isTimeZoneConfirmed) { _, isConfirmed in
+                    if isConfirmed {
+                        focusedField = nil
+                    }
+                }
         }
     }
 
     private var loadFailure: some View {
-        WorklightCard {
-            WorklightStatusBadge(kind: .blocked, text: "Active check unavailable")
+        AssetRoundsEvidenceCard {
+            AssetRoundsStateLabel(
+                kind: .error,
+                text: Text("Active check unavailable")
+            )
+            .accessibilityLabel("Blocked: Active check unavailable")
+            .accessibilityValue(Text(verbatim: String()))
 
             Text("The active check could not be opened.")
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -310,14 +341,14 @@ struct PreflightView: View {
     }
 
     private func detailRow(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
             Text(value)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

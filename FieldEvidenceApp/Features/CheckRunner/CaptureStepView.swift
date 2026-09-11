@@ -25,6 +25,7 @@ struct CaptureStepView: View {
     let cameraAdapter: CameraAdapter
     let cannotComplete: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var preparation: CapturePreparation?
     @State private var candidate: CaptureCandidate?
     @State private var isWorking = false
@@ -52,10 +53,15 @@ struct CaptureStepView: View {
                 captureScroll
             }
         }
+        .modifier(
+            CaptureTabBarVisibility(
+                hidesOnLegacyOS: usesImportedCaptureFixturesForUITest
+            )
+        )
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .task {
             guard preparation == nil, errorMessage == nil else { return }
             loadPreparation()
@@ -91,17 +97,20 @@ struct CaptureStepView: View {
 
     private var captureScroll: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
                 if let preparation {
                     captureContent(preparation)
                 } else if let errorMessage {
                     failure(message: errorMessage)
                 } else {
                     ProgressView("Opening active check")
-                        .frame(maxWidth: .infinity, minHeight: 160)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: DesignTokens.Target.minimumInteractiveHeight
+                        )
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Capture")
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -110,48 +119,65 @@ struct CaptureStepView: View {
     @ViewBuilder
     private func captureContent(_ preparation: CapturePreparation) -> some View {
         if let purpose = preparation.purpose {
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text(heading(for: preparation.step, purpose: purpose))
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
 
                 Text(purpose.instruction)
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.primaryBody)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if let candidate {
-                preview(candidate)
+                AssetRoundsPhotoCapture {
+                    preview(candidate)
 
-                HStack(spacing: DesignTokens.Spacing.medium) {
-                    Button("Retake") {
-                        retake(candidate)
-                    }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
-                    .disabled(isWorking)
-                    .accessibilityIdentifier(Self.retakeAccessibilityIdentifier)
+                    let actionLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(spacing: DesignTokens.Spacing.space16))
+                        : AnyLayout(HStackLayout(spacing: DesignTokens.Spacing.space16))
 
-                    Button("Use Photo") {
-                        usePhoto(candidate)
+                    actionLayout {
+                        AssetRoundsSecondaryAction(action: {
+                            retake(candidate)
+                        }) {
+                            Text("Retake")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(isWorking)
+                        .accessibilityIdentifier(Self.retakeAccessibilityIdentifier)
+
+                        AssetRoundsPrimaryAction(action: {
+                            usePhoto(candidate)
+                        }) {
+                            Text("Use Photo")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(isWorking)
+                        .accessibilityIdentifier(Self.usePhotoAccessibilityIdentifier)
                     }
-                    .buttonStyle(WorklightPrimaryButtonStyle())
-                    .disabled(isWorking)
-                    .accessibilityIdentifier(Self.usePhotoAccessibilityIdentifier)
                 }
             } else {
-                captureActions(for: preparation.step)
+                AssetRoundsPhotoCapture {
+                    captureActions(for: preparation.step)
+                }
             }
 
             if let errorMessage {
-                WorklightCard {
-                    WorklightStatusBadge(kind: .blocked, text: "Photo not accepted")
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(
+                        kind: .error,
+                        text: Text("Photo not accepted")
+                    )
+                    .accessibilityLabel("Blocked: Photo not accepted")
+                    .accessibilityValue(Text(verbatim: String()))
                     Text(errorMessage)
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -160,10 +186,9 @@ struct CaptureStepView: View {
 
     @ViewBuilder
     private func captureActions(for step: WorkflowDraftStep) -> some View {
-        Button("Take photo") {
+        AssetRoundsPrimaryAction("Take photo") {
             takePhoto(for: step)
         }
-        .buttonStyle(WorklightPrimaryButtonStyle())
         .disabled(isWorking)
         .accessibilityIdentifier(Self.takePhotoAccessibilityIdentifier)
 
@@ -176,41 +201,43 @@ struct CaptureStepView: View {
         .accessibilityIdentifier(Self.choosePhotosAccessibilityIdentifier)
 
         if cameraStatus == .denied || cameraStatus == .restricted {
-            WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Camera access unavailable")
+            AssetRoundsEvidenceCard {
+                AssetRoundsStateLabel(
+                    kind: .error,
+                    text: Text("Camera access unavailable")
+                )
+                .accessibilityLabel("Blocked: Camera access unavailable")
+                .accessibilityValue(Text(verbatim: String()))
                 Text("Choose a photo, open Settings, or leave this check incomplete and return later.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.primaryBody)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button("Open Settings") {
+            AssetRoundsSecondaryAction("Open Settings") {
                 openSettings()
             }
-            .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityIdentifier(Self.openSettingsAccessibilityIdentifier)
         }
 
-        Button("Cannot complete") {
+        AssetRoundsSecondaryAction("Cannot complete") {
             showsCouldNotVerify = true
         }
-        .buttonStyle(WorklightSecondaryButtonStyle())
         .disabled(isWorking)
         .accessibilityHint("Opens the reason flow to save this check as incomplete")
         .accessibilityIdentifier(Self.cannotCompleteAccessibilityIdentifier)
 
         if usesImportedCaptureFixturesForUITest {
-            Button("Import test photo") {
+            AssetRoundsSecondaryAction("Import test photo") {
                 importFixture(for: step)
             }
-            .buttonStyle(WorklightSecondaryButtonStyle())
             .disabled(isWorking)
             .accessibilityIdentifier(Self.fixtureImportAccessibilityIdentifier)
         }
     }
 
     private func preview(_ candidate: CaptureCandidate) -> some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             if let image = UIImage(data: candidate.previewJPEG) {
                 Image(uiImage: image)
                     .resizable()
@@ -221,25 +248,29 @@ struct CaptureStepView: View {
                     .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
             } else {
                 Text("The imported photo preview is unavailable.")
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
             }
         }
     }
 
     private func failure(message: String) -> some View {
-        WorklightCard {
-            WorklightStatusBadge(kind: .blocked, text: "Active check unavailable")
+        AssetRoundsEvidenceCard {
+            AssetRoundsStateLabel(
+                kind: .error,
+                text: Text("Active check unavailable")
+            )
+            .accessibilityLabel("Blocked: Active check unavailable")
+            .accessibilityValue(Text(verbatim: String()))
             Text(message)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("Retry") {
+            AssetRoundsSecondaryAction("Retry") {
                 errorMessage = nil
                 loadPreparation()
             }
-            .buttonStyle(WorklightSecondaryButtonStyle())
         }
     }
 
@@ -405,6 +436,21 @@ struct CaptureStepView: View {
                 errorMessage = "The photo could not be saved. Try again."
             }
             isWorking = false
+        }
+    }
+}
+
+private struct CaptureTabBarVisibility: ViewModifier {
+    let hidesOnLegacyOS: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.toolbar(.hidden, for: .tabBar)
+        } else if hidesOnLegacyOS {
+            content.toolbar(.hidden, for: .tabBar)
+        } else {
+            content
         }
     }
 }

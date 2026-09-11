@@ -545,12 +545,9 @@ final class FinalizationService {
         let parents = allRecords.filter {
             $0.id == parentID
         }
-        let workRecords = allRecords.filter {
-            $0.issueID == issueID
-                && $0.revisionKind == WorkflowRevisionKind.original.rawValue
+        let originals = allRecords.filter {
+            $0.revisionKind == WorkflowRevisionKind.original.rawValue
                 && $0.state == WorkflowState.completed.rawValue
-                && $0.stage == WorkflowStage.work.rawValue
-                && $0.outcomeKey == "work_recorded"
         }
         let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
             $0.id == input.identifiers.packetID
@@ -564,26 +561,57 @@ final class FinalizationService {
         }
         guard issues.count == 1,
               insertedIssues.count == (input.identifiers.newIssueID == nil ? 0 : 1),
-              parents.count == 1, workRecords.count == 1,
-              let issueUpdatedAt = workRecords[0].completedAt,
+              parents.count == 1,
               packets.count == 1, reports.count == 1 else {
             throw FinalizationServiceError.preconditionFailed
         }
-        let issueAfter = issuePayload(issues[0])
-        let issueBefore = record.outcomeKey == "could_not_verify"
-            ? issueAfter
-            : IssuePayloadV1(
-                id: issueAfter.id,
-                schemaVersion: issueAfter.schemaVersion,
-                assetID: issueAfter.assetID,
-                openedByRecordID: issueAfter.openedByRecordID,
-                labelKey: issueAfter.labelKey,
-                labelDisplaySnapshot: issueAfter.labelDisplaySnapshot,
-                status: IssueStatus.recheckDue.rawValue,
-                resolvedByRecordID: nil,
-                createdAt: issueAfter.createdAt,
-                updatedAt: issueUpdatedAt
-            )
+        let issue = issues[0]
+        let parent = parents[0]
+        guard let opening = originals.first(where: {
+            $0.id == issue.openedByRecordID
+        }), validRecheckOpening(opening, issue: issue) else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        var chain = [opening]
+        var visited: Set<UUID> = [opening.id]
+        var current = opening
+        while true {
+            let children = originals.filter { $0.parentRecordID == current.id }
+            guard children.count <= 1 else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            guard let child = children.first else { break }
+            guard visited.insert(child.id).inserted,
+                  validRecheckChild(child, issue: issue, parent: current) else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            chain.append(child)
+            current = child
+        }
+        let issueOriginals = originals.filter { $0.issueID == issue.id }
+        let ancestorChain = Array(chain.dropLast())
+        guard current === record,
+              chain.count >= 2,
+              chain[chain.count - 2] === parent,
+              Set(issueOriginals.map(\.id)) == Set(chain.map(\.id)),
+              let issueBeforeState = reducedRecheckIssueState(ancestorChain),
+              issueBeforeState.status == IssueStatus.recheckDue.rawValue,
+              issueBeforeState.resolvedByRecordID == nil else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let issueAfter = issuePayload(issue)
+        let issueBefore = IssuePayloadV1(
+            id: issueAfter.id,
+            schemaVersion: issueAfter.schemaVersion,
+            assetID: issueAfter.assetID,
+            openedByRecordID: issueAfter.openedByRecordID,
+            labelKey: issueAfter.labelKey,
+            labelDisplaySnapshot: issueAfter.labelDisplaySnapshot,
+            status: issueBeforeState.status,
+            resolvedByRecordID: issueBeforeState.resolvedByRecordID,
+            createdAt: issueAfter.createdAt,
+            updatedAt: issueBeforeState.updatedAt
+        )
         let plan: RecheckFinalizationPlan
         if input.outcomeKey == "original_resolved_different_issue" {
             guard let label = input.issueLabel,
@@ -593,7 +621,7 @@ final class FinalizationService {
             let value = try DifferentIssueOutcomeRule.makePlan(
                 DifferentIssueOutcomeRuleInput(
                     draft: recheckDraftBefore(record),
-                    parent: recordPayload(parents[0]),
+                    parent: recordPayload(parent),
                     originalIssue: issueBefore,
                     outcomeKey: input.outcomeKey,
                     newIssueID: newIssueID,
@@ -618,7 +646,7 @@ final class FinalizationService {
             }
             let value = try RecheckOutcomeRule.makePlan(RecheckOutcomeRuleInput(
                 draft: recheckDraftBefore(record),
-                parent: recordPayload(parents[0]),
+                parent: recordPayload(parent),
                 issue: issueBefore,
                 outcomeKey: input.outcomeKey,
                 note: input.note,
@@ -1223,6 +1251,12 @@ final class FinalizationService {
         let plan: RecheckFinalizationPlan
     }
 
+    private struct RecheckIssueState {
+        let status: String
+        let resolvedByRecordID: UUID?
+        let updatedAt: Date
+    }
+
     private func recheckAuthority(_ input: FinalizationServiceInput) throws -> RecheckAuthority {
         guard let issueID = input.draft.issueID,
               input.identifiers.issueID == issueID,
@@ -1316,22 +1350,11 @@ final class FinalizationService {
                 && $0.state == WorkflowState.completed.rawValue
         }
         let drafts = issueRecords.filter { $0.state == WorkflowState.draft.rawValue }
-        let workRecords = chain.filter {
-            $0.stage == WorkflowStage.work.rawValue
-        }
-        let recordsAfterWork = workRecords.first.flatMap { work in
-            chain.firstIndex(where: { $0 === work }).map { index in
-                Array(chain.dropFirst(index + 1))
-            }
-        } ?? []
-        guard current === parent,
-              workRecords.count == 1,
-              workRecords[0].completedAt == issue.updatedAt,
-              recordsAfterWork.allSatisfy({ record in
-                  record.stage == WorkflowStage.recheck.rawValue
-                    && record.outcomeKey == "could_not_verify"
-                    && validRecheckCouldNotVerify(record)
-              }),
+        guard let issueState = reducedRecheckIssueState(chain),
+              current === parent,
+              issue.status == issueState.status,
+              issue.resolvedByRecordID == issueState.resolvedByRecordID,
+              issue.updatedAt == issueState.updatedAt,
               Set(issueOriginals.map(\.id)) == Set(chain.map(\.id)),
               drafts.count == 1,
               drafts.first === input.draft,
@@ -1422,6 +1445,53 @@ final class FinalizationService {
             chain: chain,
             historicalEvidence: historicalEvidence,
             plan: plan
+        )
+    }
+
+    private func reducedRecheckIssueState(
+        _ chain: [WorkflowRecord]
+    ) -> RecheckIssueState? {
+        guard let opening = chain.first,
+              opening.stage == WorkflowStage.check.rawValue,
+              opening.outcomeKey == "visible_issue",
+              let openingCompletedAt = opening.completedAt else {
+            return nil
+        }
+        var status = IssueStatus.open.rawValue
+        var resolvedByRecordID: UUID?
+        var updatedAt = openingCompletedAt
+        for record in chain.dropFirst() {
+            guard let completedAt = record.completedAt else { return nil }
+            switch WorkflowStage(rawValue: record.stage) {
+            case .work:
+                guard status == IssueStatus.open.rawValue else { return nil }
+                status = IssueStatus.recheckDue.rawValue
+                resolvedByRecordID = nil
+                updatedAt = completedAt
+            case .recheck:
+                guard status == IssueStatus.recheckDue.rawValue else { return nil }
+                switch record.outcomeKey {
+                case "resolved", "original_resolved_different_issue":
+                    status = IssueStatus.resolved.rawValue
+                    resolvedByRecordID = record.id
+                    updatedAt = completedAt
+                case "issue_still_visible":
+                    status = IssueStatus.open.rawValue
+                    resolvedByRecordID = nil
+                    updatedAt = completedAt
+                case "could_not_verify":
+                    break
+                default:
+                    return nil
+                }
+            case .check, nil:
+                return nil
+            }
+        }
+        return RecheckIssueState(
+            status: status,
+            resolvedByRecordID: resolvedByRecordID,
+            updatedAt: updatedAt
         )
     }
 

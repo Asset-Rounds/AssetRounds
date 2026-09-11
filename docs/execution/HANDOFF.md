@@ -2461,3 +2461,580 @@ The exact accepted envelope is ten release/product paths, two test paths, and th
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S9.1 product/card blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future HANDOFF-only phase-close commit.
 - Next unstarted gate: owner-only `S9.2`. Program autopilot must first commit/push only this HANDOFF append, accept exact-head F25/UI-enabled S9 phase CI, non-force fast-forward `main` to that exact green verification head, and accept exact-main F25/UI-enabled CI. Coding stops after that exact-main gate; TestFlight dispatch, signing, archive/export/upload, deployment, and S9.2/S9.3 remain owner-only.
+
+## `S10.1` — `accepted E/K; receipt verification pending` — `2026-08-16T08:01:35-04:00`
+
+- Phase / branch / position / boundary: `S10` / `phase/s10-brand-refresh` / `1 of 6` / `no`.
+- Outcome: froze the complete 67-state released-route inventory, token/accessibility/experience/store contracts, and human-approved corrected S9 pre-brand baselines before any S10.2 presentation or runtime-asset mutation. The same card also repaired the hosted-evidenced repeated work/recheck lineage defects and made the pending-PDF recovery baseline deterministic only under the existing UI-test failure argument.
+- Immutable phase-main and integrated/card base: `P=M=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; accepted S9.1 product `35e87b0d97c732f4c63621cc87f9faf86eef97d3`; S9 phase run `31907266760`; accepted exact-main run `31908483947` / job `95069878862` / artifact `9253163917`.
+- Observed task-start authority: `A=e056fbf55136113cf25f7d152cf6d37ddffc0ee9`; `A^=M`, and `M..A` contains exactly the eight owner-directed S10 authority paths recorded by CURRENT_TASK. Direct-child package-validator correction `7939a92611479a7a89033f7383bae066d320d444` changed only the frozen ZIP, external manifest, activation instance, and CURRENT_TASK pins; runtime image bytes remained unchanged.
+- Accepted product implementation: `E=44e9f9471f8ced9ecdd85f241a79c3750c38412d`. Post-green evidence-sequence authority `H=dfe24aeb02e15b1a3057c5b69512a1b3c28cc5c0` changed only CURRENT_TASK. Human-reviewed visual evidence `K=29a49d0145980bf1cb3c1f6ec260a6af579902d4` directly descends H and changed only `docs/design/s10/s10-visual-regression.json`; E remains the product/test head.
+- Exact selector: S10.1 F25/UI enabled; compact JSON plus LF, 348 bytes, SHA-256 `2845C608EE15C2B53990C613D19981FFA713F02BD034CF2E007B7514573BF012`; exact selectors `FieldEvidenceAppTests/S10_1BrandInventoryTests` and `FieldEvidenceAppUITests/S10_1BrandInventoryUITests`.
+- Accepted product run/job/URLs: `31942339074` / `95153221424`; `https://github.com/palatis3/AssetRounds/actions/runs/31942339074`; `https://github.com/palatis3/AssetRounds/actions/runs/31942339074/job/95153221424`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `22/300` s; Simulator readiness `69/900` s; build `243/900` s; unit step `35/1200` s; UI step `1354/1800` s with selected test `1313.058` s; selected total about `1730/4500` s; all watchdogs passed.
+- Artifact: `ios-ci-31942339074-1`, ID `9262665745`, compressed size `49272973`, digest `sha256:6ba2a87d5afcb87e3f5fba9462069e9d75622e0e2822236e5206b0692e84b5a9`; all `231/231` payloads independently matched `SHA256SUMS.txt`.
+- Accepted artifact hashes: `SHA256SUMS.txt` `AC38360371086F9BEE0A15F35BA1F68D903D3316972C28E63CFA7D076762797B`; `build-smoke.log` `EC299DCB6D4B992F9C539F8BCF7F4E672D3A67162A681E21B7BAC443BE9FA911`; `test-smoke.log` `88DFDC849359B01B073322B9039D2A6E3108F05370D9F6C4D1AE14838FFC5CCD`; `ui-smoke.log` `2909E4367935826E8C97D8F1CC1C23942FD0DBA92F97CFCDEA0A0E8774CD8DE7`; `ui-final.png` `8ED8F471DB2FE76510DF99E8FB9368692D289F288EEFB799AA37BE17F83147C7`.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted product run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift`
+- `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceAppTests/S10_1BrandInventoryTests.swift`
+- `FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift`
+- `docs/design/s10/s10-accessibility-common-tasks.json`
+- `docs/design/s10/s10-experience-validation.json`
+- `docs/design/s10/s10-screen-state-inventory.json`
+- `docs/design/s10/s10-stage-checkpoints.json`
+- `docs/design/s10/s10-store-readiness.json`
+- `docs/design/s10/s10-token-coverage.json`
+- `docs/design/s10/s10-visual-regression.json`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is eleven product/document paths, two test paths, and the standing selector exception. Owner-directed activation and correction authority additionally changed only the pinned authority paths recorded above and in CURRENT_TASK. No S10.2 runtime asset/token/component migration, route/feature/schema/model change, baseline regeneration after product mutation, signing, upload, TestFlight, App Store action, or fabricated legal/physical evidence occurred.
+
+### Accepted tests and baseline evidence
+
+- Unit `PASS` (`3/3`): `testAccessibilityExperienceAndVisualPlansAreCompleteButUnrun`, 0.011 s; `testFrozenContractsHaveOneUniqueReferentiallyCompleteGraph`, 0.014 s; `testStorePlanAndCISelectorAreExact`, 0.35 s.
+- UI `PASS` (`1/1`): `testCapturesFrozenS9BrandBaselinesAcrossReleasedGoldenFlow`, 1313.058 s.
+- GOLDEN `PASS`: the bounded released flow captured exactly `67/67` unique state IDs in the frozen order across Light/default and Dark/AccessibilityXXXL, including persistence, work/recheck/different-Issue, report failure/retry/history, backup/restore/Erase, commerce, feedback, diagnostics, and data-rights routes.
+- ALT-1 `PASS`: contract tests and the V4.1 validator reject missing/duplicate states, unknown tokens, stale source/fixture references, malformed selector/hash/evidence, unauthorized package members, and fabricated legal/physical/release facts.
+- Human review `APPROVED`: repository owner `palatis3` explicitly approved all 67 S10.1 pre-brand baselines on `2026-08-16`; evidence ID `owner-review-s10.1-baselines-2026-08-16-palatis3`.
+- K evidence `PASS`: all 67 baseline rows carry their exact accepted-run artifact/attachment locators and independently verified PNG SHA-256 values; approval status/reviewer/evidence are exact, candidate fields remain empty, and comparison status remains truthful `NOT_RUN` / `NOT_REVIEWED`. The visual document has SHA-256 `C111BB31056801C996049E94B3B1ACEFCDAAC6BBABD80576644F751799319AB1`.
+- Inventory receipt candidate `PASS` before commit: the single `Inventory` checkpoint binds product E, evidence K, the seven canonical document Git-blob hashes at K, accepted run/artifact evidence, and owner review. The complete V4.1 Inventory/package validator passed using the frozen package member `Handoff/s10-evidence-lock.template.json`; the canonical S10.6 evidence lock was not created early.
+
+### Candidate recovery provenance
+
+- Runs `31914442834` through `31918478037` progressively exposed bounded XCUITest route, visibility, repeated-XXXL preflight, StoreKit ordering, and post-Erase no-entitlement setup defects. Each direct-child correction changed only the authorized S10.1 UI test and preserved the exact 67 IDs/order.
+- Runs `31919914831`, `31921675042`, and `31922598904` exposed accepted-S9 latent behavior defects in repeated `work -> could_not_verify -> issue_still_visible -> work` admission and finalization/recovery. The scoped WorkCoordinator and Finalization reducers now enforce the same closed chain grammar without reopening S9 refs or HANDOFF.
+- Runs `31924339452` through `31932334972` exposed deterministic pending-PDF and retained-navigation/history-route gaps. The test-only receipt deferral leaves normal launches unchanged and proves genuine persisted pending -> startup failed -> explicit retry -> ready behavior.
+- Runs `31933900842` through `31938084185` recorded hosted StoreKit verification nondeterminism and unsuccessful bounded recovery experiments. The final accepted product keeps the strict real one-tap verified-purchase assertion; no synthetic entitlement, weakened label, expanded timeout, or acceptance loop remains.
+- Run `31939291010` reached 65/67 captures but exceeded the bounded UI budget because of a reverse lazy-scroll search. Direct-child E removed only that reverse search. Run `31941307507` at E was a fresh-runner hosted StoreKit failure; fresh candidate `31942339074` at identical E completed every gate. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and receipt state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S10.1 product/evidence blockers: `NONE`.
+- Remote phase and main were freshly checked before receipt mutation; phase equaled K and main remained P. This append and the Inventory checkpoint are the exact receipt-C payload and do not self-record their future C commit SHA or C verification run.
+- Next unstarted card: `S10.2`. Before transition, commit and non-force push this receipt payload, accept exact-head focused S10.1 F25 proof at C, then append the C/run addendum and hydrate only immediate-next S10.2 CURRENT_TASK in one transition commit. Fresh S10.2 G0 is mandatory; S10.3+ remain unstarted.
+
+## `S10.1` receipt-verification addendum — `complete` — `2026-08-16T09:40:14-04:00`
+
+- Receipt commit `C=fc26103d120eff3a632d353cce4f0d9168a35040` directly descends evidence K and changes exactly `docs/design/s10/s10-stage-checkpoints.json` plus the preceding append-only S10.1 HANDOFF entry. Product/test/project/fixture/runtime-asset/selector bytes remain tied to E.
+- Accepted receipt run/job/URLs: `31948530000` / `95168285969`; `https://github.com/palatis3/AssetRounds/actions/runs/31948530000`; `https://github.com/palatis3/AssetRounds/actions/runs/31948530000/job/95168285969`; terminal `success`; exact `head_sha=C`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Receipt budgets: setup `78/300` s; build step `267/900` s; targeted-test step `222/1200` s; UI step `1725/1800` s with selected test `1651.919` s; total job `2336/4500` s; all watchdogs passed.
+- Receipt tests `PASS`: the same S10.1 unit bundle passed `3/3` in `0.085` s; the same S10.1 UI bundle passed `1/1`, exported the exact 67 baseline attachments plus one terminal attachment, and passed required-evidence validation.
+- Artifact: `ios-ci-31948530000-1`, ID `9264458516`, size `50785376`, digest `sha256:ab51a3660e329c43225de38c313509c881a95461e9a450c36829293193cdb02a`; all `231/231` listed payload checksums independently matched.
+- Receipt artifact hashes: `SHA256SUMS.txt` `DF79C087545E197D9033A905FB7B489FA0513C494AD55064CE92B539ECD9F2C7`; `build-smoke.log` `DA210E7D5CFFABE72D8CFE60F6E38FB2EE8715E1B92124DF3F31BA33B9669F36`; `test-smoke.log` `6461F5CA4BE3F140CE885EA00BDA6EAFF8A3A3663DF6B02CEDFEF479ECAD0E57`; `ui-smoke.log` `A5AF4DB70888A5D2F0AA7A2687FCE34AAAC005981ADB88706C6E0CB708C40B31`; `ui-final.png` `DDAADCC7DC4C6D91BB56E86E3B179446EB51EA6252E8153CF175FCF1C88D576E`.
+- Receipt candidates `31946066463` and `31947205730` passed build/units but failed at the strict real StoreKit verification checkpoint; candidate `31948070092` passed build/units but failed a transient startup AX query for the Reports tab. Their evidence failures were derivative, their uploaded checksums matched, and none was rerun or accepted. Because C changed only evidence/bookkeeping and identical product/test bytes were already green at E, no product/test weakening or correction was made; the persistent fresh-runner loop produced accepted run `31948530000`.
+- S10.1 is complete with `E=44e9f9471f8ced9ecdd85f241a79c3750c38412d`, `H=dfe24aeb02e15b1a3057c5b69512a1b3c28cc5c0`, `K=29a49d0145980bf1cb3c1f6ec260a6af579902d4`, and `C=fc26103d120eff3a632d353cce4f0d9168a35040`. Remote main remained P. This addendum does not self-record its future S10.2 transition commit.
+- Next unstarted card: `S10.2 — Brand assets, semantic tokens, and reusable components`. Same-phase autopilot may commit/push exactly this append plus immediate-next CURRENT_TASK hydration, then must run fresh S10.2 G0 before selector, asset, project, source, or test mutation.
+
+## `S10.2` — `accepted E/K; receipt candidate` — `2026-08-16T10:33:32-04:00`
+
+- Phase / branch / position / boundary: `S10` / `phase/s10-brand-refresh` / `2 of 6` / `no`.
+- Outcome: installed the exact twelve approved runtime brand files, three AppIcon appearances, original/template AssetRounds symbols, six semantic color catalogs, the frozen 45-token design vocabulary, and nine isolated reusable components without migrating a released feature screen.
+- Immutable phase-main base: `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; remote `main` remained exactly P throughout S10.2.
+- Integrated/card base and predecessor: `M=fc26103d120eff3a632d353cce4f0d9168a35040`, the accepted S10.1 receipt commit; accepted receipt run `31948530000` / job `95168285969` / artifact `9264458516`.
+- Observed task-start authority: `A=857c5a5e32dc2649175a020cc05b72f8a3dff879`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation: `I=cf53436d90a2c3baf679d5708b8b537d64f3bea7`; accepted direct-child test correction and product implementation `I2=E=28c5851a432db026251012de1e396a5896c9f91f`.
+- Descendant evidence head: `K=5e7763e14922d96f209350f95e80e1c95856679e`; `E..K` changes only `docs/design/s10/s10-token-coverage.json`. All nine components are exact evidenced `PASS`; all 67 screen rows remain truthful `NOT_RUN`, and E remains the product/test head.
+- Exact selector: S10.2 P12/UI enabled; compact JSON plus LF, 346 bytes, SHA-256 `55236E8C1FD515B5517BC1813CD6B065320DEDD0380CC51257426696969BBD88`; exact selectors `FieldEvidenceAppTests/S10_2BrandComponentTests` and `FieldEvidenceAppUITests/S10_2BrandComponentUITests`.
+- Accepted run/job/URLs: `31952398978` / `95177784723`; `https://github.com/palatis3/AssetRounds/actions/runs/31952398978`; `https://github.com/palatis3/AssetRounds/actions/runs/31952398978/job/95177784723`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup-plus-artifact `85/300` s; Simulator boot step `102/900` s; build step `326/600` s; unit step `43/900` s with selected tests `1.015` s; UI step `96/900` s with selected test `51.447` s; total job about `566/3300` s; every watchdog passed.
+- Artifact: `ios-ci-31952398978-1`, ID `9265131233`, size `1417733`, digest `sha256:e71473fc11ee7449dbeed6b3af78705a8cad34c13b16eb3fa799ca4504e328f7`, expires `2026-08-30T14:29:21Z`; all `99/99` listed payloads independently matched `SHA256SUMS.txt`.
+- Accepted artifact hashes: `SHA256SUMS.txt` `291C93A72A072647E8BF50429A6FCAC30B891B0037EBB5C88F02328D90E6DB23`; `build-smoke.log` `9D26B9E60017DE16373299346B600BBA74D7B7C11D6735FAC47ACB4BEA093E9A`; `test-smoke.log` `0117DD177967A0433A05E047F5D49E8E3473259D5D5B09EBA31F1E4B57BF3EB2`; `ui-smoke.log` `0CB8D6C9866BC7FC67600D88B3C7C23408F2FB9488B361B83F3143B185C62D8F`.
+- Terminal evidence: exactly one `ui-final.png`, `1206x2622`, 315722 bytes, SHA-256 `79543BD00C2750F905E150653A43ACAE963F6711D4775B8E114C11F22FBD1DE4`; visual inspection confirmed the terminal in-app Dark/AccessibilityXXXL welcome state with intact layout, branded color roles, native actions, and no external sheet or error.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp.xcodeproj/project.pbxproj`
+- `FieldEvidenceApp/DesignSystem/DesignTokens.swift`
+- `FieldEvidenceApp/DesignSystem/WorklightComponents.swift`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsAccentTeal.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandCanvas.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsCheckpointGreen.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsDeepTeal.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsInk.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsSlate.colorset/Contents.json`
+- `FieldEvidenceAppTests/S10_2BrandComponentTests.swift`
+- `FieldEvidenceAppUITests/S10_2BrandComponentUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact accepted envelope is 21 product/project/runtime-asset paths, two test paths, and the standing selector exception. No released feature-view migration, navigation/copy/schema/model/service/commerce/report/backup behavior, custom font, package dependency, decorative glass, signing, upload, deployment, submission, or fabricated legal/physical evidence was added.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`4/4`): `testCatalogMetadataPixelsColorsAndPrimaryIconSettingAreExact`, 0.821 s; `testClosedTokenAndNineComponentSystemRendersAcrossEnvironments`, 0.171 s; `testExactSelectorEnvelopeAndApprovedBaselinesRemainFrozen`, 0.006 s; `testFrozenPackageAndExactTwelveRuntimeAssetsMatch`, 0.016 s.
+- UI `PASS` (`1/1`): `testSharedComponentsRemainBaselineEquivalentAndAccessibleBeforeMigration`, 51.447 s.
+
+### Acceptance results
+
+- Asset/catalog `PASS`: every installed PNG byte, dimension, alpha/grayscale intent, AppIcon appearance, symbol rendering mode, and six semantic color catalogs match the frozen V4.1 handoff; Debug and Release both select `AppIcon`.
+- Component `PASS`: all 45 tokens and nine component roles render through the shared system with Light/Dark, increased-contrast traits, Dynamic Type, 44-point targets, non-color status meaning, Reduce Motion/Transparency-safe behavior, and restrained original/template symbol use.
+- Baseline preservation `PASS`: S10.1's 67 owner-approved pre-brand baselines and released feature sources remained unchanged; screen migration stays explicitly `NOT_RUN` until S10.3.
+- ALT-1 `PASS`: package/member/hash/catalog/build-setting/token/state mutations are rejected by bounded tests without installing extra assets, promoting screen coverage, or weakening accepted baselines.
+- Scope `PASS`: no feature view was migrated and no domain, persistence, finalization, commerce, backup, deletion, reporting, or release behavior changed.
+
+### Candidate recovery provenance
+
+- Run `31951943665` / job `95176660633` at I built and passed all `4/4` unit tests. The UI successfully opened `s2.sample.screen`, but the parent screen accessibility identifier masked the nested `s1.sample.scroll` identifier, causing a redundant child-query failure; evidence validation then failed only derivatively.
+- Direct-child E changed only `S10_2BrandComponentUITests.swift` to retain the authoritative sample screen, exact **Illuminated sign pack** content, native Back route, full component checks, and screenshot while removing only the masked nested-scroll assertion. No product code, selector, timeout, or acceptance behavior was weakened.
+
+### Known bugs, blockers, and receipt state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S10.2 product/evidence blockers: `NONE`.
+- Remote phase was freshly verified at K and remote main at P before receipt mutation. The new `ComponentSystem` checkpoint binds product E, evidence K, the historical token-coverage blob hash, accepted run/artifact, primary AppIcon build setting, and exact twelve-runtime-asset evidence.
+- This append plus `docs/design/s10/s10-stage-checkpoints.json` is the exact receipt-C payload and does not self-record its future C SHA. Complete V4.1 `ComponentSystem` validation is required at C before transition.
+- Next unstarted card: `S10.3 — Full released-state visual migration`. Same-phase autopilot may append the accepted C/validator addendum and hydrate only immediate-next S10.3 CURRENT_TASK after receipt validation, then must run fresh S10.3 G0.
+
+## `S10.2` receipt-validation addendum — `complete` — `2026-08-16T10:38:00-04:00`
+
+- Receipt commit `C=f8df05fb1c07ee67d1f83f49336f85a309b5195b` directly descends evidence `K=5e7763e14922d96f209350f95e80e1c95856679e` and changes exactly `docs/design/s10/s10-stage-checkpoints.json` plus the preceding append-only S10.2 HANDOFF entry. Product/project/test/fixture/runtime-asset/selector bytes remain tied to `E=28c5851a432db026251012de1e396a5896c9f91f`.
+- Complete frozen-package validation `PASS`: `validate-s10-contracts.ps1 -Mode ComponentSystem` accepted the ordered Inventory and ComponentSystem checkpoints, E→K ancestry, historical token-coverage SHA-256 `D52B72B86D40AB93EE58BD467A0B83834D7F58ABAB39C08096DFBF094719B476`, all nine evidenced component rows, all 67 truthful `NOT_RUN` screen rows, AppIcon primary-build-setting evidence, and exact twelve-runtime-asset evidence.
+- S10.2 is complete with `E=28c5851a432db026251012de1e396a5896c9f91f`, `K=5e7763e14922d96f209350f95e80e1c95856679e`, and `C=f8df05fb1c07ee67d1f83f49336f85a309b5195b`. Remote `main` remained immutable phase base `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`.
+- Next unstarted card: `S10.3 — Full released-state visual migration`. Same-phase autopilot may commit/push exactly this addendum plus immediate-next S10.3 CURRENT_TASK hydration, then must run fresh S10.3 G0 before selector, source, test, or evidence mutation.
+
+## `S10.3` — `accepted E/K; receipt candidate` — `2026-08-16T15:39:07-04:00`
+
+- Phase / branch / position / boundary: `S10` / `phase/s10-brand-refresh` / `3 of 6` / `no`.
+- Outcome: migrated every one of the frozen 67 released app states across the exact 26 SwiftUI sources to the accepted AssetRounds semantic component system, including the conditionally authorized content-preserving photo composition seam, while preserving copy, native controls, accessibility identifiers, navigation, persistence, commerce, evidence, report, and backup behavior.
+- Immutable phase-main base: `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; remote `main` remained exactly P throughout S10.3.
+- Integrated/card base and predecessor: `M=f8df05fb1c07ee67d1f83f49336f85a309b5195b`, the accepted S10.2 receipt commit; accepted S10.2 product `28c5851a432db026251012de1e396a5896c9f91f`, evidence `5e7763e14922d96f209350f95e80e1c95856679e`, product run `31952398978`, artifact `9265131233`, and complete `ComponentSystem` validation remain immutable.
+- Observed task-start authority: `A=64b193807b2c508b5c8e480da32b59e62ea01281`; `A^=M`, and `M..A` changed exactly append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`. Owner-authorized direct-child authority correction `5ad577e35e22ca005bbcc0e75dca742bfc349241` changed only CURRENT_TASK and the S10.3 runbook card to admit the diagnosed content-preserving `AssetRoundsPhotoCapture` initializer.
+- First product implementation: `I=a5054f4038944eb19335541dd2212edeacc25b41`. Accepted direct-child implementation sequence and product head: `E=e1004c9cfeff932e904046e0ad1aa31d2bb2c139`.
+- Descendant evidence head: `K=9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284`; `K^=E`, and `E..K` changes exactly `docs/design/s10/s10-token-coverage.json` and `docs/design/s10/s10-experience-validation.json`. Token coverage is `migrated`, every `67/67` screen row is exact-evidence `PASS`, `untracked_visual_constant_count=0`, all nine accepted component rows and `component_system_product_head` are preserved, and experience changes only `product_head=E` while remaining truthfully `planned`.
+- Exact selector: S10.3 F25/UI enabled; compact JSON plus LF, 348 bytes, SHA-256 `5EFEF5082CD41316FF7FFA13663B4F6A641A536B8D93DF3DCCAB8C0196F217B5`; exact selectors `FieldEvidenceAppTests/S10_3BrandMigrationTests` and `FieldEvidenceAppUITests/S10_3BrandMigrationUITests`.
+- Accepted run/job/URLs: `31966468925` / `95212275453`; `https://github.com/palatis3/AssetRounds/actions/runs/31966468925`; `https://github.com/palatis3/AssetRounds/actions/runs/31966468925/job/95212275453`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; SDK `iphonesimulator26.5` build `23F81a`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup-plus-artifact `17/300` s; Simulator boot `70/900` s; build `192/900` s; targeted-test step `56/1200` s; UI step `1380/1800` s with selected test `1327.957` s; total job `1660/4500` s; every watchdog passed.
+- Artifact: `ios-ci-31966468925-1`, ID `9268967312`, size `31135810`, digest `sha256:42c871456fa009ce3254723f30855fb4c5af563352cda2ba4f5983744fb7d17c`, expires `2026-08-30T19:31:41Z`; all `99/99` listed payload checksums independently matched `SHA256SUMS.txt`.
+- Accepted artifact hashes: `SHA256SUMS.txt` `F61718F54E1A5B22A5A08D309E56A7B23FB7342B75FD2488680971460C036A88`; `build-smoke.log` `5E8DE269121C4598E2753EA8C6FA07CD2E2283B371AA1EBC322187FE1104B9B0`; `test-smoke.log` `330733218F8454E0DD22ADBDC2811FDFBA2B1394B9F7E8D398B96BAC061593E9`; `ui-smoke.log` `5129503331839EA35C3376B057938860BAC0AAAAEC2C4AA7A687CA60E168D7D4`; `ui-final.png` `322FF82D9D26D3979563B0885FF82ADDE32191845FD216D833E9F254BC4ECABA`.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/App/LaunchView.swift`
+- `FieldEvidenceApp/DesignSystem/WorklightComponents.swift`
+- `FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift`
+- `FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift`
+- `FieldEvidenceApp/Features/Issues/IssueDetailView.swift`
+- `FieldEvidenceApp/Features/Issues/RecordWorkView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportDetailView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportFailureView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportsRootView.swift`
+- `FieldEvidenceApp/Features/Sample/PackSampleView.swift`
+- `FieldEvidenceApp/Features/Settings/BackupExportView.swift`
+- `FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift`
+- `FieldEvidenceApp/Features/Settings/EraseAllView.swift`
+- `FieldEvidenceApp/Features/Settings/FeedbackView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift`
+- `FieldEvidenceApp/Features/Signs/NewSignView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Features/Subscription/PaywallView.swift`
+- `FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift`
+- `FieldEvidenceAppTests/S10_3BrandMigrationTests.swift`
+- `FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift`
+- `Scripts/ci-selection.json`
+
+The accepted product envelope is the exact 26 released SwiftUI sources, the conditionally authorized source-compatible Worklight component seam, two bounded tests, and the standing selector exception. No asset/catalog, domain, model, schema, service, persistence, report/backup output, entitlement policy, copy, route, permission, package, signing, upload, deployment, TestFlight, or App Store behavior changed.
+
+### Accepted exact test and migration evidence
+
+- Unit `PASS` (`4/4`): `testAllReleasedSourcesUseTheClosedBrandSystemWithoutVisualForks()`, 0.297 s; `testCopyIdentifiersImportsAndNativeBehaviorAuthorityStayFrozen()`, 0.065 s; `testExactFrozenInventoryMapsAllSixtySevenStatesToTheMigrationEnvelope()`, 0.014 s; `testSelectorAndPredecessorEvidenceRemainExactAndUnpromoted()`, 0.011 s.
+- UI `PASS` (`1/1`): `testAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()`, 1327.957 s.
+- GOLDEN `PASS`: `ui-smoke.log` contains exactly `67/67` unique `S10_MIGRATION_STATE` records spanning every frozen route and exception family. The bounded route completed fresh-install, sign/check/report, issue/work/recheck, correction/history/failure, Settings/commerce/data-rights, Light, Dark, and AccessibilityXXXL states with the exact preserved identifiers and outcomes.
+- Migration/static `PASS`: every frozen state maps to the exact authorized source set and accepted component/token vocabulary; the quoted-copy/identifier/import authority digest is `C34DB3D96BC4C43F9B6F5A1DEDF80805C73E57495B9448E1B54DAD84D840B645`; untracked visual constants are exactly zero.
+- Preservation `PASS`: model/report/backup authority and native actions remained unchanged; evidence photos remain untinted and aspect-correct; S10.1's 67 owner-approved pre-brand baselines and S10.2's runtime assets, colors, 45 tokens, nine components, AppIcon settings, and evidence rows were not rewritten.
+- No S10.4 automated comparison/accessibility/localization result, S10.5 physical/manual/durability/performance result, or S10.6 release/store/legal result is claimed. Raw timing markers remain only accepted-run evidence until their authorized later cards.
+
+### Candidate recovery provenance
+
+- Run `31954964082` at I exposed the Swift 5 throwing-autoclosure compile error in the bounded unit test. Direct child `cde534df5047f1cc3eb161c41bae16f86808ce53` prederived that value without changing product acceptance.
+- Runs `31955229297`, `31956026847`, `31957052754`, `31957942181`, and `31958549972` exposed bounded migrated-flow visibility/order, lazy outcome readiness, keyboard-obscured Save, and AccessibilityXXXL photo-action geometry defects. The direct-child sequence `ea36a8890197e93219a1529f9dbef769897c5b38` → `eb82e59b3b8d4bbcfa6296085b3a81924224de73` → `b3897da17e38b3c65e387aa6180bd67a22d2095c` → `ce05e92f88c1c9021d27bc5ec4b7b82d8c3708f5` → `bf915f9f781a86db19df7614a349892d6454257d` corrected only those exact test/presentation causes.
+- Runs `31959627302` and `31960912721` showed, respectively, a hosted StoreKit unverified result and native tab identifiers owned by the wrong subtree. E changed only AppShell's iOS 18 native Tab identifier binding; copy/order/navigation stayed frozen.
+- Exact-E runs `31961651457`, `31962737635`, `31963703829`, and `31964839702` reached the real StoreKit purchase route but returned the exact fail-closed unverified result. Run `31965795062` stopped at a transient early Reports-tab AX lookup. No synthetic entitlement, retry branch, session reset, broader timeout, selector weakening, state omission, or failed run rerun was accepted. Fresh runner `31966468925` at identical E completed all acceptance.
+
+### Evidence and receipt state
+
+- Historical K blobs: token coverage SHA-256 `904BFF5904E25C43C3101038AA3836BDD9C66CE0E83E342A36F563D54988BBEE`; experience validation SHA-256 `74D8BC51E00A864AC081398B45DE18D9DD81A36BBC5921E32F166795F167CF52`.
+- The new ordered `Migration` checkpoint binds E, K, both historical document hashes, `github-actions-run-31966468925-artifact-9268967312`, `screen-state-count-67`, and `untracked-visual-constant-count-0`. The prior Inventory and ComponentSystem rows remain byte-for-byte unchanged.
+- Remote phase was freshly verified at K and remote main at P before receipt mutation. This append plus `docs/design/s10/s10-stage-checkpoints.json` is the exact receipt-C payload and does not self-record its future C SHA. Complete V4.1 `Migration` validation using the frozen package evidence-lock template is required before transition; canonical `docs/design/s10/s10-evidence-lock.json` remains absent until S10.6.
+- `docs/execution/KNOWN_BUGS.md` contains only its empty template. Known-bug entries: `NONE`. S10.3 product/evidence blockers: `NONE`.
+- Next unstarted card: `S10.4 — Automated appearance, accessibility, and localization lab`. Same-phase autopilot may append the accepted C/validator addendum and hydrate only immediate-next S10.4 CURRENT_TASK after receipt validation, then must run fresh S10.4 G0.
+
+## `S10.3` receipt-validation addendum — `complete` — `2026-08-16T15:42:00-04:00`
+
+- Receipt commit `C=d4661ef2096fb55c824842965bee06630cc0aeb7` directly descends evidence `K=9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284` and changes exactly `docs/design/s10/s10-stage-checkpoints.json` plus the preceding append-only S10.3 HANDOFF entry. Product, test, project, fixture, runtime-asset, baseline, and selector bytes remain tied to `E=e1004c9cfeff932e904046e0ad1aa31d2bb2c139`.
+- Complete frozen-package validation `PASS`: `validate-s10-contracts.ps1 -Mode Migration` accepted the exact ordered Inventory, ComponentSystem, and Migration checkpoints; E→K ancestry; historical token SHA-256 `904BFF5904E25C43C3101038AA3836BDD9C66CE0E83E342A36F563D54988BBEE`; historical experience SHA-256 `74D8BC51E00A864AC081398B45DE18D9DD81A36BBC5921E32F166795F167CF52`; all nine component rows; all 67 evidenced screen rows; and zero untracked visual constants. The frozen package member `Handoff/s10-evidence-lock.template.json` was used; the canonical S10.6 evidence lock remains absent.
+- S10.3 is complete with `E=e1004c9cfeff932e904046e0ad1aa31d2bb2c139`, `K=9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284`, and `C=d4661ef2096fb55c824842965bee06630cc0aeb7`. Remote `main` remained immutable phase base `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`.
+- Next unstarted card: `S10.4 — Automated appearance, accessibility, and localization lab`. Same-phase autopilot may commit/push exactly this addendum plus immediate-next S10.4 CURRENT_TASK hydration, then must run fresh S10.4 G0 before selector, test, evidence, or any diagnosed product-correction mutation.
+
+## S10.4 owner execution amendment H411 — 2026-09-08 (implementation pending)
+
+The owner explicitly approved shared builds across all fourteen shards and shorter minimum-OS verification segments, durable documentation, and the four prior efficiency improvements. This record logs that prospective authorization; it does not close S10.4, accept a new build, or replace any earlier handoff. Observed parent is K481 ccfa25f4428a1e891628de30e0f5e01a23905bd0 on phase/s10-brand-refresh; main/P remains01233f789b1cef5a6f56c7ff4caa9271409cd3bc. All existing commits, runs, original artifacts and unrelated untracked work are retained.
+
+Controlling changes are in CURRENT_TASK H411, the selected S10.4 runbook exception, plan/contract execution policy and operating brief, with AGENTS navigation and mechanical activation/manifest/unit pins. No app/product/project/fixture/asset, hosted toolchain/runtime, selector, watchdog, provider allowlist or release operation changes in this authority candidate. The exact future amendment SHA is not self-recorded.
+
+The new process requires one immutable exact-head shared payload with five native unit methods qualified once, independently verified consumer provenance, fresh Simulators, test-without-building, no rebuild/fallback, and complete minimum segment/public-journey dependency closure. All67states per logical shard,938visualcells,84accessibilityrows,six tasks, strict native checks, original integrity and genuine human review remain mandatory. Runtime implementation, source/hosted qualification, timing measurements and final matrix are still pending. Existing K481 tests retain only their actual original head and coverage. S10.5 remains the next unstarted card after accepted S10.4 E/K/C; physical and release evidence is not claimed.
+
+
+## S10.4 — Automated lab evidence closeout (2026-09-10)
+Native product E is `0adebd72ae0226a80e14eaf515ca133072fb1c76`. Accepted evidence K is `e2189af36a89caf815cf078756341c1f1542f7df`; app, project, UI/unit tests, native workflow and payload source bytes remain those of E. This receipt does not self-record its future containing C SHA. The immediate next unstarted card is S10.5, with physical evidence still required.
+
+S10.4 remains the selected card on `phase/s10-brand-refresh` (40 of 42). Immutable phase base `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`, integrated S10.3 receipt `M=d4661ef2096fb55c824842965bee06630cc0aeb7`, and task-start authority `A=9a4b27479cd347d340d800aa5c52ccdaf256d9f8` remain fixed. S10.3 predecessor evidence is `E=e1004c9cfeff932e904046e0ad1aa31d2bb2c139`, `K=9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284`, `C=M`; run `31966468925`, job `95212275453`, artifact `9268967312` (`ios-ci-31966468925-1`, digest `sha256:42c871456fa009ce3254723f30855fb4c5af563352cda2ba4f5983744fb7d17c`) and the complete Migration validator passed.
+
+The preserved S10.4 evidence binds native head `0adebd72ae0226a80e14eaf515ca133072fb1c76` to source identity `FA2E57BD20754B0E9844D8939B7BB4887448DC02D026F5EB635189B80C8E5F7A` and qualified shared producer run `34477382489` / request `3a0af74cfb9349dd9a4d645bd5eeda57`. Shared identity is `0BE9475570B1F0B9CC5C9520DA4F2D11308D034033ABD17C4F6E61F1901DADAE`; qualification is `A1A9BF1B92B4CABFD150702EF3F2E218590C290B52B685E598926CF5D158542B`; exactly five producer unit methods passed.
+
+The current half has seven logical profiles, 469 visual cells, and 42 automated accessibility rows across the complete 67-state inventory. Six profiles have whole native receipts. AX Text is one logical assembly from three distinct original native consumers; it does not claim assembly as native execution. This yields nine native sessions in total. Automated accessibility is 32 PASS plus 10 approved exceptions. Three owner receipts bind human approval to all 469 current visual cells.
+
+| Profile | Evidence | Run / job | Primary artifact | SHA-256 | Expires UTC | Human receipt SHA-256 |
+|---|---|---|---|---|---|---|
+| `s10.4.current.default-light` | whole native | 34481147676 / 102884124119 | `10155130147` / `ios-ci-shared-34481147676-1-s10.4.current.default-light-none` | `sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a` | `2026-09-24T13:46:55Z` | `E26B264BAD7A8EA35AC1428F3CA0637839257BD92E0F665BF32F61D4828632AF` |
+| `s10.4.current.default-dark` | whole native | 34480322932 / 102881390100 | `10154890307` / `ios-ci-shared-34480322932-1-s10.4.current.default-dark-none` | `sha256:3ae284afbd1ddf19596b9b1e9d9a94409c1ab0f73bc646ce93c57156f7602c2b` | `2026-09-24T13:41:22Z` | `E26B264BAD7A8EA35AC1428F3CA0637839257BD92E0F665BF32F61D4828632AF` |
+| `s10.4.current.increased-contrast` | whole native | 34503516448 / 102960035557 | `10164149667` / `ios-ci-shared-34503516448-1-s10.4.current.increased-contrast-none` | `sha256:f4cfa847a185c928b93d6a27ea002210992d6fc71ff0cef33699bc230dede14e` | `2026-09-24T17:12:49Z` | `07CFFB8A5FE0442CFB7308D24DD899769344CD243A94ECA23539E924275D5F85` |
+| `s10.4.current.ax-text` | assembled logical (3 native consumers) | assembly 34488367740 / 102908408734; native 34478706976 / 102875913643; 34478931821 / 102876697914; 34483663201 / 102892874459 | `10156757395` / `ios-ci-shared-admission-34488367740-1-s10.4.current.ax-text` | `sha256:f8cf72580b0a3c7be1f7c73a9354ebf2d7a10e6a2c243eff856b86d370351b1a` | `2026-09-24T14:21:48Z` | `0879B2C35AFC4FE548329B9D0D3E2038B37F10D165FA7ACA6D78CA4CFF29BE58` |
+| `s10.4.current.differentiate-without-color` | whole native | 34484444222 / 102895217386 | `10156531879` / `ios-ci-shared-34484444222-1-s10.4.current.differentiate-without-color-none` | `sha256:5c6f4ad1e42dc752a7ef388fb3c25ff76fbda0f9694847ca0490c3af552536c5` | `2026-09-24T14:18:04Z` | `0879B2C35AFC4FE548329B9D0D3E2038B37F10D165FA7ACA6D78CA4CFF29BE58` |
+| `s10.4.current.reduce-motion` | whole native | 34485051922 / 102897317385 | `10156935586` / `ios-ci-shared-34485051922-1-s10.4.current.reduce-motion-none` | `sha256:351456599e50b3023810d719cc3e3f2f0856af430cc6cf31e1501b27da4e45db` | `2026-09-24T14:26:50Z` | `0879B2C35AFC4FE548329B9D0D3E2038B37F10D165FA7ACA6D78CA4CFF29BE58` |
+| `s10.4.current.reduce-transparency` | whole native | 34498424607 / 102942920648 | `10162770104` / `ios-ci-shared-34498424607-1-s10.4.current.reduce-transparency-none` | `sha256:72da521021719790e18d19aee361139e5da3b6b2b236ccf5dba8e4fc833c52b1` | `2026-09-24T16:38:31Z` | `07CFFB8A5FE0442CFB7308D24DD899769344CD243A94ECA23539E924275D5F85` |
+
+Each logical profile binds 67 candidate cells, 67 state/AX rows, 67 contrast rows, and six automated accessibility rows. The per-profile original audit SHA, logical receipt SHA, request ID, and source evidence paths are recorded in `HANDOFF_FACTS.json`.
+
+The owner directly deferred the separate minimum core smoke after the completed first additional attempt: request `2c2d366f683f42a6b4df8ee6da2e5c1e`, run `34511363515`, conclusion `failure`. Its complete audit SHA-256 is `4FA329BE22967385333079100A99246905444FCEA9DC9EA3EBB08A0EE833525D`; report SHA-256 is `BA1CD487E49E1CE4785D734A1FA82CFA820622ED936BB56861AC88CACF82FE37`. The selected test body did not start, the smoke did not pass, and the evidence did not prove a deterministic repository cause. The direct receipt SHA-256 is `2ECB823298BEA8716A7A358F9C69D37FDA36BB824077D6DC8F688A06BB03FA43`; it supersedes the earlier two-additional-attempt condition. No second attempt was dispatched and its provider POST count is zero. The completed capacity precheck is bound by SHA-256 `3FFCB9011B4BE4D642A722B83E25FF2853D296FDEA5F9F918A48E5A70D127CD6`.
+
+The retained full catalog remains 14 profiles / 938 visual cells / 84 accessibility rows. The current half contributes seven / 469 / 42. The deferred minimum half contributes zero acceptance credit, and the separate minimum core smoke is `DEFERRED` with no functional pass claim. Physical evidence is not waived.
+
+Original-history closure is preserved by H419 V2 (nine dynamically selected records, SHA-256 `ECEDC0386723C111B2570778F279FBC1AC65C95B030593328108653157B535C8`) and H420 V2 (seven dynamically selected records, SHA-256 `014FD88BFB7E5BB689A3F42F3AD71B9735678B3E1050FDBD5AB9DD02F538E3BC`), with report SHA-256 `241741136362D6E195A896AD564209E2E90997184D39A102B6251858AD0313B0` and seal SHA-256 `90924B8DBB9DBD3C95371EC047CAC7A4A087B7FE2C82D71886D26F5DF4D236E5`. Reserved request `3df9f1f463b549499a2a503886fa9517` remains unconfirmed: run ID null, provider noncreation unproved, one reserved GitHub slot, and it is excluded from proved run history.
+
+### Verification and remaining limits
+The initial G0 authority comparison `M..A` contains exactly `docs/execution/CURRENT_TASK.md` and prior-card `docs/execution/HANDOFF.md`, with no implementation change. The immutable main/P remains unchanged. The complete corrected automation overlay was run as `-LifecycleMode EvidenceK -ProductHead 0adebd72ae0226a80e14eaf515ca133072fb1c76 -EvidenceHead e2189af36a89caf815cf078756341c1f1542f7df -RepositoryRoot C:/AssetRounds`; it completed with exit0 and the explicit H420 EvidenceK PASS. Original validation log `Temp/S10_4_CI/minimum-core-smoke/policy/root-final-integration/EVIDENCE_K_e2189af.log` has SHA256 `FCCA328D24263F797EC8DCC02B9F9C34FC9EEC5FCBE53450E0C4F4EB1424230A`. AuthorityH and all populated schemas, original H419/H420 guards, same-E native/producer/payload/source/expiry bindings, strict native state/journey proof, authentic human review and the exact sixteen-path K envelope passed. Fresh19:31UTC original/live metadata comparison proved all11 selected success runs and23 unexpired artifacts unchanged, with zero repository-active runs. The phase was non-force pushed to the accepted K and re-fetched; main/P stayed unchanged. Later ReceiptC validation must bind the actual resulting receipt commit and be recorded in the subsequent transition.
+Windows authoring checks and the policy validator are distinct from hosted native proof. Producer34477382489 compiled unsigned build-for-testing and passed exactly the following five native methods, proved by original unit xcresult/export and immutable payload/seal. Every consumer uses test-without-building with zero local unit tests, no rebuild/fallback and unchanged products.
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth`
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices`
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory`
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree`
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract`
+
+Producer: Bitrise Build Hub, exact task-pinned M4 runner route; actual runner `vm-pool-g2-mac-m4-10c-28g-b143d31-02977f25-69dc`, unit Simulator `21FEBD49-AF24-47B6-BBCF-00C9DA12A887`. Toolchain: Xcode26.6/17F113, iphonesimulator26.5/23F81a, arm64, project/shared scheme FieldEvidenceApp, Debug. Payload `FieldEvidencePayload.tar` is 94371840bytes/SHA256 `D5362C6A31D726DD639F4052DC2834D28CB29DDAB29D125208289A4B244A8358`. Exact native unit argv:
+
+```text
+xcodebuild -xctestrun /Users/vagrant/actions-runner/_work/_temp/FieldEvidenceSharedPrepared/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=21FEBD49-AF24-47B6-BBCF-00C9DA12A887' -resultBundlePath /Users/vagrant/actions-runner/_work/_temp/FieldEvidenceCI/UnitTests.xcresult -only-testing:FieldEvidenceAppTests/S10_4AutomatedBrandLabTests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+All nine current native sessions use a fresh isolated iPhone17/iOS26.2 build23C54 on GitHub macos-26; exact image and UDID follow. AX segment rows name native consumers, not the later assembly as native execution. F25 selector bytes remain SHA256 `692DD6F7DBCF771170191E7839C6B6281FB0A72603475FF2D0D81E35078330E2`, with exact setup/build/unit/UI/total boundaries420/900/1200/2520/4500 seconds, readiness900 seconds and job watchdog90 minutes. Complete source argv/raw accounting/original checksums are retained per run.
+
+| Profile / segment | Native run | Image | Simulator UDID |
+|---|---|---|---|
+| s10.4.current.default-light / none | 34481147676 | macos26-20260831.0337.3 | 1808695D-10F6-4B89-8533-EA377650C150 |
+| s10.4.current.default-dark / none | 34480322932 | macos26-20260831.0337.3 | 9ECC25D6-3935-4D63-A055-2C6B57513F7F |
+| s10.4.current.increased-contrast / none | 34503516448 | macos26-20260831.0337.3 | 26B1CA01-4885-42D3-957B-E0B204BD46F0 |
+| s10.4.current.ax-text / segment-1 | 34478706976 | macos26-20260831.0337.3 | 1C770D8C-E398-4BB6-8491-87430E97EFAD |
+| s10.4.current.ax-text / segment-2 | 34478931821 | macos26-20260831.0337.3 | 068022CC-3C98-4566-8A01-E2F733E3B8D0 |
+| s10.4.current.ax-text / segment-3 | 34483663201 | macos26-20260831.0337.3 | A5F15721-2096-4C93-8358-454D352C04E1 |
+| s10.4.current.differentiate-without-color / none | 34484444222 | macos26-20260831.0337.3 | 1FA21541-6CEB-4CB7-A58E-5EB88CA6BBEC |
+| s10.4.current.reduce-motion / none | 34485051922 | macos26-20260831.0337.3 | B0C637A8-4030-45BA-8563-50560ECB5869 |
+| s10.4.current.reduce-transparency / none | 34498424607 | macos26-20260831.0337.3 | 31771CEB-CD5A-455E-9478-B184C7B0A7E3 |
+
+Exact native UI argv by original run:
+
+Run34481147676 (`Temp/S10_4_CI/registry/requests/252ebeee81bd4f0f96ba416ec8e6d689/originals/10155130147/artifact/shared-consumer/consumer-build-reference.json`, SHA256`7F491CFE2875CEE416097ACB55C80D07451A4031CEB2FF7F15FA9B0724F2F423`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=1808695D-10F6-4B89-8533-EA377650C150' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34480322932 (`Temp/S10_4_CI/registry/requests/9619fccc22b246f49a8f49c2c6ac7d61/originals/10154890307/artifact/shared-consumer/consumer-build-reference.json`, SHA256`511D4565CDA1278416402B6A7C676082BAF6252E7A39306F82BE1C2FB40A9FC0`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=9ECC25D6-3935-4D63-A055-2C6B57513F7F' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34503516448 (`Temp/S10_4_CI/registry/requests/81bcc2a133874daf9af708e4c0339355/originals/10164149667/artifact/shared-consumer/consumer-build-reference.json`, SHA256`CFF9C47843F47DED5FB0C5A7821E7568E739F60384D6221598C471E2E82772EE`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=26B1CA01-4885-42D3-957B-E0B204BD46F0' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34478706976 (`Temp/S10_4_CI/registry/requests/7be401f8196b43a5b7c8d72c2cc96d56/originals/10156757395/artifact/FieldEvidenceSharedAssembly/segment-sources/segment-1/artifact/s10-4/s10.4.current.ax-text/consumer-build-reference.json`, SHA256`C07042E8A96F47B568AC3F354C2EB4CFC3A7A5334A16CC1E07E96ED0D1CA0E8F`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=1C770D8C-E398-4BB6-8491-87430E97EFAD' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34478931821 (`Temp/S10_4_CI/registry/requests/7be401f8196b43a5b7c8d72c2cc96d56/originals/10156757395/artifact/FieldEvidenceSharedAssembly/segment-sources/segment-2/artifact/s10-4/s10.4.current.ax-text/consumer-build-reference.json`, SHA256`3C4C8555ADF63133EA1AF54E87D1021CD10E02F525FA4F22472E76EC4A8A53EF`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=068022CC-3C98-4566-8A01-E2F733E3B8D0' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34483663201 (`Temp/S10_4_CI/registry/requests/7be401f8196b43a5b7c8d72c2cc96d56/originals/10156757395/artifact/FieldEvidenceSharedAssembly/segment-sources/segment-3/artifact/s10-4/s10.4.current.ax-text/consumer-build-reference.json`, SHA256`DD7B4950B61DCB15E5DA4F7B77805E7C993D3B897F3DD3515F931C9B4865510A`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=A5F15721-2096-4C93-8358-454D352C04E1' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34484444222 (`Temp/S10_4_CI/registry/requests/d2b53b97ec8c414fafb92c86e42cac86/originals/10156531879/artifact/shared-consumer/consumer-build-reference.json`, SHA256`DAF365312D5F3C47A65D86E44FA9BE9CF3EE28E8C851FE7418F71077B231E781`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=1FA21541-6CEB-4CB7-A58E-5EB88CA6BBEC' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34485051922 (`Temp/S10_4_CI/registry/requests/27241a1c7223450fbeb6017f282f079c/originals/10156935586/artifact/shared-consumer/consumer-build-reference.json`, SHA256`47426E23431F05B470617E7CF0AC952ED510BAA370F53DED4E6650129B65BCD8`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=B0C637A8-4030-45BA-8563-50560ECB5869' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34498424607 (`Temp/S10_4_CI/registry/requests/35a1d5e5e4464089afd6107d3254c3a7/originals/10162770104/artifact/shared-consumer/consumer-build-reference.json`, SHA256`1C604FD3199F72B986D4544611C175FA2E0C532FF3CAC15DDFECFA93544DAE7D`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=31771CEB-CD5A-455E-9478-B184C7B0A7E3' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+The evidence-only E..K path closure is exactly sixteen:
+
+- `AGENTS.md`
+- `Scripts/s10-4-ci.py`
+- `Scripts/test-s10-4-ci.py`
+- `docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json`
+- `docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json`
+- `docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json`
+- `docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1`
+- `docs/design/s10/s10-accessibility-common-tasks.json`
+- `docs/design/s10/s10-activation.json`
+- `docs/design/s10/s10-token-coverage.json`
+- `docs/design/s10/s10-visual-regression.json`
+- `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md`
+- `docs/execution/CURRENT_TASK.md`
+- `docs/execution/S10_4_CI_OPERATING_BRIEF.md`
+- `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`
+- `docs/product/BUILD_PLAN_V4.md`
+
+The earlier native S10.3E..E history contains exactly the reviewed58 paths recorded in the final manifest; all historical authority/correction/run/artifact records remain in Git and the original registry. The two unaccepted evidence candidates5c5e134 and6ad3a19 and their failing validator logs remain provenance. Final integration corrections address the activation schema projection, already-reviewed historical path declaration, empty equivalence array, and optional candidate-provider read; none changes native product behavior or evidence values.
+
+`KNOWN_BUGS.md` was read and contains no accepted entries. No new bug is added. Minimum-runtime verification remains unverified/DEFERRED after the owner instruction and original bootstrap failures; no deterministic repository cause or smoke pass is claimed. Keep a pending HANDOFF item for future minimum verification only; do not schedule or create another task. Current visual differences retain the owner-approved migration reviews and existing ten narrow automated exceptions with their original owners/expiry/evidence. Physical/manual observations remain NOT_RUN, and S10.5/S10.6, professional clearance, signing, upload and submission remain separate uncompleted gates. The unresolved dispatch reservation stays unconfirmed with null identity and false noncreation proof.
+
+## Owner-directed S10.5 deferral; S10.6 preparation authorized (2026-09-10)
+
+After accepted S10.4 E0adebd72ae0226a80e14eaf515ca133072fb1c76 / Ke2189af36a89caf815cf078756341c1f1542f7df / C0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3, the owner deferred S10.5 physical operation until a finalized installable development build is available. Exact sealed instruction Temp/S10_5_PhysicalEvidence/owner-deferral/OWNER_DIRECT_S10_5_DEFERRAL_20260910.json, SHA256 86C611579B0B024751BB1C786570C74F8B38A7EE42013593ACB57B05F3DA9244. Physical verification remains DEFERRED/NOT_RUN, not PASS; no physical or Release stage receipt is created. The finite authority exception selects S10.6 only for repository preparation and unsigned hosted verification while final physical/legal/release gates remain pending. Main/P is unchanged; final phase close/main integration/signing/upload/submission are not authorized by preparation. Historical S10.4 evidence and its separate minimum deferral remain unchanged. The containing authority SHA is not self-recorded.
+
+The owner also approved only the reviewed ordinary F25 CI tier correction, receipt Temp/S10_6_ReleasePreparation/worker-tier-correction/OWNER_APPROVAL_20260910.json / SHA256 154034FC2F79B55DEEB67CE196DD9DA212F5BCCEA5F2544B9BDD46C41ACAC67C. Exact worker candidate670A05D338CC7AB33ABCDD8789A8050D460A281F206161FA9107F63C02F07EAC preserves S10.4 budgets and restores frozen ordinary S10.6 budgets; independent reviewSHA256 332405DF96CEB733E6AA581E1B3E872911F9798AFDC41735E7330B9D005B92DA. This support correction follows fresh G0 before first dispatch and adds no physical/release acceptance or signing/upload authority.
+
+
+## S10.6 verified repository preparation and nonblocking physical policy — 2026-09-10
+
+S10.6 remains selected, global42/42, phase S10 position6/6, on `phase/s10-brand-refresh`. This is a preparation progress receipt, not accepted S10.6, a Release checkpoint, or a phase-close C. The S10 phase is not integrated into main. `KNOWN_BUGS.md` was read; it contains no accepted defect entries and no new defect is added.
+
+Immutable phase-main base P is `01233f789b1cef5a6f56c7ff4caa9271409cd3bc`. Card/predecessor M is accepted S10.4 receipt C `0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3`, following native source E `0adebd72ae0226a80e14eaf515ca133072fb1c76` and accepted evidence K `e2189af36a89caf815cf078756341c1f1542f7df`. S10.4 ReceiptC validation passed with log SHA256 `D42FFD3E8EB627E5622D445A3B212BDDB02B1B223CFFDCD0F2A38A68F39EE5AB`. Those accepted entries and four real stage receipts remain immutable.
+
+Observed original task authority A was `3d5fad43f9df8fca3bb79e58410d7331ac9aa025`. Fresh G0 verified the exact six authority/bookkeeping paths M..A, pins, P, selector and protected product equality (`Temp/S10_6_ReleasePreparation/authority/G0.json`, SHA256 `5208B3950287883737D09B81AAD6C987FD33D02814A254D799EC0A825397E43B`). Original preparation I `df52d7517806192b8ccff46923d1add1680ec75f` contains seven evidence/metadata documents, two bounded tests, the selector and the exact owner-approved worker comparison repair. The only worker change preserves S10.4 F25 and restores ordinary F25 to300/900/1200/1800/4500; worker SHA256 `670A05D338CC7AB33ABCDD8789A8050D460A281F206161FA9107F63C02F07EAC`. Selector SHA256 `CFEAF7EEAF04766164044EC3E5EF6F153EB955CC3901662463A2D20423F3816E` and workflow SHA256 `64BEB60B465EB71B708FB19FEC2061E6F05FFA74A3D93955A88BB3CADC9D3A85` remain unchanged.
+
+The owner then made S10.5 indefinitely DEFERRED and nonblocking for S10.6, S10 phase/main completion, and otherwise authorized expansion integration. The sealed original request has SHA256 `2C2F440BDB4EB999DF9DF93793F843AABF382681E85690A01761A8254BE7FE7A`; its exact UTF-8 content is retained in the preparation privacy evidence. After I's original CI was terminal and preserved, five-file authority amendment `f8193befda29c591b21f8d561f5925bb9c659042` directly followed I. Fresh authority/ref/pin/path/selector validation passed, then the six-file evidence/unit correction I2 `0a48504502994fdb8a5d73c9e8cc307aba210821` directly followed that authority head. Independent combined review SHA256 `405CE5C37F2B79450224D3BDEFB1565409484547F9987C9DEDBBF1882707AA93` is retained at `Temp/S10_6_ReleasePreparation/post-release-deferral/integration-review/AUTHORITY_COMBINED_REVIEW.json`.
+
+Physical verification is not PASS, complete or accepted. Resume S10.5 only after an actual App Store release and a new explicit owner request. No automatic resumption or scheduled task is authorized. Final phase policy expects five real receipts (Inventory, ComponentSystem, Migration, AutomatedLab, Release) plus the sealed deferral; only the first four currently exist. S10.4 minimum469 visual/42 AX plus minimum smoke remain separately DEFERRED, with no retry or automatic resumption. The prior unresolved hosted request still has null run identity and its one-slot reservation is preserved.
+
+The owner explicitly requested notification to the separate expansion task. The applied policy and exact authority/I2 heads were sent to task `01a03910-b59b-7a21-bda2-a7da4c6aca78`; its isolated review head `327a4e2567c2a7d442e7f134b0c8ed235e8b2167` remains separate, expansion remains PAUSED until new owner instruction, and no current-repository or main integration is implied.
+
+### Exact-head original hosted evidence
+
+Both candidates used `.github/workflows/ios-ci.yml`, branch ref `phase/s10-brand-refresh`, lane `github-xcode-26.6-acceptance`, F25, run_ui_smoke=true, and shard/segment/minimum-smoke `none` with empty payload/map inputs. There were no S10.4 controller/shared/Bitrise routes or duplicate candidates. GitHub job runner is macos-26, Xcode26.6/17F113, SDK iphonesimulator26.5/23F81a, shared FieldEvidenceApp scheme/Debug, Swift5, unsigned build-for-testing and unit/UI test-without-building; readiness900 seconds, job90 minutes, cancel-in-progress=false. Authorship and source checks occurred on Windows; all native compilation/tests below were hosted.
+
+Exact preparation/policy/evidence path union (append-only HANDOFF is separate):
+
+- `.github/workflows/ios-ci-worker.yml`
+- `FieldEvidenceAppTests/S10_6BrandReleaseTests.swift`
+- `FieldEvidenceAppUITests/S10_6BrandReleaseUITests.swift`
+- `Release/LaunchSmokeEvidenceIndexV1.json`
+- `Release/PrivacyReviewV1.md`
+- `Release/UnsignedRCMetadataV1.json`
+- `Scripts/ci-selection.json`
+- `docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json`
+- `docs/design/s10/evidence/s10.6/store-screenshot-manifest.json`
+- `docs/design/s10/s10-activation.json`
+- `docs/design/s10/s10-evidence-lock.json`
+- `docs/design/s10/s10-store-readiness.json`
+- `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md`
+- `docs/execution/CURRENT_TASK.md`
+- `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`
+- `docs/product/BUILD_PLAN_V4.md`
+
+- Run [34525551221](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34525551221) / attempt1 / exact head `df52d7517806192b8ccff46923d1add1680ec75f` / native job `103033519150`: successful unsigned compilation, all 5 selected unit methods PASS, one selected UI method PASS, all evidence/watchdog/checksum/upload steps PASS. Artifact `10171827197` / `ios-ci-34525551221-1` has SHA256 `sha256:72f395a95d8a4ca55b1b365e65c5a6da0becfc32ad45ce93193e17fde0ba3fd7` and expires `2026-09-24T20:29:43Z`; 102 checksummed files, all three xcresult bundles, complete original logs and terminal screenshot were preserved. Native step seconds: `{"Build unsigned simulator app": 313.0, "Run targeted tests": 52.0, "Run task-authorized UI smoke": 208.0}`. Original log ZIP SHA256 `A0AAB914786D7F2EB6402B9136CB3879120F3CE1374370FE613EE86B85DFC226`; full audit SHA256 `D1F978AC4A44AEE4CC64AC8592A7FE7E24D19B720068211FF442AB52724C4737`. Terminal image SHA256 `0E204B040109C8686CE42EB86935FAC000EB827A457F31E1289B3541F8C73B55`. Original source/native warnings remain recorded in the audit; no S10.6 warning or failed test was suppressed. AI inspection of the terminal screenshot does not supply required human store approval.
+
+Actual environment and Simulator selection for run34525551221:
+
+```text
+ImageOS=macos26
+ImageVersion=20260907.0351.1
+ImageArch=unknown
+runtime=iOS 26.2
+runtime_build=23C54
+name=iPhone 17
+udid=25B395EC-01B8-4FB6-8D2A-1C484C360481
+initial_state=Shutdown
+setup_elapsed_seconds=22
+artifact_elapsed_seconds=0
+setup_artifact_elapsed_seconds=22
+setup_artifact_budget_seconds=300
+```
+
+Actual hosted native commands for run34525551221:
+
+```text
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=25B395EC-01B8-4FB6-8D2A-1C484C360481" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=25B395EC-01B8-4FB6-8D2A-1C484C360481" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult "-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests" CODE_SIGNING_ALLOWED=NO test-without-building
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=25B395EC-01B8-4FB6-8D2A-1C484C360481" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult "-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests" CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+- Run [34527590250](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34527590250) / attempt1 / exact head `0a48504502994fdb8a5d73c9e8cc307aba210821` / native job `103040237596`: successful unsigned compilation, all 5 selected unit methods PASS, one selected UI method PASS, all evidence/watchdog/checksum/upload steps PASS. Artifact `10172675373` / `ios-ci-34527590250-1` has SHA256 `sha256:49ef4f73eb8e5f7cb827ef77a0b2ccc08499425cdce9469119d2474e4952e09d` and expires `2026-09-24T20:52:20Z`; 102 checksummed files, all three xcresult bundles, complete original logs and terminal screenshot were preserved. Native step seconds: `{"Build unsigned simulator app": 307.0, "Run targeted tests": 72.0, "Run task-authorized UI smoke": 250.0}`. Original log ZIP SHA256 `4B9EAEFB3DD6F102D90881A2C89F9E77611671B977DAB695F08D3DBA74ED2592`; full audit SHA256 `83C6C8525365E7D6EB947255C017782BD88E0DEFD8EA7AA16CBA38482D70CE2A`. Terminal image SHA256 `2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C`. Original source/native warnings remain recorded in the audit; no S10.6 warning or failed test was suppressed. AI inspection of the terminal screenshot does not supply required human store approval.
+
+Actual environment and Simulator selection for run34527590250:
+
+```text
+ImageOS=macos26
+ImageVersion=20260831.0337.3
+ImageArch=unknown
+runtime=iOS 26.2
+runtime_build=23C54
+name=iPhone 17
+udid=F007E22E-9AEC-4FE9-8477-78ED0F8133C7
+initial_state=Shutdown
+setup_elapsed_seconds=67
+artifact_elapsed_seconds=1
+setup_artifact_elapsed_seconds=68
+setup_artifact_budget_seconds=300
+```
+
+Actual hosted native commands for run34527590250:
+
+```text
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult "-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests" CODE_SIGNING_ALLOWED=NO test-without-building
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult "-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests" CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Post-CI preparation evidence commit `028bf3ec9124e5cbff1288b510263f9c5cce448f` directly follows I2 and changes only the seven reviewed evidence/metadata files recorded in `Temp/S10_6_ReleasePreparation/post-release-deferral/COMMITTED_PREPARATION_EVIDENCE.json`. It binds original I/I2 results, the current observed toolchain, actual activation blob and sealed physical deferral. It is not a formal accepted S10.6 K and is not a native CI head. All app/project/native source bytes still equal S10.4 E; I2 unit/UI tests, selector and worker remain unchanged. Store state remains planned, evidence lock template, final release-ready false, and formal final F25/evidence-lock acceptance pending.
+
+The owner responded, “No urls yet. I own the name. Lets mark it as today. I will make website once this is done and update accordignly”. The statement is recorded as an owner name-ownership attestation dated 2026-09-10, with its exact sealed UTF-8 text in the two S10.6 evidence manifests. No live website, separate trademark-clearance evidence, or five-claim review was supplied or inferred. The existing asset-use grant remains accepted. The frozen package LICENSE_AND_PROVENANCE.md distinguishes use attestation from separate dated trademark/name-clearance evidence and owner/legal approval, so the separate status remains pending rather than being fabricated from the ownership statement.
+
+### Remaining gate distinctions
+
+S10.6 preparation is verified; formal phase acceptance still needs retained dated trademark/name/claim/URL clearance, genuine required store/terminal human review, reconciliation of the frozen five6.3-inch store slots with later upload-size obligations, and the reviewed exception-aware final evidence/receipt validation. The actual archive, final version/build, live production values, App Privacy and submission facts belong to the later owner S9.2/S9.3 sequence. They remain truthfully pending and prevent actual product release; no unauthorized early archive, physical/network observation, upload or invented external value is supplied here. The unchanged legacy six-stage release-lock validator is not claimed to implement the amended five-receipt phase contract.
+
+The ordinary F25 preparation proof above is distinct from full final-card acceptance and exact-main integration. Neither phase-close C nor main verification was attempted. P/main remains `01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; the next work is still the selected S10.6 acceptance contract and missing evidence. S9.2/S9.3 remain owner-only and unstarted. No force push, merge/PR, signing, archive/export, TestFlight/App Store operation, deployment, submission, new feature, dependency, or unrelated path mutation occurred.
+
+Original raw budget evidence is also preserved: run34525551221 records Simulator readiness68/900 seconds and total669/4500; run34527590250 records readiness95/900 and total802/4500. The second run's setup/artifact aggregate is67+1=68/300 seconds. These are original watchdog-accounting observations, separate from the native job step durations above. No simulator timing was subtracted from or substituted into the original total.
+
+## S10.6 — verified phase-contract implementation and retained external gates — 2026-09-10
+
+S10.6 remains selected, global42/42 and phase6/6, on `phase/s10-brand-refresh`. This entry records verified implementation/evidence preparation; it is not accepted Release receipt C or completed phase/main integration. Immutable main/P remains `01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; card base M remains accepted S10.4 C `0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3`, with native source E `0adebd72ae0226a80e14eaf515ca133072fb1c76` and accepted S10.4 evidence K `e2189af36a89caf815cf078756341c1f1542f7df`. The accepted S10.4 exact Receipt-C verification and original A/I/A2/I2 chronology remain in the preceding immutable entries.
+
+### Authority, implementation and diagnosed corrections
+
+The consumed starting head was `573734c4a25510be281c13a4ba8eb9a0135915f0`. Reviewed mechanical authority A3 `85d95996177ade04bffd6048ebc040a7976d28bb` directly followed it and changed only CURRENT_TASK. Its exact SHA256 was `98AB3874972D05CAF63F96B6E50EC22A70B87F86717AD203B40AF1E2DF0DCBCB`. All four plan/runbook/contract/activation pins remained unchanged. CURRENT_TASK clarified the unsigned phase/later owner-release sequence, E6-to-K-to-C ordering, exactly five genuine accepted receipts plus the sealed PhysicalExperience deferral, and unchanged larger-display/archive/live release obligations. The final unit contract supports truthful pending evidence, fully authenticated evidence readiness and later receipt closure. Synthetic ready/closed fixture inputs are bounded test data, not real Git/API or owner acceptance.
+
+I3 `a160f618bfb4651dcfcb8015f43dd7d51072df11` directly followed A3, changing the authorized S10.6 unit test and six evidence/metadata files to record the contract, five-store-slot review, old I2 terminal approval and dated website/LLC attestation. Exact run `34534175543` failed build with 22 parser diagnostics from three split optional dictionary lookups. Original artifact `10174923128` ZIP SHA256 `5038B589DE171FDC0E78D1E3D1B3CBCFAF5C5536BB44A111695280954A0EAD82` and logs ZIP `D7B5068000CADBE883A86B6B75F5716D52344C407E8854B750132B271EB3DF39` remain preserved. All 23 artifact checksums passed, but unit/UI execution and required result/screenshot evidence were absent. Independent failure/correction reports are `I3_COMPILER_FAILURE_REVIEW.json` and `I4_PARSER_CORRECTION_REVIEW.json` under `Temp/S10_6_ReleasePreparation/integration-review/`.
+
+I4 `7b1b2e310b8555c0822ccac98575a4a15d04da71` directly followed I3 and replaced only those lookups with equivalent typed guard bindings plus the CURRENT_TASK recovery record. Exact run `34535258692` passed parsing but failed compilation on one stale helper name at unit line714. Original artifact `10175382288` ZIP SHA256 `59027C9A723A9BA6FF1B6F5B6C0F7696EE3103BBC85E7E7F0D4A17702C4B88CE` and logs ZIP `6F78CFC53D866EA7E0D27D7FC471C83FE7839F10A5845FD99EEF3DEFE0D050CF` remain preserved. All23 artifact checksums passed; unit/UI again did not run. No failed run was rerun by run ID or promoted.
+
+I5 `75a8856c21e7a4aae5a8e48b40a68bdef6874d94` directly followed I4 and changed only the one call from the stale name to the existing `fixtureChecks` helper, plus the factual CURRENT_TASK recovery record. The extra-runtime-asset negative case and every assertion remained intact. Independent `I5_HELPER_CORRECTION_REVIEW.json` SHA256 `EB308ED6A356131C33FA8C689BAC233747DC65C49D270A832C93AD3DCF7BC860` approved the exact two-file delta. Source review was followed by the real hosted run below. App/project/native product bytes, UI test, selector and approved worker remain unchanged. No iOS compilation or Simulator execution occurred on Windows.
+
+### Exact hosted result and original evidence
+
+Verified S10.6 candidate E6/I5 is `75a8856c21e7a4aae5a8e48b40a68bdef6874d94`. Ordinary F25 workflow `.github/workflows/ios-ci.yml`, branch ref `phase/s10-brand-refresh`, execution lane `github-xcode-26.6-acceptance`, `run_ui_smoke=true`, shard/segment/smoke `none` and empty payload/map inputs passed as [34536261005](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34536261005), attempt1, native job `103068528764`. The matching run head, original successful build, exactly five selected unit methods and one selected branded UI method, Build/Unit/UI xcresults, screenshot, complete checksums and final budget/evidence steps were inspected. No duplicate exact-head run was dispatched.
+
+Original artifact `10175949736` (`ios-ci-34536261005-1`) ZIP SHA256 `F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467`, expiry `2026-09-24T22:26:38Z`. Every one of its 102 listed files matched, with complete extracted-file closure; the original logs ZIP SHA256 is `5BF1A00F3AF12C5AC9FD50A976D3543626C3DBFF5E07FB07C500ECBF88F35DE4`. Audit `Temp/S10_6_ReleasePreparation/ci/75a8856c21e7a4aae5a8e48b40a68bdef6874d94/originals/34536261005/AUDIT.json` has SHA256 `1EB98088D09B7C90007DA986DB8B6033C5AA7215E3DEE4C59A7725DBC69BCFAC`. Unit result JSON SHA256 `0A0212D2DAB014445C5E7731DF0C20B2DEB919DF15489B8705C7F3D8ACA9F03F`; UI result JSON SHA256 `A5FF6EA836F74F1A01172BADF2416030252CBDF2E4991BA5898885934CD8CCFC`; terminal screenshot SHA256 `C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888`. Original warnings remain retained, including S10.6 unit line492 unmutated-variable and line967 trailing-closure warnings; neither is a fatal diagnostic or hidden by the report.
+
+Observed macos-26 image `macos26/20260831.0337.3`, Xcode26.6/17F113, iphonesimulator26.5/23F81a, shared FieldEvidenceApp/Debug/Swift5, unsigned, iPhone17/iOS26.2/23C54, fresh UDID `F007E22E-9AEC-4FE9-8477-78ED0F8133C7`. Build/unit/UI job steps took325/84/233 seconds against900/1200/1800. Original readiness was101/900 seconds; setup/artifact72/300; total822/4500. These are distinct original accounting observations, not substituted totals. The90-minute job watchdog and cancel-in-progress=false were preserved.
+
+```text
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult "-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests" CODE_SIGNING_ALLOWED=NO test-without-building
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult "-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests" CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+### Bound evidence and current human/external status
+
+Post-CI evidence commit `1b0c4cba31d76f1aa70111b9721a1e1853d01af0` directly follows E6/I5 and changes exactly these seven allowed documents:
+
+- `Release/LaunchSmokeEvidenceIndexV1.json`
+- `Release/PrivacyReviewV1.md`
+- `Release/UnsignedRCMetadataV1.json`
+- `docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json`
+- `docs/design/s10/evidence/s10.6/store-screenshot-manifest.json`
+- `docs/design/s10/s10-evidence-lock.json`
+- `docs/design/s10/s10-store-readiness.json`
+
+It records actual F25 evidence and externally sourced run/artifact identities, preserves all prior originals, refreshes the six non-self raw document bindings, and keeps four predecessor receipts, pending content, planned store state, template lock state and actual releaseReady=false. It is not formal accepted S10.6 K and is not a native CI head. Store/lock JSON passed the unchanged frozen schemas, and independent review `Temp\S10_6_ReleasePreparation\integration-review\I5_SUCCESS_AND_EVIDENCE_DRAFT_REVIEW.json` SHA256 `7929AC2537FE7FDCE7AB36696211018C9525021704F5A1ACB0614E532600D95F` binds its exact files. No future K or C is self-recorded.
+
+The five frozen6.3-inch store screenshots and the original I2 terminal image remain approved under the owner's exact six-image receipt `owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910`, SHA256 `8247DC6DBB69DF93F31AE2D785C778BC9A4A36487177EF83DE968A26945EC645`. Store PNG provenance remains original native E/S10.4 run34481147676 and artifact10155130147, never reattributed to E6. Human review of the new E6 terminal is `PENDING` under its actual current CI record; the previous I2 approval is not silently carried forward.
+
+The owner's 2026-09-10 website-ownership and in-progress LLC statement remains sealed by `owner-website-llc-attestation-20260910`, SHA256 `837164D7E626B3A743A44E5C3BFB553444DB05A42444DE8EAC8A1180685A1AA5`. No actual domain, completed LLC registration or separate clearance result was supplied. The use grant and owner ownership statements do not replace the required professional dated name clearance and separate trademark, exact-five-claim and URL/domain review. Those retained current-phase gates remain pending.
+
+The S10.5 PhysicalExperience follow-up remains indefinitely nonblocking DEFERRED, bound to owner request SHA256 `2C2F440BDB4EB999DF9DF93793F843AABF382681E85690A01761A8254BE7FE7A`; resumption requires actual App Store release plus a new explicit owner request. No physical PASS/receipt or minimum-runtime retry is invented. The later owner-only larger-display store set, version/build/live configuration, archive/privacy/SDK/signature proof, App Privacy and submission facts remain pending/MISSING/NOT_RUN under S9.2/S9.3. Their truthful pending state prevents actual product-release readiness.
+
+The remaining coding-phase closure requires genuine current terminal review and the separate dated clearance, then authenticated evidenceReady qualification, descendant evidence K, exactly one real stage-only Release/HANDOFF receipt C with frozen K blobs, verified phase F25, non-force main fast-forward and exact-main F25. The four existing receipts remain unchanged; neither Release receipt nor phase/main acceptance was claimed. Known Bugs was read and contains no accepted defect entries; no edit was made there. Only the selected S10.6 remains unfinished. S9.2/S9.3 remain unstarted and owner-only.
+
+
+## S10.6 qualified release evidence and five-receipt phase-close candidate — 2026-09-10T23:24:50.910898+00:00
+
+The owner approved the displayed current terminal screenshot and directed main integration with name, trademark and URL clearance prerequisites waived. Exact waiver receipt SHA256 `BD23286FA03EC456B50D637E4DE11FCDAB34383A466FDFAD40F75CBAF8F365E7`; the obligations are OWNER_WAIVED while underlying legal facts remain unprovided/NOT_CLEARED. Five unchanged store claims retain dated source/evidence substantiation SHA256 `F22626D85C6A661758F0DE512C63B5B7873B7ABA9AD9040E0FC53FB1D4033C41`. No positive legal clearance is claimed.
+
+Immutable main/phase base P `01233f789b1cef5a6f56c7ff4caa9271409cd3bc` and S10.6 card base M `0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3` remain unchanged. Original S10.6 A and consumed I–I5 chronology remain in earlier entries. Observed owner-waiver authority A4 `2e5cb1dab55d66c01827884f709b05113aa380ce` directly follows `99fa4f56486c31c0e7c86fddef4718e8ff734cfc` and changes exactly the five reviewed authority paths. Authority review SHA256 `68D0D899FA160C7F1B12241EC3D7B28D1ABF5B648AB0CF440338191A3DFE3E10`. Candidate E6 `e28d6827bcf78c26dd6381926aa6aec73d7e9999` directly follows A4; independent seven-file review SHA256 `8269ED34B680B3A93F7B91792CF5F111DF1A372C867E1107C444CDE23B38EB00`. Native source product E remains `0adebd72ae0226a80e14eaf515ca133072fb1c76`; all app/project bytes are unchanged. Historical S10.4 K `e2189af36a89caf815cf078756341c1f1542f7df` and C/M remain immutable.
+
+Exact E6 F25 run [34540218053](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34540218053), branch `phase/s10-brand-refresh`, attempt 1, native job `103081012380`, passed unsigned build-for-testing, all five selected `S10_6BrandReleaseTests` methods and the one `S10_6BrandReleaseUITests` branded flow. Inputs remain `github-xcode-26.6-acceptance`, UI=true, all shard/segment/smoke selectors none, payload/map empty. Artifact `10177393405` (`ios-ci-34540218053-1`) SHA256 `A3E05448E9B2DAE4D6BEED948DB83F36942AE37F4442466C38D7EF64D4A03CDC` expires `2026-09-24T23:16:54Z`. All 102 original artifact files match the SHA256 manifest `5F38798BA67A75D45C7BA063F26A18B3339162D80A17878C0A3B028CE2E6B81F`; logs ZIP `F18BCD2E31A7DB33200D0B1F7F1137AB603F46D24F0CF4B61FA3FFEB6B9CB14D`; original audit `2470B764823D3E588525337D238AA3BF3E69176DFC0E772895692E72CB3C5F6C`. Complete original build/unit/UI xcresults, commands, selectors, warning logs and terminal image are preserved.
+
+Observed runner image `{'ImageOS': 'macos26', 'ImageVersion': '20260831.0337.3', 'ImageArch': 'unknown'}`; pinned Xcode 26.6/17F113 and SDK iphonesimulator26.5/23F81a. Actual Simulator `{'runtime': 'iOS 26.2', 'runtime_build': '23C54', 'name': 'iPhone 17', 'udid': 'F007E22E-9AEC-4FE9-8477-78ED0F8133C7', 'initial_state': 'Shutdown'}`. Native step seconds `{'Build unsigned simulator app': 379.0, 'Run targeted tests': 67.0, 'Run task-authorized UI smoke': 342.0}`; setup/artifact accounting `{'setup_elapsed_seconds': '27', 'artifact_elapsed_seconds': '1', 'setup_artifact_elapsed_seconds': '28', 'setup_artifact_budget_seconds': '300'}`. Hosted success is distinct from Windows static/source review and from physical testing.
+
+Actual native commands:
+
+- `/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing`
+- `/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult "-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests" CODE_SIGNING_ALLOWED=NO test-without-building`
+- `/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult "-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests" CODE_SIGNING_ALLOWED=NO test-without-building`
+
+Retained S10.6 source warnings:
+
+- /Users/runner/work/AssetRounds/AssetRounds/FieldEvidenceAppTests/S10_6BrandReleaseTests.swift:524:13: warning: variable 'ready' was never mutated; consider changing to 'let' constant
+- /Users/runner/work/AssetRounds/AssetRounds/FieldEvidenceAppTests/S10_6BrandReleaseTests.swift:1103:41: warning: trailing closure in this context is confusable with the body of the statement; pass as a parenthesized argument to silence this warning
+
+The owner reviewed the exact E6 terminal PNG `D56C831A3F95CC7AC2336A0B5511E1A92C9C87762AFCD9529CC5768FD9CCFCA7` under receipt `s10.6-terminal-owner-review-34540218053`, date `2026-09-10`, reviewer `palatis3`, sealed SHA256 `0306CD7775E0EFA13C8BF7468391BB2543970749CE6E89C546F350BD67B22F9F`. Prior five frozen 6.3-inch store approvals keep their original native E/S10.4 run/artifact/image bindings; historical I5 approval is never relabeled as this image. Source/built privacy consistency and the exact twelve runtime assets passed their selected native tests; archive-derived privacy/SDK/signature facts remain later owner S9.2 evidence.
+
+Qualified evidence K `bcad8a2f630d590b697f6bae167438edb09d57b8` directly follows E6 and freezes exactly these seven non-stage document raw blobs, independently reviewed with SHA256 `A4B2304C2B848D0C2A3FAC19388A75A25D5523955422FB41C00D75FADBF761E6`:
+
+- `Release/UnsignedRCMetadataV1.json` — `740A4C54EACB6C230789834F4E7B6284761587E18C617792261246F0460002D0`.
+- `Release/LaunchSmokeEvidenceIndexV1.json` — `6D0501FE1980E256C0D09FE4F19A40DC82D483BE2F5FD66D166F0F86C8D7D69B`.
+- `Release/PrivacyReviewV1.md` — `F3D6D978570576A417940085C85852E4BB2DFF61CC3B3FD05FFF6F989D1844E4`.
+- `docs/design/s10/s10-store-readiness.json` — `454E711841E916075035EE83935AF486ACB5EC820CC758C125DE8D8E32F6B60A`.
+- `docs/design/s10/s10-evidence-lock.json` — `C47BB62BDAF1C08C5F5A573A72B82027ADE807C5E1FEAC38A42A6C521FF83722`.
+- `docs/design/s10/evidence/s10.6/store-screenshot-manifest.json` — `893000ADF7456B27EE71499629D271BCBC5C698C89201F97F8ACE786B429C183`.
+- `docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json` — `44E22469FD257BE401546E583BE70C9F47ECE38EB948E0C7C8C5A6D6E2914260`.
+
+This receipt/bookkeeping candidate changes only `docs/design/s10/s10-stage-checkpoints.json` and this append-only HANDOFF. It adds one actual Release row after the four unchanged predecessors, binds product E6, historical evidence K and all seven K blob hashes, and does not self-record its future C SHA. Its actual C identity is observed externally after commit. The resulting stages are Inventory, ComponentSystem, Migration, AutomatedLab and Release. PhysicalExperience remains absent and indefinitely DEFERRED/nonblocking under sealed request `2C2F440BDB4EB999DF9DF93793F843AABF382681E85690A01761A8254BE7FE7A`; S10.4 minimum coverage remains separately DEFERRED. No physical PASS or sixth receipt is invented.
+
+Boundary state at this commit: Release evidence is qualified; phase-close C ordinary F25 and exact-main F25 are still pending. Re-fetch refs before mutation, qualify the exact phase C, then non-force fast-forward main from P to that exact green head and verify main with ordinary F25. Preserve every terminal failure and original artifact; no merge commit, force push, duplicate active candidate or run-ID rerun. Only successful original exact-head evidence closes each boundary.
+
+KNOWN_BUGS was read; no new product defect is accepted or added. Legacy store planned/evidence template states and every releaseReady=false remain truthful. Larger-display upload screenshots, actual version/build/live URLs, archive-derived review, App Privacy and submission evidence remain owner S9.2/S9.3 gates. This S10.6 card is the final coding card; after green exact-main verification, stop coding for those owner-only operations. No signing, export, upload, deployment or submission is authorized here.

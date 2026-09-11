@@ -1,0 +1,115 @@
+{
+  "schema_version": "4.1.0",
+  "document_status": "template",
+  "activation_id": "assetrounds-s10-brand-handoff-v4.1-2026-08-15",
+  "receipt_model": "E_product_K_evidence_C_receipt",
+  "package_zip_sha256": "D05ACDC8195B1C7C05230BCBD0AC59E436681D93FCA9AC12108B2BE98A408400",
+  "asset_manifest_sha256": "F771EB8FBD3D42960FC4B8C0A516A05E8B0FD16EBA2C88107ADD6A4E0D74F551",
+  "base_product_head": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+  "final_product_head": "REQUIRED_AFTER_S10_RELEASE_CANDIDATE",
+  "release_evidence_head": "REQUIRED_AFTER_S10_RELEASE_EVIDENCE",
+  "activation_document_id": "s10.6-preparation-authority-activation",
+  "stage_checkpoints_document_id": "REQUIRED_AFTER_S10_RELEASE_CHECKPOINT",
+  "experience_validation_document_id": "REQUIRED_AFTER_S10_PHYSICAL_EXPERIENCE",
+  "store_readiness_document_id": "REQUIRED_AFTER_S10_RELEASE_READINESS",
+  "machine_gate_ids": [],
+  "documents": [
+    {
+      "document_id": "s10.6-preparation-authority-activation",
+      "document_type": "activation",
+      "path": "docs/design/s10/s10-activation.json",
+      "blob_commit": "f8193befda29c591b21f8d561f5925bb9c659042",
+      "sha256": "35F144688619AFBEE0D7E4040F7CDA4DBA3FB6E9246CC5720135A3E925AFE836",
+      "gate_ids": []
+    },
+    {
+      "document_id": "s10.4-accepted-checkpoints-history",
+      "document_type": "stage_checkpoints",
+      "path": "docs/design/s10/s10-stage-checkpoints.json",
+      "blob_commit": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
+      "sha256": "10B070449DCA8D6AB910425DC095848E84FC4C94A28C835AE75C1DF37E567B76",
+      "gate_ids": []
+    },
+    {
+      "document_id": "s10.4-accepted-visual-history",
+      "document_type": "visual_regression",
+      "path": "docs/design/s10/s10-visual-regression.json",
+      "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+      "sha256": "D9086AE7D1DB74BEF22D85088BA5356EA55960868B4A36C0A1683215C9A71E64",
+      "gate_ids": []
+    },
+    {
+      "document_id": "s10.4-accepted-accessibility-history",
+      "document_type": "accessibility_common_tasks",
+      "path": "docs/design/s10/s10-accessibility-common-tasks.json",
+      "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+      "sha256": "CE2BB6143140825749783D00F25D8AF5A8F1290274E39AE59D1421F8AC4E0F49",
+      "gate_ids": []
+    },
+    {
+      "document_id": "s10.4-accepted-token-history",
+      "document_type": "token_coverage",
+      "path": "docs/design/s10/s10-token-coverage.json",
+      "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+      "sha256": "42476BEFB8283F35D5A61BA3D3693D5B0181024493DE33304738FBAF71AA5AD6",
+      "gate_ids": []
+    },
+    {
+      "document_id": "s10-frozen-asset-manifest",
+      "document_type": "asset_manifest",
+      "path": "docs/design/s10/authority/asset-manifest.json",
+      "blob_commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "sha256": "F771EB8FBD3D42960FC4B8C0A516A05E8B0FD16EBA2C88107ADD6A4E0D74F551",
+      "gate_ids": []
+    }
+  ],
+  "ci_runs": [
+    {
+      "run_id": "34525551221",
+      "workflow": ".github/workflows/ios-ci.yml",
+      "workflow_ref": "refs/heads/phase/s10-brand-refresh",
+      "head_sha": "df52d7517806192b8ccff46923d1add1680ec75f",
+      "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+      "conclusion": "success",
+      "artifact_ids": [
+        "10171827197"
+      ]
+    },
+    {
+      "run_id": "34527590250",
+      "workflow": ".github/workflows/ios-ci.yml",
+      "workflow_ref": "refs/heads/phase/s10-brand-refresh",
+      "head_sha": "0a48504502994fdb8a5d73c9e8cc307aba210821",
+      "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+      "conclusion": "success",
+      "artifact_ids": [
+        "10172675373"
+      ]
+    },
+    {
+      "run_id": "34536261005",
+      "workflow": ".github/workflows/ios-ci.yml",
+      "workflow_ref": "refs/heads/phase/s10-brand-refresh",
+      "head_sha": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
+      "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+      "conclusion": "success",
+      "artifact_ids": [
+        "10175949736"
+      ]
+    },
+    {
+      "run_id": "34540218053",
+      "workflow": ".github/workflows/ios-ci.yml",
+      "workflow_ref": "refs/heads/phase/s10-brand-refresh",
+      "head_sha": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
+      "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+      "conclusion": "success",
+      "artifact_ids": [
+        "10177393405"
+      ]
+    }
+  ],
+  "field_evidence_ids": [],
+  "app_store_evidence_ids": [],
+  "app_store_claims": []
+}

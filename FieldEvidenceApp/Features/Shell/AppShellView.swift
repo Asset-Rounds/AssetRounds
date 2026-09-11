@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
 
 private struct EraseAllAction {
     let call: @MainActor () -> Void
@@ -124,54 +125,67 @@ struct AppShellView: View {
 
     private func availableShell(pack: SignPack) -> some View {
         TabView(selection: $selectedTab) {
-            SignsRootView(
-                modelContext: modelContext,
-                diagnosticsStore: diagnosticsStore,
-                metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
-                feedbackConfiguration: feedbackConfiguration,
-                mailComposerAdapter: mailComposerAdapter,
-                pack: pack,
-                generationRootURL: generationRootURL,
-                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
-                injectsLowStorageFailureOnceForUITest:
-                    injectsLowStorageFailureOnceForUITest,
-                cameraAdapter: cameraAdapter,
-                purchaseCoordinator: purchaseCoordinator,
-                lifecycleCoordinator: lifecycleCoordinator,
-                restoreDataBackup: restoreDataBackup,
-                replaceDataBackup: replaceDataBackup
-            )
-            .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
-            .accessibilityValue(
-                exposesColorSchemeForUITest
-                    ? (colorScheme == .dark ? "Dark" : "Light")
-                    : ""
-            )
-            .tag(Tab.signs)
-            .tabItem {
+            SwiftUI.Tab(value: Tab.signs) {
+                SignsRootView(
+                    modelContext: modelContext,
+                    diagnosticsStore: diagnosticsStore,
+                    metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                    feedbackConfiguration: feedbackConfiguration,
+                    mailComposerAdapter: mailComposerAdapter,
+                    pack: pack,
+                    generationRootURL: generationRootURL,
+                    usesImportedCaptureFixturesForUITest:
+                        usesImportedCaptureFixturesForUITest,
+                    injectsLowStorageFailureOnceForUITest:
+                        injectsLowStorageFailureOnceForUITest,
+                    cameraAdapter: cameraAdapter,
+                    purchaseCoordinator: purchaseCoordinator,
+                    lifecycleCoordinator: lifecycleCoordinator,
+                    restoreDataBackup: restoreDataBackup,
+                    replaceDataBackup: replaceDataBackup
+                )
+                .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+                .accessibilityValue(
+                    Text(
+                        verbatim: exposesColorSchemeForUITest
+                            ? (colorScheme == .dark ? "Dark" : "Light")
+                            : ""
+                    )
+                )
+            } label: {
                 Label("Signs", systemImage: "signpost.right.fill")
                     .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
             }
 
-            NavigationStack {
-                ReportsRootView(
-                    modelContext: modelContext,
-                    generationRootURL: generationRootURL,
-                    diagnosticsStore: diagnosticsStore,
-                    signPack: pack
-                )
+            SwiftUI.Tab(value: Tab.reports) {
+                NavigationStack {
+                    ReportsRootView(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        diagnosticsStore: diagnosticsStore,
+                        signPack: pack
+                    )
                     .toolbar {
                         settingsToolbar
                     }
-            }
-            .tag(Tab.reports)
-            .tabItem {
+                }
+            } label: {
                 Label("Reports", systemImage: "doc.text.fill")
                     .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
             }
         }
-        .tint(DesignTokens.Colors.interactionAccent)
-        .background(DesignTokens.Colors.canvas)
+        .background {
+            NativeTabAccessibilityIdentifierBinder(
+                identifiers: [
+                    Self.signsTabAccessibilityIdentifier,
+                    Self.reportsTabAccessibilityIdentifier,
+                ]
+            )
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        }
+        .tint(DesignTokens.SemanticColors.primaryAction)
+        .background(DesignTokens.SemanticColors.workBackground)
         .environment(\.eraseAllAction, EraseAllAction(call: eraseAll))
     }
 
@@ -194,8 +208,8 @@ struct AppShellView: View {
                 Image(systemName: "gearshape")
             }
             .frame(
-                minWidth: DesignTokens.Control.minimumHitSize,
-                minHeight: DesignTokens.Control.minimumHitSize
+                minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                minHeight: DesignTokens.Target.minimumInteractiveHeight
             )
             .contentShape(Rectangle())
             .accessibilityLabel("Settings")
@@ -221,7 +235,7 @@ private struct S6_3BackupValidationUITestHost: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .task {
             guard !didStart else { return }
             didStart = true
@@ -404,34 +418,34 @@ struct SettingsPlaceholderView: View {
     }
 
     var body: some View {
-        ScrollView {
-            WorklightCard {
-                Text("Settings")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .accessibilityAddTraits(.isHeader)
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    Text("Settings")
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                        .accessibilityAddTraits(.isHeader)
 
-                NavigationLink("Back up current data") {
+                AssetRoundsPrimaryNavigationLink("Back up current data") {
                     BackupExportView(
                         modelContext: modelContext,
                         generationRootURL: generationRootURL
                     )
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
                 .accessibilityIdentifier(
                     BackupExportView.settingsEntryAccessibilityIdentifier
                 )
 
-                Button("Restore data backup", action: restoreDataBackup)
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                AssetRoundsSecondaryAction("Restore data backup", action: restoreDataBackup)
+                    .accessibilityLabel("Restore data backup")
                     .accessibilityIdentifier(
                         BackupRestoreProgressView.settingsEntryAccessibilityIdentifier
                     )
 
-                Button("View subscription") {
+                AssetRoundsSecondaryAction("View subscription") {
                     paywallPresentation = PaywallPresentation()
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityLabel("View subscription")
                 .accessibilityHint(
                     "Shows the monthly subscription without changing existing data"
                 )
@@ -439,10 +453,10 @@ struct SettingsPlaceholderView: View {
                     PaywallView.settingsEntryAccessibilityIdentifier
                 )
 
-                Button("Restore Purchases") {
+                AssetRoundsSecondaryAction("Restore Purchases") {
                     lifecyclePresentation = LifecyclePresentation()
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityLabel("Restore Purchases")
                 .accessibilityHint(
                     "Checks Apple purchase history without restoring inspection data"
                 )
@@ -457,6 +471,10 @@ struct SettingsPlaceholderView: View {
                     )
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
+                .frame(
+                    minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                    minHeight: DesignTokens.Target.minimumInteractiveHeight
+                )
                 .accessibilityHint(
                     "Previews privacy-safe local counters and bounded system diagnostics before saving"
                 )
@@ -473,6 +491,10 @@ struct SettingsPlaceholderView: View {
                     )
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
+                .frame(
+                    minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                    minHeight: DesignTokens.Target.minimumInteractiveHeight
+                )
                 .accessibilityHint(
                     "Reviews privacy-safe diagnostics and asks before attaching them to editable feedback"
                 )
@@ -481,22 +503,20 @@ struct SettingsPlaceholderView: View {
                 )
 
                 Text("Inspection data and photos are device-local and do not sync with the subscription.")
-                    .font(.subheadline)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .font(DesignTokens.Typography.secondaryBody)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button("Erase All", action: eraseAllAction.call)
-                    .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityIdentifier(
-                        EraseAllView.settingsEntryAccessibilityIdentifier
-                    )
+                    AssetRoundsSecondaryAction("Erase All", action: eraseAllAction.call)
+                        .accessibilityLabel("Erase All")
+                        .accessibilityIdentifier(
+                            EraseAllView.settingsEntryAccessibilityIdentifier
+                        )
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(AppShellView.settingsScreenAccessibilityIdentifier)
         .sheet(item: $paywallPresentation) { presentation in
             PaywallView(
@@ -517,29 +537,103 @@ struct SettingsPlaceholderView: View {
     }
 }
 
+private struct NativeTabAccessibilityIdentifierBinder:
+    UIViewControllerRepresentable
+{
+    let identifiers: [String]
+
+    func makeUIViewController(context: Context) -> Controller {
+        Controller(identifiers: identifiers)
+    }
+
+    func updateUIViewController(
+        _ uiViewController: Controller,
+        context: Context
+    ) {
+        uiViewController.identifiers = identifiers
+        uiViewController.bindAccessibilityIdentifiers()
+    }
+
+    final class Controller: UIViewController {
+        var identifiers: [String]
+
+        init(identifiers: [String]) {
+            self.identifiers = identifiers
+            super.init(nibName: nil, bundle: nil)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError()
+        }
+
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            bindAccessibilityIdentifiers()
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            bindAccessibilityIdentifiers()
+            DispatchQueue.main.async { [weak self] in
+                self?.bindAccessibilityIdentifiers()
+            }
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            bindAccessibilityIdentifiers()
+        }
+
+        func bindAccessibilityIdentifiers() {
+            guard let tabBar = tabBarController?.tabBar
+                    ?? findTabBar(in: view.window),
+                  let items = tabBar.items,
+                  items.count == identifiers.count else {
+                return
+            }
+            for (item, identifier) in zip(items, identifiers) {
+                item.accessibilityIdentifier = identifier
+            }
+        }
+
+        private func findTabBar(in view: UIView?) -> UITabBar? {
+            guard let view else { return nil }
+            if let tabBar = view as? UITabBar { return tabBar }
+            for subview in view.subviews {
+                if let tabBar = findTabBar(in: subview) {
+                    return tabBar
+                }
+            }
+            return nil
+        }
+    }
+}
+
 private struct PackUnavailableView: View {
     var body: some View {
-        ScrollView {
-            WorklightCard {
-                Text("Content unavailable")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.blockedText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    Text("Content unavailable")
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
 
-                Text("The bundled sign content could not be loaded.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text("The bundled sign content could not be loaded.")
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text("No partial or guessed content is shown.")
-                    .font(.subheadline)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    AssetRoundsStateLabel(
+                        kind: .unavailable,
+                        "No partial or guessed content is shown."
+                    )
+                    .accessibilityLabel("No partial or guessed content is shown.")
+                    .accessibilityValue(Text(verbatim: String()))
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
     }
 }
