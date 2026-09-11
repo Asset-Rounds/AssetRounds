@@ -2210,7 +2210,7 @@ private enum C45AssetLabelTestSupport {
         )
         XCTAssertEqual(
             searchResponse.results.map(\.stableID),
-            [WorkspaceEntityIdentityV1(
+            [try WorkspaceEntityIdentityV1(
                 kind: .acceptedLabelGenerationSnapshot,
                 id: snapshot.snapshotID
             ).stableKey]

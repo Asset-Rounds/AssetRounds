@@ -2316,8 +2316,10 @@ final class V9_63PartsStockTests: XCTestCase {
             ]
         )
         let projectedEnvelope = try MutationEnvelopeV1(
-            request: try projectedMutation.canonicalWorkspaceMutationRequest(
-                expectedRevision: projectedExpected
+            request: WorkspaceMutationRequestV1(
+                mutationID: projectedMutation.mutationID,
+                expectedRevision: projectedExpected,
+                command: .applyPartsStock(projectedMutation)
             ),
             identity: try WorkspaceReplicaIdentityV1(
                 workspaceID: workspaceID,

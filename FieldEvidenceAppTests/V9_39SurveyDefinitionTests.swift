@@ -250,7 +250,7 @@ enum C25SurveyDefinitionTestSupport {
         )
     }
 
-    static func decodedCorpus() throws -> C25SurveyDefinitionCorpus {
+    fileprivate static func decodedCorpus() throws -> C25SurveyDefinitionCorpus {
         let bundle = Bundle(for: V9_39SurveyDefinitionTests.self)
         let url = try XCTUnwrap(
             bundle.url(
