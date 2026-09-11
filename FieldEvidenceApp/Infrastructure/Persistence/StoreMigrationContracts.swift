@@ -317,6 +317,95 @@ enum ObservationAndTimeStoreMigrationV1 {
     }
 }
 
+/// Structural ownership only. A recognized staging path still belongs to its
+/// original recovery operation and is never a durable migration input.
+enum GenerationOwnedPathV1 {
+    enum NodeType: Equatable { case directory, regularFile }
+    struct Classification {
+        let kind: OwnedFileKindV1
+        let recoveryOwned: Bool
+    }
+
+    static func classify(_ path: String, nodeType: NodeType) throws -> Classification {
+        guard StoreGenerationFileDigestV1.isCanonicalRelativePath(path) else {
+            throw StoreMigrationFailure.invalidPath
+        }
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        let staging = parts.first == ".staging"
+        let components = staging ? Array(parts.dropFirst()) : parts
+        func result(_ kind: OwnedFileKindV1) -> Classification {
+            Classification(kind: staging
+                ? (nodeType == .directory ? .stagingDirectory : .stagingFile)
+                : kind, recoveryOwned: staging)
+        }
+        func uuid(_ value: String) -> Bool {
+            UUID(uuidString: value)?.uuidString.lowercased() == value
+        }
+        func suffixedUUID(_ value: String, suffix: String) -> Bool {
+            value.hasSuffix(suffix) && uuid(String(value.dropLast(suffix.count)))
+        }
+        if nodeType == .directory {
+            if staging && components.isEmpty { return result(.stagingDirectory) }
+            if components.count == 1,
+               ["evidence", "snapshots", "pdfs"].contains(components[0]) {
+                return result(.durableDirectory)
+            }
+            if components.count == 2, components[0] == "evidence", uuid(components[1]) {
+                return result(.durableDirectory)
+            }
+            if staging, components.first == "evidence-derivatives" {
+                if components.count == 1
+                    || (components.count == 2 && uuid(components[1]))
+                    || (components.count == 3 && uuid(components[1])
+                        && ContentContractValidationV1.validID(components[2])) {
+                    return result(.stagingDirectory)
+                }
+            }
+            if !staging, components.first == "content" {
+                if components.count == 1
+                    || (components.count == 2 && uuid(components[1]))
+                    || (components.count == 3 && uuid(components[1])
+                        && (ContentContractValidationV1.validID(components[2])
+                            || components[2] == ".asset-label-publications"))
+                    || (components.count == 4 && uuid(components[1])
+                        && components[2] == ".asset-label-publications" && uuid(components[3])) {
+                    return result(.durableDirectory)
+                }
+            }
+        } else {
+            if !staging, components.count == 1 {
+                switch path {
+                case "model.sqlite": return result(.database)
+                case "model.sqlite-wal": return result(.databaseWAL)
+                case "model.sqlite-shm": return result(.databaseSHM)
+                default: break
+                }
+            }
+            if components.count == 3, components[0] == "evidence", uuid(components[1]) {
+                if components[2] == "original.jpg" { return result(.mediaOriginal) }
+                if components[2] == "thumbnail.jpg" { return result(.mediaThumbnail) }
+            }
+            if components.count == 2, components[0] == "snapshots",
+               suffixedUUID(components[1], suffix: ".json") { return result(.reportSnapshot) }
+            if components.count == 2, components[0] == "pdfs",
+               suffixedUUID(components[1], suffix: ".pdf") { return result(.reportPDF) }
+            if components.count == 4, uuid(components[1]),
+               ContentContractValidationV1.validID(components[2]),
+               ((!staging && components[0] == "content")
+                || (staging && components[0] == "evidence-derivatives")) {
+                if components[3] == "original.bin" { return result(.mediaOriginal) }
+                if components[3] == "derivative-publication.json" { return result(.reportSnapshot) }
+            }
+            if !staging, components.count == 5, components[0] == "content",
+               uuid(components[1]), components[2] == ".asset-label-publications",
+               uuid(components[3]), components[4] == "publication.json" {
+                return result(.reportSnapshot)
+            }
+        }
+        throw StoreMigrationFailure.invalidPath
+    }
+}
+
 struct StoreGenerationFileDigestV1: Codable, Equatable, Sendable {
     let relativePath: String
     let byteCount: Int
@@ -456,14 +545,10 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
               Set(paths).count == paths.count,
               paths.contains("model.sqlite"),
               files.allSatisfy({ file in
-                switch (file.relativePath, file.kind) {
-                case ("model.sqlite", .database),
-                     ("model.sqlite-wal", .databaseWAL),
-                     ("model.sqlite-shm", .databaseSHM):
-                    return true
-                default:
-                    return false
-                }
+                guard let owned = try? GenerationOwnedPathV1.classify(
+                    file.relativePath, nodeType: .regularFile
+                ) else { return false }
+                return !owned.recoveryOwned && file.kind == owned.kind
               }) else {
             throw StoreMigrationFailure.invalidContract
         }

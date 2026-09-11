@@ -31,6 +31,27 @@ private final class C30EvidenceContextAnchorS6_4AtomicRestore: XCTestCase {
 }
 
 final class S6_4AtomicRestoreTests: XCTestCase {
+    @MainActor
+    func testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages() throws {
+        let harness = try makeHarness("owned-grammar-import-separation")
+        defer { try? fileManager.removeItem(at: harness.root) }
+        let authority = try harness.factory.makeRestoreGenerationAuthority()
+        let packageName = "inventory-import-package"
+        let package = harness.support.appendingPathComponent("FieldEvidenceRestore/staging/\(packageName)")
+        try fileManager.createDirectory(at: package, withIntermediateDirectories: true)
+        try Data("validated import member".utf8).write(to: package.appendingPathComponent("records.json"))
+        XCTAssertTrue(try authority.importStagingNames().contains(packageName))
+        try authority.removeImportStagingPackage(name: packageName)
+        XCTAssertFalse(fileManager.fileExists(atPath: package.path))
+        let generationID = uuid("64000000-0000-4000-8000-000000000f01")
+        try authority.createStagingGeneration(id: generationID)
+        let generation = harness.factory.restoreStagingGenerationURL(id: generationID)
+        let unowned = generation.appendingPathComponent("records.json")
+        try Data("not a generation member".utf8).write(to: unowned)
+        XCTAssertThrowsError(try authority.removeStagingGeneration(id: generationID))
+        XCTAssertEqual(try Data(contentsOf: unowned), Data("not a generation member".utf8))
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
@@ -661,7 +682,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
         let unexpected = harness.factory.restoreStagingGenerationURL(id: newID)
-            .appendingPathComponent("unexpected.bin")
+            .appendingPathComponent("zz-unexpected.bin")
         try Data("ambiguous staged bytes".utf8).write(to: unexpected)
         let recovery = try BackupRestoreService(
             applicationSupportURL: harness.support

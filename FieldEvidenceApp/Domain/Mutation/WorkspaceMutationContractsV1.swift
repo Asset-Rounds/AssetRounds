@@ -976,7 +976,7 @@ struct AssetSemanticsMutationV1: Codable, Equatable, Sendable {
     }
 
     private static let zeroUUID = UUID(
-        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     )
 }
 
@@ -1352,7 +1352,7 @@ struct EvidenceAssuranceMutationV1: Codable, Equatable, Sendable {
     var affectedIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.affectedIdentity}};var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.predecessorIdentity ?? postImage.affectedIdentity}}
     func canonicalData()throws->Data{try validate();return try WorkspaceMutationCanonicalV1.data(self)};func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
 }
-struct InspectionReviewAtomicBundleV1:Codable,Equatable,Sendable{let transition:InspectionReviewTransitionV1;let disposition:ReviewDispositionV1?;let changeRequests:[ChangeRequestV1];init(transition:InspectionReviewTransitionV1,disposition:ReviewDispositionV1?=nil,changeRequests:[ChangeRequestV1]=[])throws{self.transition=transition;self.disposition=disposition;self.changeRequests=changeRequests.sorted{$0.requestRevisionID.uuidString<$1.requestRevisionID.uuidString};try validate()};func validate()throws{try transition.validate();try disposition?.validate();try changeRequests.forEach{try $0.validate()};guard changeRequests.count<=InspectionReviewLimitsV1.maximumItems,Set(changeRequests.map(\.requestRevisionID)).count==changeRequests.count,transition.dispositionID==disposition?.dispositionID,transition.changeRequestIDs==changeRequests.map(\.requestID).sorted{$0.uuidString<$1.uuidString},disposition.map({$0.workspaceID==transition.workspaceID&&$0.reviewID==transition.reviewID&&$0.subject==transition.subject&&$0.reviewRevision==transition.revision&&$0.mutationID==transition.mutationID&&$0.changeRequestIDs==transition.changeRequestIDs}) ?? transition.dispositionID==nil,changeRequests.allSatisfy({$0.workspaceID==transition.workspaceID&&$0.reviewID==transition.reviewID&&$0.reviewRevision==transition.revision&&$0.mutationID==transition.mutationID})else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}
+struct InspectionReviewAtomicBundleV1:Codable,Equatable,Sendable{let transition:InspectionReviewTransitionV1;let disposition:ReviewDispositionV1?;let changeRequests:[ChangeRequestV1];init(transition:InspectionReviewTransitionV1,disposition:ReviewDispositionV1?=nil,changeRequests:[ChangeRequestV1]=[])throws{self.transition=transition;self.disposition=disposition;self.changeRequests=changeRequests.sorted{$0.requestRevisionID.uuidString<$1.requestRevisionID.uuidString};try validate()};func validate()throws{try transition.validate();try disposition?.validate();try changeRequests.forEach{try $0.validate()};guard changeRequests.count<=InspectionReviewLimitsV1.maximumItems,Set(changeRequests.map(\.requestRevisionID)).count==changeRequests.count,transition.dispositionID==disposition?.dispositionID,transition.changeRequestIDs==changeRequests.map(\.requestID).sorted(by:{$0.uuidString<$1.uuidString}),disposition.map({$0.workspaceID==transition.workspaceID&&$0.reviewID==transition.reviewID&&$0.subject==transition.subject&&$0.reviewRevision==transition.revision&&$0.mutationID==transition.mutationID&&$0.changeRequestIDs==transition.changeRequestIDs}) ?? transition.dispositionID==nil,changeRequests.allSatisfy({$0.workspaceID==transition.workspaceID&&$0.reviewID==transition.reviewID&&$0.reviewRevision==transition.revision&&$0.mutationID==transition.mutationID})else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}
 enum InspectionReviewMutationPayloadV1:Codable,Equatable,Sendable{case applyReviewBundle(InspectionReviewAtomicBundleV1);case appendCorrectivePolicy(CorrectiveActionPolicyV1);case supersedeCorrectivePolicy(CorrectiveActionPolicyV1);case appendCorrectiveEvent(CorrectiveActionEventV1);case appendCorrectiveEventSuccessor(CorrectiveActionEventV1)
 var workspaceID:WorkspaceID{switch self{case let .applyReviewBundle(v):v.transition.workspaceID;case let .appendCorrectivePolicy(v),let .supersedeCorrectivePolicy(v):v.workspaceID;case let .appendCorrectiveEvent(v),let .appendCorrectiveEventSuccessor(v):v.workspaceID}}
 var mutationID:MutationIDV1{switch self{case let .applyReviewBundle(v):v.transition.mutationID;case let .appendCorrectivePolicy(v),let .supersedeCorrectivePolicy(v):v.mutationID;case let .appendCorrectiveEvent(v),let .appendCorrectiveEventSuccessor(v):v.mutationID}}
@@ -1424,7 +1424,8 @@ struct MeasurementIntegrityMutationV1:Codable,Equatable,Sendable{
     func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{
         for payload in bundle.mutationPayloads{
             let predecessor=try payload.predecessorIdentity
-            if (predecessor ?? (try payload.identity))==identity{return predecessor == nil ? 0:payload.revision-1}
+            let payloadIdentity = try payload.identity
+            if (predecessor ?? payloadIdentity)==identity{return predecessor == nil ? 0:payload.revision-1}
         }
         throw WorkspaceMutationContractFailureV1.invalidPlan
     }
@@ -1556,7 +1557,7 @@ struct SurveySessionMutationV1: Codable, Equatable, Sendable {
     case let .applySession(v,_,_):return v.revision-1
     case let .captureFact(v,s,_,prior):if identity.kind == .surveySession,identity.id == s.sessionID{return s.revision};if prior.isEmpty,identity.kind == .factCapture,identity.id == v.captureID{return v.revision-1};guard identity.kind == .factCapture,let predecessor=prior.first(where:{$0.captureID==identity.id})else{throw WorkspaceMutationContractFailureV1.invalidPlan};return predecessor.revision
     case let .applyProvisionalSubject(v):return v.revision-1
-    case let .promoteSubject(v,r,_,old):if identity.kind == .provisionalSubject{return v.revision-1};if identity.kind == .subjectPromotionReceipt{return old?.revision ?? 0}
+    case let .promoteSubject(v,_,_,old):if identity.kind == .provisionalSubject{return v.revision-1};if identity.kind == .subjectPromotionReceipt{return old?.revision ?? 0}
     case let .publish(s,p,_,_):if identity.kind == .surveySession{return s.revision-1};if identity.kind == .surveyPublicationSnapshot{return p.revision-1}}
     throw WorkspaceMutationContractFailureV1.invalidPlan}
 }
@@ -1756,7 +1757,7 @@ struct TemporalEvidenceMutationV1: Codable, Equatable, Sendable {
     static let schemaVersion=1
     let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedRevision:WorkspaceExpectedRevisionV1;let mutationID:MutationIDV1;let payload:TemporalEvidenceMutationPayloadV1
     init(workspaceID:WorkspaceID,expectedRevision:WorkspaceExpectedRevisionV1,mutationID:MutationIDV1,payload:TemporalEvidenceMutationPayloadV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.payload=payload;try validate()}
-    func validate()throws{try payload.validate();let targets=try payload.concurrencyIdentities;guard schemaVersion==Self.schemaVersion,workspaceID==payload.workspaceID,workspaceID==expectedRevision.workspaceID,mutationID==payload.mutationID,expectedRevision.entityRevisions.filter({targets.contains($0.identity)}).count==targets.count,try targets.allSatisfy({identity in expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == payload.expectedRevision(for:identity)})else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    func validate()throws{try payload.validate();let targets=try payload.concurrencyIdentities;guard schemaVersion==Self.schemaVersion,workspaceID==payload.workspaceID,workspaceID==expectedRevision.workspaceID,mutationID==payload.mutationID,expectedRevision.entityRevisions.filter({targets.contains($0.identity)}).count==targets.count,try targets.allSatisfy({identity in let required=try payload.expectedRevision(for:identity);return expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == required})else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
     var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{try payload.affectedIdentities}}
     var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{try payload.concurrencyIdentities}}
     func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{try payload.expectedRevision(for:identity)}
@@ -1799,7 +1800,7 @@ extension AssetLabelMutationV1 {
 
     func canonicalWorkspaceMutationRequest() throws -> WorkspaceMutationRequestV1 {
         try validateForCanonicalMutation()
-        return try WorkspaceMutationRequestV1(
+        return WorkspaceMutationRequestV1(
             mutationID: mutationID,
             expectedRevision: expectedRevision,
             command: .applyAssetLabel(self)
@@ -1949,7 +1950,7 @@ extension ActivityContractMutationV2 {
 
     func canonicalWorkspaceMutationRequest() throws -> WorkspaceMutationRequestV1 {
         try validateForCanonicalMutation()
-        return try WorkspaceMutationRequestV1(
+        return WorkspaceMutationRequestV1(
             mutationID: mutationID,
             expectedRevision: expectedRevision,
             command: .applyActivityContract(self)
@@ -2097,7 +2098,7 @@ struct WorkResourceMutationV1: Codable, Equatable, Sendable {
               expectedRevision.entityRevisions.first?.revision == postImage.expectedRevision else {
             throw WorkspaceMutationContractFailureV1.invalidPlan
         }
-        return try WorkspaceMutationRequestV1(
+        return WorkspaceMutationRequestV1(
             mutationID: mutationID,
             expectedRevision: expectedRevision,
             command: .applyWorkResource(self)
@@ -2296,13 +2297,13 @@ extension ServiceRequestMutationPayloadV1 {
 
 extension ServiceRequestMutationV1 {
     var affectedIdentities: [WorkspaceEntityIdentityV1] {
-        get throws { try payloads.map(\.affectedIdentity).sorted { $0.stableKey < $1.stableKey } }
+        get throws { try payloads.map { try $0.affectedIdentity }.sorted(by: { $0.stableKey < $1.stableKey }) }
     }
     var concurrencyIdentities: [WorkspaceEntityIdentityV1] {
-        get throws { try payloads.map(\.concurrencyIdentity).sorted { $0.stableKey < $1.stableKey } }
+        get throws { try payloads.map { try $0.concurrencyIdentity }.sorted(by: { $0.stableKey < $1.stableKey }) }
     }
     var mutationPostImages: [MutationPostImageV1] {
-        get throws { try payloads.map(\.mutationPostImage).sorted { try $0.identity.stableKey < $1.identity.stableKey } }
+        get throws { try payloads.map { try $0.mutationPostImage }.sorted(by: { try $0.identity.stableKey < $1.identity.stableKey }) }
     }
     func expectedRevision(for identity: WorkspaceEntityIdentityV1) throws -> UInt64 {
         guard let payload = try payloads.first(where: { try $0.concurrencyIdentity == identity }) else {
@@ -2320,7 +2321,7 @@ extension ServiceRequestMutationV1 {
               expectedRevision.entityRevisions.count == concurrency.count,
               try concurrency.allSatisfy({ identity in
                   expectedRevision.entityRevisions.first(where: { $0.identity == identity })?.revision
-                      == self.expectedRevision(for: identity)
+                      == (try self.expectedRevision(for: identity))
               }) else { throw WorkspaceMutationContractFailureV1.invalidPlan }
     }
 }
@@ -2346,9 +2347,9 @@ extension ServiceReliabilityMutationPayloadV1 {
 }
 
 extension ServiceReliabilityAtomicBundleV1 {
-    var affectedIdentities:[WorkspaceEntityIdentityV1] { get throws { try payloads.map(\.affectedIdentity).sorted{$0.stableKey<$1.stableKey} } }
-    var concurrencyIdentities:[WorkspaceEntityIdentityV1] { get throws { try payloads.map(\.concurrencyIdentity).sorted{$0.stableKey<$1.stableKey} } }
-    var mutationPostImages:[MutationPostImageV1] { get throws { try payloads.map(\.mutationPostImage).sorted{try $0.identity.stableKey<$1.identity.stableKey} } }
+    var affectedIdentities:[WorkspaceEntityIdentityV1] { get throws { try payloads.map { try $0.affectedIdentity }.sorted(by: {$0.stableKey<$1.stableKey}) } }
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1] { get throws { try payloads.map { try $0.concurrencyIdentity }.sorted(by: {$0.stableKey<$1.stableKey}) } }
+    var mutationPostImages:[MutationPostImageV1] { get throws { try payloads.map { try $0.mutationPostImage }.sorted(by: {try $0.identity.stableKey<$1.identity.stableKey}) } }
     func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{guard let p=try payloads.first(where:{try $0.concurrencyIdentity==identity})else{throw WorkspaceMutationContractFailureV1.invalidPlan};return p.expectedEntityRevision}
     func validateForCanonicalWriter()throws{try validate();let affected=try affectedIdentities,concurrency=try concurrencyIdentities;guard Set(affected).count==affected.count,Set(concurrency).count==concurrency.count,expectedRevision.entityRevisions.filter({concurrency.contains($0.identity)}).count==concurrency.count,try concurrency.allSatisfy({identity in expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision==(try self.expectedRevision(for:identity))})else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
     func canonicalWorkspaceMutationRequest()throws->WorkspaceMutationRequestV1{try validateForCanonicalWriter();return .init(mutationID:mutationID,expectedRevision:expectedRevision,command:.applyServiceReliability(self))}
@@ -3365,7 +3366,6 @@ struct WorkspacePackageLifecycleProfileV1: Equatable, Sendable {
         let packageStages = package.stageDisplays
         let packageOutcomes = package.outcomeDisplays
         let packagePurposeKeys = package.evidencePurposes.map(\.key)
-        let profileOutcomes = stages.flatMap(\.outcomes)
         let packageStageProfiles = stages.filter { profile in
             packageStages.contains {
                 $0.key == profile.stageKey && $0.display == profile.stageDisplay

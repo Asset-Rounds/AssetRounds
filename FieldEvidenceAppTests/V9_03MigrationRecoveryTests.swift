@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
@@ -43,6 +44,257 @@ private final class C30EvidenceContextAnchorV9_03MigrationRecovery: XCTestCase {
 
 @MainActor
 final class V9_03MigrationRecoveryTests: XCTestCase {
+    func testOwnedGenerationPathGrammarAndManifestKindsStayClosed() throws {
+        let id = "a0000000-0000-4000-8000-000000000001"
+        let durable: [String: OwnedFileKindV1] = [
+            "model.sqlite": .database, "model.sqlite-wal": .databaseWAL, "model.sqlite-shm": .databaseSHM,
+            "evidence/\(id)/original.jpg": .mediaOriginal,
+            "evidence/\(id)/thumbnail.jpg": .mediaThumbnail,
+            "snapshots/\(id).json": .reportSnapshot, "pdfs/\(id).pdf": .reportPDF,
+            "content/\(id)/valid.content-id/original.bin": .mediaOriginal,
+            "content/\(id)/valid.content-id/derivative-publication.json": .reportSnapshot,
+            "content/\(id)/.asset-label-publications/\(id)/publication.json": .reportSnapshot,
+        ]
+        for (path, kind) in durable {
+            let classification = try GenerationOwnedPathV1.classify(path, nodeType: .regularFile)
+            XCTAssertEqual(classification.kind, kind, path)
+            XCTAssertFalse(classification.recoveryOwned, path)
+        }
+        for path in [
+            ".staging/evidence/\(id)/original.jpg", ".staging/evidence/\(id)/thumbnail.jpg",
+            ".staging/snapshots/\(id).json", ".staging/pdfs/\(id).pdf",
+            ".staging/evidence-derivatives/\(id)/operation.alpha-1/original.bin",
+            ".staging/evidence-derivatives/\(id)/operation.alpha-1/derivative-publication.json",
+        ] {
+            let classification = try GenerationOwnedPathV1.classify(path, nodeType: .regularFile)
+            XCTAssertEqual(classification.kind, .stagingFile)
+            XCTAssertTrue(classification.recoveryOwned)
+        }
+        for path in [
+            "model.sqlite/child", "evidence/\(id.uppercased())/original.jpg",
+            "evidence/\(id)/unknown.jpg", "content/\(id)//original.bin",
+            "content/\(id)/../original.bin", "content/\(id)/Uppercase/original.bin",
+            "content/\(id)/valid/original.bin/extra", ".staging/unknown.bin",
+            "operational/local-job-staging-v1", "../model.sqlite", "/model.sqlite", "model\\sqlite",
+        ] {
+            XCTAssertThrowsError(try GenerationOwnedPathV1.classify(path, nodeType: .regularFile), path)
+        }
+        let model = try StoreGenerationFileDigestV1(relativePath: "model.sqlite", byteCount: 0,
+            sha256: String(repeating: "a", count: 64), kind: .database)
+        for bad in [
+            try StoreGenerationFileDigestV1(relativePath: "pdfs/\(id).pdf", byteCount: 0,
+                sha256: String(repeating: "b", count: 64), kind: .mediaOriginal),
+            try StoreGenerationFileDigestV1(relativePath: ".staging/pdfs/\(id).pdf", byteCount: 0,
+                sha256: String(repeating: "b", count: 64), kind: .stagingFile),
+        ] {
+            XCTAssertThrowsError(try StoreGenerationManifestV1(
+                generationID: UUID(), predecessorGenerationID: UUID(), migrationID: UUID(),
+                storeSchemaRelease: .v1, semanticSHA256: nil, frozenIdentityDigest: String(repeating: "c", count: 64),
+                files: [model, bad].sorted { $0.relativePath < $1.relativePath }
+            ))
+        }
+    }
+
+    func testOwnedGenerationInventoryStreamsNestedCloneAndPreservesFlatIdentity() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fileManager.removeItem(at: root) }
+        let sourceID = fixedUUID("a1000000-0000-4000-8000-000000000001")
+        let targetID = fixedUUID("a1000000-0000-4000-8000-000000000002")
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let source = factory.installedGenerationURL(id: sourceID)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        // Opaque transport fixture, not a claim that these bytes are SQLite.
+        // Both database and media transport must exceed the control-file cap.
+        let large = Data(repeating: 0x5a, count: 5 * 1024 * 1024 + 17)
+        try large.write(to: source.appendingPathComponent("model.sqlite"))
+        let authority = try factory.makeRestoreGenerationAuthority()
+        let flat = try authority.snapshotInstalledGeneration(id: sourceID)
+        var rootInfo = stat(), modelInfo = stat()
+        XCTAssertEqual(Darwin.lstat(source.path, &rootInfo), 0)
+        XCTAssertEqual(Darwin.lstat(source.appendingPathComponent("model.sqlite").path, &modelInfo), 0)
+        let oldTokens = [
+            "source-directory|\(rootInfo.st_dev)|\(rootInfo.st_ino)",
+            "model.sqlite|\(modelInfo.st_dev)|\(modelInfo.st_ino)|\(modelInfo.st_nlink)|\(StoreMigrationCanonicalJSONV1.sha256(large))",
+        ]
+        XCTAssertEqual(flat.frozenIdentityDigest, StoreMigrationCanonicalJSONV1.sha256(
+            Data(oldTokens.sorted().joined(separator: "\n").utf8)
+        ))
+        let flatManifest = try StoreGenerationManifestV1(
+            generationID: sourceID, predecessorGenerationID: targetID,
+            migrationID: fixedUUID("a1000000-0000-4000-8000-000000000003"),
+            storeSchemaRelease: .v1, semanticSHA256: nil,
+            frozenIdentityDigest: flat.frozenIdentityDigest, files: flat.files
+        )
+        struct HistoricalManifest: Encodable {
+            let schemaVersion: Int; let generationID: UUID; let predecessorGenerationID: UUID
+            let migrationID: UUID; let storeSchemaRelease: PersistentSchemaReleaseV1
+            let semanticSHA256: String?; let frozenIdentityDigest: String
+            let files: [StoreGenerationFileDigestV1]
+        }
+        let historicalBytes = try StoreMigrationCanonicalJSONV1.encode(HistoricalManifest(
+            schemaVersion: 1, generationID: sourceID, predecessorGenerationID: targetID,
+            migrationID: flatManifest.migrationID, storeSchemaRelease: .v1,
+            semanticSHA256: nil, frozenIdentityDigest: flat.frozenIdentityDigest, files: flat.files
+        ))
+        XCTAssertEqual(try flatManifest.canonicalData(), historicalBytes)
+        XCTAssertEqual(try StoreGenerationManifestV1.decodeCanonical(from: historicalBytes), flatManifest)
+
+        let workspace = "a1000000-0000-4000-8000-000000000004"
+        let evidence = "a1000000-0000-4000-8000-000000000005"
+        let job = "a1000000-0000-4000-8000-000000000006"
+        let payloads: [String: Data] = [
+            "evidence/\(evidence)/original.jpg": large,
+            "evidence/\(evidence)/thumbnail.jpg": Data("thumbnail".utf8),
+            "snapshots/\(evidence).json": Data("immutable snapshot".utf8),
+            "pdfs/\(evidence).pdf": Data("immutable PDF".utf8),
+            "content/\(workspace)/reading.alpha-1/original.bin": Data("original content".utf8),
+            "content/\(workspace)/reading.alpha-1/derivative-publication.json": Data("derivative receipt".utf8),
+            "content/\(workspace)/.asset-label-publications/\(job)/publication.json": Data("label receipt".utf8),
+        ]
+        for (path, bytes) in payloads {
+            let url = source.appendingPathComponent(path)
+            try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try bytes.write(to: url)
+        }
+        let empty = "content/\(workspace)/empty-content"
+        for path in [empty, ".staging/pdfs"] {
+            try fileManager.createDirectory(at: source.appendingPathComponent(path), withIntermediateDirectories: true)
+        }
+        let before = try authority.snapshotInstalledGeneration(id: sourceID)
+        let beforeTree = try authority.installedTree(id: sourceID)
+        XCTAssertTrue(beforeTree.directories.contains(empty))
+        try authority.createStagingGeneration(id: targetID)
+        let cloned = try authority.cloneInstalledGeneration(sourceID: sourceID, toStagingGeneration: targetID)
+        XCTAssertEqual(cloned.files, before.files)
+        XCTAssertEqual(cloned.sourceTreeDigest, before.sourceTreeDigest)
+        XCTAssertEqual(cloned.frozenIdentityDigest, before.frozenIdentityDigest)
+        XCTAssertEqual(try authority.stagingTree(id: targetID), beforeTree)
+        try authority.installStagingGeneration(id: targetID)
+        XCTAssertEqual(try authority.installedTree(id: targetID), beforeTree)
+        let installed = factory.installedGenerationURL(id: targetID)
+        for file in cloned.files {
+            let url = installed.appendingPathComponent(file.relativePath)
+            XCTAssertEqual(try Data(contentsOf: url).count, file.byteCount)
+            XCTAssertEqual(try StoreMigrationCanonicalJSONV1.sha256(Data(contentsOf: url)), file.sha256)
+            try ProtectedFilePolicyV1.verify(file.kind, at: url)
+        }
+        for path in beforeTree.directories {
+            let owned = try GenerationOwnedPathV1.classify(path, nodeType: .directory)
+            try ProtectedFilePolicyV1.verify(owned.kind, at: installed.appendingPathComponent(path))
+        }
+        let installedSnapshot = try authority.snapshotInstalledGeneration(id: targetID)
+        XCTAssertEqual(installedSnapshot.files, before.files)
+        try fileManager.removeItem(at: installed.appendingPathComponent(empty))
+        let withoutEmpty = try authority.snapshotInstalledGeneration(id: targetID)
+        XCTAssertEqual(withoutEmpty.sourceTreeDigest, installedSnapshot.sourceTreeDigest)
+        XCTAssertNotEqual(withoutEmpty.frozenIdentityDigest, installedSnapshot.frozenIdentityDigest,
+                          "File-only hashes cannot witness empty-directory identity")
+    }
+
+    func testOwnedGenerationInventoryRejectsHostileTreesBeforeCleanup() throws {
+        for variant in ["unknown", "symlink", "directory-link", "hardlink", "fifo"] {
+            let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? fileManager.removeItem(at: root) }
+            let id = fixedUUID("a2000000-0000-4000-8000-000000000001")
+            let leaf = "a2000000-0000-4000-8000-000000000002"
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            let generation = factory.installedGenerationURL(id: id)
+            try fileManager.createDirectory(at: generation.appendingPathComponent("snapshots"), withIntermediateDirectories: true)
+            let model = generation.appendingPathComponent("model.sqlite")
+            let media = generation.appendingPathComponent("snapshots/\(leaf).json")
+            try Data("model retained".utf8).write(to: model)
+            try Data("snapshot retained".utf8).write(to: media)
+            let sentinel = root.appendingPathComponent("outside.bin")
+            try Data("outside retained".utf8).write(to: sentinel)
+            let hostile = generation.appendingPathComponent("pdfs/\(leaf).pdf")
+            try fileManager.createDirectory(at: hostile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            switch variant {
+            case "unknown": try Data("unknown".utf8).write(to: generation.appendingPathComponent("zz-unowned.bin"))
+            case "symlink": try fileManager.createSymbolicLink(at: hostile, withDestinationURL: sentinel)
+            case "directory-link":
+                try fileManager.removeItem(at: hostile.deletingLastPathComponent())
+                try fileManager.createSymbolicLink(at: hostile.deletingLastPathComponent(), withDestinationURL: root)
+            case "hardlink": try fileManager.linkItem(at: sentinel, to: hostile)
+            default: XCTAssertEqual(Darwin.mkfifo(hostile.path, mode_t(0o600)), 0)
+            }
+            let authority = try factory.makeRestoreGenerationAuthority()
+            let names = try fileManager.subpathsOfDirectory(atPath: generation.path).sorted()
+            XCTAssertThrowsError(try authority.snapshotInstalledGeneration(id: id), variant)
+            XCTAssertThrowsError(try authority.protectInstalledGeneration(id: id), variant)
+            XCTAssertThrowsError(try authority.installedTree(id: id), variant)
+            XCTAssertThrowsError(try authority.removeInstalledGeneration(id: id), variant)
+            XCTAssertEqual(try Data(contentsOf: model), Data("model retained".utf8), variant)
+            XCTAssertEqual(try Data(contentsOf: media), Data("snapshot retained".utf8), variant)
+            XCTAssertEqual(try Data(contentsOf: sentinel), Data("outside retained".utf8), variant)
+            XCTAssertEqual(try fileManager.subpathsOfDirectory(atPath: generation.path).sorted(), names, variant)
+        }
+    }
+
+    func testOwnedGenerationInventorySeparatesRecoveryStagingAndPartialCleanup() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fileManager.removeItem(at: root) }
+        let sourceID = fixedUUID("a3000000-0000-4000-8000-000000000001")
+        let targetID = fixedUUID("a3000000-0000-4000-8000-000000000002")
+        let workspace = "a3000000-0000-4000-8000-000000000003"
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let source = factory.installedGenerationURL(id: sourceID)
+        let stage = source.appendingPathComponent(".staging/evidence-derivatives/\(workspace)/operation.alpha-1/original.bin")
+        try fileManager.createDirectory(at: stage.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("unsettled original operation".utf8).write(to: stage)
+        try Data("model".utf8).write(to: source.appendingPathComponent("model.sqlite"))
+        let authority = try factory.makeRestoreGenerationAuthority()
+        try authority.protectInstalledGeneration(id: sourceID)
+        try ProtectedFilePolicyV1.verify(.stagingFile, at: stage)
+        XCTAssertThrowsError(try authority.snapshotInstalledGeneration(id: sourceID))
+        try authority.createStagingGeneration(id: targetID)
+        XCTAssertThrowsError(try authority.cloneInstalledGeneration(sourceID: sourceID, toStagingGeneration: targetID))
+        XCTAssertTrue(try authority.stagingTree(id: targetID).files.isEmpty)
+        XCTAssertTrue(try authority.stagingTree(id: targetID).directories.isEmpty)
+        let partial = factory.restoreStagingGenerationURL(id: targetID)
+        try fileManager.createDirectory(at: partial.appendingPathComponent("content/\(workspace)/partial"), withIntermediateDirectories: true)
+        try Data("partial WAL".utf8).write(to: partial.appendingPathComponent("model.sqlite-wal"))
+        try Data("partial content".utf8).write(to: partial.appendingPathComponent("content/\(workspace)/partial/original.bin"))
+        try authority.removeStagingGeneration(id: targetID)
+        XCTAssertFalse(fileManager.fileExists(atPath: partial.path))
+        XCTAssertEqual(try Data(contentsOf: stage), Data("unsettled original operation".utf8))
+    }
+
+    func testOwnedGenerationInventoryReopensPopulatedCurrentFileTree() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let first = try factory.openOrBootstrapCurrent()
+        let leaf = "a4000000-0000-4000-8000-000000000001"
+        let url = first.generationRootURL.appendingPathComponent("evidence/\(leaf)/original.jpg")
+        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("retained generation media".utf8).write(to: url)
+        let reopened = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, first.generationID)
+        XCTAssertEqual(reopened.workspaceIdentity, first.workspaceIdentity)
+        XCTAssertEqual(try Data(contentsOf: url), Data("retained generation media".utf8))
+        try ProtectedFilePolicyV1.verify(.mediaOriginal, at: url)
+        try reopened.reproofAfterSave()
+    }
+
+    func testOwnedGenerationCleanupRejectsReplacedPinnedGeneration() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fileManager.removeItem(at: root) }
+        try fileManager.createDirectory(at: root.appendingPathComponent("FieldEvidenceData/generations"), withIntermediateDirectories: true)
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let authority = try factory.makeRestoreGenerationAuthority()
+        let id = fixedUUID("a5000000-0000-4000-8000-000000000001")
+        let handle = try authority.createInstalledGeneration(id: id)
+        let generation = factory.installedGenerationURL(id: id)
+        try Data("original pinned bytes".utf8).write(to: generation.appendingPathComponent("model.sqlite"))
+        let moved = root.appendingPathComponent("moved-generation")
+        try fileManager.moveItem(at: generation, to: moved)
+        try fileManager.createDirectory(at: generation, withIntermediateDirectories: true)
+        try Data("replacement bytes".utf8).write(to: generation.appendingPathComponent("model.sqlite"))
+        XCTAssertThrowsError(try authority.removeCreatedInstalledGeneration(handle))
+        XCTAssertEqual(try Data(contentsOf: moved.appendingPathComponent("model.sqlite")), Data("original pinned bytes".utf8))
+        XCTAssertEqual(try Data(contentsOf: generation.appendingPathComponent("model.sqlite")), Data("replacement bytes".utf8))
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

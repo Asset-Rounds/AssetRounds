@@ -96,7 +96,7 @@ struct SurveyChoiceV1: Codable, Equatable, Hashable, Sendable {
     func validate() throws { guard SurveyDefinitionLimitsV1.token(choiceID), SurveyDefinitionLimitsV1.token(labelLocalizationKey), SurveyDefinitionLimitsV1.token(accessibilityLabelLocalizationKey) else { throw SurveyDefinitionFailureV1.invalidValue } }
 }
 
-struct SurveyVisibilityPredicateV1: Codable, Equatable, Hashable, Sendable {
+struct SurveyVisibilityPredicateV1: Codable, Equatable, Sendable {
     let factID: String
     let expectedValue: ResponseValueV1
     func validate() throws { guard SurveyDefinitionLimitsV1.token(factID) else { throw SurveyDefinitionFailureV1.invalidValue }; try expectedValue.validate() }

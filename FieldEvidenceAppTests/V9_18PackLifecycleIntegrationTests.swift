@@ -242,6 +242,144 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
     }
 
     @MainActor
+    func testV9_18ProductionRootCreatesFirstSignThroughCurrentCanonicalWriter() async throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let harness = try makeHarness("production-root", profile: profile)
+        defer { harness.cleanup(fileManager: fileManager) }
+        let diagnostics = DiagnosticsStore(applicationSupportURL: harness.root)
+        let root = try ProductionCompositionRoot(
+            storeSession: harness.coordinator,
+            diagnosticsStore: diagnostics,
+            profileRegistry: harness.dependencies.profileRegistry
+        )
+        let workflow = try root.makeSignWorkflow(signPack: profile.package)
+
+        let before = try workflow.lifecycle.writer.currentRevision()
+        let snapshot = try await workflow.firstSign.create(firstSignInput("Production"))
+        let after = try workflow.lifecycle.writer.currentRevision()
+        let rows = try harness.coordinator.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()
+        )
+        let row = try XCTUnwrap(rows.first)
+        let receipt = try XCTUnwrap(try workflow.lifecycle.writer.durableReceipt(
+            mutationID: try MutationIDV1(rawValue: row.mutationID)
+        ))
+
+        XCTAssertEqual(snapshot.packID, profile.release.packageID)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(row.commandKind, WorkspaceCommandKindV1.createFirstSign.rawValue)
+        XCTAssertEqual(after.revision, before.revision + 1)
+        XCTAssertEqual(receipt.resultingRevision.workspaceRevision, after.revision)
+        XCTAssertEqual(receipt.resultingRevision.generationID, harness.session.generationID)
+    }
+
+    @MainActor
+    func testV9_18ProductionRootRejectsMismatchedRegistryWithoutMutation() throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let harness = try makeHarness("production-root-mismatch", profile: profile)
+        defer { harness.cleanup(fileManager: fileManager) }
+        let alternate = try alternatePackage()
+        let root = try ProductionCompositionRoot(
+            storeSession: harness.coordinator,
+            diagnosticsStore: DiagnosticsStore(applicationSupportURL: harness.root),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1
+                .legacyV3Registry(package: alternate)
+        )
+        let before = try harness.coordinator.workspaceWriter.currentRevision()
+
+        XCTAssertThrowsError(try root.makeSignWorkflow(signPack: profile.package))
+
+        XCTAssertEqual(try harness.coordinator.workspaceWriter.currentRevision(), before)
+        XCTAssertEqual(
+            try harness.coordinator.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
+            0
+        )
+        XCTAssertEqual(
+            try harness.coordinator.modelContext.fetchCount(FetchDescriptor<Asset>()),
+            0
+        )
+    }
+
+    @MainActor
+    func testV9_18ProductionRootRebindsOnlyAfterRealGenerationReplacement() async throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let harness = try makeHarness("production-root-replacement", profile: profile)
+        defer { harness.cleanup(fileManager: fileManager) }
+        let diagnostics = DiagnosticsStore(applicationSupportURL: harness.root)
+        let oldRoot = try ProductionCompositionRoot(
+            storeSession: harness.coordinator,
+            diagnosticsStore: diagnostics,
+            profileRegistry: harness.dependencies.profileRegistry
+        )
+        let oldWorkflow = try oldRoot.makeSignWorkflow(signPack: profile.package)
+        let retiredModelContext = harness.coordinator.modelContext
+        let factory = StoreGenerationFactory(applicationSupportURL: harness.root)
+        let oldPointer = try restorePointer(
+            from: factory.currentGenerationPointerV3(
+                expectedGenerationID: harness.session.generationID
+            )
+        )
+        let authority = try factory.makeRestoreGenerationAuthority()
+        let created = try factory.createEmptyEraseGeneration(
+            id: UUID(),
+            expectedOldPointer: oldPointer,
+            identity: harness.session.workspaceIdentity,
+            authority: authority
+        )
+        try factory.publishEmptyEraseGeneration(
+            expectedOldPointer: oldPointer,
+            targetPointer: created.pointer,
+            expectedEmptyLedger: created.ledgerProof,
+            authority: authority
+        )
+        let replacement = try factory.openOrBootstrapCurrent()
+        try harness.coordinator.activateValidating(session: replacement)
+
+        XCTAssertThrowsError(try oldWorkflow.lifecycle.writer.currentRevision()) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        do {
+            _ = try await oldWorkflow.firstSign.create(firstSignInput("Stale"))
+            XCTFail("the old composed first-sign writer must be invalidated")
+        } catch {
+            XCTAssertEqual(error as? FirstSignCoordinatorError, .saveFailed)
+        }
+        XCTAssertEqual(
+            try retiredModelContext.fetchCount(FetchDescriptor<Asset>()),
+            0
+        )
+        XCTAssertEqual(
+            try retiredModelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
+            0
+        )
+        XCTAssertEqual(
+            try replacement.modelContext.fetchCount(FetchDescriptor<Asset>()),
+            0
+        )
+        XCTAssertEqual(
+            try replacement.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
+            0
+        )
+
+        let newRoot = try ProductionCompositionRoot(
+            storeSession: harness.coordinator,
+            diagnosticsStore: diagnostics,
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
+        )
+        let newWorkflow = try newRoot.makeSignWorkflow(signPack: profile.package)
+        let createdSnapshot = try await newWorkflow.firstSign.create(firstSignInput("Replacement"))
+        let newRevision = try newWorkflow.lifecycle.writer.currentRevision()
+
+        XCTAssertEqual(createdSnapshot.signLabel, "Replacement Sign")
+        XCTAssertEqual(newRevision.generationID, replacement.generationID)
+        XCTAssertEqual(newRevision.revision, 1)
+        XCTAssertEqual(
+            try replacement.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
+            1
+        )
+    }
+
+    @MainActor
     private func makeHarness(
         _ label: String,
         profile: WorkspacePackageLifecycleProfileV1
@@ -324,6 +462,30 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
                 .init(key: $0.key, display: $0.display)
             },
             disclaimer: presentation.disclaimer
+        )
+    }
+
+    private func firstSignInput(_ label: String) -> FirstSignInput {
+        FirstSignInput(
+            siteLabel: "\(label) Site",
+            signLabel: "\(label) Sign",
+            address: "10 Main Street",
+            timeZoneID: "America/New_York",
+            isTimeZoneConfirmed: true
+        )
+    }
+
+    private func restorePointer(
+        from pointer: CurrentGenerationPointerV3
+    ) throws -> RestorePointerIdentityV1 {
+        RestorePointerIdentityV1(
+            generationID: try XCTUnwrap(UUID(uuidString: pointer.generationID)),
+            generationManifestSHA256: pointer.generationManifestSHA256,
+            knownReplicaIDs: Set(try pointer.knownReplicaIDs.map {
+                try XCTUnwrap(UUID(uuidString: $0))
+            }),
+            workspaceID: try XCTUnwrap(UUID(uuidString: pointer.workspaceID)),
+            replicaID: try XCTUnwrap(UUID(uuidString: pointer.replicaID))
         )
     }
 

@@ -18,6 +18,12 @@ private extension EnvironmentValues {
     }
 }
 
+@MainActor
+private struct ProductionShellComposition {
+    let root: ProductionCompositionRoot
+    let workflow: ProductionSignWorkflow
+}
+
 struct AppShellView: View {
     static let screenAccessibilityIdentifier = "s1.shell.screen"
     static let signsTabAccessibilityIdentifier = "s1.tab.signs"
@@ -36,12 +42,11 @@ struct AppShellView: View {
 
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
-    let modelContext: ModelContext
+    let storeSession: StoreSessionCoordinator
     let diagnosticsStore: DiagnosticsStore
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
     let feedbackConfiguration: FeedbackConfigurationV1
     let mailComposerAdapter: MailComposerAdapter
-    let generationRootURL: URL
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
     let cameraAdapter: CameraAdapter
@@ -53,16 +58,21 @@ struct AppShellView: View {
     @StateObject private var lifecycleCoordinator: StoreKitLifecycleCoordinator
 
     @State private var selectedTab: Tab = .signs
+    @State private var productionComposition: ProductionShellComposition?
+    @State private var productionCompositionErrorMessage: String?
+    @State private var isComposingProductionWorkflow = false
+
+    private var modelContext: ModelContext { storeSession.modelContext }
+    private var generationRootURL: URL { storeSession.generationRootURL }
 
     init(
         packLoadResult: SignPackLoadResult,
         exposesColorSchemeForUITest: Bool = false,
-        modelContext: ModelContext,
+        storeSession: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
         metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
         feedbackConfiguration: FeedbackConfigurationV1,
         mailComposerAdapter: MailComposerAdapter,
-        generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
@@ -74,12 +84,11 @@ struct AppShellView: View {
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
-        self.modelContext = modelContext
+        self.storeSession = storeSession
         self.diagnosticsStore = diagnosticsStore
         self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
         self.feedbackConfiguration = feedbackConfiguration
         self.mailComposerAdapter = mailComposerAdapter
-        self.generationRootURL = generationRootURL
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.injectsLowStorageFailureOnceForUITest =
             injectsLowStorageFailureOnceForUITest
@@ -124,9 +133,35 @@ struct AppShellView: View {
     }
 
     private func availableShell(pack: SignPack) -> some View {
+        Group {
+            if let productionComposition {
+                availableTabs(pack: pack, workflow: productionComposition.workflow)
+            } else if let productionCompositionErrorMessage {
+                ProductionWorkflowUnavailableView(
+                    message: productionCompositionErrorMessage,
+                    retry: { composeProductionWorkflow(pack: pack) }
+                )
+            } else {
+                AssetRoundsScreenFoundation {
+                    ProgressView("Opening signs and reports")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityLabel("Opening signs and reports")
+                }
+            }
+        }
+        .task {
+            composeProductionWorkflow(pack: pack)
+        }
+    }
+
+    private func availableTabs(
+        pack: SignPack,
+        workflow: ProductionSignWorkflow
+    ) -> some View {
         TabView(selection: $selectedTab) {
             SwiftUI.Tab(value: Tab.signs) {
                 SignsRootView(
+                    workflow: workflow,
                     modelContext: modelContext,
                     diagnosticsStore: diagnosticsStore,
                     metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
@@ -136,8 +171,6 @@ struct AppShellView: View {
                     generationRootURL: generationRootURL,
                     usesImportedCaptureFixturesForUITest:
                         usesImportedCaptureFixturesForUITest,
-                    injectsLowStorageFailureOnceForUITest:
-                        injectsLowStorageFailureOnceForUITest,
                     cameraAdapter: cameraAdapter,
                     purchaseCoordinator: purchaseCoordinator,
                     lifecycleCoordinator: lifecycleCoordinator,
@@ -160,10 +193,7 @@ struct AppShellView: View {
             SwiftUI.Tab(value: Tab.reports) {
                 NavigationStack {
                     ReportsRootView(
-                        modelContext: modelContext,
-                        generationRootURL: generationRootURL,
-                        diagnosticsStore: diagnosticsStore,
-                        signPack: pack
+                        workflow: workflow
                     )
                     .toolbar {
                         settingsToolbar
@@ -187,6 +217,38 @@ struct AppShellView: View {
         .tint(DesignTokens.SemanticColors.primaryAction)
         .background(DesignTokens.SemanticColors.workBackground)
         .environment(\.eraseAllAction, EraseAllAction(call: eraseAll))
+    }
+
+    @MainActor
+    private func composeProductionWorkflow(pack: SignPack) {
+        guard productionComposition == nil,
+              !isComposingProductionWorkflow else { return }
+        isComposingProductionWorkflow = true
+        productionCompositionErrorMessage = nil
+        do {
+            let registry = try WorkspacePackageLifecycleCompatibilityV1
+                .legacyV3Registry(package: pack)
+            let root = try ProductionCompositionRoot(
+                storeSession: storeSession,
+                diagnosticsStore: diagnosticsStore,
+                profileRegistry: registry
+            )
+            let installedLifecycleCoordinator = lifecycleCoordinator
+            let workflow = try root.makeSignWorkflow(
+                signPack: pack,
+                accessState: { installedLifecycleCoordinator.draftAccessState },
+                injectsLowStorageFailureOnceForUITest:
+                    injectsLowStorageFailureOnceForUITest
+            )
+            productionComposition = ProductionShellComposition(
+                root: root,
+                workflow: workflow
+            )
+        } catch {
+            productionCompositionErrorMessage =
+                "Signs and reports could not be opened safely."
+        }
+        isComposingProductionWorkflow = false
     }
 
     @ToolbarContentBuilder
@@ -635,5 +697,36 @@ private struct PackUnavailableView: View {
                 }
             }
         }
+    }
+}
+
+private struct ProductionWorkflowUnavailableView: View {
+    let message: String
+    let retry: @MainActor () -> Void
+
+    var body: some View {
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(kind: .unavailable, "Unavailable")
+                        .accessibilityLabel("Blocked: Unavailable")
+                        .accessibilityValue(Text(verbatim: String()))
+
+                    Text("Signs and reports unavailable")
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+
+                    Text(message)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    AssetRoundsPrimaryAction("Retry", action: retry)
+                }
+            }
+        }
+        .accessibilityIdentifier(AppShellView.unavailableAccessibilityIdentifier)
     }
 }

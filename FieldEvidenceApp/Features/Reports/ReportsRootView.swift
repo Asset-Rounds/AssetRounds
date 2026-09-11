@@ -12,8 +12,8 @@ struct ReportsRootView: View {
     static let viewReportAccessibilityIdentifier = "s4.4.reports.view-report"
     static let compareAccessibilityIdentifier = "s4.4.reports.compare"
 
-    private let deliveryCoordinator: ReportDeliveryCoordinator?
-    private let historyCoordinator: ReportHistoryCoordinator?
+    private let deliveryCoordinator: ReportDeliveryCoordinator
+    private let historyCoordinator: ReportHistoryCoordinator
 
     @State private var indexValue: ReportHistoryIndexValue?
     @State private var siteOptions: [ReportHistoryFilterOption] = []
@@ -30,25 +30,9 @@ struct ReportsRootView: View {
         case signFilter
     }
 
-    init(
-        modelContext: ModelContext,
-        generationRootURL: URL,
-        diagnosticsStore: DiagnosticsStore,
-        signPack: SignPack
-    ) {
-        let delivery = try? ReportDeliveryCoordinator(
-            modelContext: modelContext,
-            generationRootURL: generationRootURL,
-            diagnosticsStore: diagnosticsStore,
-            signPack: signPack
-        )
-        deliveryCoordinator = delivery
-        historyCoordinator = delivery.map {
-            ReportHistoryCoordinator(
-                modelContext: modelContext,
-                deliveryCoordinator: $0
-            )
-        }
+    init(workflow: ProductionSignWorkflow) {
+        deliveryCoordinator = workflow.reportDelivery
+        historyCoordinator = workflow.reportHistory
     }
 
     var body: some View {
@@ -205,35 +189,19 @@ struct ReportsRootView: View {
     private func destination(for route: ReportHistoryRoute) -> some View {
         switch route {
         case let .report(reportID):
-            if let deliveryCoordinator {
-                ReportHistoryDetailDestination(
-                    reportID: reportID,
-                    deliveryCoordinator: deliveryCoordinator
-                )
-            } else {
-                ReportHistoryUnavailableView(
-                    message: "The saved report could not be opened."
-                )
-            }
+            ReportHistoryDetailDestination(
+                reportID: reportID,
+                deliveryCoordinator: deliveryCoordinator
+            )
         case let .comparison(stableRootID):
-            if let historyCoordinator {
-                ReportComparisonView(
-                    stableRootID: stableRootID,
-                    historyCoordinator: historyCoordinator
-                )
-            } else {
-                ReportHistoryUnavailableView(
-                    message: "This comparison is unavailable."
-                )
-            }
+            ReportComparisonView(
+                stableRootID: stableRootID,
+                historyCoordinator: historyCoordinator
+            )
         }
     }
 
     private func loadInitialIndex() {
-        guard let historyCoordinator else {
-            loadErrorMessage = "Saved reports could not be opened."
-            return
-        }
         do {
             let value = try historyCoordinator.index()
             indexValue = value
@@ -275,11 +243,6 @@ struct ReportsRootView: View {
         updatesSignOptions: Bool,
         restoringFocusTo focus: ReportsFocus
     ) {
-        guard let historyCoordinator else {
-            indexValue = nil
-            loadErrorMessage = "Saved reports could not be opened."
-            return
-        }
         do {
             let value = try historyCoordinator.index(filter: filter)
             indexValue = value

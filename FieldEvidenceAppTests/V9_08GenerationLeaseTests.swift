@@ -1,10 +1,62 @@
 import Foundation
+import Darwin
 import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
 
 final class V9_08GenerationLeaseTests: XCTestCase {
+    @MainActor
+    func testOwnedGenerationQuarantineCleanupPreflightsNestedRemainingBytes() throws {
+#if DEBUG
+        let fixture = try makeRealPruneFixture(label: "owned-tree-quarantine", offset: 81)
+        defer { try? fileManager.removeItem(at: fixture.root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: fixture.root)
+        let store = try StoreMigrationJournalStoreV1(applicationSupportURL: fixture.root)
+        let manifest = try XCTUnwrap(store.loadManifestIfPresent(targetGenerationID: fixture.candidateGenerationID))
+        let epoch = try GenerationEpochV1(generationID: fixture.candidateGenerationID, generationManifestSHA256: manifest.digest)
+        let registry = try factory.makeGenerationLeaseRegistry(ownerID: makeUUID(8_101))
+        let lease = try registry.acquire(epoch: epoch, role: .reader)
+        let held = try factory.reconcileGenerationLeasesAndPrune()
+        XCTAssertFalse(held.prunedEpochs.contains(epoch))
+        XCTAssertTrue(fileManager.fileExists(atPath: fixture.candidateModelURL.path))
+        try registry.release(lease)
+
+        let interrupted = StoreGenerationFactory(applicationSupportURL: fixture.root,
+            pruneFailureInjection: StoreGenerationPruneFailureInjectionV1(failOnceAt: .prepared))
+        XCTAssertThrowsError(try interrupted.reconcileGenerationLeasesAndPrune()) { error in
+            XCTAssertEqual(error as? StoreGenerationPruneInjectedFailureV1, .injectedFault(.prepared))
+        }
+        let intent = try XCTUnwrap(registry.loadPruneIntent())
+        let source = factory.installedGenerationURL(id: fixture.candidateGenerationID)
+        var info = stat()
+        XCTAssertEqual(Darwin.lstat(source.path, &info), 0)
+        let name = ".prune-\(intent.operationID.uuidString.lowercased())-\(fixture.candidateGenerationID.uuidString.lowercased())-\(info.st_dev)-\(info.st_ino)"
+        let quarantine = source.deletingLastPathComponent().appendingPathComponent(name)
+        try fileManager.moveItem(at: source, to: quarantine)
+        // Model an already-authorized quarantine whose unlink sequence was
+        // interrupted after the database. This is not a newly accepted store.
+        try fileManager.removeItem(at: quarantine.appendingPathComponent("model.sqlite"))
+        let relative = "pdfs/81000000-0000-4000-8000-000000000001.pdf"
+        let retained = quarantine.appendingPathComponent(relative)
+        try fileManager.createDirectory(at: retained.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("remaining owned PDF".utf8).write(to: retained)
+        let hostile = quarantine.appendingPathComponent("zz-unowned.bin")
+        try Data("unknown quarantine member".utf8).write(to: hostile)
+        let names = try fileManager.subpathsOfDirectory(atPath: quarantine.path).sorted()
+        XCTAssertThrowsError(try factory.reconcileGenerationLeasesAndPrune())
+        XCTAssertEqual(try Data(contentsOf: retained), Data("remaining owned PDF".utf8))
+        XCTAssertEqual(try Data(contentsOf: hostile), Data("unknown quarantine member".utf8))
+        XCTAssertEqual(try fileManager.subpathsOfDirectory(atPath: quarantine.path).sorted(), names)
+        XCTAssertEqual(try registry.loadPruneIntent(), intent)
+        try fileManager.removeItem(at: hostile)
+        let recovered = try factory.reconcileGenerationLeasesAndPrune()
+        XCTAssertTrue(recovered.prunedEpochs.contains(epoch))
+        XCTAssertFalse(fileManager.fileExists(atPath: quarantine.path))
+        XCTAssertNil(try registry.loadPruneIntent())
+#endif
+    }
+
     private let fileManager = FileManager.default
 
     func testV9_08G01DurableLeaseIdentityAndBoundedRegistry() throws {

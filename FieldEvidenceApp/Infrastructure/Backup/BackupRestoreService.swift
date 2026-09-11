@@ -11450,78 +11450,19 @@ private extension BackupRestoreService {
         root: URL,
         staging: Bool
     ) throws {
-        let root = root.standardizedFileURL
-        let authorityCheck = {
-            if staging {
-                try self.generationAuthority.requireStagingGeneration(id: id)
-            } else {
-                try self.generationAuthority.requireInstalledGeneration(id: id)
-            }
-        }
-        try withPinnedDirectory(
-            root: root,
-            relativePath: "",
-            createMissing: false,
-            authorityCheck: authorityCheck
-        ) { _, verifyDirectories in
-            try ProtectedFilePolicyV1.applyAndVerify(
-                staging ? .restoreStaging : .durableDirectory,
-                at: root,
-                authorityCheck: verifyDirectories
-            )
-        }
-        var enumerationError: Error?
-        guard let enumerator = fileManager.enumerator(
-            at: root,
-            includingPropertiesForKeys: nil,
-            options: [],
-            errorHandler: { _, error in
-                enumerationError = error
-                return false
-            }
-        ) else {
+        let expected = staging ? generationFactory.restoreStagingGenerationURL(id: id)
+            : generationFactory.installedGenerationURL(id: id)
+        guard root.standardizedFileURL == expected.standardizedFileURL else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
-        for case let url as URL in enumerator {
-            let relativePath = try relativePath(of: url, within: root)
-            var information = stat()
-            guard Darwin.lstat(url.path, &information) == 0 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
-            }
-            let kind: OwnedFileKindV1
-            switch information.st_mode & S_IFMT {
-            case S_IFDIR:
-                kind = staging || relativePath == ".staging"
-                    || relativePath.hasPrefix(".staging/")
-                    ? .stagingDirectory
-                    : .durableDirectory
-            case S_IFREG:
-                if staging {
-                    kind = .stagingFile
-                } else {
-                    kind = try installedFileKind(relativePath)
-                }
-            default:
-                throw BackupRestoreServiceError.invalidRestoreAuthority
-            }
-            try withPinnedExistingItem(
-                root: root,
-                relativePath: relativePath,
-                expectedDirectory: (information.st_mode & S_IFMT) == S_IFDIR,
-                authorityCheck: authorityCheck
-            ) { _, _, verifyItem in
-                try ProtectedFilePolicyV1.applyAndVerify(
-                    kind,
-                    relativePath: relativePath,
-                    within: root,
-                    authorityCheck: verifyItem
-                )
-            }
+        // Use the same descriptor inventory and closed path classification as
+        // migration/open/prune. The records-based expected tree remains a
+        // separate, stronger restore completeness proof.
+        if staging {
+            try generationAuthority.protectStagingGeneration(id: id)
+        } else {
+            try generationAuthority.protectInstalledGeneration(id: id)
         }
-        if let enumerationError {
-            throw enumerationError
-        }
-        try authorityCheck()
     }
 
     private func validatedPathComponents(
@@ -11790,63 +11731,9 @@ private extension BackupRestoreService {
     }
 
     func installedFileKind(_ relativePath: String) throws -> OwnedFileKindV1 {
-        switch relativePath {
-        case Self.modelStoreName:
-            return .database
-        case "\(Self.modelStoreName)-wal":
-            return .databaseWAL
-        case "\(Self.modelStoreName)-shm":
-            return .databaseSHM
-        case ".staging":
-            throw BackupRestoreServiceError.invalidRestoreAuthority
-        default:
-            let components = relativePath.split(separator: "/").map(String.init)
-            guard components.count == 4 || components.count == 3 || components.count == 2 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
-            }
-            if components.first == "evidence",
-               components.count == 3,
-               let id = UUID(uuidString: components[1]),
-               canonical(id) == components[1],
-               components.last == "original.jpg" {
-                return .mediaOriginal
-            }
-            if components.first == "evidence",
-               components.count == 3,
-               let id = UUID(uuidString: components[1]),
-               canonical(id) == components[1],
-               components.last == "thumbnail.jpg" {
-                return .mediaThumbnail
-            }
-            if components.first == "snapshots",
-               components.count == 2,
-               let id = UUID(uuidString: components[1].replacingOccurrences(of: ".json", with: "")),
-               "\(canonical(id)).json" == components[1],
-               components.last?.hasSuffix(".json") == true {
-                return .reportSnapshot
-            }
-            if components.first == "pdfs",
-               components.count == 2,
-               let id = UUID(uuidString: components[1].replacingOccurrences(of: ".pdf", with: "")),
-               "\(canonical(id)).pdf" == components[1],
-               components.last?.hasSuffix(".pdf") == true {
-                return .reportPDF
-            }
-            if components.first == "content", components.count == 4,
-               UUID(uuidString: components[1])?.uuidString.lowercased() == components[1],
-               ContentContractValidationV1.validID(components[2]),
-               components[3] == "original.bin" {
-                return .mediaOriginal
-            }
-            if components.first == "content", components.count == 4,
-               UUID(uuidString: components[1])?.uuidString.lowercased() == components[1],
-               ContentContractValidationV1.validID(components[2]),
-               components[3] == "derivative-publication.json" {
-                return .reportSnapshot
-            }
-            if components.first == ".staging" {
-                return .stagingFile
-            }
+        do {
+            return try GenerationOwnedPathV1.classify(relativePath, nodeType: .regularFile).kind
+        } catch {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
     }

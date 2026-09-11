@@ -387,6 +387,49 @@ final class V9_43PlanRebaseTests: XCTestCase {
         XCTAssertThrowsError(try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale + 1))
     }
 
+    func testV23IntegrationPlanCodecPreservesMillisecondsAndRejectsNoncanonicalBytes() throws {
+        let document = try C29PlanTestSupport.fixture().document
+        let canonical = try PlanCanonicalCodecV1.encode(document)
+        let text = try XCTUnwrap(String(data: canonical, encoding: .utf8))
+
+        XCTAssertTrue(text.contains("\"recordedAt\":1800010000000"))
+        XCTAssertEqual(
+            try PlanCanonicalCodecV1.decode(PlanDocumentV1.self, from: canonical),
+            document
+        )
+
+        XCTAssertThrowsError(try PlanCanonicalCodecV1.decode(
+            PlanDocumentV1.self,
+            from: Data((text + "\n").utf8)
+        ))
+        XCTAssertThrowsError(try PlanCanonicalCodecV1.decode(
+            PlanDocumentV1.self,
+            from: Data(("{\"0unknown\":true," + text.dropFirst()).utf8)
+        ))
+
+        let explicitNull = text.replacingOccurrences(
+            of: "\"workspaceID\":",
+            with: "\"supersedesDocumentSHA256\":null,\"workspaceID\":"
+        )
+        XCTAssertNotEqual(explicitNull, text)
+        XCTAssertThrowsError(try PlanCanonicalCodecV1.decode(
+            PlanDocumentV1.self,
+            from: Data(explicitNull.utf8)
+        ))
+
+        let tamperedDigestText = text.replacingOccurrences(
+            of: document.documentSHA256,
+            with: String(repeating: "f", count: 64)
+        )
+        XCTAssertNotEqual(tamperedDigestText, text)
+        let tamperedDocument = try PlanCanonicalCodecV1.decode(
+            PlanDocumentV1.self,
+            from: Data(tamperedDigestText.utf8)
+        )
+        XCTAssertThrowsError(try tamperedDocument.validateIntrinsic())
+        XCTAssertThrowsError(try PlanDocumentRow(tamperedDocument))
+    }
+
     func testV23P03C29A01MissingUnsupportedOrInaccessiblePlanPreservesCompleteManualFallback() throws {
         let fixture = try C29PlanTestSupport.fixture()
         let writer = C29CapturingWriter()

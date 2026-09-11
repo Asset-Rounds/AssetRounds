@@ -72,9 +72,9 @@ struct SignsRootView: View {
 
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
-    private let reportDeliveryCoordinator: ReportDeliveryCoordinator?
-    private let reportHistoryCoordinator: ReportHistoryCoordinator?
-    private let workCoordinator: WorkCoordinator?
+    private let reportDeliveryCoordinator: ReportDeliveryCoordinator
+    private let reportHistoryCoordinator: ReportHistoryCoordinator
+    private let workCoordinator: WorkCoordinator
     private let deletionService: WholeSignDeletionService
     @State private var snapshot: FirstSignSnapshot?
     @State private var snapshots = [FirstSignSnapshot]()
@@ -90,6 +90,7 @@ struct SignsRootView: View {
     @AccessibilityFocusState private var welcomeTitleFocused: Bool
 
     init(
+        workflow: ProductionSignWorkflow,
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
         metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
@@ -98,7 +99,6 @@ struct SignsRootView: View {
         pack: SignPack,
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
-        injectsLowStorageFailureOnceForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
         purchaseCoordinator: StoreKitPurchaseCoordinator,
         lifecycleCoordinator: StoreKitLifecycleCoordinator,
@@ -118,47 +118,12 @@ struct SignsRootView: View {
         self.lifecycleCoordinator = lifecycleCoordinator
         self.restoreDataBackup = restoreDataBackup
         self.replaceDataBackup = replaceDataBackup
-        _coordinator = StateObject(
-            wrappedValue: FirstSignCoordinator(
-                modelContext: modelContext,
-                diagnosticsStore: diagnosticsStore,
-                signPack: pack,
-                accessState: { lifecycleCoordinator.draftAccessState }
-            )
-        )
-        let runnerCoordinator = CheckRunnerCoordinator(
-            modelContext: modelContext,
-            signPack: pack,
-            diagnosticsStore: diagnosticsStore,
-            injectsLowStorageFailureOnceForUITest:
-                injectsLowStorageFailureOnceForUITest,
-            draftAccessState: { lifecycleCoordinator.draftAccessState }
-        )
-        runnerCoordinator.configureCapture(generationRootURL: generationRootURL)
-        checkRunnerCoordinator = runnerCoordinator
-        let deliveryCoordinator = try? ReportDeliveryCoordinator(
-            modelContext: modelContext,
-            generationRootURL: generationRootURL,
-            diagnosticsStore: diagnosticsStore,
-            signPack: pack
-        )
-        reportDeliveryCoordinator = deliveryCoordinator
-        reportHistoryCoordinator = deliveryCoordinator.map {
-            ReportHistoryCoordinator(
-                modelContext: modelContext,
-                deliveryCoordinator: $0
-            )
-        }
-        workCoordinator = try? WorkCoordinator(
-            modelContext: modelContext,
-            signPack: pack,
-            generationRootURL: generationRootURL,
-            checkRunnerCoordinator: runnerCoordinator
-        )
-        deletionService = WholeSignDeletionService(
-            modelContext: modelContext,
-            generationRootURL: generationRootURL
-        )
+        _coordinator = StateObject(wrappedValue: workflow.firstSign)
+        checkRunnerCoordinator = workflow.checkRunner
+        reportDeliveryCoordinator = workflow.reportDelivery
+        reportHistoryCoordinator = workflow.reportHistory
+        workCoordinator = workflow.work
+        deletionService = workflow.deletion
     }
 
     var body: some View {
@@ -263,10 +228,9 @@ struct SignsRootView: View {
                         }
                     }
                 case .report(let reportID):
-                    if let reportDeliveryCoordinator,
-                       let delivery = try? reportDeliveryCoordinator.loadReadyReport(
-                           id: reportID
-                       ) {
+                    if let delivery = try? reportDeliveryCoordinator.loadReadyReport(
+                            id: reportID
+                        ) {
                         ReportDetailView(
                             delivery: delivery,
                             coordinator: reportDeliveryCoordinator
@@ -275,16 +239,11 @@ struct SignsRootView: View {
                         reportUnavailable
                     }
                 case .reportHistory(let assetID):
-                    if let reportHistoryCoordinator,
-                       let reportDeliveryCoordinator {
-                        SignReportHistoryView(
-                            assetID: assetID,
-                            historyCoordinator: reportHistoryCoordinator,
-                            deliveryCoordinator: reportDeliveryCoordinator
-                        )
-                    } else {
-                        reportHistoryUnavailable
-                    }
+                    SignReportHistoryView(
+                        assetID: assetID,
+                        historyCoordinator: reportHistoryCoordinator,
+                        deliveryCoordinator: reportDeliveryCoordinator
+                    )
                 case .issue(let issueID):
                     if let activeIssue,
                        activeIssue.id == issueID {
@@ -313,21 +272,17 @@ struct SignsRootView: View {
                         issueUnavailable
                     }
                 case .work(let draft):
-                    if let workCoordinator {
-                        RecordWorkView(
-                            draft: draft,
-                            coordinator: workCoordinator,
-                            usesImportedFixtureForUITest:
-                                usesImportedCaptureFixturesForUITest
-                        ) { issue in
-                            activeIssue = issue
-                            if !path.isEmpty {
-                                path.removeLast()
-                            }
-                            path.append(Route.issue(issue.id))
+                    RecordWorkView(
+                        draft: draft,
+                        coordinator: workCoordinator,
+                        usesImportedFixtureForUITest:
+                            usesImportedCaptureFixturesForUITest
+                    ) { issue in
+                        activeIssue = issue
+                        if !path.isEmpty {
+                            path.removeLast()
                         }
-                    } else {
-                        issueUnavailable
+                        path.append(Route.issue(issue.id))
                     }
                 }
             }
@@ -422,8 +377,7 @@ struct SignsRootView: View {
 #endif
 
     private func refreshReadyReport() {
-        guard let assetID = snapshot?.assetID,
-              let reportDeliveryCoordinator else {
+        guard let assetID = snapshot?.assetID else {
             readyReport = nil
             return
         }
@@ -545,8 +499,7 @@ struct SignsRootView: View {
         preferRetained: Bool = true,
         openLoadedIssue: Bool = false
     ) {
-        guard let assetID = snapshot?.assetID,
-              let workCoordinator else {
+        guard let assetID = snapshot?.assetID else {
             activeIssue = nil
             return
         }
@@ -600,8 +553,7 @@ struct SignsRootView: View {
     private func beginRecordWork() {
         guard let snapshot,
               let activeIssue,
-              activeIssue.canRecordWork,
-              let workCoordinator else {
+              activeIssue.canRecordWork else {
             return
         }
         do {
@@ -649,7 +601,6 @@ struct SignsRootView: View {
 
     private func openReport(id reportID: UUID) {
         guard let assetID = snapshot?.assetID,
-              let reportDeliveryCoordinator,
               let delivery = try? reportDeliveryCoordinator.onlyReadyReport(assetID: assetID),
               delivery.reportID == reportID else {
             readyReport = nil

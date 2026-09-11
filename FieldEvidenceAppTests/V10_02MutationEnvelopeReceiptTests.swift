@@ -49,8 +49,24 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
 
         let receipt = try harness.commit(envelope, entities: [harness.asset, harness.site])
         let receiptBytes = try receipt.canonicalData()
+        let receiptText = try XCTUnwrap(String(data: receiptBytes, encoding: .utf8))
         XCTAssertEqual(try MutationReceiptV1.decodeCanonical(from: receiptBytes), receipt)
         XCTAssertEqual(try receipt.canonicalSHA256(), MutationJournalHarnessV1.sha256(receiptBytes))
+        XCTAssertFalse(receiptText.contains("writerInstanceID"))
+        var tamperedPortableAuthority = receiptText
+        let generationRange = try XCTUnwrap(
+            tamperedPortableAuthority.range(
+                of: receipt.expectedRevision.generationID.uuidString,
+                options: .caseInsensitive
+            )
+        )
+        tamperedPortableAuthority.replaceSubrange(
+            generationRange,
+            with: MutationJournalHarnessV1.id(99).uuidString.lowercased()
+        )
+        XCTAssertThrowsError(try MutationReceiptV1.decodeCanonical(
+            from: Data(tamperedPortableAuthority.utf8)
+        ))
         XCTAssertEqual(receipt.identity.localSequence, 1)
         XCTAssertEqual(receipt.expectedRevision.workspaceRevision, 0)
         XCTAssertEqual(receipt.resultingRevision.workspaceRevision, 1)
@@ -71,6 +87,92 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
                 .recoverBeforeWriterActivation()
         ) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+    }
+
+    func testV10_02G01TemporalReceiptRetainsPortableGenerationAndRevisionAuthority() throws {
+        let fixture = try C33TemporalEvidenceTestSupport.clip(slot: 902)
+        let expected = try C33TemporalEvidenceTestSupport.expectedRevision(
+            for: fixture.clip,
+            generationID: C33TemporalEvidenceTestSupport.id(903),
+            writerInstanceID: C33TemporalEvidenceTestSupport.id(904)
+        )
+        let mutation = try TemporalEvidenceMutationV1(
+            workspaceID: fixture.clip.workspaceID,
+            expectedRevision: expected,
+            mutationID: fixture.clip.mutationID,
+            payload: .acceptClip(
+                fixture.clip,
+                review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
+                predecessor: nil
+            )
+        )
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: fixture.clip.workspaceID,
+            replicaID: ReplicaID(rawValue: C33TemporalEvidenceTestSupport.id(905))
+        )
+
+        func receipt(for receiptExpected: WorkspaceExpectedRevisionV1) throws -> MutationReceiptV1 {
+            let request = WorkspaceMutationRequestV1(
+                mutationID: mutation.mutationID,
+                expectedRevision: receiptExpected,
+                command: .applyTemporalEvidence(mutation)
+            )
+            let envelope = try MutationEnvelopeV1(request: request, identity: identity)
+            let resulting = try C33TemporalEvidenceTestSupport.expectedRevision(
+                for: fixture.clip,
+                generationID: receiptExpected.generationID,
+                writerInstanceID: receiptExpected.writerInstanceID,
+                workspaceRevision: receiptExpected.workspaceRevision + 1,
+                entityRevision: fixture.clip.revision
+            )
+            return try MutationReceiptV1(
+                identity: MutationReceiptIdentityV1(
+                    workspaceID: fixture.clip.workspaceID,
+                    replicaID: identity.replicaID,
+                    localSequence: 1
+                ),
+                envelope: envelope,
+                resultingRevision: MutationPortableExpectedRevisionV1(resulting),
+                postImages: mutation.mutationPostImages,
+                committedAt: fixture.clip.acceptedAt
+            )
+        }
+
+        let matchingReceipt = try receipt(for: expected)
+        let portable = try TemporalEvidenceMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: matchingReceipt
+        )
+        try portable.validate(mutation: mutation)
+        let wireText = try XCTUnwrap(String(
+            data: WorkspaceMutationCanonicalV1.data(portable),
+            encoding: .utf8
+        ))
+        XCTAssertFalse(wireText.contains("writerInstanceID"))
+
+        let foreignExpectations = [
+            try C33TemporalEvidenceTestSupport.expectedRevision(
+                for: fixture.clip,
+                generationID: C33TemporalEvidenceTestSupport.id(906),
+                writerInstanceID: C33TemporalEvidenceTestSupport.id(907)
+            ),
+            try C33TemporalEvidenceTestSupport.expectedRevision(
+                for: fixture.clip,
+                generationID: expected.generationID,
+                writerInstanceID: C33TemporalEvidenceTestSupport.id(908),
+                workspaceRevision: expected.workspaceRevision + 1
+            ),
+        ]
+        for foreignExpected in foreignExpectations {
+            let foreignReceipt = try receipt(for: foreignExpected)
+            XCTAssertNoThrow(try foreignReceipt.validate())
+            XCTAssertThrowsError(try TemporalEvidenceMutationReceiptV1(
+                mutation: mutation,
+                mutationReceipt: foreignReceipt
+            )) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReceipt)
+            }
         }
     }
 
@@ -435,6 +537,28 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             semanticReversalReplayIdentitySHA256: reversalReplayIdentitySHA256,
             semanticReversalExecution: reversalExecution
         )
+        let foreignTargetExecution = try SemanticReversalExecutionV1(
+            targetMutationID: envelope.mutationID,
+            targetReceiptIdentity: MutationReceiptIdentityV1(
+                workspaceID: foreignWorkspace,
+                replicaID: receipt.identity.replicaID,
+                localSequence: receipt.identity.localSequence
+            ),
+            reversalBasisSHA256: basis.canonicalSHA256(),
+            planDigest: targetPlan.planDigest,
+            compensatingMutationIDs: [reversalRequest.mutationID]
+        )
+        XCTAssertThrowsError(try MutationEnvelopeV1(
+            request: reversalRequest,
+            identity: harness.identity,
+            sourceKind: .semanticReversal,
+            causationMutationID: envelope.mutationID,
+            correlationID: MutationJournalHarnessV1.id(36),
+            semanticReversalReplayIdentitySHA256: reversalReplayIdentitySHA256,
+            semanticReversalExecution: foreignTargetExecution
+        )) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
         let reversalResult = try MutationPortableExpectedRevisionV1(
             WorkspaceExpectedRevisionV1(
                 workspaceID: harness.workspaceID,

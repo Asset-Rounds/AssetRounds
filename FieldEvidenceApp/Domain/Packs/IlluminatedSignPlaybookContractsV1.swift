@@ -649,7 +649,12 @@ struct IlluminatedSignPlaybookCompletionV1: Codable, Equatable, Sendable {
     }
     func validate(registry: IlluminatedSignPlaybookRegistryV1) throws {
         let manifest = try registry.manifest(for: fact.playbookID)
-        try fact.validate(manifest: manifest, registry: registry); try evidenceSequenceFrontier.validate()
+        try fact.validate(manifest: manifest, registry: registry)
+        _ = try EvidenceSequenceReferenceV1(
+            sequenceID: evidenceSequenceFrontier.sequenceID,
+            revision: evidenceSequenceFrontier.revision,
+            sequenceSHA256: evidenceSequenceFrontier.sequenceSHA256
+        )
         try poseEventFrontier?.validate()
         guard registrySHA256 == registry.registrySHA256, manifestSHA256 == manifest.manifestSHA256,
               evidenceSequenceWorkspaceID == workspaceID,

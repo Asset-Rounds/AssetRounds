@@ -287,12 +287,11 @@ private struct ReadyAppView: View {
             AppShellView(
                 packLoadResult: packLoadResult,
                 exposesColorSchemeForUITest: exposesColorSchemeForUITest,
-                modelContext: coordinator.modelContext,
+                storeSession: coordinator,
                 diagnosticsStore: diagnosticsStore,
                 metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
                 feedbackConfiguration: feedbackConfiguration,
                 mailComposerAdapter: mailComposerAdapter,
-                generationRootURL: coordinator.generationRootURL,
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                 injectsLowStorageFailureOnceForUITest:
                     injectsLowStorageFailureOnceForUITest,

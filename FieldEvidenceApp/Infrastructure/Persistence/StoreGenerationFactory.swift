@@ -4648,45 +4648,13 @@ private extension StoreGenerationFactory {
     ) throws -> [StoreGenerationFileDigestV1] {
         let descriptor = try openOwnedDirectory(at: generationRootURL)
         defer { _ = Darwin.close(descriptor) }
-        let names = try StoreRestoreGenerationAuthority.exactGenerationEntries(
-            parent: descriptor,
-            requireModel: true
-        ).sorted()
-        var values = [StoreGenerationFileDigestV1]()
-        for name in names {
-            let captured = try StoreRestoreGenerationAuthority.readRegularFileWithIdentity(
-                parent: descriptor,
-                name: name
-            )
-            let kind: OwnedFileKindV1
-            switch name {
-            case Self.modelStoreName: kind = .database
-            case "\(Self.modelStoreName)-wal": kind = .databaseWAL
-            case "\(Self.modelStoreName)-shm": kind = .databaseSHM
-            default: throw StoreMigrationFailure.invalidPath
-            }
-            values.append(
-                try StoreGenerationFileDigestV1(
-                    relativePath: name,
-                    byteCount: captured.data.count,
-                    sha256: StoreMigrationCanonicalJSONV1.sha256(captured.data),
-                    kind: kind
-                )
-            )
-            if durable {
-                let file = Darwin.openat(descriptor, name, O_RDONLY | O_NOFOLLOW)
-                guard file >= 0 else {
-                    throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
-                }
-                defer { _ = Darwin.close(file) }
-                guard Darwin.fsync(file) == 0 else {
-                    throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
-                }
-            }
-        }
-        if durable, Darwin.fsync(descriptor) != 0 {
-            throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
-        }
+        try verifyOwnedDirectory(at: generationRootURL, descriptor: descriptor)
+        let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
+            parent: descriptor, requireModel: true
+        )
+        let values = try inventory.fileDigests(durable: durable)
+        try verifyOwnedDirectory(at: generationRootURL, descriptor: descriptor)
+        try inventory.revalidate()
         return values
     }
 
@@ -4703,23 +4671,21 @@ private extension StoreGenerationFactory {
     private func frozenIdentityDigest(for generationRootURL: URL) throws -> String {
         let descriptor = try openOwnedDirectory(at: generationRootURL)
         defer { _ = Darwin.close(descriptor) }
-        let directory = try StoreRestoreGenerationAuthority.directoryIdentity(
-            descriptor: descriptor
+        try verifyOwnedDirectory(at: generationRootURL, descriptor: descriptor)
+        let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
+            parent: descriptor, requireModel: true
         )
-        let names = try StoreRestoreGenerationAuthority.exactGenerationEntries(
-            parent: descriptor,
-            requireModel: true
-        ).sorted()
+        try inventory.requireSettledMigrationInput()
+        let directory = inventory.root.identity
         var tokens = ["directory|\(directory.device)|\(directory.inode)"]
-        for name in names {
-            let identity = try StoreRestoreGenerationAuthority.regularFileIdentity(
-                parent: descriptor,
-                name: name
-            )
-            tokens.append(
-                "\(name)|\(identity.device)|\(identity.inode)|\(identity.linkCount)"
-            )
+        for name in inventory.files.keys.sorted() {
+            guard let file = inventory.files[name] else { throw StoreMigrationFailure.invalidPath }
+            let identity = file.snapshot
+            tokens.append("\(name)|\(identity.device)|\(identity.inode)|\(identity.linkCount)")
         }
+        tokens.append(contentsOf: inventory.directoryIdentityTokens)
+        try inventory.revalidate()
+        try verifyOwnedDirectory(at: generationRootURL, descriptor: descriptor)
         return StoreMigrationCanonicalJSONV1.sha256(
             Data(tokens.joined(separator: "\n").utf8)
         )
@@ -5295,7 +5261,7 @@ final class StoreRestoreGenerationAuthority {
         let identity: RegularFileIdentity
     }
 
-    private struct RegularFileSnapshot: Equatable {
+    fileprivate struct RegularFileSnapshot: Equatable {
         let device: dev_t
         let inode: ino_t
         let linkCount: nlink_t
@@ -5303,21 +5269,367 @@ final class StoreRestoreGenerationAuthority {
         let byteCount: off_t
     }
 
-    private struct StreamedFileDigest {
+    fileprivate struct StreamedFileDigest {
         let byteCount: Int
         let sha256: String
         let snapshot: RegularFileSnapshot
     }
 
-    private struct PinnedMigrationSourceFile {
-        let name: String
-        let descriptor: Int32
-        let snapshot: RegularFileSnapshot
-        var initialSHA256: String?
-    }
-
     private static let migrationStreamBufferByteCount = 64 * 1024
     private static let maximumControlFileByteCount = 4 * 1024 * 1024
+
+    /// Holds every parent in one operation's root-to-leaf chain, while the
+    /// complete inventory stores identities rather than an unbounded FD set.
+    fileprivate final class GenerationDirectoryChain {
+        private struct Entry {
+            let name: String
+            let descriptor: Int32
+            let identity: Identity
+        }
+        private var entries: [Entry] = []
+
+        init(rootDescriptor: Int32, rootIdentity: Identity,
+             directories: [String: Identity], path: String) throws {
+            do {
+                let root = Darwin.openat(rootDescriptor, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                guard root >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                entries.append(Entry(name: "", descriptor: root, identity: rootIdentity))
+                guard try StoreRestoreGenerationAuthority.identity(root) == rootIdentity else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                var prefix = ""
+                for component in path.split(separator: "/") {
+                    let name = String(component)
+                    try StoreRestoreGenerationAuthority.requireSafeBasename(name)
+                    prefix = prefix.isEmpty ? name : "\(prefix)/\(name)"
+                    guard let expected = directories[prefix], let parent = entries.last else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    let child = Darwin.openat(parent.descriptor, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                    guard child >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                    entries.append(Entry(name: name, descriptor: child, identity: expected))
+                    guard try StoreRestoreGenerationAuthority.identity(child) == expected else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                }
+                try verify()
+            } catch {
+                closeDescriptors()
+                throw error
+            }
+        }
+
+        deinit { closeDescriptors() }
+        private func closeDescriptors() {
+            for entry in entries.reversed() { _ = Darwin.close(entry.descriptor) }
+            entries.removeAll()
+        }
+        var descriptor: Int32 { entries.last!.descriptor }
+        func verify() throws {
+            guard !entries.isEmpty else { throw StoreGenerationFailure.dataPointerInvalid }
+            for (index, entry) in entries.enumerated() {
+                guard try StoreRestoreGenerationAuthority.identity(entry.descriptor) == entry.identity else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                if index > 0 {
+                    guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+                        parent: entries[index - 1].descriptor, name: entry.name
+                    ) == entry.identity else { throw StoreGenerationFailure.dataPointerInvalid }
+                }
+            }
+        }
+    }
+
+    /// Complete preflight with bounded descriptor use: retain the root, scan
+    /// depth-first, then reacquire verified parent chains for each operation.
+    /// URL spellings never discover descendants or grant deletion authority.
+    fileprivate final class GenerationInventory {
+        struct Directory {
+            let descriptor: Int32
+            let identity: Identity
+        }
+        struct File {
+            let snapshot: RegularFileSnapshot
+            let ownership: GenerationOwnedPathV1.Classification
+        }
+        let root: Directory
+        private(set) var directories: [String: Identity] = [:]
+        private(set) var files: [String: File] = [:]
+        private var children: [String: Set<String>] = [:]
+        private var closed = false
+
+        init(parent: Int32, requireModel: Bool, partialCleanup: Bool = false) throws {
+            let descriptor = Darwin.openat(parent, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+            do {
+                root = Directory(descriptor: descriptor, identity: try StoreRestoreGenerationAuthority.identity(descriptor))
+            } catch {
+                _ = Darwin.close(descriptor)
+                throw error
+            }
+            do {
+                try scan(directory: root, prefix: "")
+                let hasModel = files["model.sqlite"] != nil
+                guard !requireModel || hasModel,
+                      partialCleanup || hasModel
+                        || (files["model.sqlite-wal"] == nil && files["model.sqlite-shm"] == nil) else {
+                    throw StoreGenerationFailure.dataGenerationMissing
+                }
+                try revalidate()
+            } catch {
+                closed = true
+                _ = Darwin.close(root.descriptor)
+                throw error
+            }
+        }
+
+        deinit { if !closed { _ = Darwin.close(root.descriptor) } }
+        var tree: Tree { Tree(directories: Set(directories.keys), files: Set(files.keys)) }
+        static func parentPath(_ path: String) -> String {
+            path.split(separator: "/").dropLast().joined(separator: "/")
+        }
+        static func basename(_ path: String) -> String {
+            String(path.split(separator: "/").last!)
+        }
+
+        private func withDirectory<T>(_ path: String,
+                                      _ body: (GenerationDirectoryChain) throws -> T) throws -> T {
+            let chain = try GenerationDirectoryChain(rootDescriptor: root.descriptor,
+                rootIdentity: root.identity, directories: directories, path: path)
+            let value = try body(chain)
+            try chain.verify()
+            return value
+        }
+
+        private func scan(directory: Directory, prefix: String) throws {
+            let names = try StoreRestoreGenerationAuthority.names(in: directory.descriptor)
+            children[prefix] = Set(names)
+            for name in names {
+                try StoreRestoreGenerationAuthority.requireSafeBasename(name)
+                let path = prefix.isEmpty ? name : "\(prefix)/\(name)"
+                var info = stat()
+                guard Darwin.fstatat(directory.descriptor, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                switch info.st_mode & S_IFMT {
+                case S_IFDIR:
+                    _ = try GenerationOwnedPathV1.classify(path, nodeType: .directory)
+                    let child = Darwin.openat(directory.descriptor, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                    guard child >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                    do {
+                        let identity = try StoreRestoreGenerationAuthority.identity(child)
+                        guard identity == Identity(device: info.st_dev, inode: info.st_ino) else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        directories[path] = identity
+                        try scan(directory: Directory(descriptor: child, identity: identity), prefix: path)
+                        guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+                            parent: directory.descriptor, name: name
+                        ) == identity else { throw StoreGenerationFailure.dataPointerInvalid }
+                    } catch {
+                        _ = Darwin.close(child)
+                        throw error
+                    }
+                    _ = Darwin.close(child)
+                case S_IFREG:
+                    let ownership = try GenerationOwnedPathV1.classify(path, nodeType: .regularFile)
+                    guard info.st_nlink == 1 else { throw StoreGenerationFailure.dataPointerInvalid }
+                    let child = Darwin.openat(directory.descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+                    guard child >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                    do {
+                        let snapshot = try StoreRestoreGenerationAuthority.regularFileSnapshot(
+                            descriptor: child, mismatchReason: .sourceMismatch)
+                        guard snapshot.device == info.st_dev, snapshot.inode == info.st_ino,
+                              snapshot.byteCount == info.st_size else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        files[path] = File(snapshot: snapshot, ownership: ownership)
+                    } catch {
+                        _ = Darwin.close(child)
+                        throw error
+                    }
+                    _ = Darwin.close(child)
+                default:
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            guard try StoreRestoreGenerationAuthority.names(in: directory.descriptor) == names,
+                  try StoreRestoreGenerationAuthority.identity(directory.descriptor) == directory.identity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+
+        func revalidate() throws {
+            for path in [""] + directories.keys.sorted() {
+                guard let expected = children[path] else { throw StoreGenerationFailure.dataPointerInvalid }
+                try withDirectory(path) { chain in
+                    guard Set(try StoreRestoreGenerationAuthority.names(in: chain.descriptor)) == expected else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                }
+            }
+            for path in files.keys.sorted() { try withFile(path) { _, _ in } }
+        }
+
+        /// O_NONBLOCK prevents a regular-file -> FIFO replacement from
+        /// blocking before fstat. Parent descriptors live through the body.
+        func withFile<T>(_ path: String, _ body: (Int32, RegularFileSnapshot) throws -> T) throws -> T {
+            guard let file = files[path] else { throw StoreGenerationFailure.dataPointerInvalid }
+            return try withDirectory(Self.parentPath(path)) { chain in
+                let name = Self.basename(path)
+                let descriptor = Darwin.openat(chain.descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+                guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                defer { _ = Darwin.close(descriptor) }
+                guard try StoreRestoreGenerationAuthority.regularFileSnapshot(
+                    descriptor: descriptor, mismatchReason: .sourceMismatch
+                ) == file.snapshot,
+                      try StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
+                        parent: chain.descriptor, name: name, mismatchReason: .sourceMismatch
+                      ) == file.snapshot else { throw StoreGenerationFailure.dataPointerInvalid }
+                let value = try body(descriptor, file.snapshot)
+                guard try StoreRestoreGenerationAuthority.regularFileSnapshot(
+                    descriptor: descriptor, mismatchReason: .sourceMismatch
+                ) == file.snapshot,
+                      try StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
+                        parent: chain.descriptor, name: name, mismatchReason: .sourceMismatch
+                      ) == file.snapshot else { throw StoreGenerationFailure.dataPointerInvalid }
+                return value
+            }
+        }
+
+        func requireSettledMigrationInput() throws {
+            guard !files.values.contains(where: { $0.ownership.recoveryOwned }) else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+        }
+
+        func fileDigests(durable: Bool) throws -> [StoreGenerationFileDigestV1] {
+            try requireSettledMigrationInput()
+            try revalidate()
+            var values = [StoreGenerationFileDigestV1]()
+            for path in files.keys.sorted() {
+                guard let file = files[path] else { throw StoreGenerationFailure.dataPointerInvalid }
+                let digest = try withFile(path) { descriptor, snapshot in
+                    let digest = try StoreRestoreGenerationAuthority.streamedDigest(
+                        descriptor: descriptor, expectedSnapshot: snapshot, mismatchReason: .sourceMismatch)
+                    if durable, Darwin.fsync(descriptor) != 0 {
+                        throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
+                    }
+                    return digest
+                }
+                values.append(try StoreGenerationFileDigestV1(
+                    relativePath: path, byteCount: digest.byteCount, sha256: digest.sha256, kind: file.ownership.kind))
+            }
+            for value in values {
+                let reproof = try withFile(value.relativePath) { descriptor, snapshot in
+                    try StoreRestoreGenerationAuthority.streamedDigest(
+                        descriptor: descriptor, expectedSnapshot: snapshot, mismatchReason: .sourceMismatch)
+                }
+                guard reproof.sha256 == value.sha256 else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+            }
+            try revalidate()
+            if durable {
+                for path in [""] + directories.keys.sorted() {
+                    try withDirectory(path) { chain in
+                        guard Darwin.fsync(chain.descriptor) == 0 else {
+                            throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
+                        }
+                    }
+                }
+            }
+            return values
+        }
+
+        /// Directory tokens leave both historical flat SQLite encodings intact.
+        var directoryIdentityTokens: [String] {
+            directories.keys.sorted().map { path in
+                let identity = directories[path]!
+                return "subdirectory|\(path)|\(identity.device)|\(identity.inode)"
+            }
+        }
+
+        func protect(rootURL: URL, staging: Bool,
+                     apply: (OwnedFileKindV1, URL, @escaping () throws -> Void) throws -> Void) throws {
+            try revalidate()
+            for path in directories.keys.sorted() + files.keys.sorted() {
+                let isDirectory = directories[path] != nil
+                let owned = try GenerationOwnedPathV1.classify(path, nodeType: isDirectory ? .directory : .regularFile)
+                let kind: OwnedFileKindV1 = staging
+                    ? (isDirectory ? .stagingDirectory : .stagingFile) : owned.kind
+                let parentPath = isDirectory ? path : Self.parentPath(path)
+                try withDirectory(parentPath) { chain in
+                    let check = {
+                        try chain.verify()
+                        guard try StoreRestoreGenerationAuthority.directoryIdentity(at: rootURL) == self.root.identity else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        if !isDirectory {
+                            guard let file = self.files[path],
+                                  try StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
+                                    parent: chain.descriptor, name: Self.basename(path), mismatchReason: .sourceMismatch
+                                  ) == file.snapshot else { throw StoreGenerationFailure.dataPointerInvalid }
+                        }
+                    }
+                    try apply(kind, rootURL.appendingPathComponent(path, isDirectory: isDirectory), check)
+                }
+            }
+            try revalidate()
+        }
+
+        func removeAll(authorityCheck: () throws -> Void = {}) throws {
+            // The full classified tree is checked before the first unlink.
+            try authorityCheck()
+            try revalidate()
+            var remainingChildren = children
+            for path in files.keys.sorted() {
+                guard let file = files[path] else { throw StoreGenerationFailure.dataPointerInvalid }
+                try withDirectory(Self.parentPath(path)) { chain in
+                    let name = Self.basename(path)
+                    try authorityCheck()
+                    try chain.verify()
+                    guard Set(try StoreRestoreGenerationAuthority.names(in: chain.descriptor))
+                            == remainingChildren[Self.parentPath(path)],
+                          try StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
+                        parent: chain.descriptor, name: name, mismatchReason: .sourceMismatch
+                    ) == file.snapshot,
+                          Darwin.unlinkat(chain.descriptor, name, 0) == 0,
+                          Darwin.fsync(chain.descriptor) == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                    remainingChildren[Self.parentPath(path)]?.remove(name)
+                }
+            }
+            let bottomUp = directories.keys.sorted {
+                let left = $0.split(separator: "/").count, right = $1.split(separator: "/").count
+                return left == right ? $0 > $1 : left > right
+            }
+            for path in bottomUp {
+                guard let expected = directories[path] else { throw StoreGenerationFailure.dataPointerInvalid }
+                try withDirectory(Self.parentPath(path)) { chain in
+                    let name = Self.basename(path)
+                    let child = Darwin.openat(chain.descriptor, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                    guard child >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                    defer { _ = Darwin.close(child) }
+                    try authorityCheck()
+                    try chain.verify()
+                    guard Set(try StoreRestoreGenerationAuthority.names(in: chain.descriptor))
+                            == remainingChildren[Self.parentPath(path)],
+                          try StoreRestoreGenerationAuthority.identity(child) == expected,
+                          try StoreRestoreGenerationAuthority.names(in: child).isEmpty,
+                          try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+                            parent: chain.descriptor, name: name
+                          ) == expected,
+                          Darwin.unlinkat(chain.descriptor, name, AT_REMOVEDIR) == 0,
+                          Darwin.fsync(chain.descriptor) == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                    remainingChildren[Self.parentPath(path)]?.remove(name)
+                }
+            }
+            try authorityCheck()
+            guard try StoreRestoreGenerationAuthority.identity(root.descriptor) == root.identity,
+                  try StoreRestoreGenerationAuthority.names(in: root.descriptor).isEmpty,
+                  Darwin.fsync(root.descriptor) == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        }
+    }
 
     struct Presence {
         let staging: Bool
@@ -5360,11 +5672,6 @@ final class StoreRestoreGenerationAuthority {
     private static let generationsName = "generations"
     private static let importStagingName = "staging"
     private static let pointerMutationLock = NSLock()
-    fileprivate static let generationStoreNames: Set<String> = [
-        "model.sqlite",
-        "model.sqlite-wal",
-        "model.sqlite-shm"
-    ]
 
     private let applicationSupportURL: URL
     private let applicationSupportDescriptor: Int32
@@ -5516,7 +5823,8 @@ final class StoreRestoreGenerationAuthority {
         descriptor: Int32,
         root: URL,
         name: String,
-        kind: OwnedFileKindV1
+        kind: OwnedFileKindV1,
+        authorityCheck: @escaping () throws -> Void = {}
     ) throws {
         try Self.requireSafeBasename(name)
         let generationIdentity = try StoreRestoreGenerationAuthority.directoryIdentity(
@@ -5525,7 +5833,7 @@ final class StoreRestoreGenerationAuthority {
         let fileDescriptor = Darwin.openat(
             descriptor,
             name,
-            O_RDONLY | O_NOFOLLOW
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW
         )
         guard fileDescriptor >= 0 else {
             throw StoreGenerationFailure.dataPointerInvalid
@@ -5537,6 +5845,7 @@ final class StoreRestoreGenerationAuthority {
             kind,
             at: url,
             authorityCheck: {
+                try authorityCheck()
                 guard try StoreRestoreGenerationAuthority.directoryIdentity(
                           descriptor: descriptor
                       ) == generationIdentity,
@@ -5565,63 +5874,22 @@ final class StoreRestoreGenerationAuthority {
         rootKind: OwnedFileKindV1,
         requireModel: Bool = false
     ) throws {
-        let descriptor = Darwin.openat(
-            parent,
-            Self.canonical(id),
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard descriptor >= 0 else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
+        let descriptor = Darwin.openat(parent, Self.canonical(id), O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
         defer { _ = Darwin.close(descriptor) }
-
-        let generationIdentity = try Self.identity(descriptor)
-        try enforce(
-            rootKind,
-            at: root,
-            authorityCheck: {
-                guard try Self.identity(descriptor) == generationIdentity,
-                      try Self.directoryIdentity(at: root) == generationIdentity else {
-                    throw StoreGenerationFailure.dataPointerInvalid
-                }
+        let inventory = try GenerationInventory(parent: descriptor, requireModel: requireModel)
+        let generationIdentity = inventory.root.identity
+        try enforce(rootKind, at: root, authorityCheck: {
+            try inventory.revalidate()
+            guard try Self.requiredDirectoryIdentity(parent: parent, name: Self.canonical(id)) == generationIdentity,
+                  try Self.directoryIdentity(at: root) == generationIdentity else {
+                throw StoreGenerationFailure.dataPointerInvalid
             }
-        )
-
-        let before = try Self.exactGenerationEntries(
-            parent: descriptor,
-            requireModel: requireModel
-        )
-
-        let modelKind: OwnedFileKindV1 = rootKind == .restoreStaging
-            ? .stagingFile
-            : .database
-        let walKind: OwnedFileKindV1 = rootKind == .restoreStaging
-            ? .stagingFile
-            : .databaseWAL
-        let shmKind: OwnedFileKindV1 = rootKind == .restoreStaging
-            ? .stagingFile
-            : .databaseSHM
-
-        for name in before {
-            let kind: OwnedFileKindV1
-            switch name {
-            case "model.sqlite": kind = modelKind
-            case "model.sqlite-wal": kind = walKind
-            case "model.sqlite-shm": kind = shmKind
-            default: throw StoreGenerationFailure.dataPointerInvalid
-            }
-            try enforceGenerationFile(
-                descriptor: descriptor,
-                root: root,
-                name: name,
-                kind: kind
-            )
+        })
+        try inventory.protect(rootURL: root, staging: rootKind == .restoreStaging) { kind, url, check in
+            try self.enforce(kind, at: url, authorityCheck: check)
         }
-        let after = try Self.exactGenerationEntries(
-            parent: descriptor,
-            requireModel: requireModel
-        )
-        guard before == after else {
+        guard try Self.requiredDirectoryIdentity(parent: parent, name: Self.canonical(id)) == generationIdentity else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
     }
@@ -5747,33 +6015,9 @@ final class StoreRestoreGenerationAuthority {
         parent: Int32,
         requireModel: Bool
     ) throws -> Set<String> {
-        let entries = Set(try Self.names(in: parent))
-        guard entries.isSubset(of: Self.generationStoreNames) else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
-        let hasModel = entries.contains("model.sqlite")
-        guard !requireModel || hasModel else {
-            throw StoreGenerationFailure.dataGenerationMissing
-        }
-        guard hasModel ||
-                (!entries.contains("model.sqlite-wal") &&
-                 !entries.contains("model.sqlite-shm")) else {
-            throw StoreGenerationFailure.dataGenerationMissing
-        }
-        for name in entries {
-            var info = stat()
-            guard Darwin.fstatat(
-                parent,
-                name,
-                &info,
-                AT_SYMLINK_NOFOLLOW
-            ) == 0,
-                  (info.st_mode & S_IFMT) == S_IFREG,
-                  info.st_nlink == 1 else {
-                throw StoreGenerationFailure.dataPointerInvalid
-            }
-        }
-        return entries
+        let inventory = try GenerationInventory(parent: parent, requireModel: requireModel)
+        try inventory.revalidate()
+        return inventory.tree.files
     }
 
     func verify() throws {
@@ -6211,55 +6455,23 @@ final class StoreRestoreGenerationAuthority {
     ) throws {
         try Self.requireSafeBasename(name)
         try requireInstalledGeneration(handle)
-        let descriptor = Darwin.openat(
-            handle.descriptor,
-            name,
-            O_RDONLY | O_NOFOLLOW
-        )
-        guard descriptor >= 0 else {
-            throw StoreGenerationFailure.dataGenerationMissing
-        }
-        defer { _ = Darwin.close(descriptor) }
-        var info = stat()
-        guard Darwin.fstat(descriptor, &info) == 0,
-              (info.st_mode & S_IFMT) == S_IFREG,
-              info.st_nlink == 1,
-              Darwin.fsync(descriptor) == 0,
-              Darwin.fsync(handle.descriptor) == 0 else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
-        let before = try Self.exactGenerationEntries(
-            parent: handle.descriptor,
-            requireModel: true
-        )
-        guard before.contains(name) else {
-            throw StoreGenerationFailure.dataGenerationMissing
+        let inventory = try GenerationInventory(parent: handle.descriptor, requireModel: true)
+        guard inventory.files[name] != nil else { throw StoreGenerationFailure.dataGenerationMissing }
+        try inventory.withFile(name) { descriptor, _ in
+            guard Darwin.fsync(descriptor) == 0, Darwin.fsync(handle.descriptor) == 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
         }
         if name == "model.sqlite" {
             let root = try Self.currentURL(for: handle.descriptor)
-            for entry in before {
-                let kind: OwnedFileKindV1
-                switch entry {
-                case "model.sqlite": kind = .database
-                case "model.sqlite-wal": kind = .databaseWAL
-                case "model.sqlite-shm": kind = .databaseSHM
-                default: throw StoreGenerationFailure.dataPointerInvalid
-                }
-                try enforceGenerationFile(
-                    descriptor: handle.descriptor,
-                    root: root,
-                    name: entry,
-                    kind: kind
-                )
+            try inventory.protect(rootURL: root, staging: false) { kind, url, check in
+                try self.enforce(kind, at: url, authorityCheck: {
+                    try self.requireInstalledGeneration(handle)
+                    try check()
+                })
             }
         }
-        let after = try Self.exactGenerationEntries(
-            parent: handle.descriptor,
-            requireModel: true
-        )
-        guard before == after else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
+        try inventory.revalidate()
         try requireInstalledGeneration(handle)
     }
 
@@ -6297,7 +6509,12 @@ final class StoreRestoreGenerationAuthority {
               ) == handle.identity else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        try Self.removeContents(of: handle.descriptor)
+        try Self.removeContents(of: handle.descriptor, authorityCheck: {
+            guard try Self.identity(parent) == self.installedGenerationsIdentity,
+                  try Self.requiredDirectoryIdentity(parent: parent, name: currentURL.lastPathComponent) == handle.identity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        })
         guard try Self.requiredDirectoryIdentity(
             parent: parent,
             name: currentURL.lastPathComponent
@@ -6343,133 +6560,40 @@ final class StoreRestoreGenerationAuthority {
         try protectInstalledGeneration(id: id, requireModel: true)
     }
 
-    /// Clones the exact SQLite file set from an installed generation into an
-    /// already-created restore staging generation.  Every source file is read
-    /// through a retained parent descriptor, reread after the clone, and
-    /// compared by both bytes and inode identity.  This is intentionally
-    /// separate from the restore pointer swap: migration publication cannot
-    /// acquire the legacy restore rollback semantics by accident.
-    func snapshotInstalledGeneration(
-        id: UUID
-    ) throws -> MigrationCloneResult {
+    /// Snapshots the classified durable file closure and binds each owned
+    /// directory identity, including empty directories. File reads use bounded
+    /// descriptor chains and revalidate bytes and identity before returning.
+    func snapshotInstalledGeneration(id: UUID) throws -> MigrationCloneResult {
         try verify()
         try requireInstalledGeneration(id: id)
-        let descriptor = Darwin.openat(
-            installedGenerationsDescriptor,
-            Self.canonical(id),
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard descriptor >= 0 else {
-            throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
-        }
+        let descriptor = Darwin.openat(installedGenerationsDescriptor, Self.canonical(id), O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable) }
         defer { _ = Darwin.close(descriptor) }
-        let directory = try Self.identity(descriptor)
-        let names = try Self.exactGenerationEntries(
-            parent: descriptor,
-            requireModel: true
-        ).sorted()
-        var files = [StoreGenerationFileDigestV1]()
+        let inventory = try GenerationInventory(parent: descriptor, requireModel: true)
+        let files = try inventory.fileDigests(durable: false)
+        let directory = inventory.root.identity
         var tokens = ["source-directory|\(directory.device)|\(directory.inode)"]
-        var pinnedSourceFiles = [PinnedMigrationSourceFile]()
-        defer {
-            pinnedSourceFiles.forEach { _ = Darwin.close($0.descriptor) }
+        for file in files {
+            guard let source = inventory.files[file.relativePath] else { throw StoreMigrationFailure.invalidPath }
+            let identity = source.snapshot
+            tokens.append("\(file.relativePath)|\(identity.device)|\(identity.inode)|\(identity.linkCount)|\(file.sha256)")
         }
-        for name in names {
-            let sourceDescriptor = Darwin.openat(
-                descriptor,
-                name,
-                O_RDONLY | O_NOFOLLOW
-            )
-            guard sourceDescriptor >= 0 else {
-                throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
-            }
-            let sourceSnapshot: RegularFileSnapshot
-            let captured: StreamedFileDigest
-            do {
-                sourceSnapshot = try Self.regularFileSnapshot(
-                    descriptor: sourceDescriptor,
-                    mismatchReason: .sourceMismatch
-                )
-                captured = try Self.streamedDigest(
-                    descriptor: sourceDescriptor,
-                    expectedSnapshot: sourceSnapshot,
-                    mismatchReason: .sourceMismatch
-                )
-            } catch {
-                _ = Darwin.close(sourceDescriptor)
-                throw error
-            }
-            pinnedSourceFiles.append(
-                PinnedMigrationSourceFile(
-                    name: name,
-                    descriptor: sourceDescriptor,
-                    snapshot: sourceSnapshot,
-                    initialSHA256: captured.sha256
-                )
-            )
-            let kind: OwnedFileKindV1
-            switch name {
-            case "model.sqlite": kind = .database
-            case "model.sqlite-wal": kind = .databaseWAL
-            case "model.sqlite-shm": kind = .databaseSHM
-            default: throw StoreMigrationFailure.invalidPath
-            }
-            let file = try StoreGenerationFileDigestV1(
-                relativePath: name,
-                byteCount: captured.byteCount,
-                sha256: captured.sha256,
-                kind: kind
-            )
-            files.append(file)
-            tokens.append(
-                "\(name)|\(captured.snapshot.device)|\(captured.snapshot.inode)|\(captured.snapshot.linkCount)|\(file.sha256)"
-            )
-        }
-        guard try Self.exactGenerationEntries(parent: descriptor, requireModel: true)
-                == Set(names),
-              try Self.identity(descriptor) == directory,
-              try Self.requiredDirectoryIdentity(
-                  parent: installedGenerationsDescriptor,
-                  name: Self.canonical(id)
-              ) == directory else {
+        tokens.append(contentsOf: inventory.directoryIdentityTokens)
+        try inventory.revalidate()
+        try verify()
+        guard try Self.requiredDirectoryIdentity(parent: installedGenerationsDescriptor, name: Self.canonical(id)) == directory else {
             throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
         }
-        for pinned in pinnedSourceFiles {
-            guard let initialSHA256 = pinned.initialSHA256 else {
-                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
-            }
-            let reproof = try Self.streamedDigest(
-                descriptor: pinned.descriptor,
-                expectedSnapshot: pinned.snapshot,
-                mismatchReason: .sourceMismatch
-            )
-            guard reproof.sha256 == initialSHA256,
-                  try Self.namedRegularFileSnapshot(
-                      parent: descriptor,
-                      name: pinned.name,
-                      mismatchReason: .sourceMismatch
-                  ) == pinned.snapshot else {
-                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
-            }
-        }
-        guard try Self.exactGenerationEntries(parent: descriptor, requireModel: true)
-                == Set(names),
-              try Self.identity(descriptor) == directory,
-              try Self.requiredDirectoryIdentity(
-                  parent: installedGenerationsDescriptor,
-                  name: Self.canonical(id)
-              ) == directory else {
-            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
-        }
-        let treeData = try StoreMigrationCanonicalJSONV1.encode(files)
-        let identityData = Data(tokens.sorted().joined(separator: "\n").utf8)
         return MigrationCloneResult(
             files: files,
-            sourceTreeDigest: StoreMigrationCanonicalJSONV1.sha256(treeData),
-            frozenIdentityDigest: StoreMigrationCanonicalJSONV1.sha256(identityData)
+            sourceTreeDigest: StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(files)),
+            frozenIdentityDigest: StoreMigrationCanonicalJSONV1.sha256(Data(tokens.sorted().joined(separator: "\n").utf8))
         )
     }
 
+    /// Clones the complete classified durable tree into empty restore staging,
+    /// preserving directory paths and reproving source and target bytes. This
+    /// does not acquire the legacy restore pointer-swap rollback semantics.
     func cloneInstalledGeneration(
         sourceID: UUID,
         toStagingGeneration targetID: UUID
@@ -6477,162 +6601,112 @@ final class StoreRestoreGenerationAuthority {
         try verify()
         try requireInstalledGeneration(id: sourceID)
         try requireStagingGeneration(id: targetID)
-
-        let sourceName = Self.canonical(sourceID)
-        let targetName = Self.canonical(targetID)
-        let source = Darwin.openat(
-            installedGenerationsDescriptor,
-            sourceName,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard source >= 0 else {
-            throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
-        }
-        let target = Darwin.openat(
-            stagingGenerationsDescriptor,
-            targetName,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard target >= 0 else {
-            _ = Darwin.close(source)
-            throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
-        }
-        defer {
-            _ = Darwin.close(target)
-            _ = Darwin.close(source)
-        }
-
-        let sourceIdentity = try Self.identity(source)
+        let sourceName = Self.canonical(sourceID), targetName = Self.canonical(targetID)
+        let source = Darwin.openat(installedGenerationsDescriptor, sourceName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard source >= 0 else { throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable) }
+        defer { _ = Darwin.close(source) }
+        let target = Darwin.openat(stagingGenerationsDescriptor, targetName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard target >= 0 else { throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable) }
+        defer { _ = Darwin.close(target) }
+        let sourceInventory = try GenerationInventory(parent: source, requireModel: true)
+        try sourceInventory.requireSettledMigrationInput()
         let targetIdentity = try Self.identity(target)
-        guard try Self.exactGenerationEntries(parent: target, requireModel: false).isEmpty else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        do {
+            let emptyTarget = try GenerationInventory(parent: target, requireModel: false)
+            guard emptyTarget.tree.files.isEmpty, emptyTarget.tree.directories.isEmpty else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
         }
-        let sourceNames = try Self.exactGenerationEntries(parent: source, requireModel: true).sorted()
+        let targetRoot = stagingGenerationsURL.appendingPathComponent(targetName, isDirectory: true)
+        var createdDirectories: [String: Identity] = [:]
+        func targetChain(_ path: String) throws -> GenerationDirectoryChain {
+            try GenerationDirectoryChain(rootDescriptor: target, rootIdentity: targetIdentity,
+                directories: createdDirectories, path: path)
+        }
+        func verifyCloneRoots() throws {
+            try self.verify()
+            guard try Self.identity(source) == sourceInventory.root.identity,
+                  try Self.requiredDirectoryIdentity(parent: self.installedGenerationsDescriptor, name: sourceName) == sourceInventory.root.identity,
+                  try Self.identity(target) == targetIdentity,
+                  try Self.requiredDirectoryIdentity(parent: self.stagingGenerationsDescriptor, name: targetName) == targetIdentity else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        }
+        try verifyCloneRoots()
+        // Parents precede children, and known empty directories are retained.
+        let directoryPaths = sourceInventory.directories.keys.sorted {
+            let left = $0.split(separator: "/").count, right = $1.split(separator: "/").count
+            return left == right ? $0 < $1 : left < right
+        }
+        for path in directoryPaths {
+            let parent = try targetChain(GenerationInventory.parentPath(path))
+            let name = GenerationInventory.basename(path)
+            try verifyCloneRoots()
+            try parent.verify()
+            guard Darwin.mkdirat(parent.descriptor, name, mode_t(0o700)) == 0 else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            let child = Darwin.openat(parent.descriptor, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard child >= 0 else { throw StoreMigrationFailure.maintenanceRequired(.targetMismatch) }
+            defer { _ = Darwin.close(child) }
+            let identity = try Self.identity(child)
+            createdDirectories[path] = identity
+            try enforce(.stagingDirectory, at: targetRoot.appendingPathComponent(path, isDirectory: true), authorityCheck: {
+                try verifyCloneRoots()
+                try parent.verify()
+                guard try Self.identity(child) == identity,
+                      try Self.requiredDirectoryIdentity(parent: parent.descriptor, name: name) == identity else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+            })
+            guard Darwin.fsync(child) == 0, Darwin.fsync(parent.descriptor) == 0 else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        }
         var fileDigests = [StoreGenerationFileDigestV1]()
-        var identityTokens = [
-            "source-directory|\(sourceIdentity.device)|\(sourceIdentity.inode)"
-        ]
-        var pinnedSourceFiles = [PinnedMigrationSourceFile]()
-        defer {
-            pinnedSourceFiles.forEach { _ = Darwin.close($0.descriptor) }
-        }
-
-        for name in sourceNames {
-            let sourceDescriptor = Darwin.openat(
-                source,
-                name,
-                O_RDONLY | O_NOFOLLOW
-            )
-            guard sourceDescriptor >= 0 else {
-                throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
-            }
-            let sourceSnapshot: RegularFileSnapshot
-            do {
-                sourceSnapshot = try Self.regularFileSnapshot(
-                    descriptor: sourceDescriptor,
-                    mismatchReason: .sourceMismatch
+        var identityTokens = ["source-directory|\(sourceInventory.root.identity.device)|\(sourceInventory.root.identity.inode)"]
+        for path in sourceInventory.files.keys.sorted() {
+            let parent = try targetChain(GenerationInventory.parentPath(path))
+            try verifyCloneRoots()
+            try parent.verify()
+            guard let file = sourceInventory.files[path] else { throw StoreMigrationFailure.invalidPath }
+            let copied = try sourceInventory.withFile(path) { sourceDescriptor, sourceSnapshot in
+                try createProtectedStagingFile(
+                    targetID: targetID, parent: parent.descriptor, name: GenerationInventory.basename(path),
+                    parentRelativePath: GenerationInventory.parentPath(path),
+                    sourceDescriptor: sourceDescriptor, sourceSnapshot: sourceSnapshot,
+                    authorityCheck: { try verifyCloneRoots(); try parent.verify() }
                 )
-            } catch {
-                _ = Darwin.close(sourceDescriptor)
-                throw error
             }
-            pinnedSourceFiles.append(
-                PinnedMigrationSourceFile(
-                    name: name,
-                    descriptor: sourceDescriptor,
-                    snapshot: sourceSnapshot,
-                    initialSHA256: nil
-                )
-            )
-            let kind: OwnedFileKindV1
-            switch name {
-            case "model.sqlite": kind = .database
-            case "model.sqlite-wal": kind = .databaseWAL
-            case "model.sqlite-shm": kind = .databaseSHM
-            default: throw StoreMigrationFailure.invalidPath
-            }
-            let copied = try createProtectedStagingFile(
-                targetID: targetID,
-                parent: target,
-                name: name,
-                sourceDescriptor: sourceDescriptor,
-                sourceSnapshot: sourceSnapshot
-            )
-            pinnedSourceFiles[pinnedSourceFiles.count - 1].initialSHA256 =
-                copied.sha256
-            let digest = try StoreGenerationFileDigestV1(
-                relativePath: name,
-                byteCount: copied.byteCount,
-                sha256: copied.sha256,
-                kind: kind
-            )
-            fileDigests.append(digest)
-            identityTokens.append(
-                "\(name)|\(sourceSnapshot.device)|\(sourceSnapshot.inode)|\(sourceSnapshot.linkCount)|\(digest.sha256)"
-            )
+            fileDigests.append(try StoreGenerationFileDigestV1(
+                relativePath: path, byteCount: copied.byteCount, sha256: copied.sha256, kind: file.ownership.kind
+            ))
+            identityTokens.append("\(path)|\(file.snapshot.device)|\(file.snapshot.inode)|\(file.snapshot.linkCount)|\(copied.sha256)")
         }
-
-        guard try Self.exactGenerationEntries(parent: target, requireModel: true)
-            == Set(sourceNames) else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-        }
-        guard try Self.identity(target) == targetIdentity,
-              try Self.requiredDirectoryIdentity(
-                  parent: stagingGenerationsDescriptor,
-                  name: targetName
-              ) == targetIdentity else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-        }
-        guard Darwin.fsync(target) == 0 else {
-            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
-        }
-        guard Darwin.fsync(stagingGenerationsDescriptor) == 0 else {
-            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
-        }
-        try protectStagingGeneration(id: targetID, requireModel: true)
-        try verify()
-        guard try Self.exactGenerationEntries(parent: source, requireModel: true)
-                == Set(sourceNames),
-              try Self.identity(source) == sourceIdentity,
-              try Self.requiredDirectoryIdentity(
-                  parent: installedGenerationsDescriptor,
-                  name: sourceName
-              ) == sourceIdentity else {
+        identityTokens.append(contentsOf: sourceInventory.directoryIdentityTokens)
+        let targetInventory = try GenerationInventory(parent: target, requireModel: true)
+        guard targetInventory.tree == sourceInventory.tree,
+              targetInventory.directories == createdDirectories,
+              try targetInventory.fileDigests(durable: true) == fileDigests,
+              try sourceInventory.fileDigests(durable: false) == fileDigests else {
             throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
         }
-        for pinned in pinnedSourceFiles {
-            guard let initialSHA256 = pinned.initialSHA256 else {
-                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
-            }
-            let reproof = try Self.streamedDigest(
-                descriptor: pinned.descriptor,
-                expectedSnapshot: pinned.snapshot,
-                mismatchReason: .sourceMismatch
-            )
-            guard reproof.sha256 == initialSHA256,
-                  try Self.namedRegularFileSnapshot(
-                      parent: source,
-                      name: pinned.name,
-                      mismatchReason: .sourceMismatch
-                  ) == pinned.snapshot else {
-                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
-            }
+        try targetInventory.protect(rootURL: targetRoot, staging: true) { kind, url, check in
+            try self.enforce(kind, at: url, authorityCheck: {
+                try verifyCloneRoots()
+                try check()
+            })
         }
-        guard try Self.exactGenerationEntries(parent: source, requireModel: true)
-                == Set(sourceNames),
-              try Self.identity(source) == sourceIdentity,
-              try Self.requiredDirectoryIdentity(
-                  parent: installedGenerationsDescriptor,
-                  name: sourceName
-              ) == sourceIdentity else {
-            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        try targetInventory.revalidate()
+        try sourceInventory.revalidate()
+        try verifyCloneRoots()
+        guard Darwin.fsync(target) == 0, Darwin.fsync(stagingGenerationsDescriptor) == 0 else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
-        let identityData = Data(identityTokens.sorted().joined(separator: "\n").utf8)
-        let treeData = try StoreMigrationCanonicalJSONV1.encode(fileDigests)
         return MigrationCloneResult(
             files: fileDigests,
-            sourceTreeDigest: StoreMigrationCanonicalJSONV1.sha256(treeData),
-            frozenIdentityDigest: StoreMigrationCanonicalJSONV1.sha256(identityData)
+            sourceTreeDigest: StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(fileDigests)),
+            frozenIdentityDigest: StoreMigrationCanonicalJSONV1.sha256(Data(identityTokens.sorted().joined(separator: "\n").utf8))
         )
     }
 
@@ -6640,10 +6714,13 @@ final class StoreRestoreGenerationAuthority {
         targetID: UUID,
         parent: Int32,
         name: String,
+        parentRelativePath: String,
         sourceDescriptor: Int32,
-        sourceSnapshot: RegularFileSnapshot
+        sourceSnapshot: RegularFileSnapshot,
+        authorityCheck: @escaping () throws -> Void
     ) throws -> StreamedFileDigest {
         try Self.requireSafeBasename(name)
+        try authorityCheck()
         let descriptor = Darwin.openat(
             parent,
             name,
@@ -6663,27 +6740,33 @@ final class StoreRestoreGenerationAuthority {
         }
         var removeCreated = true
         defer {
-            if removeCreated,
-               let namedSnapshot = try? Self.namedRegularFileSnapshot(
-                   parent: parent,
-                   name: name,
-                   mismatchReason: .targetMismatch
-               ),
-               namedSnapshot.device == createdSnapshot.device,
-               namedSnapshot.inode == createdSnapshot.inode {
-                _ = Darwin.unlinkat(parent, name, 0)
-                _ = Darwin.fsync(parent)
+            if removeCreated {
+                do {
+                    try authorityCheck()
+                    let namedSnapshot = try Self.namedRegularFileSnapshot(
+                        parent: parent, name: name, mismatchReason: .targetMismatch
+                    )
+                    if namedSnapshot.device == createdSnapshot.device,
+                       namedSnapshot.inode == createdSnapshot.inode {
+                        _ = Darwin.unlinkat(parent, name, 0)
+                        _ = Darwin.fsync(parent)
+                    }
+                } catch {
+                    // Uncertain placement retains the partial file for its
+                    // original recovery owner; never unlink via a stale root.
+                }
             }
         }
         let root = stagingGenerationsURL.appendingPathComponent(
             Self.canonical(targetID),
             isDirectory: true
-        )
+        ).appendingPathComponent(parentRelativePath, isDirectory: true)
         try enforceGenerationFile(
             descriptor: parent,
             root: root,
             name: name,
-            kind: .stagingFile
+            kind: .stagingFile,
+            authorityCheck: authorityCheck
         )
         guard Darwin.lseek(sourceDescriptor, 0, SEEK_SET) == 0 else {
             throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
@@ -6713,6 +6796,7 @@ final class StoreRestoreGenerationAuthority {
             try chunk.withUnsafeBytes { raw in
                 var offset = 0
                 while offset < raw.count {
+                    try authorityCheck()
                     let written = Darwin.write(
                         descriptor,
                         raw.baseAddress?.advanced(by: offset),
@@ -6775,7 +6859,8 @@ final class StoreRestoreGenerationAuthority {
             descriptor: parent,
             root: root,
             name: name,
-            kind: .stagingFile
+            kind: .stagingFile,
+            authorityCheck: authorityCheck
         )
         guard try Self.regularFileSnapshot(
                   descriptor: descriptor,
@@ -6823,14 +6908,16 @@ final class StoreRestoreGenerationAuthority {
     func removeStagingGeneration(id: UUID) throws {
         try removeDirectory(
             parent: stagingGenerationsDescriptor,
-            name: Self.canonical(id)
+            name: Self.canonical(id),
+            ownership: .generation
         )
     }
 
     func removeInstalledGeneration(id: UUID) throws {
         try removeDirectory(
             parent: installedGenerationsDescriptor,
-            name: Self.canonical(id)
+            name: Self.canonical(id),
+            ownership: .generation
         )
     }
 
@@ -6876,7 +6963,7 @@ final class StoreRestoreGenerationAuthority {
 
     func removeImportStagingPackage(name: String) throws {
         try Self.requireSafeBasename(name)
-        try removeDirectory(parent: importStagingDescriptor, name: name)
+        try removeDirectory(parent: importStagingDescriptor, name: name, ownership: .importStaging)
     }
 
     private func reconcileRestorePointerTemporary(name: String) throws {
@@ -7240,30 +7327,21 @@ final class StoreRestoreGenerationAuthority {
     private func tree(parent: Int32, id: UUID) throws -> Tree {
         try verify()
         let name = Self.canonical(id)
-        let descriptor = Darwin.openat(
-            parent,
-            name,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
         defer { _ = Darwin.close(descriptor) }
-        let expected = try Self.identity(descriptor)
-        var directories = Set<String>()
-        var files = Set<String>()
-        try Self.enumerateTree(
-            directory: descriptor,
-            prefix: "",
-            directories: &directories,
-            files: &files
-        )
+        let inventory = try GenerationInventory(parent: descriptor, requireModel: false, partialCleanup: true)
+        try inventory.revalidate()
         try verify()
-        guard try Self.requiredDirectoryIdentity(parent: parent, name: name) == expected else {
+        guard try Self.requiredDirectoryIdentity(parent: parent, name: name) == inventory.root.identity else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        return Tree(directories: directories, files: files)
+        return inventory.tree
     }
 
-    private func removeDirectory(parent: Int32, name: String) throws {
+    private enum DirectoryCleanupOwnership { case generation, importStaging }
+
+    private func removeDirectory(parent: Int32, name: String, ownership: DirectoryCleanupOwnership) throws {
         try Self.requireSafeBasename(name)
         try verify()
         let descriptor = Darwin.openat(
@@ -7275,7 +7353,19 @@ final class StoreRestoreGenerationAuthority {
         guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
         defer { _ = Darwin.close(descriptor) }
         let expected = try Self.identity(descriptor)
-        try Self.removeContents(of: descriptor)
+        switch ownership {
+        case .generation:
+            try Self.removeContents(of: descriptor, authorityCheck: {
+                try self.verify()
+                guard try Self.requiredDirectoryIdentity(parent: parent, name: name) == expected else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            })
+        case .importStaging:
+            // Import packages have their own record/member authority, not the
+            // installed-generation filename grammar.
+            try Self.removeImportContents(of: descriptor)
+        }
         try verify()
         guard try Self.requiredDirectoryIdentity(parent: parent, name: name) == expected,
               Darwin.unlinkat(parent, name, AT_REMOVEDIR) == 0,
@@ -7288,7 +7378,12 @@ final class StoreRestoreGenerationAuthority {
         }
     }
 
-    fileprivate static func removeContents(of directory: Int32) throws {
+    fileprivate static func removeContents(of directory: Int32, authorityCheck: () throws -> Void = {}) throws {
+        let inventory = try GenerationInventory(parent: directory, requireModel: false, partialCleanup: true)
+        try inventory.removeAll(authorityCheck: authorityCheck)
+    }
+
+    private static func removeImportContents(of directory: Int32) throws {
         for name in try names(in: directory) {
             var info = stat()
             guard Darwin.fstatat(
@@ -7312,7 +7407,7 @@ final class StoreRestoreGenerationAuthority {
                 let expected: Identity
                 do {
                     expected = try identity(child)
-                    try removeContents(of: child)
+                    try removeImportContents(of: child)
                 } catch {
                     _ = Darwin.close(child)
                     throw error
@@ -7337,62 +7432,7 @@ final class StoreRestoreGenerationAuthority {
         }
     }
 
-    private static func enumerateTree(
-        directory: Int32,
-        prefix: String,
-        directories: inout Set<String>,
-        files: inout Set<String>
-    ) throws {
-        for name in try names(in: directory) {
-            let path = prefix.isEmpty ? name : "\(prefix)/\(name)"
-            var info = stat()
-            guard Darwin.fstatat(
-                directory,
-                name,
-                &info,
-                AT_SYMLINK_NOFOLLOW
-            ) == 0 else {
-                throw StoreGenerationFailure.dataPointerInvalid
-            }
-            switch info.st_mode & S_IFMT {
-            case S_IFDIR:
-                let child = Darwin.openat(
-                    directory,
-                    name,
-                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-                )
-                guard child >= 0 else {
-                    throw StoreGenerationFailure.dataPointerInvalid
-                }
-                let expected: Identity
-                do {
-                    expected = try identity(child)
-                    directories.insert(path)
-                    try enumerateTree(
-                        directory: child,
-                        prefix: path,
-                        directories: &directories,
-                        files: &files
-                    )
-                } catch {
-                    _ = Darwin.close(child)
-                    throw error
-                }
-                _ = Darwin.close(child)
-                guard try requiredDirectoryIdentity(parent: directory, name: name)
-                        == expected else {
-                    throw StoreGenerationFailure.dataPointerInvalid
-                }
-            case S_IFREG:
-                guard info.st_nlink == 1 else {
-                    throw StoreGenerationFailure.dataPointerInvalid
-                }
-                files.insert(path)
-            default:
-                throw StoreGenerationFailure.dataPointerInvalid
-            }
-        }
-    }
+
 
     fileprivate static func names(in descriptor: Int32) throws -> [String] {
         let independent = Darwin.openat(
@@ -7516,7 +7556,7 @@ final class StoreRestoreGenerationAuthority {
         mismatchReason: StoreMigrationMaintenanceReasonV1
     ) throws -> RegularFileSnapshot {
         try requireSafeBasename(name)
-        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
         guard descriptor >= 0 else {
             throw StoreMigrationFailure.maintenanceRequired(mismatchReason)
         }
@@ -10233,53 +10273,24 @@ struct StoreGenerationFactory {
         name: String,
         expectedIdentity: StoreRestoreGenerationAuthority.Identity
     ) throws {
-        guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
-            parent: parent,
-            name: name
-        ) == expectedIdentity else {
+        guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(parent: parent, name: name) == expectedIdentity else {
             throw GenerationLeaseRegistryFailureV1.invalidIdentity
         }
-        let descriptor = Darwin.openat(
-            parent,
-            name,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard descriptor >= 0 else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
-        }
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw GenerationLeaseRegistryFailureV1.invalidIdentity }
         defer { _ = Darwin.close(descriptor) }
-        guard try StoreRestoreGenerationAuthority.directoryIdentity(
-            descriptor: descriptor
-        ) == expectedIdentity else {
+        guard try StoreRestoreGenerationAuthority.directoryIdentity(descriptor: descriptor) == expectedIdentity else {
             throw GenerationLeaseRegistryFailureV1.invalidIdentity
         }
-        let names = try StoreRestoreGenerationAuthority.names(in: descriptor)
-        guard Set(names).isSubset(
-            of: StoreRestoreGenerationAuthority.generationStoreNames
-        ) else {
-            throw GenerationLeaseRegistryFailureV1.corruptRegistry
-        }
-        for childName in names {
-            let captured = try StoreRestoreGenerationAuthority
-                .regularFileIdentity(parent: descriptor, name: childName)
-            guard captured.linkCount == 1,
-                  try StoreRestoreGenerationAuthority.regularFileIdentity(
-                      parent: descriptor,
-                      name: childName
-                  ) == captured,
-                  Darwin.unlinkat(descriptor, childName, 0) == 0 else {
+        try StoreRestoreGenerationAuthority.removeContents(of: descriptor, authorityCheck: {
+            try self.verifyOwnedDirectory(at: self.generationsURL, descriptor: parent)
+            guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(parent: parent, name: name) == expectedIdentity else {
                 throw GenerationLeaseRegistryFailureV1.invalidIdentity
             }
-        }
-        guard Darwin.fsync(descriptor) == 0,
-              try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
-                  parent: parent,
-                  name: name
-              ) == expectedIdentity,
+        })
+        guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(parent: parent, name: name) == expectedIdentity,
               Darwin.unlinkat(parent, name, AT_REMOVEDIR) == 0,
-              Darwin.fsync(parent) == 0 else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
-        }
+              Darwin.fsync(parent) == 0 else { throw GenerationLeaseRegistryFailureV1.invalidIdentity }
     }
 
     private func pruneQuarantineIdentity(
@@ -10625,50 +10636,7 @@ struct StoreGenerationFactory {
         }
     }
 
-    private func protectGenerationFile(
-        descriptor: Int32,
-        root: URL,
-        name: String,
-        kind: OwnedFileKindV1
-    ) throws {
-        try StoreRestoreGenerationAuthority.requireSafeBasename(name)
-        let generationIdentity = try StoreRestoreGenerationAuthority.directoryIdentity(
-            descriptor: descriptor
-        )
-        let fileDescriptor = Darwin.openat(
-            descriptor,
-            name,
-            O_RDONLY | O_NOFOLLOW
-        )
-        guard fileDescriptor >= 0 else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
-        defer { _ = Darwin.close(fileDescriptor) }
-        let fileIdentity = try StoreRestoreGenerationAuthority.regularFileIdentity(
-            descriptor: fileDescriptor
-        )
-        let url = root.appendingPathComponent(name, isDirectory: false)
-        try protect(
-            kind,
-            at: url,
-            authorityCheck: {
-                guard try StoreRestoreGenerationAuthority.directoryIdentity(
-                          descriptor: descriptor
-                      ) == generationIdentity,
-                      try StoreRestoreGenerationAuthority.directoryIdentity(
-                          at: root
-                      ) == generationIdentity,
-                      try StoreRestoreGenerationAuthority.regularFileIdentity(
-                          descriptor: fileDescriptor
-                      ) == fileIdentity,
-                      try StoreRestoreGenerationAuthority.regularFileIdentity(
-                          at: url
-                      ) == fileIdentity else {
-                    throw StoreGenerationFailure.dataPointerInvalid
-                }
-            }
-        )
-    }
+
 
     private func protectPointer(at url: URL) throws {
         try protectPointerFile(.generationPointer, at: url)
@@ -10743,52 +10711,21 @@ struct StoreGenerationFactory {
     ) throws {
         let descriptor = try openOwnedDirectory(at: root)
         defer { _ = Darwin.close(descriptor) }
-        let generationIdentity = try StoreRestoreGenerationAuthority.directoryIdentity(
-            descriptor: descriptor
+        try verifyOwnedDirectory(at: root, descriptor: descriptor)
+        let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
+            parent: descriptor, requireModel: requireModel
         )
-        try protect(
-            staging ? .restoreStaging : .durableDirectory,
-            at: root,
-            authorityCheck: {
-                guard try StoreRestoreGenerationAuthority.directoryIdentity(
-                          descriptor: descriptor
-                      ) == generationIdentity,
-                      try StoreRestoreGenerationAuthority.directoryIdentity(
-                          at: root
-                      ) == generationIdentity else {
-                    throw StoreGenerationFailure.dataPointerInvalid
-                }
+        let generationIdentity = inventory.root.identity
+        try protect(staging ? .restoreStaging : .durableDirectory, at: root, authorityCheck: {
+            try inventory.revalidate()
+            guard try StoreRestoreGenerationAuthority.directoryIdentity(at: root) == generationIdentity else {
+                throw StoreGenerationFailure.dataPointerInvalid
             }
-        )
-        let before = try StoreRestoreGenerationAuthority.exactGenerationEntries(
-            parent: descriptor,
-            requireModel: requireModel
-        )
-        let modelKind: OwnedFileKindV1 = staging ? .stagingFile : .database
-        let walKind: OwnedFileKindV1 = staging ? .stagingFile : .databaseWAL
-        let shmKind: OwnedFileKindV1 = staging ? .stagingFile : .databaseSHM
-        for name in before {
-            let kind: OwnedFileKindV1
-            switch name {
-            case "model.sqlite": kind = modelKind
-            case "\(Self.modelStoreName)-wal": kind = walKind
-            case "\(Self.modelStoreName)-shm": kind = shmKind
-            default: throw StoreGenerationFailure.dataPointerInvalid
-            }
-            try protectGenerationFile(
-                descriptor: descriptor,
-                root: root,
-                name: name,
-                kind: kind
-            )
+        })
+        try inventory.protect(rootURL: root, staging: staging) { kind, url, check in
+            try self.protect(kind, at: url, authorityCheck: check)
         }
-        let after = try StoreRestoreGenerationAuthority.exactGenerationEntries(
-            parent: descriptor,
-            requireModel: requireModel
-        )
-        guard before == after else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
+        try verifyOwnedDirectory(at: root, descriptor: descriptor)
     }
 
     private func publishPointer<Value: Encodable>(
@@ -11680,11 +11617,21 @@ struct StoreGenerationFactory {
         let parent = try openOwnedDirectory(at: expectedParent)
         defer { _ = Darwin.close(parent) }
         try verifyOwnedDirectory(at: expectedParent, descriptor: parent)
-        try removeOwnedEntry(parent: parent, name: value.lastPathComponent)
-        guard try !StoreRestoreGenerationAuthority.itemExists(
-            parent: parent,
-            name: value.lastPathComponent
-        ) else {
+        let name = value.lastPathComponent
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        defer { _ = Darwin.close(descriptor) }
+        let identity = try StoreRestoreGenerationAuthority.directoryIdentity(descriptor: descriptor)
+        let revalidatePlacement = {
+            try self.verifyOwnedDirectory(at: expectedParent, descriptor: parent)
+            guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(parent: parent, name: name) == identity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        try StoreRestoreGenerationAuthority.removeContents(of: descriptor, authorityCheck: revalidatePlacement)
+        try revalidatePlacement()
+        guard Darwin.unlinkat(parent, name, AT_REMOVEDIR) == 0, Darwin.fsync(parent) == 0,
+              try !StoreRestoreGenerationAuthority.itemExists(parent: parent, name: name) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
     }

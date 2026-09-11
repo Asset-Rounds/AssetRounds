@@ -165,7 +165,8 @@ final class ProductionCompositionRoot {
     func makeSignWorkflow(
         signPack: SignPack,
         requirementEvaluatorRegistry registryOverride: RequirementEvaluatorRegistryV1? = nil,
-        accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
+        accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil,
+        injectsLowStorageFailureOnceForUITest: Bool = false
     ) throws -> ProductionSignWorkflow {
         let release = try PackageReleaseIdentityV1(package: signPack)
         let profile = try lifecycle.profileRegistry.resolve(release)
@@ -179,6 +180,8 @@ final class ProductionCompositionRoot {
             packageLifecycleProfile: profile,
             diagnosticsStore: diagnosticsStore,
             storagePreflight: storagePreflight,
+            injectsLowStorageFailureOnceForUITest:
+                injectsLowStorageFailureOnceForUITest,
             requirementEvaluatorRegistry: registryOverride ?? requirementEvaluatorRegistry,
             draftAccessState: accessState
         )
@@ -229,6 +232,7 @@ final class ProductionCompositionRoot {
         signPack: SignPack,
         requirementEvaluatorRegistry registryOverride: RequirementEvaluatorRegistryV1? = nil,
         accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil,
+        injectsLowStorageFailureOnceForUITest: Bool = false,
         accessGate: any AppAccessGatePortV1
     ) async throws -> ProductionSignWorkflow {
         guard Self.c16AccessGateProductionAdoptionComplete
@@ -239,7 +243,9 @@ final class ProductionCompositionRoot {
         return try makeSignWorkflow(
             signPack: signPack,
             requirementEvaluatorRegistry: registryOverride,
-            accessState: accessState
+            accessState: accessState,
+            injectsLowStorageFailureOnceForUITest:
+                injectsLowStorageFailureOnceForUITest
         )
     }
 

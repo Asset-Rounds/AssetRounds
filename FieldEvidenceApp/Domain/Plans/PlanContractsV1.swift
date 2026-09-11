@@ -57,11 +57,17 @@ enum PlanLimitsV1 {
 
 enum PlanCanonicalCodecV1 {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
-        try WorkspaceMutationCanonicalV1.encode(value)
+        try WorkspaceMutationCanonicalV1.data(value)
     }
 
-    static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
-        try WorkspaceMutationCanonicalV1.decode(type, from: data)
+    static func decode<T: Codable>(_ type: T.Type, from data: Data) throws -> T {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(type, from: data)
+        guard try WorkspaceMutationCanonicalV1.data(value) == data else {
+            throw PlanContractFailureV1.invalidValue
+        }
+        return value
     }
 
     static func sha256<T: Encodable>(_ value: T) throws -> String {
