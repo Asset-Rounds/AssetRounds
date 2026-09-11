@@ -468,7 +468,7 @@ final class V9_19LocalSearchTests: XCTestCase {
         let rebuiltRevision = try await harness.store.revision()
         XCTAssertEqual(rebuiltRevision?.indexedCommitRevision, 42)
 
-        let aheadSource = try source(revision: 43)
+        let aheadSource = try self.source(revision: 43)
         try await harness.store.replaceProjection(
             source: aheadSource,
             records: [record(id: "ahead", text: "Ahead", revision: 43)],
@@ -601,11 +601,11 @@ final class V9_19LocalSearchTests: XCTestCase {
         XCTAssertEqual(SearchCoordinatorV1.normalize("cafe\u{301}"), SearchCoordinatorV1.normalize("Café"))
         XCTAssertEqual(SearchCoordinatorV1.normalize("\u{200F}مضخة\u{202C}"), "مضخة")
 
-        let pumpPlan = try coordinator.makePlan(query: "pump a", scope: .assets, sourceRevision: 42)
+        let pumpPlan = try coordinator.makePlan(query: "pump a", scope: SearchScopeV1.assets, sourceRevision: 42)
         let pumps = try await coordinator.search(pumpPlan, source: revision, registry: registry)
         XCTAssertEqual(pumps.results.map(\.stableID), ["asset-a", "asset-b"])
         let filter = try SearchFilterV1(kind: .recheckDue)
-        let workPlan = try coordinator.makePlan(query: "seal", scope: .work, filters: [filter], sourceRevision: 42)
+        let workPlan = try coordinator.makePlan(query: "seal", scope: SearchScopeV1.work, filters: [filter], sourceRevision: 42)
         let workResponse = try await coordinator.search(workPlan, source: revision, registry: registry)
         XCTAssertEqual(workResponse.results.map(\.stableID), ["work-a"])
         XCTAssertThrowsError(try searchableField(id: "raw_ocr", kind: .asset))
@@ -679,7 +679,7 @@ final class V9_19LocalSearchTests: XCTestCase {
             source: revision, records: sortValues, registry: registry
         )
         let duePlan = try coordinator.makePlan(
-            query: "due", scope: .work, filters: [filter],
+            query: "due", scope: SearchScopeV1.work, filters: [filter],
             sort: .dueDateThenStableID, sourceRevision: 42
         )
         let dueResponse = try await coordinator.search(duePlan, source: revision, registry: registry)
@@ -716,7 +716,7 @@ final class V9_19LocalSearchTests: XCTestCase {
             SearchSessionStateV1.self, from: JSONSerialization.data(withJSONObject: injected)
         )
         XCTAssertEqual(decoded.query, "")
-        let shortTypoPlan = try coordinator.makePlan(query: "pmp", scope: .assets, sourceRevision: 42)
+        let shortTypoPlan = try coordinator.makePlan(query: "pmp", scope: SearchScopeV1.assets, sourceRevision: 42)
         let shortTypoResponse = try await coordinator.search(shortTypoPlan, source: revision, registry: registry)
         XCTAssertTrue(shortTypoResponse.suggestions.isEmpty)
     }
@@ -880,7 +880,7 @@ final class V9_19LocalSearchTests: XCTestCase {
         XCTAssertFalse(firstProductionPage.records.contains {
             $0.normalizedTokens.contains("backup") || $0.normalizedTokens.contains("stale")
         })
-        productionRevisionBox.value = try source(revision: 8)
+        productionRevisionBox.value = try self.source(revision: 8)
         do {
             _ = try await productionSource.searchProjectionPage(
                 at: revision, canonicalOffset: 250, limit: 250

@@ -74,7 +74,16 @@
     "FieldEvidenceAppTests/S4_5CorrectionTests/testIntentStorePersistentSwapAndJournalABAKeepMutationOwnedBytesAnchored",
     "FieldEvidenceAppTests/S6_2BackupExportTests/testPopulatedQualityAndInboxSurvivePackageTransportAndPhysicalReplace",
     "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently",
-    "FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed"
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed",
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testV9_19A01CrashThenRevisionBoundRebuild",
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testV9_19H01SortingFilteringUnicodeAndPrivacyBoundary",
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testV9_19R01DropRebuildRetainsCanonicalRecordsAndSavedViews",
+    "FieldEvidenceAppTests/V9_20KernelConformanceTests/testC22RecoverabilityVerificationAnchor",
+    "FieldEvidenceAppTests/V9_21RequirementAssuranceTests/testV9_21H01StaleOrphanDuplicateContradictoryAndBypassInputsFailClosed",
+    "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests/testV23P03C36FieldDraftLocalizationAndAccessibilityIsEnglishOnly",
+    "FieldEvidenceAppTests/V9_25AuthorityCriterionDerivationTests/testV23P03C40ClosedEnumsSchemaAndProjectionPolicies",
+    "FieldEvidenceAppTests/V9_28InspectionReviewCorrectiveActionTests/testV23P03C14MutationConcurrencyRowsBackupAndSchemaBoundaries",
+    "FieldEvidenceAppTests/V9_29WorkPacketManifestTests/testV23P03C15MutationTransitionTableAndConcurrencyIdentity"
   ],
   "uiTestSelectors": []
 }

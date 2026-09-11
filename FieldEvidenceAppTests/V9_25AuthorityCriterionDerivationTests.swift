@@ -116,7 +116,7 @@ final class V9_25AuthorityCriterionDerivationTests: XCTestCase {
         XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesUnsupportedClaims)
         XCTAssertFalse(AuthorityCriterionLocalizationPolicyV1.containsProhibitedClaim(in: ["Assessed against the recorded basis."]))
         XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.containsProhibitedClaim(in: ["This is certified."]))
-        XCTAssertTrue(AuthorityCriterionAccessibilityPolicyV1.textAndIconActionableNextStepRequired)
+        XCTAssertTrue(AuthorityCriterionAccessibilityPolicyV1.textIconActionableNextStepRequired)
         XCTAssertFalse(AuthorityCriterionAccessibilityPolicyV1.colorOnlySeverityAllowed)
         XCTAssertTrue(AuthorityCriterionAccessibilityPolicyV1.requiresTextAndIcon(for: AuthorityCriterionAccessibilityIDV1.unknownApplicability.rawValue))
         XCTAssertTrue(AuthorityCriterionAccessibilityPolicyV1.requiresActionableNextStep(for: AuthorityCriterionAccessibilityIDV1.inconclusive.rawValue))

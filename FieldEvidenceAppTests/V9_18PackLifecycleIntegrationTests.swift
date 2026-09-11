@@ -696,11 +696,12 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         let receiptRows = try harness.session.modelContext.fetch(
             FetchDescriptor<MutationReceiptRow>()
         )
-        let pdfCommand = try XCTUnwrap(try receiptRows.compactMap { row in
+        let pdfCommands: [ReportPDFTransitionMutationV1] = try receiptRows.compactMap { row -> ReportPDFTransitionMutationV1? in
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
             guard case let .transitionReportPDF(command) = envelope.command else { return nil }
             return command
-        }.first)
+        }
+        let pdfCommand = try XCTUnwrap(pdfCommands.first)
         let pdfReceipt = try XCTUnwrap(
             harness.dependencies.writer.reportPDFTransitionReceipt(for: pdfCommand)
         )

@@ -1629,7 +1629,10 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
 
         let accessibility = try BundledLocalizationCatalogV1
             .fieldDraftAccessibilityRegistry(localization: registry)
-        try accessibility.validate()
+        let validatedAccessibility = try SemanticAccessibilityIDRegistryV1(
+            entries: accessibility.entries, localization: registry
+        )
+        XCTAssertEqual(validatedAccessibility, accessibility)
         let expectedIDs = Set(FieldDraftAccessibilityIDV1.allCases.map(\.rawValue))
         let entriesByID = Dictionary(uniqueKeysWithValues: accessibility.entries.map {
             ($0.semanticID, $0)

@@ -486,7 +486,7 @@ final class V9_28InspectionReviewCorrectiveActionTests: XCTestCase {
         XCTAssertEqual(successorConcurrency.id, first.transitionID)
         XCTAssertEqual(reviewAffected.count, 3)
         XCTAssertEqual(reviewConcurrency.count, 3)
-        let reviewPredecessor = try applyReviewBundle.predecessorIdentity
+        let reviewPredecessor = try applyReviewBundle.postImage.predecessorIdentity
         XCTAssertEqual(reviewPredecessor?.id, second.transitionID)
         XCTAssertEqual(requestIdentity?.kind, .changeRequest)
         XCTAssertEqual(requestIdentity?.id, fixture.changeRequest.requestRevisionID)

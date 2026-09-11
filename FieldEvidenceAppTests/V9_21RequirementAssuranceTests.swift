@@ -124,7 +124,7 @@ final class V9_21RequirementAssuranceTests: XCTestCase {
             waiver: waiver
         )
         let invalidWaiverEvaluation = try RequirementEvaluationEngineV1.evaluate(
-            invalidWaiverInput, registry: registry(for: [waivableEvidence])
+            invalidWaiverInput, registry: self.registry(for: [waivableEvidence])
         )
         XCTAssertEqual(invalidWaiverEvaluation.result, .notSatisfied)
         XCTAssertTrue(invalidWaiverEvaluation.reasonCodes.contains(.evidenceInvalid))
