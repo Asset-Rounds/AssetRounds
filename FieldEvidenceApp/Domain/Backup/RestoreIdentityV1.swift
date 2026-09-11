@@ -346,7 +346,7 @@ enum ScheduleRestoreIdentityPolicyV1 {
               !cloneForkSourceScheduleAutomaticallyActive,
               dueAndReminderProjectionsRebuilt,
               !notificationStateRestoredAsTruth else {
-            throw RestoreIdentityDecisionError.invalidMode
+            throw RestoreIdentityDecisionErrorV1.invalidMode
         }
     }
 
@@ -945,7 +945,7 @@ enum LightingNightWorkflowRestoreIdentityPolicyV1 {
             let values = try LightingNightWorkflowBackupRecordSetV1.decode(
                 records.lightingNightWorkflows
             )
-            guard values.allSatisfy({ $0.workspaceID.rawValue != UUID.zero }) else {
+            guard values.allSatisfy({ $0.workspaceID.rawValue != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)) }) else {
                 throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
             }
         }

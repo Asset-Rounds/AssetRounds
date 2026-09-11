@@ -696,7 +696,7 @@ struct PlanBackupRecordSetV1: Sendable {
         }
         for placement in placements {
             guard let revision = revisionsByReference[placement.planRevision.planRevisionID],
-                  revision.reference == placement.planRevision,
+                  try revision.reference == placement.planRevision,
                   revision.spatialFrames.contains(where: { $0.frameID == placement.spatialFrameID }) else {
                 throw PlanContractFailureV1.invalidValue
             }
@@ -3551,8 +3551,10 @@ enum C55PartsStockBackupEnrollmentV1 {
               unique(snapshot.abandonments.map(\.dispositionID)),
               snapshot.parts.map(\.partID.uuidString) == snapshot.parts.map(\.partID.uuidString).sorted(),
               snapshot.locations.map(\.locationID.uuidString) == snapshot.locations.map(\.locationID.uuidString).sorted(),
-              snapshot.movements.map({ ($0.recordedAt, $0.movementID.uuidString) })
-                == snapshot.movements.map({ ($0.recordedAt, $0.movementID.uuidString) }).sorted(by: { $0 < $1 }),
+              snapshot.movements.map({ ($0.recordedAt, $0.movementID.uuidString) }).elementsEqual(
+                  snapshot.movements.map({ ($0.recordedAt, $0.movementID.uuidString) }).sorted(by: { $0 < $1 }),
+                  by: { $0.0 == $1.0 && $0.1 == $1.1 }
+              ),
               snapshot.uses.map(\.receiptID.uuidString) == snapshot.uses.map(\.receiptID.uuidString).sorted(),
               snapshot.reversals.map(\.receiptID.uuidString) == snapshot.reversals.map(\.receiptID.uuidString).sorted(),
               snapshot.returns.map(\.receiptID.uuidString) == snapshot.returns.map(\.receiptID.uuidString).sorted(),
@@ -4709,17 +4711,13 @@ extension V4BackupRecordsV1 {
                         }
                     }
                 } else {
-                    let deleted = deletionLedger?.entries.contains {
-                        $0.identity.kind == .serviceParty
-                            && $0.identity.id == party.partyID
-                    } ?? false
-                    guard deleted else { throw OperationalContactFailureV1.digestMismatch }
+                    throw OperationalContactFailureV1.digestMismatch
                 }
             }
 
             // Site-role history is append-only and therefore every aggregate
-            // role child must remain represented by its existing V9 row unless
-            // an explicit deletion-ledger entry accounts for its absence.
+            // role child must remain represented by its existing V9 row until
+            // workspace erase.
             for role in roles {
                 if let current = roleValues[role.eventID] {
                     guard current == role,
@@ -4728,11 +4726,7 @@ extension V4BackupRecordsV1 {
                         throw OperationalContactFailureV1.digestMismatch
                     }
                 } else {
-                    let deleted = deletionLedger?.entries.contains {
-                        $0.identity.kind == .sitePartyRoleEvent
-                            && $0.identity.id == role.eventID
-                    } ?? false
-                    guard deleted else { throw OperationalContactFailureV1.digestMismatch }
+                    throw OperationalContactFailureV1.digestMismatch
                 }
             }
 
@@ -5059,7 +5053,7 @@ extension V4BackupRecordsV1{
                 canonicalMutationReceipt: canonicalReceipt
             )
             let key = MutationWorkspaceKeyV1.value(
-                workspaceID: request.workspaceID,
+                workspaceID: request.expectedRevision.workspaceID,
                 mutationID: request.mutationID
             )
             guard assistanceJournalKeys.insert(key).inserted,
@@ -5212,10 +5206,8 @@ extension V4BackupRecordsV1{
                               && $0.revision == plan.occurrence.eventRevision
                               && $0.eventSHA256 == plan.occurrence.eventSHA256
                       }),
-                      packets.contains(where: {
-                          $0.manifestID == plan.workPacket.manifestID
-                              && $0.revision == plan.workPacket.revision
-                              && $0.manifestSHA256 == plan.workPacket.manifestSHA256
+                      try packets.contains(where: {
+                          try WorkPacketManifestReferenceV1($0) == plan.workPacket
                       }) else {
                     throw LightingDayInventoryFailureV1.staleReference
                 }

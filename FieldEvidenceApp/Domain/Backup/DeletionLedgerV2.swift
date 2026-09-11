@@ -790,7 +790,7 @@ struct C53ServiceReliabilityEraseClosureV1: Equatable, Sendable {
     let receiptMutationIDs: [UUID]
 
     init(records: V4BackupRecordsV1, workspaceID: UUID) throws {
-        guard workspaceID != UUID.zero else { throw DeletionLedgerFailureV2.invalidIdentity }
+        guard workspaceID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)) else { throw DeletionLedgerFailureV2.invalidIdentity }
         let rows: C53ServiceReliabilityBackupRowsV1
         do {
             rows = try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(

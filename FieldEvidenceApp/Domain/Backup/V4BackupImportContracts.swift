@@ -206,7 +206,7 @@ enum V17PackageEvolutionImportBoundaryV1 {
     static func validate(persistent: Int, records: Int) throws {
         guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
               V17BackupPackageEvolutionRecordV1.Kind.allCases.count == 4 else {
-            throw BackupImportServiceError.unsupportedSchemaVersion
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }
 }
@@ -217,7 +217,7 @@ enum V18MeasurementIntegrityImportBoundaryV1 {
     static func validate(persistent: Int, records: Int) throws {
         guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
               V18BackupMeasurementIntegrityRecordV1.Kind.allCases.count == 5 else {
-            throw BackupImportServiceError.unsupportedSchemaVersion
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }
 }
@@ -228,7 +228,7 @@ enum V19PrivacyTransformImportBoundaryV1 {
     static func validate(persistent: Int, records: Int) throws {
         guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
               V19BackupPrivacyTransformRecordV1.Kind.allCases.count == 4 else {
-            throw BackupImportServiceError.unsupportedSchemaVersion
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }
 }
@@ -237,20 +237,20 @@ enum V20ClientCapabilityImportBoundaryV1 {
     static let persistentSchemaVersion = 20; static let recordsSchemaVersion = 19
     static func validate(persistent: Int, records: Int) throws {
         guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
-              V20BackupClientCapabilityRecordV1.Kind.allCases.count == 4 else { throw BackupImportServiceError.unsupportedSchemaVersion }
+              V20BackupClientCapabilityRecordV1.Kind.allCases.count == 4 else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
     }
 }
 
 enum V21RecoverabilityImportBoundaryV1 {
     static let persistentSchemaVersion=21;static let recordsSchemaVersion=20;static let durableFamilyCount=1
     static func validate(persistent:Int,records:Int)throws {
-        guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==1 else{throw BackupImportServiceError.unsupportedSchemaVersion}
+        guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
     }
 }
-enum V22FieldReferenceImportBoundaryV1{static let persistentSchemaVersion=22;static let recordsSchemaVersion=21;static func validate(persistent:Int,records:Int)throws{guard persistent==22,records==21,V22BackupFieldReferenceRecordV1.Kind.allCases.count==2 else{throw BackupImportServiceError.unsupportedSchemaVersion}}}
-enum V23AccessibleDocumentImportBoundaryV1{static let persistentSchemaVersion=23;static let recordsSchemaVersion=22;static let durableFamilyCount=1;static let semanticTreePersistence="DERIVED_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==23,records==22,durableFamilyCount==1,semanticTreePersistence==AccessibleDocumentLifecycleV1.semanticTreePersistence else{throw BackupImportServiceError.unsupportedSchemaVersion}}}
-enum V24SurveyDefinitionImportBoundaryV1{static let persistentSchemaVersion=24;static let recordsSchemaVersion=23;static let durableFamilyCount=2;static let lifecycleEventStorage="MUTATION_HISTORY_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==V24BackupSurveyDefinitionRecordV1.Kind.allCases.count,lifecycleEventStorage=="MUTATION_HISTORY_ONLY" else{throw BackupImportServiceError.unsupportedSchemaVersion}}}
-enum V25GuidedSurveyImportBoundaryV1{static let persistentSchemaVersion=25;static let recordsSchemaVersion=24;static let durableFamilyCount=5;static let lifecycleHistoryStorage="MUTATION_HISTORY_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==V25BackupGuidedSurveyRecordV1.Kind.allCases.count,lifecycleHistoryStorage=="MUTATION_HISTORY_ONLY" else{throw BackupImportServiceError.unsupportedSchemaVersion}}}
+enum V22FieldReferenceImportBoundaryV1{static let persistentSchemaVersion=22;static let recordsSchemaVersion=21;static func validate(persistent:Int,records:Int)throws{guard persistent==22,records==21,V22BackupFieldReferenceRecordV1.Kind.allCases.count==2 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}}
+enum V23AccessibleDocumentImportBoundaryV1{static let persistentSchemaVersion=23;static let recordsSchemaVersion=22;static let durableFamilyCount=1;static let semanticTreePersistence="DERIVED_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==23,records==22,durableFamilyCount==1,semanticTreePersistence==AccessibleDocumentLifecycleV1.semanticTreePersistence else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}}
+enum V24SurveyDefinitionImportBoundaryV1{static let persistentSchemaVersion=24;static let recordsSchemaVersion=23;static let durableFamilyCount=2;static let lifecycleEventStorage="MUTATION_HISTORY_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==V24BackupSurveyDefinitionRecordV1.Kind.allCases.count,lifecycleEventStorage=="MUTATION_HISTORY_ONLY" else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}}
+enum V25GuidedSurveyImportBoundaryV1{static let persistentSchemaVersion=25;static let recordsSchemaVersion=24;static let durableFamilyCount=5;static let lifecycleHistoryStorage="MUTATION_HISTORY_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==V25BackupGuidedSurveyRecordV1.Kind.allCases.count,lifecycleHistoryStorage=="MUTATION_HISTORY_ONLY" else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}}
 enum V26AssetLocatorImportBoundaryV1 {
     static let persistentSchemaVersion = 26
     static let recordsSchemaVersion = 25
@@ -265,7 +265,7 @@ enum V26AssetLocatorImportBoundaryV1 {
               durableFamilyCount == V26BackupAssetLocatorRecordV1.Kind.allCases.count,
               lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
               cloneForkBindingPolicy == "HISTORIC_REBIND_SOURCE_SIGNATURE_INACTIVE" else {
-            throw BackupImportServiceError.unsupportedSchemaVersion
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }
 }
@@ -293,7 +293,7 @@ enum V27ScheduleImportBoundaryV1 {
               C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count == 6,
               !notificationStateIsTruth,
               !cloneForkSourceScheduleAutomaticallyActive else {
-            throw BackupImportServiceError.unsupportedSchemaVersion
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }
 }
@@ -321,7 +321,7 @@ enum V28PlanImportBoundaryV1 {
               derivedProjectionStorage == "NONPERSISTENT_REBUILD",
               lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
               !cloneForkPlanAutomaticallyActive else {
-            throw BackupImportServiceError.unsupportedSchemaVersion
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }
 }
@@ -352,7 +352,7 @@ enum V29PlacementPoseImportBoundaryV1 {
               lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
               sensorProposalPersistence == "NONPERSISTENT",
               !cloneForkSourcePoseAutomaticallyActive else {
-            throw BackupImportServiceError.unsupportedSchemaVersion
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }
 }

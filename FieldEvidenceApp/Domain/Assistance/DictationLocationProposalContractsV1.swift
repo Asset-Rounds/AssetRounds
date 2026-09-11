@@ -79,7 +79,7 @@ struct DictationLocationCapabilityPolicyV1: Codable, Equatable, Sendable {
          maximumHorizontalAccuracyMillimeters: UInt64 = 100_000) throws {
         try dictationPolicy.validate(); try locationPolicy.validate()
         let locales = supportedDictationLocales.sorted()
-        try locales.forEach(AssistanceLimitsV1.token)
+        try locales.forEach { try AssistanceLimitsV1.token($0) }
         let dictationParity = (dictationActivation == .preparedDisabled && !dictationPolicy.enabled)
             || (dictationActivation == .enabledOnDevice && dictationPolicy.enabled)
         let locationParity = (locationActivation == .preparedDisabled && !locationPolicy.enabled)

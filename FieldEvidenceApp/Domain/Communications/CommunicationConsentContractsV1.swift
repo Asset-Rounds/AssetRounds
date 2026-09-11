@@ -128,7 +128,7 @@ private enum CommunicationConsentValidationV1 {
         guard values.count <= maximumCount, allowEmpty || !values.isEmpty else {
             throw CommunicationConsentContractFailureV1.invalidValue
         }
-        try values.forEach(identifier)
+        try values.forEach { try identifier($0) }
         guard values == values.sorted(), Set(values).count == values.count else {
             throw CommunicationConsentContractFailureV1.duplicateValue
         }
@@ -438,7 +438,7 @@ struct ContactComparisonPolicyReleaseV1: Codable, Equatable, Sendable {
             effectiveAt: c.decode(Date.self, forKey: .effectiveAt),
             supersedes: c.decodeIfPresent(ContactComparisonPolicyReferenceV1.self, forKey: .supersedes)
         )
-        guard value.policySHA256 == c.decode(String.self, forKey: .policySHA256) else {
+        guard value.policySHA256 == (try c.decode(String.self, forKey: .policySHA256)) else {
             throw CommunicationConsentContractFailureV1.invalidDigest
         }
         self = value
@@ -575,7 +575,7 @@ struct ContactSourceV1: Codable, Equatable, Sendable {
             effectiveAt: c.decode(Date.self, forKey: .effectiveAt),
             supersedes: c.decodeIfPresent(ContactSourceReferenceV1.self, forKey: .supersedes)
         )
-        guard value.sourceSHA256 == c.decode(String.self, forKey: .sourceSHA256) else {
+        guard value.sourceSHA256 == (try c.decode(String.self, forKey: .sourceSHA256)) else {
             throw CommunicationConsentContractFailureV1.invalidDigest
         }
         self = value
@@ -753,7 +753,7 @@ struct ConsentDisclosureReleaseV1: Codable, Equatable, Sendable {
             effectiveAt: c.decode(Date.self, forKey: .effectiveAt),
             supersedes: c.decodeIfPresent(ConsentDisclosureReferenceV1.self, forKey: .supersedes)
         )
-        guard value.disclosureSHA256 == c.decode(String.self, forKey: .disclosureSHA256) else {
+        guard value.disclosureSHA256 == (try c.decode(String.self, forKey: .disclosureSHA256)) else {
             throw CommunicationConsentContractFailureV1.invalidDigest
         }
         self = value
@@ -1198,7 +1198,7 @@ struct CommunicationConsentReceiptV1: Codable, Equatable, Sendable {
             predecessor: c.decodeIfPresent(CommunicationConsentReferenceV1.self, forKey: .predecessor),
             withdrawalHistory: c.decode([CommunicationWithdrawalEventV1].self, forKey: .withdrawalHistory)
         )
-        guard value.consentSHA256 == c.decode(String.self, forKey: .consentSHA256) else {
+        guard value.consentSHA256 == (try c.decode(String.self, forKey: .consentSHA256)) else {
             throw CommunicationConsentContractFailureV1.invalidDigest
         }
         self = value
@@ -1365,7 +1365,7 @@ struct MarketingContactV1: Codable, Equatable, Sendable {
             recordedAt: c.decode(Date.self, forKey: .recordedAt),
             supersedes: c.decodeIfPresent(MarketingContactReferenceV1.self, forKey: .supersedes)
         )
-        guard value.contactSHA256 == c.decode(String.self, forKey: .contactSHA256) else {
+        guard value.contactSHA256 == (try c.decode(String.self, forKey: .contactSHA256)) else {
             throw CommunicationConsentContractFailureV1.invalidDigest
         }
         self = value
@@ -1640,7 +1640,7 @@ struct SuppressionRecordV1: Codable, Equatable, Sendable {
             retentionDecision: c.decode(SuppressionRetentionDecisionV1.self, forKey: .retentionDecision),
             supersedes: c.decodeIfPresent(SuppressionRecordReferenceV1.self, forKey: .supersedes)
         )
-        guard value.recordSHA256 == c.decode(String.self, forKey: .recordSHA256) else {
+        guard value.recordSHA256 == (try c.decode(String.self, forKey: .recordSHA256)) else {
             throw CommunicationConsentContractFailureV1.invalidDigest
         }
         self = value
@@ -1826,7 +1826,7 @@ struct CommunicationPreferenceV1: Codable, Equatable, Sendable {
             suppression: c.decodeIfPresent(SuppressionRecordReferenceV1.self, forKey: .suppression),
             predecessor: c.decodeIfPresent(CommunicationPreferenceReferenceV1.self, forKey: .predecessor)
         )
-        guard value.preferenceSHA256 == c.decode(String.self, forKey: .preferenceSHA256) else {
+        guard value.preferenceSHA256 == (try c.decode(String.self, forKey: .preferenceSHA256)) else {
             throw CommunicationConsentContractFailureV1.invalidDigest
         }
         self = value

@@ -35,7 +35,7 @@ struct OCRCapabilityPolicyV1: Codable, Equatable, Sendable {
          maximumRecognizedTextBytes: Int = 8_192) throws {
         try assistancePolicy.validate()
         let languages = supportedLanguageIdentifiers.sorted()
-        try languages.forEach(AssistanceLimitsV1.token)
+        try languages.forEach { try AssistanceLimitsV1.token($0) }
         let activationMatchesCapability =
             (activation == .preparedDisabled && !assistancePolicy.enabled) ||
             (activation == .enabledOnDevice && assistancePolicy.enabled)
@@ -108,7 +108,7 @@ struct OCRExtractionRequestV1: Codable, Equatable, Sendable {
          explicitUserAction: Bool, requestedAt: Date) throws {
         let languages = requestedLanguageIdentifiers.sorted(), words = packageCustomWords.sorted()
         try AssistanceLimitsV1.id(requestID); try target.validate(); try source.validate(); try sourceCrop.validate()
-        try languages.forEach(AssistanceLimitsV1.token); try words.forEach(AssistanceLimitsV1.token)
+        try languages.forEach { try AssistanceLimitsV1.token($0) }; try words.forEach { try AssistanceLimitsV1.token($0) }
         try AssistanceLimitsV1.instant(requestedAt)
         guard target.workspaceID == workspaceID, explicitUserAction, !languages.isEmpty,
               Set(languages).count == languages.count, Set(words).count == words.count,
@@ -146,7 +146,7 @@ struct OCRProposalEvidenceV1: Codable, Equatable, Sendable {
          observation: OCRTextObservationV1,
          proposal: AssistanceProposalV1) throws {
         try request.validate();try proposal.validate()
-        let languages=configuredLanguageIdentifiers.sorted();try languages.forEach(AssistanceLimitsV1.token)
+        let languages=configuredLanguageIdentifiers.sorted();try languages.forEach { try AssistanceLimitsV1.token($0) }
         try AssistanceLimitsV1.token(frameworkIdentifier)
         guard (1...8_192).contains(maximumRecognizedTextBytes) else { throw OCRProposalFailureV1.invalidValue }
         try observation.validate(maximumTextBytes:maximumRecognizedTextBytes)

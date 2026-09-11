@@ -171,7 +171,7 @@ enum ReplacementRestoreRule {
                 replacementAt: input.replacementAt
             ))
             incoming = replacingPackets(in: incoming, with: packetPlan.packetsAfter)
-            let packetEntries = try packetPlan.packetsAfter.compactMap { packet in
+            let packetEntries = try packetPlan.packetsAfter.compactMap { packet -> DeletionLedgerEntryV2? in
                 guard packet.currentRecordID == nil,
                       let deletedAt = packet.contentDeletedAt else { return nil }
                 return try DeletionLedgerEntryV2(
@@ -376,7 +376,7 @@ private extension ReplacementRestoreRule {
         default:
             throw ReplacementRestoreRuleError.invalidAuthority
         }
-        let legacyPacketEntries = try records.packets.compactMap { packet in
+        let legacyPacketEntries = try records.packets.compactMap { packet -> DeletionLedgerEntryV2? in
             guard packet.currentRecordID == nil,
                   packet.evaluationCounted,
                   let deletedAt = packet.contentDeletedAt else { return nil }
