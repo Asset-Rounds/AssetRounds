@@ -8,11 +8,7 @@ struct PackFinalizationAdapterOutcomeV1: Equatable, Sendable {
     let zeroFeatureWriteClosureClaimed: Bool
 }
 
-/// Ratcheted compatibility boundary over the S10-reserved finalizer.
-///
-/// This adapter expires only after accepted S10.6 reconciliation. Until then
-/// the wrapped service remains one of the two declared raw-write debts, so a
-/// missing WorkspaceWriter receipt is reported explicitly and never fabricated.
+/// Package binding over the canonical writer-owned finalization transaction.
 @MainActor
 final class PackFinalizationAdapterV1 {
     static let compatibilityOwner = "V23-P03-C08"
@@ -40,7 +36,8 @@ final class PackFinalizationAdapterV1 {
             signPack: profile.package,
             generationRootURL: dependencies.generationRootURL,
             intentStoreFailureInjection: intentStoreFailureInjection,
-            failureInjection: failureInjection
+            failureInjection: failureInjection,
+            workspaceWriter: dependencies.writer
         )
     }
 
@@ -53,7 +50,7 @@ final class PackFinalizationAdapterV1 {
               binding.generationID == dependencies.generationID,
               binding.packageRelease == profile.release,
               binding.mutationID.rawValue == input.identifiers.mutationID,
-              binding.preservesReservedLegacyRawWriteDebt else {
+              !binding.preservesReservedLegacyRawWriteDebt else {
             throw CheckRunnerCoordinatorError.packageLifecycleMismatch
         }
         let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: input.asset.id)
@@ -82,14 +79,15 @@ final class PackFinalizationAdapterV1 {
         let durableReceipt = try dependencies.writer.durableReceipt(
             mutationID: binding.mutationID
         )
-        guard durableReceipt?.identity == binding.durableReceiptIdentity else {
+        guard let durableReceipt,
+              binding.durableReceiptIdentity.map({ $0 == durableReceipt.identity }) ?? true else {
             throw CheckRunnerCoordinatorError.packageLifecycleMismatch
         }
         return PackFinalizationAdapterOutcomeV1(
             finalization: outcome,
             binding: binding,
-            durableReceiptIdentity: durableReceipt?.identity,
-            zeroFeatureWriteClosureClaimed: false
+            durableReceiptIdentity: durableReceipt.identity,
+            zeroFeatureWriteClosureClaimed: true
         )
     }
 }

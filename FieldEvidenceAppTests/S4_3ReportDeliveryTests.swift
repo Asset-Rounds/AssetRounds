@@ -65,19 +65,30 @@ final class S4_3ReportDeliveryTests: XCTestCase {
 
     @MainActor
     func testReceiptAttemptsExactlyOnceAndEveryDeliveryUsesIdenticalCachedBytes() async throws {
-        let harness = try await makeHarness("golden")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
-        let readyBytes = try Data(contentsOf: finalURL(in: harness))
-        try resetToPending(harness)
+        let harness = try await makeHarness("golden", ready: false)
+        defer {
+            XCTAssertNoThrow(try harness.close())
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
+        let readyBytes = try WorklightPDFRendererV1().render(
+            ReportRenderService(modelContext: harness.context,
+                lifecycleDependencies: harness.dependencies, lifecycleProfile: harness.profile)
+                .validatedSnapshotForResumableJob(id: Fixture.reportID)
+        ).data
+
         let before = try immutableAuthority(in: harness)
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            lifecycleDependencies: harness.dependencies,
+            lifecycleProfile: harness.profile
         )
 
         guard case let .ready(first) = try coordinator.prepareFinalizedReport(
             id: Fixture.reportID
         ) else { return XCTFail("The one receipt attempt must ready the PDF") }
+        try harness.validateJournal()
+        let firstReceiptBytes = Set(try harness.context.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.receiptData))
+        let firstEnvelopeBytes = Set(try harness.context.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.envelopeData))
         guard case let .ready(second) = try coordinator.prepareFinalizedReport(
             id: Fixture.reportID
         ) else { return XCTFail("Repeat receipt preparation must only reload ready bytes") }
@@ -92,13 +103,20 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: finalURL(in: harness)), readyBytes)
         XCTAssertEqual(try immutableAuthority(in: harness), before)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Report>()), 1)
+        XCTAssertEqual(Set(try harness.context.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.receiptData)), firstReceiptBytes)
+        XCTAssertEqual(Set(try harness.context.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.envelopeData)), firstEnvelopeBytes)
+        try harness.validateJournal()
 
-        let failed = try await makeHarness("one-failed-attempt")
-        defer { try? fileManager.removeItem(at: failed.applicationSupportURL) }
-        try resetToPending(failed)
+        let failed = try await makeHarness("one-failed-attempt", ready: false)
+        defer {
+            XCTAssertNoThrow(try failed.close())
+            try? fileManager.removeItem(at: failed.applicationSupportURL)
+        }
+
         let failing = try ReportDeliveryCoordinator(
             modelContext: failed.context,
-            generationRootURL: failed.session.generationRootURL,
+            lifecycleDependencies: failed.dependencies,
+            lifecycleProfile: failed.profile,
             renderFailureInjection: ReportRenderFailureInjection(failOnceAt: .render)
         )
         XCTAssertEqual(
@@ -111,17 +129,22 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         )
         XCTAssertThrowsError(try failing.loadReadyReport(id: Fixture.reportID))
         try assertFailed(failed)
+        try failed.validateJournal()
     }
 
     @MainActor
     func testShareAccountingStartsOnlyAfterPresentationAndNeverMutatesDelivery() async throws {
         let harness = try await makeHarness("share-counter")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer {
+            XCTAssertNoThrow(try harness.close())
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
         let diagnostics = DiagnosticsStore(applicationSupportURL: harness.applicationSupportURL)
         await diagnostics.prepare()
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL,
+            lifecycleDependencies: harness.dependencies,
+            lifecycleProfile: harness.profile,
             diagnosticsStore: diagnostics
         )
         let delivery = try coordinator.loadReadyReport(id: Fixture.reportID)
@@ -186,12 +209,16 @@ final class S4_3ReportDeliveryTests: XCTestCase {
     @MainActor
     func testSharePresentationThatNeverAppearsKeepsCounterZeroAndAuthorityImmutable() async throws {
         let harness = try await makeHarness("share-not-presented")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer {
+            XCTAssertNoThrow(try harness.close())
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
         let diagnostics = DiagnosticsStore(applicationSupportURL: harness.applicationSupportURL)
         await diagnostics.prepare()
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL,
+            lifecycleDependencies: harness.dependencies,
+            lifecycleProfile: harness.profile,
             diagnosticsStore: diagnostics
         )
         let delivery = try coordinator.loadReadyReport(id: Fixture.reportID)
@@ -217,10 +244,14 @@ final class S4_3ReportDeliveryTests: XCTestCase {
     @MainActor
     func testOnlyReadyReportRequiresExactlyOneSignOwnedCandidate() async throws {
         let harness = try await makeHarness("exact-one")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer {
+            XCTAssertNoThrow(try harness.close())
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            lifecycleDependencies: harness.dependencies,
+            lifecycleProfile: harness.profile
         )
         XCTAssertEqual(
             try coordinator.onlyReadyReport(assetID: Fixture.assetID)?.reportID,
@@ -249,9 +280,12 @@ final class S4_3ReportDeliveryTests: XCTestCase {
 
     @MainActor
     func testCollidingPendingAuthorityFailsBeforeRenderOrMutation() async throws {
-        let harness = try await makeHarness("pending-collision")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
-        try resetToPending(harness)
+        let harness = try await makeHarness("pending-collision", ready: false)
+        defer {
+            XCTAssertNoThrow(try harness.close())
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+        }
+
         let collisionID = UUID(uuidString: "42000000-0000-0000-0000-000000000098")!
         harness.context.insert(Report(
             id: collisionID,
@@ -270,7 +304,8 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         let before = try immutableAuthority(in: harness)
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            lifecycleDependencies: harness.dependencies,
+            lifecycleProfile: harness.profile
         )
 
         XCTAssertThrowsError(try coordinator.prepareFinalizedReport(id: Fixture.reportID))
@@ -285,7 +320,10 @@ final class S4_3ReportDeliveryTests: XCTestCase {
     func testUnknownAndBrokenAuthorityNeverLoadsExportsMutatesOrTouchesUnownedPaths() async throws {
         for testCase in AuthorityNegativeCase.allCases {
             let harness = try await makeHarness("authority-negative-\(testCase)")
-            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+            defer {
+                XCTAssertNoThrow(try harness.close())
+                try? fileManager.removeItem(at: harness.applicationSupportURL)
+            }
             let unownedURL = harness.applicationSupportURL.appendingPathComponent(
                 "unowned-authority-sentinel.bin"
             )
@@ -310,7 +348,8 @@ final class S4_3ReportDeliveryTests: XCTestCase {
             let cachedPDF = try Data(contentsOf: finalURL(in: harness))
             let coordinator = try ReportDeliveryCoordinator(
                 modelContext: harness.context,
-                generationRootURL: harness.session.generationRootURL
+                lifecycleDependencies: harness.dependencies,
+                lifecycleProfile: harness.profile
             )
 
             XCTAssertThrowsError(
@@ -328,7 +367,10 @@ final class S4_3ReportDeliveryTests: XCTestCase {
     func testUnsafeEvidencePDFAndCanonicalAncestorNeverLoadExportMutateOrFollowLinks() async throws {
         for testCase in FilesystemNegativeCase.allCases {
             let harness = try await makeHarness("filesystem-negative-\(testCase)")
-            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+            defer {
+                XCTAssertNoThrow(try harness.close())
+                try? fileManager.removeItem(at: harness.applicationSupportURL)
+            }
             let evidence = try XCTUnwrap(
                 try harness.context.fetch(FetchDescriptor<EvidenceFile>())
                     .sorted { $0.purposeKey < $1.purposeKey }
@@ -391,7 +433,8 @@ final class S4_3ReportDeliveryTests: XCTestCase {
 
             let coordinator = try ReportDeliveryCoordinator(
                 modelContext: harness.context,
-                generationRootURL: harness.session.generationRootURL
+                lifecycleDependencies: harness.dependencies,
+                lifecycleProfile: harness.profile
             )
             XCTAssertThrowsError(
                 try coordinator.loadReadyReport(id: Fixture.reportID),
@@ -425,20 +468,27 @@ final class S4_3ReportDeliveryTests: XCTestCase {
                          .corruptSnapshotBytes,
                          .snapshotAncestorSymlink] {
             let harness = try await makeHarness("invalid-\(testCase)")
-            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+            defer {
+                XCTAssertNoThrow(try harness.close())
+                try? fileManager.removeItem(at: harness.applicationSupportURL)
+            }
             let sentinel = Data("untrusted cached bytes".utf8)
             try configure(testCase, sentinel: sentinel, in: harness)
             let before = try immutableAuthority(in: harness)
             let coordinator = try ReportDeliveryCoordinator(
                 modelContext: harness.context,
-                generationRootURL: harness.session.generationRootURL
+                lifecycleDependencies: harness.dependencies,
+                lifecycleProfile: harness.profile
             )
             XCTAssertThrowsError(try coordinator.loadReadyReport(id: Fixture.reportID))
             XCTAssertEqual(try immutableAuthority(in: harness), before)
         }
 
         let canonical = try await makeHarness("canonical-snapshot-mismatch")
-        defer { try? fileManager.removeItem(at: canonical.applicationSupportURL) }
+        defer {
+            XCTAssertNoThrow(try canonical.close())
+            try? fileManager.removeItem(at: canonical.applicationSupportURL)
+        }
         let snapshotURL = canonical.session.generationRootURL.appendingPathComponent(
             canonical.report.snapshotRelativePath
         )
@@ -492,15 +542,20 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         try canonical.context.save()
         let canonicalCoordinator = try ReportDeliveryCoordinator(
             modelContext: canonical.context,
-            generationRootURL: canonical.session.generationRootURL
+            lifecycleDependencies: canonical.dependencies,
+            lifecycleProfile: canonical.profile
         )
         XCTAssertThrowsError(try canonicalCoordinator.loadReadyReport(id: Fixture.reportID))
 
         let dirty = try await makeHarness("dirty-context")
-        defer { try? fileManager.removeItem(at: dirty.applicationSupportURL) }
+        defer {
+            XCTAssertNoThrow(try dirty.close())
+            try? fileManager.removeItem(at: dirty.applicationSupportURL)
+        }
         let dirtyCoordinator = try ReportDeliveryCoordinator(
             modelContext: dirty.context,
-            generationRootURL: dirty.session.generationRootURL
+            lifecycleDependencies: dirty.dependencies,
+            lifecycleProfile: dirty.profile
         )
         dirty.report.pdfRelativePath = "pdfs/not-authoritative.pdf"
         XCTAssertThrowsError(try dirtyCoordinator.loadReadyReport(id: Fixture.reportID)) {
@@ -564,15 +619,7 @@ private enum UnsafeCase: Equatable {
     case uppercaseReadyHash
 }
 
-@MainActor
-private struct RecoveryHarness {
-    let applicationSupportURL: URL
-    let session: StoreGenerationSession
-    let context: ModelContext
-    let report: Report
-    let source: WorkflowRecord
-    let packet: Packet
-}
+private typealias RecoveryHarness = S42CurrentReportHarness
 
 private struct ImmutableAuthority: Equatable {
     let reportSchemaVersion: Int
@@ -622,100 +669,20 @@ private extension S4_3ReportDeliveryTests {
     var finalRelativePath: String { "pdfs/\(Fixture.reportID.uuidString.lowercased()).pdf" }
 
     @MainActor
-    func makeHarness(_ label: String) async throws -> RecoveryHarness {
-        let applicationSupport = fileManager.temporaryDirectory.appendingPathComponent(
-            "S4_3ReportDeliveryTests-\(label)-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        try fileManager.createDirectory(at: applicationSupport, withIntermediateDirectories: false)
-        let session = try StoreGenerationFactory(applicationSupportURL: applicationSupport)
-            .openOrBootstrapCurrent()
-        let context = session.modelContext
-        let pack = SignPack.illuminatedSignV1
-        let site = Site(
-            id: Fixture.siteID,
-            label: "North Campus",
-            address: "10 Main",
-            timeZoneID: "America/New_York",
-            createdAt: Fixture.observedAt.addingTimeInterval(-2)
-        )
-        let asset = Asset(
-            id: Fixture.assetID,
-            siteID: site.id,
-            packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            label: "Monument Sign",
-            createdAt: Fixture.observedAt.addingTimeInterval(-1)
-        )
-        context.insert(site)
-        context.insert(asset)
-        try context.save()
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
-        coordinator.configureCapture(generationRootURL: session.generationRootURL)
-        let draft = try coordinator.beginCheck(
-            assetID: asset.id,
-            timeZoneID: nil,
-            isTimeZoneConfirmed: false,
-            afterDarkAccepted: true,
-            safePositionAccepted: true,
-            observedAt: Fixture.observedAt
-        )
-        let wide = try await coordinator.importCandidate(
-            assetID: asset.id,
-            sourceData: try makePNG(seed: 31),
-            createdAt: Fixture.observedAt.addingTimeInterval(1)
-        )
-        _ = try await coordinator.accept(candidate: wide, assetID: asset.id)
-        let close = try await coordinator.importCandidate(
-            assetID: asset.id,
-            sourceData: try makePNG(seed: 79),
-            createdAt: Fixture.observedAt.addingTimeInterval(2)
-        )
-        _ = try await coordinator.accept(candidate: close, assetID: asset.id)
-        let result = try await coordinator.finalize(
-            assetID: asset.id,
-            selection: .noVisibleIssue,
-            completedAt: Fixture.completedAt,
-            snapshotCreatedAt: Fixture.snapshotAt,
-            sourceApp: SourceAppSnapshotV1(build: "42", version: "1.0"),
-            identifiers: FinalizationIdentifiers(
-                mutationID: Fixture.mutationID,
-                packetID: Fixture.packetID,
-                stableRootID: Fixture.stableRootID,
-                reportID: Fixture.reportID,
-                issueID: nil
-            )
-        )
-        XCTAssertEqual(result.reportID, Fixture.reportID)
-        guard case .ready = try coordinator.prepareReportDelivery(result: result) else {
-            throw RecoveryFixtureError.couldNotCreateImage
+    func makeHarness(_ label: String, ready: Bool = true) async throws -> RecoveryHarness {
+        let harness = try await S42CurrentReportHarness.make(label, imageFactory: makePNG)
+        if ready {
+            do {
+                _ = try ReportRenderService(modelContext: harness.context,
+                    lifecycleDependencies: harness.dependencies, lifecycleProfile: harness.profile)
+                    .renderPendingReport(id: Fixture.reportID)
+                try harness.validateJournal()
+            } catch {
+                try harness.close()
+                throw error
+            }
         }
-        let report = try XCTUnwrap(context.fetch(FetchDescriptor<Report>()).first)
-        let packet = try XCTUnwrap(context.fetch(FetchDescriptor<Packet>()).first)
-        XCTAssertEqual(report.pdfState, ReportPDFState.ready.rawValue)
-        return RecoveryHarness(
-            applicationSupportURL: applicationSupport,
-            session: session,
-            context: context,
-            report: report,
-            source: draft,
-            packet: packet
-        )
-    }
-
-    @MainActor
-    func resetToPending(_ harness: RecoveryHarness) throws {
-        if fileManager.fileExists(atPath: finalURL(in: harness).path) {
-            try fileManager.removeItem(at: finalURL(in: harness))
-        }
-        if fileManager.fileExists(atPath: stageURL(in: harness).path) {
-            try fileManager.removeItem(at: stageURL(in: harness))
-        }
-        harness.report.pdfState = ReportPDFState.pending.rawValue
-        harness.report.pdfRelativePath = nil
-        harness.report.pdfSHA256 = nil
-        try harness.context.save()
+        return harness
     }
 
     @MainActor

@@ -22,8 +22,14 @@ private final class CompilerWriterAdmissionHarnessV1 {
     let journal: MutationJournalStoreV1
     let writer: WorkspaceWriterV1
 
-    init(workspaceID: WorkspaceID = WorkspaceID(rawValue: UUID()), generationID: UUID = UUID(),
-         seedAsset: Bool = false) throws {
+    init(
+        workspaceID: WorkspaceID = WorkspaceID(rawValue: UUID()),
+        generationID: UUID = UUID(), seedAsset: Bool = false,
+        seedReport: Report? = nil,
+        failureBoundary: MutationJournalFaultBoundaryV1? = nil,
+        generationRootURL: URL? = nil,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
+    ) throws {
         let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration(
             "CompilerWriterAdmission", schema: schema, isStoredInMemoryOnly: true,
@@ -31,22 +37,38 @@ private final class CompilerWriterAdmissionHarnessV1 {
         let context = container.mainContext
         context.autosaveEnabled = false
         let assetID = UUID()
+        var seededModel = false
         if seedAsset {
             let site = Site(label: "Writer admission site", timeZoneID: "UTC")
             context.insert(site)
             context.insert(Asset(id: assetID, siteID: site.id, packID: "com.field-evidence.c39",
                 packSchemaVersion: 1, packContentVersion: 1, label: "Writer admission asset"))
+            seededModel = true
+        }
+        if let seedReport {
+            context.insert(seedReport)
+            seededModel = true
+        }
+        if seededModel {
             try context.save()
         }
         let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: UUID()))
-        let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generationID)
+        let journal = try MutationJournalStoreV1(
+            modelContext: context, identity: identity, generationID: generationID,
+            failureInjection: failureBoundary.map {
+                MutationJournalFailureInjectionV1(failOnceAt: $0)
+            }
+        )
         let instanceID = UUID()
         self.container = container; self.context = context; self.identity = identity
         self.generationID = generationID; self.assetID = assetID; self.journal = journal
         writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
             initialRevision: journal.currentRevision(writerInstanceID: instanceID),
             clock: MutationJournalFixedClockV1(), idSource: MutationJournalFixedIDSourceV1(value: instanceID),
-            fileAuthority: MutationJournalFileAuthorityV1(), adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            fileAuthority: MutationJournalFileAuthorityV1(), adapter: WorkspaceWriterAdapterV1(
+                modelContext: context, generationRootURL: generationRootURL,
+                expectedRootIdentity: expectedRootIdentity
+            ),
             journalStore: journal)
     }
 
@@ -1342,6 +1364,77 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
     }
 
     @MainActor
+    func testReportPDFSaveReturnFaultPreservesHeldCommittedValueAndReplaysReceipt() throws {
+        let generationID = UUID()
+        let temporaryRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V10_02-held-pdf-\(UUID().uuidString.lowercased())",
+            isDirectory: true
+        )
+        let generationRoot = temporaryRoot.appendingPathComponent(
+            generationID.uuidString.lowercased(), isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: generationRoot, withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: temporaryRoot) }
+
+        let reportID = UUID()
+        let report = Report(
+            id: reportID, packetID: UUID(), sourceRecordID: UUID(),
+            snapshotSchemaVersion: 1,
+            snapshotRelativePath: "snapshots/\(reportID.uuidString.lowercased()).json",
+            snapshotSHA256: String(repeating: "a", count: 64),
+            pdfState: .pending, pdfRelativePath: nil, pdfSHA256: nil,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_090),
+            replacesReportID: nil
+        )
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: generationRoot)
+        let harness = try CompilerWriterAdmissionHarnessV1(
+            generationID: generationID, seedReport: report,
+            failureBoundary: .afterSaveBeforeReturn,
+            generationRootURL: generationRoot, expectedRootIdentity: rootIdentity
+        )
+        let failed = try ReportRenderService.transitionMutation(
+            report: report, writer: harness.writer, transition: .pendingToFailed
+        )
+        XCTAssertEqual(failed.expectedReportRevision, 0)
+
+        XCTAssertThrowsError(try harness.writer.commitReportPDFTransition(failed)) {
+            XCTAssertEqual(
+                $0 as? MutationJournalFailureV1,
+                .injected(.afterSaveBeforeReturn)
+            )
+        }
+
+        // The journal save is durable despite its lost acknowledgement. The
+        // production adapter must not restore the already-committed held row.
+        XCTAssertEqual(report.pdfState, ReportPDFState.failed.rawValue)
+        XCTAssertNil(report.pdfRelativePath)
+        XCTAssertNil(report.pdfSHA256)
+        XCTAssertFalse(harness.context.hasChanges)
+        let durable = try XCTUnwrap(harness.journal.receipt(mutationID: failed.mutationID))
+        XCTAssertEqual(try harness.writer.reportPDFTransitionReceipt(for: failed), durable)
+        XCTAssertEqual(try harness.writer.commitReportPDFTransition(failed), durable)
+        try harness.journal.validateAll()
+
+        let freshContext = ModelContext(harness.container)
+        freshContext.autosaveEnabled = false
+        let durableReport = try XCTUnwrap(
+            freshContext.fetch(FetchDescriptor<Report>()).first { $0.id == reportID }
+        )
+        XCTAssertEqual(durableReport.pdfState, ReportPDFState.failed.rawValue)
+
+        let pending = try ReportRenderService.transitionMutation(
+            report: report, writer: harness.writer, transition: .failedToPending
+        )
+        XCTAssertEqual(pending.expectedReportRevision, 1)
+        _ = try harness.writer.commitReportPDFTransition(pending)
+        XCTAssertEqual(report.pdfState, ReportPDFState.pending.rawValue)
+        XCTAssertEqual(try harness.journal.exportSnapshot().receipts.count, 2)
+        try harness.journal.validateAll()
+    }
+
+    @MainActor
     func testV10_02I01EveryAtomicCrashBoundaryRecoversExactlyOnce() throws {
         let logicalBoundaries = try Self.loadCorpus().interruptionBoundaries
         XCTAssertEqual(logicalBoundaries.count, 7)
@@ -2480,4 +2573,605 @@ private struct C05WriterMutationFixtureV1 {
     private static func id(_ byte: UInt8) -> UUID {
         UUID(uuid: (byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, byte))
     }
+}
+
+extension V10_02MutationEnvelopeReceiptTests {
+    func testFinalizationLegacyEnvelopeAndSchemaOneIntentRoundTripWithoutWriterBinding() throws {
+        let fixture = try FinalizationCodecAdmissionFixtureV1.make()
+        let envelope = try fixture.legacyFinalizationEnvelope()
+        let envelopeData = try envelope.canonicalData()
+        let intent = fixture.intent(schemaVersion: 1, writerCommitBinding: nil)
+        let intentData = try FinalizationContractEncoderV1().encodeIntent(intent).data
+
+        XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: envelopeData), envelope)
+        XCTAssertEqual(try envelope.canonicalData(), envelopeData)
+        XCTAssertFalse(try XCTUnwrap(String(data: envelopeData, encoding: .utf8)).contains("writerAuthority"))
+        XCTAssertEqual(try FinalizationContractDecoderV1().decodeIntent(intentData), intent)
+        XCTAssertEqual(try FinalizationContractEncoderV1().encodeIntent(intent).data, intentData)
+        XCTAssertFalse(try XCTUnwrap(String(data: intentData, encoding: .utf8)).contains("writerCommitBinding"))
+
+        var explicitNullText = try XCTUnwrap(String(data: intentData, encoding: .utf8))
+        explicitNullText.insert(contentsOf: "\"writerCommitBinding\":null,", at: explicitNullText.index(after: explicitNullText.startIndex))
+        let explicitNull = Data(explicitNullText.utf8)
+        XCTAssertThrowsError(try FinalizationContractDecoderV1().decodeIntent(explicitNull))
+
+        let history = try fixture.history(
+            envelope: envelope, postImages: fixture.finalizationPostImages
+        )
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(
+            history, sourcePersistentSchemaVersion: PersistentSchemaV4.versionIdentifier.major
+        ))
+    }
+
+    func testFinalizationSchemaTwoAdmitsMigratedBaselineAndRejectsHostileBindings() throws {
+        let fixture = try FinalizationCodecAdmissionFixtureV1.make()
+        let envelope = try fixture.boundFinalizationEnvelope()
+        let binding = FinalizationWriterCommitBindingV1(
+            envelopeData: try envelope.canonicalData(), occurredAt: fixture.occurredAt
+        )
+        let intent = fixture.intent(schemaVersion: 2, writerCommitBinding: binding)
+        let encoded = try FinalizationContractEncoderV1().encodeIntent(intent).data
+
+        XCTAssertEqual(try FinalizationContractDecoderV1().decodeIntent(encoded), intent)
+        XCTAssertEqual(try XCTUnwrap(intent.writerCommitBinding).envelope(), envelope)
+        XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(
+            fixture.intent(schemaVersion: 2, writerCommitBinding: nil)
+        ))
+        XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(
+            fixture.intent(schemaVersion: 1, writerCommitBinding: binding)
+        ))
+        XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(
+            fixture.intent(
+                schemaVersion: 2, writerCommitBinding: binding,
+                generationID: fixture.id(93)
+            )
+        ))
+        XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(
+            fixture.intent(
+                schemaVersion: 2, writerCommitBinding: binding,
+                snapshotSHA256: fixture.digest("8")
+            )
+        ))
+        XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(
+            fixture.intent(
+                schemaVersion: 2, writerCommitBinding: binding,
+                finalizationMutationID: fixture.id(94)
+            )
+        ))
+
+        for hostile in try [
+            fixture.hostileFinalizationEnvelope(recordID: fixture.id(90)),
+            fixture.hostileFinalizationEnvelope(contentDigests: [fixture.digest("9")]),
+            fixture.hostileFinalizationEnvelope(workspaceID: WorkspaceID(rawValue: fixture.id(91))),
+        ] {
+            let hostileBinding = FinalizationWriterCommitBindingV1(
+                envelopeData: try hostile.canonicalData(), occurredAt: fixture.occurredAt
+            )
+            XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(
+                fixture.intent(schemaVersion: 2, writerCommitBinding: hostileBinding)
+            ))
+            XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+                fixture.history(envelope: hostile, postImages: fixture.finalizationPostImages),
+                sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+            ))
+        }
+
+        var mismatchedImages = try fixture.finalizationPostImages
+        let recordIndex = try XCTUnwrap(mismatchedImages.firstIndex {
+            (try? $0.identity.kind) == .workflowRecord
+        })
+        mismatchedImages[recordIndex] = .workflowRecord(
+            id: fixture.recordID, revision: 2, semanticSHA256: fixture.digest("7")
+        )
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+            fixture.history(envelope: envelope, postImages: mismatchedImages),
+            sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+        ))
+        let missingAssetLock = try fixture.hostileFinalizationEnvelope(includeAssetLock: false)
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+            fixture.history(
+                envelope: missingAssetLock, postImages: fixture.finalizationPostImages
+            ), sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+        ))
+        let migratedDraftBaseline = try fixture.hostileFinalizationEnvelope(recordRevision: 0)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(
+            fixture.history(
+                envelope: migratedDraftBaseline,
+                postImages: try fixture.finalizationPostImages(recordRevision: 1)
+            ), sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+        ))
+        let advancedAssetRevision = WorkspaceEntityRevisionV1(
+            identity: try WorkspaceEntityIdentityV1(kind: .asset, id: fixture.assetID),
+            revision: 8
+        )
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+            fixture.history(
+                envelope: envelope, postImages: fixture.finalizationPostImages,
+                overriddenResultingRevisions: [advancedAssetRevision]
+            ), sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+        ))
+        let wrongNewReportRevision = try fixture.hostileFinalizationEnvelope(reportRevision: 1)
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+            fixture.history(
+                envelope: wrongNewReportRevision,
+                postImages: try fixture.finalizationPostImages(reportRevision: 2)
+            ), sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+        ))
+    }
+
+    func testOriginalSourceV53AdmitsBoundFinalizationAndPDFButV52RejectsBoth() throws {
+        let fixture = try FinalizationCodecAdmissionFixtureV1.make()
+        let finalizationEnvelope = try fixture.boundFinalizationEnvelope()
+        let pdfEnvelope = try fixture.pdfTransitionEnvelope()
+        let cases = [
+            try fixture.history(
+                envelope: finalizationEnvelope, postImages: fixture.finalizationPostImages
+            ),
+            try fixture.history(
+                envelope: pdfEnvelope, postImages: [try fixture.pdfPostImage(revision: 2)],
+                additionalResultingRevisions: [
+                    .init(
+                        identity: WorkspaceEntityIdentityV1(kind: .asset, id: fixture.assetID),
+                        revision: 7
+                    ),
+                ]
+            ),
+        ]
+
+        for history in cases {
+            XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(
+                history, sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+            ))
+            XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+                history, sourcePersistentSchemaVersion: PersistentSchemaV52.versionIdentifier.major
+            )) { error in
+                XCTAssertEqual(error as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+            }
+        }
+
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+            fixture.history(
+                envelope: pdfEnvelope,
+                postImages: [.report(
+                    id: fixture.reportID, revision: 2, semanticSHA256: fixture.digest("f")
+                )]
+            ), sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+        ))
+        let wrongOuterRevision = try fixture.pdfTransitionEnvelope(outerEntityRevision: 2)
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+            fixture.history(
+                envelope: wrongOuterRevision,
+                postImages: [try fixture.pdfPostImage(revision: 3)]
+            ), sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+        ))
+        let wrongOuterWorkspace = try fixture.pdfTransitionEnvelope(
+            outerWorkspaceID: WorkspaceID(rawValue: fixture.id(92))
+        )
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(
+            fixture.history(
+                envelope: wrongOuterWorkspace,
+                postImages: [try fixture.pdfPostImage(revision: 2)]
+            ),
+            sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major
+        ))
+    }
+}
+
+private struct FinalizationCodecAdmissionFixtureV1 {
+    let workspaceID: WorkspaceID
+    let replicaID: ReplicaID
+    let generationID: UUID
+    let finalizationMutationID: MutationIDV1
+    let recordID: UUID
+    let packetID: UUID
+    let stableRootID: UUID
+    let reportID: UUID
+    let assetID: UUID
+    let completedAt: Date
+    let snapshotCreatedAt: Date
+    let occurredAt: Date
+    let snapshotSHA256: String
+    let contentDigests: [String]
+    let payload: FinalizationPayloadV1
+    let payloadSHA256: String
+    let authority: FinalizationWriterAuthorityV1
+    let sourceBinding: FinalizationWriterSourceBindingV1
+    let report: ReportPayloadV1
+
+    static func make() throws -> Self {
+        let workspaceID = WorkspaceID(rawValue: Self.id(1))
+        let generationID = Self.id(3)
+        let mutationID = try MutationIDV1(rawValue: Self.id(4))
+        let recordID = Self.id(5)
+        let packetID = Self.id(6)
+        let stableRootID = Self.id(7)
+        let reportID = Self.id(8)
+        let assetID = Self.id(10)
+        let completedAt = Date(timeIntervalSince1970: 1_800_100_001)
+        let snapshotCreatedAt = Date(timeIntervalSince1970: 1_800_100_002)
+        let snapshotSHA256 = Self.digest("a")
+        let migratedObservation = try ObservationAndTimeMigrationV1.migrate(
+            existingObservationBasisData: nil, existingTemporalContextData: nil,
+            couldNotVerifyKey: nil, couldNotVerifyDisplaySnapshot: nil,
+            couldNotVerifyRegistryVersion: nil, observedAtUTC: completedAt,
+            recordedAtUTC: completedAt, timeZoneID: "UTC", utcOffsetMinutes: 0,
+            localDate: "2027-01-16", localTime: "08:00:01"
+        )
+        let record = WorkflowRecordPayloadV1(
+            id: recordID, schemaVersion: 1, assetID: assetID, packetID: packetID,
+            issueID: nil, parentRecordID: nil, recordRevisionRootID: recordID,
+            revisesRecordID: nil, evidenceSourceRecordID: nil,
+            revisionKind: WorkflowRevisionKind.original.rawValue,
+            state: WorkflowState.completed.rawValue,
+            draftStepKey: nil, startedAt: completedAt.addingTimeInterval(-60),
+            completedAt: completedAt, observedAtUTC: completedAt, timeZoneID: "UTC",
+            utcOffsetMinutes: 0, localDate: "2027-01-16", localTime: "08:00:01",
+            afterDarkAcknowledgementKey: "after_dark",
+            afterDarkAcknowledgementCopy: "Work after dark requires care.",
+            afterDarkAcknowledgementVersion: "1", afterDarkAcknowledgementAccepted: true,
+            safePositionAcknowledgementKey: "safe_authorized_position",
+            safePositionAcknowledgementCopy: "Work from a safe position.",
+            safePositionAcknowledgementVersion: "1", safePositionAcknowledgementAccepted: true,
+            packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            pdfTemplateID: "field.evidence.pdf.worklight.v1", pdfTemplateVersion: 1,
+            outcomeKey: "no_visible_issue", couldNotVerifyKey: nil,
+            couldNotVerifyDisplaySnapshot: nil, couldNotVerifyRegistryVersion: nil,
+            workPerformedLocalDate: nil, workDescription: nil, note: nil,
+            finalizationMutationID: mutationID.rawValue
+        )
+        let packet = PacketPayloadV1(
+            id: packetID, schemaVersion: 1, stableRootID: stableRootID,
+            currentRecordID: recordID, evaluationCounted: true,
+            contentDeletedAt: nil, createdAt: completedAt
+        )
+        let report = ReportPayloadV1(
+            id: reportID, schemaVersion: 1, packetID: packetID,
+            sourceRecordID: recordID, snapshotSchemaVersion: 1,
+            snapshotRelativePath: "snapshots/\(reportID.uuidString.lowercased()).json",
+            snapshotSHA256: snapshotSHA256, pdfState: ReportPDFState.pending.rawValue,
+            pdfRelativePath: nil, pdfSHA256: nil, createdAt: snapshotCreatedAt,
+            replacesReportID: nil
+        )
+        let payload = FinalizationPayloadV1(
+            issueInsert: nil, issueTransition: nil, packetAfter: packet,
+            packetBefore: nil, reportInsert: report, workflowRecordAfter: record
+        )
+        let payloadSHA256 = try FinalizationContractEncoderV1().encodePayload(payload).sha256
+        let contentDigests = [Self.digest("b"), Self.digest("c")]
+        let sourceBinding = FinalizationWriterSourceBindingV1(
+            sourceRecordID: recordID,
+            observationBasisV1Data: try XCTUnwrap(migratedObservation.observationBasisData),
+            temporalContextV1Data: try XCTUnwrap(migratedObservation.temporalContextData),
+            requirementAssurance: nil
+        )
+        let authority = FinalizationWriterAuthorityV1(
+            workspaceID: workspaceID, generationID: generationID, payload: payload,
+            payloadSHA256: payloadSHA256,
+            snapshotRelativePath: report.snapshotRelativePath,
+            snapshotSHA256: snapshotSHA256, contentDigests: contentDigests,
+            sourceBinding: sourceBinding
+        )
+        try authority.validate()
+        return Self(
+            workspaceID: workspaceID, replicaID: ReplicaID(rawValue: Self.id(2)),
+            generationID: generationID, finalizationMutationID: mutationID,
+            recordID: recordID, packetID: packetID, stableRootID: stableRootID,
+            reportID: reportID, assetID: assetID,
+            completedAt: completedAt, snapshotCreatedAt: snapshotCreatedAt,
+            occurredAt: Date(timeIntervalSince1970: 1_800_100_003),
+            snapshotSHA256: snapshotSHA256, contentDigests: contentDigests,
+            payload: payload, payloadSHA256: payloadSHA256, authority: authority,
+            sourceBinding: sourceBinding, report: report
+        )
+    }
+
+    var finalizationPostImages: [MutationPostImageV1] {
+        get throws { try finalizationPostImages(recordRevision: 2) }
+    }
+
+    func finalizationPostImages(
+        recordRevision: UInt64 = 2, packetRevision: UInt64 = 1,
+        reportRevision: UInt64 = 1
+    ) throws -> [MutationPostImageV1] {
+            let record = payload.workflowRecordAfter
+            let recordDTO = V4BackupWorkflowRecordDTO(
+                id: record.id, schemaVersion: record.schemaVersion, assetID: record.assetID,
+                packetID: record.packetID, issueID: record.issueID,
+                parentRecordID: record.parentRecordID,
+                recordRevisionRootID: record.recordRevisionRootID,
+                revisesRecordID: record.revisesRecordID,
+                evidenceSourceRecordID: record.evidenceSourceRecordID,
+                revisionKind: record.revisionKind, stage: record.stage, state: record.state,
+                draftStepKey: record.draftStepKey, startedAt: record.startedAt,
+                completedAt: record.completedAt, observedAtUTC: record.observedAtUTC,
+                timeZoneID: record.timeZoneID, utcOffsetMinutes: record.utcOffsetMinutes,
+                localDate: record.localDate, localTime: record.localTime,
+                afterDarkAcknowledgementKey: record.afterDarkAcknowledgementKey,
+                afterDarkAcknowledgementCopy: record.afterDarkAcknowledgementCopy,
+                afterDarkAcknowledgementVersion: record.afterDarkAcknowledgementVersion,
+                afterDarkAcknowledgementAccepted: record.afterDarkAcknowledgementAccepted,
+                safePositionAcknowledgementKey: record.safePositionAcknowledgementKey,
+                safePositionAcknowledgementCopy: record.safePositionAcknowledgementCopy,
+                safePositionAcknowledgementVersion: record.safePositionAcknowledgementVersion,
+                safePositionAcknowledgementAccepted: record.safePositionAcknowledgementAccepted,
+                packID: record.packID, packSchemaVersion: record.packSchemaVersion,
+                packContentVersion: record.packContentVersion,
+                pdfTemplateID: record.pdfTemplateID, pdfTemplateVersion: record.pdfTemplateVersion,
+                outcomeKey: record.outcomeKey, couldNotVerifyKey: record.couldNotVerifyKey,
+                couldNotVerifyDisplaySnapshot: record.couldNotVerifyDisplaySnapshot,
+                couldNotVerifyRegistryVersion: record.couldNotVerifyRegistryVersion,
+                workPerformedLocalDate: record.workPerformedLocalDate,
+                workDescription: record.workDescription, note: record.note,
+                finalizationMutationID: record.finalizationMutationID,
+                observationBasisV1Data: sourceBinding.observationBasisV1Data,
+                temporalContextV1Data: sourceBinding.temporalContextV1Data
+            )
+            let recordValue = FinalizationCodecWorkflowRecordPostImageV8(
+                record: recordDTO, requirementAssurance: nil
+            )
+            let packet = payload.packetAfter
+            let packetValue = V4BackupPacketDTO(
+                id: packet.id, schemaVersion: packet.schemaVersion,
+                stableRootID: packet.stableRootID, currentRecordID: packet.currentRecordID,
+                evaluationCounted: packet.evaluationCounted,
+                contentDeletedAt: packet.contentDeletedAt, createdAt: packet.createdAt
+            )
+            let reportValue = V4BackupReportDTO(
+                id: report.id, schemaVersion: report.schemaVersion, packetID: report.packetID,
+                sourceRecordID: report.sourceRecordID,
+                snapshotSchemaVersion: report.snapshotSchemaVersion,
+                snapshotRelativePath: report.snapshotRelativePath,
+                snapshotSHA256: report.snapshotSHA256, pdfState: report.pdfState,
+                pdfRelativePath: report.pdfRelativePath, pdfSHA256: report.pdfSHA256,
+                createdAt: report.createdAt, replacesReportID: report.replacesReportID
+            )
+            return try [
+                postImage(
+                    .workflowRecord, id: record.id, revision: recordRevision,
+                    value: recordValue
+                ),
+                postImage(.packet, id: packet.id, revision: packetRevision, value: packetValue),
+                postImage(.report, id: report.id, revision: reportRevision, value: reportValue),
+            ].sorted { try $0.identity.stableKey < $1.identity.stableKey }
+    }
+
+    func pdfPostImage(revision: UInt64) throws -> MutationPostImageV1 {
+        let ready = V4BackupReportDTO(
+            id: report.id, schemaVersion: report.schemaVersion, packetID: report.packetID,
+            sourceRecordID: report.sourceRecordID,
+            snapshotSchemaVersion: report.snapshotSchemaVersion,
+            snapshotRelativePath: report.snapshotRelativePath,
+            snapshotSHA256: report.snapshotSHA256, pdfState: ReportPDFState.ready.rawValue,
+            pdfRelativePath: "pdfs/\(reportID.uuidString.lowercased()).pdf",
+            pdfSHA256: digest("e"), createdAt: report.createdAt,
+            replacesReportID: report.replacesReportID
+        )
+        let identity = try WorkspaceEntityIdentityV1(kind: .report, id: reportID)
+        let semanticSHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            FinalizationCodecPostImageDigestBasisV1(
+                identity: identity, revision: revision, value: ready
+            )
+        )
+        return .report(id: reportID, revision: revision, semanticSHA256: semanticSHA256)
+    }
+
+    func legacyFinalizationEnvelope() throws -> MutationEnvelopeV1 {
+        try finalizationEnvelope(writerAuthority: nil)
+    }
+
+    func boundFinalizationEnvelope() throws -> MutationEnvelopeV1 {
+        try finalizationEnvelope(writerAuthority: authority)
+    }
+
+    func hostileFinalizationEnvelope(
+        recordID: UUID? = nil, contentDigests: [String]? = nil,
+        workspaceID: WorkspaceID? = nil, recordRevision: UInt64 = 1,
+        reportRevision: UInt64 = 0, includeAssetLock: Bool = true
+    ) throws -> MutationEnvelopeV1 {
+        try finalizationEnvelope(
+            writerAuthority: authority, recordID: recordID ?? self.recordID,
+            contentDigests: contentDigests ?? self.contentDigests,
+            workspaceID: workspaceID ?? self.workspaceID,
+            recordRevision: recordRevision, reportRevision: reportRevision,
+            includeAssetLock: includeAssetLock
+        )
+    }
+
+    func intent(
+        schemaVersion: Int, writerCommitBinding: FinalizationWriterCommitBindingV1?,
+        generationID: UUID? = nil, snapshotSHA256: String? = nil,
+        finalizationMutationID: UUID? = nil
+    ) -> FinalizationIntentV1 {
+        FinalizationIntentV1(
+            completedAt: completedAt,
+            finalizationMutationID: finalizationMutationID ?? self.finalizationMutationID.rawValue,
+            finalizationPayload: payload, finalizationPayloadSHA256: payloadSHA256,
+            generationID: generationID ?? self.generationID,
+            packetID: packetID, phase: .prepared,
+            recordID: recordID, reportID: reportID, schemaVersion: schemaVersion,
+            snapshotCreatedAt: snapshotCreatedAt,
+            snapshotFinalRelativePath: report.snapshotRelativePath,
+            snapshotSHA256: snapshotSHA256 ?? self.snapshotSHA256,
+            snapshotStagingRelativePath: ".staging/\(reportID.uuidString.lowercased()).json",
+            stableRootID: stableRootID, writerCommitBinding: writerCommitBinding
+        )
+    }
+
+    func pdfTransitionEnvelope(
+        outerWorkspaceID: WorkspaceID? = nil, outerEntityRevision: UInt64 = 1
+    ) throws -> MutationEnvelopeV1 {
+        let command = try ReportPDFTransitionMutationV1.make(
+            workspaceID: workspaceID, generationID: generationID,
+            expectedReportRevision: 1, reportBefore: report,
+            transition: .pendingToReady(
+                relativePath: "pdfs/\(reportID.uuidString.lowercased()).pdf",
+                sha256: digest("e"), byteCount: 128
+            )
+        )
+        return try envelope(
+            mutationID: command.mutationID, command: .transitionReportPDF(command),
+            identity: try WorkspaceEntityIdentityV1(kind: .report, id: reportID),
+            entityRevision: outerEntityRevision,
+            workspaceID: outerWorkspaceID ?? workspaceID
+        )
+    }
+
+    func history(
+        envelope: MutationEnvelopeV1, postImages: [MutationPostImageV1],
+        additionalResultingRevisions: [WorkspaceEntityRevisionV1] = [],
+        overriddenResultingRevisions: [WorkspaceEntityRevisionV1] = []
+    ) throws -> MutationHistorySnapshotV1 {
+        let imageRevisions = try postImages.map {
+            WorkspaceEntityRevisionV1(identity: try $0.identity, revision: $0.revision)
+        }
+        let imageIdentities = Set(imageRevisions.map(\.identity))
+        let overriddenIdentities = Set(overriddenResultingRevisions.map(\.identity))
+        let unchangedLocks = envelope.expectedRevision.entityRevisions.filter {
+            !imageIdentities.contains($0.identity) && !overriddenIdentities.contains($0.identity)
+        }
+        let resultingRevisions = (
+            imageRevisions + unchangedLocks + additionalResultingRevisions
+                + overriddenResultingRevisions
+        ).sorted {
+            $0.identity.stableKey < $1.identity.stableKey
+        }
+        let resulting = try WorkspaceExpectedRevisionV1(
+            workspaceID: envelope.workspaceID, generationID: envelope.generationID,
+            writerInstanceID: id(70), workspaceRevision: 1,
+            entityRevisions: resultingRevisions
+        )
+        let receipt = try MutationReceiptV1(
+            identity: MutationReceiptIdentityV1(
+                workspaceID: envelope.workspaceID, replicaID: envelope.replicaID, localSequence: 1
+            ), envelope: envelope,
+            resultingRevision: MutationPortableExpectedRevisionV1(resulting),
+            postImages: postImages, committedAt: occurredAt
+        )
+        return MutationHistorySnapshotV1(
+            workspaceRevision: 1, lastLocalSequence: 1,
+            receipts: [.init(
+                envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(),
+                reversalBasisData: nil, semanticReversalData: nil
+            )], quarantines: [],
+            entityRevisions: resultingRevisions
+        )
+    }
+
+    func digest(_ character: Character) -> String {
+        Self.digest(character)
+    }
+
+    func id(_ byte: UInt8) -> UUID { Self.id(byte) }
+
+    private func finalizationEnvelope(
+        writerAuthority: FinalizationWriterAuthorityV1?,
+        recordID: UUID? = nil, contentDigests: [String]? = nil,
+        workspaceID: WorkspaceID? = nil, recordRevision: UInt64 = 1,
+        reportRevision: UInt64 = 0, includeAssetLock: Bool = true
+    ) throws -> MutationEnvelopeV1 {
+        let command = FinalizeCheckMutationV1(
+            finalizationMutationID: finalizationMutationID.rawValue,
+            assetID: assetID, recordID: recordID ?? self.recordID,
+            packetID: packetID, reportID: reportID, issueID: nil,
+            semanticDigest: payloadSHA256,
+            contentDigests: contentDigests ?? self.contentDigests,
+            writerAuthority: writerAuthority
+        )
+        var revisions = try [
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .workflowRecord, id: self.recordID),
+                revision: recordRevision
+            ),
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .packet, id: packetID), revision: 0
+            ),
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .report, id: reportID),
+                revision: reportRevision
+            ),
+        ]
+        if includeAssetLock {
+            revisions.append(WorkspaceEntityRevisionV1(
+                identity: try WorkspaceEntityIdentityV1(kind: .asset, id: assetID),
+                revision: 7
+            ))
+        }
+        return try envelope(
+            mutationID: finalizationMutationID, command: .finalizeCheck(command),
+            entityRevisions: revisions, workspaceID: workspaceID ?? self.workspaceID,
+            contentDependencyIDs: writerAuthority == nil ? [] : (contentDigests ?? self.contentDigests)
+        )
+    }
+
+    private func envelope(
+        mutationID: MutationIDV1, command: WorkspaceCommandV1,
+        identity: WorkspaceEntityIdentityV1? = nil, entityRevision: UInt64 = 0,
+        entityRevisions: [WorkspaceEntityRevisionV1]? = nil,
+        workspaceID: WorkspaceID? = nil, contentDependencyIDs: [String] = []
+    ) throws -> MutationEnvelopeV1 {
+        let envelopeWorkspaceID = workspaceID ?? self.workspaceID
+        let expectedEntityRevisions: [WorkspaceEntityRevisionV1]
+        if let entityRevisions {
+            expectedEntityRevisions = entityRevisions
+        } else {
+            expectedEntityRevisions = [WorkspaceEntityRevisionV1(
+                identity: try XCTUnwrap(identity), revision: entityRevision
+            )]
+        }
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: envelopeWorkspaceID, generationID: generationID,
+            writerInstanceID: id(71), workspaceRevision: 0,
+            entityRevisions: expectedEntityRevisions
+        )
+        return try MutationEnvelopeV1(
+            request: WorkspaceMutationRequestV1(
+                mutationID: mutationID, expectedRevision: expected, command: command
+            ), identity: WorkspaceReplicaIdentityV1(
+                workspaceID: envelopeWorkspaceID, replicaID: replicaID
+            ), contentDependencyIDs: contentDependencyIDs
+        )
+    }
+
+    private static func digest(_ character: Character) -> String {
+        String(repeating: String(character), count: 64)
+    }
+
+    private func postImage<Value: Codable>(
+        _ kind: WorkspaceEntityKindV1, id: UUID, revision: UInt64, value: Value
+    ) throws -> MutationPostImageV1 {
+        let identity = try WorkspaceEntityIdentityV1(kind: kind, id: id)
+        let semanticSHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            FinalizationCodecPostImageDigestBasisV1(
+                identity: identity, revision: revision, value: value
+            )
+        )
+        switch kind {
+        case .workflowRecord:
+            return .workflowRecord(id: id, revision: revision, semanticSHA256: semanticSHA256)
+        case .packet:
+            return .packet(id: id, revision: revision, semanticSHA256: semanticSHA256)
+        case .report:
+            return .report(id: id, revision: revision, semanticSHA256: semanticSHA256)
+        default:
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private static func id(_ byte: UInt8) -> UUID {
+        UUID(uuid: (byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, byte))
+    }
+}
+
+private struct FinalizationCodecPostImageDigestBasisV1<Value: Codable>: Codable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let value: Value
+}
+
+private struct FinalizationCodecWorkflowRecordPostImageV8: Codable {
+    let record: V4BackupWorkflowRecordDTO
+    let requirementAssurance: RequirementAssuranceSnapshotV1?
 }

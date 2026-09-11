@@ -8,6 +8,45 @@ import XCTest
 
 @MainActor
 final class V9_74EvidenceQualityCoachTests: XCTestCase {
+    func testBackupEnrollmentPreservesOptionalBoundaryAndRejectsDecodedProvenanceTampering() throws {
+        let fixture = try C10ProductionFixture()
+        let populated = try fixture.physicalBackupSnapshot()
+        XCTAssertEqual(populated.ruleSets.count, 1)
+        let empty = try EvidenceQualityBackupSnapshotV1(ruleSets: [], assessments: [], waivers: [],
+            receipts: [], effectProvenance: [])
+        func records(_ version: Int, _ snapshot: EvidenceQualityBackupSnapshotV1?) -> V4BackupRecordsV1 {
+            V4BackupRecordsV1(assets: [], deletionLedger: .empty, evidenceFiles: [], issues: [],
+                packets: [], partyAccountability: [], recordsSchemaVersion: version,
+                reports: [], sites: [], workflowRecords: [], evidenceQuality: snapshot)
+        }
+        for version in [45, 46, 52] {
+            XCTAssertNoThrow(try EvidenceQualityBackupEnrollmentV1.validate(records(version, nil)))
+        }
+        for value in [empty, populated] {
+            XCTAssertThrowsError(try EvidenceQualityBackupEnrollmentV1.validate(records(45, value)))
+            XCTAssertNoThrow(try EvidenceQualityBackupEnrollmentV1.validate(records(46, value)))
+            XCTAssertNoThrow(try EvidenceQualityBackupEnrollmentV1.validate(records(52, value)))
+        }
+        XCTAssertEqual(EvidenceQualityBackupEnrollmentV1.durableFamilyCount, 4)
+        let original = try JSONEncoder().encode(populated)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])
+        var provenance = try XCTUnwrap(object["effectProvenance"] as? [[String: Any]])
+        provenance[0]["writerInstanceID"] = "00000000-0000-0000-0000-000000000000"
+        object["effectProvenance"] = provenance
+        let zeroWriter = try JSONDecoder().decode(EvidenceQualityBackupSnapshotV1.self, from:
+            JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+        XCTAssertThrowsError(try zeroWriter.validate()) {
+            XCTAssertEqual($0 as? EvidenceQualityPersistenceFailureV1, .corruptRow)
+        }
+        object["effectProvenance"] = []
+        let missing = try JSONDecoder().decode(EvidenceQualityBackupSnapshotV1.self, from:
+            JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+        XCTAssertThrowsError(try missing.validate()) {
+            XCTAssertEqual($0 as? EvidenceQualityPersistenceFailureV1, .receiptMismatch)
+        }
+        XCTAssertEqual(try fixture.physicalBackupSnapshot(), populated)
+    }
+
     func testEveryUnavailableCoachStateRendersWithoutAcceptingOrRetakingEvidence() throws {
         let states: [EvidenceQualityCoachView.UnavailableState] = [
             .unavailable, .corrupt, .stale, .cancelled, .protectedData, .offline, .storage
@@ -206,11 +245,79 @@ final class V9_74EvidenceQualityCoachTests: XCTestCase {
 private struct C10Clock: ApplicationClock { func now() -> Date { Date(timeIntervalSince1970: 1_700_000_100) } }
 private struct C10IDSource: ApplicationIDSource { func makeID() -> UUID { UUID() } }
 private struct C10FileAuthority: ApplicationFileAuthorityV1 { func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String { "mutation-staging/\(mutationID.rawValue.uuidString.lowercased())/\(component)" } }
+
+/// Test composition of the same current-generation lease, fence and journal
+/// APIs used by StoreSessionCoordinator. It never bootstraps a second store.
+@MainActor
+final class C10C11CurrentWriterBinding {
+    let journal: MutationJournalStoreV1
+    let writer: WorkspaceWriterV1
+    let destinationResolver: C11PersistedAssetDestinationResolver?
+    private let lease: GenerationLeaseHandleV1
+    private var closed = false
+
+    init(session: StoreGenerationSession, applicationSupportURL: URL,
+         destinationAssetID: UUID? = nil) throws {
+        let factory = StoreGenerationFactory(applicationSupportURL: applicationSupportURL)
+        guard session.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
+              factory.installedGenerationURL(id: session.generationID).standardizedFileURL
+                == session.generationRootURL.standardizedFileURL,
+              try factory.currentGenerationID() == session.generationID,
+              let epoch = session.generationEpoch else {
+            throw GenerationLeaseRegistryFailureV1.staleGeneration
+        }
+        let registry = try factory.makeGenerationLeaseRegistry()
+        let handle = try registry.acquireHandle(epoch: epoch, role: .writer)
+        do {
+            let fence = try factory.makeWriterFence(expectedGenerationEpoch: epoch,
+                writerLeaseToken: handle.token, registry: registry)
+            let boundJournal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity, generationID: session.generationID,
+                allowStateBootstrap: false, staleWriterFence: fence)
+            try MutationReceiptRecoveryServiceV1(store: boundJournal).recoverBeforeWriterActivation()
+            let resolver = try destinationAssetID.map {
+                try C11PersistedAssetDestinationResolver(modelContext: session.modelContext,
+                    workspaceID: session.workspaceID, journal: boundJournal, assetID: $0)
+            }
+            let boundWriter = try WorkspaceWriterV1(identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                initialRevision: boundJournal.currentRevision(writerInstanceID: UUID()),
+                clock: C10Clock(), idSource: C10IDSource(), fileAuthority: C10FileAuthority(),
+                adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext,
+                    capturePromotionDestinationResolver: resolver), journalStore: boundJournal,
+                searchIndexInvalidation: { source in
+                    try LocalSearchIndexStoreV1.synchronouslyInvalidateAfterCanonicalCommit(
+                        source: source, applicationSupportURL: applicationSupportURL)
+                })
+            journal = boundJournal; writer = boundWriter
+            destinationResolver = resolver; lease = handle
+        } catch {
+            try handle.close()
+            throw error
+        }
+    }
+
+    func close() throws {
+        guard !closed else { return }
+        writer.invalidate()
+        try lease.close()
+        closed = true
+    }
+
+    func packageLifecycleDependencies(session: StoreGenerationSession,
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1) throws -> WorkspacePackageLifecycleDependenciesV1 {
+        try .init(workspaceID: session.workspaceID, generationID: session.generationID,
+            generationRootURL: session.generationRootURL, writer: writer,
+            clock: C10Clock(), idSource: C10IDSource(), fileAuthority: C10FileAuthority(),
+            profileRegistry: profileRegistry)
+    }
+}
 @MainActor private final class C10DeletionSink { var values: [EvidenceQualityLifecycleAdapterV1.DeleteDisposition] = [] }
 
 @MainActor
-private final class C10ProductionFixture {
-    let workspaceID = WorkspaceID(), date = Date(timeIntervalSince1970: 1_700_000_000)
+final class C10ProductionFixture {
+    let workspaceID: WorkspaceID
+    let date = Date(timeIntervalSince1970: 1_700_000_000)
     let context: ModelContext
     let journal: MutationJournalStoreV1
     let writer: WorkspaceWriterV1
@@ -219,16 +326,35 @@ private final class C10ProductionFixture {
     let coordinator: EvidenceQualityCoordinatorV1
     let ruleSet: EvidenceQualityRuleSetV1
     private let deletionSink: C10DeletionSink
+    private let currentBinding: C10C11CurrentWriterBinding?
     var deleteDispositions: [EvidenceQualityLifecycleAdapterV1.DeleteDisposition] { deletionSink.values }
 
-    init(failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil, useActiveSchema: Bool = false) throws {
-        let schema = try useActiveSchema ? PersistentSchemaReleaseRegistryV1.activeSchema()
-            : Schema(PersistentSchemaV47.models, version: PersistentSchemaV47.versionIdentifier)
-        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C10Production", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
-        let modelContext = container.mainContext; modelContext.autosaveEnabled = false
-        let generationID = UUID(), identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: UUID()))
-        let baseJournal = try MutationJournalStoreV1(modelContext: modelContext, identity: identity, generationID: generationID)
-        let baseWriter = try WorkspaceWriterV1(identity: identity, generationID: generationID, initialRevision: baseJournal.currentRevision(writerInstanceID: UUID()), clock: C10Clock(), idSource: C10IDSource(), fileAuthority: C10FileAuthority(), adapter: WorkspaceWriterAdapterV1(modelContext: modelContext), journalStore: baseJournal)
+    init(failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil, useActiveSchema: Bool = false,
+         session: StoreGenerationSession? = nil, applicationSupportURL: URL? = nil) throws {
+        let modelContext: ModelContext
+        let generationID: UUID, identity: WorkspaceReplicaIdentityV1
+        let baseJournal: MutationJournalStoreV1, baseWriter: WorkspaceWriterV1
+        if let session {
+            guard boundary == nil else { throw EvidenceQualityFailureV1.invalidValue }
+            let binding = try C10C11CurrentWriterBinding(session: session,
+                applicationSupportURL: XCTUnwrap(applicationSupportURL))
+            currentBinding = binding
+            workspaceID = session.workspaceID; modelContext = session.modelContext
+            generationID = session.generationID; identity = session.workspaceIdentity
+            baseJournal = binding.journal; baseWriter = binding.writer
+        } else {
+            currentBinding = nil
+            workspaceID = WorkspaceID()
+            let schema = try useActiveSchema ? PersistentSchemaReleaseRegistryV1.activeSchema()
+                : Schema(PersistentSchemaV47.models, version: PersistentSchemaV47.versionIdentifier)
+            let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C10Production", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
+            modelContext = container.mainContext
+            generationID = UUID()
+            identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: UUID()))
+            baseJournal = try MutationJournalStoreV1(modelContext: modelContext, identity: identity, generationID: generationID)
+            baseWriter = try WorkspaceWriterV1(identity: identity, generationID: generationID, initialRevision: baseJournal.currentRevision(writerInstanceID: UUID()), clock: C10Clock(), idSource: C10IDSource(), fileAuthority: C10FileAuthority(), adapter: WorkspaceWriterAdapterV1(modelContext: modelContext), journalStore: baseJournal)
+        }
+        modelContext.autosaveEnabled = false
         let generatedRuleSet = try Self.makeRuleSet(workspaceID: workspaceID, date: date)
         let baseRevision = try baseWriter.currentRevision(), target = try WorkspaceEntityIdentityV1(kind: .evidenceQualityRuleSet, id: generatedRuleSet.ruleSetID)
         let ruleExpected = try WorkspaceExpectedRevisionV1(workspaceID: baseRevision.workspaceID, generationID: baseRevision.generationID, writerInstanceID: baseRevision.writerInstanceID, workspaceRevision: baseRevision.revision, entityRevisions: baseRevision.entityRevisions + [.init(identity: target, revision: 0)])
@@ -276,6 +402,45 @@ private final class C10ProductionFixture {
 
     func actor() throws -> ActorSnapshotV1 { let actor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspaceID, displayName: "C10 operator"); return try .init(snapshotID: UUID(), workspaceID: workspaceID, actor: actor, responsibility: .recordedBy, displayNameAtTime: "C10 operator", capturedAt: date) }
     func mutation() throws -> MutationIDV1 { try .init(rawValue: UUID()) }
+    func closeCurrentWriter() throws { try currentBinding?.close() }
+
+    func capture(evidence: EvidenceFile, generationRootURL: URL, blur: Int64 = 249_999) throws
+        -> EvidenceQualityCoordinatorV1.CanonicalCapture {
+        let bytes = try Data(contentsOf: generationRootURL.appendingPathComponent(evidence.relativePath))
+        guard bytes.count == evidence.byteCount, KernelCanonicalHashV1.sha256(bytes) == evidence.sha256,
+              let image = UIImage(data: bytes), let cgImage = image.cgImage else {
+            throw EvidenceQualityFailureV1.invalidValue
+        }
+        let binding = try EvidenceQualityEvidenceBindingV1(workspaceID: workspaceID,
+            evidenceID: evidence.id.uuidString.lowercased(), evidenceRevision: 1,
+            contentID: evidence.id.uuidString.lowercased(), contentSHA256: evidence.sha256)
+        return .init(evidence: binding, canonicalBytes: bytes,
+            pixelWidth: cgImage.width, pixelHeight: cgImage.height,
+            declaredLumaMillionths: 500_000, declaredLaplacianVarianceMillionths: blur,
+            declaredPerceptualHash: 1, declaredReferenceCoverageMillionths: 900_000,
+            referenceSequenceSHA256: KernelCanonicalHashV1.sha256(bytes))
+    }
+
+    func physicalBackupSnapshot() throws -> EvidenceQualityBackupSnapshotV1 {
+        try Self.physicalBackupSnapshot(in: context, workspaceID: workspaceID)
+    }
+
+    static func physicalBackupSnapshot(in context: ModelContext, workspaceID: WorkspaceID) throws
+        -> EvidenceQualityBackupSnapshotV1 {
+        let values = try EvidenceQualitySwiftDataQuerySourceV1(modelContext: context, workspaceID: workspaceID).snapshot()
+        let ruleProvenance = try context.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map {
+            try EvidenceQualityBackupEffectProvenanceV1(mutationID: $0.mutationID, writerInstanceID: $0.writerInstanceID)
+        }
+        let assessmentProvenance = try context.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>()).map {
+            try EvidenceQualityBackupEffectProvenanceV1(mutationID: $0.mutationID, writerInstanceID: $0.writerInstanceID)
+        }
+        let waiverProvenance = try context.fetch(FetchDescriptor<EvidenceQualityWaiverRowV1>()).map {
+            try EvidenceQualityBackupEffectProvenanceV1(mutationID: $0.mutationID, writerInstanceID: $0.writerInstanceID)
+        }
+        return try .init(ruleSets: values.ruleSets, assessments: values.assessments,
+            waivers: values.waivers, receipts: values.receipts,
+            effectProvenance: ruleProvenance + assessmentProvenance + waiverProvenance)
+    }
     func successorRuleSet() throws -> EvidenceQualityRuleSetV1 { try .init(ruleSetID: UUID(), workspaceID: workspaceID, policyVersion: "1.0.1", orderedRules: ruleSet.orderedRules, predecessor: ruleSet, revision: 2, mutationID: try mutation(), recordedAt: date.addingTimeInterval(20)) }
     func ruleCommand(_ value: EvidenceQualityRuleSetV1) throws -> EvidenceQualityMutationCommandV1 { try command(payload: .putRuleSet(value), mutationID: value.mutationID, kind: .evidenceQualityRuleSet, id: value.ruleSetID) }
 

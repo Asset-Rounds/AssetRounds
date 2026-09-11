@@ -1133,6 +1133,25 @@ private extension BackupPackageValidatorV1 {
         try C08ImportBulkBackupPackageValidationV1.validate(records, manifest: manifest)
         try EvidenceQualityBackupEnrollmentV1.validate(records)
         try FastSurveyInboxBackupEnrollmentV1.validate(records)
+        if let snapshot = records.evidenceQuality {
+            guard let sourceWorkspaceID = manifest.source.workspaceID,
+                  snapshot.ruleSets.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
+                  snapshot.assessments.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
+                  snapshot.waivers.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
+                  snapshot.receipts.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }) else {
+                throw invalid()
+            }
+        }
+        if let snapshot = records.fastSurveyInbox {
+            guard let sourceWorkspaceID = manifest.source.workspaceID,
+                  snapshot.inboxItems.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
+                  snapshot.promotions.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
+                  snapshot.snippets.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
+                  snapshot.snippetInsertions.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
+                  snapshot.receipts.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }) else {
+                throw invalid()
+            }
+        }
         try FastSurveyInboxKernelBackupRestoreEnrollmentV1.validate()
         try ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)
         try ReinspectionExceptionKernelBackupRestoreEnrollmentV1.validate()
@@ -3623,7 +3642,11 @@ private extension BackupPackageValidatorV1 {
              (7, let value?, let history?), (8, let value?, let history?),
              (9, let value?, let history?):
             ledger = value
-            do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
+            do {
+                try MutationJournalStoreV1.validateImportedSnapshot(
+                    history, sourcePersistentSchemaVersion: manifest.source.persistentSchemaVersion
+                )
+            }
             catch { throw invalid() }
             guard history.receipts.count
                     <= MutationJournalStoreV1.maximumReceiptValidationCount,
@@ -3636,7 +3659,11 @@ private extension BackupPackageValidatorV1 {
         case (10...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
               let value?, let history?):
             ledger = value
-            do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
+            do {
+                try MutationJournalStoreV1.validateImportedSnapshot(
+                    history, sourcePersistentSchemaVersion: manifest.source.persistentSchemaVersion
+                )
+            }
             catch { throw invalid() }
             guard history.receipts.count
                     <= MutationJournalStoreV1.maximumReceiptValidationCount,

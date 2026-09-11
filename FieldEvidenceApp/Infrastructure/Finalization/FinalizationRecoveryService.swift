@@ -18,25 +18,135 @@ final class FinalizationRecoveryService {
     private let generationRootURL: URL
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity?
     private let sourceRecoveryAuthority: StoreMigrationSourceRecoveryAuthorityV1?
+    private let workspaceWriter: WorkspaceWriterV1?
+    private let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?
+    private var activeProfile: WorkspacePackageLifecycleProfileV1?
+    private var isReconciling = false
+    private var signPack: SignPack { activeProfile?.package ?? .illuminatedSignV1 }
+    private var stagedOriginalState: OriginalRecoveryMutationState?
+    private var stagedCorrectionState: CorrectionRecoveryPacketState?
 
-    convenience init(modelContext: ModelContext, generationRootURL: URL) {
+    /// Typed synchronous staging shared with recovery. This never saves,
+    /// creates an intent file, or manufactures a recovery receipt.
+    func stageWriterMutation(
+        command: WorkspaceCommandV1,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws {
+        guard !isReconciling else { throw FinalizationRecoveryServiceError.inconsistent }
+        try requireCleanContext()
+        guard sourceRecoveryAuthority == nil, rootIdentity == expectedRootIdentity else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        let authority: FinalizationWriterAuthorityV1?
+        switch command {
+        case let .finalizeCheck(value): authority = value.writerAuthority
+        case let .finalizeCorrection(value): authority = value.writerAuthority
+        default: authority = nil
+        }
+        guard let authority else { throw FinalizationRecoveryServiceError.inconsistent }
+        try authority.validate(command: command)
+        guard generationRootURL.lastPathComponent == authority.generationID.uuidString.lowercased(),
+              let report = authority.payload.reportInsert,
+              let completedAt = authority.payload.workflowRecordAfter.completedAt,
+              let mutationID = authority.payload.workflowRecordAfter.finalizationMutationID else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        // Structural projection only; no historical file is reconstructed or
+        // upgraded. The existing validators retain the complete payload rules.
+        let validation = FinalizationIntentV1(
+            completedAt: completedAt, finalizationMutationID: mutationID,
+            finalizationPayload: authority.payload, finalizationPayloadSHA256: authority.payloadSHA256,
+            generationID: authority.generationID, packetID: authority.payload.packetAfter.id,
+            phase: .snapshotPromoted, recordID: authority.payload.workflowRecordAfter.id,
+            reportID: report.id, schemaVersion: 1, snapshotCreatedAt: report.createdAt,
+            snapshotFinalRelativePath: authority.snapshotRelativePath,
+            snapshotSHA256: authority.snapshotSHA256, snapshotStagingRelativePath: "",
+            stableRootID: authority.payload.packetAfter.stableRootID
+        )
+        try validateContract(validation)
+        let bytes = try ReportPDFAnchoredFile.readRegularFile(
+            at: generationRootURL.appendingPathComponent(authority.snapshotRelativePath),
+            within: generationRootURL, rootIdentity: expectedRootIdentity
+        )
+        guard sha256(bytes) == authority.snapshotSHA256 else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        let snapshot = try ReportSnapshotEncoderV1().decode(bytes)
+        guard try ReportSnapshotEncoderV1().encode(snapshot).data == bytes else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        try validateSnapshotAuthority(snapshot, payload: authority.payload)
+        let sourceRecordID = authority.payload.workflowRecordAfter.evidenceSourceRecordID
+            ?? authority.payload.workflowRecordAfter.id
+        let sourceDigests = Array(Set(try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+            .filter { $0.recordID == sourceRecordID }.map(\.sha256))).sorted()
+        guard sourceDigests == authority.contentDigests else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        guard databaseState(for: validation) == .absent else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        try validateWriterSourceBinding(authority, stagedTarget: false)
+        stagedOriginalState = authority.payload.packetBefore == nil
+            ? try originalRecoveryMutationState(authority.payload) : nil
+        stagedCorrectionState = try correctionRecoveryPacketState(authority.payload)
+        try apply(authority.payload)
+        try validateWriterSourceBinding(authority, stagedTarget: true)
+        let reports = try fetch(Report.self, id: report.id)
+        guard reports.count == 1 else { throw FinalizationRecoveryServiceError.inconsistent }
+        _ = try snapshotValidator().validate(report: reports[0])
+    }
+
+    private func validateWriterSourceBinding(_ authority: FinalizationWriterAuthorityV1,
+                                            stagedTarget: Bool) throws {
+        let binding = authority.sourceBinding
+        let targetRecordID = authority.payload.workflowRecordAfter.id
+        let companionID = stagedTarget ? targetRecordID : binding.sourceRecordID
+        let companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: companionID, in: modelContext)
+        let assuranceRows = try modelContext.fetch(FetchDescriptor<RequirementAssuranceRow>())
+            .filter { $0.workflowRecordID == targetRecordID }
+        guard assuranceRows.count <= 1,
+              companion.observationBasisV1Data == binding.observationBasisV1Data,
+              companion.temporalContextV1Data == binding.temporalContextV1Data,
+              try assuranceRows.first?.snapshot() == binding.requirementAssurance else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+    }
+
+    func restoreStagedWriterValues() {
+        stagedOriginalState?.restore()
+        stagedCorrectionState?.restore()
+        stagedOriginalState = nil
+        stagedCorrectionState = nil
+    }
+
+    convenience init(modelContext: ModelContext, generationRootURL: URL,
+                     workspaceWriter: WorkspaceWriterV1? = nil,
+                     lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1? = nil) {
         self.init(modelContext: modelContext, generationRootURL: generationRootURL,
-                  sourceRecoveryAuthority: nil, store: FinalizationIntentStore(generationRootURL: generationRootURL,
+                  sourceRecoveryAuthority: nil, workspaceWriter: workspaceWriter,
+                  lifecycleProfileRegistry: lifecycleProfileRegistry,
+                  store: FinalizationIntentStore(generationRootURL: generationRootURL,
                     expectedGenerationRootIdentity: try? ReportPDFAnchoredFile.rootIdentity(at: generationRootURL.standardizedFileURL)))
     }
 
     convenience init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
         self.init(modelContext: try authority.recoveryContext(),
                   generationRootURL: authority.generationRootURL,
-                  sourceRecoveryAuthority: authority,
+                  sourceRecoveryAuthority: authority, workspaceWriter: nil,
+                  lifecycleProfileRegistry: nil,
                   store: try FinalizationIntentStore(sourceRecoveryAuthority: authority))
     }
 
     private init(modelContext: ModelContext, generationRootURL: URL,
                  sourceRecoveryAuthority: StoreMigrationSourceRecoveryAuthorityV1?,
+                 workspaceWriter: WorkspaceWriterV1?,
+                 lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?,
                  store: FinalizationIntentStore) {
         self.modelContext = modelContext
         self.sourceRecoveryAuthority = sourceRecoveryAuthority
+        self.workspaceWriter = workspaceWriter
+        self.lifecycleProfileRegistry = lifecycleProfileRegistry
         self.generationRootURL = generationRootURL.standardizedFileURL
         let capturedRootIdentity = try? ReportPDFAnchoredFile.rootIdentity(
             at: generationRootURL.standardizedFileURL
@@ -46,6 +156,9 @@ final class FinalizationRecoveryService {
     }
 
     func reconcile() async throws -> FinalizationRecoverySummary {
+        guard !isReconciling else { throw FinalizationRecoveryServiceError.inconsistent }
+        isReconciling = true
+        defer { isReconciling = false }
         try requireCleanContext()
         let recoveries: [RecoverableFinalization]
         do {
@@ -62,6 +175,23 @@ final class FinalizationRecoveryService {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         try validateRecoverySet(recoveries)
+        for recovery in recoveries {
+            try validateContract(recovery.intent)
+            if sourceRecoveryAuthority != nil {
+                guard recovery.intent.schemaVersion == 1 else {
+                    throw FinalizationRecoveryServiceError.inconsistent
+                }
+            } else if recovery.intent.schemaVersion == 1 {
+                // Current-store legacy intents are file-cleanup only. Never
+                // replay raw effects into a journal-owned active generation.
+                guard databaseState(for: recovery.intent) == .matching,
+                      recovery.hasFinalSnapshot else { throw FinalizationRecoveryServiceError.inconsistent }
+                try requireCommittedReceipt(recovery.intent)
+            } else {
+                guard workspaceWriter != nil else { throw FinalizationRecoveryServiceError.inconsistent }
+                try requireRecoveryCommitTruth(recovery.intent)
+            }
+        }
         var draftIDs: [UUID] = []
         var completedIDs: [UUID] = []
         for recovery in recoveries {
@@ -97,7 +227,9 @@ final class FinalizationRecoveryService {
         if let sourceRecoveryAuthority {
             return try SnapshotValidatorV1(sourceRecoveryAuthority: sourceRecoveryAuthority)
         }
-        return try SnapshotValidatorV1(modelContext: modelContext, generationRootURL: generationRootURL)
+        guard let activeProfile else { throw FinalizationRecoveryServiceError.inconsistent }
+        return try SnapshotValidatorV1(modelContext: modelContext,
+            generationRootURL: generationRootURL, resolvedFinalizationProfile: activeProfile)
     }
 
     private enum Result {
@@ -176,34 +308,43 @@ final class FinalizationRecoveryService {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         var recovery = initial
+        try requireRecoveryCommitTruth(recovery.intent)
         switch recovery.intent.phase {
         case .prepared:
             switch (recovery.hasStagingSnapshot, recovery.hasFinalSnapshot) {
             case (true, false):
                 try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
                 recovery = try await store.promoteForRecovery(recovery)
                 try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
             case (false, true):
                 break
             case (true, true):
                 try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
                 recovery = try await store.removeIdenticalStagingForRecovery(recovery)
                 try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
             case (false, false):
                 let state = databaseState(for: recovery.intent)
                 guard state == .absent || state == .preconditionFailed else {
                     throw FinalizationRecoveryServiceError.inconsistent
                 }
                 try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent, requireUncommitted: true)
                 try await store.abandonPreparedWithoutSnapshots(recovery)
                 try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
                 return recovery.intent.finalizationPayload.packetBefore == nil
                     ? .draft(recovery.intent.recordID)
                     : .abandoned
             }
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             recovery = try await store.advanceForRecovery(recovery, to: .snapshotPromoted)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             return try await reconcileSnapshotPromoted(recovery)
 
         case .snapshotPromoted:
@@ -215,15 +356,20 @@ final class FinalizationRecoveryService {
             }
             if recovery.hasStagingSnapshot {
                 try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
                 recovery = try await store.removeIdenticalStagingForRecovery(recovery)
                 try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
             }
             guard databaseState(for: recovery.intent) == .matching else {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
+            try requireCommittedReceipt(recovery.intent)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             try await store.cleanupCommittedForRecovery(recovery)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             return .completed(recovery.intent.recordID)
         }
     }
@@ -236,22 +382,48 @@ final class FinalizationRecoveryService {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         var recovery = initial
+        try requireRecoveryCommitTruth(recovery.intent)
         if recovery.hasStagingSnapshot {
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             recovery = try await store.removeIdenticalStagingForRecovery(recovery)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
         }
         switch databaseState(for: recovery.intent) {
         case .matching:
+            try requireCommittedReceipt(recovery.intent)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             let committed = try await store.advanceForRecovery(recovery, to: .databaseCommitted)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             try await store.cleanupCommittedForRecovery(committed)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             return .completed(recovery.intent.recordID)
         case .absent:
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             let payload = recovery.intent.finalizationPayload
+            if let binding = recovery.intent.writerCommitBinding {
+                guard sourceRecoveryAuthority == nil, let workspaceWriter else {
+                    throw FinalizationRecoveryServiceError.inconsistent
+                }
+                _ = try workspaceWriter.commitFinalization(binding)
+                guard databaseState(for: recovery.intent) == .matching else {
+                    throw FinalizationRecoveryServiceError.inconsistent
+                }
+                try requireCommittedReceipt(recovery.intent)
+                let committed = try await store.advanceForRecovery(recovery, to: .databaseCommitted)
+                try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
+                try await store.cleanupCommittedForRecovery(committed)
+                try requireCleanContext()
+                try requireRecoveryCommitTruth(recovery.intent)
+                return .completed(recovery.intent.recordID)
+            }
+            guard sourceRecoveryAuthority != nil else { throw FinalizationRecoveryServiceError.inconsistent }
             let priorState: OriginalRecoveryMutationState?
             if payload.packetBefore == nil {
                 priorState = try originalRecoveryMutationState(payload)
@@ -273,8 +445,6 @@ final class FinalizationRecoveryService {
                     try sourceRecoveryAuthority.recoveryMutationGuard().withAuthorizedMutation {
                         try modelContext.save()
                     }
-                } else {
-                    try modelContext.save()
                 }
             } catch {
                 priorState?.restore()
@@ -286,15 +456,20 @@ final class FinalizationRecoveryService {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             let committed = try await store.advanceForRecovery(recovery, to: .databaseCommitted)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             try await store.cleanupCommittedForRecovery(committed)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             return .completed(recovery.intent.recordID)
         case .preconditionFailed:
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent, requireUncommitted: true)
             try await store.rollbackForRecovery(recovery)
             try requireCleanContext()
+            try requireRecoveryCommitTruth(recovery.intent)
             return recovery.intent.finalizationPayload.packetBefore == nil
                 ? .draft(recovery.intent.recordID)
                 : .abandoned
@@ -314,8 +489,22 @@ final class FinalizationRecoveryService {
     }
 
     private func validateContract(_ intent: FinalizationIntentV1) throws {
+        let record = intent.finalizationPayload.workflowRecordAfter
+        let release = try PackageReleaseIdentityV1(packageID: record.packID,
+            schemaVersion: record.packSchemaVersion, contentVersion: record.packContentVersion)
+        let registry = try lifecycleProfileRegistry
+            ?? WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
+        let profile = try registry.resolve(release)
+        guard profile.release.matches(profile.package),
+              profile.pdfTemplate.id == record.pdfTemplateID,
+              profile.pdfTemplate.version == record.pdfTemplateVersion else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        activeProfile = profile
+        _ = try FinalizationContractEncoderV1().encodeIntent(intent)
         let payload = intent.finalizationPayload
-        guard intent.schemaVersion == 1,
+        guard [1, 2].contains(intent.schemaVersion),
+              sourceRecoveryAuthority == nil || intent.schemaVersion == 1,
               payload.workflowRecordAfter.schemaVersion == 1,
               payload.packetAfter.schemaVersion == 1,
               intent.recordID == payload.workflowRecordAfter.id,
@@ -398,6 +587,51 @@ final class FinalizationRecoveryService {
         }
     }
 
+    private func requireRecoveryCommitTruth(_ intent: FinalizationIntentV1,
+                                           requireUncommitted: Bool = false) throws {
+        if sourceRecoveryAuthority != nil {
+            guard intent.schemaVersion == 1 else { throw FinalizationRecoveryServiceError.inconsistent }
+            return
+        }
+        guard let binding = intent.writerCommitBinding else {
+            guard !requireUncommitted else { throw FinalizationRecoveryServiceError.inconsistent }
+            try requireCommittedReceipt(intent)
+            return
+        }
+        guard let workspaceWriter else { throw FinalizationRecoveryServiceError.inconsistent }
+        let receipt = try workspaceWriter.finalizationCommitReceipt(binding)
+        let state = databaseState(for: intent)
+        guard state != .inconsistent,
+              (receipt == nil ? state != .matching : state == .matching),
+              !requireUncommitted || receipt == nil else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+    }
+
+    private func requireCommittedReceipt(_ intent: FinalizationIntentV1) throws {
+        if sourceRecoveryAuthority != nil {
+            guard intent.schemaVersion == 1 else { throw FinalizationRecoveryServiceError.inconsistent }
+            return
+        }
+        guard let workspaceWriter else { throw FinalizationRecoveryServiceError.inconsistent }
+        _ = try workspaceWriter.currentRevision()
+        if let binding = intent.writerCommitBinding {
+            guard try workspaceWriter.finalizationCommitReceipt(binding) != nil else {
+                throw FinalizationRecoveryServiceError.inconsistent
+            }
+        } else {
+            guard let envelope = try workspaceWriter.finalizationEnvelope(
+                mutationID: MutationIDV1(rawValue: intent.finalizationMutationID)) else {
+                throw FinalizationRecoveryServiceError.inconsistent
+            }
+            let evidenceRecordID = intent.finalizationPayload.workflowRecordAfter.evidenceSourceRecordID
+                ?? intent.recordID
+            let digests = Array(Set(try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+                .filter { $0.recordID == evidenceRecordID }.map(\.sha256))).sorted()
+            try intent.validateCommittedEnvelope(envelope, contentDigests: digests)
+        }
+    }
+
     private func validOriginalOutcome(_ payload: FinalizationPayloadV1) -> Bool {
         switch payload.workflowRecordAfter.outcomeKey {
         case "no_visible_issue":
@@ -412,7 +646,7 @@ final class FinalizationRecoveryService {
         case "could_not_verify":
             let record = payload.workflowRecordAfter
             guard payload.issueInsert == nil, record.issueID == nil,
-                  record.couldNotVerifyRegistryVersion == "cnv.reason.en-US.v1",
+                  record.couldNotVerifyRegistryVersion == signPack.couldNotVerifyReasons.version,
                   let key = record.couldNotVerifyKey,
                   let display = record.couldNotVerifyDisplaySnapshot,
                   couldNotVerifyEntries.contains(where: { $0.key == key && $0.display == display }) else {
@@ -506,7 +740,7 @@ final class FinalizationRecoveryService {
             guard payload.issueInsert == nil,
                   transition.after == transition.before,
                   record.couldNotVerifyRegistryVersion
-                    == "cnv.reason.en-US.v1",
+                    == signPack.couldNotVerifyReasons.version,
                   let key = record.couldNotVerifyKey,
                   let display = record.couldNotVerifyDisplaySnapshot,
                   couldNotVerifyEntries.contains(where: {
@@ -533,7 +767,7 @@ final class FinalizationRecoveryService {
                   inserted.id != issueID,
                   inserted.assetID == record.assetID,
                   inserted.openedByRecordID == record.id,
-                  SignPack.illuminatedSignV1.issueLabels.filter({
+                  signPack.issueLabels.filter({
                       $0.key == inserted.labelKey
                         && $0.display == inserted.labelDisplaySnapshot
                   }).count == 1,
@@ -552,7 +786,7 @@ final class FinalizationRecoveryService {
     }
 
     private var couldNotVerifyEntries: [SignPack.RegistryEntry] {
-        SignPack.illuminatedSignV1.couldNotVerifyReasons.entries
+        signPack.couldNotVerifyReasons.entries
     }
 
     private func noCouldNotVerifyFields(_ record: WorkflowRecordPayloadV1) -> Bool {
@@ -793,10 +1027,10 @@ final class FinalizationRecoveryService {
               snapshot.pack.contentVersion == after.packContentVersion,
               snapshot.display.stage == stageDisplay(WorkflowStage.recheck.rawValue),
               snapshot.display.outcome == outcomeDisplay(after.outcomeKey ?? ""),
-              snapshot.display.assetSingular == SignPack.illuminatedSignV1.nouns.asset.singular,
-              snapshot.display.checkSingular == SignPack.illuminatedSignV1.nouns.check.singular,
-              snapshot.display.issueSingular == SignPack.illuminatedSignV1.nouns.issue.singular,
-              snapshot.disclaimer == SignPack.illuminatedSignV1.disclaimer,
+              snapshot.display.assetSingular == signPack.nouns.asset.singular,
+              snapshot.display.checkSingular == signPack.nouns.check.singular,
+              snapshot.display.issueSingular == signPack.nouns.issue.singular,
+              snapshot.disclaimer == signPack.disclaimer,
               snapshot.couldNotVerify == expectedCouldNotVerify,
               !isCouldNotVerify || expectedCouldNotVerify != nil else {
             throw FinalizationRecoveryServiceError.inconsistent
@@ -1162,9 +1396,9 @@ final class FinalizationRecoveryService {
             && record.packetID != nil
             && record.completedAt.map({ $0 >= record.startedAt }) == true
             && validRecoveryTimeAndAcknowledgements(record)
-            && record.packID == SignPack.illuminatedSignV1.packID
-            && record.packSchemaVersion == SignPack.illuminatedSignV1.schemaVersion
-            && record.packContentVersion == SignPack.illuminatedSignV1.contentVersion
+            && record.packID == signPack.packID
+            && record.packSchemaVersion == signPack.schemaVersion
+            && record.packContentVersion == signPack.contentVersion
             && record.pdfTemplateID == "field.evidence.pdf.worklight.v1"
             && record.pdfTemplateVersion == 1
             && record.outcomeKey == "visible_issue"
@@ -1198,9 +1432,9 @@ final class FinalizationRecoveryService {
               let completedAt = record.completedAt,
               completedAt >= record.startedAt,
               parent.completedAt.map({ record.startedAt >= $0 }) == true,
-              record.packID == SignPack.illuminatedSignV1.packID,
-              record.packSchemaVersion == SignPack.illuminatedSignV1.schemaVersion,
-              record.packContentVersion == SignPack.illuminatedSignV1.contentVersion,
+              record.packID == signPack.packID,
+              record.packSchemaVersion == signPack.schemaVersion,
+              record.packContentVersion == signPack.contentVersion,
               record.pdfTemplateID == "field.evidence.pdf.worklight.v1",
               record.pdfTemplateVersion == 1,
               record.finalizationMutationID != nil else {
@@ -1445,18 +1679,18 @@ final class FinalizationRecoveryService {
 
     private func outcomeDisplay(_ key: String) -> String? {
         if key == "work_recorded" { return "Work recorded" }
-        return SignPack.illuminatedSignV1.outcomeDisplays
+        return signPack.outcomeDisplays
             .first(where: { $0.key == key })?.display
     }
 
     private func stageDisplay(_ key: String) -> String? {
         if key == WorkflowStage.work.rawValue { return "Work" }
-        return SignPack.illuminatedSignV1.stageDisplays
+        return signPack.stageDisplays
             .first(where: { $0.key == key })?.display
     }
 
     private func purposeDisplay(_ key: String) -> String? {
-        SignPack.illuminatedSignV1.evidencePurposes
+        signPack.evidencePurposes
             .first(where: { $0.key == key })?.display
     }
 

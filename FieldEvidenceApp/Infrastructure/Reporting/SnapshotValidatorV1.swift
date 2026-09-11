@@ -80,6 +80,32 @@ enum ReportingPackageLifecycleRouteV1 {
         }
     }
 
+    /// Select the exact retained release from the existing live registry.
+    /// The caller's snapshot validator still proves every source and file
+    /// binding; selection alone grants no report authority.
+    func resolving(report: Report, modelContext: ModelContext) throws -> Self {
+        guard !modelContext.hasChanges else { throw SnapshotValidationErrorV1.invalidAuthority }
+        let recordID = report.sourceRecordID
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }
+        ))
+        guard records.count == 1, let source = records.first else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        let release = try PackageReleaseIdentityV1(
+            packageID: source.packID,
+            schemaVersion: source.packSchemaVersion,
+            contentVersion: source.packContentVersion
+        )
+        switch self {
+        case .live(let dependencies, _):
+            return .live(dependencies: dependencies, profile: try dependencies.profileRegistry.resolve(release))
+        case .expiringCompatibility(let profile, _):
+            guard profile.release == release else { throw SnapshotValidationErrorV1.invalidAuthority }
+            return self
+        }
+    }
+
     func validate(generationRootURL: URL) throws {
         switch self {
         case .live(let dependencies, let profile):
@@ -195,6 +221,26 @@ struct SnapshotValidatorV1 {
             lifecycleRoute: .live(
                 dependencies: lifecycleDependencies,
                 profile: lifecycleProfile
+            )
+        )
+    }
+
+    /// Read-only validation during the existing finalizer transaction. Its
+    /// caller has already resolved this exact profile and owns the writer
+    /// fence; querying that writer again would reject its staged context.
+    /// This preserves the profile instead of rebuilding legacy role mappings.
+    init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        fileManager: FileManager = .default,
+        resolvedFinalizationProfile: WorkspacePackageLifecycleProfileV1
+    ) throws {
+        try self.init(
+            modelContext: modelContext, generationRootURL: generationRootURL,
+            fileManager: fileManager,
+            lifecycleRoute: .expiringCompatibility(
+                profile: resolvedFinalizationProfile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
             )
         )
     }

@@ -777,6 +777,7 @@ enum ReportRenderFailurePoint: Equatable, Sendable {
     case promotion
     case reread
     case readySave
+    case readyCommitAcknowledgement
     case failedStateSave
 }
 
@@ -801,8 +802,9 @@ final class ReportRenderService {
     private let generationRootURL: URL
     private let storagePreflight: StoragePreflightService
     private let fileManager: FileManager
-    private let validator: SnapshotValidatorV1
+    private let lifecycleRoute: ReportingPackageLifecycleRouteV1
     private let renderer: WorklightPDFRendererV1
+    private let workspaceWriter: WorkspaceWriterV1?
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private var failNextRenderAttempt: Bool
     private let failureInjection: ReportRenderFailureInjection?
@@ -868,7 +870,6 @@ final class ReportRenderService {
     ) throws {
         let root = generationRootURL.standardizedFileURL
         try lifecycleRoute.validate(generationRootURL: root)
-        let lifecycleProfile = lifecycleRoute.profile
         guard root.deletingLastPathComponent().lastPathComponent == "generations",
               root.deletingLastPathComponent().deletingLastPathComponent()
                 .lastPathComponent == "FieldEvidenceData",
@@ -887,36 +888,44 @@ final class ReportRenderService {
         }
         self.storagePreflight = storagePreflight
         self.fileManager = fileManager
+        self.lifecycleRoute = lifecycleRoute
         switch lifecycleRoute {
         case .live(let lifecycleDependencies, _):
-            self.validator = try SnapshotValidatorV1(
-                modelContext: modelContext,
-                generationRootURL: root,
-                fileManager: fileManager,
-                lifecycleProfile: lifecycleProfile,
-                lifecycleDependencies: lifecycleDependencies
-            )
+            self.workspaceWriter = lifecycleDependencies.writer
         case .expiringCompatibility:
-            self.validator = try SnapshotValidatorV1(
-                modelContext: modelContext,
-                generationRootURL: root,
-                fileManager: fileManager,
-                signPack: lifecycleProfile.package
-            )
+            self.workspaceWriter = nil
         }
         self.renderer = WorklightPDFRendererV1()
         self.failNextRenderAttempt = failNextRenderAttempt
         self.failureInjection = failureInjection
     }
 
+    private func validator(for report: Report) throws -> SnapshotValidatorV1 {
+        let route = try lifecycleRoute.resolving(report: report, modelContext: modelContext)
+        switch route {
+        case .live(let dependencies, let profile):
+            return try SnapshotValidatorV1(
+                modelContext: modelContext, generationRootURL: generationRootURL,
+                fileManager: fileManager, lifecycleProfile: profile,
+                lifecycleDependencies: dependencies
+            )
+        case .expiringCompatibility(let profile, _):
+            return try SnapshotValidatorV1(
+                modelContext: modelContext, generationRootURL: generationRootURL,
+                fileManager: fileManager, signPack: profile.package
+            )
+        }
+    }
+
     /// Performs one bounded pending delivery attempt. Ordinary generation failures
     /// preserve the immutable report authority and durably leave only `failed`.
     func attemptPendingReport(id reportID: UUID) throws -> ReportRenderAttemptResult {
+        let failedMutation = try mutationForReport(id: reportID, transition: .pendingToFailed)
         do {
             return .ready(try renderPendingReport(id: reportID))
         } catch {
             guard Self.isRetryableRenderFailure(error) else { throw error }
-            try persistFailed(reportID: reportID)
+            try persistFailed(failedMutation)
             return .failed(reportID: reportID)
         }
     }
@@ -941,7 +950,7 @@ final class ReportRenderService {
                 : ReportRenderServiceError.reportNotPending
         }
         try requireAttemptPathsAbsent(for: reportID)
-        let validated = try validator.validate(report: report)
+        let validated = try validator(for: report).validate(report: report)
         guard SnapshotIntegrityDiagnosticsV1.snapshotReportDivergenceFindings(
             snapshotSHA256: validated.snapshotSHA256,
             reportSHA256: report.snapshotSHA256
@@ -1028,9 +1037,20 @@ final class ReportRenderService {
               report.pdfSHA256 == nil else {
             throw ReportRenderServiceError.reportNotPending
         }
+        guard let workspaceWriter else {
+            throw ReportRenderServiceError.invalidStorageAuthority
+        }
+        let attemptRevision = try workspaceWriter.currentRevision()
+        let reportIdentity = try WorkspaceEntityIdentityV1(kind: .report, id: report.id)
+        let reportRevisions = attemptRevision.entityRevisions.filter { $0.identity == reportIdentity }
+        guard reportRevisions.count <= 1 else {
+            throw ReportRenderServiceError.invalidStorageAuthority
+        }
+        let reportRevision = reportRevisions.first?.revision ?? 0
+        let reportBefore = Self.reportPayload(report)
         try requireAttemptPathsAbsent(for: reportID)
 
-        let validated = try validator.validate(report: report)
+        let validated = try validator(for: report).validate(report: report)
         if let practice = validated.snapshot.practiceWorkspace {
             try practice.validate()
             guard practice.kind == .practice,
@@ -1061,6 +1081,12 @@ final class ReportRenderService {
             throw ReportRenderServiceError.bytesMismatch
         }
         let paths = try preparePaths(for: reportID)
+        let publication = try ReportPDFTransitionMutationV1.make(
+            workspaceID: attemptRevision.workspaceID, generationID: attemptRevision.generationID,
+            expectedReportRevision: reportRevision, reportBefore: reportBefore,
+            transition: .pendingToReady(relativePath: paths.finalRelativePath,
+                sha256: rendered.sha256, byteCount: Int64(rendered.data.count))
+        )
         var ownsStage = false
         var ownsFinal = false
         do {
@@ -1112,26 +1138,33 @@ final class ReportRenderService {
                 expectedSHA256: rendered.sha256
             )
 
-            report.pdfState = ReportPDFState.ready.rawValue
-            report.pdfRelativePath = paths.finalRelativePath
-            report.pdfSHA256 = rendered.sha256
             do {
                 if failureInjection?.consume(.readySave) == true {
                     throw ReportRenderServiceError.saveFailed
                 }
-                try modelContext.save()
-            } catch {
-                modelContext.rollback()
-                report.pdfState = ReportPDFState.pending.rawValue
-                report.pdfRelativePath = nil
-                report.pdfSHA256 = nil
-                do {
-                    try modelContext.save()
-                } catch {
-                    modelContext.rollback()
-                    throw ReportRenderServiceError.failedStateSaveFailed
+                _ = try workspaceWriter.commitReportPDFTransition(publication)
+                if failureInjection?.consume(.readyCommitAcknowledgement) == true {
+                    throw ReportRenderServiceError.saveFailed
                 }
-                throw ReportRenderServiceError.saveFailed
+            } catch {
+                let committed: MutationReceiptV1?
+                do {
+                    committed = try workspaceWriter.reportPDFTransitionReceipt(for: publication)
+                } catch {
+                    // Unknown commit truth is not authority to delete a promoted PDF.
+                    ownsFinal = false
+                    throw ReportRenderServiceError.invalidStorageAuthority
+                }
+                if committed == nil {
+                    throw ReportRenderServiceError.saveFailed
+                }
+                // The original durable receipt owns the file even if the caller saw an error.
+                ownsFinal = false
+                do {
+                    try verify(paths.finalURL, expectedData: rendered.data, expectedSHA256: rendered.sha256)
+                } catch {
+                    throw ReportRenderServiceError.invalidStorageAuthority
+                }
             }
             ownsFinal = false
             return ReportRenderResult(
@@ -1235,10 +1268,13 @@ final class ReportRenderService {
         }
     }
 
-    private func persistFailed(reportID: UUID) throws {
+    private func mutationForReport(
+        id reportID: UUID, transition: ReportPDFTransitionV1
+    ) throws -> ReportPDFTransitionMutationV1 {
         guard !modelContext.hasChanges else {
             throw ReportRenderServiceError.contextHasChanges
         }
+        guard let workspaceWriter else { throw ReportRenderServiceError.invalidStorageAuthority }
         let matches = try modelContext.fetch(FetchDescriptor<Report>()).filter {
             $0.id == reportID
         }
@@ -1247,27 +1283,43 @@ final class ReportRenderService {
                 ? ReportRenderServiceError.reportNotFound
                 : ReportRenderServiceError.invalidStorageAuthority
         }
-        let report = matches[0]
-        guard report.pdfState == ReportPDFState.pending.rawValue,
-              report.pdfRelativePath == nil,
-              report.pdfSHA256 == nil else {
-            throw ReportRenderServiceError.reportNotPending
+        return try Self.transitionMutation(report: matches[0], writer: workspaceWriter, transition: transition)
+    }
+
+    static func transitionMutation(
+        report: Report, writer: WorkspaceWriterV1, transition: ReportPDFTransitionV1
+    ) throws -> ReportPDFTransitionMutationV1 {
+        let current = try writer.currentRevision()
+        let identity = try WorkspaceEntityIdentityV1(kind: .report, id: report.id)
+        let revisions = current.entityRevisions.filter { $0.identity == identity }
+        guard revisions.count <= 1 else {
+            throw ReportRenderServiceError.invalidStorageAuthority
         }
-        report.pdfState = ReportPDFState.failed.rawValue
+        return try ReportPDFTransitionMutationV1.make(workspaceID: current.workspaceID,
+            generationID: current.generationID, expectedReportRevision: revisions.first?.revision ?? 0,
+            reportBefore: reportPayload(report), transition: transition)
+    }
+
+    private static func reportPayload(_ report: Report) -> ReportPayloadV1 {
+        ReportPayloadV1(id: report.id, schemaVersion: report.schemaVersion, packetID: report.packetID,
+            sourceRecordID: report.sourceRecordID, snapshotSchemaVersion: report.snapshotSchemaVersion,
+            snapshotRelativePath: report.snapshotRelativePath, snapshotSHA256: report.snapshotSHA256,
+            pdfState: report.pdfState, pdfRelativePath: report.pdfRelativePath, pdfSHA256: report.pdfSHA256,
+            createdAt: report.createdAt, replacesReportID: report.replacesReportID)
+    }
+
+    private func persistFailed(_ mutation: ReportPDFTransitionMutationV1) throws {
+        guard let workspaceWriter else { throw ReportRenderServiceError.invalidStorageAuthority }
         do {
             if failureInjection?.consume(.failedStateSave) == true {
                 throw ReportRenderServiceError.failedStateSaveFailed
             }
-            try modelContext.save()
+            _ = try workspaceWriter.commitReportPDFTransition(mutation)
         } catch {
-            modelContext.rollback()
-            report.pdfState = ReportPDFState.pending.rawValue
-            report.pdfRelativePath = nil
-            report.pdfSHA256 = nil
             do {
-                try modelContext.save()
+                if try workspaceWriter.reportPDFTransitionReceipt(for: mutation) != nil { return }
             } catch {
-                modelContext.rollback()
+                throw ReportRenderServiceError.invalidStorageAuthority
             }
             throw ReportRenderServiceError.failedStateSaveFailed
         }

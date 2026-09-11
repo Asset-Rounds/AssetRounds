@@ -114,6 +114,7 @@ final class FinalizationService {
     private let intentStore: FinalizationIntentStore
     private let failureInjection: FinalizationServiceFailureInjection?
     private let operationBarrier: FinalizationServiceOperationBarrier?
+    private let workspaceWriter: WorkspaceWriterV1?
 
     init(
         modelContext: ModelContext,
@@ -122,7 +123,8 @@ final class FinalizationService {
         intentStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
         failureInjection: FinalizationServiceFailureInjection? = nil,
         operationBarrier: FinalizationServiceOperationBarrier? = nil,
-        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil,
+        workspaceWriter: WorkspaceWriterV1? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
         guard root.deletingLastPathComponent().lastPathComponent == "generations",
@@ -154,13 +156,16 @@ final class FinalizationService {
         )
         self.failureInjection = failureInjection
         self.operationBarrier = operationBarrier
+        self.workspaceWriter = workspaceWriter
     }
 
     func finalize(_ input: FinalizationServiceInput) async throws -> FinalizationServiceOutcome {
-        guard !modelContext.hasChanges else {
+        guard !modelContext.hasChanges, let workspaceWriter else {
             throw FinalizationServiceError.preconditionFailed
         }
         if let replay = try replayedFinalization(input) {
+            try validateReplayAuthority(mutationID: input.identifiers.mutationID,
+                recordID: replay.recordID, reportID: replay.reportID, correction: false)
             return FinalizationServiceOutcome(
                 result: replay,
                 createdAuthority: false
@@ -169,18 +174,18 @@ final class FinalizationService {
         try validateFrozenInput(input)
         try validateEvidenceFiles(input.evidence)
         let frozen = try freeze(input)
+        let commitIntent = try writerBoundIntent(frozen.intent)
+        guard let commitBinding = commitIntent.writerCommitBinding else {
+            throw FinalizationServiceError.preconditionFailed
+        }
 
         let prepared: PreparedFinalization
         let promoted: PromotedFinalization
         let snapshotPromoted: PromotedFinalization
-        let priorDraftState = DraftMutationState(input.draft)
-        let priorIssueState = frozen.recheckPlan.flatMap { _ in
-            frozen.issue.map(IssueMutationState.init)
-        }
         do {
             try requireFrozenRootIdentity()
             prepared = try await intentStore.prepare(
-                intent: frozen.intent,
+                intent: commitIntent,
                 snapshot: frozen.encodedSnapshot
             )
             try requireFrozenRootIdentity()
@@ -195,7 +200,6 @@ final class FinalizationService {
             throw FinalizationServiceError.journalFailed
         }
 
-        var didBeginDatabaseMutation = false
         do {
             guard !modelContext.hasChanges else {
                 throw FinalizationServiceError.preconditionFailed
@@ -222,22 +226,15 @@ final class FinalizationService {
             guard currentEncodedSnapshot == frozen.encodedSnapshot else {
                 throw FinalizationServiceError.preconditionFailed
             }
-            didBeginDatabaseMutation = true
-            applyDatabaseMutation(input, frozen: frozen)
             if failureInjection?.consume(.modelSave) == true {
                 throw FinalizationServiceError.saveFailed
             }
-            try modelContext.save()
+            _ = try workspaceWriter.commitFinalization(commitBinding)
         } catch {
-            if didBeginDatabaseMutation {
-                // Restore the mutated draft while the transaction is still
-                // pending so rollback leaves both storage and held state at
-                // the exact prior authority.
-                priorDraftState.restore(input.draft)
-                if let issue = frozen.issue {
-                    priorIssueState?.restore(issue)
-                }
-                modelContext.rollback()
+            // A notification or response failure after the atomic save cannot
+            // authorize removal of the committed immutable snapshot.
+            if try workspaceWriter.finalizationCommitReceipt(commitBinding) != nil {
+                throw FinalizationServiceError.cleanupFailed
             }
             do {
                 try requireFrozenRootIdentity()
@@ -287,13 +284,19 @@ final class FinalizationService {
     func finalizeCorrection(
         _ input: ReportCorrectionFinalizationInput
     ) async throws -> ReportCorrectionFinalizationOutcome {
-        guard !modelContext.hasChanges else {
+        guard !modelContext.hasChanges, let workspaceWriter else {
             throw FinalizationServiceError.preconditionFailed
         }
         if let replay = try replayedCorrection(input) {
+            try validateReplayAuthority(mutationID: input.identifiers.mutationID,
+                recordID: replay.recordID, reportID: replay.reportID, correction: true)
             return replay
         }
         let frozen = try freezeCorrection(input)
+        let commitIntent = try writerBoundIntent(frozen.intent)
+        guard let commitBinding = commitIntent.writerCommitBinding else {
+            throw FinalizationServiceError.preconditionFailed
+        }
         let committedOutcome = ReportCorrectionFinalizationOutcome(
             recordID: frozen.plan.recordAfter.id,
             packetID: frozen.plan.packetAfter.id,
@@ -311,7 +314,7 @@ final class FinalizationService {
         do {
             try requireFrozenRootIdentity()
             prepared = try await intentStore.prepare(
-                intent: frozen.intent,
+                intent: commitIntent,
                 snapshot: frozen.encodedSnapshot
             )
             try requireFrozenRootIdentity()
@@ -326,8 +329,6 @@ final class FinalizationService {
             throw FinalizationServiceError.journalFailed
         }
 
-        let packetCurrentBefore = input.packet.currentRecordID
-        var didBeginDatabaseMutation = false
         do {
             guard !modelContext.hasChanges else {
                 throw FinalizationServiceError.preconditionFailed
@@ -348,18 +349,13 @@ final class FinalizationService {
                 throw FinalizationServiceError.preconditionFailed
             }
             try validateCorrectionDatabasePreconditions(input, plan: frozen.plan)
-            didBeginDatabaseMutation = true
-            try applyCorrection(frozen.plan, packet: input.packet)
             if failureInjection?.consume(.modelSave) == true {
                 throw FinalizationServiceError.saveFailed
             }
-            try modelContext.save()
+            _ = try workspaceWriter.commitFinalization(commitBinding)
         } catch {
-            if didBeginDatabaseMutation {
-                // Restore the sole mutated preexisting field before rollback;
-                // SwiftData does not promise to refresh held model instances.
-                input.packet.currentRecordID = packetCurrentBefore
-                modelContext.rollback()
+            if try workspaceWriter.finalizationCommitReceipt(commitBinding) != nil {
+                throw FinalizationServiceError.committedRecoveryRequired(committedOutcome)
             }
             do {
                 try requireFrozenRootIdentity()
@@ -400,6 +396,109 @@ final class FinalizationService {
         }
 
         return committedOutcome
+    }
+
+    private func validateReplayAuthority(mutationID: UUID, recordID: UUID,
+                                         reportID: UUID, correction: Bool) throws {
+        guard let workspaceWriter,
+              let envelope = try workspaceWriter.finalizationEnvelope(
+                mutationID: MutationIDV1(rawValue: mutationID)) else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let authority: FinalizationWriterAuthorityV1?
+        switch envelope.command {
+        case let .finalizeCheck(value) where !correction: authority = value.writerAuthority
+        case let .finalizeCorrection(value) where correction: authority = value.writerAuthority
+        default: throw FinalizationServiceError.preconditionFailed
+        }
+        guard let authority else { throw FinalizationServiceError.preconditionFailed }
+        try authority.validate(envelope: envelope)
+        let payload = authority.payload
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter { $0.id == recordID }
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter { $0.id == payload.packetAfter.id }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>()).filter { $0.id == reportID }
+        let issues = try modelContext.fetch(FetchDescriptor<Issue>())
+        let evidenceRecordID = payload.workflowRecordAfter.evidenceSourceRecordID ?? recordID
+        let digests = Array(Set(try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+            .filter { $0.recordID == evidenceRecordID }.map(\.sha256))).sorted()
+        let companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: recordID, in: modelContext)
+        let assuranceRows = try modelContext.fetch(FetchDescriptor<RequirementAssuranceRow>())
+            .filter { $0.workflowRecordID == recordID }
+        guard authority.generationID == generationID,
+              records.count == 1, packets.count == 1, reports.count == 1,
+              payload.workflowRecordAfter.id == recordID,
+              payload.reportInsert?.id == reportID,
+              recordPayload(records[0]) == payload.workflowRecordAfter,
+              packetPayload(packets[0]) == payload.packetAfter,
+              let expectedReport = payload.reportInsert,
+              immutableReportPayload(reports[0], matches: expectedReport),
+              validDeliveredState(reports[0]),
+              authority.contentDigests == digests,
+              assuranceRows.count <= 1,
+              companion.observationBasisV1Data == authority.sourceBinding.observationBasisV1Data,
+              companion.temporalContextV1Data == authority.sourceBinding.temporalContextV1Data,
+              try assuranceRows.first?.snapshot() == authority.sourceBinding.requirementAssurance else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        for expected in [payload.issueInsert, payload.issueTransition?.after].compactMap({ $0 }) {
+            let matches = issues.filter { $0.id == expected.id }
+            guard matches.count == 1, issuePayload(matches[0]) == expected else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+        }
+    }
+
+    private func writerBoundIntent(_ intent: FinalizationIntentV1) throws -> FinalizationIntentV1 {
+        guard let workspaceWriter, let report = intent.finalizationPayload.reportInsert else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let current = try workspaceWriter.currentRevision()
+        let evidenceRecord = intent.finalizationPayload.workflowRecordAfter.evidenceSourceRecordID
+            ?? intent.recordID
+        let contentDigests = Array(Set(try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+            .filter { $0.recordID == evidenceRecord }.map(\.sha256))).sorted()
+        let sourceRecordID = intent.finalizationPayload.packetBefore?.currentRecordID ?? intent.recordID
+        let companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: sourceRecordID, in: modelContext)
+        let assuranceRows = try modelContext.fetch(FetchDescriptor<RequirementAssuranceRow>())
+            .filter { $0.workflowRecordID == intent.recordID }
+        guard assuranceRows.count <= 1 else { throw FinalizationServiceError.preconditionFailed }
+        let authority = FinalizationWriterAuthorityV1(
+            workspaceID: current.workspaceID, generationID: generationID,
+            payload: intent.finalizationPayload, payloadSHA256: intent.finalizationPayloadSHA256,
+            snapshotRelativePath: intent.snapshotFinalRelativePath, snapshotSHA256: intent.snapshotSHA256,
+            contentDigests: contentDigests,
+            sourceBinding: .init(sourceRecordID: sourceRecordID,
+                observationBasisV1Data: companion.observationBasisV1Data,
+                temporalContextV1Data: companion.temporalContextV1Data,
+                requirementAssurance: try assuranceRows.first?.snapshot())
+        )
+        let record = intent.finalizationPayload.workflowRecordAfter
+        let command: WorkspaceCommandV1
+        if let revises = record.revisesRecordID, let replaces = report.replacesReportID {
+            command = .finalizeCorrection(.init(
+                finalizationMutationID: intent.finalizationMutationID, assetID: record.assetID,
+                correctionRecordID: record.id, revisesRecordID: revises, packetID: intent.packetID,
+                reportID: intent.reportID, replacesReportID: replaces,
+                semanticDigest: intent.finalizationPayloadSHA256, writerAuthority: authority
+            ))
+        } else {
+            command = .finalizeCheck(.init(
+                finalizationMutationID: intent.finalizationMutationID, assetID: record.assetID,
+                recordID: record.id, packetID: intent.packetID, reportID: intent.reportID,
+                issueID: record.issueID, semanticDigest: intent.finalizationPayloadSHA256,
+                contentDigests: contentDigests, writerAuthority: authority
+            ))
+        }
+        let binding = try workspaceWriter.prepareFinalizationCommit(command: command)
+        return FinalizationIntentV1(
+            completedAt: intent.completedAt, finalizationMutationID: intent.finalizationMutationID,
+            finalizationPayload: intent.finalizationPayload, finalizationPayloadSHA256: intent.finalizationPayloadSHA256,
+            generationID: intent.generationID, packetID: intent.packetID, phase: intent.phase,
+            recordID: intent.recordID, reportID: intent.reportID, schemaVersion: 2,
+            snapshotCreatedAt: intent.snapshotCreatedAt, snapshotFinalRelativePath: intent.snapshotFinalRelativePath,
+            snapshotSHA256: intent.snapshotSHA256, snapshotStagingRelativePath: intent.snapshotStagingRelativePath,
+            stableRootID: intent.stableRootID, writerCommitBinding: binding
+        )
     }
 
     private func replayedFinalization(
@@ -491,9 +590,7 @@ final class FinalizationService {
               report.snapshotSchemaVersion == 1,
               report.snapshotRelativePath
                 == "snapshots/\(report.id.uuidString.lowercased()).json",
-              report.pdfState == ReportPDFState.pending.rawValue,
-              report.pdfRelativePath == nil,
-              report.pdfSHA256 == nil,
+              validDeliveredState(report),
               report.createdAt == input.snapshotCreatedAt,
               report.replacesReportID == nil,
               replayIssueMatches(issue, input: input) else {
@@ -682,9 +779,7 @@ final class FinalizationService {
                 == "snapshots/\(report.id.uuidString.lowercased()).json",
               report.createdAt == input.snapshotCreatedAt,
               report.replacesReportID == nil,
-              report.pdfState == ReportPDFState.pending.rawValue,
-              report.pdfRelativePath == nil,
-              report.pdfSHA256 == nil,
+              validDeliveredState(report),
               let snapshotData = try? anchoredSnapshotData(report.snapshotRelativePath),
               sha256(snapshotData) == report.snapshotSHA256 else {
             throw FinalizationServiceError.preconditionFailed
@@ -2566,12 +2661,11 @@ final class FinalizationService {
     }
 
     private func validCouldNotVerifySelection(_ input: FinalizationServiceInput) -> Bool {
-        let expected = SignPack.illuminatedSignV1.couldNotVerifyReasons
+        let expected = signPack.couldNotVerifyReasons
         if input.outcomeKey == "could_not_verify" {
-            guard signPack.couldNotVerifyReasons == expected,
-                  input.issueLabel == nil,
+            guard input.issueLabel == nil,
                   input.identifiers.issueID == nil,
-                  input.outcomeDisplay == "Could not verify",
+                  input.outcomeDisplay == signPack.outcomeDisplays.first(where: { $0.key == input.outcomeKey })?.display,
                   let selected = input.couldNotVerify,
                   expected.entries.filter({ $0.key == selected.key && $0.display == selected.display }).count == 1 else { return false }
             return input.note.map {
@@ -2597,12 +2691,10 @@ final class FinalizationService {
         _ input: FinalizationServiceInput
     ) -> Bool {
         if input.outcomeKey == "could_not_verify" {
-            guard signPack.couldNotVerifyReasons
-                    == SignPack.illuminatedSignV1.couldNotVerifyReasons,
-                  input.issueLabel == nil,
+            guard input.issueLabel == nil,
                   input.identifiers.issueID != nil,
                   input.identifiers.newIssueID == nil,
-                  input.outcomeDisplay == "Could not verify",
+                  input.outcomeDisplay == signPack.outcomeDisplays.first(where: { $0.key == input.outcomeKey })?.display,
                   let selected = input.couldNotVerify,
                   signPack.couldNotVerifyReasons.entries.filter({
                       $0.key == selected.key && $0.display == selected.display

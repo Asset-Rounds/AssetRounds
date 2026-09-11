@@ -20,7 +20,7 @@ enum ReviewedEvidenceReportProjectionRegistryV1 {
         currentAssociationEvents: [EvidenceAssociationV1]
     ) throws -> ReviewedEvidenceReportProjectionV1 {
         try snapshot.validateSourceFrontier(currentAssociationEvents)
-        try ReviewedEvidenceReportProjectionV1(snapshot: snapshot)
+        return try ReviewedEvidenceReportProjectionV1(snapshot: snapshot)
     }
 
     static func renderOpenJSON(

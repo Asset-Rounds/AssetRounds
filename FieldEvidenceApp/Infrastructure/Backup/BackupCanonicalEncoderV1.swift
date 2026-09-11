@@ -123,7 +123,7 @@ struct BackupCanonicalEncoderV1: Sendable {
         return result
     }
 
-    static let entityIdentityResolutionRegisteredSectionCount = 71
+    static let entityIdentityResolutionRegisteredSectionCount = 76
 
     private static func entityIdentityResolutionSectionRegistry() throws
         -> [String: EntityConsolidationInventoryFamilyV1] {
@@ -135,12 +135,12 @@ struct BackupCanonicalEncoderV1: Sendable {
             ]),
             (.evidence, [
                 "authorityCriterion", "evidenceAssociationEvents", "evidenceAssurance",
-                "evidenceContexts", "evidenceFiles", "evidenceSequenceRevisions",
+                "evidenceContexts", "evidenceFiles", "evidenceQuality", "evidenceSequenceRevisions",
                 "inspectionReview", "lighting", "measurementIntegrity", "privacyTransforms",
                 "requirementAssurance", "temporalEvidence",
             ]),
             (.content, [
-                "assets", "assetSemantics", "issues", "packets", "reports", "sites",
+                "assets", "assetSemantics", "fastSurveyInbox", "issues", "packets", "reports", "sites",
                 "workflowRecords", "fieldDrafts", "workPackets", "partsStockSnapshot",
             ]),
             (.tombstone, ["deletionLedger"]),
@@ -152,9 +152,11 @@ struct BackupCanonicalEncoderV1: Sendable {
             (.history, [
                 "acceptedLabelGenerationSnapshots", "accessibleDocumentAssessments",
                 "activityContracts", "bulkSessions", "clientCapabilities", "fieldReferences",
-                "guidedSurveys", "importMappingProfiles", "myDayPlans",
+                "guidedSurveys", "importMappingProfiles", "lightingDayInventoryWorkflows",
+                "lightingNightWorkflows", "myDayPlans",
                 "nonactivePlanReferences", "operationalContacts", "packageEvolution",
                 "partyAccountability", "placementPoses", "plans", "qualifiedServiceExposures",
+                "practiceWorkspaceProvenance",
                 "recordsSchemaVersion", "reinspectionExceptionQueue", "roundSessions",
                 "savedSmartViews", "schedules", "serviceCauseAssertions",
                 "serviceImpactSegments", "serviceReliabilityIncidents",
@@ -412,6 +414,14 @@ struct BackupCanonicalEncoderV1: Sendable {
             fields["bulkSessions"] = .array(try records.bulkSessions.map(Self.importBulkCanonicalValue))
             fields["bulkCommitReceipts"] = .array(try records.bulkCommitReceipts.map(Self.importBulkCanonicalValue))
         }
+        try EvidenceQualityBackupEnrollmentV1.validate(records)
+        try FastSurveyInboxBackupEnrollmentV1.validate(records)
+        if let snapshot = records.evidenceQuality {
+            fields["evidenceQuality"] = try Self.evidenceQualitySnapshot(snapshot)
+        }
+        if let snapshot = records.fastSurveyInbox {
+            fields["fastSurveyInbox"] = try Self.fastSurveyInboxSnapshot(snapshot)
+        }
         if records.recordsSchemaVersion >= ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion {
             try ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)
             guard let snapshot = records.reinspectionExceptionQueue else {
@@ -538,6 +548,24 @@ private extension BackupCanonicalEncoderV1 {
         return try canonicalPartsStockJSON(object)
     }
 
+    static func evidenceQualitySnapshot(
+        _ value: EvidenceQualityBackupSnapshotV1
+    ) throws -> CanonicalJSONValueV1 {
+        try value.validate()
+        let data = try WorkspaceMutationCanonicalV1.data(value)
+        let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        return try canonicalPartsStockJSON(object)
+    }
+
+    static func fastSurveyInboxSnapshot(
+        _ value: FastSurveyInboxBackupSnapshotV1
+    ) throws -> CanonicalJSONValueV1 {
+        try value.validate()
+        let data = try WorkspaceMutationCanonicalV1.data(value)
+        let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        return try canonicalPartsStockJSON(object)
+    }
+
     static func reinspectionExceptionQueueSnapshot(
         _ value: ReinspectionExceptionQueueBackupSnapshotV1
     ) throws -> CanonicalJSONValueV1 {
@@ -572,7 +600,6 @@ private extension BackupCanonicalEncoderV1 {
         }
         if let value = value as? [Any] { return .array(try value.map(canonicalPartsStockJSON)) }
         if let value = value as? String { return .string(value) }
-        if let value = value as? Bool { return .bool(value) }
         if let value = value as? NSNumber {
             guard CFGetTypeID(value) != CFBooleanGetTypeID() else {
                 return .bool(value.boolValue)

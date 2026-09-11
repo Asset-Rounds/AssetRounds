@@ -214,6 +214,11 @@ final class ReportRecoveryService: ObservableObject {
         guard !modelContext.hasChanges else {
             throw ReportRecoveryServiceError.contextHasChanges
         }
+        guard case .live(let dependencies, _) = lifecycleRoute else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        do { try dependencies.writer.validateReportPDFRecoveryAuthority() }
+        catch { throw ReportRecoveryServiceError.invalidAuthority }
         let plans = try validatedPlans()
         let pendingIDs = plans.compactMap {
             $0.state == .pending ? $0.report.id : nil
@@ -251,11 +256,19 @@ final class ReportRecoveryService: ObservableObject {
         guard !modelContext.hasChanges else {
             throw ReportRecoveryServiceError.contextHasChanges
         }
+        guard case .live(let dependencies, _) = lifecycleRoute else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        do { try dependencies.writer.validateReportPDFRecoveryAuthority() }
+        catch { throw ReportRecoveryServiceError.invalidAuthority }
         let plans = try validatedPlans()
         guard let plan = plans.first(where: { $0.report.id == reportID }),
               plan.state == .failed else {
             throw ReportRecoveryServiceError.reportNotFailed
         }
+        let transition = try ReportRenderService.transitionMutation(
+            report: plan.report, writer: dependencies.writer, transition: .failedToPending
+        )
         try removeNonReadyArtifactIfPresent(
             plan.stageURL,
             quarantineAt: plan.finalURL,
@@ -267,25 +280,22 @@ final class ReportRecoveryService: ObservableObject {
             exists: plan.hasFinal
         )
 
-        plan.report.pdfState = ReportPDFState.pending.rawValue
         do {
             if failureInjection?.consume(.retryTransitionSave) == true {
                 throw ReportRecoveryServiceError.transitionSaveFailed
             }
-            try modelContext.save()
+            _ = try dependencies.writer.commitReportPDFTransition(transition)
         } catch {
-            modelContext.rollback()
-            plan.report.pdfState = ReportPDFState.failed.rawValue
-            plan.report.pdfRelativePath = nil
-            plan.report.pdfSHA256 = nil
+            let committed: MutationReceiptV1?
             do {
-                try modelContext.save()
+                committed = try dependencies.writer.reportPDFTransitionReceipt(for: transition)
             } catch {
-                modelContext.rollback()
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            if committed == nil {
+                try refreshFailedReportIDs()
                 throw ReportRecoveryServiceError.transitionSaveFailed
             }
-            try refreshFailedReportIDs()
-            throw ReportRecoveryServiceError.transitionSaveFailed
         }
 
         do {
@@ -373,6 +383,7 @@ final class ReportRecoveryService: ObservableObject {
             } catch {
                 throw ReportRecoveryServiceError.invalidAuthority
             }
+            let lifecycleProfile = try lifecycleRoute.resolving(report: report, modelContext: modelContext).profile
             guard snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
                   snapshot.reportID == report.id,
                   snapshot.packetID == report.packetID,

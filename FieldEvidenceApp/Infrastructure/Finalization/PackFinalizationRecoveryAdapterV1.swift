@@ -34,7 +34,9 @@ final class PackFinalizationRecoveryAdapterV1 {
         self.profile = profile
         service = FinalizationRecoveryService(
             modelContext: legacyModelContext,
-            generationRootURL: dependencies.generationRootURL
+            generationRootURL: dependencies.generationRootURL,
+            workspaceWriter: dependencies.writer,
+            lifecycleProfileRegistry: dependencies.profileRegistry
         )
     }
 
@@ -53,8 +55,8 @@ final class PackFinalizationRecoveryAdapterV1 {
             workspaceID: dependencies.workspaceID,
             generationID: dependencies.generationID,
             packageRelease: profile.release,
-            preservesReservedLegacyRawWriteDebt: true,
-            zeroFeatureWriteClosureClaimed: false
+            preservesReservedLegacyRawWriteDebt: false,
+            zeroFeatureWriteClosureClaimed: true
         )
     }
 }

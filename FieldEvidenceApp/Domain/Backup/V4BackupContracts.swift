@@ -1662,6 +1662,12 @@ struct EvidenceQualityBackupSnapshotV1: Codable, Equatable, Sendable {
     init(ruleSets: [EvidenceQualityRuleSetV1], assessments: [EvidenceQualityAssessmentV1],
          waivers: [EvidenceQualityWaiverV1], receipts: [EvidenceQualityMutationReceiptV1],
          effectProvenance: [EvidenceQualityBackupEffectProvenanceV1]) throws {
+        for value in effectProvenance {
+            _ = try EvidenceQualityBackupEffectProvenanceV1(
+                mutationID: value.mutationID,
+                writerInstanceID: value.writerInstanceID
+            )
+        }
         let snapshot = EvidenceQualityLifecycleAdapterV1.Snapshot(
             ruleSets: ruleSets, assessments: assessments, waivers: waivers, receipts: receipts
         )
@@ -1724,6 +1730,13 @@ struct FastSurveyInboxBackupSnapshotV1: Codable, Equatable, Sendable {
          snippetInsertions: [SnippetInsertionV1],
          receipts: [FastSurveyInboxMutationReceiptV1],
          effectProvenance: [FastSurveyInboxBackupEffectProvenanceV1]) throws {
+        for value in effectProvenance {
+            _ = try FastSurveyInboxBackupEffectProvenanceV1(
+                mutationID: value.mutationID,
+                semanticSHA256: value.semanticSHA256,
+                writerInstanceID: value.writerInstanceID
+            )
+        }
         let snapshot = FastSurveyInboxLifecycleAdapterV1.Snapshot(
             inboxItems: inboxItems, promotions: promotions, snippets: snippets,
             snippetInsertions: snippetInsertions, receipts: receipts
@@ -2838,7 +2851,7 @@ enum C08ImportBulkBackupEnrollmentV1 {
 enum EvidenceQualityBackupEnrollmentV1 {
     static let persistentSchemaVersion = EvidenceQualitySchemaV1.schemaVersion
     static let recordsSchemaVersion = C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
-    static let durableFamilyCount = 5
+    static let durableFamilyCount = 4
     static let cloneAndForkRequireEmptySnapshot = true
     static let retainsHistoricWarningsAndWaivers = true
 
@@ -2848,6 +2861,9 @@ enum EvidenceQualityBackupEnrollmentV1 {
               durableFamilyCount == EvidenceQualitySchemaV1.durableModelCount,
               cloneAndForkRequireEmptySnapshot,
               retainsHistoricWarningsAndWaivers else {
+            throw EvidenceQualityFailureV1.invalidValue
+        }
+        guard records.evidenceQuality == nil || records.recordsSchemaVersion >= 46 else {
             throw EvidenceQualityFailureV1.invalidValue
         }
         try records.evidenceQuality?.validate()
@@ -2865,6 +2881,9 @@ enum FastSurveyInboxBackupEnrollmentV1 {
         guard persistentSchemaVersion == 48, recordsSchemaVersion == 47,
               durableFamilyCount == FastSurveyInboxSchemaV1.durableModelCount,
               cloneAndForkRequireEmptySnapshot, unpromotedExcludedFromCompletedReports else {
+            throw FastSurveyInboxFailureV1.invalidValue
+        }
+        guard records.fastSurveyInbox == nil || records.recordsSchemaVersion >= 47 else {
             throw FastSurveyInboxFailureV1.invalidValue
         }
         try records.fastSurveyInbox?.validate()

@@ -341,6 +341,7 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
             .eraseWorkspace,
             .finalizeCheck,
             .finalizeCorrection,
+            .transitionReportPDF,
             .recordWork,
             .restoreWorkspace,
             .archiveEntities,
@@ -359,28 +360,50 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
             .applyWorkPacket,
             .applyFieldDraft,
             .applyPackagePromotion,
+            .applyMeasurementIntegrity,
+            .applyPrivacyTransform,
+            .applyEvidenceMetadata,
+            .applyClientCapability,
+            .applyFieldReference,
+            .applyAccessibleDocumentAssessment,
+            .applySurveyDefinition,
+            .applySurveySession,
+            .applyAssetLocator,
+            .applySchedule,
+            .applyPlan,
+            .applyPlacementPose,
+            .applyEvidenceContext,
+            .applyLighting,
+            .applyLightingDayInventory,
+            .applyLightingNightWorkflow,
+            .applyAssistanceAcceptance,
+            .applyTemporalEvidence,
+            .applyAssetLabel,
+            .applyOperationalContact,
+            .applyActivityContract,
+            .applyPortableReview,
+            .applyWorkResource,
+            .applyPartsStock,
+            .applyMyDay,
+            .applyServiceRequest,
+            .applyServiceReliability,
+            .applyShopReportProfile,
+            .applyRoundSession,
+            .applyImportBulk,
+            .applyEvidenceQuality,
+            .applyFastSurveyInbox,
+            .applyReinspectionException,
+            .applyEntityIdentityResolution,
+            .applyWorkspaceExperience,
         ]
-        let activeCommandKinds: Set<WorkspaceCommandKindV1> = [
-            .createFirstSign,
-            .createCheckDraft,
-            .acceptCheckEvidence,
-            .updateSiteTimeZone,
-            .applyLocationHierarchyChange,
-            .applyAssetPlacementChange,
-            .applyAssetCompositionChange,
-            .applySavedSmartView,
-            .applyRequirementAssurance,
-            .applyPartyAccountability,
-            .applyPartyContactSiteRoleImport,
-            .applyAssetSemantics,
-            .applyAuthorityCriterion,
-            .applyFunctionalRelationship,
-            .applyEvidenceAssurance,
-            .applyInspectionReview,
-            .applyWorkPacket,
-            .applyFieldDraft,
-            .applyPackagePromotion,
-        ]
+        let activeCommandKinds = allCommandKinds.subtracting([
+            .deleteAsset,
+            .deleteSite,
+            .eraseWorkspace,
+            .recordWork,
+            .restoreWorkspace,
+            .archiveEntities,
+        ])
         XCTAssertEqual(Set(WorkspaceCommandKindV1.allCases), allCommandKinds)
         XCTAssertEqual(WorkspaceWriterAdapterV1.activeSupportedCommandKinds, activeCommandKinds)
         XCTAssertEqual(
@@ -403,7 +426,9 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
             WorkspaceWriterAdapterV1.activeSupportedCommandKinds,
             activeCommandKinds
         )
-        XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.finalizeCheck))
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.finalizeCheck))
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.finalizeCorrection))
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.transitionReportPDF))
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.eraseWorkspace))
         XCTAssertEqual(MutationBoundaryClosureReceiptV1.kernel.writersPerWorkspaceGeneration, 1)
         XCTAssertEqual(

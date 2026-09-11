@@ -148,7 +148,7 @@ struct PackFinalizationBindingV1: Equatable, Sendable {
     ) throws {
         guard generationID != Self.zero,
               durableReceiptIdentity?.workspaceID == workspaceID || durableReceiptIdentity == nil,
-              (durableReceiptIdentity != nil) != preservesReservedLegacyRawWriteDebt else {
+              !preservesReservedLegacyRawWriteDebt else {
             throw CheckRunnerCoordinatorError.packageLifecycleMismatch
         }
         self.workspaceID = workspaceID

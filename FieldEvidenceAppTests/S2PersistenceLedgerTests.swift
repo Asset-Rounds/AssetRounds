@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 import XCTest
 @testable import FieldEvidenceApp
 
@@ -44,6 +45,7 @@ final class S2PersistenceLedgerTests: XCTestCase {
             _ = try factory.reconcileGenerationLeasesAndPrune()
             XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointerBytes)
             XCTAssertEqual(try XCTUnwrap(store.loadManifestIfPresent(targetGenerationID: generationID)).manifest.canonicalData(), manifestBytes)
+            try coordinator.invalidateAndReleaseWriter()
         }
         let reopened = try await factory.openForStartup { _ in XCTFail("Active current store must not enter migration") }
         guard case .ready(let session) = reopened else { return XCTFail("Already accepted active store must reopen") }
@@ -270,20 +272,30 @@ final class S2PersistenceLedgerTests: XCTestCase {
 
         let firstSession = try StoreGenerationFactory(applicationSupportURL: firstRoot)
             .openOrBootstrapCurrent()
-        let secondSession = try StoreGenerationFactory(applicationSupportURL: secondRoot)
+        let secondSession = try StoreGenerationFactory(applicationSupportURL: firstRoot)
             .openOrBootstrapCurrent()
-        let coordinator = StoreSessionCoordinator(session: firstSession)
+        let foreignSession = try StoreGenerationFactory(applicationSupportURL: secondRoot)
+            .openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: firstSession)
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
         let firstContext = coordinator.modelContext
         let initialToken = coordinator.uiGenerationToken
 
-        coordinator.activate(session: secondSession)
+        try coordinator.activateValidating(session: secondSession)
 
         XCTAssertEqual(coordinator.generationID, secondSession.generationID)
         XCTAssertEqual(coordinator.generationRootURL, secondSession.generationRootURL)
         XCTAssertFalse(coordinator.modelContext === firstContext)
         XCTAssertEqual(coordinator.uiGenerationToken, initialToken + 1)
 
-        coordinator.activate(session: firstSession)
+        let secondWriter = coordinator.workspaceWriter
+        XCTAssertThrowsError(try coordinator.activateValidating(session: foreignSession)) {
+            XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .invalidPath)
+        }
+        XCTAssertTrue(coordinator.workspaceWriter === secondWriter)
+        XCTAssertNoThrow(try secondWriter.currentRevision())
+        XCTAssertEqual(coordinator.uiGenerationToken, initialToken + 1)
+        try coordinator.activateValidating(session: firstSession)
         XCTAssertEqual(coordinator.generationID, firstSession.generationID)
         XCTAssertEqual(coordinator.uiGenerationToken, initialToken + 2)
     }
@@ -561,12 +573,13 @@ final class S2PersistenceLedgerTests: XCTestCase {
             applicationSupportURL: root,
             didBeginStep: { observedSteps.append($0) }
         )
+        defer { router.failClosedPDFRecovery() }
 
         await router.retryChecks()
 
         XCTAssertEqual(
             observedSteps,
-            [.erase, .restore, .currentOpen, .finalization, .deletion, .media, .pdf]
+            [.erase, .restore, .currentOpen, .fieldDraft, .finalization, .deletion, .media, .pdf]
         )
         guard case .ready = router.route else {
             return XCTFail("A clean application-support root must become writable.")
@@ -766,6 +779,279 @@ final class S2PersistenceLedgerTests: XCTestCase {
 }
 
 extension S2PersistenceLedgerTests {
+    @MainActor
+    func testStartupRecoversPendingPDFAndPublishesItsSingleWriter() async throws {
+        let harness = try await S42CurrentReportHarness.make("startup-single-writer") { seed in
+            UIGraphicsImageRenderer(size: CGSize(width: 48, height: 32)).pngData { context in
+                UIColor(red: CGFloat(seed) / 255, green: 0.4, blue: 0.7, alpha: 1).setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 48, height: 32))
+            }
+        }
+        let root = harness.applicationSupportURL
+        defer { try? fileManager.removeItem(at: root) }
+        let reportID = harness.report.id
+        let initialHistory = try harness.context.fetch(FetchDescriptor<MutationReceiptRow>())
+        let initialEnvelopes = Set(initialHistory.map(\.envelopeData))
+        XCTAssertEqual(harness.report.pdfState, ReportPDFState.pending.rawValue)
+        try harness.close()
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        var recoveryWriterID: UUID?
+        var leaseCountAtBoundary: Int?
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime,
+            beforeCommerceActivation: { writerID in
+                recoveryWriterID = writerID
+                leaseCountAtBoundary = try? self.writerLeaseIDs(in: root).count
+            })
+        defer { router.failClosedPDFRecovery() }
+        await router.retryChecks()
+        guard case let .ready(coordinator, _, _) = router.route else {
+            return XCTFail("A canonical finalized pending report must recover before startup publishes its writer")
+        }
+        XCTAssertEqual(recoveryWriterID, try coordinator.workspaceWriter.currentRevision().writerInstanceID)
+        XCTAssertEqual(leaseCountAtBoundary, 1)
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+        let report = try XCTUnwrap(coordinator.modelContext.fetch(FetchDescriptor<Report>()).first { $0.id == reportID })
+        XCTAssertEqual(report.pdfState, ReportPDFState.ready.rawValue)
+        let path = try XCTUnwrap(report.pdfRelativePath)
+        XCTAssertFalse(try Data(contentsOf: coordinator.generationRootURL.appendingPathComponent(path)).isEmpty)
+        let finalHistory = try coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+        XCTAssertEqual(finalHistory.receipts.count, initialHistory.count + 1)
+        XCTAssertTrue(initialEnvelopes.isSubset(of: Set(finalHistory.receipts.map(\.envelopeData))))
+        let pdfEnvelopes = try finalHistory.receipts.map { try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData) }
+            .filter { $0.command.kind == .transitionReportPDF }
+        XCTAssertEqual(pdfEnvelopes.count, 1)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+    }
+
+    @MainActor
+    func testStartupRetryAndUnsafePDFFailureExplicitlyReleaseRetainedPublishedWriters() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
+        defer { router.failClosedPDFRecovery() }
+        await router.retryChecks()
+        guard case let .ready(first, _, _) = router.route else { return XCTFail("Initial startup") }
+        let firstWriter = first.workspaceWriter
+        let firstLeases = try writerLeaseIDs(in: root)
+        XCTAssertEqual(firstLeases.count, 1)
+        await router.retryChecks()
+        guard case let .ready(second, _, _) = router.route else { return XCTFail("Explicit retry") }
+        XCTAssertFalse(first === second)
+        XCTAssertThrowsError(try firstWriter.currentRevision()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        let secondLeases = try writerLeaseIDs(in: root)
+        XCTAssertEqual(secondLeases.count, 1)
+        XCTAssertTrue(firstLeases.isDisjoint(with: secondLeases))
+        let processor = try XCTUnwrap(router.entitlementProcessor)
+        router.failClosedPDFRecovery()
+        XCTAssertFalse(processor.isStarted)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertThrowsError(try second.workspaceWriter.currentRevision())
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertNil(router.maintenanceRestoreSession)
+        XCTAssertNil(router.maintenanceEraseSession)
+        guard case .maintenance(.finalizationInconsistent) = router.route else {
+            return XCTFail("Unsafe PDF recovery must stay closed")
+        }
+    }
+
+    @MainActor
+    func testStartupReleaseFailureRemainsOwnedAndBlocksRetryUntilOriginalRegistryIsReadable() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
+        defer { router.failClosedPDFRecovery() }
+        await router.retryChecks()
+        guard case let .ready(coordinator, _, _) = router.route else { return XCTFail("Initial startup") }
+        let writer = coordinator.workspaceWriter
+        let originalLeaseIDs = try writerLeaseIDs(in: root)
+        let registryURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")
+        let originalRegistry = try Data(contentsOf: registryURL)
+        let pointer = try Data(contentsOf: currentPointerURL(in: root))
+        // A real unreadable control file makes close throw; no test-only
+        // success flag or synthetic registry/checkpoint substitutes for it.
+        try Data("invalid registry transport".utf8).write(to: registryURL)
+        var registryNeedsRestoring = true
+        defer { if registryNeedsRestoring { try? originalRegistry.write(to: registryURL) } }
+        router.failClosedPDFRecovery()
+        XCTAssertTrue(router.hasPendingWriterCleanup)
+        XCTAssertNotNil(router.lastWriterCleanupFailure)
+        XCTAssertThrowsError(try writer.currentRevision()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        await router.retryChecks()
+        XCTAssertTrue(router.hasPendingWriterCleanup)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertNil(router.maintenanceRestoreSession)
+        XCTAssertNil(router.maintenanceEraseSession)
+        XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointer)
+        try originalRegistry.write(to: registryURL)
+        registryNeedsRestoring = false
+        await router.retryChecks()
+        guard case let .ready(retried, _, _) = router.route else { return XCTFail("Release retry must recover") }
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertNil(router.lastWriterCleanupFailure)
+        XCTAssertFalse(retried.workspaceWriter === writer)
+        let currentLeaseIDs = try writerLeaseIDs(in: root)
+        XCTAssertEqual(currentLeaseIDs.count, 1)
+        XCTAssertTrue(currentLeaseIDs.isDisjoint(with: originalLeaseIDs))
+        XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointer)
+    }
+
+    @MainActor
+    func testSupersededStartupCannotPublishOrClearTheNewReadyOperation() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let pause = S2StartupPublicationPause()
+        var observedWriterIDs: [UUID] = []
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime,
+            beforeCommerceActivation: { writerID in
+                observedWriterIDs.append(writerID)
+                if observedWriterIDs.count == 1 { await pause.suspend() }
+            })
+        defer { pause.resume(); router.failClosedPDFRecovery() }
+        let original = Task { await router.retryChecks() }
+        let reached = await XCTWaiter.fulfillment(of: [pause.reached], timeout: 20)
+        XCTAssertEqual(reached, .completed)
+        router.failClosedPDFRecovery()
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        XCTAssertNil(router.entitlementProcessor)
+        await router.retryChecks()
+        guard case let .ready(current, _, _) = router.route else {
+            pause.resume(); await original.value
+            return XCTFail("New operation should complete while the previous continuation is held")
+        }
+        let currentLeases = try writerLeaseIDs(in: root)
+        pause.resume()
+        await original.value
+        guard case let .ready(stillCurrent, _, _) = router.route else { return XCTFail("Stale completion overwrote ready") }
+        XCTAssertTrue(stillCurrent === current)
+        XCTAssertEqual(observedWriterIDs.count, 2)
+        XCTAssertNotEqual(observedWriterIDs.first, observedWriterIDs.last)
+        XCTAssertEqual(try current.workspaceWriter.currentRevision().writerInstanceID, observedWriterIDs.last)
+        XCTAssertEqual(try writerLeaseIDs(in: root), currentLeases)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+    }
+
+    @MainActor
+    func testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let session = try factory.openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+        let pause = S2StartupPublicationPause()
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime,
+            beforeCommerceActivation: { _ in await pause.suspend() })
+        defer { pause.resume(); router.failClosedPDFRecovery() }
+        let activation = Task { await router.activateRestoredSession(session, coordinator: coordinator) }
+        let reached = await XCTWaiter.fulfillment(of: [pause.reached], timeout: 20)
+        XCTAssertEqual(reached, .completed)
+        let suspendedWriter = coordinator.workspaceWriter
+        router.failClosedPDFRecovery()
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        let reopened = try factory.openOrBootstrapCurrent()
+        try coordinator.activateValidating(session: reopened)
+        let replacementWriter = coordinator.workspaceWriter
+        let replacementLeases = try writerLeaseIDs(in: root)
+        XCTAssertFalse(replacementWriter === suspendedWriter)
+        pause.resume()
+        await activation.value
+        XCTAssertTrue(coordinator.workspaceWriter === replacementWriter)
+        XCTAssertNoThrow(try replacementWriter.currentRevision())
+        XCTAssertEqual(try writerLeaseIDs(in: root), replacementLeases)
+        XCTAssertEqual(replacementLeases.count, 1)
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertNil(router.entitlementProcessor)
+        guard case .maintenance(.finalizationInconsistent) = router.route else {
+            return XCTFail("The superseded restored activation must not publish its borrowed replacement")
+        }
+    }
+
+    private var isolatedStartupRuntime: StoreKitEntitlementRuntimeV1 {
+        StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+            transactionUpdates: { AsyncStream { $0.finish() } },
+            statusUpdates: { AsyncStream { $0.finish() } })
+    }
+
+    @MainActor
+    func testErasedActivationMismatchAndRepeatedBeginReleaseOnlyTheAcquiredWriter() async throws {
+        for action in ["finish", "defer", "begin"] {
+            let root = try makeTemporaryApplicationSupportURL()
+            let foreignRoot = try makeTemporaryApplicationSupportURL()
+            defer {
+                try? fileManager.removeItem(at: root)
+                try? fileManager.removeItem(at: foreignRoot)
+            }
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            let initial = try factory.openOrBootstrapCurrent()
+            let owner = try StoreSessionCoordinator(validatingSession: initial)
+            let activeSession = try factory.openOrBootstrapCurrent()
+            let foreignSession = try StoreGenerationFactory(applicationSupportURL: foreignRoot).openOrBootstrapCurrent()
+            let borrowed = try StoreSessionCoordinator(validatingSession: foreignSession)
+            defer {
+                XCTAssertNoThrow(try owner.invalidateAndReleaseWriter())
+                XCTAssertNoThrow(try borrowed.invalidateAndReleaseWriter())
+            }
+            let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
+            await router.beginErasedSessionActivation(activeSession, coordinator: owner)
+            let acquiredWriter = owner.workspaceWriter
+            let borrowedWriter = borrowed.workspaceWriter
+            let borrowedLeases = try writerLeaseIDs(in: foreignRoot)
+            XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+            switch action {
+            case "finish": await router.finishErasedSessionActivation(foreignSession, coordinator: borrowed)
+            case "defer": router.deferErasedSessionCleanup(foreignSession, coordinator: borrowed)
+            default: await router.beginErasedSessionActivation(foreignSession, coordinator: borrowed)
+            }
+            guard case .maintenance(.eraseInconsistent) = router.route else {
+                return XCTFail("Mismatched or repeated erased activation must fail closed: \(action)")
+            }
+            XCTAssertThrowsError(try acquiredWriter.currentRevision()) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+            }
+            XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+            XCTAssertTrue(borrowed.workspaceWriter === borrowedWriter)
+            XCTAssertNoThrow(try borrowedWriter.currentRevision())
+            XCTAssertEqual(try writerLeaseIDs(in: foreignRoot), borrowedLeases)
+            XCTAssertFalse(router.hasPendingWriterCleanup)
+            XCTAssertNil(router.entitlementProcessor)
+            XCTAssertNil(router.maintenanceRestoreSession)
+            XCTAssertNil(router.maintenanceEraseSession)
+        }
+    }
+
+    @MainActor
+    func testValidatingCoordinatorConstructionReleasesLeaseAfterRealJournalFailure() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let checkpoint = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+            .mutableSemanticSHA256
+        let corruptRow = Site(id: UUID(), label: "Unjournaled corruption", address: nil, timeZoneID: "UTC")
+        session.modelContext.insert(corruptRow)
+        try session.modelContext.save()
+        XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession: session)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<Site>()).map(\.id), [corruptRow.id])
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count, 0)
+        XCTAssertEqual(try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+            .mutableSemanticSHA256, checkpoint)
+    }
+
+    private func writerLeaseIDs(in root: URL) throws -> Set<String> {
+        let data = try Data(contentsOf: root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json"))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let leases = try XCTUnwrap(object["leases"] as? [[String: Any]])
+        return Set(try leases.filter { $0["role"] as? String == GenerationLeaseRoleV1.writer.rawValue }
+            .map { try XCTUnwrap($0["leaseID"] as? String) })
+    }
+
     func testV23P03C54EncryptedEnvelopeAddsNoPersistentModelWriterOrLedgerFamily() {
         XCTAssertTrue(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.validate())
         XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.storeEnrollmentCount, 0)
@@ -773,5 +1059,26 @@ extension S2PersistenceLedgerTests {
         XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.persistentModelCountAdded, 0)
         XCTAssertFalse(EphemeralSecretHandlingDispositionV1.passphraseIsPersisted)
         XCTAssertFalse(EphemeralSecretHandlingDispositionV1.derivedKeyIsPersisted)
+    }
+}
+
+@MainActor
+private final class S2StartupPublicationPause {
+    let reached = XCTestExpectation(description: "Actual writer recovered, before commerce publication")
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isResumed = false
+
+    func suspend() async {
+        guard !isResumed else { return }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            reached.fulfill()
+        }
+    }
+
+    func resume() {
+        isResumed = true
+        continuation?.resume()
+        continuation = nil
     }
 }

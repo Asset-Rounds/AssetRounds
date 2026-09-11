@@ -572,21 +572,45 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         ).openOrBootstrapCurrent()
         let context = session.modelContext
         let pack = SignPack.illuminatedSignV1
-        let site = Site(label: "North Campus", timeZoneID: "America/New_York")
-        let asset = Asset(
-            siteID: site.id,
-            packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            label: "Monument Sign"
+        let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
+        let siteID = UUID()
+        let assetID = UUID()
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        _ = try storeCoordinator.workspaceWriter.execute(
+            .createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(
+                    id: siteID,
+                    label: "North Campus",
+                    address: nil,
+                    timeZoneID: "America/New_York"
+                ),
+                assetID: assetID,
+                assetLabel: "Monument Sign",
+                packID: pack.packID,
+                packSchemaVersion: pack.schemaVersion,
+                packContentVersion: pack.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_768_438_922),
+                initialPlacementMutationID: placementMutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )),
+            mutationID: placementMutationID
         )
-        context.insert(site)
-        context.insert(asset)
-        try context.save()
+        let asset = try XCTUnwrap(
+            context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID }
+        )
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: pack
+        )
+        let dependencies = try storeCoordinator.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        )
         let diagnostics = DiagnosticsStore(applicationSupportURL: applicationSupportURL)
-        let coordinator = CheckRunnerCoordinator(
+        let coordinator = try CheckRunnerCoordinator(
             modelContext: context,
-            signPack: pack,
+            packageLifecycleDependencies: dependencies,
+            packageLifecycleProfile: profile,
             diagnosticsStore: diagnostics
         )
         coordinator.configureCapture(generationRootURL: session.generationRootURL)
@@ -671,13 +695,199 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Packet>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Report>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Issue>()), 0)
+        XCTAssertNotNil(try storeCoordinator.workspaceWriter.durableReceipt(
+            mutationID: MutationIDV1(rawValue: identifiers.mutationID)
+        ))
+        try MutationJournalStoreV1(
+            modelContext: context,
+            identity: session.workspaceIdentity,
+            generationID: session.generationID,
+            allowStateBootstrap: false
+        ).validateAll()
         let diagnosticCounters = await diagnostics.snapshot()
         XCTAssertEqual(diagnosticCounters.reportSaved, 1)
+        let firstWriterInstanceID = try storeCoordinator.workspaceWriter
+            .currentRevision().writerInstanceID
+        try storeCoordinator.invalidateAndReleaseWriter()
+
+        let reopened = try StoreGenerationFactory(
+            applicationSupportURL: applicationSupportURL
+        ).openOrBootstrapCurrent()
+        let restartedCoordinator = try StoreSessionCoordinator(validatingSession: reopened)
+        defer { try? restartedCoordinator.invalidateAndReleaseWriter() }
+        XCTAssertNotEqual(
+            try restartedCoordinator.workspaceWriter.currentRevision().writerInstanceID,
+            firstWriterInstanceID
+        )
+        XCTAssertNotNil(try restartedCoordinator.workspaceWriter.durableReceipt(
+            mutationID: MutationIDV1(rawValue: identifiers.mutationID)
+        ))
+        XCTAssertEqual(
+            try reopened.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()),
+            1
+        )
+        XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<Report>()), 1)
+        withExtendedLifetime(reopened) {}
         withExtendedLifetime(session) {}
     }
 
     @MainActor
-    func testPreparedSnapshotPromotedAndCommittedPresenceMatrix() async throws {
+    func testCurrentV2PreparedPromotedAndCommittedInterruptionsRecoverThroughNewWriter() async throws {
+        struct InterruptionCase {
+            let label: String
+            let selection: CheckOutcomeSelection
+            let identifiers: FinalizationIdentifiers
+            let failure: FinalizationIntentStoreFailurePoint
+            let expectedPhase: FinalizationPhaseV1
+            let effectsCommittedBeforeRecovery: Bool
+            let expectedIssueCount: Int
+        }
+        let cases = [
+            InterruptionCase(
+                label: "v2-prepared-promoted-file",
+                selection: .noVisibleIssue,
+                identifiers: FinalizationIdentifiers(
+                    mutationID: UUID(), packetID: UUID(), stableRootID: UUID(),
+                    reportID: UUID(), issueID: nil
+                ),
+                failure: .intentPhaseWrite(.snapshotPromoted),
+                expectedPhase: .prepared,
+                effectsCommittedBeforeRecovery: false,
+                expectedIssueCount: 0
+            ),
+            InterruptionCase(
+                label: "v2-committed-before-phase-marker-visible",
+                selection: .visibleIssue(labelKey: "dark_section"),
+                identifiers: FinalizationIdentifiers(
+                    mutationID: UUID(), packetID: UUID(), stableRootID: UUID(),
+                    reportID: UUID(), issueID: UUID()
+                ),
+                failure: .intentPhaseWrite(.databaseCommitted),
+                expectedPhase: .snapshotPromoted,
+                effectsCommittedBeforeRecovery: true,
+                expectedIssueCount: 1
+            ),
+        ]
+
+        for testCase in cases {
+            let harness = try await makeCurrentV2Producer(
+                testCase.label,
+                failure: testCase.failure
+            )
+            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+            var firstWriterClosed = false
+            defer {
+                if !firstWriterClosed {
+                    try? harness.storeCoordinator.invalidateAndReleaseWriter()
+                }
+            }
+
+            await assertThrowsErrorAsync(
+                try await harness.runner.finalize(
+                    assetID: harness.asset.id,
+                    selection: testCase.selection,
+                    completedAt: harness.observedAt.addingTimeInterval(3),
+                    snapshotCreatedAt: harness.observedAt.addingTimeInterval(4),
+                    sourceApp: SourceAppSnapshotV1(build: "34", version: "1.0"),
+                    identifiers: testCase.identifiers
+                )
+            ) { error in
+                XCTAssertEqual(error as? CheckRunnerCoordinatorError, .finalizationFailed)
+            }
+
+            let intentURL = harness.applicationSupportURL.appendingPathComponent(
+                "FieldEvidenceOperations/finalization/\(testCase.identifiers.mutationID.uuidString.lowercased()).json"
+            )
+            let intentData = try Data(contentsOf: intentURL)
+            let intent = try FinalizationContractDecoderV1().decodeIntent(intentData)
+            XCTAssertEqual(intent.schemaVersion, 2, testCase.label)
+            XCTAssertEqual(intent.phase, testCase.expectedPhase, testCase.label)
+            let binding = try XCTUnwrap(intent.writerCommitBinding, testCase.label)
+            let envelope = try binding.envelope()
+            XCTAssertEqual(envelope.mutationID.rawValue, testCase.identifiers.mutationID)
+            XCTAssertTrue(fileManager.fileExists(
+                atPath: harness.session.generationRootURL.appendingPathComponent(
+                    intent.snapshotFinalRelativePath
+                ).path
+            ))
+            XCTAssertEqual(
+                try harness.context.fetchCount(FetchDescriptor<Packet>()),
+                testCase.effectsCommittedBeforeRecovery ? 1 : 0,
+                testCase.label
+            )
+            XCTAssertEqual(
+                try harness.context.fetchCount(FetchDescriptor<Report>()),
+                testCase.effectsCommittedBeforeRecovery ? 1 : 0,
+                testCase.label
+            )
+            XCTAssertEqual(
+                try harness.context.fetchCount(FetchDescriptor<Issue>()),
+                testCase.effectsCommittedBeforeRecovery ? testCase.expectedIssueCount : 0,
+                testCase.label
+            )
+            XCTAssertEqual(
+                try harness.storeCoordinator.workspaceWriter.durableReceipt(
+                    mutationID: MutationIDV1(rawValue: testCase.identifiers.mutationID)
+                ) != nil,
+                testCase.effectsCommittedBeforeRecovery,
+                testCase.label
+            )
+
+            let firstWriterID = try harness.storeCoordinator.workspaceWriter
+                .currentRevision().writerInstanceID
+            try harness.storeCoordinator.invalidateAndReleaseWriter()
+            firstWriterClosed = true
+            let reopened = try StoreGenerationFactory(
+                applicationSupportURL: harness.applicationSupportURL
+            ).openOrBootstrapCurrent()
+            let restarted = try StoreSessionCoordinator(validatingSession: reopened)
+            defer { try? restarted.invalidateAndReleaseWriter() }
+            XCTAssertNotEqual(
+                try restarted.workspaceWriter.currentRevision().writerInstanceID,
+                firstWriterID,
+                testCase.label
+            )
+            let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+                package: .illuminatedSignV1
+            )
+            let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+            let recovery = FinalizationRecoveryService(
+                modelContext: reopened.modelContext,
+                generationRootURL: reopened.generationRootURL,
+                workspaceWriter: restarted.workspaceWriter,
+                lifecycleProfileRegistry: registry
+            )
+            let summary = try await recovery.reconcile()
+            XCTAssertEqual(summary.completedRecordIDs, [harness.draftID], testCase.label)
+            XCTAssertFalse(fileManager.fileExists(atPath: intentURL.path), testCase.label)
+            XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<Packet>()), 1)
+            XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<Report>()), 1)
+            XCTAssertEqual(
+                try reopened.modelContext.fetchCount(FetchDescriptor<Issue>()),
+                testCase.expectedIssueCount,
+                testCase.label
+            )
+            let recoveredEnvelope = try XCTUnwrap(
+                restarted.workspaceWriter.finalizationEnvelope(
+                    mutationID: MutationIDV1(rawValue: testCase.identifiers.mutationID)
+                ),
+                testCase.label
+            )
+            XCTAssertEqual(try recoveredEnvelope.canonicalData(), binding.envelopeData)
+            let repeated = try await recovery.reconcile()
+            XCTAssertTrue(repeated.completedRecordIDs.isEmpty, testCase.label)
+            XCTAssertEqual(
+                try reopened.modelContext.fetch(FetchDescriptor<Issue>())
+                    .filter { $0.id == testCase.identifiers.issueID }.count,
+                testCase.expectedIssueCount,
+                testCase.label
+            )
+            withExtendedLifetime(reopened) {}
+        }
+    }
+
+    @MainActor
+    func testCurrentV1PresenceMatrixNeverReplaysRawEffectsOrStampsReceipts() async throws {
         for matrixCase in RecoveryMatrixCase.allCases {
             let applicationSupportURL = try makeTemporaryDirectory(matrixCase.rawValue)
             defer { try? fileManager.removeItem(at: applicationSupportURL) }
@@ -690,57 +900,41 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 generationRootURL: seeded.session.generationRootURL
             )
 
-            if matrixCase.expectsMaintenance {
-                do {
-                    _ = try await service.reconcile()
-                    XCTFail("Expected maintenance for \(matrixCase.rawValue)")
-                } catch {
-                    XCTAssertEqual(
-                        error as? FinalizationRecoveryServiceError,
-                        .inconsistent,
-                        matrixCase.rawValue
-                    )
-                }
-                withExtendedLifetime(seeded.session) {}
-                continue
-            }
-
-            let summary = try await service.reconcile()
-            if matrixCase.expectsDraft {
-                XCTAssertEqual(summary.recoveredDraftRecordIDs, [seeded.intent.recordID])
-                XCTAssertTrue(summary.completedRecordIDs.isEmpty)
+            let beforeRecords = try seeded.session.modelContext.fetchCount(
+                FetchDescriptor<WorkflowRecord>()
+            )
+            let beforePackets = try seeded.session.modelContext.fetchCount(FetchDescriptor<Packet>())
+            let beforeReports = try seeded.session.modelContext.fetchCount(FetchDescriptor<Report>())
+            let beforeReceipts = try seeded.session.modelContext.fetchCount(
+                FetchDescriptor<MutationReceiptRow>()
+            )
+            do {
+                _ = try await service.reconcile()
+                XCTFail("current schema-1 recovery must remain maintenance for \(matrixCase.rawValue)")
+            } catch {
                 XCTAssertEqual(
-                    try seeded.session.modelContext.fetchCount(FetchDescriptor<Packet>()),
-                    0
-                )
-                XCTAssertEqual(
-                    try seeded.session.modelContext.fetchCount(FetchDescriptor<Report>()),
-                    0
-                )
-                XCTAssertFalse(
-                    fileManager.fileExists(atPath: seeded.finalSnapshotURL.path)
-                )
-            } else {
-                XCTAssertTrue(summary.recoveredDraftRecordIDs.isEmpty)
-                XCTAssertEqual(summary.completedRecordIDs, [seeded.intent.recordID])
-                XCTAssertEqual(
-                    try seeded.session.modelContext.fetchCount(FetchDescriptor<Packet>()),
-                    1
-                )
-                XCTAssertEqual(
-                    try seeded.session.modelContext.fetchCount(FetchDescriptor<Report>()),
-                    1
-                )
-                XCTAssertTrue(
-                    fileManager.fileExists(atPath: seeded.finalSnapshotURL.path)
+                    error as? FinalizationRecoveryServiceError,
+                    .inconsistent,
+                    matrixCase.rawValue
                 )
             }
-            XCTAssertFalse(fileManager.fileExists(atPath: seeded.intentURL.path))
-            XCTAssertFalse(fileManager.fileExists(atPath: seeded.stagingSnapshotURL.path))
-
-            let second = try await service.reconcile()
-            XCTAssertTrue(second.recoveredDraftRecordIDs.isEmpty)
-            XCTAssertTrue(second.completedRecordIDs.isEmpty)
+            XCTAssertEqual(
+                try seeded.session.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()),
+                beforeRecords
+            )
+            XCTAssertEqual(
+                try seeded.session.modelContext.fetchCount(FetchDescriptor<Packet>()),
+                beforePackets
+            )
+            XCTAssertEqual(
+                try seeded.session.modelContext.fetchCount(FetchDescriptor<Report>()),
+                beforeReports
+            )
+            XCTAssertEqual(
+                try seeded.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
+                beforeReceipts
+            )
+            XCTAssertTrue(fileManager.fileExists(atPath: seeded.intentURL.path))
             withExtendedLifetime(seeded.session) {}
         }
     }
@@ -814,7 +1008,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
     }
 
     @MainActor
-    func testVisibleIssueRecoveryCommitsExactIssueAndRejectsWrongAssetOrTime() async throws {
+    func testCurrentV1VisibleIssueRecoveryRejectsRawApplicationForEveryPayload() async throws {
         for issueCase in VisibleIssueRecoveryCase.allCases {
             let applicationSupportURL = try makeTemporaryDirectory(issueCase.rawValue)
             defer { try? fileManager.removeItem(at: applicationSupportURL) }
@@ -827,44 +1021,21 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 modelContext: seeded.session.modelContext,
                 generationRootURL: seeded.session.generationRootURL
             )
-            if issueCase == .valid {
-                let summary = try await service.reconcile()
-                XCTAssertEqual(summary.completedRecordIDs, [seeded.intent.recordID])
-                let issue = try XCTUnwrap(
-                    seeded.session.modelContext.fetch(FetchDescriptor<Issue>()).first
-                )
-                let expected = try XCTUnwrap(seeded.intent.finalizationPayload.issueInsert)
-                XCTAssertEqual(issue.id, expected.id)
-                XCTAssertEqual(issue.assetID, expected.assetID)
-                XCTAssertEqual(issue.openedByRecordID, expected.openedByRecordID)
-                XCTAssertEqual(issue.createdAt, expected.createdAt)
-                XCTAssertEqual(issue.updatedAt, expected.updatedAt)
-                XCTAssertFalse(fileManager.fileExists(atPath: seeded.intentURL.path))
-            } else {
-                do {
-                    _ = try await service.reconcile()
-                    XCTFail("Expected visible-issue maintenance for \(issueCase.rawValue)")
-                } catch {
-                    XCTAssertEqual(
-                        error as? FinalizationRecoveryServiceError,
-                        .inconsistent,
-                        issueCase.rawValue
-                    )
-                }
+            do {
+                _ = try await service.reconcile()
+                XCTFail("current schema-1 issue payload must never apply for \(issueCase.rawValue)")
+            } catch {
                 XCTAssertEqual(
-                    try seeded.session.modelContext.fetchCount(FetchDescriptor<Issue>()),
-                    0
+                    error as? FinalizationRecoveryServiceError,
+                    .inconsistent,
+                    issueCase.rawValue
                 )
-                XCTAssertEqual(
-                    try seeded.session.modelContext.fetchCount(FetchDescriptor<Packet>()),
-                    0
-                )
-                XCTAssertEqual(
-                    try seeded.session.modelContext.fetchCount(FetchDescriptor<Report>()),
-                    0
-                )
-                XCTAssertTrue(fileManager.fileExists(atPath: seeded.intentURL.path))
             }
+            XCTAssertEqual(
+                try seeded.session.modelContext.fetchCount(FetchDescriptor<Issue>()),
+                0
+            )
+            XCTAssertTrue(fileManager.fileExists(atPath: seeded.intentURL.path))
             withExtendedLifetime(seeded.session) {}
         }
     }
@@ -1207,6 +1378,102 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             createdAt: report.createdAt, replacesReportID: report.replacesReportID
         ))
         try context.save()
+    }
+
+    @MainActor
+    private func makeCurrentV2Producer(
+        _ label: String,
+        failure: FinalizationIntentStoreFailurePoint
+    ) async throws -> CurrentV2ProducerHarness {
+        let applicationSupportURL = try makeTemporaryDirectory(label)
+        let session = try StoreGenerationFactory(
+            applicationSupportURL: applicationSupportURL
+        ).openOrBootstrapCurrent()
+        let context = session.modelContext
+        let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
+        let pack = SignPack.illuminatedSignV1
+        let siteID = UUID()
+        let assetID = UUID()
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        do {
+            _ = try storeCoordinator.workspaceWriter.execute(
+                .createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(
+                        id: siteID,
+                        label: "North Campus",
+                        address: "10 Main",
+                        timeZoneID: "America/New_York"
+                    ),
+                    assetID: assetID,
+                    assetLabel: "Monument Sign",
+                    packID: pack.packID,
+                    packSchemaVersion: pack.schemaVersion,
+                    packContentVersion: pack.contentVersion,
+                    createdAt: Date(timeIntervalSince1970: 1_768_450_000),
+                    initialPlacementMutationID: placementMutationID,
+                    initialPlacementEventID: UUID(),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+                )),
+                mutationID: placementMutationID
+            )
+            let asset = try XCTUnwrap(
+                context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID }
+            )
+            let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+                package: pack
+            )
+            let dependencies = try storeCoordinator.packageLifecycleDependencies(
+                profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(
+                    profiles: [profile]
+                )
+            )
+            let failureInjection = FinalizationIntentStoreFailureInjection(
+                failOnceAt: failure
+            )
+            let runner = try CheckRunnerCoordinator(
+                modelContext: context,
+                packageLifecycleDependencies: dependencies,
+                packageLifecycleProfile: profile,
+                finalizationStoreFailureInjection: failureInjection
+            )
+            runner.configureCapture(generationRootURL: session.generationRootURL)
+            let observedAt = Date(timeIntervalSince1970: 1_768_450_010)
+            let draft = try runner.beginCheck(
+                assetID: asset.id,
+                timeZoneID: nil,
+                isTimeZoneConfirmed: false,
+                afterDarkAccepted: true,
+                safePositionAccepted: true,
+                observedAt: observedAt
+            )
+            let wide = try await runner.importCandidate(
+                assetID: asset.id,
+                sourceData: try makePNG(seed: 43),
+                createdAt: observedAt.addingTimeInterval(1)
+            )
+            _ = try await runner.accept(candidate: wide, assetID: asset.id)
+            let close = try await runner.importCandidate(
+                assetID: asset.id,
+                sourceData: try makePNG(seed: 83),
+                createdAt: observedAt.addingTimeInterval(2)
+            )
+            _ = try await runner.accept(candidate: close, assetID: asset.id)
+            return CurrentV2ProducerHarness(
+                applicationSupportURL: applicationSupportURL,
+                session: session,
+                storeCoordinator: storeCoordinator,
+                context: context,
+                runner: runner,
+                asset: asset,
+                draftID: draft.id,
+                observedAt: observedAt
+            )
+        } catch {
+            try? storeCoordinator.invalidateAndReleaseWriter()
+            try? fileManager.removeItem(at: applicationSupportURL)
+            throw error
+        }
     }
 
     @MainActor
@@ -1606,6 +1873,18 @@ private enum VisibleIssueRecoveryCase: String, CaseIterable {
 }
 
 @MainActor
+@MainActor
+private struct CurrentV2ProducerHarness {
+    let applicationSupportURL: URL
+    let session: StoreGenerationSession
+    let storeCoordinator: StoreSessionCoordinator
+    let context: ModelContext
+    let runner: CheckRunnerCoordinator
+    let asset: Asset
+    let draftID: UUID
+    let observedAt: Date
+}
+
 private struct SeededRecovery {
     let session: StoreGenerationSession
     let intent: FinalizationIntentV1

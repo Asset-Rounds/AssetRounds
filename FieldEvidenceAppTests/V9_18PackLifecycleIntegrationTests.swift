@@ -71,6 +71,85 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         )
         runner.configureCapture(generationRootURL: harness.session.generationRootURL)
 
+        let placementMutationID = try harness.dependencies.writer.makeMutationID()
+        _ = try harness.dependencies.writer.execute(
+            try makeFirstAssetCommand(
+                label: "Alternate",
+                mutationID: placementMutationID,
+                package: package
+            ),
+            mutationID: placementMutationID
+        )
+        let asset = try XCTUnwrap(
+            harness.session.modelContext.fetch(FetchDescriptor<Asset>()).first
+        )
+        _ = try runner.beginCheck(
+            assetID: asset.id,
+            timeZoneID: "America/New_York",
+            isTimeZoneConfirmed: true,
+            afterDarkAccepted: false,
+            safePositionAccepted: true,
+            observedAt: Date(timeIntervalSince1970: 1_768_800_000)
+        )
+        let finalized = try await runner.finalize(
+            assetID: asset.id,
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil),
+            completedAt: Date(timeIntervalSince1970: 1_768_800_010),
+            snapshotCreatedAt: Date(timeIntervalSince1970: 1_768_800_011),
+            sourceApp: SourceAppSnapshotV1(build: "33", version: "1.0")
+        )
+        let record = try XCTUnwrap(
+            harness.session.modelContext.fetch(FetchDescriptor<WorkflowRecord>()).first
+        )
+        let finalizationMutationID = try MutationIDV1(
+            rawValue: XCTUnwrap(record.finalizationMutationID)
+        )
+        let finalizationReceipt = try XCTUnwrap(
+            harness.dependencies.writer.durableReceipt(mutationID: finalizationMutationID)
+        )
+        let finalizationEnvelope = try XCTUnwrap(
+            harness.dependencies.writer.finalizationEnvelope(mutationID: finalizationMutationID)
+        )
+        guard case let .finalizeCheck(finalizationCommand) = finalizationEnvelope.command else {
+            return XCTFail("Alternate package finalization must use the canonical finalize-check command")
+        }
+        XCTAssertEqual(finalizationCommand.writerAuthority?.payload.workflowRecordAfter.packID,
+                       profile.release.packageID)
+        XCTAssertEqual(finalizationReceipt.mutationID, finalizationMutationID)
+
+        let shippingProfile = try harness.dependencies.profileRegistry.resolve(
+            PackageReleaseIdentityV1(package: .illuminatedSignV1)
+        )
+        let rendered = try ReportRenderService(
+            modelContext: harness.session.modelContext,
+            lifecycleDependencies: harness.dependencies,
+            lifecycleProfile: shippingProfile
+        ).renderPendingReport(id: finalized.reportID)
+        let report = try XCTUnwrap(
+            harness.session.modelContext.fetch(FetchDescriptor<Report>()).first
+        )
+        XCTAssertEqual(report.pdfState, ReportPDFState.ready.rawValue)
+        XCTAssertEqual(report.pdfRelativePath, rendered.pdfRelativePath)
+        XCTAssertEqual(report.pdfSHA256, rendered.pdfSHA256)
+        let delivery = try ReportDeliveryCoordinator(
+            modelContext: harness.session.modelContext,
+            lifecycleDependencies: harness.dependencies,
+            lifecycleProfile: shippingProfile
+        ).loadReadyReport(id: finalized.reportID)
+        XCTAssertEqual(delivery.reportID, finalized.reportID)
+        XCTAssertEqual(delivery.pdfSHA256, rendered.pdfSHA256)
+        let receiptRows = try harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()
+        )
+        let pdfCommand = try XCTUnwrap(try receiptRows.compactMap { row in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .transitionReportPDF(command) = envelope.command else { return nil }
+            return command
+        }.first)
+        let pdfReceipt = try XCTUnwrap(
+            harness.dependencies.writer.reportPDFTransitionReceipt(for: pdfCommand)
+        )
+
         XCTAssertEqual(profile.release.packageID, "test.field.evidence.alternate.v1")
         XCTAssertEqual(profile.package.nouns.asset.singular, "test fixture")
         XCTAssertEqual(profile.stages.map(\.stageKey), ["check", "recheck"])
@@ -92,7 +171,56 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         let recovery = try await recoveryAdapter.reconcile()
         XCTAssertEqual(recovery.packageRelease, profile.release)
         XCTAssertTrue(recovery.summary.recoveredDraftRecordIDs.isEmpty)
-        XCTAssertFalse(recovery.zeroFeatureWriteClosureClaimed)
+        XCTAssertTrue(recovery.zeroFeatureWriteClosureClaimed)
+
+        let originalWriterInstanceID = try harness.dependencies.writer.currentRevision().writerInstanceID
+        try harness.coordinator.invalidateAndReleaseWriter()
+        let alternateOnlyRegistry = try WorkspacePackageLifecycleProfileRegistryV1(
+            profiles: [profile]
+        )
+        var commerceWriterInstanceID: UUID?
+        let startup = StartupRouter(
+            applicationSupportURL: harness.root,
+            lifecycleProfileRegistry: alternateOnlyRegistry,
+            beforeCommerceActivation: { commerceWriterInstanceID = $0 }
+        )
+        defer { startup.failClosedPDFRecovery() }
+        await startup.retryChecks()
+        guard case let .ready(reopenedCoordinator, _, startupReportRecovery) = startup.route else {
+            return XCTFail("Alternate-only startup must recover the existing package to ready")
+        }
+        XCTAssertTrue(startupReportRecovery.failedReportIDs.isEmpty)
+        XCTAssertFalse(startup.hasPendingWriterCleanup)
+        XCTAssertNil(startup.lastWriterCleanupFailure)
+        XCTAssertEqual(reopenedCoordinator.lifecycleProfileRegistry, alternateOnlyRegistry)
+        let reopenedDependencies = try reopenedCoordinator.packageLifecycleDependencies()
+        let reopenedWriterInstanceID = try reopenedDependencies.writer.currentRevision().writerInstanceID
+        XCTAssertEqual(commerceWriterInstanceID, reopenedWriterInstanceID)
+        XCTAssertNotEqual(
+            reopenedWriterInstanceID,
+            originalWriterInstanceID
+        )
+        XCTAssertEqual(
+            try reopenedDependencies.writer.durableReceipt(mutationID: finalizationMutationID),
+            finalizationReceipt
+        )
+        XCTAssertEqual(
+            try reopenedDependencies.writer.reportPDFTransitionReceipt(for: pdfCommand),
+            pdfReceipt
+        )
+        let reopenedReport = try XCTUnwrap(
+            reopenedCoordinator.modelContext.fetch(FetchDescriptor<Report>()).first
+        )
+        XCTAssertEqual(reopenedReport.pdfState, ReportPDFState.ready.rawValue)
+        XCTAssertEqual(reopenedReport.pdfSHA256, rendered.pdfSHA256)
+        XCTAssertEqual(
+            try Data(
+                contentsOf: reopenedCoordinator.generationRootURL.appendingPathComponent(
+                    XCTUnwrap(reopenedReport.pdfRelativePath)
+                )
+            ),
+            delivery.pdfData
+        )
         withExtendedLifetime(runner) {}
     }
 
@@ -237,8 +365,8 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         XCTAssertEqual(secondOutcome.workspaceID, second.dependencies.workspaceID)
         XCTAssertTrue(firstOutcome.summary.recoveredDraftRecordIDs.isEmpty)
         XCTAssertTrue(secondOutcome.summary.completedRecordIDs.isEmpty)
-        XCTAssertTrue(firstOutcome.preservesReservedLegacyRawWriteDebt)
-        XCTAssertFalse(firstOutcome.zeroFeatureWriteClosureClaimed)
+        XCTAssertFalse(firstOutcome.preservesReservedLegacyRawWriteDebt)
+        XCTAssertTrue(firstOutcome.zeroFeatureWriteClosureClaimed)
     }
 
     @MainActor
@@ -279,11 +407,19 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         let harness = try makeHarness("production-root-mismatch", profile: profile)
         defer { harness.cleanup(fileManager: fileManager) }
         let alternate = try alternatePackage()
+        let alternateRegistry = try WorkspacePackageLifecycleCompatibilityV1
+            .legacyV3Registry(package: alternate)
+        XCTAssertThrowsError(
+            try harness.coordinator.packageLifecycleDependencies(
+                profileRegistry: alternateRegistry
+            )
+        ) {
+            XCTAssertEqual($0 as? WorkspaceMutationContractFailureV1, .invalidPlan)
+        }
         let root = try ProductionCompositionRoot(
             storeSession: harness.coordinator,
             diagnosticsStore: DiagnosticsStore(applicationSupportURL: harness.root),
-            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1
-                .legacyV3Registry(package: alternate)
+            profileRegistry: alternateRegistry
         )
         let before = try harness.coordinator.workspaceWriter.currentRevision()
 
@@ -391,13 +527,17 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         let session = try StoreGenerationFactory(
             applicationSupportURL: root
         ).openOrBootstrapCurrent()
-        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let shippingProfile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
         let registry = try WorkspacePackageLifecycleProfileRegistryV1(
-            profiles: [profile]
+            profiles: shippingProfile.release == profile.release
+                ? [profile]
+                : [shippingProfile, profile]
         )
-        let dependencies = try coordinator.packageLifecycleDependencies(
-            profileRegistry: registry
+        let coordinator = try StoreSessionCoordinator(
+            validatingSession: session,
+            lifecycleProfileRegistry: registry
         )
+        let dependencies = try coordinator.packageLifecycleDependencies()
         return Harness(
             root: root,
             session: session,
@@ -491,7 +631,8 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
 
     private func makeFirstAssetCommand(
         label: String,
-        mutationID: MutationIDV1
+        mutationID: MutationIDV1,
+        package: SignPack = .illuminatedSignV1
     ) throws -> WorkspaceCommandV1 {
         let siteID = UUID()
         let placementEventID = UUID()
@@ -505,9 +646,9 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             ),
             assetID: UUID(),
             assetLabel: label,
-            packID: SignPack.illuminatedSignV1.packID,
-            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
-            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            packID: package.packID,
+            packSchemaVersion: package.schemaVersion,
+            packContentVersion: package.contentVersion,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000),
             initialPlacementMutationID: mutationID,
             initialPlacementEventID: placementEventID,
@@ -597,7 +738,7 @@ private struct Harness {
     let dependencies: WorkspacePackageLifecycleDependenciesV1
 
     func cleanup(fileManager: FileManager) {
-        withExtendedLifetime(coordinator) {}
+        try? coordinator.invalidateAndReleaseWriter()
         try? fileManager.removeItem(at: root)
     }
 }

@@ -34,6 +34,50 @@ struct FinalizationIntentV1: Codable, Equatable, Sendable {
     let snapshotSHA256: String
     let snapshotStagingRelativePath: String
     let stableRootID: UUID
+    var writerCommitBinding: FinalizationWriterCommitBindingV1? = nil
+
+    func validateCommittedEnvelope(_ envelope: MutationEnvelopeV1, contentDigests: [String]) throws {
+        let record = finalizationPayload.workflowRecordAfter
+        guard let report = finalizationPayload.reportInsert,
+              envelope.mutationID.rawValue == finalizationMutationID,
+              envelope.generationID == generationID,
+              envelope.contentDependencyIDs == contentDigests else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let authority: FinalizationWriterAuthorityV1?
+        switch envelope.command {
+        case let .finalizeCheck(value): authority = value.writerAuthority
+        case let .finalizeCorrection(value): authority = value.writerAuthority
+        default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let authority {
+            try authority.validate(envelope: envelope)
+            guard authority.payload == finalizationPayload,
+                  authority.payloadSHA256 == finalizationPayloadSHA256,
+                  authority.snapshotRelativePath == snapshotFinalRelativePath,
+                  authority.snapshotSHA256 == snapshotSHA256,
+                  authority.contentDigests == contentDigests else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        let expected: WorkspaceCommandV1
+        if let revises = record.revisesRecordID, let replaces = report.replacesReportID {
+            expected = .finalizeCorrection(.init(
+                finalizationMutationID: finalizationMutationID, assetID: record.assetID,
+                correctionRecordID: record.id, revisesRecordID: revises, packetID: packetID,
+                reportID: reportID, replacesReportID: replaces,
+                semanticDigest: finalizationPayloadSHA256, writerAuthority: authority
+            ))
+        } else {
+            expected = .finalizeCheck(.init(
+                finalizationMutationID: finalizationMutationID, assetID: record.assetID,
+                recordID: recordID, packetID: packetID, reportID: reportID,
+                issueID: record.issueID, semanticDigest: finalizationPayloadSHA256,
+                contentDigests: contentDigests, writerAuthority: authority
+            ))
+        }
+        guard envelope.command == expected else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+    }
 
     func withPhase(_ phase: FinalizationPhaseV1) -> FinalizationIntentV1 {
         FinalizationIntentV1(
@@ -51,9 +95,226 @@ struct FinalizationIntentV1: Codable, Equatable, Sendable {
             snapshotFinalRelativePath: snapshotFinalRelativePath,
             snapshotSHA256: snapshotSHA256,
             snapshotStagingRelativePath: snapshotStagingRelativePath,
-            stableRootID: stableRootID
+            stableRootID: stableRootID,
+            writerCommitBinding: writerCommitBinding
         )
     }
+}
+
+/// The embedded envelope has its own canonical millisecond codec. It is not
+/// decoded using the enclosing file intent's RFC3339 date strategy.
+struct FinalizationWriterCommitBindingV1: Codable, Equatable, Sendable {
+    let envelopeData: Data
+    let occurredAt: Date
+
+    func envelope() throws -> MutationEnvelopeV1 {
+        let value = try MutationEnvelopeV1.decodeCanonical(from: envelopeData)
+        guard occurredAt.timeIntervalSince1970.isFinite,
+              value.sourceKind == .localUser,
+              value.causationMutationID == nil,
+              value.reversalPlanDigest == nil,
+              value.semanticReversalExecution == nil else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        switch value.command {
+        case let .finalizeCheck(command):
+            guard let authority = command.writerAuthority else { throw WorkspaceMutationFailureV1.invalidCommand }
+            try authority.validate(envelope: value)
+        case let .finalizeCorrection(command):
+            guard let authority = command.writerAuthority else { throw WorkspaceMutationFailureV1.invalidCommand }
+            try authority.validate(envelope: value)
+        default: throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return value
+    }
+}
+
+/// Current writer-only capture of the existing companion data. Historical
+/// finalization payloads and schema-1 intent bytes remain unchanged.
+struct FinalizationWriterSourceBindingV1: Codable, Equatable, Sendable {
+    let sourceRecordID: UUID
+    let observationBasisV1Data: Data
+    let temporalContextV1Data: Data
+    let requirementAssurance: RequirementAssuranceSnapshotV1?
+
+    func validate(workspaceID: WorkspaceID, payload: FinalizationPayloadV1) throws {
+        let record = payload.workflowRecordAfter
+        let expectedSourceID = payload.packetBefore?.currentRecordID ?? record.id
+        guard sourceRecordID == expectedSourceID else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let observation = try ObservationAndTimeCodecV1.decodeObservationBasis(observationBasisV1Data)
+        let temporal = try ObservationAndTimeCodecV1.decodeTemporalContext(temporalContextV1Data)
+        guard try ObservationAndTimeCodecV1.encode(observation) == observationBasisV1Data,
+              try ObservationAndTimeCodecV1.encode(temporal) == temporalContextV1Data,
+              record.observationBasisV1Data.map({ $0 == observationBasisV1Data }) ?? true,
+              record.temporalContextV1Data.map({ $0 == temporalContextV1Data }) ?? true else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        if let requirementAssurance {
+            try requirementAssurance.validate()
+            guard requirementAssurance.workspaceID == workspaceID.rawValue,
+                  requirementAssurance.workflowRecordID == record.id else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+    }
+}
+
+struct FinalizationWriterAuthorityV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let generationID: UUID
+    let payload: FinalizationPayloadV1
+    let payloadSHA256: String
+    let snapshotRelativePath: String
+    let snapshotSHA256: String
+    let contentDigests: [String]
+    let sourceBinding: FinalizationWriterSourceBindingV1
+
+    var affectedIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            try validate()
+            guard let report = payload.reportInsert else { throw WorkspaceMutationFailureV1.invalidCommand }
+            var identities = try [
+                WorkspaceEntityIdentityV1(kind: .workflowRecord, id: payload.workflowRecordAfter.id),
+                WorkspaceEntityIdentityV1(kind: .packet, id: payload.packetAfter.id),
+                WorkspaceEntityIdentityV1(kind: .report, id: report.id),
+            ]
+            let issues = [payload.issueTransition?.before.id, payload.issueInsert?.id].compactMap { $0 }
+            identities += try issues.map { try .init(kind: .issue, id: $0) }
+            return identities.sorted { $0.stableKey < $1.stableKey }
+        }
+    }
+
+    /// Read/concurrency locks include unchanged source rows as well as effects.
+    /// Their revisions are preserved; they are not reported as new postimages.
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            var identities = try affectedIdentities
+            identities.append(try .init(kind: .asset, id: payload.workflowRecordAfter.assetID))
+            if payload.packetBefore != nil {
+                guard let priorRecordID = payload.workflowRecordAfter.revisesRecordID,
+                      let priorReportID = payload.reportInsert?.replacesReportID else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                identities.append(try .init(kind: .workflowRecord, id: priorRecordID))
+                identities.append(try .init(kind: .report, id: priorReportID))
+            }
+            guard Set(identities).count == identities.count else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            return identities.sorted { $0.stableKey < $1.stableKey }
+        }
+    }
+
+    func validate(envelope: MutationEnvelopeV1) throws {
+        try validate(command: envelope.command)
+        guard envelope.workspaceID == workspaceID,
+              envelope.generationID == generationID,
+              envelope.mutationID.rawValue == payload.workflowRecordAfter.finalizationMutationID,
+              envelope.contentDependencyIDs == contentDigests,
+              envelope.expectedRevision.entityRevisions.map(\.identity) == (try concurrencyIdentities) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        guard let report = payload.reportInsert else { throw WorkspaceMutationFailureV1.invalidCommand }
+        var inserted = try [WorkspaceEntityIdentityV1(kind: .report, id: report.id)]
+        if payload.packetBefore == nil {
+            inserted.append(try .init(kind: .packet, id: payload.packetAfter.id))
+        } else {
+            inserted.append(try .init(kind: .workflowRecord, id: payload.workflowRecordAfter.id))
+        }
+        if let issue = payload.issueInsert { inserted.append(try .init(kind: .issue, id: issue.id)) }
+        guard inserted.allSatisfy({ identity in
+            envelope.expectedRevision.entityRevisions.first(where: { $0.identity == identity })?.revision == 0
+        }) else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    func validate(command: WorkspaceCommandV1) throws {
+        try validate()
+        let record = payload.workflowRecordAfter
+        switch command {
+        case let .finalizeCheck(value):
+            guard value.writerAuthority == self,
+                  payload.packetBefore == nil,
+                  record.revisionKind == WorkflowRevisionKind.original.rawValue,
+                  record.revisesRecordID == nil, record.evidenceSourceRecordID == nil,
+                  payload.reportInsert?.replacesReportID == nil,
+                  value.finalizationMutationID == record.finalizationMutationID,
+                  value.assetID == record.assetID, value.recordID == record.id,
+                  value.packetID == payload.packetAfter.id,
+                  value.reportID == payload.reportInsert?.id,
+                  value.issueID == record.issueID,
+                  value.semanticDigest == payloadSHA256,
+                  value.contentDigests == contentDigests else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        case let .finalizeCorrection(value):
+            guard value.writerAuthority == self,
+                  payload.packetBefore != nil,
+                  record.revisionKind == WorkflowRevisionKind.clericalCorrection.rawValue,
+                  record.revisesRecordID == payload.packetBefore?.currentRecordID,
+                  record.revisesRecordID != nil, record.evidenceSourceRecordID != nil,
+                  payload.reportInsert?.replacesReportID != nil,
+                  payload.issueInsert == nil, payload.issueTransition == nil,
+                  value.finalizationMutationID == record.finalizationMutationID,
+                  value.assetID == record.assetID, value.correctionRecordID == record.id,
+                  value.revisesRecordID == record.revisesRecordID,
+                  value.packetID == payload.packetAfter.id,
+                  value.reportID == payload.reportInsert?.id,
+                  value.replacesReportID == payload.reportInsert?.replacesReportID,
+                  value.semanticDigest == payloadSHA256 else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        default: throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    func validate() throws {
+        try sourceBinding.validate(workspaceID: workspaceID, payload: payload)
+        let encoded = try FinalizationContractEncoderV1().encodePayload(payload)
+        let record = payload.workflowRecordAfter
+        guard generationID != UUID.zeroFinalization,
+              record.id != UUID.zeroFinalization,
+              record.assetID != UUID.zeroFinalization,
+              record.finalizationMutationID != nil,
+              record.finalizationMutationID != UUID.zeroFinalization,
+              record.state == WorkflowState.completed.rawValue,
+              record.completedAt != nil,
+              payload.packetAfter.id != UUID.zeroFinalization,
+              payload.packetAfter.stableRootID != UUID.zeroFinalization,
+              record.packetID == payload.packetAfter.id,
+              payload.packetAfter.currentRecordID == record.id,
+              encoded.sha256 == payloadSHA256,
+              MutationEnvelopeV1.isSHA256(snapshotSHA256),
+              !snapshotRelativePath.isEmpty,
+              contentDigests == contentDigests.sorted(),
+              Set(contentDigests).count == contentDigests.count,
+              contentDigests.allSatisfy(MutationEnvelopeV1.isSHA256),
+              payload.packetBefore.map({ $0.id == payload.packetAfter.id }) ?? true,
+              payload.issueTransition.map({
+                  $0.before.id != UUID.zeroFinalization && $0.before.id == $0.after.id
+                    && $0.before.assetID == record.assetID && $0.after.assetID == record.assetID
+              }) ?? true,
+              payload.issueInsert.map({
+                  $0.id != UUID.zeroFinalization && $0.assetID == record.assetID
+                    && $0.openedByRecordID == record.id
+                    && $0.id != payload.issueTransition?.before.id
+              }) ?? true,
+              let report = payload.reportInsert,
+              report.id != UUID.zeroFinalization,
+              report.packetID == payload.packetAfter.id,
+              report.sourceRecordID == record.id,
+              report.snapshotRelativePath == snapshotRelativePath,
+              report.snapshotSHA256 == snapshotSHA256,
+              report.pdfState == ReportPDFState.pending.rawValue,
+              report.pdfRelativePath == nil, report.pdfSHA256 == nil else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+}
+
+private extension UUID {
+    static let zeroFinalization = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
 }
 
 struct FinalizationPayloadV1: Codable, Equatable, Sendable {
@@ -338,6 +599,42 @@ struct FinalizationContractEncoderV1 {
         guard payload.sha256 == intent.finalizationPayloadSHA256 else {
             throw FinalizationContractEncodingErrorV1.invalidPayloadHash
         }
+        switch intent.schemaVersion {
+        case 1:
+            guard intent.writerCommitBinding == nil else {
+                throw FinalizationContractEncodingErrorV1.unsupportedValue
+            }
+        case 2:
+            guard let binding = intent.writerCommitBinding else {
+                throw FinalizationContractEncodingErrorV1.unsupportedValue
+            }
+            let envelope = try binding.envelope()
+            let authority: FinalizationWriterAuthorityV1?
+            switch envelope.command {
+            case let .finalizeCheck(command): authority = command.writerAuthority
+            case let .finalizeCorrection(command): authority = command.writerAuthority
+            default: authority = nil
+            }
+            guard let authority else { throw FinalizationContractEncodingErrorV1.unsupportedValue }
+            try authority.validate(command: envelope.command)
+            guard authority.workspaceID == envelope.workspaceID,
+                  authority.generationID == envelope.generationID,
+                  envelope.generationID == intent.generationID,
+                  envelope.mutationID.rawValue == intent.finalizationMutationID,
+                  authority.payload == intent.finalizationPayload,
+                  authority.payloadSHA256 == intent.finalizationPayloadSHA256,
+                  authority.snapshotRelativePath == intent.snapshotFinalRelativePath,
+                  authority.snapshotSHA256 == intent.snapshotSHA256,
+                  authority.payload.workflowRecordAfter.id == intent.recordID,
+                  authority.payload.workflowRecordAfter.completedAt == intent.completedAt,
+                  authority.payload.packetAfter.id == intent.packetID,
+                  authority.payload.packetAfter.stableRootID == intent.stableRootID,
+                  authority.payload.reportInsert?.id == intent.reportID,
+                  authority.payload.reportInsert?.createdAt == intent.snapshotCreatedAt else {
+                throw FinalizationContractEncodingErrorV1.unsupportedValue
+            }
+        default: throw FinalizationContractEncodingErrorV1.unsupportedValue
+        }
         let data = try CanonicalJSONV1.encode(CanonicalJSONV1.finalizationIntent(intent))
         return EncodedFinalizationContractV1(data: data, sha256: CanonicalJSONV1.sha256(data))
     }
@@ -408,7 +705,7 @@ enum CanonicalJSONV1 {
     }
 
     static func finalizationIntent(_ value: FinalizationIntentV1) -> CanonicalJSONValueV1 {
-        .object([
+        var object: [String: CanonicalJSONValueV1] = [
             "completedAt": date(value.completedAt),
             "finalizationMutationID": uuid(value.finalizationMutationID),
             "finalizationPayload": finalizationPayload(value.finalizationPayload),
@@ -424,7 +721,14 @@ enum CanonicalJSONV1 {
             "snapshotSHA256": .string(value.snapshotSHA256),
             "snapshotStagingRelativePath": .string(value.snapshotStagingRelativePath),
             "stableRootID": uuid(value.stableRootID),
-        ])
+        ]
+        if let binding = value.writerCommitBinding {
+            object["writerCommitBinding"] = .object([
+                "envelopeData": .string(binding.envelopeData.base64EncodedString()),
+                "occurredAt": date(binding.occurredAt),
+            ])
+        }
+        return .object(object)
     }
 
     static func finalizationPayload(_ value: FinalizationPayloadV1) -> CanonicalJSONValueV1 {

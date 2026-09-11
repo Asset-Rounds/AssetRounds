@@ -19,6 +19,7 @@ final class S4_5CorrectionTests: XCTestCase {
     func testFirstAndSecondCorrectionCopyOnlyFiveSnapshotFieldsAndKeepEveryPriorPDF() async throws {
         let harness = try await makeHarness("two-generations")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let originalSnapshot = try snapshot(report: harness.originalReport, in: harness)
         let initialDiagnostics = await harness.diagnostics.snapshot()
         let initialCounts = try counts(in: harness)
@@ -171,7 +172,8 @@ final class S4_5CorrectionTests: XCTestCase {
         let beforeLaunchRecovery = try domainSnapshot(in: harness)
         let launchRecovery = try ReportRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            lifecycleDependencies: harness.lifecycleDependencies,
+            lifecycleProfile: harness.lifecycleProfile
         )
         try launchRecovery.reconcileAtStartup()
         XCTAssertEqual(try domainSnapshot(in: harness), beforeLaunchRecovery)
@@ -203,12 +205,28 @@ final class S4_5CorrectionTests: XCTestCase {
             try XCTUnwrap(harness.originalRecord.completedAt)
         )
         XCTAssertThrowsError(try cold.correctionSource(reportID: harness.originalReport.id))
+        for mutationID in [firstIDs.mutationID, secondIDs.mutationID] {
+            let typedID = try MutationIDV1(rawValue: mutationID)
+            XCTAssertNotNil(try harness.storeCoordinator.workspaceWriter.durableReceipt(
+                mutationID: typedID
+            ))
+            XCTAssertNotNil(try harness.storeCoordinator.workspaceWriter.finalizationEnvelope(
+                mutationID: typedID
+            ))
+        }
+        try MutationJournalStoreV1(
+            modelContext: harness.context,
+            identity: harness.session.workspaceIdentity,
+            generationID: harness.session.generationID,
+            allowStateBootstrap: false
+        ).validateAll()
     }
 
     @MainActor
     func testHistoricalObservationCompanionFailuresRejectCorrectionDeliveryWithoutRewritingFrozenBytes() async throws {
         let harness = try await makeHarness("historical-companion")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let originalSource = try harness.coordinator.correctionSource(reportID: harness.originalReport.id)
         let firstIDs = ReportCorrectionIdentifiers(mutationID: UUID(), recordID: UUID(), reportID: UUID())
         _ = try readyChain(await harness.coordinator.submitCorrection(
@@ -316,6 +334,7 @@ final class S4_5CorrectionTests: XCTestCase {
     func testPureRuleRejectsNoopMalformedUnknownAndNoncurrentAuthority() async throws {
         let harness = try await makeHarness("pure-rule")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let snapshot = try snapshot(report: harness.originalReport, in: harness)
         let source = ReportCorrectionRuleSource(
             currentRecord: recordPayload(harness.originalRecord),
@@ -497,6 +516,7 @@ final class S4_5CorrectionTests: XCTestCase {
             substantiveDate: substantiveDate
         )
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let originalRecord = recordPayload(harness.originalRecord)
         let originalEvidence = try harness.context.fetch(FetchDescriptor<EvidenceFile>())
             .map(evidenceFact).sorted { $0.id.uuidString < $1.id.uuidString }
@@ -557,7 +577,8 @@ final class S4_5CorrectionTests: XCTestCase {
         let beforeRecovery = try domainSnapshot(in: harness)
         let recovery = try ReportRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            lifecycleDependencies: harness.lifecycleDependencies,
+            lifecycleProfile: harness.lifecycleProfile
         )
         try recovery.reconcileAtStartup()
         XCTAssertEqual(try domainSnapshot(in: harness), beforeRecovery)
@@ -575,6 +596,7 @@ final class S4_5CorrectionTests: XCTestCase {
         for fault in CorrectionPrecommitFault.allCases {
             let harness = try await makeHarness("precommit-\(fault)")
             defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+            defer { try? harness.close() }
             let identifiers = ReportCorrectionIdentifiers(
                 mutationID: UUID(), recordID: UUID(), reportID: UUID()
             )
@@ -629,13 +651,14 @@ final class S4_5CorrectionTests: XCTestCase {
     }
 
     @MainActor
-    func testSnapshotPromotedCrashRecoveryPreservesRawSubmillisecondVisitDates() async throws {
+    func testCurrentV1SnapshotPromotedRejectsRawReplayDespiteUnrelatedReceipt() async throws {
         let substantiveDate = Date(timeIntervalSince1970: 1_768_940_000.123456)
         let harness = try await makeHarness(
             "snapshot-promoted-recovery-date",
             substantiveDate: substantiveDate
         )
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let priorSnapshot = try snapshot(report: harness.originalReport, in: harness)
         let priorRecord = recordPayload(harness.originalRecord)
         let priorCompanion = try ObservationAndTimeRowStoreV1.requireRow(
@@ -698,7 +721,9 @@ final class S4_5CorrectionTests: XCTestCase {
 
         let recovery = FinalizationRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            generationRootURL: harness.session.generationRootURL,
+            workspaceWriter: harness.storeCoordinator.workspaceWriter,
+            lifecycleProfileRegistry: harness.lifecycleDependencies.profileRegistry
         )
         harness.context.delete(priorCompanion)
         try harness.context.save()
@@ -720,39 +745,24 @@ final class S4_5CorrectionTests: XCTestCase {
             temporalContextV1Data: priorTimeBytes
         ))
         try harness.context.save()
-        let summary = try await recovery.reconcile()
-        XCTAssertEqual(summary.completedRecordIDs, [identifiers.recordID])
-        let recoveredRecord = try record(id: identifiers.recordID, in: harness)
-        XCTAssertEqual(recoveredRecord.startedAt, priorRecord.startedAt)
-        XCTAssertEqual(recoveredRecord.completedAt, priorRecord.completedAt)
-        XCTAssertEqual(recoveredRecord.observedAtUTC, priorRecord.observedAtUTC)
-        XCTAssertEqual(recoveredRecord.completedAt, substantiveDate)
-        XCTAssertEqual(harness.packet.currentRecordID, identifiers.recordID)
-        let recoveredCompanion = try ObservationAndTimeRowStoreV1.requireRow(
-            recordID: identifiers.recordID, in: harness.context
-        )
-        XCTAssertEqual(recoveredCompanion.observationBasisV1Data, priorBasisBytes)
-        XCTAssertEqual(recoveredCompanion.temporalContextV1Data, priorTimeBytes)
-        let retainedCompanion = try ObservationAndTimeRowStoreV1.requireRow(
-            recordID: harness.originalRecord.id, in: harness.context
-        )
-        XCTAssertEqual(retainedCompanion.observationBasisV1Data, priorBasisBytes)
-        XCTAssertEqual(retainedCompanion.temporalContextV1Data, priorTimeBytes)
-        let repeated = try await recovery.reconcile()
-        XCTAssertTrue(repeated.completedRecordIDs.isEmpty)
-        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<ObservationAndTimeRow>())
-            .filter({ $0.recordID == identifiers.recordID }).count, 1)
-        XCTAssertFalse(fileManager.fileExists(atPath: intentURL(identifiers, in: harness).path))
-        guard case .ready = try makeCoordinator(in: harness)
-            .prepareFinalizedReport(id: identifiers.reportID) else {
-            return XCTFail("recovered promoted correction must use the shared renderer")
+        XCTAssertNotNil(try harness.storeCoordinator.workspaceWriter.finalizationEnvelope(
+            mutationID: MutationIDV1(
+                rawValue: try XCTUnwrap(harness.originalRecord.finalizationMutationID)
+            )
+        ))
+        XCTAssertNil(try harness.storeCoordinator.workspaceWriter.durableReceipt(
+            mutationID: MutationIDV1(rawValue: identifiers.mutationID)
+        ))
+        let beforeRejectedRawReplay = try domainSnapshot(in: harness)
+        await assertThrowsErrorAsync(try await recovery.reconcile()) { error in
+            XCTAssertEqual(error as? FinalizationRecoveryServiceError, .inconsistent)
         }
-        let cold = try makeCoordinator(in: harness)
-        XCTAssertEqual(
-            try cold.readyDeliveryChain(currentReportID: identifiers.reportID)
-                .ancestors.map(\.reportID),
-            [harness.originalReport.id]
-        )
+        XCTAssertEqual(try domainSnapshot(in: harness), beforeRejectedRawReplay)
+        XCTAssertEqual(harness.packet.currentRecordID, harness.originalRecord.id)
+        XCTAssertTrue(try harness.context.fetch(FetchDescriptor<ObservationAndTimeRow>())
+            .allSatisfy({ $0.recordID != identifiers.recordID }))
+        XCTAssertTrue(fileManager.fileExists(atPath: intentURL(identifiers, in: harness).path))
+        XCTAssertTrue(fileManager.fileExists(atPath: finalSnapshotURL(identifiers, in: harness).path))
     }
 
     @MainActor
@@ -762,6 +772,7 @@ final class S4_5CorrectionTests: XCTestCase {
             substantiveDate: Date(timeIntervalSince1970: 1_768_940_000.123456)
         )
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let correctionDate = Date(timeIntervalSince1970: 1_768_940_100.987654)
         let storeFailure = FinalizationIntentStoreFailureInjection(
             failOnceAt: .intentPhaseWrite(.databaseCommitted)
@@ -801,10 +812,17 @@ final class S4_5CorrectionTests: XCTestCase {
 
         let recovery = FinalizationRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            generationRootURL: harness.session.generationRootURL,
+            workspaceWriter: harness.storeCoordinator.workspaceWriter,
+            lifecycleProfileRegistry: harness.lifecycleDependencies.profileRegistry
         )
         let operationURL = intentURL(identifiers, in: harness)
         let canonicalIntent = try Data(contentsOf: operationURL)
+        let frozenIntent = try FinalizationContractDecoderV1().decodeIntent(canonicalIntent)
+        XCTAssertEqual(frozenIntent.schemaVersion, 2)
+        let frozenBinding = try XCTUnwrap(frozenIntent.writerCommitBinding)
+        let frozenEnvelope = try frozenBinding.envelope()
+        XCTAssertEqual(frozenEnvelope.mutationID.rawValue, identifiers.mutationID)
         var tamperedIntent = canonicalIntent
         tamperedIntent.append(0x0A)
         try tamperedIntent.write(to: operationURL, options: .atomic)
@@ -829,21 +847,69 @@ final class S4_5CorrectionTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: operationURL), canonicalIntent)
         harness.context.rollback()
 
-        let summary = try await recovery.reconcile()
+        let originalStartedAt = harness.originalRecord.startedAt
+        let originalCompletedAt = harness.originalRecord.completedAt
+        let originalObservedAt = harness.originalRecord.observedAtUTC
+        let firstWriterInstanceID = try harness.storeCoordinator.workspaceWriter
+            .currentRevision().writerInstanceID
+        try harness.close()
+
+        let reopened = try StoreGenerationFactory(
+            applicationSupportURL: harness.applicationSupportURL
+        ).openOrBootstrapCurrent()
+        let restartedCoordinator = try StoreSessionCoordinator(validatingSession: reopened)
+        defer { try? restartedCoordinator.invalidateAndReleaseWriter() }
+        let restartedProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: .illuminatedSignV1
+        )
+        let restartedDependencies = try restartedCoordinator.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(
+                profiles: [restartedProfile]
+            )
+        )
+        XCTAssertNotEqual(
+            try restartedCoordinator.workspaceWriter.currentRevision().writerInstanceID,
+            firstWriterInstanceID
+        )
+        XCTAssertEqual(try Data(contentsOf: operationURL), canonicalIntent)
+        let restartedRecovery = FinalizationRecoveryService(
+            modelContext: reopened.modelContext,
+            generationRootURL: reopened.generationRootURL,
+            workspaceWriter: restartedCoordinator.workspaceWriter,
+            lifecycleProfileRegistry: restartedDependencies.profileRegistry
+        )
+        let summary = try await restartedRecovery.reconcile()
         XCTAssertEqual(summary.completedRecordIDs, [identifiers.recordID])
         XCTAssertFalse(fileManager.fileExists(atPath: intentURL(identifiers, in: harness).path))
-        let recoveredRecord = try record(id: identifiers.recordID, in: harness)
-        XCTAssertEqual(recoveredRecord.startedAt, harness.originalRecord.startedAt)
-        XCTAssertEqual(recoveredRecord.completedAt, harness.originalRecord.completedAt)
-        XCTAssertEqual(recoveredRecord.observedAtUTC, harness.originalRecord.observedAtUTC)
-        let fresh = try makeCoordinator(in: harness)
+        let recoveredRecord = try XCTUnwrap(
+            reopened.modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+                .first { $0.id == identifiers.recordID }
+        )
+        XCTAssertEqual(recoveredRecord.startedAt, originalStartedAt)
+        XCTAssertEqual(recoveredRecord.completedAt, originalCompletedAt)
+        XCTAssertEqual(recoveredRecord.observedAtUTC, originalObservedAt)
+        let restartedEnvelope = try XCTUnwrap(
+            restartedCoordinator.workspaceWriter.finalizationEnvelope(
+                mutationID: MutationIDV1(rawValue: identifiers.mutationID)
+            )
+        )
+        XCTAssertEqual(try restartedEnvelope.canonicalData(), frozenBinding.envelopeData)
+        let fresh = try ReportDeliveryCoordinator(
+            modelContext: reopened.modelContext,
+            lifecycleDependencies: restartedDependencies,
+            lifecycleProfile: restartedProfile,
+            diagnosticsStore: harness.diagnostics
+        )
         guard case .ready = try fresh.prepareFinalizedReport(id: identifiers.reportID) else {
             return XCTFail("recovered pending correction must render exactly once")
         }
-        let afterRecovery = try domainSnapshot(in: harness)
+        let afterRecoveryRecordCount = try reopened.modelContext.fetchCount(
+            FetchDescriptor<WorkflowRecord>()
+        )
+        let afterRecoveryReportCount = try reopened.modelContext.fetchCount(FetchDescriptor<Report>())
         storeFailure.removeFailure()
         let replay = try readyChain(
-            await coordinator.submitCorrection(
+            await fresh.submitCorrection(
                 from: source,
                 note: "Recovered correction",
                 snapshotCreatedAt: correctionDate,
@@ -852,12 +918,17 @@ final class S4_5CorrectionTests: XCTestCase {
             )
         )
         XCTAssertEqual(replay.current.reportID, identifiers.reportID)
-        XCTAssertEqual(try domainSnapshot(in: harness), afterRecovery)
-        XCTAssertEqual(try counts(in: harness).records, 2)
-        XCTAssertEqual(try counts(in: harness).reports, 2)
+        XCTAssertEqual(
+            try reopened.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()),
+            afterRecoveryRecordCount
+        )
+        XCTAssertEqual(
+            try reopened.modelContext.fetchCount(FetchDescriptor<Report>()),
+            afterRecoveryReportCount
+        )
 
         await assertThrowsErrorAsync(
-            try await coordinator.submitCorrection(
+            try await fresh.submitCorrection(
                 from: source,
                 note: "Different replay payload",
                 snapshotCreatedAt: correctionDate,
@@ -865,13 +936,21 @@ final class S4_5CorrectionTests: XCTestCase {
                 identifiers: identifiers
             )
         )
-        XCTAssertEqual(try domainSnapshot(in: harness), afterRecovery)
+        XCTAssertEqual(
+            try reopened.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()),
+            afterRecoveryRecordCount
+        )
+        XCTAssertEqual(
+            try reopened.modelContext.fetchCount(FetchDescriptor<Report>()),
+            afterRecoveryReportCount
+        )
     }
 
     @MainActor
     func testPostcommitDirtyInterleavingReturnsPersistedAuthorityWithoutSavingOrRollingBackUnrelatedEdit() async throws {
         let harness = try await makeHarness("postcommit-dirty-interleaving")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let originalSiteLabel = harness.site.label
         let dirtySiteLabel = "Unsaved concurrent site label"
         let initialCounts = try counts(in: harness)
@@ -937,7 +1016,9 @@ final class S4_5CorrectionTests: XCTestCase {
 
         let recovery = FinalizationRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            generationRootURL: harness.session.generationRootURL,
+            workspaceWriter: harness.storeCoordinator.workspaceWriter,
+            lifecycleProfileRegistry: harness.lifecycleDependencies.profileRegistry
         )
         let summary = try await recovery.reconcile()
         XCTAssertEqual(summary.completedRecordIDs, [identifiers.recordID])
@@ -964,10 +1045,12 @@ final class S4_5CorrectionTests: XCTestCase {
     func testRenderFailurePersistsOneRecoverableCorrectionWithoutResubmitOrCounterMutation() async throws {
         let harness = try await makeHarness("render-failure")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let renderFailure = ReportRenderFailureInjection(failOnceAt: .render)
         let recovery = try ReportRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            lifecycleDependencies: harness.lifecycleDependencies,
+            lifecycleProfile: harness.lifecycleProfile
         )
         let coordinator = try makeCoordinator(in: harness, renderFailure: renderFailure)
         let source = try coordinator.correctionSource(reportID: harness.originalReport.id)
@@ -1051,6 +1134,7 @@ final class S4_5CorrectionTests: XCTestCase {
         for invalid in InvalidCorrectionAuthority.allCases {
             let harness = try await makeHarness("invalid-\(invalid)")
             defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+            defer { try? harness.close() }
             let sourceReportID = harness.originalReport.id
             let sentinel = try apply(invalid, to: harness)
             let before = try domainSnapshot(in: harness)
@@ -1091,6 +1175,7 @@ final class S4_5CorrectionTests: XCTestCase {
     func testGenerationRootIdentityReplacementFailsClosedWithoutTouchingRetainedBytes() async throws {
         let harness = try await makeHarness("generation-root-replacement")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let coordinator = harness.coordinator
         let sourceReportID = harness.originalReport.id
         let root = harness.session.generationRootURL
@@ -1133,6 +1218,7 @@ final class S4_5CorrectionTests: XCTestCase {
     func testIntentStorePersistentSwapAndJournalABAKeepMutationOwnedBytesAnchored() async throws {
         let harness = try await makeHarness("intent-store-barrier")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { try? harness.close() }
         let before = try domainSnapshot(in: harness)
         let root = harness.session.generationRootURL
         let barrierFileManager = fileManager
@@ -1430,6 +1516,9 @@ extension S4_5CorrectionTests {
 private struct CorrectionHarness {
     let applicationSupportURL: URL
     let session: StoreGenerationSession
+    let storeCoordinator: StoreSessionCoordinator
+    let lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1
+    let lifecycleProfile: WorkspacePackageLifecycleProfileV1
     let context: ModelContext
     let diagnostics: DiagnosticsStore
     let site: Site
@@ -1439,6 +1528,10 @@ private struct CorrectionHarness {
     let stableRootID: UUID
     let originalReport: Report
     let coordinator: ReportDeliveryCoordinator
+
+    func close() throws {
+        try storeCoordinator.invalidateAndReleaseWriter()
+    }
 }
 
 private struct RowCounts: Equatable {
@@ -1712,31 +1805,51 @@ private extension S4_5CorrectionTests {
         let session = try StoreGenerationFactory(applicationSupportURL: applicationSupport)
             .openOrBootstrapCurrent()
         let context = session.modelContext
+        let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
         let diagnostics = DiagnosticsStore(applicationSupportURL: applicationSupport)
         await diagnostics.prepare()
-        let site = Site(
-            id: UUID(),
-            label: "North Campus",
-            address: "10 Main",
-            timeZoneID: "America/New_York",
-            createdAt: substantiveDate.addingTimeInterval(-100)
+        let siteID = UUID()
+        let assetID = UUID()
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        _ = try storeCoordinator.workspaceWriter.execute(
+            .createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(
+                    id: siteID,
+                    label: "North Campus",
+                    address: "10 Main",
+                    timeZoneID: "America/New_York"
+                ),
+                assetID: assetID,
+                assetLabel: "Monument Sign",
+                packID: SignPack.illuminatedSignV1.packID,
+                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                createdAt: substantiveDate.addingTimeInterval(-100),
+                initialPlacementMutationID: placementMutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )),
+            mutationID: placementMutationID
         )
-        let asset = Asset(
-            id: UUID(),
-            siteID: site.id,
-            packID: SignPack.illuminatedSignV1.packID,
-            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
-            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
-            label: "Monument Sign",
-            createdAt: substantiveDate.addingTimeInterval(-90)
+        let site = try XCTUnwrap(
+            context.fetch(FetchDescriptor<Site>()).first { $0.id == siteID }
         )
-        context.insert(site)
-        context.insert(asset)
-        try context.save()
-
-        let runner = CheckRunnerCoordinator(
+        let asset = try XCTUnwrap(
+            context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID }
+        )
+        let lifecycleProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: .illuminatedSignV1
+        )
+        let lifecycleDependencies = try storeCoordinator.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(
+                profiles: [lifecycleProfile]
+            )
+        )
+        let runner = try CheckRunnerCoordinator(
             modelContext: context,
-            signPack: .illuminatedSignV1,
+            packageLifecycleDependencies: lifecycleDependencies,
+            packageLifecycleProfile: lifecycleProfile,
             diagnosticsStore: diagnostics
         )
         runner.configureCapture(generationRootURL: session.generationRootURL)
@@ -1777,12 +1890,22 @@ private extension S4_5CorrectionTests {
         )
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: context,
-            generationRootURL: session.generationRootURL,
+            lifecycleDependencies: lifecycleDependencies,
+            lifecycleProfile: lifecycleProfile,
             diagnosticsStore: diagnostics
         )
         guard case .ready = try coordinator.prepareFinalizedReport(id: result.reportID) else {
             throw CorrectionFixtureError.unexpectedSubmission
         }
+        XCTAssertNotNil(try storeCoordinator.workspaceWriter.finalizationEnvelope(
+            mutationID: MutationIDV1(rawValue: originalIDs.mutationID)
+        ))
+        try MutationJournalStoreV1(
+            modelContext: context,
+            identity: session.workspaceIdentity,
+            generationID: session.generationID,
+            allowStateBootstrap: false
+        ).validateAll()
         let packet = try XCTUnwrap(
             try context.fetch(FetchDescriptor<Packet>()).first { $0.id == originalIDs.packetID }
         )
@@ -1792,6 +1915,9 @@ private extension S4_5CorrectionTests {
         return CorrectionHarness(
             applicationSupportURL: applicationSupport,
             session: session,
+            storeCoordinator: storeCoordinator,
+            lifecycleDependencies: lifecycleDependencies,
+            lifecycleProfile: lifecycleProfile,
             context: context,
             diagnostics: diagnostics,
             site: site,
@@ -1814,7 +1940,8 @@ private extension S4_5CorrectionTests {
     ) throws -> ReportDeliveryCoordinator {
         try ReportDeliveryCoordinator(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL,
+            lifecycleDependencies: harness.lifecycleDependencies,
+            lifecycleProfile: harness.lifecycleProfile,
             diagnosticsStore: harness.diagnostics,
             renderFailureInjection: renderFailure,
             finalizationStoreFailureInjection: storeFailure,

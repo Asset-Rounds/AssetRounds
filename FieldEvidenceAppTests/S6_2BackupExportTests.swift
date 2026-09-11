@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreFoundation
 import CryptoKit
 import Foundation
 import ImageIO
@@ -115,6 +116,184 @@ final class S6_2BackupExportTests: XCTestCase {
     }
 
     @MainActor
+    func testPopulatedQualityAndInboxSurvivePackageTransportAndPhysicalReplace() async throws {
+        let harness = try await makeMixedHarness("populated-quality-inbox", currentWriterSource: true)
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let evidence = try harness.context.fetch(FetchDescriptor<EvidenceFile>()).sorted { $0.id.uuidString < $1.id.uuidString }
+        XCTAssertGreaterThanOrEqual(evidence.count, 3)
+        let quality = try C10ProductionFixture(session: harness.session, applicationSupportURL: harness.applicationSupportURL)
+        defer { try? quality.closeCurrentWriter() }
+        let primary = try quality.capture(evidence: evidence[0], generationRootURL: harness.session.generationRootURL)
+        let comparison = try quality.capture(evidence: evidence[1], generationRootURL: harness.session.generationRootURL)
+        let third = try quality.capture(evidence: evidence[2], generationRootURL: harness.session.generationRootURL)
+        let request = try quality.request(revision: 1, primary: primary, comparison: comparison, collection: [primary, third])
+        guard case let .assessed(assessment, _) = try quality.coordinator.assess(request) else {
+            return XCTFail("Persisted evidence assessment expected")
+        }
+        let waiver = try quality.waiver(for: assessment)
+        let expectedQuality = try quality.physicalBackupSnapshot()
+        XCTAssertEqual(expectedQuality.ruleSets.count, 1)
+        XCTAssertEqual(expectedQuality.assessments, [assessment])
+        XCTAssertEqual(expectedQuality.waivers, [waiver])
+        XCTAssertEqual(expectedQuality.receipts.count, 3)
+        XCTAssertEqual(expectedQuality.effectProvenance.count, 3)
+
+        // The inbox destination is a real canonical asset creation, not the
+        // older isolated fixture's canned resolver answer.
+        let targetSiteID = UUID(), targetAssetID = UUID(), targetMutation = try MutationIDV1(rawValue: UUID())
+        let pack = SignPack.illuminatedSignV1
+        _ = try quality.writer.execute(.createFirstSign(.init(
+            siteID: targetSiteID,
+            newSite: .init(id: targetSiteID, label: "Inbox destination", address: nil, timeZoneID: "UTC"),
+            assetID: targetAssetID, assetLabel: "Persisted inbox target", packID: pack.packID,
+            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+            createdAt: Date(timeIntervalSince1970: 1_776_422_000),
+            initialPlacementMutationID: targetMutation, initialPlacementEventID: UUID(),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+        )), mutationID: targetMutation)
+        try quality.journal.validateAll()
+        try quality.closeCurrentWriter()
+
+        let inbox = try C11Fixture(session: harness.session, applicationSupportURL: harness.applicationSupportURL,
+            destinationAssetID: targetAssetID)
+        defer { try? inbox.closeCurrentWriter() }
+        let captured = try inbox.item(evidence: evidence[0], label: "promoted")
+        let unresolved = try inbox.item(evidence: evidence[1], label: "unresolved")
+        _ = try inbox.commit(.putInboxItem(captured), mutationID: captured.mutationID)
+        _ = try inbox.commit(.putInboxItem(unresolved), mutationID: unresolved.mutationID)
+        let (promotion, promoted) = try inbox.promotion(source: captured, kind: .assetEvidence)
+        _ = try inbox.commit(.promote(promotion, promoted), mutationID: promotion.mutationID)
+        let snippet = try inbox.snippet(title: "Preserved text", body: "Explicitly saved original snippet")
+        _ = try inbox.commit(.putSnippet(snippet), mutationID: snippet.mutationID)
+        let insertion = try inbox.insertion(snippet: snippet)
+        _ = try inbox.commit(.insertSnippet(insertion, snippet), mutationID: insertion.mutationID)
+        XCTAssertEqual(try inbox.currentDestination(), promotion.destination)
+        let expectedInbox = try inbox.physicalBackupSnapshot()
+        XCTAssertEqual(expectedInbox.inboxItems.count, 3)
+        XCTAssertEqual(expectedInbox.promotions, [promotion])
+        XCTAssertEqual(expectedInbox.snippets, [snippet])
+        XCTAssertEqual(expectedInbox.snippetInsertions, [insertion])
+        XCTAssertEqual(expectedInbox.receipts.count, 5)
+        XCTAssertEqual(expectedInbox.effectProvenance.count, 6)
+        XCTAssertEqual(expectedInbox.effectProvenance.filter { $0.mutationID == promotion.mutationID.rawValue }.count, 2)
+        let originalHistory = try inbox.writer.sourceMutationHistorySnapshot()
+        try MutationJournalStoreV1.validateImportedSnapshot(originalHistory)
+        try inbox.journal.validateAll()
+        try inbox.closeCurrentWriter()
+        let sourceTree = try treeFacts(harness.session.generationRootURL)
+        let sourceModels = try modelFacts(harness.context)
+        let originalMedia = try Dictionary(uniqueKeysWithValues: evidence.map {
+            ($0.id, try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent($0.relativePath)))
+        })
+        let destination = harness.applicationSupportURL.appendingPathComponent("populated-export", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let exporter = makeService(harness, capacity: .max)
+        let preview = try exporter.prepare()
+        let package = try exporter.export(previewID: preview.id, to: destination)
+        let importer = try BackupImportService(generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
+        let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        defer { try? importer.discard(validated) }
+        XCTAssertEqual(validated.records.evidenceQuality, expectedQuality)
+        XCTAssertEqual(validated.records.fastSurveyInbox, expectedInbox)
+        XCTAssertEqual(validated.records.mutationHistory, originalHistory)
+        let recordBytes = try XCTUnwrap(validated.members["records.json"])
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(validated.records).data, recordBytes)
+        XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(recordBytes), validated.records)
+        var fields = try object(recordBytes)
+        let qualityFields = try XCTUnwrap(fields["evidenceQuality"] as? [String: Any])
+        let inboxFields = try XCTUnwrap(fields["fastSurveyInbox"] as? [String: Any])
+        XCTAssertTrue(NSDictionary(dictionary: qualityFields).isEqual(to:
+            try object(WorkspaceMutationCanonicalV1.data(expectedQuality))))
+        XCTAssertTrue(NSDictionary(dictionary: inboxFields).isEqual(to:
+            try object(WorkspaceMutationCanonicalV1.data(expectedInbox))))
+        let assessmentFields = try XCTUnwrap((qualityFields["assessments"] as? [[String: Any]])?.first)
+        let revision = try XCTUnwrap(assessmentFields["revision"] as? NSNumber)
+        XCTAssertEqual(revision.intValue, 1)
+        XCTAssertNotEqual(CFGetTypeID(revision), CFBooleanGetTypeID())
+        for (key, expected) in [("advisoryOnly", true), ("altersRequirementComplianceSafetyOrInspectionOutcome", false)] {
+            let value = try XCTUnwrap(assessmentFields[key] as? NSNumber)
+            XCTAssertEqual(CFGetTypeID(value), CFBooleanGetTypeID())
+            XCTAssertEqual(value.boolValue, expected)
+        }
+        let findings = try XCTUnwrap(assessmentFields["orderedFindings"] as? [[String: Any]])
+        let duplicate = try XCTUnwrap(findings.first { ($0["ruleID"] as? String) == EvidenceQualityRuleIDV1.duplicate.rawValue })
+        let duplicateInput = try XCTUnwrap(duplicate["input"] as? [String: Any])
+        let zero = try XCTUnwrap(duplicateInput["measuredValue"] as? NSNumber)
+        XCTAssertEqual(zero.intValue, 0)
+        XCTAssertNotEqual(CFGetTypeID(zero), CFBooleanGetTypeID())
+        var fractional = fields
+        var fractionalQuality = qualityFields
+        var fractionalAssessments = try XCTUnwrap(qualityFields["assessments"] as? [[String: Any]])
+        fractionalAssessments[0]["revision"] = 1.5
+        fractionalQuality["assessments"] = fractionalAssessments
+        fractional["evidenceQuality"] = fractionalQuality
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(
+            JSONSerialization.data(withJSONObject: fractional, options: [.sortedKeys])))
+        XCTAssertNotNil(fields.removeValue(forKey: "mutationHistory"))
+        let semanticBytes = try BackupCanonicalEncoderV1().encodeSemanticRecords(validated.records).data
+        XCTAssertTrue(NSDictionary(dictionary: fields).isEqual(to: try object(semanticBytes)))
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeSemanticRecords(validated.records).data, semanticBytes)
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), sourceTree)
+        XCTAssertEqual(try modelFacts(harness.context), sourceModels)
+
+        let factory = StoreGenerationFactory(applicationSupportURL: harness.applicationSupportURL)
+        try importer.discard(validated)
+        for mode in [BackupRestoreMode.clone, .fork] {
+            let retryPackage = try importer.stageAndValidate(selectedPackageURL: package)
+            defer { try? importer.discard(retryPackage) }
+            let authority = try factory.makeRestoreGenerationAuthority()
+            XCTAssertEqual(try authority.importStagingNames(), [retryPackage.stagedPackageURL.lastPathComponent])
+            let currentJournal = try MutationJournalStoreV1(modelContext: harness.context,
+                identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+                allowStateBootstrap: false)
+            try currentJournal.validateAll()
+            XCTAssertEqual(try currentJournal.exportSnapshot(), originalHistory)
+            let restore = try BackupRestoreService(applicationSupportURL: harness.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            do {
+                _ = try await restore.restore(validatedPackage: retryPackage, currentModelContext: harness.context,
+                    currentGenerationID: harness.session.generationID,
+                    currentGenerationRootURL: harness.session.generationRootURL, mode: mode)
+                XCTFail("Populated immutable quality/inbox facts cannot be rebound by clone/fork")
+            } catch {
+                XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
+            }
+            XCTAssertEqual(try factory.currentGenerationID(), harness.session.generationID)
+            XCTAssertEqual(try currentJournal.exportSnapshot(), originalHistory)
+            XCTAssertEqual(try quality.physicalBackupSnapshot(), expectedQuality)
+            XCTAssertEqual(try inbox.physicalBackupSnapshot(), expectedInbox)
+            XCTAssertEqual(try treeFacts(harness.session.generationRootURL), sourceTree)
+            XCTAssertEqual(try modelFacts(harness.context), sourceModels)
+        }
+        let restore = try BackupRestoreService(applicationSupportURL: harness.applicationSupportURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+        let replacementPackage = try importer.stageAndValidate(selectedPackageURL: package)
+        defer { try? importer.discard(replacementPackage) }
+        let restored = try await restore.restore(validatedPackage: replacementPackage, currentModelContext: harness.context,
+            currentGenerationID: harness.session.generationID,
+            currentGenerationRootURL: harness.session.generationRootURL, mode: .replaceExisting)
+        let reopened = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, restored.generationID)
+        XCTAssertNotEqual(reopened.generationID, harness.session.generationID)
+        XCTAssertEqual(reopened.workspaceID, harness.session.workspaceID)
+        XCTAssertEqual(try C10ProductionFixture.physicalBackupSnapshot(in: reopened.modelContext,
+            workspaceID: reopened.workspaceID), expectedQuality)
+        XCTAssertEqual(try C11Fixture.physicalBackupSnapshot(in: reopened.modelContext,
+            workspaceID: reopened.workspaceID), expectedInbox)
+        let restoredJournal = try MutationJournalStoreV1(modelContext: reopened.modelContext,
+            identity: reopened.workspaceIdentity, generationID: reopened.generationID, allowStateBootstrap: false)
+        try restoredJournal.validateAll()
+        XCTAssertEqual(try restoredJournal.exportSnapshot(), originalHistory)
+        let restoredEvidence = try reopened.modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        XCTAssertEqual(Set(restoredEvidence.map(\.id)), Set(originalMedia.keys))
+        for row in restoredEvidence {
+            XCTAssertEqual(try Data(contentsOf: reopened.generationRootURL.appendingPathComponent(row.relativePath)),
+                try XCTUnwrap(originalMedia[row.id]))
+        }
+    }
+
+    @MainActor
     func testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently() async throws {
         let harness = try await makeMixedHarness("golden")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
@@ -176,6 +355,15 @@ final class S6_2BackupExportTests: XCTestCase {
             decodedRecords.recordsSchemaVersion
         )
         XCTAssertEqual(decodedRecords, validated.records)
+        let emptyQuality = try XCTUnwrap(decodedRecords.evidenceQuality)
+        let emptyInbox = try XCTUnwrap(decodedRecords.fastSurveyInbox)
+        XCTAssertEqual(emptyQuality, try EvidenceQualityBackupSnapshotV1(ruleSets: [], assessments: [],
+            waivers: [], receipts: [], effectProvenance: []))
+        XCTAssertEqual(emptyInbox, try FastSurveyInboxBackupSnapshotV1(inboxItems: [], promotions: [],
+            snippets: [], snippetInsertions: [], receipts: [], effectProvenance: []))
+        let currentFields = try object(recordsData)
+        XCTAssertNotNil(currentFields["evidenceQuality"] as? [String: Any])
+        XCTAssertNotNil(currentFields["fastSurveyInbox"] as? [String: Any])
         let originalCurrentBytes = try BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data
         let originalCurrentHistory = decodedRecords.mutationHistory
         let semanticBytes = try BackupCanonicalEncoderV1().encodeSemanticRecords(decodedRecords).data
@@ -643,7 +831,8 @@ private extension S6_2BackupExportTests {
     @MainActor
     func makeMixedHarness(
         _ label: String,
-        siteAddress: String? = nil
+        siteAddress: String? = nil,
+        currentWriterSource: Bool = false
     ) async throws -> Harness {
         let support = fileManager.temporaryDirectory.appendingPathComponent("S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
@@ -652,29 +841,22 @@ private extension S6_2BackupExportTests {
         let pack = SignPack.illuminatedSignV1
         let siteID = UUID(uuidString: "62000000-0000-0000-0000-000000000001")!
         let assetID = UUID(uuidString: "62000000-0000-0000-0000-000000000002")!
-        context.insert(Site(id: siteID, label: "Backup Site", address: siteAddress, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
-        context.insert(Asset(id: assetID, siteID: siteID, packID: pack.packID, packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion, label: "One Live Sign", createdAt: Date(timeIntervalSince1970: 1_776_420_001)))
-        let state = try XCTUnwrap(context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
-        let initialPlacement = try AssetPlacementEventV1(
-            id: UUID(uuidString: "62000000-0000-4000-8000-000000000003")!,
-            workspaceID: WorkspaceID(rawValue: state.workspaceID),
-            assetID: assetID, siteID: siteID, locationNodeID: nil,
-            predecessorEventID: nil, source: .manual,
-            physicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
-                rawValue: UUID(uuidString: "62000000-0000-4000-8000-000000000004")!
-            ),
-            continuity: .samePhysicalInstallation,
-            pathSnapshot: try LocationPathSnapshotV1(
-                siteID: siteID, siteDisplay: "Backup Site", nodes: []
-            ),
-            mutationID: MutationIDV1(
-                rawValue: UUID(uuidString: "62000000-0000-4000-8000-000000000005")!
-            ),
-            occurredAt: Date(timeIntervalSince1970: 1_776_420_001)
-        )
-        context.insert(try AssetPlacementEventRow(initialPlacement))
-        try context.save()
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
+        defer { XCTAssertNoThrow(try storeCoordinator.invalidateAndReleaseWriter()) }
+        let mutationID = try MutationIDV1(rawValue: UUID())
+        _ = try storeCoordinator.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID, newSite: .init(id: siteID, label: "Backup Site", address: siteAddress, timeZoneID: "America/New_York"),
+            assetID: assetID, assetLabel: "One Live Sign", packID: pack.packID,
+            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+            createdAt: Date(timeIntervalSince1970: 1_776_420_001),
+            initialPlacementMutationID: mutationID, initialPlacementEventID: UUID(),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+        )), mutationID: mutationID)
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let dependencies = try storeCoordinator.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile]))
+        let coordinator = try CheckRunnerCoordinator(modelContext: context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
         coordinator.configureCapture(generationRootURL: session.generationRootURL)
         var roots: [String] = []
         for index in 0..<3 {
@@ -692,19 +874,65 @@ private extension S6_2BackupExportTests {
                 sourceApp: .init(build: "42", version: "4.0"),
                 identifiers: .init(mutationID: uuid(base + 1), packetID: packetID, stableRootID: rootID, reportID: reportID, issueID: nil)
             )
-            guard case .ready = try coordinator.prepareReportDelivery(result: result) else { throw FixtureError.invalid }
+            if currentWriterSource || index == 0 {
+                guard case .ready = try coordinator.prepareReportDelivery(result: result) else { throw FixtureError.invalid }
+            } else if index == 2 {
+                let report = try XCTUnwrap(context.fetch(FetchDescriptor<Report>()).first { $0.id == reportID })
+                let failure = try ReportRenderService.transitionMutation(report: report,
+                    writer: storeCoordinator.workspaceWriter, transition: .pendingToFailed)
+                _ = try storeCoordinator.workspaceWriter.commitReportPDFTransition(failure)
+            }
             roots.append(rootID.uuidString.lowercased())
         }
-        let reports = try context.fetch(FetchDescriptor<Report>()).sorted { $0.id.uuidString < $1.id.uuidString }
-        for (offset, state) in [(1, ReportPDFState.pending), (2, ReportPDFState.failed)] {
-            let report = reports[offset]
-            if let path = report.pdfRelativePath { try fileManager.removeItem(at: session.generationRootURL.appendingPathComponent(path)) }
-            report.pdfState = state.rawValue; report.pdfRelativePath = nil; report.pdfSHA256 = nil
+        if !currentWriterSource {
+            // Preserve the counted-root tombstone using the actual incumbent
+            // deletion transaction after its source was canonically finalized.
+            let deletedAssetID = uuid(88), tombstoneRoot = uuid(90)
+            let placementMutationID = try MutationIDV1(rawValue: UUID())
+            _ = try storeCoordinator.workspaceWriter.execute(.createFirstSign(.init(
+                siteID: siteID, newSite: nil, assetID: deletedAssetID, assetLabel: "Deleted Sign",
+                packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+                packContentVersion: pack.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_776_420_400),
+                initialPlacementMutationID: placementMutationID, initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )), mutationID: placementMutationID)
+            let observed = Date(timeIntervalSince1970: 1_776_420_500)
+            _ = try coordinator.beginCheck(assetID: deletedAssetID, timeZoneID: nil,
+                isTimeZoneConfirmed: false, afterDarkAccepted: true, safePositionAccepted: true,
+                observedAt: observed)
+            let reason = try XCTUnwrap(pack.couldNotVerifyReasons.entries.first)
+            _ = try await coordinator.finalize(assetID: deletedAssetID,
+                selection: .couldNotVerify(reasonKey: reason.key, note: nil),
+                completedAt: observed.addingTimeInterval(5), snapshotCreatedAt: observed.addingTimeInterval(6),
+                sourceApp: .init(build: "42", version: "4.0"),
+                identifiers: .init(mutationID: uuid(91), packetID: uuid(89), stableRootID: tombstoneRoot,
+                    reportID: uuid(92), issueID: nil))
+            try storeCoordinator.invalidateAndReleaseWriter()
+            // This remains the separately authorized fenced compatibility
+            // deletion path, not proof of live deletion-port adoption.
+            var deletion: WholeSignDeletionService? = WholeSignDeletionService(modelContext: context,
+                generationRootURL: session.generationRootURL,
+                now: { Date(timeIntervalSince1970: 1_776_421_000) })
+            _ = try await XCTUnwrap(deletion).delete(assetID: deletedAssetID)
+            deletion = nil
+            let registry = try StoreGenerationFactory(applicationSupportURL: support).makeGenerationLeaseRegistry()
+            XCTAssertTrue(try registry.activeEpochs().isEmpty)
+            let tombstones = try context.fetch(FetchDescriptor<Packet>()).filter { $0.id == uuid(89) }
+            let tombstone = try XCTUnwrap(tombstones.first)
+            XCTAssertEqual(tombstones.count, 1)
+            XCTAssertNil(tombstone.currentRecordID)
+            XCTAssertNotNil(tombstone.contentDeletedAt)
+            XCTAssertTrue(tombstone.evaluationCounted)
+            roots.append(tombstoneRoot.uuidString.lowercased())
+        } else {
+            try storeCoordinator.invalidateAndReleaseWriter()
         }
-        let tombstoneRoot = uuid(90)
-        context.insert(Packet(id: uuid(89), stableRootID: tombstoneRoot, currentRecordID: nil, evaluationCounted: true, contentDeletedAt: Date(timeIntervalSince1970: 1_776_421_000), createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
-        roots.append(tombstoneRoot.uuidString.lowercased())
-        try context.save()
+        let journal = try MutationJournalStoreV1(modelContext: context,
+            identity: session.workspaceIdentity, generationID: session.generationID, allowStateBootstrap: false)
+        try journal.validateAll()
+        try MutationJournalStoreV1.validateImportedSnapshot(journal.exportSnapshot(),
+            sourcePersistentSchemaVersion: session.storeSchemaRelease.versionIdentifier.major)
         return Harness(applicationSupportURL: support, session: session, context: context, countedRoots: roots)
     }
 

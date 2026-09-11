@@ -615,7 +615,7 @@ final class CheckRunnerCoordinator {
                     packageRelease: lifecycle.profile.release,
                     mutationID: MutationIDV1(rawValue: identifiers.mutationID),
                     durableReceiptIdentity: nil,
-                    preservesReservedLegacyRawWriteDebt: true
+                    preservesReservedLegacyRawWriteDebt: false
                 )
                 outcomeResult = try await adapter.finalize(input, binding: binding).finalization
             } else {

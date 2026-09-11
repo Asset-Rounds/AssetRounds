@@ -51,6 +51,7 @@ final class S3_3FinalizationTests: XCTestCase {
                 applicationSupportURL: applicationSupportURL,
                 diagnosticsStore: diagnosticsStore
             )
+            defer { try? harness.storeCoordinator.invalidateAndReleaseWriter() }
             expectedDraftID = harness.draft.id
             expectedGenerationRoot = harness.session.generationRootURL
 
@@ -72,6 +73,15 @@ final class S3_3FinalizationTests: XCTestCase {
             XCTAssertEqual(result.stableRootID, identifiers.stableRootID)
             XCTAssertEqual(result.reportID, identifiers.reportID)
             XCTAssertNil(result.issueID)
+            XCTAssertNotNil(try harness.storeCoordinator.workspaceWriter.durableReceipt(
+                mutationID: MutationIDV1(rawValue: identifiers.mutationID)
+            ))
+            try MutationJournalStoreV1(
+                modelContext: harness.context,
+                identity: harness.session.workspaceIdentity,
+                generationID: harness.session.generationID,
+                allowStateBootstrap: false
+            ).validateAll()
             XCTAssertEqual(
                 result.snapshotRelativePath,
                 "snapshots/\(identifiers.reportID.uuidString.lowercased()).json"
@@ -174,6 +184,7 @@ final class S3_3FinalizationTests: XCTestCase {
             applicationSupportURL: applicationSupportURL,
             diagnosticsStore: nil
         )
+        defer { try? harness.storeCoordinator.invalidateAndReleaseWriter() }
 
         XCTAssertThrowsError(
             try harness.coordinator.prepareReview(
@@ -224,6 +235,9 @@ final class S3_3FinalizationTests: XCTestCase {
         )
 
         XCTAssertEqual(result.issueID, identifiers.issueID)
+        XCTAssertNotNil(try harness.storeCoordinator.workspaceWriter.durableReceipt(
+            mutationID: MutationIDV1(rawValue: identifiers.mutationID)
+        ))
         let issues = try harness.context.fetch(FetchDescriptor<Issue>())
         XCTAssertEqual(issues.count, 1)
         let issue = try XCTUnwrap(issues.first)
@@ -271,25 +285,52 @@ final class S3_3FinalizationTests: XCTestCase {
         ).openOrBootstrapCurrent()
         let context = session.modelContext
         let pack = SignPack.illuminatedSignV1
-        let site = Site(
-            label: "North Campus",
-            address: "10 Main",
-            timeZoneID: "America/New_York"
+        let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
+        let siteID = UUID()
+        let assetID = UUID()
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        do {
+            _ = try storeCoordinator.workspaceWriter.execute(
+                .createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(
+                        id: siteID,
+                        label: "North Campus",
+                        address: "10 Main",
+                        timeZoneID: "America/New_York"
+                    ),
+                    assetID: assetID,
+                    assetLabel: "Monument Sign",
+                    packID: pack.packID,
+                    packSchemaVersion: pack.schemaVersion,
+                    packContentVersion: pack.contentVersion,
+                    createdAt: Date(timeIntervalSince1970: 1_768_420_922),
+                    initialPlacementMutationID: placementMutationID,
+                    initialPlacementEventID: UUID(),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+                )),
+                mutationID: placementMutationID
+            )
+        } catch {
+            try storeCoordinator.invalidateAndReleaseWriter()
+            throw error
+        }
+        let site = try XCTUnwrap(
+            context.fetch(FetchDescriptor<Site>()).first { $0.id == siteID }
         )
-        let asset = Asset(
-            siteID: site.id,
-            packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            label: "Monument Sign"
+        let asset = try XCTUnwrap(
+            context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID }
         )
-        context.insert(site)
-        context.insert(asset)
-        try context.save()
-
-        let coordinator = CheckRunnerCoordinator(
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: pack
+        )
+        let dependencies = try storeCoordinator.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        )
+        let coordinator = try CheckRunnerCoordinator(
             modelContext: context,
-            signPack: pack,
+            packageLifecycleDependencies: dependencies,
+            packageLifecycleProfile: profile,
             diagnosticsStore: diagnosticsStore
         )
         coordinator.configureCapture(generationRootURL: session.generationRootURL)
@@ -316,6 +357,7 @@ final class S3_3FinalizationTests: XCTestCase {
         XCTAssertEqual(draft.draftStepKey, WorkflowDraftStep.outcome.rawValue)
         return ReadyHarness(
             session: session,
+            storeCoordinator: storeCoordinator,
             context: context,
             coordinator: coordinator,
             asset: asset,
@@ -536,6 +578,7 @@ final class S3_3FinalizationTests: XCTestCase {
 @MainActor
 private struct ReadyHarness {
     let session: StoreGenerationSession
+    let storeCoordinator: StoreSessionCoordinator
     let context: ModelContext
     let coordinator: CheckRunnerCoordinator
     let asset: Asset

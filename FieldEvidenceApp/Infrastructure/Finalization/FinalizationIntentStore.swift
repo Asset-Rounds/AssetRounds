@@ -283,7 +283,7 @@ actor FinalizationIntentStore {
             }
             guard intent.finalizationMutationID == mutationID,
                   intent.generationID == authority.generationID,
-                  intent.schemaVersion == 1 else {
+                  [1, 2].contains(intent.schemaVersion) else {
                 throw FinalizationIntentStoreError.intentInvalid
             }
             let paths = try validatedPaths(for: intent)
@@ -481,7 +481,7 @@ actor FinalizationIntentStore {
         }
         let paths = try validatedPaths(for: intent)
         guard intent.phase == .prepared,
-              intent.schemaVersion == 1,
+              [1, 2].contains(intent.schemaVersion),
               intent.snapshotSHA256 == snapshot.sha256,
               sha256(snapshot.data) == snapshot.sha256 else {
             throw FinalizationIntentStoreError.intentInvalid

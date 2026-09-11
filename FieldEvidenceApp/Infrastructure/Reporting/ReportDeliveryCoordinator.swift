@@ -607,14 +607,20 @@ final class ReportDeliveryCoordinator {
         }
         let finalization: ReportCorrectionFinalizationOutcome
         do {
+            let writer: WorkspaceWriterV1?
+            switch lifecycleRoute {
+            case .live(let dependencies, _): writer = dependencies.writer
+            case .expiringCompatibility: writer = nil
+            }
             finalization = try await FinalizationService(
                 modelContext: modelContext,
-                signPack: signPack,
+                signPack: lifecycleRoute.resolving(report: report, modelContext: modelContext).profile.package,
                 generationRootURL: generationRootURL,
                 intentStoreFailureInjection: finalizationStoreFailureInjection,
                 failureInjection: finalizationServiceFailureInjection,
                 operationBarrier: finalizationServiceOperationBarrier,
-                expectedRootIdentity: rootIdentity
+                expectedRootIdentity: rootIdentity,
+                workspaceWriter: writer
             ).finalizeCorrection(ReportCorrectionFinalizationInput(
                 currentRecord: records[0],
                 packet: packets[0],
@@ -870,10 +876,11 @@ final class ReportDeliveryCoordinator {
         requiresReadyDelivery: Bool = true
     ) throws -> ReadyReportAuthorityValidation {
         do {
+            let route = try lifecycleRoute.resolving(report: report, modelContext: modelContext)
             return try ReadyReportAuthorityValidator(
                 modelContext: modelContext,
-                lifecycleProfile: lifecycleProfile,
-                lifecycleRoute: lifecycleRoute,
+                lifecycleProfile: route.profile,
+                lifecycleRoute: route,
                 anchoredRead: anchoredRead(relativePath:)
             ).validate(
                 report: report,

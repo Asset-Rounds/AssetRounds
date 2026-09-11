@@ -2,6 +2,25 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+/// Keeps a failed lease release reachable when construction could not return
+/// a coordinator. The owner must retry release before opening another writer.
+@MainActor
+final class StoreSessionWriterCleanupFailureV1: Error {
+    let operationFailure: Error
+    let releaseFailure: Error
+    private let leaseHandle: GenerationLeaseHandleV1
+
+    init(leaseHandle: GenerationLeaseHandleV1, operationFailure: Error, releaseFailure: Error) {
+        self.leaseHandle = leaseHandle
+        self.operationFailure = operationFailure
+        self.releaseFailure = releaseFailure
+    }
+
+    func retryRelease() throws {
+        try leaseHandle.close()
+    }
+}
+
 @MainActor
 final class StoreSessionCoordinator: ObservableObject {
     @Published private(set) var uiGenerationToken: UInt64 = 0
@@ -11,6 +30,7 @@ final class StoreSessionCoordinator: ObservableObject {
     private let idSource: any ApplicationIDSource
     private let fileAuthority: any ApplicationFileAuthorityV1
     private let generationFactory: StoreGenerationFactory
+    let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
     private var writerLeaseHandle: GenerationLeaseHandleV1
     private(set) var workspaceWriter: WorkspaceWriterV1
     private(set) var searchIndexStore: LocalSearchIndexStoreV1
@@ -20,7 +40,8 @@ final class StoreSessionCoordinator: ObservableObject {
         session: StoreGenerationSession,
         clock: any ApplicationClock = SystemApplicationClock(),
         idSource: any ApplicationIDSource = SystemApplicationIDSource(),
-        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1()
+        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1? = nil
     ) {
         let resolvedFactory = StoreGenerationFactory(
             applicationSupportURL: Self.applicationSupportURL(for: session)
@@ -28,7 +49,10 @@ final class StoreSessionCoordinator: ObservableObject {
         let binding: WriterBinding
         let searchIndexStore: LocalSearchIndexStoreV1
         let searchServices: ProductionSearchServicesV1
+        let resolvedLifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
         do {
+            resolvedLifecycleProfileRegistry = try lifecycleProfileRegistry
+                ?? WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
             searchIndexStore = try LocalSearchIndexStoreV1(
                 applicationSupportURL: Self.applicationSupportURL(for: session)
             )
@@ -37,13 +61,20 @@ final class StoreSessionCoordinator: ObservableObject {
                 clock: clock,
                 idSource: idSource,
                 fileAuthority: fileAuthority,
-                generationFactory: resolvedFactory
+                generationFactory: resolvedFactory,
+                lifecycleProfileRegistry: resolvedLifecycleProfileRegistry
             )
-            searchServices = try Self.makeSearchServices(
-                session: session,
-                writer: binding.writer,
-                store: searchIndexStore
-            )
+            do {
+                searchServices = try Self.makeSearchServices(
+                    session: session,
+                    writer: binding.writer,
+                    store: searchIndexStore
+                )
+            } catch {
+                binding.writer.invalidate()
+                try Self.releaseAfterFailure(binding.leaseHandle, operationFailure: error)
+                throw error
+            }
         } catch {
             preconditionFailure(
                 "Store generation could not install its writer lease: \(error)"
@@ -55,6 +86,7 @@ final class StoreSessionCoordinator: ObservableObject {
             idSource: idSource,
             fileAuthority: fileAuthority,
             generationFactory: resolvedFactory,
+            lifecycleProfileRegistry: resolvedLifecycleProfileRegistry,
             binding: binding,
             searchIndexStore: searchIndexStore,
             searchServices: searchServices
@@ -65,11 +97,14 @@ final class StoreSessionCoordinator: ObservableObject {
         validatingSession session: StoreGenerationSession,
         clock: any ApplicationClock = SystemApplicationClock(),
         idSource: any ApplicationIDSource = SystemApplicationIDSource(),
-        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1()
+        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1? = nil
     ) throws {
         let resolvedFactory = StoreGenerationFactory(
             applicationSupportURL: Self.applicationSupportURL(for: session)
         )
+        let resolvedLifecycleProfileRegistry = try lifecycleProfileRegistry
+            ?? WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
         let searchIndexStore = try LocalSearchIndexStoreV1(
             applicationSupportURL: Self.applicationSupportURL(for: session)
         )
@@ -78,19 +113,28 @@ final class StoreSessionCoordinator: ObservableObject {
             clock: clock,
             idSource: idSource,
             fileAuthority: fileAuthority,
-            generationFactory: resolvedFactory
+            generationFactory: resolvedFactory,
+            lifecycleProfileRegistry: resolvedLifecycleProfileRegistry
         )
-        let searchServices = try Self.makeSearchServices(
-            session: session,
-            writer: binding.writer,
-            store: searchIndexStore
-        )
+        let searchServices: ProductionSearchServicesV1
+        do {
+            searchServices = try Self.makeSearchServices(
+                session: session,
+                writer: binding.writer,
+                store: searchIndexStore
+            )
+        } catch {
+            binding.writer.invalidate()
+            try Self.releaseAfterFailure(binding.leaseHandle, operationFailure: error)
+            throw error
+        }
         self.init(
             session: session,
             clock: clock,
             idSource: idSource,
             fileAuthority: fileAuthority,
             generationFactory: resolvedFactory,
+            lifecycleProfileRegistry: resolvedLifecycleProfileRegistry,
             binding: binding,
             searchIndexStore: searchIndexStore,
             searchServices: searchServices
@@ -103,6 +147,7 @@ final class StoreSessionCoordinator: ObservableObject {
         idSource: any ApplicationIDSource,
         fileAuthority: any ApplicationFileAuthorityV1,
         generationFactory: StoreGenerationFactory,
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
         binding: WriterBinding,
         searchIndexStore: LocalSearchIndexStoreV1,
         searchServices: ProductionSearchServicesV1
@@ -112,6 +157,7 @@ final class StoreSessionCoordinator: ObservableObject {
         self.idSource = idSource
         self.fileAuthority = fileAuthority
         self.generationFactory = generationFactory
+        self.lifecycleProfileRegistry = lifecycleProfileRegistry
         self.writerLeaseHandle = binding.leaseHandle
         self.workspaceWriter = binding.writer
         self.searchIndexStore = searchIndexStore
@@ -197,6 +243,13 @@ final class StoreSessionCoordinator: ObservableObject {
     func packageLifecycleDependencies(
         profileRegistry: WorkspacePackageLifecycleProfileRegistryV1
     ) throws -> WorkspacePackageLifecycleDependenciesV1 {
+        guard profileRegistry == lifecycleProfileRegistry else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        return try packageLifecycleDependencies()
+    }
+
+    func packageLifecycleDependencies() throws -> WorkspacePackageLifecycleDependenciesV1 {
         try WorkspacePackageLifecycleDependenciesV1(
             workspaceID: session.workspaceID,
             generationID: session.generationID,
@@ -205,8 +258,15 @@ final class StoreSessionCoordinator: ObservableObject {
             clock: clock,
             idSource: idSource,
             fileAuthority: fileAuthority,
-            profileRegistry: profileRegistry
+            profileRegistry: lifecycleProfileRegistry
         )
+    }
+
+    /// Explicit owner teardown, including unpublished startup failure. A
+    /// failed close remains retryable; invalidation never restores a writer.
+    func invalidateAndReleaseWriter() throws {
+        workspaceWriter.invalidate()
+        try writerLeaseHandle.close()
     }
 
     func activate(session: StoreGenerationSession) {
@@ -236,14 +296,24 @@ final class StoreSessionCoordinator: ObservableObject {
             clock: clock,
             idSource: idSource,
             fileAuthority: fileAuthority,
-            generationFactory: generationFactory
+            generationFactory: generationFactory,
+            lifecycleProfileRegistry: lifecycleProfileRegistry
         )
-        let replacementSearchServices = try Self.makeSearchServices(
-            session: session,
-            writer: binding.writer,
-            store: replacementSearchIndexStore
-        )
-        try writerLeaseHandle.close()
+        let replacementSearchServices: ProductionSearchServicesV1
+        do {
+            replacementSearchServices = try Self.makeSearchServices(
+                session: session,
+                writer: binding.writer,
+                store: replacementSearchIndexStore
+            )
+            try writerLeaseHandle.close()
+        } catch {
+            // The old coordinator remains owned by its caller. Only the
+            // uninstalled replacement is invalidated and released here.
+            binding.writer.invalidate()
+            try Self.releaseAfterFailure(binding.leaseHandle, operationFailure: error)
+            throw error
+        }
         workspaceWriter.invalidate()
         self.session = session
         searchIndexStore = replacementSearchIndexStore
@@ -267,71 +337,88 @@ final class StoreSessionCoordinator: ObservableObject {
         let leaseHandle: GenerationLeaseHandleV1
     }
 
+    private static func releaseAfterFailure(
+        _ leaseHandle: GenerationLeaseHandleV1,
+        operationFailure: Error
+    ) throws {
+        do {
+            try leaseHandle.close()
+        } catch {
+            throw StoreSessionWriterCleanupFailureV1(
+                leaseHandle: leaseHandle,
+                operationFailure: operationFailure,
+                releaseFailure: error
+            )
+        }
+    }
+
     private static func makeWriter(
         session: StoreGenerationSession,
         clock: any ApplicationClock,
         idSource: any ApplicationIDSource,
         fileAuthority: any ApplicationFileAuthorityV1,
-        generationFactory: StoreGenerationFactory
+        generationFactory: StoreGenerationFactory,
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
     ) throws -> WriterBinding {
         guard session.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
               let generationEpoch = session.generationEpoch else {
             throw GenerationLeaseRegistryFailureV1.staleGeneration
         }
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
         let registry = try generationFactory.makeGenerationLeaseRegistry()
         let leaseHandle = try registry.acquireHandle(
             epoch: generationEpoch,
             role: .writer
         )
         let writerLeaseToken: GenerationLeaseTokenV1 = leaseHandle.token
-        let staleWriterFence: StaleWriterFenceV1
         do {
-            staleWriterFence = try generationFactory.makeWriterFence(
+            let staleWriterFence = try generationFactory.makeWriterFence(
                 expectedGenerationEpoch: generationEpoch,
                 writerLeaseToken: writerLeaseToken,
                 registry: registry
             )
-        } catch let fenceFailure {
-            do {
-                try leaseHandle.close()
-            } catch let releaseFailure {
-                throw releaseFailure
-            }
-            throw fenceFailure
+            let journalStore = try MutationJournalStoreV1(
+                modelContext: session.modelContext,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                allowStateBootstrap: false,
+                staleWriterFence: staleWriterFence
+            )
+            try MutationReceiptRecoveryServiceV1(
+                store: journalStore
+            ).recoverBeforeWriterActivation()
+            let revision = try WorkspaceRevisionV1(
+                workspaceID: session.workspaceID,
+                generationID: session.generationID,
+                revision: 0,
+                entityRevisions: []
+            )
+            let writer = try WorkspaceWriterV1(
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                initialRevision: revision,
+                clock: clock,
+                idSource: idSource,
+                fileAuthority: fileAuthority,
+                adapter: WorkspaceWriterAdapterV1(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL,
+                    expectedRootIdentity: rootIdentity,
+                    lifecycleProfileRegistry: lifecycleProfileRegistry
+                ),
+                journalStore: journalStore,
+                searchIndexInvalidation: { source in
+                    try LocalSearchIndexStoreV1.synchronouslyInvalidateAfterCanonicalCommit(
+                        source: source,
+                        applicationSupportURL: generationFactory.restoreApplicationSupportURL
+                    )
+                }
+            )
+            return WriterBinding(writer: writer, leaseHandle: leaseHandle)
+        } catch {
+            try releaseAfterFailure(leaseHandle, operationFailure: error)
+            throw error
         }
-        let journalStore = try MutationJournalStoreV1(
-            modelContext: session.modelContext,
-            identity: session.workspaceIdentity,
-            generationID: session.generationID,
-            allowStateBootstrap: false,
-            staleWriterFence: staleWriterFence
-        )
-        try MutationReceiptRecoveryServiceV1(
-            store: journalStore
-        ).recoverBeforeWriterActivation()
-        let revision = try WorkspaceRevisionV1(
-            workspaceID: session.workspaceID,
-            generationID: session.generationID,
-            revision: 0,
-            entityRevisions: []
-        )
-        let writer = try WorkspaceWriterV1(
-            identity: session.workspaceIdentity,
-            generationID: session.generationID,
-            initialRevision: revision,
-            clock: clock,
-            idSource: idSource,
-            fileAuthority: fileAuthority,
-            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
-            journalStore: journalStore,
-            searchIndexInvalidation: { source in
-                try LocalSearchIndexStoreV1.synchronouslyInvalidateAfterCanonicalCommit(
-                    source: source,
-                    applicationSupportURL: generationFactory.restoreApplicationSupportURL
-                )
-            }
-        )
-        return WriterBinding(writer: writer, leaseHandle: leaseHandle)
     }
 
     private static func makeSearchServices(

@@ -1755,6 +1755,326 @@ extension S6_4AtomicRestoreTests {
     }
 }
 
+extension S6_4AtomicRestoreTests {
+    @MainActor
+    func testPopulatedIdentityInventorySurvivesPhysicalRestoreAndRejectsTampering() async throws {
+        let source = try makeHarness("c13-source")
+        let probe = try makeHarness("c13-probe")
+        let target = try makeHarness("c13-target")
+        defer {
+            for harness in [source, probe, target] { try? fileManager.removeItem(at: harness.root) }
+        }
+        let session = source.session
+        let registry = try source.factory.makeGenerationLeaseRegistry()
+        let epoch = try XCTUnwrap(session.generationEpoch)
+        let lease = try registry.acquireHandle(epoch: epoch, role: .writer)
+        defer { try? lease.close() }
+        let fence = try source.factory.makeWriterFence(expectedGenerationEpoch: epoch,
+            writerLeaseToken: lease.token, registry: registry)
+        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            allowStateBootstrap: false, staleWriterFence: fence)
+        try MutationReceiptRecoveryServiceV1(store: journal).recoverBeforeWriterActivation()
+        let initialWriter = try WorkspaceWriterV1(identity: session.workspaceIdentity,
+            generationID: session.generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: UUID()), clock: S64IdentityClock(),
+            idSource: S64IdentityIDs(), fileAuthority: S64IdentityFiles(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext), journalStore: journal)
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        var assetIDs: [UUID] = []
+        for index in 0..<2 {
+            let siteID = UUID(), assetID = UUID(), placementID = UUID()
+            assetIDs.append(assetID)
+            let current = try initialWriter.currentRevision()
+            let mutation = try MutationIDV1(rawValue: UUID())
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+                generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision, entityRevisions: [
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0),
+                ])
+            _ = try initialWriter.execute(.init(mutationID: mutation, expectedRevision: expected,
+                command: .createFirstSign(.init(siteID: siteID,
+                    newSite: .init(id: siteID, label: "Identity site \(index)", address: nil, timeZoneID: "UTC"),
+                    assetID: assetID, assetLabel: "Identity asset \(index)",
+                    packID: SignPack.illuminatedSignV1.packID,
+                    packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                    packContentVersion: SignPack.illuminatedSignV1.contentVersion, createdAt: date,
+                    initialPlacementMutationID: mutation, initialPlacementEventID: placementID,
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())))))
+        }
+        func export(_ name: String) throws -> URL {
+            let destination = source.root.appendingPathComponent(name, isDirectory: true)
+            try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+            let exporter = BackupExportService(modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL, now: { date.addingTimeInterval(60) })
+            let preview = try exporter.prepare()
+            return try exporter.export(previewID: preview.id, to: destination)
+        }
+        let baseline = try importPackage(export("baseline"), into: probe.session)
+        let emptyIdentity = try XCTUnwrap(baseline.records.entityIdentityResolution)
+        XCTAssertTrue(emptyIdentity.aliasLinks.isEmpty)
+        XCTAssertTrue(emptyIdentity.consolidationReceipts.isEmpty)
+        XCTAssertTrue(emptyIdentity.mutationReceipts.isEmpty)
+        let history = try XCTUnwrap(baseline.records.mutationHistory)
+        let workspace = session.workspaceIdentity.workspaceID
+        let snapshots = try assetIDs.map { id -> EntityIdentitySnapshotV1 in
+            let identity = try WorkspaceEntityIdentityV1(kind: .asset, id: id)
+            let terminal = try XCTUnwrap(history.entityRevisions.first { $0.identity == identity })
+            let images = try history.receipts.flatMap {
+                try MutationReceiptV1.decodeCanonical(from: $0.receiptData).postImages
+            }.filter { try $0.identity == identity && $0.revision == terminal.revision }
+            XCTAssertEqual(images.count, 1)
+            return try EntityIdentitySnapshotV1(workspaceID: workspace, identity: identity,
+                revision: terminal.revision, entitySHA256: XCTUnwrap(images.first).semanticSHA256)
+        }
+        let encoder = BackupCanonicalEncoderV1()
+        let atoms = try encoder.entityIdentityResolutionInventoryAtoms(baseline.records)
+        XCTAssertEqual(Set(atoms.keys), Set(EntityConsolidationInventoryFamilyV1.allCases))
+        XCTAssertTrue(try XCTUnwrap(atoms[.history]).contains { $0.itemID == "lightingDayInventoryWorkflows" })
+        XCTAssertTrue(try XCTUnwrap(atoms[.history]).contains { $0.itemID == "lightingNightWorkflows" })
+        XCTAssertTrue(try XCTUnwrap(atoms[.evidence]).contains { $0.itemID == "evidenceQuality" })
+        XCTAssertTrue(try XCTUnwrap(atoms[.content]).contains { $0.itemID == "fastSurveyInbox" })
+        XCTAssertNil(baseline.records.practiceWorkspaceProvenance)
+        XCTAssertFalse(try XCTUnwrap(atoms[.history]).contains { $0.itemID == "practiceWorkspaceProvenance" })
+        // A category-only optional-provenance probe is not a claim that this REAL source
+        // was installed as a practice workspace. The physical package remains unchanged.
+        let template = try StarterWorkspaceTemplateReleaseV1(templateID: UUID(), release: 1,
+            titleKey: "workspace.starter.practice.title", packageReleaseIDs: ["shipping.illuminated-sign.v1"],
+            practiceWatermark: "PRACTICE — NOT FOR FIELD USE")
+        let practicePlan = try StarterWorkspaceInstallPlanV1(planID: UUID(), workspaceID: workspace,
+            template: template, mutationID: MutationIDV1(rawValue: UUID()), requestedAt: date,
+            explicitUserRequest: true, destinationWasEmpty: true)
+        let practiceReceipt = try StarterWorkspaceInstallReceiptV1(receiptID: UUID(), plan: practicePlan,
+            resultingWorkspaceRevision: 1, installedAt: date.addingTimeInterval(1), disposition: .committed)
+        var categoryProbe = baseline.records
+        categoryProbe.practiceWorkspaceProvenance = try PracticeWorkspaceBackupSnapshotV1(provenance:
+            PracticeWorkspaceProvenanceV1(provenanceID: UUID(), plan: practicePlan,
+                receipt: practiceReceipt, revision: 1))
+        let optionalAtoms = try encoder.entityIdentityResolutionInventoryAtoms(categoryProbe)
+        XCTAssertTrue(try XCTUnwrap(optionalAtoms[.history]).contains { $0.itemID == "practiceWorkspaceProvenance" })
+        for family in EntityConsolidationInventoryFamilyV1.allCases {
+            XCTAssertEqual(try XCTUnwrap(optionalAtoms[family]).filter { $0.itemID != "practiceWorkspaceProvenance" }, atoms[family])
+        }
+        let inventory = try EntityConsolidationInventoryBuilderV1.inventory(workspaceID: workspace,
+            source: snapshots[0], survivor: snapshots[1], atomsByFamily: atoms)
+        // This immutable source-seeding authority is derived from a validated physical package.
+        // Public restore below uses its private shipping resolver, not this test helper.
+        let resolver = S64PackageIdentityAuthority(snapshots: snapshots, atoms: atoms)
+        initialWriter.invalidate()
+        let writer = try WorkspaceWriterV1(identity: session.workspaceIdentity, generationID: session.generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: UUID()), clock: S64IdentityClock(),
+            idSource: S64IdentityIDs(), fileAuthority: S64IdentityFiles(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext,
+                entityIdentityCanonicalResolver: resolver), journalStore: journal)
+        let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace,
+            actor: LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Operator"),
+            responsibility: .recordedBy, displayNameAtTime: "Operator", capturedAt: date)
+        let policy = CanonicalJSONV1.sha256(Data("S64 physical identity policy".utf8))
+        func consolidation(_ value: EntityConsolidationInventoryV1) throws -> EntityConsolidationReceiptV1 {
+            try .init(consolidationReceiptID: UUID(), workspaceID: workspace,
+                source: snapshots[0], survivor: snapshots[1], inventory: value,
+                disposition: .consolidated, revision: 1, predecessor: nil, policyVersion: 1,
+                policySHA256: policy, recordedBy: actor, recordedAt: date, mutationID: .init(rawValue: UUID()))
+        }
+        func command(_ payload: EntityIdentityResolutionMutationPayloadV1) throws -> EntityIdentityResolutionMutationCommandV1 {
+            try .init(commandID: UUID(), workspaceID: workspace,
+                expectedRevision: .init(snapshot: writer.currentRevision()), mutationID: payload.mutationID,
+                payload: payload, submittedAt: date)
+        }
+        let beforeTamper = try writer.currentRevision()
+        let beforeTamperRows = try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.receiptData)
+        var tamperedAtoms = atoms
+        tamperedAtoms[.content] = []
+        let tamperedInventory = try EntityConsolidationInventoryBuilderV1.inventory(workspaceID: workspace,
+            source: snapshots[0], survivor: snapshots[1], atomsByFamily: tamperedAtoms)
+        XCTAssertNotEqual(tamperedInventory, inventory)
+        let hostile = try command(.consolidation(consolidation(tamperedInventory), nil))
+        XCTAssertThrowsError(try writer.commitEntityIdentityResolution(hostile))
+        XCTAssertEqual(try writer.currentRevision(), beforeTamper)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.receiptData), beforeTamperRows)
+        let alias = try EntityAliasLinkV1(linkEventID: UUID(), workspaceID: workspace,
+            alias: snapshots[0], canonicalEntity: snapshots[1], revision: 1, predecessor: nil,
+            reason: .verifiedPriorAlias, policyVersion: 1, policySHA256: policy,
+            recordedBy: actor, recordedAt: date, mutationID: .init(rawValue: UUID()))
+        _ = try writer.commitEntityIdentityResolution(command(.alias(alias, nil)))
+        let effect = try consolidation(inventory)
+        _ = try writer.commitEntityIdentityResolution(command(.consolidation(effect, nil)))
+        try journal.validateAll()
+        let package = try export("populated")
+        let originalPackage = try Data(contentsOf: package)
+        let validated = try importPackage(package, into: target.session)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 53)
+        XCTAssertEqual(validated.records.recordsSchemaVersion, 52)
+        let identity = try XCTUnwrap(validated.records.entityIdentityResolution)
+        XCTAssertEqual(identity.aliasLinks, [alias])
+        XCTAssertEqual(identity.consolidationReceipts, [effect])
+        XCTAssertEqual(identity.mutationReceipts.count, 2)
+        let genericIdentityCommands = try XCTUnwrap(validated.records.mutationHistory).receipts.compactMap {
+            record -> EntityIdentityResolutionMutationCommandV1? in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard case let .applyEntityIdentityResolution(command) = envelope.command else { return nil }
+            return command
+        }
+        XCTAssertEqual(genericIdentityCommands.count, 2)
+        XCTAssertEqual(Set(genericIdentityCommands.map(\.mutationID)), Set([alias.mutationID, effect.mutationID]))
+        for command in genericIdentityCommands {
+            let receipt = try XCTUnwrap(identity.mutationReceipts.first { $0.mutationID == command.mutationID })
+            XCTAssertNoThrow(try receipt.validate(command: command))
+        }
+        XCTAssertEqual(try encoder.entityIdentityResolutionInventoryAtoms(validated.records), atoms)
+        let restoredInventory = try EntityConsolidationInventoryBuilderV1.inventory(workspaceID: workspace,
+            source: snapshots[0], survivor: snapshots[1],
+            atomsByFamily: encoder.entityIdentityResolutionInventoryAtoms(validated.records))
+        XCTAssertEqual(restoredInventory.items, inventory.items)
+        XCTAssertEqual(restoredInventory.inventorySHA256, inventory.inventorySHA256)
+        let sourceAliasBytes = try session.modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).map(\.canonicalData)
+        let sourceConsolidationBytes = try session.modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).map(\.canonicalData)
+        let sourceTypedBytes = try session.modelContext.fetch(FetchDescriptor<EntityIdentityResolutionMutationReceiptRowV1>()).map(\.canonicalData)
+        let sourceJournal = try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
+        let envelopeBytes = Set(sourceJournal.map(\.envelopeData))
+        let receiptBytes = Set(sourceJournal.map(\.receiptData))
+        let restored = try await BackupRestoreService(applicationSupportURL: target.support,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })).restore(
+                validatedPackage: validated, currentModelContext: target.session.modelContext,
+                currentGenerationID: target.session.generationID,
+                currentGenerationRootURL: target.session.generationRootURL, mode: .emptyInstall)
+        let reopened = try target.factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, restored.generationID)
+        XCTAssertNotEqual(reopened.generationID, target.session.generationID)
+        let context = reopened.modelContext
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).map(\.canonicalData), sourceAliasBytes)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).map(\.canonicalData), sourceConsolidationBytes)
+        XCTAssertEqual(Set(try context.fetch(FetchDescriptor<EntityIdentityResolutionMutationReceiptRowV1>()).map(\.canonicalData)), Set(sourceTypedBytes))
+        XCTAssertEqual(Set(try context.fetch(FetchDescriptor<Asset>()).map(\.id)), Set(assetIDs))
+        XCTAssertEqual(Set(try context.fetch(FetchDescriptor<Asset>()).map(\.label)), Set(["Identity asset 0", "Identity asset 1"]))
+        let restoredJournal = try context.fetch(FetchDescriptor<MutationReceiptRow>())
+        XCTAssertEqual(Set(restoredJournal.map(\.envelopeData)), envelopeBytes)
+        XCTAssertEqual(Set(restoredJournal.map(\.receiptData)), receiptBytes)
+        try MutationJournalStoreV1(modelContext: context, identity: reopened.workspaceIdentity,
+            generationID: reopened.generationID, allowStateBootstrap: false).validateAll()
+        for mode in [BackupRestoreMode.clone, .fork] {
+            let rejected = try makeHarness("c13-reject-\(mode.rawValue)")
+            defer { try? fileManager.removeItem(at: rejected.root) }
+            let sentinelSiteID = UUID(), sentinelAssetID = UUID(), sentinelPlacementID = UUID()
+            let destinationRegistry = try rejected.factory.makeGenerationLeaseRegistry()
+            let destinationEpoch = try XCTUnwrap(rejected.session.generationEpoch)
+            let destinationLease = try destinationRegistry.acquireHandle(epoch: destinationEpoch, role: .writer)
+            defer { try? destinationLease.close() }
+            let destinationFence = try rejected.factory.makeWriterFence(expectedGenerationEpoch: destinationEpoch,
+                writerLeaseToken: destinationLease.token, registry: destinationRegistry)
+            let destinationJournal = try MutationJournalStoreV1(modelContext: rejected.session.modelContext,
+                identity: rejected.session.workspaceIdentity, generationID: rejected.session.generationID,
+                allowStateBootstrap: false, staleWriterFence: destinationFence)
+            try MutationReceiptRecoveryServiceV1(store: destinationJournal).recoverBeforeWriterActivation()
+            let destinationWriter = try WorkspaceWriterV1(identity: rejected.session.workspaceIdentity,
+                generationID: rejected.session.generationID,
+                initialRevision: destinationJournal.currentRevision(writerInstanceID: UUID()),
+                clock: S64IdentityClock(), idSource: S64IdentityIDs(), fileAuthority: S64IdentityFiles(),
+                adapter: WorkspaceWriterAdapterV1(modelContext: rejected.session.modelContext),
+                journalStore: destinationJournal)
+            let destinationRevision = try destinationWriter.currentRevision()
+            let sentinelMutation = try MutationIDV1(rawValue: UUID())
+            let sentinelExpected = try WorkspaceExpectedRevisionV1(workspaceID: destinationRevision.workspaceID,
+                generationID: destinationRevision.generationID, writerInstanceID: destinationRevision.writerInstanceID,
+                workspaceRevision: destinationRevision.revision, entityRevisions: [
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: sentinelSiteID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: sentinelAssetID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: sentinelPlacementID), revision: 0),
+                ])
+            _ = try destinationWriter.execute(.init(mutationID: sentinelMutation, expectedRevision: sentinelExpected,
+                command: .createFirstSign(.init(siteID: sentinelSiteID,
+                    newSite: .init(id: sentinelSiteID, label: "Preserved destination", address: nil, timeZoneID: "UTC"),
+                    assetID: sentinelAssetID, assetLabel: "Preserved destination asset",
+                    packID: SignPack.illuminatedSignV1.packID,
+                    packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                    packContentVersion: SignPack.illuminatedSignV1.contentVersion, createdAt: date,
+                    initialPlacementMutationID: sentinelMutation, initialPlacementEventID: sentinelPlacementID,
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())))))
+            try destinationJournal.validateAll()
+            let sentinelRows = try rejected.session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
+            let sentinelEnvelopes = Set(sentinelRows.map(\.envelopeData))
+            let sentinelReceipts = Set(sentinelRows.map(\.receiptData))
+            XCTAssertEqual(sentinelRows.count, 1)
+            destinationWriter.invalidate()
+            try destinationLease.close()
+            let staged = try importPackage(package, into: rejected.session)
+            // The same checkpoint validation reached by clone/fork must already pass.
+            let destinationReadJournal = try MutationJournalStoreV1(modelContext: rejected.session.modelContext,
+                identity: rejected.session.workspaceIdentity, generationID: rejected.session.generationID,
+                allowStateBootstrap: false)
+            try destinationReadJournal.validateAll()
+            do {
+                _ = try await BackupRestoreService(applicationSupportURL: rejected.support,
+                    storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })).restore(
+                        validatedPackage: staged, currentModelContext: rejected.session.modelContext,
+                        currentGenerationID: rejected.session.generationID,
+                        currentGenerationRootURL: rejected.session.generationRootURL, mode: mode)
+                XCTFail("Populated C13 must not clone or fork")
+            } catch {
+                XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
+            }
+            XCTAssertEqual(try rejected.factory.openOrBootstrapCurrent().generationID, rejected.session.generationID)
+            XCTAssertEqual(try rejected.session.modelContext.fetch(FetchDescriptor<Site>()).map(\.id), [sentinelSiteID])
+            XCTAssertEqual(try rejected.session.modelContext.fetch(FetchDescriptor<Site>()).map(\.label), ["Preserved destination"])
+            XCTAssertEqual(try rejected.session.modelContext.fetch(FetchDescriptor<Asset>()).map(\.id), [sentinelAssetID])
+            XCTAssertEqual(try rejected.session.modelContext.fetch(FetchDescriptor<Asset>()).map(\.label), ["Preserved destination asset"])
+            let unchangedJournal = try rejected.session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
+            XCTAssertEqual(Set(unchangedJournal.map(\.envelopeData)), sentinelEnvelopes)
+            XCTAssertEqual(Set(unchangedJournal.map(\.receiptData)), sentinelReceipts)
+            try destinationReadJournal.validateAll()
+            XCTAssertTrue(try rejected.session.modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).isEmpty)
+        }
+        XCTAssertEqual(try Data(contentsOf: package), originalPackage)
+        XCTAssertEqual(Set(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.receiptData)), receiptBytes)
+    }
+}
+
+private struct S64IdentityClock: ApplicationClock {
+    func now() -> Date { Date(timeIntervalSince1970: 1_800_000_000) }
+}
+private struct S64IdentityIDs: ApplicationIDSource { func makeID() -> UUID { UUID() } }
+private struct S64IdentityFiles: ApplicationFileAuthorityV1 {
+    func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
+        "mutation-staging/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+    }
+}
+private final class S64PackageIdentityAuthority: EntityIdentityResolutionCanonicalSourceResolvingV1 {
+    let snapshots: [EntityIdentitySnapshotV1]
+    let atoms: [EntityConsolidationInventoryFamilyV1: [EntityConsolidationInventoryAtomV1]]
+    init(snapshots: [EntityIdentitySnapshotV1], atoms: [EntityConsolidationInventoryFamilyV1: [EntityConsolidationInventoryAtomV1]]) {
+        self.snapshots = snapshots; self.atoms = atoms
+    }
+    func resolveEntityIdentity(_ identity: WorkspaceEntityIdentityV1, workspaceID: WorkspaceID,
+        revision: UInt64) throws -> EntityIdentitySnapshotV1 {
+        guard let value = snapshots.first(where: { $0.identity == identity && $0.workspaceID == workspaceID && $0.revision == revision }) else {
+            throw EntityIdentityResolutionFailureV1.staleRevision
+        }
+        return value
+    }
+    func aliasPath(from alias: WorkspaceEntityIdentityV1, workspaceID: WorkspaceID) throws -> [WorkspaceEntityIdentityV1] {
+        guard snapshots.contains(where: { $0.identity == alias && $0.workspaceID == workspaceID }) else {
+            throw EntityIdentityResolutionFailureV1.wrongWorkspace
+        }
+        return [] // The independently validated baseline package has no C13 aliases.
+    }
+    func canonicalConsolidationAtoms(source: EntityIdentitySnapshotV1, survivor: EntityIdentitySnapshotV1,
+        family: EntityConsolidationInventoryFamilyV1) throws -> [EntityConsolidationInventoryAtomV1] {
+        guard source == snapshots[0], survivor == snapshots[1], let values = atoms[family] else {
+            throw EntityIdentityResolutionFailureV1.incompleteInventory
+        }
+        return values
+    }
+    func resolve(workspaceID: WorkspaceID, entityID: WorkspaceEntityIdentityV1,
+        expectedRevision: UInt64) throws -> EntityIdentityResolutionCanonicalSourceV1 {
+        let snapshot = try resolveEntityIdentity(entityID, workspaceID: workspaceID, revision: expectedRevision)
+        let inventory = try EntityConsolidationInventoryBuilderV1.inventory(workspaceID: workspaceID,
+            source: snapshots[0], survivor: snapshots[1], atomsByFamily: atoms)
+        return try .init(snapshot: snapshot, inventory: inventory)
+    }
+}
+
 private final class C33TemporalEvidenceAnchorS64AtomicRestore: XCTestCase {
     func testC33S64AtomicRestoreCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(

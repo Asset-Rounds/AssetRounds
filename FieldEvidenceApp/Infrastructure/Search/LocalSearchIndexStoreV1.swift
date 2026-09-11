@@ -1687,7 +1687,7 @@ enum C57MyDayLocalSearchIndexBoundaryV1 {
         let report = try C57MyDayReportProjectionRegistryV1.projection(
             plan: plan, readiness: readiness
         )
-        try C57MyDaySearchPersistenceBoundaryV1.encode(
+        return try C57MyDaySearchPersistenceBoundaryV1.encode(
             report: report, plan: plan, readiness: readiness
         )
     }

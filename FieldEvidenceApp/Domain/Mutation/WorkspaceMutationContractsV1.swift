@@ -489,6 +489,7 @@ struct FinalizeCheckMutationV1: Codable, Equatable, Sendable {
     let issueID: UUID?
     let semanticDigest: String
     let contentDigests: [String]
+    var writerAuthority: FinalizationWriterAuthorityV1? = nil
 }
 
 struct FinalizeCorrectionMutationV1: Codable, Equatable, Sendable {
@@ -500,6 +501,7 @@ struct FinalizeCorrectionMutationV1: Codable, Equatable, Sendable {
     let reportID: UUID
     let replacesReportID: UUID
     let semanticDigest: String
+    var writerAuthority: FinalizationWriterAuthorityV1? = nil
 }
 
 struct RecordWorkMutationV1: Codable, Equatable, Sendable {
@@ -509,6 +511,112 @@ struct RecordWorkMutationV1: Codable, Equatable, Sendable {
     let recordID: UUID
     let evidenceIDs: [UUID]
     let semanticDigest: String
+}
+
+enum ReportPDFTransitionV1: Codable, Equatable, Sendable {
+    case pendingToReady(relativePath: String, sha256: String, byteCount: Int64)
+    case pendingToFailed
+    case failedToPending
+
+    fileprivate var identityKey: String {
+        switch self {
+        case .pendingToReady: "pending_to_ready"
+        case .pendingToFailed: "pending_to_failed"
+        case .failedToPending: "failed_to_pending"
+        }
+    }
+}
+
+struct ReportPDFTransitionMutationV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let generationID: UUID
+    let mutationID: MutationIDV1
+    let attemptID: UUID
+    let expectedReportRevision: UInt64
+    let reportBefore: ReportPayloadV1
+    let transition: ReportPDFTransitionV1
+
+    static func make(
+        workspaceID: WorkspaceID, generationID: UUID,
+        expectedReportRevision: UInt64, reportBefore: ReportPayloadV1,
+        transition: ReportPDFTransitionV1
+    ) throws -> Self {
+        let attempt = try attemptIdentity(
+            workspaceID: workspaceID, generationID: generationID,
+            expectedReportRevision: expectedReportRevision, reportBefore: reportBefore
+        )
+        let value = Self(
+            workspaceID: workspaceID, generationID: generationID,
+            mutationID: try MutationIDV1(rawValue: identity(Data(
+                (attempt.uuidString.lowercased() + ":" + transition.identityKey).utf8
+            ))), attemptID: attempt, expectedReportRevision: expectedReportRevision,
+            reportBefore: reportBefore, transition: transition
+        )
+        try value.validate()
+        return value
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        guard generationID != zero, reportBefore.id != zero,
+              reportBefore.packetID != zero, reportBefore.sourceRecordID != zero,
+              reportBefore.schemaVersion > 0, reportBefore.snapshotSchemaVersion > 0,
+              reportBefore.createdAt.timeIntervalSince1970.isFinite,
+              reportBefore.replacesReportID != zero, reportBefore.replacesReportID != reportBefore.id,
+              MutationEnvelopeV1.isSHA256(reportBefore.snapshotSHA256),
+              reportBefore.snapshotRelativePath == "snapshots/\(reportBefore.id.uuidString.lowercased()).json",
+              reportBefore.pdfRelativePath == nil, reportBefore.pdfSHA256 == nil,
+              attemptID == (try Self.attemptIdentity(
+                workspaceID: workspaceID, generationID: generationID,
+                expectedReportRevision: expectedReportRevision, reportBefore: reportBefore)),
+              mutationID.rawValue == Self.identity(Data(
+                (attemptID.uuidString.lowercased() + ":" + transition.identityKey).utf8
+              )) else { throw WorkspaceMutationFailureV1.invalidCommand }
+        switch transition {
+        case let .pendingToReady(path, digest, count):
+            guard reportBefore.pdfState == ReportPDFState.pending.rawValue,
+                  count > 0, MutationEnvelopeV1.isSHA256(digest),
+                  path == "pdfs/\(reportBefore.id.uuidString.lowercased()).pdf",
+                  !path.isEmpty, !path.hasPrefix("/"), !path.contains("\\"),
+                  path.split(separator: "/", omittingEmptySubsequences: false)
+                    .allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        case .pendingToFailed:
+            guard reportBefore.pdfState == ReportPDFState.pending.rawValue else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        case .failedToPending:
+            guard reportBefore.pdfState == ReportPDFState.failed.rawValue else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+    }
+
+    private struct AttemptIdentity: Codable {
+        let workspaceID: WorkspaceID
+        let generationID: UUID
+        let reportID: UUID
+        let snapshotSHA256: String
+        let expectedReportRevision: UInt64
+    }
+
+    private static func attemptIdentity(
+        workspaceID: WorkspaceID, generationID: UUID,
+        expectedReportRevision: UInt64, reportBefore: ReportPayloadV1
+    ) throws -> UUID {
+        identity(try WorkspaceMutationCanonicalV1.data(AttemptIdentity(
+            workspaceID: workspaceID, generationID: generationID,
+            reportID: reportBefore.id, snapshotSHA256: reportBefore.snapshotSHA256,
+            expectedReportRevision: expectedReportRevision
+        )))
+    }
+
+    private static func identity(_ data: Data) -> UUID {
+        let bytes = Array(SHA256.hash(data: data))
+        return UUID(uuid: (bytes[0],bytes[1],bytes[2],bytes[3],bytes[4],bytes[5],bytes[6],bytes[7],
+                           bytes[8],bytes[9],bytes[10],bytes[11],bytes[12],bytes[13],bytes[14],bytes[15]))
+    }
 }
 
 struct RestoreWorkspaceMutationV1: Codable, Equatable, Sendable {
@@ -2658,6 +2766,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case eraseWorkspace(EraseWorkspaceMutationV1)
     case finalizeCheck(FinalizeCheckMutationV1)
     case finalizeCorrection(FinalizeCorrectionMutationV1)
+    case transitionReportPDF(ReportPDFTransitionMutationV1)
     case recordWork(RecordWorkMutationV1)
     case restoreWorkspace(RestoreWorkspaceMutationV1)
     case archiveEntities(ArchiveEntitiesMutationV1)
@@ -2723,6 +2832,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .eraseWorkspace: .eraseWorkspace
         case .finalizeCheck: .finalizeCheck
         case .finalizeCorrection: .finalizeCorrection
+        case .transitionReportPDF: .transitionReportPDF
         case .recordWork: .recordWork
         case .restoreWorkspace: .restoreWorkspace
         case .archiveEntities: .archiveEntities
@@ -2790,6 +2900,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case eraseWorkspace = "erase_workspace"
     case finalizeCheck = "finalize_check"
     case finalizeCorrection = "finalize_correction"
+    case transitionReportPDF = "transition_report_pdf"
     case recordWork = "record_work"
     case restoreWorkspace = "restore_workspace"
     case archiveEntities = "archive_entities_preview_compensation"
@@ -3440,8 +3551,12 @@ struct WorkspacePackageLifecycleProfileV1: Equatable, Sendable {
     }
 }
 
-struct WorkspacePackageLifecycleProfileRegistryV1: Sendable {
+struct WorkspacePackageLifecycleProfileRegistryV1: Equatable, Sendable {
     private let profiles: [WorkspacePackageLifecycleProfileV1]
+
+    /// Deterministic construction seed only. Every operation still resolves
+    /// its own exact persisted package release through resolve(_:).
+    var firstRegisteredProfile: WorkspacePackageLifecycleProfileV1 { profiles[0] }
 
     init(profiles: [WorkspacePackageLifecycleProfileV1]) throws {
         let ordered = profiles.sorted { $0.release < $1.release }
@@ -3783,6 +3898,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .deleteSite, disposition: .irreversible, stableReason: "explicit_site_deletion"),
         .init(commandKind: .eraseWorkspace, disposition: .irreversible, stableReason: "erase_cannot_be_reversed"),
         .init(commandKind: .finalizeCheck, disposition: .irreversible, stableReason: "finalized_artifact_amendment_only"),
+        .init(commandKind: .transitionReportPDF, disposition: .irreversible, stableReason: "published_report_state_is_not_reversible"),
         .init(commandKind: .finalizeCorrection, disposition: .irreversible, stableReason: "correction_supersession_only"),
         .init(commandKind: .recordWork, disposition: .irreversible, stableReason: "completed_work_supersession_only"),
         .init(commandKind: .restoreWorkspace, disposition: .irreversible, stableReason: "generation_restore_cannot_be_reversed"),
@@ -3840,7 +3956,7 @@ enum MutationReversalPolicyRegistryV1 {
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {
-        guard policies.count == 62,
+        guard policies.count == 63,
               policies.count == WorkspaceCommandKindV1.allCases.count,
               Set(policies.map(\.commandKind)).count == policies.count,
               policies.first(where: { $0.commandKind == .applyLightingDayInventory })?.disposition == .compensatable,

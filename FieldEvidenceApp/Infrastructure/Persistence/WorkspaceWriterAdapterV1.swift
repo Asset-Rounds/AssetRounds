@@ -41,6 +41,9 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     ]
     static let activeSupportedCommandKinds = supportedCommandKinds.union(locationSupportedCommandKinds)
         .union([
+            .finalizeCheck,
+            .finalizeCorrection,
+            .transitionReportPDF,
             .applySavedSmartView,
             .applyRequirementAssurance,
             .applyPartyAccountability,
@@ -102,6 +105,11 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     }
 
     private let modelContext: ModelContext
+    private let generationRootURL: URL?
+    private let expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity?
+    private let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?
+    private var stagedFinalization: FinalizationRecoveryService?
+    private var stagedPDF: (report: Report, before: ReportPayloadV1)?
     private let assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1
     private let completedActivitySnapshotResolver:
         ((CompletedActivitySnapshotV2CompatibilityReferenceV1) throws
@@ -131,9 +139,15 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         capturePromotionDestinationResolver: (any CapturePromotionDestinationResolvingV1)? = nil,
         reinspectionCanonicalSourceResolver: (any ReinspectionCanonicalSourceResolvingV1)? = nil,
         exceptionQueueCanonicalSourceResolver: (any ExceptionQueueCanonicalSourceResolvingV1)? = nil,
-        entityIdentityCanonicalResolver: (any EntityIdentityResolutionCanonicalSourceResolvingV1)? = nil
+        entityIdentityCanonicalResolver: (any EntityIdentityResolutionCanonicalSourceResolvingV1)? = nil,
+        generationRootURL: URL? = nil,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil,
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1? = nil
     ) {
         self.modelContext = modelContext
+        self.generationRootURL = generationRootURL
+        self.expectedRootIdentity = expectedRootIdentity
+        self.lifecycleProfileRegistry = lifecycleProfileRegistry
         self.completedActivitySnapshotResolver = completedActivitySnapshotResolver
         self.activityFindingEvidenceResolver = activityFindingEvidenceResolver
         self.capturePromotionDestinationResolver = capturePromotionDestinationResolver
@@ -164,12 +178,30 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         guard !modelContext.hasChanges else {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
+        // A preceding successful journal save is already durable. Discard
+        // its held rollback state before staging the next transaction.
+        stagedFinalization = nil
+        stagedPDF = nil
         do {
             _ = try ObservationAndTimeRowStoreV1.validatedIndex(in: modelContext)
         } catch {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
         switch command {
+        case .finalizeCheck, .finalizeCorrection:
+            guard let generationRootURL, let expectedRootIdentity else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let staging = FinalizationRecoveryService(
+                modelContext: modelContext, generationRootURL: generationRootURL,
+                lifecycleProfileRegistry: lifecycleProfileRegistry
+            )
+            stagedFinalization = staging
+            try staging.stageWriterMutation(command: command, expectedRootIdentity: expectedRootIdentity)
+            return try .init(affectedEntities: WorkspaceWriterV1.affectedIdentities(for: command),
+                             temporaryRelativePath: temporaryRelativePath)
+        case let .transitionReportPDF(value):
+            return try stageReportPDF(value, temporaryRelativePath: temporaryRelativePath)
         case let .createFirstSign(value):
             return try createFirstSign(
                 value,
@@ -310,8 +342,6 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
-             .finalizeCheck,
-             .finalizeCorrection,
              .recordWork,
              .restoreWorkspace,
              .archiveEntities:
@@ -5085,8 +5115,57 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     }
 
     func rollback() {
+        stagedFinalization?.restoreStagedWriterValues()
+        if let stagedPDF {
+            stagedPDF.report.pdfState = stagedPDF.before.pdfState
+            stagedPDF.report.pdfRelativePath = stagedPDF.before.pdfRelativePath
+            stagedPDF.report.pdfSHA256 = stagedPDF.before.pdfSHA256
+        }
+        stagedFinalization = nil
+        stagedPDF = nil
         assetSemanticLifecycleAdapter.rollback()
         modelContext.rollback()
+    }
+
+    private func stageReportPDF(
+        _ value: ReportPDFTransitionMutationV1, temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try value.validate()
+        guard let generationRootURL, let expectedRootIdentity,
+              generationRootURL.lastPathComponent == value.generationID.uuidString.lowercased(),
+              try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == expectedRootIdentity else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let rows = try modelContext.fetch(FetchDescriptor<Report>()).filter { $0.id == value.reportBefore.id }
+        guard rows.count == 1, let report = rows.first else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let before = ReportPayloadV1(
+            id: report.id, schemaVersion: report.schemaVersion, packetID: report.packetID,
+            sourceRecordID: report.sourceRecordID, snapshotSchemaVersion: report.snapshotSchemaVersion,
+            snapshotRelativePath: report.snapshotRelativePath, snapshotSHA256: report.snapshotSHA256,
+            pdfState: report.pdfState, pdfRelativePath: report.pdfRelativePath, pdfSHA256: report.pdfSHA256,
+            createdAt: report.createdAt, replacesReportID: report.replacesReportID
+        )
+        guard before == value.reportBefore else { throw WorkspaceMutationFailureV1.invalidCommand }
+        if case let .pendingToReady(path, digest, count) = value.transition {
+            let bytes = try ReportPDFAnchoredFile.readRegularFile(
+                at: generationRootURL.appendingPathComponent(path), within: generationRootURL,
+                rootIdentity: expectedRootIdentity
+            )
+            guard Int64(bytes.count) == count, CanonicalJSONV1.sha256(bytes) == digest else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        stagedPDF = (report, before)
+        switch value.transition {
+        case let .pendingToReady(path, digest, _):
+            report.pdfState = ReportPDFState.ready.rawValue
+            report.pdfRelativePath = path
+            report.pdfSHA256 = digest
+        case .pendingToFailed: report.pdfState = ReportPDFState.failed.rawValue
+        case .failedToPending: report.pdfState = ReportPDFState.pending.rawValue
+        }
+        return try .init(affectedEntities: [.init(kind: .report, id: report.id)],
+                         temporaryRelativePath: temporaryRelativePath)
     }
 
     private func applyLocationHierarchyChange(
