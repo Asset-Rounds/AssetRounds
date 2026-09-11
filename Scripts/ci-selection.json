@@ -9,9 +9,9 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_87DictationLocationProposalTests/testPermissionRequestsReturnExactIndependentResultsAndPreservePolicyAndErrors",
-    "FieldEvidenceAppTests/V9_87DictationLocationProposalTests/testV23P04C24A01IndependentPermissionDenialsAndCompleteManualFallbacks",
-    "FieldEvidenceAppTests/V9_87DictationLocationProposalTests/testV23P04C24I01AudioInterruptionLocationTimeoutAndScratchCleanup"
+    "FieldEvidenceAppTests/V9_43PlanRebaseTests/testCoordinatorReturnsExactAppendReceiptsAndPreviewWithoutChangingPayloads",
+    "FieldEvidenceAppTests/V9_43PlanRebaseTests/testCoordinatorRejectsPrerequisitesBeforeWritesAndPropagatesWriterFailure",
+    "FieldEvidenceAppTests/V9_40SurveySessionTests/testCoordinatorPropagatesAllThreeReceiptsAndPreservesReplayAuthorityAndErrors"
   ],
   "uiTestSelectors": []
 }

@@ -3,6 +3,68 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C26CoordinatorWriterFailure: Error { case interrupted }
+
+/// Contract-validating return/replay double, not a journal or persistence proof.
+@MainActor
+private final class C26CoordinatorReceiptWriterDouble: SurveySessionWritingV1 {
+    var accepted: SurveySessionMutationReceiptV1?
+    var result: SurveySessionMutationReceiptV1?
+    private(set) var lookups: [SurveySessionMutationV1] = []
+    private(set) var applies: [SurveySessionMutationV1] = []
+
+    func reset() { accepted = nil; result = nil; lookups = []; applies = [] }
+
+    func acceptedSurveySessionMutation(_ mutation: SurveySessionMutationV1) throws -> SurveySessionMutationReceiptV1? {
+        try mutation.validate()
+        lookups.append(mutation)
+        if let accepted { try validate(accepted, mutation: mutation) }
+        return accepted
+    }
+
+    func applySurveySession(_ mutation: SurveySessionMutationV1) throws -> SurveySessionMutationReceiptV1 {
+        try mutation.validate()
+        applies.append(mutation)
+        guard let result else { throw C26CoordinatorWriterFailure.interrupted }
+        try validate(result, mutation: mutation)
+        return result
+    }
+
+    private func validate(_ receipt: SurveySessionMutationReceiptV1,
+                          mutation: SurveySessionMutationV1) throws {
+        let rebound = try SurveySessionMutationReceiptV1(mutation: mutation,
+            mutationReceipt: receipt.mutationReceipt)
+        guard rebound == receipt,
+              receipt.mutationSHA256 == (try WorkspaceMutationCanonicalV1.sha256(mutation)) else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+    }
+
+    static func syntheticReceipt(for mutation: SurveySessionMutationV1) throws -> SurveySessionMutationReceiptV1 {
+        try mutation.validate()
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: mutation.workspaceID,
+            replicaID: ReplicaID(rawValue: C26SurveySessionTestSupport.id(8_001)))
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: mutation.workspaceID,
+            generationID: C26SurveySessionTestSupport.id(8_002),
+            writerInstanceID: C26SurveySessionTestSupport.id(8_003), workspaceRevision: 0,
+            entityRevisions: try mutation.concurrencyIdentities.map {
+                .init(identity: $0, revision: try mutation.expectedRevision(for: $0))
+            })
+        let envelope = try MutationEnvelopeV1(request: .init(mutationID: mutation.mutationID,
+            expectedRevision: expected, command: .applySurveySession(mutation)), identity: identity)
+        let images = try mutation.mutationPostImages
+        let result = try MutationPortableExpectedRevisionV1(WorkspaceExpectedRevisionV1(
+            workspaceID: mutation.workspaceID, generationID: expected.generationID,
+            writerInstanceID: expected.writerInstanceID, workspaceRevision: 1,
+            entityRevisions: try images.map { .init(identity: try $0.identity, revision: $0.revision) }))
+        let canonical = try MutationReceiptV1(identity: .init(workspaceID: mutation.workspaceID,
+            replicaID: identity.replicaID, localSequence: 1), envelope: envelope,
+            resultingRevision: result, postImages: images,
+            committedAt: C26SurveySessionTestSupport.fixedDate.addingTimeInterval(400))
+        return try SurveySessionMutationReceiptV1(mutation: mutation, mutationReceipt: canonical)
+    }
+}
+
 private enum C52ServiceRequestBoundary_V9_40SurveySessionTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
@@ -471,6 +533,76 @@ private struct C26SurveySessionCorpus: Decodable {
 
 @MainActor
 final class V9_40SurveySessionTests: XCTestCase {
+    @MainActor
+    func testCoordinatorPropagatesAllThreeReceiptsAndPreservesReplayAuthorityAndErrors() throws {
+        let definition = try C26SurveySessionTestSupport.release()
+        let package = try C26SurveySessionTestSupport.packageRelease()
+        let authority = try C26SurveySessionTestSupport.authority(for: definition, package: package)
+        let provisional = try C26SurveySessionTestSupport.provisional()
+        let draft = try C26SurveySessionTestSupport.session(authority: authority,
+            subject: .provisional(provisional.reference), state: .draft, transition: .create,
+            revision: 1, actorSlot: 601)
+        let capture = try C26SurveySessionTestSupport.capture(session: draft, release: definition, slot: 180)
+        let review = try C26SurveySessionTestSupport.session(authority: authority,
+            subject: draft.subject, state: .reviewRequired, transition: .submitForReview,
+            predecessor: draft, revision: 2, actorSlot: 602)
+        let candidate = try C26SurveySessionTestSupport.session(authority: authority,
+            subject: draft.subject, state: .completed, transition: .complete,
+            predecessor: review, revision: 3, actorSlot: 603)
+        let snapshot = try SurveyPublicationSnapshotV1(snapshotID: C26SurveySessionTestSupport.id(182),
+            session: candidate, definition: definition, currentCaptures: [capture], promotionReceipts: [],
+            publishedBy: C26SurveySessionTestSupport.actor(workspaceID: draft.workspaceID, slot: 1_801),
+            publishedAt: C26SurveySessionTestSupport.fixedDate.addingTimeInterval(300), revision: 1,
+            mutationID: C26SurveySessionTestSupport.mutation(2_604))
+        let completed = try C26SurveySessionTestSupport.session(authority: authority,
+            subject: draft.subject, state: .completed, transition: .complete,
+            latestPublication: snapshot.reference, predecessor: review, revision: 3, actorSlot: 604)
+        try review.validateSuccessor(of: draft)
+        try completed.validateSuccessor(of: review, publication: snapshot)
+        try snapshot.validate(session: completed, definition: definition, captures: [capture])
+        let mutations = try [
+            SurveySessionMutationV1(workspaceID: draft.workspaceID, mutationID: draft.mutationID,
+                payload: .applySession(draft, definition: definition, publication: nil)),
+            SurveySessionMutationV1(workspaceID: draft.workspaceID, mutationID: capture.mutationID,
+                payload: .captureFact(capture, session: draft, definition: definition, predecessors: [])),
+            SurveySessionMutationV1(workspaceID: draft.workspaceID, mutationID: completed.mutationID,
+                payload: .publish(completed, snapshot: snapshot, definition: definition, captures: [capture])),
+        ]
+        let writer = C26CoordinatorReceiptWriterDouble()
+        let coordinator = SurveySessionCoordinatorV1(writer: writer)
+        let calls: [(InspectionPackageReleaseV1) throws -> SurveySessionMutationReceiptV1] = [
+            { try coordinator.apply(session: draft, definition: definition, packageRelease: $0) },
+            { try coordinator.capture(capture, session: draft, definition: definition,
+                packageRelease: $0, predecessors: []) },
+            { try coordinator.publish(session: completed, snapshot: snapshot, definition: definition,
+                packageRelease: $0, captures: [capture]) },
+        ]
+        let otherPackage = try C26SurveySessionTestSupport.packageRelease(workflowID: "c26.other.workflow")
+        for (mutation, call) in zip(mutations, calls) {
+            writer.reset()
+            let expected = try C26CoordinatorReceiptWriterDouble.syntheticReceipt(for: mutation)
+            writer.result = expected
+            XCTAssertEqual(try call(package), expected)
+            XCTAssertEqual(writer.lookups, [mutation])
+            XCTAssertEqual(writer.applies, [mutation])
+            writer.accepted = expected
+            XCTAssertEqual(try call(package), expected)
+            XCTAssertEqual(writer.lookups, [mutation, mutation])
+            XCTAssertEqual(writer.applies, [mutation], "accepted replay must not apply again")
+            writer.reset()
+            XCTAssertThrowsError(try call(otherPackage))
+            XCTAssertTrue(writer.lookups.isEmpty, "authority must reject before any writer access")
+            XCTAssertTrue(writer.applies.isEmpty)
+            // No configured result means the explicit writer double fails.
+            XCTAssertThrowsError(try call(package)) {
+                guard case C26CoordinatorWriterFailure.interrupted = $0 else {
+                    return XCTFail("Wrong propagated writer error: \($0)")
+                }
+            }
+            XCTAssertEqual(writer.lookups, [mutation])
+            XCTAssertEqual(writer.applies, [mutation])
+        }
+    }
     func testZeroSurveyIdentitiesRejectAndCaptureSuccessorsRequireExactReferences() throws {
         let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
         let digest = C26SurveySessionTestSupport.digest()

@@ -334,6 +334,17 @@ private struct C29PlanComponent: PlanRebaseComponentV1 {
 @MainActor
 private final class C29CapturingWriter: PlanRebaseWorkspaceWritingV1 {
     private(set) var received: PlanMutationV1?
+    private(set) var ordinaryCalls: [PlanMutationV1] = []
+    var ordinaryReceipt: MutationReceiptV1?
+
+    // Explicit return-value double; no journal or persistent effects are claimed.
+    func commitPlan(_ mutation: PlanMutationV1) throws -> MutationReceiptV1 {
+        ordinaryCalls.append(mutation)
+        received = mutation
+        try mutation.validate()
+        guard let ordinaryReceipt else { throw C29PlanTestFailure.interrupted }
+        return ordinaryReceipt
+    }
 
     func commitPlan(
         _ mutation: PlanMutationV1,
@@ -353,6 +364,98 @@ private struct C29NoReceiptRecovery: PlanRebaseReceiptRecoveringV1 {
 
 @MainActor
 final class V9_43PlanRebaseTests: XCTestCase {
+    func testCoordinatorReturnsExactAppendReceiptsAndPreviewWithoutChangingPayloads() throws {
+        let fixture = try C29PlanTestSupport.fixture()
+        let writer = C29CapturingWriter()
+        let coordinator = PlanRebaseCoordinatorV1(registry: fixture.registry, writer: writer)
+        let revisionMutation = try PlanMutationV1(workspaceID: fixture.workspaceID,
+            mutationID: fixture.newRevision.mutationID,
+            payload: .appendRevision(fixture.newRevision, predecessor: fixture.oldRevision,
+                                     document: fixture.document))
+        let placementMutation = try PlanMutationV1(workspaceID: fixture.workspaceID,
+            mutationID: fixture.oldPlacement.mutationID,
+            payload: .appendPlacement(fixture.oldPlacement, predecessor: nil,
+                                      planRevision: fixture.oldRevision))
+        // Structurally valid synthetic receipts make distinct returned values
+        // observable without pretending this capturing writer persisted them.
+        func receipt(for mutation: PlanMutationV1, sequence: UInt64) throws -> MutationReceiptV1 {
+            let identity = try WorkspaceReplicaIdentityV1(workspaceID: fixture.workspaceID,
+                replicaID: ReplicaID(rawValue: C29PlanTestSupport.id(801)))
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: fixture.workspaceID,
+                generationID: C29PlanTestSupport.id(802), writerInstanceID: C29PlanTestSupport.id(803),
+                workspaceRevision: sequence - 1,
+                entityRevisions: try mutation.concurrencyIdentities.map {
+                    .init(identity: $0, revision: try mutation.expectedRevision(for: $0))
+                })
+            let envelope = try MutationEnvelopeV1(request: .init(mutationID: mutation.mutationID,
+                expectedRevision: expected, command: .applyPlan(mutation)), identity: identity)
+            let images = try mutation.mutationPostImages
+            let result = try MutationPortableExpectedRevisionV1(WorkspaceExpectedRevisionV1(
+                workspaceID: fixture.workspaceID, generationID: expected.generationID,
+                writerInstanceID: expected.writerInstanceID, workspaceRevision: sequence,
+                entityRevisions: try images.map { .init(identity: try $0.identity, revision: $0.revision) }))
+            return try MutationReceiptV1(identity: .init(workspaceID: fixture.workspaceID,
+                replicaID: identity.replicaID, localSequence: sequence), envelope: envelope,
+                resultingRevision: result, postImages: images,
+                committedAt: C29PlanTestSupport.fixedDate.addingTimeInterval(Double(sequence)))
+        }
+        let revisionReceipt = try receipt(for: revisionMutation, sequence: 1)
+        writer.ordinaryReceipt = revisionReceipt
+        XCTAssertEqual(try coordinator.appendRevision(fixture.newRevision, predecessor: fixture.oldRevision,
+            document: fixture.document, prerequisites: fixture.prerequisites), revisionReceipt)
+        XCTAssertEqual(writer.ordinaryCalls, [revisionMutation])
+        let placementReceipt = try receipt(for: placementMutation, sequence: 2)
+        XCTAssertNotEqual(revisionReceipt, placementReceipt)
+        writer.ordinaryReceipt = placementReceipt
+        XCTAssertEqual(try coordinator.appendPlacement(fixture.oldPlacement, predecessor: nil,
+            planRevision: fixture.oldRevision, prerequisites: fixture.prerequisites), placementReceipt)
+        XCTAssertEqual(writer.ordinaryCalls, [revisionMutation, placementMutation])
+        let preview = try coordinator.preview(previewID: C29PlanTestSupport.id(60),
+            workspaceID: fixture.workspaceID, oldRevision: fixture.oldRevision,
+            newRevision: fixture.newRevision, transform: C29PlanTestSupport.identityTransform(),
+            placements: fixture.oldPlacements, oldPrerequisites: fixture.prerequisites,
+            newPrerequisites: fixture.prerequisites, expectedRevision: 1,
+            generatedAt: C29PlanTestSupport.fixedDate.addingTimeInterval(2))
+        XCTAssertEqual(preview, fixture.preview)
+        XCTAssertEqual(writer.ordinaryCalls, [revisionMutation, placementMutation])
+    }
+
+    func testCoordinatorRejectsPrerequisitesBeforeWritesAndPropagatesWriterFailure() throws {
+        let fixture = try C29PlanTestSupport.fixture()
+        let writer = C29CapturingWriter()
+        let coordinator = PlanRebaseCoordinatorV1(registry: fixture.registry, writer: writer)
+        let (content, locator, release) = try C29PlanTestSupport.contentAndRelease(
+            workspaceID: C29PlanTestSupport.workspace(2))
+        let foreign = PlanPrerequisiteClosureV1(content: content, contentLocator: locator,
+            fieldReferenceRelease: release, assetLocators: [], locatorBindingReceipts: [])
+        XCTAssertThrowsError(try coordinator.appendRevision(fixture.newRevision,
+            predecessor: fixture.oldRevision, document: fixture.document, prerequisites: foreign))
+        XCTAssertThrowsError(try coordinator.appendPlacement(fixture.oldPlacement,
+            predecessor: nil, planRevision: fixture.oldRevision, prerequisites: foreign))
+        for oldIsForeign in [true, false] {
+            XCTAssertThrowsError(try coordinator.preview(previewID: C29PlanTestSupport.id(60),
+                workspaceID: fixture.workspaceID, oldRevision: fixture.oldRevision,
+                newRevision: fixture.newRevision, transform: C29PlanTestSupport.identityTransform(),
+                placements: fixture.oldPlacements,
+                oldPrerequisites: oldIsForeign ? foreign : fixture.prerequisites,
+                newPrerequisites: oldIsForeign ? fixture.prerequisites : foreign,
+                expectedRevision: 1, generatedAt: C29PlanTestSupport.fixedDate.addingTimeInterval(2)))
+        }
+        XCTAssertTrue(writer.ordinaryCalls.isEmpty)
+        XCTAssertNil(writer.received)
+        XCTAssertThrowsError(try coordinator.appendRevision(fixture.newRevision,
+            predecessor: fixture.oldRevision, document: fixture.document,
+            prerequisites: fixture.prerequisites)) {
+            guard case C29PlanTestFailure.interrupted = $0 else { return XCTFail("Wrong writer error: \($0)") }
+        }
+        XCTAssertEqual(writer.ordinaryCalls.count, 1)
+        XCTAssertThrowsError(try coordinator.appendPlacement(fixture.oldPlacement,
+            predecessor: nil, planRevision: fixture.oldRevision, prerequisites: fixture.prerequisites)) {
+            guard case C29PlanTestFailure.interrupted = $0 else { return XCTFail("Wrong writer error: \($0)") }
+        }
+        XCTAssertEqual(writer.ordinaryCalls.count, 2)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

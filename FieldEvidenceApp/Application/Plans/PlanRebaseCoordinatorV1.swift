@@ -39,7 +39,7 @@ final class PlanRebaseCoordinatorV1 {
                         document: PlanDocumentV1,
                         prerequisites: PlanPrerequisiteClosureV1) throws -> MutationReceiptV1 {
         try prerequisites.validate(revision: value, placements: [])
-        try writer.commitPlan(.init(workspaceID: value.workspaceID, mutationID: value.mutationID,
+        return try writer.commitPlan(.init(workspaceID: value.workspaceID, mutationID: value.mutationID,
                                     payload: .appendRevision(value, predecessor: predecessor,
                                                              document: document)))
     }
@@ -48,7 +48,7 @@ final class PlanRebaseCoordinatorV1 {
                          planRevision: PlanRevisionV1,
                          prerequisites: PlanPrerequisiteClosureV1) throws -> MutationReceiptV1 {
         try prerequisites.validate(revision: planRevision, placements: [value])
-        try writer.commitPlan(.init(workspaceID: value.workspaceID, mutationID: value.mutationID,
+        return try writer.commitPlan(.init(workspaceID: value.workspaceID, mutationID: value.mutationID,
                                     payload: .appendPlacement(value, predecessor: predecessor,
                                                               planRevision: planRevision)))
     }
@@ -61,7 +61,7 @@ final class PlanRebaseCoordinatorV1 {
                  expectedRevision: UInt64, generatedAt: Date) throws -> RebasePreviewV1 {
         try oldPrerequisites.validate(revision: oldRevision, placements: placements)
         try newPrerequisites.validate(revision: newRevision, placements: [])
-        try PlanRebasePreviewBuilderV1.build(previewID: previewID, workspaceID: workspaceID,
+        return try PlanRebasePreviewBuilderV1.build(previewID: previewID, workspaceID: workspaceID,
                                              oldRevision: oldRevision, newRevision: newRevision,
                                              transform: transform, placements: placements,
                                              registry: registry, expectedRevision: expectedRevision,

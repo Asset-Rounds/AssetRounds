@@ -41,7 +41,7 @@ enum C51SurveySessionScheduleCoordinatorBoundaryV1 {
             definition: definition,
             packageRelease: packageRelease
         )
-        try commit(.init(
+        return try commit(.init(
             workspaceID: session.workspaceID,
             mutationID: session.mutationID,
             payload: .applySession(session, definition: definition, publication: nil)
@@ -145,7 +145,7 @@ enum C51SurveySessionScheduleCoordinatorBoundaryV1 {
             definition: definition,
             packageRelease: packageRelease
         )
-        try commit(.init(
+        return try commit(.init(
             workspaceID: capture.workspaceID,
             mutationID: capture.mutationID,
             payload: .captureFact(
@@ -199,7 +199,7 @@ enum C51SurveySessionScheduleCoordinatorBoundaryV1 {
             definition: definition,
             packageRelease: packageRelease
         )
-        try commit(.init(
+        return try commit(.init(
             workspaceID: session.workspaceID,
             mutationID: session.mutationID,
             payload: .publish(
