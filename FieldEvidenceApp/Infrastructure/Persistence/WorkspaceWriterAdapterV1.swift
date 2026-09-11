@@ -4708,7 +4708,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                     return value.workspaceID
                 }
             case .entityConsolidationReceipt:
-                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).filter { $0.consolidationReceiptID == id }) { row in
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).filter { $0.receiptID == id }) { row in
                     let value = try row.value()
                     let values = try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).map { try $0.value() }
                     let root = try consolidationRoot(for: value, values: values)
