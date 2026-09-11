@@ -166,6 +166,22 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     private let immutableContentWriter: (any DraftImmutableContentWriterV1)?
     private let clock: Clock
     private var manifest: DraftAttachmentStagingManifestV1
+    private let initialPublicationReceipt: DraftAttachmentRestorePublicationReceiptV1?
+
+    struct RestorePublicationInput: Sendable {
+        let sourceRootURL: URL
+        let entries: [DraftAttachmentStagingEntryV1]
+        let workspaceID: WorkspaceID
+        let sourceManifestSHA256: String
+        let restoreID: UUID
+    }
+
+    private var publicationKernel: RestorePublicationKernel {
+        RestorePublicationKernel(
+            fileManager: fileManager, rootURL: rootURL,
+            workspaceScope: workspaceScope, clock: clock
+        )
+    }
 
     init(
         applicationSupportURL: URL,
@@ -174,7 +190,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         storageLedger: OwnedStorageLedgerV1? = nil,
         immutableContentWriter: (any DraftImmutableContentWriterV1)? = nil,
         fileManager: FileManager = .default,
-        clock: @escaping Clock = { Date() }
+        clock: @escaping Clock = { Date() },
+        restorePublication: RestorePublicationInput? = nil
     ) throws {
         guard applicationSupportURL.isFileURL else {
             throw DraftAttachmentStagingFailureV1.invalidRoot
@@ -214,6 +231,7 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         } catch {
             throw DraftAttachmentStagingFailureV1.invalidRoot
         }
+        var localManifest: DraftAttachmentStagingManifestV1
         let manifestURL = root.appendingPathComponent(Self.manifestName)
         if fileManager.fileExists(atPath: manifestURL.path) {
             do {
@@ -225,7 +243,7 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
                     from: data
                 )
                 try value.validate()
-                self.manifest = value
+                localManifest = value
                 try ProtectedFilePolicyV1.verify(.stagingFile, at: manifestURL)
             } catch let failure as DraftAttachmentStagingFailureV1 {
                 throw failure
@@ -236,13 +254,34 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
                 throw DraftAttachmentStagingFailureV1.corruptManifest
             }
         } else {
-            self.manifest = try DraftAttachmentStagingManifestV1(entries: [])
+            localManifest = try DraftAttachmentStagingManifestV1(entries: [])
             try Self.writeManifest(
-                self.manifest,
+                localManifest,
                 to: manifestURL,
                 fileManager: fileManager
             )
         }
+        let initialReceipt: DraftAttachmentRestorePublicationReceiptV1?
+        if let restorePublication {
+            // Keep the mutable working manifest local until the synchronous
+            // operation has persisted its result. The actor is not published.
+            let kernel = RestorePublicationKernel(
+                fileManager: fileManager, rootURL: root,
+                workspaceScope: workspaceID, clock: clock
+            )
+            initialReceipt = try kernel.adopt(
+                from: restorePublication.sourceRootURL,
+                entries: restorePublication.entries,
+                workspaceID: restorePublication.workspaceID,
+                sourceManifestSHA256: restorePublication.sourceManifestSHA256,
+                restoreID: restorePublication.restoreID,
+                manifest: &localManifest
+            )
+        } else {
+            initialReceipt = nil
+        }
+        self.manifest = localManifest
+        self.initialPublicationReceipt = initialReceipt
     }
 
     /// Stages one attachment without assigning an EvidenceID.  The default
@@ -827,135 +866,41 @@ extension DraftAttachmentStagingAdapterV1 {
         sourceManifestSHA256: String,
         restoreID: UUID
     ) throws -> DraftAttachmentRestorePublicationReceiptV1 {
-        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
-                               0, 0, 0, 0, 0, 0, 0, 0))
-        guard sourceRootURL.isFileURL, restoreID != zero,
-              workspaceID.rawValue != zero,
-              sourceRootURL.standardizedFileURL != rootURL.standardizedFileURL else {
-            throw DraftAttachmentStagingFailureV1.invalidRoot
-        }
-        let sourceManifest = try DraftAttachmentStagingManifestV1(entries: entries)
-        guard sourceManifest.manifestSHA256 == sourceManifestSHA256 else {
-            throw DraftAttachmentStagingFailureV1.digestMismatch
-        }
-        guard entries.allSatisfy({ $0.item.workspaceID == workspaceID }) else {
-            throw DraftAttachmentStagingFailureV1.wrongWorkspace
-        }
+        let kernel = publicationKernel
+        return try kernel.adopt(
+            from: sourceRootURL, entries: entries, workspaceID: workspaceID,
+            sourceManifestSHA256: sourceManifestSHA256, restoreID: restoreID,
+            manifest: &manifest
+        )
+    }
 
-        let ordered = entries.sorted {
-            $0.item.stageID.uuidString.lowercased()
-                < $1.item.stageID.uuidString.lowercased()
-        }
-        var nextEntries = manifest.entries
-        var adopted = [UUID]()
-        var reused = [UUID]()
-        var createdDirectories = [URL]()
-
-        do {
-            for entry in ordered {
-                let item = entry.item
-                guard item.state == .readyLocal || item.state == .committed,
-                      item.actualByteCount != nil,
-                      item.contentDigest != nil else {
-                    throw DraftAttachmentStagingFailureV1.invalidTransition
-                }
-                try validateScope(
-                    workspaceID: item.workspaceID,
-                    draftID: item.draftID,
-                    stageID: item.stageID
-                )
-                let sourceURL = try restoreSourceURL(
-                    sourceRootURL: sourceRootURL,
-                    entry: entry
-                )
-                let bytes = try verifiedRestoreBytes(bytesURL: sourceURL, item: item)
-
-                if let index = nextEntries.firstIndex(where: {
-                    $0.item.stageID == item.stageID
-                }) {
-                    let existing = nextEntries[index].item
-                    guard existing.workspaceID == item.workspaceID,
-                          existing.draftID == item.draftID,
-                          existing.expectedByteCount == item.expectedByteCount,
-                          existing.actualByteCount == item.actualByteCount,
-                          existing.contentDigest == item.contentDigest else {
-                        throw DraftAttachmentStagingFailureV1.staleStage
-                    }
-                    _ = try verifiedBytes(for: nextEntries[index])
-                    reused.append(item.stageID)
-                    continue
-                }
-
-                let destinationDirectory = rootURL.appendingPathComponent(
-                    Self.relativeStageDirectory(
-                        draftID: item.draftID,
-                        stageID: item.stageID
-                    ),
-                    isDirectory: true
-                )
-                try fileManager.createDirectory(
-                    at: destinationDirectory,
-                    withIntermediateDirectories: true,
-                    attributes: [.posixPermissions: 0o700]
-                )
-                try ProtectedFilePolicyV1.applyAndVerify(
-                    .stagingDirectory,
-                    at: destinationDirectory
-                )
-                createdDirectories.append(destinationDirectory)
-                // The source relative path can belong to the source draft in
-                // a clone/fork restore.  Always publish into the target's
-                // canonical adapter path; source layout is only an input.
-                let destinationRelativePath = Self.relativeDataPath(
-                    draftID: item.draftID,
-                    stageID: item.stageID
-                )
-                let destinationURL = rootURL.appendingPathComponent(
-                    destinationRelativePath
-                )
-                try bytes.write(to: destinationURL, options: [.atomic])
-                try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: destinationURL)
-                let adoptedEntry = try DraftAttachmentStagingEntryV1(
-                    item: item,
-                    relativeDataPath: destinationRelativePath,
-                    mediaType: entry.mediaType,
-                    updatedAt: clock()
-                )
-                guard try verifiedBytes(for: adoptedEntry) == bytes else {
-                    throw DraftAttachmentStagingFailureV1.digestMismatch
-                }
-                nextEntries.append(adoptedEntry)
-                adopted.append(item.stageID)
-            }
-
-            let updated = try DraftAttachmentStagingManifestV1(entries: nextEntries)
-            manifest = updated
-            try persistManifest()
-            return try DraftAttachmentRestorePublicationReceiptV1(
-                restoreID: restoreID,
-                workspaceID: workspaceID,
-                sourceManifestSHA256: sourceManifestSHA256,
-                adoptedStageIDs: adopted.sorted(by: DraftAttachmentRestorePublicationReceiptV1.uuidLess),
-                reusedStageIDs: reused.sorted(by: DraftAttachmentRestorePublicationReceiptV1.uuidLess),
-                publishedAt: clock()
+    /// Completes the existing publication operation while its new adapter is
+    /// still being initialized. No actor reference escapes into the operation.
+    static func publishRestoredStagingSynchronously(
+        applicationSupportURL: URL,
+        from sourceRootURL: URL,
+        entries: [DraftAttachmentStagingEntryV1],
+        workspaceID: WorkspaceID,
+        sourceManifestSHA256: String,
+        restoreID: UUID,
+        fileManager: FileManager = .default,
+        clock: @escaping Clock = { Date() }
+    ) throws -> DraftAttachmentRestorePublicationReceiptV1 {
+        let adapter = try Self(
+            applicationSupportURL: applicationSupportURL,
+            workspaceID: workspaceID,
+            fileManager: fileManager,
+            clock: clock,
+            restorePublication: RestorePublicationInput(
+                sourceRootURL: sourceRootURL, entries: entries,
+                workspaceID: workspaceID, sourceManifestSHA256: sourceManifestSHA256,
+                restoreID: restoreID
             )
-        } catch let failure as DraftAttachmentStagingFailureV1 {
-            for directory in createdDirectories.reversed() {
-                try? removeDirectory(directory)
-            }
-            throw failure
-        } catch let failure as ProtectedFilePolicyError
-            where failure == .protectedDataUnavailable {
-            for directory in createdDirectories.reversed() {
-                try? removeDirectory(directory)
-            }
-            throw DraftAttachmentStagingFailureV1.protectedDataUnavailable
-        } catch {
-            for directory in createdDirectories.reversed() {
-                try? removeDirectory(directory)
-            }
-            throw DraftAttachmentStagingFailureV1.cleanupFailed
+        )
+        guard let receipt = adapter.initialPublicationReceipt else {
+            throw DraftAttachmentStagingFailureV1.corruptManifest
         }
+        return receipt
     }
 }
 
@@ -983,13 +928,7 @@ private extension DraftAttachmentStagingAdapterV1 {
     ))
 
     func validateScope(workspaceID: WorkspaceID, draftID: UUID, stageID: UUID) throws {
-        guard workspaceID.rawValue != Self.zero,
-              draftID != Self.zero, stageID != Self.zero else {
-            throw DraftAttachmentStagingFailureV1.invalidAttachment
-        }
-        if let workspaceScope, workspaceScope != workspaceID {
-            throw DraftAttachmentStagingFailureV1.wrongWorkspace
-        }
+        try publicationKernel.validateScope(workspaceID: workspaceID, draftID: draftID, stageID: stageID)
     }
 
     func copyThroughScratch(
@@ -1129,82 +1068,11 @@ private extension DraftAttachmentStagingAdapterV1 {
     }
 
     func verifiedBytes(for entry: DraftAttachmentStagingEntryV1) throws -> Data {
-        let target = rootURL.appendingPathComponent(entry.relativeDataPath).standardizedFileURL
-        guard target.path.hasPrefix(rootURL.path + "/") else {
-            throw DraftAttachmentStagingFailureV1.unsafePath
-        }
-        do {
-            try ProtectedFilePolicyV1.verify(.stagingFile, at: target)
-            let data = try Data(contentsOf: target, options: .mappedIfSafe)
-            guard Int64(data.count) == entry.item.actualByteCount,
-                  let digest = entry.item.contentDigest,
-                  sha256(data) == digest.hexadecimalValue else {
-                throw DraftAttachmentStagingFailureV1.digestMismatch
-            }
-            return data
-        } catch let failure as DraftAttachmentStagingFailureV1 {
-            throw failure
-        } catch let failure as ProtectedFilePolicyError
-            where failure == .protectedDataUnavailable {
-            throw DraftAttachmentStagingFailureV1.protectedDataUnavailable
-        } catch {
-            throw DraftAttachmentStagingFailureV1.stageNotFound
-        }
-    }
-
-    func restoreSourceURL(
-        sourceRootURL: URL,
-        entry: DraftAttachmentStagingEntryV1
-    ) throws -> URL {
-        let root = sourceRootURL.standardizedFileURL
-        let item = entry.item
-        let candidates = [
-            entry.relativeDataPath,
-            "\(item.draftID.uuidString.lowercased())/\(item.stageID.uuidString.lowercased()).bin",
-            "draft-\(item.draftID.uuidString.lowercased())/stage-\(item.stageID.uuidString.lowercased()).bin",
-        ]
-        for relativePath in candidates {
-            let candidate = root.appendingPathComponent(relativePath).standardizedFileURL
-            guard candidate.path.hasPrefix(root.path + "/") else {
-                throw DraftAttachmentStagingFailureV1.unsafePath
-            }
-            guard fileManager.fileExists(atPath: candidate.path) else { continue }
-            let values = try candidate.resourceValues(
-                forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
-            )
-            guard values.isRegularFile == true, values.isSymbolicLink != true else {
-                throw DraftAttachmentStagingFailureV1.unsafePath
-            }
-            return candidate
-        }
-        throw DraftAttachmentStagingFailureV1.stageNotFound
-    }
-
-    func verifiedRestoreBytes(
-        bytesURL: URL,
-        item: AttachmentStagingItemV1
-    ) throws -> Data {
-        let data: Data
-        do {
-            data = try Data(contentsOf: bytesURL, options: .mappedIfSafe)
-        } catch {
-            throw DraftAttachmentStagingFailureV1.stageNotFound
-        }
-        guard let expectedLength = item.actualByteCount,
-              let expectedDigest = item.contentDigest,
-              Int64(data.count) == expectedLength,
-              sha256(data) == expectedDigest.hexadecimalValue else {
-            throw DraftAttachmentStagingFailureV1.digestMismatch
-        }
-        return data
+        try publicationKernel.verifiedBytes(for: entry)
     }
 
     func removeDirectory(_ url: URL) throws {
-        guard url.standardizedFileURL.path.hasPrefix(rootURL.path + "/") else {
-            throw DraftAttachmentStagingFailureV1.unsafePath
-        }
-        guard fileManager.fileExists(atPath: url.path) else { return }
-        try fileManager.removeItem(at: url)
+        try publicationKernel.removeDirectory(url)
     }
 
     static func defaultMediaType(for kind: DraftAttachmentKindV1) -> String {
@@ -1238,7 +1106,7 @@ private extension DraftAttachmentStagingAdapterV1 {
     }
 
     func sha256(_ data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        publicationKernel.sha256(data)
     }
 }
 
@@ -1247,4 +1115,251 @@ enum C34SceneRestorationAttachmentStagingBoundaryV1 {
     static let promotesStage = false
     static let claimsStagingOwnership = false
     static func validate(anchor: DraftResumeAnchorV1) -> Bool { !createsStage && !promotesStage && !claimsStagingOwnership && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}
+
+private extension DraftAttachmentStagingAdapterV1 {
+    /// A synchronous operation on caller-owned state, never an independently
+    /// retained manifest or writer. Initialization and the actor API use the
+    /// same publication checks and filesystem implementation.
+    struct RestorePublicationKernel {
+        let fileManager: FileManager
+        let rootURL: URL
+        let workspaceScope: WorkspaceID?
+        let clock: Clock
+
+        func adopt(
+            from sourceRootURL: URL,
+            entries: [DraftAttachmentStagingEntryV1],
+            workspaceID: WorkspaceID,
+            sourceManifestSHA256: String,
+            restoreID: UUID,
+            manifest: inout DraftAttachmentStagingManifestV1
+        ) throws -> DraftAttachmentRestorePublicationReceiptV1 {
+            let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0))
+            guard sourceRootURL.isFileURL, restoreID != zero,
+                  workspaceID.rawValue != zero,
+                  sourceRootURL.standardizedFileURL != rootURL.standardizedFileURL else {
+                throw DraftAttachmentStagingFailureV1.invalidRoot
+            }
+            let sourceManifest = try DraftAttachmentStagingManifestV1(entries: entries)
+            guard sourceManifest.manifestSHA256 == sourceManifestSHA256 else {
+                throw DraftAttachmentStagingFailureV1.digestMismatch
+            }
+            guard entries.allSatisfy({ $0.item.workspaceID == workspaceID }) else {
+                throw DraftAttachmentStagingFailureV1.wrongWorkspace
+            }
+
+            let ordered = entries.sorted {
+                $0.item.stageID.uuidString.lowercased()
+                    < $1.item.stageID.uuidString.lowercased()
+            }
+            var nextEntries = manifest.entries
+            var adopted = [UUID]()
+            var reused = [UUID]()
+            var createdDirectories = [URL]()
+
+            do {
+                for entry in ordered {
+                    let item = entry.item
+                    guard item.state == .readyLocal || item.state == .committed,
+                          item.actualByteCount != nil,
+                          item.contentDigest != nil else {
+                        throw DraftAttachmentStagingFailureV1.invalidTransition
+                    }
+                    try validateScope(
+                        workspaceID: item.workspaceID,
+                        draftID: item.draftID,
+                        stageID: item.stageID
+                    )
+                    let sourceURL = try restoreSourceURL(
+                        sourceRootURL: sourceRootURL,
+                        entry: entry
+                    )
+                    let bytes = try verifiedRestoreBytes(bytesURL: sourceURL, item: item)
+
+                    if let index = nextEntries.firstIndex(where: {
+                        $0.item.stageID == item.stageID
+                    }) {
+                        let existing = nextEntries[index].item
+                        guard existing.workspaceID == item.workspaceID,
+                              existing.draftID == item.draftID,
+                              existing.expectedByteCount == item.expectedByteCount,
+                              existing.actualByteCount == item.actualByteCount,
+                              existing.contentDigest == item.contentDigest else {
+                            throw DraftAttachmentStagingFailureV1.staleStage
+                        }
+                        _ = try verifiedBytes(for: nextEntries[index])
+                        reused.append(item.stageID)
+                        continue
+                    }
+
+                    let destinationDirectory = rootURL.appendingPathComponent(
+                        DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                            draftID: item.draftID,
+                            stageID: item.stageID
+                        ),
+                        isDirectory: true
+                    )
+                    try fileManager.createDirectory(
+                        at: destinationDirectory,
+                        withIntermediateDirectories: true,
+                        attributes: [.posixPermissions: 0o700]
+                    )
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        .stagingDirectory,
+                        at: destinationDirectory
+                    )
+                    createdDirectories.append(destinationDirectory)
+                    // The source relative path can belong to the source draft in
+                    // a clone/fork restore.  Always publish into the target's
+                    // canonical adapter path; source layout is only an input.
+                    let destinationRelativePath = DraftAttachmentStagingAdapterV1.relativeDataPath(
+                        draftID: item.draftID,
+                        stageID: item.stageID
+                    )
+                    let destinationURL = rootURL.appendingPathComponent(
+                        destinationRelativePath
+                    )
+                    try bytes.write(to: destinationURL, options: [.atomic])
+                    try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: destinationURL)
+                    let adoptedEntry = try DraftAttachmentStagingEntryV1(
+                        item: item,
+                        relativeDataPath: destinationRelativePath,
+                        mediaType: entry.mediaType,
+                        updatedAt: clock()
+                    )
+                    guard try verifiedBytes(for: adoptedEntry) == bytes else {
+                        throw DraftAttachmentStagingFailureV1.digestMismatch
+                    }
+                    nextEntries.append(adoptedEntry)
+                    adopted.append(item.stageID)
+                }
+
+                let updated = try DraftAttachmentStagingManifestV1(entries: nextEntries)
+                manifest = updated
+                try DraftAttachmentStagingAdapterV1.writeManifest(
+                    manifest, to: rootURL.appendingPathComponent(DraftAttachmentStagingAdapterV1.manifestName),
+                    fileManager: fileManager
+                )
+                return try DraftAttachmentRestorePublicationReceiptV1(
+                    restoreID: restoreID,
+                    workspaceID: workspaceID,
+                    sourceManifestSHA256: sourceManifestSHA256,
+                    adoptedStageIDs: adopted.sorted(by: DraftAttachmentRestorePublicationReceiptV1.uuidLess),
+                    reusedStageIDs: reused.sorted(by: DraftAttachmentRestorePublicationReceiptV1.uuidLess),
+                    publishedAt: clock()
+                )
+            } catch let failure as DraftAttachmentStagingFailureV1 {
+                for directory in createdDirectories.reversed() {
+                    try? removeDirectory(directory)
+                }
+                throw failure
+            } catch let failure as ProtectedFilePolicyError
+                where failure == .protectedDataUnavailable {
+                for directory in createdDirectories.reversed() {
+                    try? removeDirectory(directory)
+                }
+                throw DraftAttachmentStagingFailureV1.protectedDataUnavailable
+            } catch {
+                for directory in createdDirectories.reversed() {
+                    try? removeDirectory(directory)
+                }
+                throw DraftAttachmentStagingFailureV1.cleanupFailed
+            }
+        }
+
+        func validateScope(workspaceID: WorkspaceID, draftID: UUID, stageID: UUID) throws {
+            guard workspaceID.rawValue != DraftAttachmentStagingAdapterV1.zero,
+                  draftID != DraftAttachmentStagingAdapterV1.zero, stageID != DraftAttachmentStagingAdapterV1.zero else {
+                throw DraftAttachmentStagingFailureV1.invalidAttachment
+            }
+            if let workspaceScope, workspaceScope != workspaceID {
+                throw DraftAttachmentStagingFailureV1.wrongWorkspace
+            }
+        }
+
+        func verifiedBytes(for entry: DraftAttachmentStagingEntryV1) throws -> Data {
+            let target = rootURL.appendingPathComponent(entry.relativeDataPath).standardizedFileURL
+            guard target.path.hasPrefix(rootURL.path + "/") else {
+                throw DraftAttachmentStagingFailureV1.unsafePath
+            }
+            do {
+                try ProtectedFilePolicyV1.verify(.stagingFile, at: target)
+                let data = try Data(contentsOf: target, options: .mappedIfSafe)
+                guard Int64(data.count) == entry.item.actualByteCount,
+                      let digest = entry.item.contentDigest,
+                      sha256(data) == digest.hexadecimalValue else {
+                    throw DraftAttachmentStagingFailureV1.digestMismatch
+                }
+                return data
+            } catch let failure as DraftAttachmentStagingFailureV1 {
+                throw failure
+            } catch let failure as ProtectedFilePolicyError
+                where failure == .protectedDataUnavailable {
+                throw DraftAttachmentStagingFailureV1.protectedDataUnavailable
+            } catch {
+                throw DraftAttachmentStagingFailureV1.stageNotFound
+            }
+        }
+
+        func restoreSourceURL(
+            sourceRootURL: URL,
+            entry: DraftAttachmentStagingEntryV1
+        ) throws -> URL {
+            let root = sourceRootURL.standardizedFileURL
+            let item = entry.item
+            let candidates = [
+                entry.relativeDataPath,
+                "\(item.draftID.uuidString.lowercased())/\(item.stageID.uuidString.lowercased()).bin",
+                "draft-\(item.draftID.uuidString.lowercased())/stage-\(item.stageID.uuidString.lowercased()).bin",
+            ]
+            for relativePath in candidates {
+                let candidate = root.appendingPathComponent(relativePath).standardizedFileURL
+                guard candidate.path.hasPrefix(root.path + "/") else {
+                    throw DraftAttachmentStagingFailureV1.unsafePath
+                }
+                guard fileManager.fileExists(atPath: candidate.path) else { continue }
+                let values = try candidate.resourceValues(
+                    forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+                )
+                guard values.isRegularFile == true, values.isSymbolicLink != true else {
+                    throw DraftAttachmentStagingFailureV1.unsafePath
+                }
+                return candidate
+            }
+            throw DraftAttachmentStagingFailureV1.stageNotFound
+        }
+
+        func verifiedRestoreBytes(
+            bytesURL: URL,
+            item: AttachmentStagingItemV1
+        ) throws -> Data {
+            let data: Data
+            do {
+                data = try Data(contentsOf: bytesURL, options: .mappedIfSafe)
+            } catch {
+                throw DraftAttachmentStagingFailureV1.stageNotFound
+            }
+            guard let expectedLength = item.actualByteCount,
+                  let expectedDigest = item.contentDigest,
+                  Int64(data.count) == expectedLength,
+                  sha256(data) == expectedDigest.hexadecimalValue else {
+                throw DraftAttachmentStagingFailureV1.digestMismatch
+            }
+            return data
+        }
+
+        func removeDirectory(_ url: URL) throws {
+            guard url.standardizedFileURL.path.hasPrefix(rootURL.path + "/") else {
+                throw DraftAttachmentStagingFailureV1.unsafePath
+            }
+            guard fileManager.fileExists(atPath: url.path) else { return }
+            try fileManager.removeItem(at: url)
+        }
+
+        func sha256(_ data: Data) -> String {
+            SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        }
+    }
 }

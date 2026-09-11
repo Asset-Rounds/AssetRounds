@@ -749,7 +749,7 @@ enum KernelBackupRestoreRegistryV4 {
               PlanRestoreIdentityPolicyV1.recordsSchemaVersion == 27,
               PlanRestoreIdentityPolicyV1.durableFamilyCount == 4,
               !PlanRestoreIdentityPolicyV1.sourcePlanAutomaticallyActive,
-              !PlanRestoreIdentityPolicyV1.derivedPreviewRestored,
+              PlanRestoreIdentityPolicyV1.derivedPreviewRebuilt,
               PlanReplacementRestorePolicyV1.persistentSchemaVersion == 28,
               PlanReplacementRestorePolicyV1.recordsSchemaVersion == 27,
               PlanReplacementRestorePolicyV1.durableFamilyCount == 4,

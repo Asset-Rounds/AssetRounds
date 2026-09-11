@@ -338,12 +338,12 @@ struct BackupCanonicalEncoderV1: Sendable {
         }
         if records.recordsSchemaVersion >= 34 {
             fields["operationalContacts"] = .array(
-                records.operationalContacts.map(Self.operationalContactRecord)
+                try records.operationalContacts.map(Self.operationalContactRecord)
             )
         }
         if records.recordsSchemaVersion >= 35 {
             fields["activityContracts"] = .array(
-                records.activityContracts.map(Self.activityContractRecord)
+                try records.activityContracts.map(Self.activityContractRecord)
             )
         }
         if records.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
@@ -1079,9 +1079,9 @@ private extension BackupCanonicalEncoderV1 {
     static func fieldReferenceRecord(_ value:V22BackupFieldReferenceRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
     static func validAccessibleDocumentAssessments(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<22{return records.accessibleDocumentAssessments.isEmpty};let keys=records.accessibleDocumentAssessments.map{$0.id.uuidString};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.accessibleDocumentAssessments.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.accessibleDocumentAssessments.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func accessibleDocumentAssessmentRecord(_ value:V23BackupAccessibleDocumentAssessmentRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
- static func validSurveyDefinitions(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<23{return records.surveyDefinitions.isEmpty};guard (23...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory==nil{return records.surveyDefinitions.isEmpty};let keys=records.surveyDefinitions.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.surveyDefinitions.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.surveyDefinitions.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
+ static func validSurveyDefinitions(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<23{return records.surveyDefinitions.isEmpty};guard (23...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory==nil{return records.surveyDefinitions.isEmpty};let keys=records.surveyDefinitions.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.surveyDefinitions.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.surveyDefinitions.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func surveyDefinitionRecord(_ value:V24BackupSurveyDefinitionRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
- static func validGuidedSurveys(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<24{return records.guidedSurveys.isEmpty};guard (24...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory == nil{return records.guidedSurveys.isEmpty};let keys=records.guidedSurveys.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.guidedSurveys.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.guidedSurveys.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
+ static func validGuidedSurveys(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<24{return records.guidedSurveys.isEmpty};guard (24...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory == nil{return records.guidedSurveys.isEmpty};let keys=records.guidedSurveys.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.guidedSurveys.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.guidedSurveys.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func guidedSurveyRecord(_ value:V25BackupGuidedSurveyRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
     static func validAssetLocators(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 25 { return records.assetLocators.isEmpty }
@@ -1301,13 +1301,16 @@ private extension BackupCanonicalEncoderV1 {
         .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"mutationID":CanonicalJSONV1.uuid(value.mutationID),"snapshotID":CanonicalJSONV1.uuid(value.snapshotID),"snapshotSHA256":.string(value.snapshotSHA256),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])
     }
 
-    static func operationalContactRecord(_ value: V35BackupOperationalContactRecordV1) -> CanonicalJSONValueV1 {
-        .object([
+    static func operationalContactRecord(_ value: V35BackupOperationalContactRecordV1) throws -> CanonicalJSONValueV1 {
+        guard let revision = Int(exactly: value.revision) else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        return .object([
             "canonicalData": .string(value.canonicalData.base64EncodedString()),
             "id": CanonicalJSONV1.uuid(value.id),
             "kind": .string(value.kind.rawValue),
             "mutationID": CanonicalJSONV1.uuid(value.mutationID),
-            "revision": .number(String(value.revision)),
+            "revision": .integer(revision),
             "semanticSHA256": .string(value.semanticSHA256),
             "workspaceID": CanonicalJSONV1.uuid(value.workspaceID),
         ])
@@ -1327,16 +1330,19 @@ private extension BackupCanonicalEncoderV1 {
             && (try? records.validateC46OperationalContacts()) != nil
     }
 
-    static func activityContractRecord(_ value: V36BackupActivityContractRecordV2) -> CanonicalJSONValueV1 {
+    static func activityContractRecord(_ value: V36BackupActivityContractRecordV2) throws -> CanonicalJSONValueV1 {
+        guard let revision = Int(exactly: value.revision) else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
         // Keep the canonical payload and digest opaque here. In particular,
         // an unknown ActivityKindV2 is preserved inside canonicalData rather
         // than normalized through a closed writable-kind switch.
-        .object([
+        return .object([
             "activityID": CanonicalJSONV1.uuid(value.activityID),
             "canonicalData": .string(value.canonicalData.base64EncodedString()),
             "id": CanonicalJSONV1.uuid(value.id), "kind": .string(value.kind.rawValue),
             "mutationID": CanonicalJSONV1.uuid(value.mutationID),
-            "revision": .number(String(value.revision)),
+            "revision": .integer(revision),
             "semanticSHA256": .string(value.semanticSHA256),
             "workspaceID": CanonicalJSONV1.uuid(value.workspaceID),
         ])

@@ -340,8 +340,8 @@ private extension EntitlementStore {
                 relativePath: policyRelativePath(name),
                 within: applicationSupportURL
             ) {
-                try verifyAuthority()
-                try verifyLeaf(
+                try self.verifyAuthority()
+                try self.verifyLeaf(
                     name,
                     descriptor: descriptor,
                     expected: expected
@@ -389,8 +389,8 @@ private extension EntitlementStore {
                 relativePath: policyRelativePath(name),
                 within: applicationSupportURL
             ) {
-                try verifyAuthority()
-                try verifyLeaf(
+                try self.verifyAuthority()
+                try self.verifyLeaf(
                     name,
                     descriptor: retainedDescriptor,
                     expected: expected

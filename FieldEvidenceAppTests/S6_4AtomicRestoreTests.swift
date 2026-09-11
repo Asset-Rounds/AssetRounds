@@ -2188,3 +2188,144 @@ extension C45AtomicRestoreCompatibilityTests {
         )
     }
 }
+
+
+extension S6_4AtomicRestoreTests {
+    @MainActor
+    func testPreparedRestorePublishesRealDraftBytesAndRequiresBindingBeforeCleanup() async throws {
+        let source = try makeHarness("draft-publication-source")
+        defer { try? fileManager.removeItem(at: source.root) }
+        let session = source.session
+        let workspace = session.workspaceIdentity.workspaceID
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        let adapter = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: source.support, workspaceID: workspace, clock: { date }
+        )
+        let bytes = Data("physical draft attachment retained across prepared restore".utf8)
+        let item = try await adapter.stage(data: bytes, draftID: UUID(),
+            workspaceID: workspace, attachmentKind: .file)
+        let checkpoint = try FieldDraftCheckpointV1(
+            draftID: item.draftID, workspaceID: workspace,
+            scope: fixture.activeCheckpoint.scope, purpose: fixture.activeCheckpoint.purpose,
+            codec: fixture.activeCheckpoint.codec, baseCanonicalRevision: 0, draftRevision: 1,
+            payloadData: fixture.activeCheckpoint.payloadData, stageIDs: [item.stageID],
+            resumeAnchor: fixture.activeCheckpoint.resumeAnchor, state: .active,
+            updatedAt: date, mutationID: MutationIDV1(rawValue: UUID())
+        )
+        let registry = try source.factory.makeGenerationLeaseRegistry()
+        let epoch = try XCTUnwrap(session.generationEpoch)
+        let lease = try registry.acquireHandle(epoch: epoch, role: .writer)
+        defer { try? lease.close() }
+        let fence = try source.factory.makeWriterFence(expectedGenerationEpoch: epoch,
+            writerLeaseToken: lease.token, registry: registry)
+        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            allowStateBootstrap: false, staleWriterFence: fence)
+        try MutationReceiptRecoveryServiceV1(store: journal).recoverBeforeWriterActivation()
+        let writer = try WorkspaceWriterV1(identity: session.workspaceIdentity,
+            generationID: session.generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: UUID()),
+            clock: S64IdentityClock(), idSource: S64IdentityIDs(), fileAuthority: S64IdentityFiles(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext), journalStore: journal)
+        let payloads: [FieldDraftMutationPayloadV1] = [.createCheckpoint(checkpoint), .appendStagingItem(item)]
+        for payload in payloads {
+            let mutation = try FieldDraftMutationV1(workspaceID: workspace, expectedRevision: 0,
+                expectedBaseCanonicalRevision: 0, mutationID: payload.mutationID, postImage: payload)
+            let current = try writer.currentRevision()
+            let identity = try mutation.concurrencyIdentity
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+                generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision,
+                entityRevisions: [.init(identity: identity, revision: 0)])
+            let result = try writer.execute(.init(mutationID: mutation.mutationID,
+                expectedRevision: expected, command: .applyFieldDraft(mutation)))
+            XCTAssertEqual(result.mutationID, mutation.mutationID)
+            let durable = try XCTUnwrap(journal.receipt(mutationID: mutation.mutationID))
+            XCTAssertEqual(durable.mutationID, mutation.mutationID)
+        }
+        let destination = source.root.appendingPathComponent("export")
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        let exporter = BackupExportService(modelContext: session.modelContext,
+            generationRootURL: session.generationRootURL, now: { date.addingTimeInterval(60) })
+        let preview = try exporter.prepare()
+        let package = try exporter.export(previewID: preview.id, to: destination)
+        for point in [BackupRestoreFailurePoint.afterPreparedWrite, .beforeGenerationInstall] {
+            let target = try makeHarness("draft-publication-\(point)")
+            defer { try? fileManager.removeItem(at: target.root) }
+            let validated = try importPackage(package, into: target.session)
+            XCTAssertEqual(validated.records.fieldDrafts.count, 2)
+            let restoreID = UUID(), newGenerationID = UUID()
+            let service = try BackupRestoreService(applicationSupportURL: target.support,
+                makeUUID: sequence([newGenerationID, restoreID]),
+                failureInjection: BackupRestoreFailureInjection(failOnceAt: point))
+            await XCTAssertThrowsErrorAsync {
+                _ = try await service.restore(validatedPackage: validated,
+                    currentModelContext: target.session.modelContext,
+                    currentGenerationID: target.session.generationID,
+                    currentGenerationRootURL: target.session.generationRootURL)
+            } verify: { error in
+                XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
+            }
+            let intentStore = try RestoreIntentStore(applicationSupportURL: target.support)
+            let intent = try XCTUnwrap(intentStore.load())
+            XCTAssertEqual(intent.phase, .prepared)
+            let bindingURL = target.support.appendingPathComponent(
+                "FieldEvidenceRestore/draft-publication-\(intent.restoreID.uuidString.lowercased()).json"
+            )
+            let recovery = try BackupRestoreService(applicationSupportURL: target.support)
+            if point == .afterPreparedWrite {
+                XCTAssertTrue(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+                XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path))
+                // An existing invalid binding must stop synchronous recovery
+                // before it discards the only imported source package.
+                try Data("{}".utf8).write(to: bindingURL, options: .atomic)
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: bindingURL)
+                let packageBefore = try tree(validated.stagedPackageURL)
+                XCTAssertThrowsError(try recovery.reconcileAtStartup())
+                XCTAssertEqual(try tree(validated.stagedPackageURL), packageBefore)
+                XCTAssertEqual(try intentStore.load(), intent)
+                try fileManager.removeItem(at: bindingURL)
+            } else {
+                // The ordinary restore call has already published and bound
+                // actual bytes before reaching the pre-install interruption.
+                XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+                let object = try XCTUnwrap(JSONSerialization.jsonObject(
+                    with: Data(contentsOf: bindingURL)) as? [String: Any])
+                let receiptData = try JSONSerialization.data(withJSONObject: XCTUnwrap(object["receipt"]))
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .millisecondsSince1970
+                let receipt = try decoder.decode(DraftAttachmentRestorePublicationReceiptV1.self,
+                    from: receiptData)
+                try receipt.validate()
+                XCTAssertEqual(receipt.restoreID, intent.restoreID)
+                XCTAssertEqual(receipt.workspaceID, workspace)
+                XCTAssertEqual(receipt.adoptedStageIDs, [item.stageID])
+                XCTAssertTrue(receipt.reusedStageIDs.isEmpty)
+                XCTAssertFalse(receipt.atomicAcrossRoots)
+                XCTAssertTrue(receipt.canonicalCommitRequired)
+            }
+            // This call remains synchronous and restores the old complete
+            // generation for an interrupted prepared transaction.
+            XCTAssertNil(try recovery.reconcileAtStartup())
+            XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
+            XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+            XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path))
+            XCTAssertNil(try intentStore.load())
+            let reopened = try DraftAttachmentStagingAdapterV1(
+                applicationSupportURL: target.support, workspaceID: workspace
+            )
+            let entries = try await reopened.entries()
+            let retained = try await reopened.data(stageID: item.stageID)
+            XCTAssertEqual(entries.count, 1)
+            XCTAssertEqual(entries.first?.item.workspaceID, workspace)
+            XCTAssertEqual(entries.first?.item.contentDigest, item.contentDigest)
+            XCTAssertEqual(entries.first?.item.actualByteCount, Int64(bytes.count))
+            XCTAssertEqual(retained, bytes)
+            XCTAssertEqual(try target.session.modelContext.fetchCount(FetchDescriptor<AttachmentStagingItemRow>()), 0)
+            XCTAssertNil(try recovery.reconcileAtStartup())
+            let retainedAgain = try await reopened.data(stageID: item.stageID)
+            XCTAssertEqual(retainedAgain, bytes)
+        }
+    }
+}

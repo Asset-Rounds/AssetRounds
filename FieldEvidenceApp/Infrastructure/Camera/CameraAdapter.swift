@@ -95,7 +95,8 @@ enum AssetLocatorCameraBoundaryV1 {
     static let successfulDecodeStartsWork = false
 
     static func decodedInput(_ data: Data) -> LocatorDecodedInputV1 {
-        AssetLocatorInputDecoderV1.decode(data, source: .camera)
+        (try? AssetLocatorInputDecoderV1().localSigned(data, source: .camera))?.decoded
+            ?? .damagedOrIncomplete
     }
 }
 

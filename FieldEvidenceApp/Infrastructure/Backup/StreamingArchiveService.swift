@@ -242,19 +242,22 @@ struct StreamingArchiveService: Sendable {
         do { try storageCheck(requiredStorage) }
         catch { throw Self.map(error) }
         let stagingRoot = plan.stagingDirectoryURL.standardizedFileURL
-        let stagingRootDescriptor = try openDirectory(stagingRoot)
+        let stagingRootDescriptor = try Self.openDirectory(stagingRoot)
         defer { Darwin.close(stagingRootDescriptor) }
-        let stagingRootSnapshot = try snapshotDirectory(stagingRootDescriptor)
-        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: stagingRoot) {
+        let stagingRootSnapshot = try Self.snapshotDirectory(stagingRootDescriptor)
+        let verifyStagingRootAuthority = {
             guard try Self.snapshotDirectory(stagingRootDescriptor)
                 == stagingRootSnapshot else {
                 throw StreamingArchiveFailureV1.sourceChanged
             }
         }
+        try verifyStagingRootAuthority()
+        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: stagingRoot)
+        try verifyStagingRootAuthority()
 
-        let operationName = "archive-\(canonical(makeOperationID()))"
+        let operationName = "archive-\(Self.canonical(makeOperationID()))"
         guard Darwin.mkdirat(stagingRootDescriptor, operationName, 0o700) == 0 else {
-            throw mapWriteFailure()
+            throw Self.mapWriteFailure()
         }
         let operationURL = stagingRoot.appendingPathComponent(
             operationName,
@@ -267,7 +270,7 @@ struct StreamingArchiveService: Sendable {
         )
         guard operationDescriptor >= 0 else {
             _ = Darwin.unlinkat(stagingRootDescriptor, operationName, AT_REMOVEDIR)
-            throw mapOpenFailure()
+            throw Self.mapOpenFailure()
         }
         let operationSnapshot: StreamingArchiveSourceSnapshotV1
         do {
@@ -288,7 +291,7 @@ struct StreamingArchiveService: Sendable {
         } catch {
             Darwin.close(operationDescriptor)
             _ = Darwin.unlinkat(stagingRootDescriptor, operationName, AT_REMOVEDIR)
-            throw map(error)
+            throw Self.map(error)
         }
 
         var stagedNames: [String] = []
@@ -314,7 +317,7 @@ struct StreamingArchiveService: Sendable {
                     O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
                     0o600
                 )
-                guard stagedDescriptor >= 0 else { throw mapWriteFailure() }
+                guard stagedDescriptor >= 0 else { throw Self.mapWriteFailure() }
                 stagedNames.append(stagedName)
                 do {
                     let stagedSnapshot = try Self.snapshotRegularFile(stagedDescriptor)
@@ -333,13 +336,13 @@ struct StreamingArchiveService: Sendable {
                         cancellation: cancellation
                     )
                     guard Darwin.fsync(stagedDescriptor) == 0 else {
-                        throw mapWriteFailure()
+                        throw Self.mapWriteFailure()
                     }
                     guard result.byteCount == entry.expectedUncompressedByteCount,
                           result.sha256 == entry.expectedContentSHA256 else {
                         throw StreamingArchiveFailureV1.contentMismatch
                     }
-                    try ProtectedFilePolicyV1.verify(.stagingFile, at: stagedURL) {
+                    let verifyStagedFileAuthority = {
                         let after = try Self.snapshotRegularFile(stagedDescriptor)
                         guard after.device == stagedSnapshot.device,
                               after.inode == stagedSnapshot.inode,
@@ -348,13 +351,16 @@ struct StreamingArchiveService: Sendable {
                             throw StreamingArchiveFailureV1.sourceChanged
                         }
                     }
-                    storedTotal = try adding(
+                    try verifyStagedFileAuthority()
+                    try ProtectedFilePolicyV1.verify(.stagingFile, at: stagedURL)
+                    try verifyStagedFileAuthority()
+                    storedTotal = try Self.adding(
                         storedTotal,
                         result.byteCount,
                         maximum: limits.maximumStoredAggregateByteCount,
                         failure: .storedLimitExceeded
                     )
-                    uncompressedTotal = try adding(
+                    uncompressedTotal = try Self.adding(
                         uncompressedTotal,
                         result.byteCount,
                         maximum: limits.maximumUncompressedAggregateByteCount,
@@ -376,7 +382,7 @@ struct StreamingArchiveService: Sendable {
                 Darwin.close(stagedDescriptor)
             }
             guard Darwin.fsync(operationDescriptor) == 0 else {
-                throw mapWriteFailure()
+                throw Self.mapWriteFailure()
             }
 
             let index = StreamingArchiveIndexV1(
@@ -389,33 +395,33 @@ struct StreamingArchiveService: Sendable {
             guard indexData.count <= limits.maximumIndexByteCount else {
                 throw StreamingArchiveFailureV1.entryLimitExceeded
             }
-            let header = makeHeader(
+            let header = Self.makeHeader(
                 indexByteCount: Int64(indexData.count),
                 indexDigest: Data(SHA256.hash(data: indexData))
             )
 
             let destination = destinationURL.standardizedFileURL
             guard destinationURL.isFileURL,
-                  validLeaf(destination.lastPathComponent) else {
+                  Self.validLeaf(destination.lastPathComponent) else {
                 throw StreamingArchiveFailureV1.invalidDestination
             }
             let destinationParentURL = destination.deletingLastPathComponent()
             let destinationParent = try Self.openDirectory(destinationParentURL)
             destinationParentDescriptor = destinationParent
-            guard !existsNoFollow(
+            guard !Self.existsNoFollow(
                 parent: destinationParent,
                 name: destination.lastPathComponent
             ) else {
                 throw StreamingArchiveFailureV1.destinationExists
             }
-            let temporaryName = ".\(destination.lastPathComponent).\(canonical(makeOperationID())).tmp"
+            let temporaryName = ".\(destination.lastPathComponent).\(Self.canonical(makeOperationID())).tmp"
             let destinationDescriptor = Darwin.openat(
                 destinationParent,
                 temporaryName,
                 O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
                 0o600
             )
-            guard destinationDescriptor >= 0 else { throw mapWriteFailure() }
+            guard destinationDescriptor >= 0 else { throw Self.mapWriteFailure() }
             temporaryPublication = (destinationParent, temporaryName, nil)
             var archiveHasher = SHA256()
             let finalTemporarySnapshot: StreamingArchiveSourceSnapshotV1
@@ -428,9 +434,9 @@ struct StreamingArchiveService: Sendable {
                     temporaryName,
                     temporarySnapshot
                 )
-                try writeAll(header, to: destinationDescriptor)
+                try Self.writeAll(header, to: destinationDescriptor)
                 archiveHasher.update(data: header)
-                try writeAll(indexData, to: destinationDescriptor)
+                try Self.writeAll(indexData, to: destinationDescriptor)
                 archiveHasher.update(data: indexData)
                 for (stagedName, expectedEntry) in zip(stagedNames, index.entries) {
                     try cancellation.checkpoint()
@@ -439,7 +445,7 @@ struct StreamingArchiveService: Sendable {
                         stagedName,
                         O_RDONLY | O_NOFOLLOW
                     )
-                    guard stagedDescriptor >= 0 else { throw mapOpenFailure() }
+                    guard stagedDescriptor >= 0 else { throw Self.mapOpenFailure() }
                     do {
                         let stagedBefore = try Self.snapshotRegularFile(stagedDescriptor)
                         guard stagedBefore.byteCount == expectedEntry.storedByteCount else {
@@ -455,7 +461,7 @@ struct StreamingArchiveService: Sendable {
                             cancellation: cancellation
                         )
                         guard try Self.snapshotRegularFile(stagedDescriptor) == stagedBefore,
-                              hex(stagedHasher.finalize())
+                              Self.hex(stagedHasher.finalize())
                                 == expectedEntry.storedSHA256 else {
                             throw StreamingArchiveFailureV1.contentMismatch
                         }
@@ -466,7 +472,7 @@ struct StreamingArchiveService: Sendable {
                     Darwin.close(stagedDescriptor)
                 }
                 guard Darwin.fsync(destinationDescriptor) == 0 else {
-                    throw mapWriteFailure()
+                    throw Self.mapWriteFailure()
                 }
                 finalTemporarySnapshot = try Self.snapshotRegularFile(
                     destinationDescriptor
@@ -486,7 +492,7 @@ struct StreamingArchiveService: Sendable {
                 throw error
             }
             Darwin.close(destinationDescriptor)
-            let archiveDigest = hex(archiveHasher.finalize())
+            let archiveDigest = Self.hex(archiveHasher.finalize())
 
             try removeStagedFiles(
                 stagedNames,
@@ -519,7 +525,7 @@ struct StreamingArchiveService: Sendable {
                 UInt32(RENAME_EXCL)
             ) == 0 else {
                 if errno == EEXIST { throw StreamingArchiveFailureV1.destinationExists }
-                throw mapWriteFailure()
+                throw Self.mapWriteFailure()
             }
             temporaryPublication = nil
             published = (
@@ -528,7 +534,7 @@ struct StreamingArchiveService: Sendable {
                 finalTemporarySnapshot
             )
             guard Darwin.fsync(destinationParent) == 0 else {
-                if identityMatches(
+                if Self.identityMatches(
                     parent: destinationParent,
                     name: destination.lastPathComponent,
                     snapshot: finalTemporarySnapshot
@@ -537,16 +543,16 @@ struct StreamingArchiveService: Sendable {
                     destination.lastPathComponent,
                     0
                 ) == 0, Darwin.fsync(destinationParent) == 0 {
-                    throw mapWriteFailure()
+                    throw Self.mapWriteFailure()
                 }
                 throw StreamingArchiveFailureV1.cleanupFailed
             }
             published = nil
             Darwin.close(destinationParent)
             destinationParentDescriptor = nil
-            let archiveByteCount = try adding(
+            let archiveByteCount = try Self.adding(
                 Int64(header.count),
-                try adding(
+                try Self.adding(
                     Int64(indexData.count),
                     storedTotal,
                     maximum: Int64.max,
@@ -571,7 +577,7 @@ struct StreamingArchiveService: Sendable {
                 ) { cleanupSucceeded = false }
             }
             if let published,
-               identityMatches(
+               Self.identityMatches(
                 parent: published.parent,
                 name: published.name,
                 snapshot: published.snapshot
@@ -617,7 +623,7 @@ struct StreamingArchiveService: Sendable {
             if error is GenerationLeaseRegistryFailureV1 || error is CancellationError {
                 throw error
             }
-            throw map(error)
+            throw Self.map(error)
         }
     }
 
@@ -723,9 +729,9 @@ struct StreamingArchiveService: Sendable {
         if pathProfile == .portableReviewRequest {
             try PortableReviewRequestArchiveAdmissionV1.validate(index)
         }
-        let expectedArchiveBytes = try adding(
+        let expectedArchiveBytes = try Self.adding(
             Int64(StreamingArchiveFormatV1.headerByteCount),
-            try adding(
+            try Self.adding(
                 headerValues.indexByteCount,
                 index.storedPayloadByteCount,
                 maximum: Int64.max,
@@ -737,14 +743,14 @@ struct StreamingArchiveService: Sendable {
         guard before.byteCount == expectedArchiveBytes else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
-        let requiredStorage = try adding(
+        let requiredStorage = try Self.adding(
             index.uncompressedPayloadByteCount,
             limits.stagingReserveByteCount,
             maximum: Int64.max,
             failure: .uncompressedLimitExceeded
         )
         do { try storageCheck(requiredStorage) }
-        catch { throw map(error) }
+        catch { throw Self.map(error) }
 
         var created = try createExtractionRoot(extractedDirectoryURL)
         do {
@@ -759,7 +765,7 @@ struct StreamingArchiveService: Sendable {
                 )
                 let components = entry.path.split(separator: "/").map(String.init)
                 let parentRelative = components.dropLast().joined(separator: "/")
-                let parentDescriptor = try openRelativeDirectory(
+                let parentDescriptor = try Self.openRelativeDirectory(
                     parentRelative,
                     rootDescriptor: created.rootDescriptor
                 )
@@ -773,7 +779,7 @@ struct StreamingArchiveService: Sendable {
                     O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
                     0o600
                 )
-                guard outputDescriptor >= 0 else { throw mapWriteFailure() }
+                guard outputDescriptor >= 0 else { throw Self.mapWriteFailure() }
                 created.files.append(entry.path)
                 let outputURL = created.rootURL.appendingPathComponent(entry.path)
                 do {
@@ -799,9 +805,9 @@ struct StreamingArchiveService: Sendable {
                         cancellation: cancellation
                     )
                     guard Darwin.fsync(outputDescriptor) == 0 else {
-                        throw mapWriteFailure()
+                        throw Self.mapWriteFailure()
                     }
-                    let digest = hex(contentHasher.finalize())
+                    let digest = Self.hex(contentHasher.finalize())
                     let afterOutput = try Self.snapshotRegularFile(outputDescriptor)
                     guard digest == entry.storedSHA256,
                           digest == entry.contentSHA256,
@@ -811,19 +817,22 @@ struct StreamingArchiveService: Sendable {
                           afterOutput.byteCount == entry.uncompressedByteCount else {
                         throw StreamingArchiveFailureV1.contentMismatch
                     }
-                    try ProtectedFilePolicyV1.verify(.stagingFile, at: outputURL) {
+                    let verifyOutputAuthority = {
                         let current = try Self.snapshotRegularFile(outputDescriptor)
                         guard current == afterOutput else {
                             throw StreamingArchiveFailureV1.sourceChanged
                         }
                     }
+                    try verifyOutputAuthority()
+                    try ProtectedFilePolicyV1.verify(.stagingFile, at: outputURL)
+                    try verifyOutputAuthority()
                 } catch {
                     Darwin.close(outputDescriptor)
                     throw error
                 }
                 Darwin.close(outputDescriptor)
                 guard Darwin.fsync(parentDescriptor) == 0 else {
-                    throw mapWriteFailure()
+                    throw Self.mapWriteFailure()
                 }
             }
             let after = try Self.snapshotRegularFile(archiveDescriptor)
@@ -833,9 +842,9 @@ struct StreamingArchiveService: Sendable {
             try cancellation.checkpoint()
             guard Darwin.fsync(created.rootDescriptor) == 0,
                   Darwin.fsync(created.parentDescriptor) == 0 else {
-                throw mapWriteFailure()
+                throw Self.mapWriteFailure()
             }
-            let digest = hex(archiveHasher.finalize())
+            let digest = Self.hex(archiveHasher.finalize())
             Darwin.close(created.rootDescriptor)
             Darwin.close(created.parentDescriptor)
             return StreamingArchiveExtractionV1(
@@ -850,7 +859,7 @@ struct StreamingArchiveService: Sendable {
             if error is GenerationLeaseRegistryFailureV1 || error is CancellationError {
                 throw error
             }
-            throw map(error)
+            throw Self.map(error)
         }
     }
 
@@ -971,14 +980,14 @@ private extension StreamingArchiveService {
                     <= limits.maximumUncompressedEntryByteCount,
                   entry.expectedUncompressedByteCount
                     <= limits.maximumStoredEntryByteCount,
-                  lowercaseSHA256(entry.expectedContentSHA256) else {
+                  Self.lowercaseSHA256(entry.expectedContentSHA256) else {
                 throw StreamingArchiveFailureV1.invalidPlan
             }
             guard paths.insert(entry.path).inserted,
                   folded.insert(collisionKey(entry.path)).inserted else {
                 throw StreamingArchiveFailureV1.duplicatePath
             }
-            aggregate = try adding(
+            aggregate = try Self.adding(
                 aggregate,
                 entry.expectedUncompressedByteCount,
                 maximum: min(
@@ -1028,17 +1037,17 @@ private extension StreamingArchiveService {
                   entry.uncompressedByteCount
                     <= limits.maximumUncompressedEntryByteCount,
                   entry.storedByteCount == entry.uncompressedByteCount,
-                  lowercaseSHA256(entry.storedSHA256),
-                  lowercaseSHA256(entry.contentSHA256) else {
+                  Self.lowercaseSHA256(entry.storedSHA256),
+                  Self.lowercaseSHA256(entry.contentSHA256) else {
                 throw StreamingArchiveFailureV1.invalidArchive
             }
-            stored = try adding(
+            stored = try Self.adding(
                 stored,
                 entry.storedByteCount,
                 maximum: limits.maximumStoredAggregateByteCount,
                 failure: .storedLimitExceeded
             )
-            uncompressed = try adding(
+            uncompressed = try Self.adding(
                 uncompressed,
                 entry.uncompressedByteCount,
                 maximum: limits.maximumUncompressedAggregateByteCount,
@@ -1083,44 +1092,50 @@ private extension StreamingArchiveService {
         if pathProfile == .surveyTemplate {
             valid=ContentContractValidationV1.validMediaType(mimeType)
         } else if pathProfile == .portableReviewRequest {
-            switch components {
-            case [let name] where PortableReviewRequestArchiveAdmissionV1.requiredEntries[name] != nil:
-                valid = mimeType == PortableReviewRequestArchiveAdmissionV1.requiredEntries[name]
-            case ["report", "report.pdf"]:
+            if components.count == 1,
+               let expectedMIME = PortableReviewRequestArchiveAdmissionV1.requiredEntries[components[0]] {
+                valid = mimeType == expectedMIME
+            } else if components == ["report", "report.pdf"] {
                 valid = mimeType == "application/pdf"
-            case ["report", "report.txt"]:
+            } else if components == ["report", "report.txt"] {
                 valid = mimeType == "text/plain"
-            case ["media", let name]:
-                valid = canonicalUUIDLeaf(name, suffix: ".jpg")
+            } else if components.count == 2, components[0] == "media" {
+                valid = canonicalUUIDLeaf(components[1], suffix: ".jpg")
                     && mimeType == "image/jpeg"
-            default:
+            } else {
                 valid = false
             }
-        } else {switch components {
-        case ["manifest.json"], ["records.json"]:
+        } else if components == ["manifest.json"] || components == ["records.json"] {
             valid = mimeType == "application/json"
-        case ["review-exchange", "snapshot.json"]:
+        } else if components == ["review-exchange", "snapshot.json"] {
             valid = mimeType == PortableExchangeBackupMemberV2.mimeType
-        case ["media", let name], ["thumbnails", let name]:
-            valid = canonicalUUIDLeaf(name, suffix: ".jpg")
+        } else if components.count == 2,
+                  components[0] == "media" || components[0] == "thumbnails" {
+            valid = canonicalUUIDLeaf(components[1], suffix: ".jpg")
                 && mimeType == "image/jpeg"
-        case ["snapshots", let name]:
-            valid = canonicalUUIDLeaf(name, suffix: ".json")
+        } else if components.count == 2, components[0] == "snapshots" {
+            valid = canonicalUUIDLeaf(components[1], suffix: ".json")
                 && mimeType == "application/json"
-        case ["pdfs", let name]:
-            valid = canonicalUUIDLeaf(name, suffix: ".pdf")
+        } else if components.count == 2, components[0] == "pdfs" {
+            valid = canonicalUUIDLeaf(components[1], suffix: ".pdf")
                 && mimeType == "application/pdf"
-        case ["content", let workspace, let contentID, "original.bin"]:
-            valid = UUID(uuidString: workspace)?.uuidString.lowercased() == workspace
-                && ContentContractValidationV1.validID(contentID)
+        } else if components.count == 3, components[0] == "draft-staging" {
+            valid = UUID(uuidString: components[1])?.uuidString.lowercased() == components[1]
+                && canonicalUUIDLeaf(components[2], suffix: ".bin")
+                && mimeType == "application/octet-stream"
+        } else if components.count == 4, components[0] == "content",
+                  components[3] == "original.bin" {
+            valid = UUID(uuidString: components[1])?.uuidString.lowercased() == components[1]
+                && ContentContractValidationV1.validID(components[2])
                 && ContentContractValidationV1.validMediaType(mimeType)
-        case ["content", let workspace, let contentID, "derivative-publication.json"]:
-            valid = UUID(uuidString: workspace)?.uuidString.lowercased() == workspace
-                && ContentContractValidationV1.validID(contentID)
+        } else if components.count == 4, components[0] == "content",
+                  components[3] == "derivative-publication.json" {
+            valid = UUID(uuidString: components[1])?.uuidString.lowercased() == components[1]
+                && ContentContractValidationV1.validID(components[2])
                 && mimeType == "application/json"
-        default:
+        } else {
             valid = false
-        }}
+        }
         guard valid else { throw StreamingArchiveFailureV1.hostilePath }
     }
 
@@ -1216,7 +1231,7 @@ private extension StreamingArchiveService {
         ) else {
             throw StreamingArchiveFailureV1.sourceChanged
         }
-        return (before.byteCount, hex(hasher.finalize()))
+        return (before.byteCount, Self.hex(hasher.finalize()))
     }
 
     func streamCopy(
@@ -1277,7 +1292,7 @@ private extension StreamingArchiveService {
 
     private func createExtractionRoot(_ url: URL) throws -> CreatedExtraction {
         let root = url.standardizedFileURL
-        guard validLeaf(root.lastPathComponent) else {
+        guard Self.validLeaf(root.lastPathComponent) else {
             throw StreamingArchiveFailureV1.invalidDestination
         }
         let parent = try Self.openDirectory(root.deletingLastPathComponent())
@@ -1316,7 +1331,7 @@ private extension StreamingArchiveService {
             Darwin.close(descriptor)
             _ = Darwin.unlinkat(parent, root.lastPathComponent, AT_REMOVEDIR)
             Darwin.close(parent)
-            throw map(error)
+            throw Self.map(error)
         }
     }
 
@@ -1635,7 +1650,7 @@ private extension StreamingArchiveService {
         guard value.hasSuffix(suffix) else { return false }
         let raw = String(value.dropLast(suffix.count))
         guard let id = UUID(uuidString: raw) else { return false }
-        return canonical(id) == raw
+        return Self.canonical(id) == raw
     }
 
     func validSourceRelativePath(_ value: String) -> Bool {

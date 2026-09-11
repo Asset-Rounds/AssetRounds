@@ -430,7 +430,7 @@ final class BackupExportService {
         to destinationDirectoryURL: URL
     ) throws -> URL {
         try validateLifecycleScope(try fetchRows(), operation: .exportOpen)
-        try exportStreaming(
+        return try exportStreaming(
             previewID: previewID,
             to: destinationDirectoryURL,
             cancellation: .none
@@ -589,13 +589,16 @@ final class BackupExportService {
             guard try itemType(at: stagingRoot) == .directory else {
                 throw BackupExportServiceError.invalidGeneration
             }
-            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: stagingRoot) {
+            let verifyStagingAuthority = {
                 guard try self.itemType(at: stagingRoot) == .directory,
                       try ReportPDFAnchoredFile.rootIdentity(at: self.generationRootURL)
                         == pinnedGenerationRootIdentity else {
                     throw BackupExportServiceError.invalidGeneration
                 }
             }
+            try verifyStagingAuthority()
+            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: stagingRoot)
+            try verifyStagingAuthority()
         } catch let error as BackupExportServiceError {
             throw error
         } catch {
@@ -2289,6 +2292,7 @@ private extension BackupExportService {
         deletionLedger: DeletionLedgerV2? = nil,
         mutationHistory: MutationHistorySnapshotV1? = nil
     ) throws -> V4BackupRecordsV1 {
+        let sourceIdentity = try currentStreamingWorkspaceIdentity()
         func includedLocationRecords(
             _ build: () throws -> [V5BackupLocationRecordV1]
         ) rethrows -> [V5BackupLocationRecordV1] {

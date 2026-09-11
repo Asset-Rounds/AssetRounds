@@ -1069,6 +1069,10 @@ private extension BackupImportService {
              (4, 13, 12), (4, 14, 13), (4, 15, 14), (4, 16, 15),
              (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21):
             schemaPairIsValid = true
+        case (4, 34, 33), (4, 35, 34), (4, 36, 35), (4, 38, 37), (4, 39, 38),
+             (4, LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
+              LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion):
+            schemaPairIsValid = true
         case (4,23,22):
             schemaPairIsValid=(try? V23AccessibleDocumentImportBoundaryV1.validate(persistent:23,records:22)) != nil
         case (4,24,23):
@@ -1107,7 +1111,11 @@ private extension BackupImportService {
             schemaPairIsValid = (try? AssetServiceReliabilityPersistenceEnrollmentV1.validate()) != nil
                 && C53ServiceReliabilityBackupImportServiceBoundaryV1.recordsSchemaVersion == 39
         case (4, 41, 40):
-            schemaPairIsValid = (try? C55PartsStockBackupImportBoundaryV1.validate(records)) != nil
+            schemaPairIsValid = C55PartsStockBackupImportBoundaryV1.persistentSchemaVersion == 41
+                && C55PartsStockBackupImportBoundaryV1.recordsSchemaVersion == 40
+                && C55PartsStockBackupImportBoundaryV1.restoresSevenFamiliesAtomically
+                && C55PartsStockBackupImportBoundaryV1.usesIncumbentLifecyclePort
+                && C55PartsStockBackupImportBoundaryV1.derivedBalanceAndSearchAreRebuilt
         default:
             schemaPairIsValid = false
         }

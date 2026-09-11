@@ -51,7 +51,14 @@
     "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testV9_08R01CompleteReversalPolicyAndPurePreview",
     "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testImportBulkProductionRowsHaveTypedCanonicalReceiptsAndReplay",
     "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testPlanLocatorReferenceRequiresCanonicalOwnerAndExactReceipt",
-    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testCurrentModelInventoryPreservesV52AndAdmitsOnlyV53NightRow"
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testCurrentModelInventoryPreservesV52AndAdmitsOnlyV53NightRow",
+    "FieldEvidenceAppTests/V9_04StreamingArchiveTests/testArchiveProfilesPreserveExactPathMIMEAndContentAdmission",
+    "FieldEvidenceAppTests/V9_41AssetLocatorTests/testCameraBoundaryUsesSignedDecoderAndRejectsDamagedBytes",
+    "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testRestoreInitializationMatchesActorPublicationAndReopensExactBytes",
+    "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testRestoreInitializationRejectsHostileInputsWithoutPublishingEntries",
+    "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testPreparedRestorePublishesRealDraftBytesAndRequiresBindingBeforeCleanup",
+    "FieldEvidenceAppTests/V9_53OperationalContactTests/testV23P03C46R01BackupRestoreCloneForkDeleteEraseExportSearchAndReplayRemainExact",
+    "FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47R01BackupRestoreReplayDeleteEraseSearchReportAndForwardFixRemainExact"
   ],
   "uiTestSelectors": []
 }

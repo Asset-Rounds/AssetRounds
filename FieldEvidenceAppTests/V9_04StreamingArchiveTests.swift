@@ -47,6 +47,66 @@ final class V9_04StreamingArchiveTests: XCTestCase {
         XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
         XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
     }
+    func testArchiveProfilesPreserveExactPathMIMEAndContentAdmission() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("source")
+        let staging = root.appendingPathComponent("staging")
+        let output = root.appendingPathComponent("output")
+        try makeDirectories(source, output)
+        try makeProtectedStaging(staging)
+        let data = Data(repeating: 0x35, count: Int(PortableReviewRequestArchiveAdmissionV1.responseCapabilityByteCount))
+        let file = source.appendingPathComponent("payload")
+        try data.write(to: file)
+        let id = "ab000000-0000-0000-0000-000000000001"
+        let contentID = String(repeating: "a", count: 64)
+        let backup: [(String, String)] = [
+            ("manifest.json", "application/json"), ("records.json", "application/json"),
+            ("review-exchange/snapshot.json", PortableExchangeBackupMemberV2.mimeType),
+            ("media/\(id).jpg", "image/jpeg"), ("thumbnails/\(id).jpg", "image/jpeg"),
+            ("snapshots/\(id).json", "application/json"), ("pdfs/\(id).pdf", "application/pdf"),
+            ("draft-staging/\(id)/\(id).bin", "application/octet-stream"),
+            ("content/\(id)/\(contentID)/original.bin", "application/octet-stream"),
+            ("content/\(id)/\(contentID)/derivative-publication.json", "application/json"),
+        ]
+        let review = PortableReviewRequestArchiveAdmissionV1.requiredEntries.sorted { $0.key < $1.key }
+            .map { ($0.key, $0.value) } + [("media/\(id).jpg", "image/jpeg")]
+        for (profile, members, suffix) in [
+            (StreamingArchivePathProfileV1.backupV4, backup, "fieldrecordbackup"),
+            (.portableReviewRequest, review, PortableReviewRequestArchiveAdmissionV1.fileExtension),
+        ] {
+            let service = StreamingArchiveService(pathProfile: profile)
+            let entries = try members.map { try writeEntry(path: $0.0, source: file, data: data, mime: $0.1) }
+            let archive = output.appendingPathComponent(UUID().uuidString + "." + suffix)
+            let receipt = try service.write(.init(entries: entries, stagingDirectoryURL: staging), to: archive)
+            XCTAssertEqual(receipt.index.entries.map(\.path), members.map(\.0).sorted())
+            let extraction = output.appendingPathComponent(UUID().uuidString)
+            _ = try service.extract(archive, to: extraction)
+            for member in members { XCTAssertEqual(try Data(contentsOf: extraction.appendingPathComponent(member.0)), data) }
+            let hostile: [(String, String)] = [
+                ("media/\(id.uppercased()).jpg", "image/jpeg"),
+                ("media/\(id).jpg/extra", "image/jpeg"),
+                ("media/\(id).jpg", "application/json"),
+                ("unknown.json", "application/json"),
+                ("draft-staging/\(id)/\(id).bin", "application/json"),
+                ("draft-staging/\(id.uppercased())/\(id).bin", "application/octet-stream"),
+                ("draft-staging/\(id)/\(id).jpg", "application/octet-stream"),
+                ("draft-staging/\(id)/\(id).bin/extra", "application/octet-stream"),
+                ("content/\(id)/INVALID/original.bin", "application/octet-stream"),
+                ("content/\(id)/\(contentID)/unexpected.bin", "application/octet-stream"),
+                ("content/\(id)/\(contentID)/derivative-publication.json", "text/plain"),
+            ]
+            for member in hostile {
+                let invalid = try writeEntry(path: member.0, source: file, data: data, mime: member.1)
+                let destination = output.appendingPathComponent(UUID().uuidString + "." + suffix)
+                assertFailure(.hostilePath) {
+                    _ = try service.write(.init(entries: [invalid], stagingDirectoryURL: staging), to: destination)
+                }
+                XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+            }
+        }
+    }
+
     func testV9_04G01GoldenDeterministicRepeatAndLegacyV4Dispatch() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }

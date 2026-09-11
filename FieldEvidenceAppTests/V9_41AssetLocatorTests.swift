@@ -114,6 +114,21 @@ final class V9_41AssetLocatorTests: XCTestCase {
         XCTAssertEqual(try AssetLocatorCanonicalCodecV1.encode(binding), receiptBytes)
     }
 
+    func testCameraBoundaryUsesSignedDecoderAndRejectsDamagedBytes() throws {
+        let locator = try Self.signedLocalLocator(workspaceID: Self.workspace(220),
+            assetID: Self.id(221), locatorID: Self.id(222), mutationSlot: 223)
+        guard case .localSigned(let payload) = locator.representation else {
+            return XCTFail("expected a signed local payload")
+        }
+        let bytes = try AssetLocatorCanonicalCodecV1.encode(payload)
+        XCTAssertEqual(AssetLocatorCameraBoundaryV1.decodedInput(bytes), .localSigned(payload))
+        for rejected in [Data(), Data("unscoped-external-key".utf8), Data(bytes.dropLast()),
+                         Data(repeating: 0x61, count: AssetLocatorLimitsV1.maximumInputBytes + 1)] {
+            XCTAssertEqual(AssetLocatorCameraBoundaryV1.decodedInput(rejected), .damagedOrIncomplete)
+        }
+        XCTAssertFalse(AssetLocatorCameraBoundaryV1.successfulDecodeStartsWork)
+    }
+
     func testV23P03C27G01StableLocatorResolutionHasEightClosedOutcomesAndSourceParity() async throws {
         let workspaceID = Self.workspace(1)
         let active = try Self.externalLocator(

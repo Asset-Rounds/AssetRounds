@@ -1205,3 +1205,136 @@ extension V9_30FieldDraftResilienceTests {
         )
     }
 }
+
+
+extension V9_30FieldDraftResilienceTests {
+    @MainActor
+    func testRestoreInitializationMatchesActorPublicationAndReopensExactBytes() async throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("draft-publication-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        let sourceSupport = root.appendingPathComponent("source")
+        let actorSupport = root.appendingPathComponent("actor")
+        let synchronousSupport = root.appendingPathComponent("synchronous")
+        let workspace = WorkspaceID(rawValue: UUID())
+        let draftID = UUID(), restoreID = UUID()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let source = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: sourceSupport, workspaceID: workspace, clock: { now }
+        )
+        let firstBytes = Data("first restored attachment".utf8)
+        let secondBytes = Data([0, 1, 2, 3, 0xff, 0x80])
+        let first = try await source.stage(data: firstBytes, draftID: draftID,
+            workspaceID: workspace, attachmentKind: .file)
+        let second = try await source.stage(data: secondBytes, draftID: draftID,
+            workspaceID: workspace, attachmentKind: .file)
+        let entries = try await source.entries()
+        let manifest = try DraftAttachmentStagingManifestV1(entries: entries)
+        let sourceRoot = sourceSupport.appendingPathComponent(
+            "FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)"
+        )
+        let actor = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: actorSupport, workspaceID: workspace, clock: { now }
+        )
+        let actorReceipt = try await actor.adoptRestoredStaging(from: sourceRoot,
+            entries: entries, workspaceID: workspace,
+            sourceManifestSHA256: manifest.manifestSHA256, restoreID: restoreID)
+        let synchronousReceipt = try DraftAttachmentStagingAdapterV1.publishRestoredStagingSynchronously(
+            applicationSupportURL: synchronousSupport, from: sourceRoot,
+            entries: entries, workspaceID: workspace,
+            sourceManifestSHA256: manifest.manifestSHA256, restoreID: restoreID, clock: { now })
+        try actorReceipt.validate()
+        try synchronousReceipt.validate()
+        XCTAssertEqual(actorReceipt, synchronousReceipt)
+        XCTAssertEqual(Set(synchronousReceipt.adoptedStageIDs), [first.stageID, second.stageID])
+        XCTAssertTrue(synchronousReceipt.reusedStageIDs.isEmpty)
+        XCTAssertFalse(synchronousReceipt.atomicAcrossRoots)
+        XCTAssertTrue(synchronousReceipt.canonicalCommitRequired)
+        let relativeManifest = "FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)/manifest.json"
+        XCTAssertEqual(try Data(contentsOf: actorSupport.appendingPathComponent(relativeManifest)),
+            try Data(contentsOf: synchronousSupport.appendingPathComponent(relativeManifest)))
+        // Reconstruct the ordinary actor from the actual persisted manifest.
+        let reopened = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: synchronousSupport, workspaceID: workspace, clock: { now }
+        )
+        let reopenedEntries = try await reopened.entries()
+        let reopenedFirst = try await reopened.data(stageID: first.stageID)
+        let reopenedSecond = try await reopened.data(stageID: second.stageID)
+        XCTAssertEqual(reopenedEntries, entries)
+        XCTAssertEqual(reopenedFirst, firstBytes)
+        XCTAssertEqual(reopenedSecond, secondBytes)
+        XCTAssertEqual(reopenedEntries.map(\.item.workspaceID), [workspace, workspace])
+        let actorReplay = try await reopened.adoptRestoredStaging(from: sourceRoot,
+            entries: entries, workspaceID: workspace,
+            sourceManifestSHA256: manifest.manifestSHA256, restoreID: restoreID)
+        let synchronousReplay = try DraftAttachmentStagingAdapterV1.publishRestoredStagingSynchronously(
+            applicationSupportURL: actorSupport, from: sourceRoot,
+            entries: entries, workspaceID: workspace,
+            sourceManifestSHA256: manifest.manifestSHA256, restoreID: restoreID, clock: { now })
+        XCTAssertEqual(actorReplay, synchronousReplay)
+        XCTAssertTrue(actorReplay.adoptedStageIDs.isEmpty)
+        XCTAssertEqual(Set(actorReplay.reusedStageIDs), [first.stageID, second.stageID])
+        let verifiedFirst = try await reopened.verify(stageID: first.stageID)
+        let verifiedSecond = try await reopened.verify(stageID: second.stageID)
+        XCTAssertEqual(verifiedFirst, first)
+        XCTAssertEqual(verifiedSecond, second)
+    }
+
+    @MainActor
+    func testRestoreInitializationRejectsHostileInputsWithoutPublishingEntries() async throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("draft-publication-hostile-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        let sourceSupport = root.appendingPathComponent("source")
+        let workspace = WorkspaceID(rawValue: UUID())
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let source = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: sourceSupport, clock: { now }
+        )
+        let bytes = Data("retained source attachment".utf8)
+        let item = try await source.stage(data: bytes, draftID: UUID(),
+            workspaceID: workspace, attachmentKind: .file)
+        _ = try await source.stage(data: Data("another workspace".utf8), draftID: UUID(),
+            workspaceID: WorkspaceID(rawValue: UUID()), attachmentKind: .file)
+        let mixedEntries = try await source.entries()
+        let entries = mixedEntries.filter { $0.item.stageID == item.stageID }
+        let manifest = try DraftAttachmentStagingManifestV1(entries: entries)
+        let mixedManifest = try DraftAttachmentStagingManifestV1(entries: mixedEntries)
+        let sourceRoot = sourceSupport.appendingPathComponent(
+            "FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)"
+        )
+        let sourceURL = sourceRoot.appendingPathComponent(try XCTUnwrap(entries.first).relativeDataPath)
+        let cases: [(String, WorkspaceID, [DraftAttachmentStagingEntryV1], String, DraftAttachmentStagingFailureV1)] = [
+            ("manifest", workspace, entries, String(repeating: "0", count: 64), .digestMismatch),
+            ("workspace", WorkspaceID(rawValue: UUID()), entries, manifest.manifestSHA256, .wrongWorkspace),
+            ("mixed-workspaces", workspace, mixedEntries, mixedManifest.manifestSHA256, .wrongWorkspace),
+            ("tampered", workspace, entries, manifest.manifestSHA256, .digestMismatch),
+            ("missing", workspace, entries, manifest.manifestSHA256, .stageNotFound),
+        ]
+        for (name, targetWorkspace, candidateEntries, digest, expected) in cases {
+            try bytes.write(to: sourceURL, options: .atomic)
+            if name == "tampered" { try Data(repeating: 0x78, count: bytes.count).write(to: sourceURL) }
+            if name == "missing" { try fm.removeItem(at: sourceURL) }
+            let support = root.appendingPathComponent(name)
+            XCTAssertThrowsError(try DraftAttachmentStagingAdapterV1.publishRestoredStagingSynchronously(
+                applicationSupportURL: support, from: sourceRoot, entries: candidateEntries,
+                workspaceID: targetWorkspace, sourceManifestSHA256: digest,
+                restoreID: UUID(), clock: { now })) { error in
+                XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, expected, name)
+            }
+            let reopened = try DraftAttachmentStagingAdapterV1(
+                applicationSupportURL: support, workspaceID: targetWorkspace
+            )
+            let retained = try await reopened.entries()
+            XCTAssertTrue(retained.isEmpty, name)
+            let destination = support.appendingPathComponent(
+                "FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)/"
+                    + DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: item.draftID, stageID: item.stageID)
+            )
+            XCTAssertFalse(fm.fileExists(atPath: destination.path), name)
+        }
+        try bytes.write(to: sourceURL, options: .atomic)
+        let sourceAfter = try Data(contentsOf: sourceURL)
+        XCTAssertEqual(sourceAfter, bytes)
+    }
+}

@@ -169,10 +169,13 @@ enum C33TemporalEvidencePackageValidationV1 {
                     throw BackupPackageValidationErrorV1.invalidPackage
                 }
                 let path = try TemporalEvidenceBackupMemberV1.original(for: clip)
-                guard let descriptor = members.descriptors[path],
+                let manifestEntries = manifest.entries.filter { $0.path == path }
+                guard manifestEntries.count == 1,
+                      let manifestEntry = manifestEntries.first,
+                      let descriptor = members.descriptors[path],
                       descriptor.byteCount == clip.original.byteLength,
                       descriptor.sha256 == digest,
-                      descriptor.mimeType == clip.original.mediaType,
+                      manifestEntry.mimeType == clip.original.mediaType,
                       let bytes = members[path],
                       Int64(bytes.count) == clip.original.byteLength,
                       CanonicalJSONV1.sha256(bytes) == digest else {
@@ -1055,7 +1058,7 @@ private extension BackupPackageValidatorV1 {
         _ value: V4BackupPackV1
     ) throws -> WorkspacePackageLifecycleProfileV1 {
         try profile(
-            packageID: value.id,
+            packageID: value.packID,
             schemaVersion: value.schemaVersion,
             contentVersion: value.contentVersion
         )
@@ -1806,7 +1809,7 @@ private extension BackupPackageValidatorV1 {
             let locationIDs = Set(records.locationNodes.map(\.id))
             let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
             let declaredReleases = Set(try manifest.packs.map {
-                try releaseIdentity(packageID: $0.id, schemaVersion: $0.schemaVersion,
+                try releaseIdentity(packageID: $0.packID, schemaVersion: $0.schemaVersion,
                                     contentVersion: $0.contentVersion)
             })
             guard kinds.values.allSatisfy({ value in
@@ -2489,7 +2492,7 @@ private extension BackupPackageValidatorV1 {
                 promotedReleases: Array(releases.values), sandboxRuns: Array(runs.values),
                 promotionReceipts: Array(receipts.values), activePointers: Array(pointers.values)
             )
-            try PackageEvolutionLifecycleAdapterV1.validateBackupRestore(closure)
+            try closure.validate()
             let actorDigests = try Set(records.partyAccountability.compactMap { row -> String? in
                 guard row.kind == .actorSnapshot else { return nil }
                 return try PartyAccountabilitySnapshotCodecV1.decode(ActorSnapshotV1.self, from: row.canonicalData).snapshotSHA256

@@ -1129,7 +1129,7 @@ final class BackupRestoreService {
             let targetPortableExchangeWorkspaceID =
                 identityDecision?.targetPointer.workspaceID
                     ?? frozenCurrentIdentity.workspaceID.rawValue
-            let reboundPortableExchangeSnapshot = try portableExchangeSnapshot(
+            let reboundPortableExchangeSnapshot = try self.portableExchangeSnapshot(
                 portableExchangeSnapshot,
                 sourceWorkspaceID: validatedPackage.manifest.source.workspaceID,
                 targetWorkspaceID: targetPortableExchangeWorkspaceID
@@ -2613,7 +2613,7 @@ private extension BackupRestoreService {
                 )
                 let workspaceID = C05EvidenceMetadataRestoreIdentityBoundaryV1.expectedWorkspaceID(
                     identity: identityDecision,
-                    legacyDestination: legacyDestinationIdentity.workspaceID.rawValue
+                    legacyDestination: legacyWorkspaceID
                 )
                 guard records.evidenceAssociationEvents.allSatisfy({
                     $0.workspaceID == workspaceID.uuidString.lowercased()
@@ -2630,7 +2630,7 @@ private extension BackupRestoreService {
             do {
                 try C04ShopReportProfileBackupEnrollmentV1.validate(records)
                 let expectedWorkspaceID = identityDecision?.targetPointer.workspaceID
-                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                    ?? legacyWorkspaceID
                 let profiles: [ShopReportProfileV1]
                 if let identityDecision {
                     profiles = try C04ShopReportProfileRestoreIdentityBoundaryV1.rebinding(
@@ -2654,7 +2654,7 @@ private extension BackupRestoreService {
             do {
                 try C05RoundSessionBackupEnrollmentV1.validate(records)
                 let expectedWorkspaceID = identityDecision?.targetPointer.workspaceID
-                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                    ?? legacyWorkspaceID
                 let sessions: [RoundSessionV1]
                 if let identityDecision {
                     sessions = try C05RoundSessionRestoreIdentityBoundaryV1.rebinding(
@@ -2685,7 +2685,7 @@ private extension BackupRestoreService {
                         expectedWorkspaceID = decision.targetPointer.workspaceID
                     }
                 } else {
-                    expectedWorkspaceID = legacyDestinationIdentity.workspaceID.rawValue
+                    expectedWorkspaceID = legacyWorkspaceID
                 }
                 let values = try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
                     from: records, workspaceID: expectedWorkspaceID
@@ -2715,7 +2715,7 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion {
             do {
                 let sourceWorkspaceID = identityDecision?.source.workspaceID
-                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                    ?? legacyWorkspaceID
                 try C55PartsStockBackupImportBoundaryV1.validate(
                     records,
                     workspaceID: WorkspaceID(rawValue: sourceWorkspaceID)
@@ -2736,7 +2736,7 @@ private extension BackupRestoreService {
                     expectedWorkspaceID=C52ServiceRequestRestoreIdentityPolicyV1.preservesCanonicalWorkspaceBinding(for:decision.mode)
                         ? decision.targetPointer.workspaceID : decision.source.workspaceID
                 } else {
-                    expectedWorkspaceID=legacyDestinationIdentity.workspaceID.rawValue
+                    expectedWorkspaceID=legacyWorkspaceID
                 }
                 let values = try C52ServiceRequestBackupEnrollmentV1.canonicalRows(
                     from: records, workspaceID: expectedWorkspaceID
@@ -2886,7 +2886,7 @@ private extension BackupRestoreService {
                         ? identityDecision.source.workspaceID
                         : identityDecision.targetPointer.workspaceID
                 } else {
-                    expectedWorkspaceID = legacyDestinationIdentity.workspaceID.rawValue
+                    expectedWorkspaceID = legacyWorkspaceID
                 }
                 let rows=try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
                     from:records,
@@ -2905,11 +2905,11 @@ private extension BackupRestoreService {
                 let sourceWorkspaceID = WorkspaceID(rawValue:
                     identityDecision?.source.workspaceID
                         ?? normalized.myDayPlans.first?.key.workspaceID.rawValue
-                        ?? legacyDestinationIdentity.workspaceID.rawValue
+                        ?? legacyWorkspaceID
                 )
                 let targetWorkspaceID = WorkspaceID(rawValue:
                     identityDecision?.targetPointer.workspaceID
-                        ?? legacyDestinationIdentity.workspaceID.rawValue
+                        ?? legacyWorkspaceID
                 )
                 let source = try MyDayBackupSnapshotV1(
                     workspaceID: sourceWorkspaceID,
@@ -3595,9 +3595,9 @@ private extension BackupRestoreService {
                 mutationHistory: records.mutationHistory, packets: records.packets,
                 partyAccountability: partyAccountability,
                 recordsSchemaVersion: records.recordsSchemaVersion,
-                reports: reports, sites: records.sites,
-                requirementAssurance: requirementAssurance,
+                reports: reports, requirementAssurance: requirementAssurance,
                 savedSmartViews: savedSmartViews,
+                sites: records.sites,
                 workflowRecords: records.workflowRecords,
                 lighting: records.lighting,
                 lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
@@ -4395,7 +4395,7 @@ private extension BackupRestoreService {
                     installation: targetInstallationRelease,
                     package: targetPackage
                 )
-                try $0.rebound(
+                return try $0.rebound(
                     to: targetWorkspaceID,
                     activityID: sourceMutation.successorEnvelope.activityID,
                     subjectID: sourceMutation.successorEnvelope.subjectID,
@@ -8967,18 +8967,15 @@ private extension BackupRestoreService {
         guard entries.allSatisfy({$0.item.workspaceID == workspaceID}) else {
             throw BackupRestoreServiceError.invalidPackage
         }
-        let adapter = try DraftAttachmentStagingAdapterV1(
-            applicationSupportURL:applicationSupportURL,
-            workspaceID:workspaceID,
-            fileManager:fileManager,
-            clock:now
-        )
-        let receipt = try adapter.adoptRestoredStaging(
-            from:package.stagedPackageURL.appendingPathComponent("draft-staging",isDirectory:true),
-            entries:entries,
-            workspaceID:workspaceID,
-            sourceManifestSHA256:manifest.manifestSHA256,
-            restoreID:restoreID
+        let receipt = try DraftAttachmentStagingAdapterV1.publishRestoredStagingSynchronously(
+            applicationSupportURL: applicationSupportURL,
+            from: package.stagedPackageURL.appendingPathComponent("draft-staging", isDirectory: true),
+            entries: entries,
+            workspaceID: workspaceID,
+            sourceManifestSHA256: manifest.manifestSHA256,
+            restoreID: restoreID,
+            fileManager: fileManager,
+            clock: now
         )
         try receipt.validate()
         guard Set(receipt.adoptedStageIDs + receipt.reusedStageIDs) == Set(entries.map{$0.item.stageID}),
@@ -11377,20 +11374,22 @@ private extension BackupRestoreService {
                 ) == identity else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
-                try ProtectedFilePolicyV1.applyAndVerify(
-                    .stagingFile,
-                    relativePath: temporaryRelative,
-                    within: root,
-                    authorityCheck: {
-                        try verifyDirectories()
-                        guard try itemIdentity(
-                            parent: parentDescriptor,
-                            name: temporaryName
-                        ) == identity else {
-                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        .stagingFile,
+                        relativePath: temporaryRelative,
+                        within: root,
+                        authorityCheck: {
+                            try verifyDirectories()
+                            guard try self.itemIdentity(
+                                parent: parentDescriptor,
+                                name: temporaryName
+                            ) == identity else {
+                                throw BackupRestoreServiceError.invalidRestoreAuthority
+                            }
                         }
-                    }
-                )
+                    )
+                }
                 guard try itemIdentity(
                     parent: parentDescriptor,
                     name: temporaryName
@@ -11408,20 +11407,22 @@ private extension BackupRestoreService {
                       Darwin.fsync(parentDescriptor) == 0 else {
                     throw BackupRestoreServiceError.materializationFailed
                 }
-                try ProtectedFilePolicyV1.applyAndVerify(
-                    .stagingFile,
-                    relativePath: relative,
-                    within: root,
-                    authorityCheck: {
-                        try verifyDirectories()
-                        guard try itemIdentity(
-                            parent: parentDescriptor,
-                            name: finalName
-                        ) == identity else {
-                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        .stagingFile,
+                        relativePath: relative,
+                        within: root,
+                        authorityCheck: {
+                            try verifyDirectories()
+                            guard try self.itemIdentity(
+                                parent: parentDescriptor,
+                                name: finalName
+                            ) == identity else {
+                                throw BackupRestoreServiceError.invalidRestoreAuthority
+                            }
                         }
-                    }
-                )
+                    )
+                }
                 guard try itemIdentity(
                     parent: parentDescriptor,
                     name: finalName
@@ -11462,12 +11463,14 @@ private extension BackupRestoreService {
             createMissing: true,
             authorityCheck: authorityCheck
         ) { _, verifyDirectories in
-            try ProtectedFilePolicyV1.applyAndVerify(
-                .stagingDirectory,
-                relativePath: relativePath,
-                within: root,
-                authorityCheck: verifyDirectories
-            )
+            try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .stagingDirectory,
+                    relativePath: relativePath,
+                    within: root,
+                    authorityCheck: verifyDirectories
+                )
+            }
         }
     }
 
@@ -11692,7 +11695,7 @@ private extension BackupRestoreService {
         throw BackupRestoreServiceError.invalidRestoreAuthority
     }
 
-    private func itemIdentity(
+    nonisolated private func itemIdentity(
         parent: Int32,
         name: String
     ) throws -> PinnedIdentity {
@@ -12637,6 +12640,9 @@ private extension BackupRestoreService {
         let shopReportProfileRows = try context.fetch(
             FetchDescriptor<ShopReportProfileRowV1>()
         )
+        let roundSessionRows = try context.fetch(
+            FetchDescriptor<RoundSessionRevisionRowV1>()
+        )
         let workResourceRows = try context.fetch(
             FetchDescriptor<ManualWorkResourceRecordRow>()
         )
@@ -12789,7 +12795,7 @@ private extension BackupRestoreService {
         let mutationHistory: MutationHistorySnapshotV1?
         if includingDeletionLedger {
             deletionLedger = try DeletionLedgerStore(context: context).snapshot()
-            mutationHistory = try mutationHistory(in: context)
+            mutationHistory = try self.mutationHistory(in: context)
         } else {
             deletionLedger = nil
             mutationHistory = nil
@@ -13153,6 +13159,9 @@ private extension BackupRestoreService {
         let shopReportProfiles = try shopReportProfileRows.map { try $0.value() }
             .sorted { ($0.workspaceID.rawValue.uuidString, $0.profileID.uuidString, $0.revision)
                 < ($1.workspaceID.rawValue.uuidString, $1.profileID.uuidString, $1.revision) }
+        let roundSessions = try roundSessionRows.map { try $0.value() }
+            .sorted { ($0.workspaceID.rawValue.uuidString, $0.sessionID.uuidString, $0.revision)
+                < ($1.workspaceID.rawValue.uuidString, $1.sessionID.uuidString, $1.revision) }
         let hasServiceReliabilityHistory = try mutationHistory?.receipts.contains { record in
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             if case .applyServiceReliability = envelope.command { return true }
