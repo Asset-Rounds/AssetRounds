@@ -1234,7 +1234,7 @@ final class BackupRestoreService {
             try inject(.beforePointerSwitch)
             try Task.checkCancellation()
             let persistedPortableExchangeSidecar = try
-                portableExchangeRestoreSidecar(matching: installed)
+                self.portableExchangeRestoreSidecar(matching: installed)
             guard try PortableExchangeSessionStoreV2.recoveryStateSHA256(
                 applicationSupportURL: applicationSupportURL,
                 fileManager: fileManager
