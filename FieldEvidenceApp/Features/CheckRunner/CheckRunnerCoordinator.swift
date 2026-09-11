@@ -2202,7 +2202,7 @@ extension CheckRunnerCoordinator {
         } else {
             writer = nil
         }
-        try DraftAttachmentStagingAdapterV1(
+        return try DraftAttachmentStagingAdapterV1(
             applicationSupportURL: applicationSupportURL,
             workspaceID: workspaceID,
             scratchStore: scratchStore,
