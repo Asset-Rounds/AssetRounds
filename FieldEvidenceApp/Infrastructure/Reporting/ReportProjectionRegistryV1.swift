@@ -3047,3 +3047,16 @@ extension ReportProjectionRegistryV1 {
     }
 
 }
+
+extension ReportProjectionRegistryV1 {
+    /// Validates report-source language provenance through the existing registry
+    /// without registering a renderer, projection, or translated artifact.
+    func v30ValidateAuthoredSourceLanguage(
+        _ binding: ReportSnapshotLanguageSourceIdentityV1,
+        snapshot: ReportSnapshotV1,
+        sourceBytes: Data
+    ) throws {
+        try validate()
+        try binding.validate(snapshot: snapshot, sourceBytes: sourceBytes)
+    }
+}

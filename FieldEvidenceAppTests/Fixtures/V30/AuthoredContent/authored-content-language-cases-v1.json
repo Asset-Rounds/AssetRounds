@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Exact authored-source byte and language-provenance lifecycle cases; not translated output or shipping-locale evidence.",
+  "sources": [
+    {"id":"nfc-worker-cjk-arabic","text":"Café 👩🏽‍🔧 中文 العربية","utf8ByteCount":43,"sha256":"c9e9b3d2070f7a885f1ed1b4fd0393da4085e31a477cfb2586533daea8327fee","language":"unknown"},
+    {"id":"nfd-family-hangul-arabic","text":"Café 👨‍👩‍👧‍👦 한글 العربية","utf8ByteCount":54,"sha256":"fde7ec8e449e5e4af011f1c0c3088f5fc64159c40492fcbab931b0a37a2f464d","language":"fr"},
+    {"id":"template-source","text":"Inspector note: Ångström — 中文","utf8ByteCount":37,"sha256":"64d79b0e1ad07f87d1104da0d56d5cb38020ec5b88ac84390688352115e6876c","language":"en"}
+  ]
+}

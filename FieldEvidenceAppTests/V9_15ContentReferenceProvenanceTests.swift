@@ -1097,6 +1097,54 @@ extension V9_15ContentReferenceProvenanceTests {
 }
 
 extension V9_15ContentReferenceProvenanceTests {
+    func testV30P03C01ContentLanguageAdapterBindsExactOriginalBytesWithoutChangingRegistryBytes() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuidString: "42000000-0000-0000-0000-000000000015")!)
+        let sourceBytes = Data("exact inspector evidence".utf8)
+        let provenance = try ContentOriginalProvenanceV1(
+            provenanceID: "provenance.v30.language",
+            workspaceID: workspace.rawValue.uuidString.lowercased(),
+            contentID: "content.v30.language",
+            contentDigest: try .init(
+                algorithm: .sha256,
+                hexadecimalValue: AuthoredContentLanguageValidationV1.sha256(sourceBytes)
+            ),
+            origin: .humanCapture,
+            recordedAt: instant
+        )
+        let before = try ContentContractRegistryCanonicalCodecV1.encode(.canonical())
+
+        let source = try ContentContractRegistryV1.derivedLanguageSource(
+            from: provenance,
+            workspaceID: workspace,
+            revision: 7,
+            sourceBytes: sourceBytes,
+            language: .unknown
+        )
+
+        XCTAssertEqual(source.workspaceID, workspace)
+        XCTAssertEqual(source.sourceID, provenance.contentID)
+        XCTAssertEqual(source.sourceSHA256, provenance.contentDigest.hexadecimalValue)
+        XCTAssertEqual(source.layer, .inspectorCustomerEvidence)
+        XCTAssertEqual(source.language, .unknown)
+        XCTAssertNil(source.ownerVersion)
+        XCTAssertEqual(
+            try ContentContractRegistryCanonicalCodecV1.encode(.canonical()),
+            before
+        )
+        XCTAssertThrowsError(try provenance.v30LanguageSource(
+            workspaceID: workspace,
+            revision: 7,
+            sourceBytes: Data("changed bytes".utf8)
+        ))
+        XCTAssertThrowsError(try provenance.v30LanguageSource(
+            workspaceID: WorkspaceID(rawValue: UUID(uuidString: "42000000-0000-0000-0000-000000000016")!),
+            revision: 7,
+            sourceBytes: sourceBytes
+        ))
+    }
+}
+
+extension V9_15ContentReferenceProvenanceTests {
     func testC23FieldReferencePackAnchor() throws {
         XCTAssertEqual(FieldReferenceProvenanceKindV1.allCases, [.licensed, .synthetic])
         XCTAssertEqual(FieldReferenceLicenseScopeV1.allCases.count, 4)

@@ -238,6 +238,49 @@ enum ReportSnapshotAccessibleDocumentBoundaryV1{
     static let rebuildUsesFrozenSnapshotOnly=true
 }
 
+/// Sidecar-only identity binding for verbatim inspector/customer report source.
+/// It deliberately does not change ReportSnapshotV1's Codable shape or hash basis.
+enum ReportSnapshotLanguageSourceFieldV1: String, Equatable, Sendable {
+    case note
+}
+
+struct ReportSnapshotLanguageSourceIdentityV1: Equatable, Sendable {
+    let reportID: UUID
+    let sourceRecordID: UUID
+    let evidenceSourceRecordID: UUID
+    let field: ReportSnapshotLanguageSourceFieldV1
+    let source: AuthoredContentLanguageSourceV1
+
+    init(
+        snapshot: ReportSnapshotV1,
+        source: AuthoredContentLanguageSourceV1,
+        sourceBytes: Data
+    ) throws {
+        try source.validate(sourceBytes: sourceBytes)
+        guard let note = snapshot.note,
+              Data(note.utf8) == sourceBytes,
+              source.layer == .inspectorCustomerEvidence,
+              source.sourceID == "\(snapshot.sourceRecordID.uuidString).note" else {
+            throw AuthoredContentLanguageFailureV1.invalidSource
+        }
+        reportID = snapshot.reportID
+        sourceRecordID = snapshot.sourceRecordID
+        evidenceSourceRecordID = snapshot.evidenceSourceRecordID
+        field = .note
+        self.source = source
+    }
+
+    func validate(snapshot: ReportSnapshotV1, sourceBytes: Data) throws {
+        _ = try Self(snapshot: snapshot, source: source, sourceBytes: sourceBytes)
+        guard reportID == snapshot.reportID,
+              sourceRecordID == snapshot.sourceRecordID,
+              evidenceSourceRecordID == snapshot.evidenceSourceRecordID,
+              field == .note else {
+            throw AuthoredContentLanguageFailureV1.invalidSource
+        }
+    }
+}
+
 // MARK: - C23 metadata-only reference projection
 
 extension ReportSnapshotV1 {

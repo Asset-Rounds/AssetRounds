@@ -635,3 +635,76 @@ enum C52ServiceRequestBoundary_SurveyDefinitionContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - V30 authored template and instruction language binding
+
+extension SurveyDefinitionReleaseV1 {
+    /// Binds language metadata to the canonical bytes of this validated release.
+    /// The metadata is disposable and does not alter the release's codec bytes.
+    /// sourceID is a fact selector inside the exact owner-bound release;
+    /// sourceSHA256 covers the whole release, not a single fact's text.
+    func v30LanguageSource(
+        forFactID factID: String,
+        language: AuthoredContentLanguageV1 = .unknown,
+        ownerVersion: AuthoredContentOwnerVersionV1? = nil
+    ) throws -> AuthoredContentLanguageSourceV1 {
+        try v30LanguageSource(
+            forFactID: factID,
+            sourceData: try SurveyDefinitionCanonicalCodecV1.encode(self),
+            requiresLocalizationDigestMatch: false,
+            language: language,
+            ownerVersion: ownerVersion
+        )
+    }
+
+    /// Binds language metadata to supplied localization bytes only when their
+    /// exact digest is the release's declared localization digest.
+    func v30LanguageSource(
+        forFactID factID: String,
+        sourceLocalizationData: Data,
+        language: AuthoredContentLanguageV1 = .unknown,
+        ownerVersion: AuthoredContentOwnerVersionV1? = nil
+    ) throws -> AuthoredContentLanguageSourceV1 {
+        try v30LanguageSource(
+            forFactID: factID,
+            sourceData: sourceLocalizationData,
+            requiresLocalizationDigestMatch: true,
+            language: language,
+            ownerVersion: ownerVersion
+        )
+    }
+
+    private func v30LanguageSource(
+        forFactID factID: String,
+        sourceData: Data,
+        requiresLocalizationDigestMatch: Bool,
+        language: AuthoredContentLanguageV1,
+        ownerVersion: AuthoredContentOwnerVersionV1?
+    ) throws -> AuthoredContentLanguageSourceV1 {
+        try validate()
+        let sourceSHA256 = AuthoredContentLanguageValidationV1.sha256(sourceData)
+        guard !requiresLocalizationDigestMatch || sourceSHA256 == localizationReleaseSHA256,
+              let fact = sections.flatMap(\.facts).first(where: { $0.factID == factID }) else {
+            throw AuthoredContentLanguageFailureV1.sourceBytesMismatch
+        }
+
+        let expectedOwnerVersion = try AuthoredContentOwnerVersionV1(
+            ownerID: ownerPackageID,
+            version: String(revision),
+            releaseSHA256: releaseSHA256
+        )
+        guard ownerVersion == nil || ownerVersion == expectedOwnerVersion else {
+            throw AuthoredContentLanguageFailureV1.invalidOwnerVersion
+        }
+
+        return try .init(
+            workspaceID: workspaceID,
+            sourceID: fact.factID,
+            revision: revision,
+            sourceSHA256: sourceSHA256,
+            layer: fact.payload.kind == .instruction ? .instruction : .adminTemplate,
+            language: language,
+            ownerVersion: expectedOwnerVersion
+        )
+    }
+}

@@ -1411,6 +1411,72 @@ extension V9_39SurveyDefinitionTests {
 }
 
 extension V9_39SurveyDefinitionTests {
+    func testV30P03C01SurveyLanguageAdapterBindsCurrentReleaseOwnerAndFactKind() throws {
+        let release = try C25SurveyDefinitionTestSupport.release(
+            releaseSlot: 3901,
+            facts: [
+                C25SurveyDefinitionTestSupport.fact("fact.instruction", required: false, payload: .instruction),
+                C25SurveyDefinitionTestSupport.fact("fact.template"),
+            ]
+        )
+        let expectedOwner = try AuthoredContentOwnerVersionV1(
+            ownerID: release.ownerPackageID,
+            version: String(release.revision),
+            releaseSHA256: release.releaseSHA256
+        )
+        let canonicalBytes = try SurveyDefinitionCanonicalCodecV1.encode(release)
+
+        let template = try ContentContractRegistryV1.derivedLanguageSource(
+            from: release,
+            factID: "fact.template",
+            language: .unknown,
+            ownerVersion: expectedOwner
+        )
+        let instruction = try release.v30LanguageSource(
+            forFactID: "fact.instruction",
+            language: .unknown,
+            ownerVersion: expectedOwner
+        )
+
+        XCTAssertEqual(template.layer, .adminTemplate)
+        XCTAssertEqual(instruction.layer, .instruction)
+        XCTAssertEqual(template.ownerVersion, expectedOwner)
+        XCTAssertEqual(instruction.ownerVersion, expectedOwner)
+        XCTAssertEqual(template.revision, release.revision)
+        XCTAssertEqual(template.sourceSHA256, AuthoredContentLanguageValidationV1.sha256(canonicalBytes))
+
+        let wrongOwner = try AuthoredContentOwnerVersionV1(
+            ownerID: "wrong.owner",
+            version: String(release.revision),
+            releaseSHA256: release.releaseSHA256
+        )
+        XCTAssertThrowsError(try release.v30LanguageSource(
+            forFactID: "fact.template",
+            ownerVersion: wrongOwner
+        ))
+
+        let staleRelease = try C25SurveyDefinitionTestSupport.release(
+            releaseSlot: 3902,
+            facts: release.sections.flatMap(\.facts)
+        )
+        let staleOwner = try AuthoredContentOwnerVersionV1(
+            ownerID: staleRelease.ownerPackageID,
+            version: String(staleRelease.revision),
+            releaseSHA256: staleRelease.releaseSHA256
+        )
+        XCTAssertThrowsError(try release.v30LanguageSource(
+            forFactID: "fact.template",
+            ownerVersion: staleOwner
+        ))
+        XCTAssertThrowsError(try release.v30LanguageSource(forFactID: "fact.missing"))
+        XCTAssertThrowsError(try release.v30LanguageSource(
+            forFactID: "fact.template",
+            sourceLocalizationData: Data("localization bytes that do not match the release".utf8)
+        ))
+    }
+}
+
+extension V9_39SurveyDefinitionTests {
     func testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent() {
         XCTAssertEqual(OccurrenceStateV1.allCases, [.upcoming, .ready, .due, .overdue, .deferred,
                                                     .missed, .skipped, .cancelled, .started, .completed])

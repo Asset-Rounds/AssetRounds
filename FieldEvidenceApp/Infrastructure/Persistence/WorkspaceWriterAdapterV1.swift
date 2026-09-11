@@ -170,6 +170,21 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         } catch {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
+        let effect = try applyValidatedCommand(
+            command, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath
+        )
+        // Language candidates are disposable metadata, never journal content.
+        // Evict after successful application, including privacy publication.
+        // A later journal rollback cannot restore an old assessment handle.
+        AuthoredContentLanguageCoordinatorV1.shared.invalidateAfterWriterApplication()
+        return effect
+    }
+
+    private func applyValidatedCommand(
+        _ command: WorkspaceCommandV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
         switch command {
         case let .createFirstSign(value):
             return try createFirstSign(

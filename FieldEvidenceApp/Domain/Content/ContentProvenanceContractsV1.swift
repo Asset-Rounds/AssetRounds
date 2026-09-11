@@ -837,3 +837,31 @@ enum C52ServiceRequestBoundary_ContentProvenanceContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - V30 authored-content language source binding
+
+extension ContentOriginalProvenanceV1 {
+    /// Derives disposable language provenance from the exact incumbent original
+    /// binding. This does not add a canonical content field or transform.
+    func v30LanguageSource(
+        workspaceID: WorkspaceID,
+        revision: UInt64,
+        sourceBytes: Data,
+        language: AuthoredContentLanguageV1 = .unknown
+    ) throws -> AuthoredContentLanguageSourceV1 {
+        guard self.workspaceID == workspaceID.rawValue.uuidString.lowercased(),
+              contentDigest.algorithm == .sha256,
+              contentDigest.hexadecimalValue == AuthoredContentLanguageValidationV1.sha256(sourceBytes) else {
+            throw AuthoredContentLanguageFailureV1.sourceBytesMismatch
+        }
+
+        return try .init(
+            workspaceID: workspaceID,
+            sourceID: contentID,
+            revision: revision,
+            sourceSHA256: contentDigest.hexadecimalValue,
+            layer: .inspectorCustomerEvidence,
+            language: language
+        )
+    }
+}

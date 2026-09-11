@@ -484,3 +484,59 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Content_ContentCo
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - V30 disposable content-language adapters
+
+extension ContentContractRegistryV1 {
+    /// Validates the frozen registry before deriving nonpersistent language
+    /// metadata from an existing immutable-original provenance binding.
+    static func derivedLanguageSource(
+        from provenance: ContentOriginalProvenanceV1,
+        workspaceID: WorkspaceID,
+        revision: UInt64,
+        sourceBytes: Data,
+        language: AuthoredContentLanguageV1 = .unknown
+    ) throws -> AuthoredContentLanguageSourceV1 {
+        _ = try canonical()
+        return try provenance.v30LanguageSource(
+            workspaceID: workspaceID,
+            revision: revision,
+            sourceBytes: sourceBytes,
+            language: language
+        )
+    }
+
+    /// Validates the frozen registry before deriving template or instruction
+    /// metadata from a validated survey-definition release's canonical bytes.
+    static func derivedLanguageSource(
+        from release: SurveyDefinitionReleaseV1,
+        factID: String,
+        language: AuthoredContentLanguageV1 = .unknown,
+        ownerVersion: AuthoredContentOwnerVersionV1? = nil
+    ) throws -> AuthoredContentLanguageSourceV1 {
+        _ = try canonical()
+        return try release.v30LanguageSource(
+            forFactID: factID,
+            language: language,
+            ownerVersion: ownerVersion
+        )
+    }
+
+    /// Uses supplied localization source bytes only when the release binds
+    /// their exact digest; the registry remains unchanged.
+    static func derivedLanguageSource(
+        from release: SurveyDefinitionReleaseV1,
+        factID: String,
+        sourceLocalizationData: Data,
+        language: AuthoredContentLanguageV1 = .unknown,
+        ownerVersion: AuthoredContentOwnerVersionV1? = nil
+    ) throws -> AuthoredContentLanguageSourceV1 {
+        _ = try canonical()
+        return try release.v30LanguageSource(
+            forFactID: factID,
+            sourceLocalizationData: sourceLocalizationData,
+            language: language,
+            ownerVersion: ownerVersion
+        )
+    }
+}

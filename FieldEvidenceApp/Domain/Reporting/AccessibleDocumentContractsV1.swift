@@ -437,6 +437,54 @@ struct AccessibleDocumentAssessmentReceiptV1:Codable,Equatable,Sendable{
 enum AccessibleDocumentCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{if let tree=value as? AccessibleDocumentSemanticTreeV1{try tree.validate()};if let receipt=value as? AccessibleDocumentAssessmentReceiptV1{try receipt.validateIntrinsic()};let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];e.dateEncodingStrategy = .millisecondsSince1970;return try e.encode(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=8_388_608 else{throw AccessibleDocumentFailureV1.invalidValue};let d=JSONDecoder();d.dateDecodingStrategy = .millisecondsSince1970;let value=try d.decode(type,from:data);if let tree=value as? AccessibleDocumentSemanticTreeV1{try tree.validate()};if let receipt=value as? AccessibleDocumentAssessmentReceiptV1{try receipt.validateIntrinsic()};guard try encode(value)==data else{throw AccessibleDocumentFailureV1.digestMismatch};return value}}
 enum AccessibleDocumentLifecycleV1{static let persistentFamilies=["AccessibleDocumentAssessmentReceiptV1"];static let semanticTreePersistence="DERIVED_ONLY";static let pdfUAClaimed=false;static let wcagClaimed=false;static let legalCertificationClaimed=false;static let s10BrandReconciled=false;static let rendererAuthority="EXISTING_REPORT_RENDERERS_ONLY"}
 
+/// Ephemeral language metadata for a node whose current text is explicitly
+/// bound to its source bytes. It is not part of the semantic-tree codec.
+struct AccessibleDocumentNodeLanguageBindingV1: Equatable, Sendable {
+    let treeID: UUID
+    let treeSHA256: String
+    let projectionVersion: String
+    let nodeID: String
+    let source: AuthoredContentLanguageSourceV1
+
+    init(
+        tree: AccessibleDocumentSemanticTreeV1,
+        node: AccessibleDocumentNodeV1,
+        source: AuthoredContentLanguageSourceV1,
+        sourceBytes: Data
+    ) throws {
+        try tree.validate()
+        try node.validate()
+        try source.validate(sourceBytes: sourceBytes)
+        guard tree.workspaceID == source.workspaceID,
+              tree.nodes.contains(node),
+              source.sourceID == node.nodeID,
+              let text = node.localizedText,
+              Data(text.utf8) == sourceBytes,
+              [.inspectorCustomerEvidence, .reportChrome].contains(source.layer) else {
+            throw AuthoredContentLanguageFailureV1.invalidSource
+        }
+        treeID = tree.treeID
+        treeSHA256 = tree.treeSHA256
+        projectionVersion = tree.projectionVersion
+        nodeID = node.nodeID
+        self.source = source
+    }
+
+    func validate(
+        tree: AccessibleDocumentSemanticTreeV1,
+        node: AccessibleDocumentNodeV1,
+        sourceBytes: Data
+    ) throws {
+        _ = try Self(tree: tree, node: node, source: source, sourceBytes: sourceBytes)
+        guard treeID == tree.treeID,
+              treeSHA256 == tree.treeSHA256,
+              projectionVersion == tree.projectionVersion,
+              nodeID == node.nodeID else {
+            throw AuthoredContentLanguageFailureV1.invalidSource
+        }
+    }
+}
+
 // MARK: - C25 survey-definition accessibility semantics
 
 enum SurveyDefinitionAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {

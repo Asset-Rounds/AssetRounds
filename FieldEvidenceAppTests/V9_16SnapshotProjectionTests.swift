@@ -569,11 +569,168 @@ final class V9_16SnapshotProjectionTests: XCTestCase {
         XCTAssertThrowsError(try original.snapshot.validateSupersession(of: amendment.snapshot))
     }
 
+    func testV30P03C01ReportNoteLanguageSidecarBindsExactBytesAndRejectsOtherSources() throws {
+        let snapshot = try reportSnapshotWithNote("Inspector note: observed at 09:30.")
+        let noteBytes = Data(try XCTUnwrap(snapshot.note).utf8)
+        let source = try reportNoteLanguageSource(snapshot: snapshot, bytes: noteBytes)
+        let binding = try ReportSnapshotLanguageSourceIdentityV1(
+            snapshot: snapshot, source: source, sourceBytes: noteBytes
+        )
+
+        XCTAssertEqual(binding.field, .note)
+        XCTAssertEqual(binding.sourceRecordID, snapshot.sourceRecordID)
+        XCTAssertNoThrow(try binding.validate(snapshot: snapshot, sourceBytes: noteBytes))
+        XCTAssertNoThrow(try ReportProjectionRegistryV1().v30ValidateAuthoredSourceLanguage(
+            binding, snapshot: snapshot, sourceBytes: noteBytes
+        ))
+        XCTAssertThrowsError(try ReportSnapshotLanguageSourceIdentityV1(
+            snapshot: snapshot, source: source,
+            sourceBytes: Data("Inspector note: altered.".utf8)
+        ))
+
+        let noNoteSnapshot = try ReportSnapshotEncoderV1().decode(
+            legacyFixtureData(withExtension: "json")
+        )
+        let nonNoteBytes = Data("A sidecar cannot invent a snapshot note.".utf8)
+        let nonNoteSource = try reportNoteLanguageSource(
+            snapshot: noNoteSnapshot, bytes: nonNoteBytes
+        )
+        XCTAssertThrowsError(try ReportSnapshotLanguageSourceIdentityV1(
+            snapshot: noNoteSnapshot, source: nonNoteSource, sourceBytes: nonNoteBytes
+        ))
+
+        let wrongIDSource = try AuthoredContentLanguageSourceV1(
+            workspaceID: WorkspaceID(rawValue: UUID(uuidString: "30000000-0000-4000-8000-000000000001")!),
+            sourceID: "another-record.note", revision: 1,
+            sourceSHA256: AuthoredContentLanguageValidationV1.sha256(noteBytes),
+            layer: .inspectorCustomerEvidence, language: .known("en")
+        )
+        XCTAssertThrowsError(try ReportSnapshotLanguageSourceIdentityV1(
+            snapshot: snapshot, source: wrongIDSource, sourceBytes: noteBytes
+        ))
+    }
+
+    func testV30P03C01LanguageSidecarsDoNotRewriteHistoricSnapshotBytes() throws {
+        let encoder = ReportSnapshotEncoderV1()
+        let historicBytes = try legacyFixtureData(withExtension: "json")
+        let historicSnapshot = try encoder.decode(historicBytes)
+        XCTAssertEqual(try encoder.encode(historicSnapshot).data, historicBytes)
+
+        let snapshot = try reportSnapshotWithNote("Original inspector wording remains verbatim.")
+        let noteBytes = Data(try XCTUnwrap(snapshot.note).utf8)
+        let snapshotBytes = try encoder.encode(snapshot).data
+        let languages: [AuthoredContentLanguageV1] = [
+            .known("en"), .known("es"), .known("ar"), .known("he"), .known("ja"), .known("zh-Hans")
+        ]
+
+        for language in languages {
+            let source = try reportNoteLanguageSource(
+                snapshot: snapshot, bytes: noteBytes, language: language
+            )
+            let sidecar = try ReportSnapshotLanguageSourceIdentityV1(
+                snapshot: snapshot, source: source, sourceBytes: noteBytes
+            )
+            try sidecar.validate(snapshot: snapshot, sourceBytes: noteBytes)
+            XCTAssertEqual(try encoder.encode(snapshot).data, snapshotBytes)
+            XCTAssertEqual(try encoder.encode(historicSnapshot).data, historicBytes)
+        }
+    }
+
+    func testV30P03C01AccessibleNodeLanguageBindingUsesCurrentTreeNodeAndSourceBytes() throws {
+        let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "30000000-0000-4000-8000-000000000002")!)
+        let node = try AccessibleDocumentNodeV1(
+            nodeID: "inspector-note", role: .document, parentNodeID: nil, order: 0,
+            localizedText: "Observed exactly as recorded.", sensitivity: .customerSafe
+        )
+        let tree = try AccessibleDocumentSemanticTreeV1(
+            treeID: UUID(uuidString: "30000000-0000-4000-8000-000000000003")!,
+            workspaceID: workspaceID, audience: .customerSafe,
+            publication: try AccessibleDocumentPublicationBindingV1(
+                snapshotSHA256: String(repeating: "a", count: 64), manifestID: "v30.manifest",
+                manifestVersion: 1, manifestSHA256: String(repeating: "b", count: 64), localeIdentifier: "en-US",
+                profileID: "v30.profile", profileRelease: 1, profileSHA256: String(repeating: "c", count: 64),
+                brandProfileID: "v30.brand", brandProfileRelease: 1, brandProfileSHA256: String(repeating: "d", count: 64)
+            ),
+            nodes: [node], projectionVersion: "v30.language.v1"
+        )
+        let sourceBytes = Data(try XCTUnwrap(node.localizedText).utf8)
+
+        for layer in [AuthoredContentLayerV1.inspectorCustomerEvidence, .reportChrome] {
+            let source = try AuthoredContentLanguageSourceV1(
+                workspaceID: workspaceID, sourceID: node.nodeID, revision: 1,
+                sourceSHA256: AuthoredContentLanguageValidationV1.sha256(sourceBytes),
+                layer: layer, language: .known("en")
+            )
+            let binding = try AccessibleDocumentNodeLanguageBindingV1(
+                tree: tree, node: node, source: source, sourceBytes: sourceBytes
+            )
+            XCTAssertNoThrow(try binding.validate(tree: tree, node: node, sourceBytes: sourceBytes))
+        }
+
+        let uncontainedNode = try AccessibleDocumentNodeV1(
+            nodeID: "other-note", role: .paragraph, parentNodeID: "inspector-note", order: 0,
+            localizedText: "Not part of this tree.", sensitivity: .customerSafe
+        )
+        let uncontainedBytes = Data("Not part of this tree.".utf8)
+        let validSource = try AuthoredContentLanguageSourceV1(
+            workspaceID: workspaceID, sourceID: uncontainedNode.nodeID, revision: 1,
+            sourceSHA256: AuthoredContentLanguageValidationV1.sha256(uncontainedBytes),
+            layer: .inspectorCustomerEvidence, language: .known("en")
+        )
+        XCTAssertThrowsError(try AccessibleDocumentNodeLanguageBindingV1(
+            tree: tree, node: uncontainedNode, source: validSource, sourceBytes: uncontainedBytes
+        ))
+    }
+
     private struct Fixture {
         let snapshot: CompletedActivitySnapshotV1
         let manifest: ContractManifestV1
         let layout: ReportLayoutProfileV1
         let export: ExportProfileV1
+    }
+
+    private func reportSnapshotWithNote(_ note: String) throws -> ReportSnapshotV1 {
+        let historic = try ReportSnapshotEncoderV1().decode(legacyFixtureData(withExtension: "json"))
+        return ReportSnapshotV1(
+            acknowledgements: historic.acknowledgements,
+            asset: historic.asset,
+            couldNotVerify: historic.couldNotVerify,
+            disclaimer: historic.disclaimer,
+            display: historic.display,
+            evidence: historic.evidence,
+            evidenceSourceRecordID: historic.evidenceSourceRecordID,
+            history: historic.history,
+            issues: historic.issues,
+            note: note,
+            outcome: historic.outcome,
+            pack: historic.pack,
+            packetID: historic.packetID,
+            pdfTemplate: historic.pdfTemplate,
+            reportID: historic.reportID,
+            site: historic.site,
+            snapshotCreatedAt: historic.snapshotCreatedAt,
+            snapshotSchemaVersion: historic.snapshotSchemaVersion,
+            sourceApp: historic.sourceApp,
+            sourceRecordID: historic.sourceRecordID,
+            stableRootID: historic.stableRootID,
+            stage: historic.stage,
+            timeContext: historic.timeContext
+        )
+    }
+
+    private func reportNoteLanguageSource(
+        snapshot: ReportSnapshotV1,
+        bytes: Data,
+        language: AuthoredContentLanguageV1 = .known("en")
+    ) throws -> AuthoredContentLanguageSourceV1 {
+        try AuthoredContentLanguageSourceV1(
+            workspaceID: WorkspaceID(rawValue: UUID(uuidString: "30000000-0000-4000-8000-000000000001")!),
+            sourceID: "\(snapshot.sourceRecordID.uuidString).note",
+            revision: 1,
+            sourceSHA256: AuthoredContentLanguageValidationV1.sha256(bytes),
+            layer: .inspectorCustomerEvidence,
+            language: language
+        )
     }
 
     private func makeFixture(
