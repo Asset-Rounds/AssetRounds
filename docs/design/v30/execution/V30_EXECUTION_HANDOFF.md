@@ -4480,3 +4480,52 @@ Implementation paths (12 within the 17-path fence):
 - `FieldEvidenceAppTests/V30_P02_C07LanguageRegionSettingsTests.swift`
 
 Boundary: isolated provisional branch only; no main or Phase 10 read/poll/mutation. Replay/reimplement in graph order after S, preserve accepted Phase 10 design and rerun all invalidated/native evidence. Never merge wholesale. Next unstarted card: V30-P03-C01. This entry does not self-record its containing commit.
+
+
+## Card 22 of 55 - V30-P03-C01 - Authored-content and template-language model
+
+State: PROVISIONAL_CHECKPOINTED. Graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `60815291c28d232c021274fddd352fbe293296ef`, tree `765ec10f2e1034f25b7fe91646d0bb34482ed886` (C07 checkpoint 45).
+- Observed G0 authority A: `ba9aa69902ad3dac265fdbe855ec921e3c1d8fce`; M..A is exactly four V30 execution documents. All 22 fence entries match immutable authority and frozen B pins; zero S10 intersections.
+- Product implementation E: `c004b4bdd19bc037e3373e7f3a8f508343e5dca0`, tree `7d63520aabb3424f3a2fea35b0bd268400a7517d`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 47: head `db73b9b02644536f59067dfe8c0aeb97cdf5184d`, ledger digest `eb151919345c191dd26f66e512407eac984aa16a549e46b3f041a94a62b5f119`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C01/CHECKPOINT/1`. Receipt includes complete committed paths/hashes, candidate history, source inventory, static evidence and limits. All prior ledger event/request objects were proved unchanged before the append.
+
+Direct prerequisite evidence:
+- V30-P01-C04: `a96e445a572ef4a83b39f10899cc78df52ff9a23`, tree `4107ccdc7b2c2dbd1b6829148797be67c2fecb13`, checkpoint 22.
+- V30-P02-C02: `69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe`, tree `56016965f7f633eaf605460598e21910c1fc298b`, checkpoint 35.
+
+The language model distinguishes seven layers: app UI, admin templates, instructions, inspector/customer evidence, derived translations, report chrome and licensed jurisdiction content. Authored language is explicit or unknown and may differ from every supported app language. App/report catalog ownership does not authorize translation of authored or licensed material.
+
+Source metadata binds exact bytes through the existing SHA-256 function, workspace/source identity, revision, declared language, owner/version/release and optional privacy manifest. Original text is never trimmed, normalized, case-folded, copied into translated storage, or inferred from app preferences. Template/instruction adapters validate the incumbent survey release and actual fact kind. Their sourceID selects a fact within owner-bound canonical release or exact localization-release bytes; its digest covers those whole bytes, not individual fact text. Original-content adapters validate the actual content digest/workspace. The existing closed content registry has no added durable family.
+
+Derived candidates contain provenance identifiers and digests only, with opaque coordinator-lifetime/generation handles. Assessment detects source changes, privacy-manifest addition/change/removal, absence, writer eviction and expired lifetime. A privacy change invalidates even when immutable originals have identical bytes. Every assessment withholds translation display. A binding match proves equality to supplied bytes and metadata; the incumbent reader remains responsible for resolving current canonical source/privacy state. Reacquiring a candidate requires that reader's fresh resolution. There is no translation vendor connection, text payload, licensed/legal approval, professional review or future-service grant.
+
+The actual WorkspaceWriterAdapter dispatch is preserved and successful application evicts candidate handles through its shared coordinator. Failure does not evict. The journal still owns the atomic save, so a later rollback can conservatively evict a candidate without a durable write; this is cache invalidation, never a canonical source-edit/redaction record. No canonical journal, source row, schema or backup member was introduced.
+
+Report-source sidecars validate exact snapshot note bytes and the existing report/source/evidence identity plus explicit note field. Accessible sidecars validate the actual node text, exact tree membership, workspace, tree digest and projection identity. The existing report registry consumes validation without adding a renderer or semantic projection. Incumbent report snapshot, finalization, content provenance and canonical backup encoders keep their existing bytes and hash bases. Disposable metadata is not represented as a restored authoritative translation.
+
+Seventeen authored XCTest methods (twelve new plus five regressions) cover exact Unicode/NFC/NFD byte differences, unknown/unshipped language, owner/license/category validation, malformed decoded metadata, wrong identity, source/revision/owner/privacy changes, missing/evicted/expired handles and no translation display. The real in-memory SwiftData writer test exercises a failing command, successful site update and privacy publication. Existing content, survey and report tests exercise actual source adapters and preservation of canonical bytes. Tests remain unexecuted; no iOS compilation or native test success is claimed.
+
+Static validation PASS: immutable 55-card/107-edge package and installed pins; typed WINDOWS_STATIC selection with null selector; 22 exact fence/B pins, authority-only M..A and fourteen scoped implementation/test/fixture paths; all incumbent declarations and protected codecs preserved; unchanged writer command dispatch; Unicode fixture byte/digest validation; git diff --check; independent final model/content/writer/report/test audit. Precommit corrections strengthened report text/tree binding, clarified cache-eviction/source-reader semantics and added missing integration tests. All diagnosed static blockers were corrected before E.
+
+Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots: unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT. No hosted run was dispatched. Professional/native linguistic and final product qualification remain pending after reconciliation. KNOWN_BUGS was read and remains its template; no defect was accepted. Prior C01 and C06 source-audit invalidations remain unchanged by this card; old receipts and fixtures are immutable, and no whole-suite pass is claimed.
+
+Implementation paths (14 within the 22-path fence):
+- `FieldEvidenceApp/Application/Globalization/AuthoredContentLanguageCoordinatorV1.swift`
+- `FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift`
+- `FieldEvidenceApp/Domain/Globalization/AuthoredContentLanguageContractsV1.swift`
+- `FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift`
+- `FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift`
+- `FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift`
+- `FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/AuthoredContent/authored-content-language-cases-v1.json`
+- `FieldEvidenceAppTests/V30_P03_C01AuthoredContentLanguageTests.swift`
+- `FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift`
+- `FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift`
+- `FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift`
+
+Boundary: isolated provisional branch only; no main or Phase 10 read/poll/mutation. Replay/reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence. Never merge wholesale. Next unstarted card: V30-P03-C02. This entry does not self-record its containing commit.
