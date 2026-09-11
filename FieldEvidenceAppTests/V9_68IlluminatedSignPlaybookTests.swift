@@ -432,6 +432,77 @@ private func XCTUnwrapForC03<T>(_ value: T?) throws -> T {
 }
 
 final class V9_68IlluminatedSignPlaybookTests: XCTestCase {
+    func testRecoveryHashesCompleteNestedProjectionAndRejectsCheckpointMismatch() throws {
+        let fixture = try C03IlluminatedSignPlaybookTestSupport.makeFixture()
+        let checkpointBytes = try FieldDraftCanonicalCodecV1.encode(fixture.checkpoint)
+        let payloadBytes = try fixture.coordinator.canonicalPayloadData(fixture.payload)
+        let evidenceBefore = fixture.evidenceSequence
+        let associationsBefore = fixture.associationEvents
+        let poseBefore = fixture.poseTrace.event
+        let projection = try fixture.coordinator.project(checkpoint: fixture.checkpoint,
+            associationEvents: associationsBefore, evidenceSequence: evidenceBefore,
+            evidenceSequenceHistory: [evidenceBefore], poseEventHistory: [poseBefore])
+        let recovery = try fixture.coordinator.recover(checkpoint: fixture.checkpoint,
+            associationEvents: associationsBefore, evidenceSequence: evidenceBefore,
+            evidenceSequenceHistory: [evidenceBefore], poseEventHistory: [poseBefore])
+        try recovery.validate()
+        XCTAssertEqual(recovery.projection, projection)
+
+        // Independently assemble the historical nested shape from canonical
+        // field encodings, without invoking the production private hash wire.
+        func json<T: Encodable>(_ value: T) throws -> String {
+            String(decoding: try IlluminatedSignPlaybookCanonicalCodecV1.encode(value), as: UTF8.self)
+        }
+        let nested = try "{\"checkpointDraftRevision\":\(json(projection.checkpointDraftRevision)),"
+            + "\"checkpointSHA256\":\(json(projection.checkpointSHA256)),"
+            + "\"completeness\":\(json(projection.completeness)),"
+            + "\"payload\":\(json(projection.payload)),"
+            + "\"projectionSHA256\":\(json(projection.projectionSHA256))}"
+        let full = try "{\"checkpointDraftID\":\(json(fixture.checkpoint.draftID)),"
+            + "\"projection\":\(nested),"
+            + "\"recoveredCheckpointSHA256\":\(json(fixture.checkpoint.checkpointSHA256)),"
+            + "\"recoveredDraftRevision\":\(json(fixture.checkpoint.draftRevision))}"
+        XCTAssertEqual(recovery.recoverySHA256, KernelCanonicalHashV1.sha256(Data(full.utf8)))
+        let nestedObject = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(nested.utf8)) as? [String: Any])
+        XCTAssertEqual(Set(nestedObject.keys), Set(["checkpointDraftRevision", "checkpointSHA256",
+            "completeness", "payload", "projectionSHA256"]))
+        XCTAssertNotNil(nestedObject["payload"] as? [String: Any])
+        XCTAssertNotNil(nestedObject["completeness"] as? [String: Any])
+
+        for revision in [UInt64(1), UInt64(2)] {
+            let different = try C03IlluminatedSignPlaybookTestSupport.checkpoint(
+                workspace: fixture.workspace, payloadData: payloadBytes, codec: fixture.codec,
+                revision: revision, mutationSeed: 557_000 + Int(revision))
+            try different.validate()
+            XCTAssertThrowsError(try IlluminatedSignPlaybookRecoveryV1(
+                checkpoint: different, projection: projection)) {
+                XCTAssertEqual($0 as? IlluminatedSignPlaybookFailureV1, .digestMismatch)
+            }
+        }
+        // Synthesized checkpoint decoding is not validation. Keep the exact
+        // hash/revision fields while corrupting the bytes beneath them so the
+        // recovery initializer must validate the checkpoint itself as well.
+        var invalidObject = try XCTUnwrap(JSONSerialization.jsonObject(with: checkpointBytes)
+            as? [String: Any])
+        invalidObject["payloadData"] = Data("altered payload".utf8).base64EncodedString()
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let invalid = try decoder.decode(FieldDraftCheckpointV1.self,
+            from: JSONSerialization.data(withJSONObject: invalidObject, options: [.sortedKeys]))
+        XCTAssertEqual(invalid.checkpointSHA256, projection.checkpointSHA256)
+        XCTAssertEqual(invalid.draftRevision, projection.checkpointDraftRevision)
+        XCTAssertThrowsError(try invalid.validate())
+        XCTAssertThrowsError(try IlluminatedSignPlaybookRecoveryV1(checkpoint: invalid, projection: projection))
+        XCTAssertEqual(try fixture.coordinator.recover(checkpoint: fixture.checkpoint,
+            associationEvents: associationsBefore, evidenceSequence: evidenceBefore,
+            evidenceSequenceHistory: [evidenceBefore], poseEventHistory: [poseBefore]), recovery)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(fixture.checkpoint), checkpointBytes)
+        XCTAssertEqual(try fixture.coordinator.canonicalPayloadData(fixture.payload), payloadBytes)
+        XCTAssertEqual(fixture.evidenceSequence, evidenceBefore)
+        XCTAssertEqual(fixture.associationEvents, associationsBefore)
+        XCTAssertEqual(fixture.poseTrace.event, poseBefore)
+    }
+
     func testV23P04C03G01ExactSevenPlaybookManifestAndCaptureMatrix() throws {
         let corpus = try loadCorpus()
         assertCorpus(corpus, selector: "G01", tier: "GOLDEN")

@@ -44,7 +44,12 @@ struct IlluminatedSignPlaybookRecoveryV1: Equatable, Sendable {
 
     init(checkpoint: FieldDraftCheckpointV1,
          projection: IlluminatedSignPlaybookCheckpointProjectionV1) throws {
+        try checkpoint.validate()
         try projection.validate()
+        guard checkpoint.checkpointSHA256 == projection.checkpointSHA256,
+              checkpoint.draftRevision == projection.checkpointDraftRevision else {
+            throw IlluminatedSignPlaybookFailureV1.digestMismatch
+        }
         checkpointDraftID = checkpoint.draftID
         recoveredCheckpointSHA256 = checkpoint.checkpointSHA256
         recoveredDraftRevision = checkpoint.draftRevision
@@ -67,7 +72,34 @@ struct IlluminatedSignPlaybookRecoveryV1: Equatable, Sendable {
     private var basis: Basis { .init(checkpointDraftID: checkpointDraftID,
         recoveredCheckpointSHA256: recoveredCheckpointSHA256,
         recoveredDraftRevision: recoveredDraftRevision, projection: projection) }
-    private struct Basis: Codable { let checkpointDraftID: UUID; let recoveredCheckpointSHA256: String; let recoveredDraftRevision: UInt64; let projection: IlluminatedSignPlaybookCheckpointProjectionV1 }
+    /// Hash-only encoding keeps the complete nested projection without making
+    /// either live-authority value encodable or reconstructible by decoding.
+    private struct Basis: Encodable {
+        let checkpointDraftID: UUID
+        let recoveredCheckpointSHA256: String
+        let recoveredDraftRevision: UInt64
+        let projection: ProjectionBasis
+
+        init(checkpointDraftID: UUID, recoveredCheckpointSHA256: String,
+             recoveredDraftRevision: UInt64,
+             projection: IlluminatedSignPlaybookCheckpointProjectionV1) {
+            self.checkpointDraftID = checkpointDraftID
+            self.recoveredCheckpointSHA256 = recoveredCheckpointSHA256
+            self.recoveredDraftRevision = recoveredDraftRevision
+            self.projection = ProjectionBasis(
+                checkpointSHA256: projection.checkpointSHA256,
+                checkpointDraftRevision: projection.checkpointDraftRevision,
+                payload: projection.payload, completeness: projection.completeness,
+                projectionSHA256: projection.projectionSHA256)
+        }
+    }
+    private struct ProjectionBasis: Encodable {
+        let checkpointSHA256: String
+        let checkpointDraftRevision: UInt64
+        let payload: IlluminatedSignPlaybookDraftPayloadV1
+        let completeness: IlluminatedSignPlaybookCompletenessV1
+        let projectionSHA256: String
+    }
 }
 
 /// Pure orchestration over C05 evidence, C36 checkpoints and C37 pose events.

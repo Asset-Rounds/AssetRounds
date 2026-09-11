@@ -9,13 +9,15 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/S3_1DraftSchemaTests/testNoDraftStageIssueAndLatestParentValidationIsExact",
-    "FieldEvidenceAppTests/S3_1DraftSchemaTests/testForkedIssueLineageFailsClosedWithoutCreatingDraft",
-    "FieldEvidenceAppTests/S3_1DraftSchemaTests/testDifferentIssueOpeningRecheckBecomesTheNewIssuesFirstParent",
-    "FieldEvidenceAppTests/S3_1DraftSchemaTests/testDifferentIssueOpeningRejectsAForkedOldIssueChain",
-    "FieldEvidenceAppTests/V9_21RequirementAssuranceTests/testProvisionalReachabilityKeepsDistinctCasesAndUnprovenDiagnosticText",
-    "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testCurationPreviewRendersAvailableAndMissingOriginalWithoutInvokingActions",
-    "FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests/testEveryUnavailableCoachStateRendersWithoutAcceptingOrRetakingEvidence"
+    "FieldEvidenceAppTests/V9_37FieldReferencePackTests/testImportItemVerifiesActualBytesAndEveryDeclaredDigest",
+    "FieldEvidenceAppTests/V9_37FieldReferencePackTests/testV23P03C23I01ImportAndBindInterruptionRecoverWithoutPartialCanonicalState",
+    "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests/testRecoveryHashesCompleteNestedProjectionAndRejectsCheckpointMismatch",
+    "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests/testV23P04C03I01InterruptedCaptureCheckpointAndReplayAreZeroOrComplete",
+    "FieldEvidenceAppTests/V9_03MigrationRecoveryTests/testAggregatePopulatedLegacyPublishesOnlyActiveThenRequiresIndependentProcessAndPreservesSource",
+    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testOriginalRecoveryThroughActiveUpgradePreservesReportsPDFAndMedia",
+    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testCurrentActiveValidateAllBehaviorRemainsStrict",
+    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testActualWriterRetainsMissingHistoryAndRejectsNewOrReboundMembership",
+    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testActualWriterCarryoverChecksBothLiveTipsAndEverySelectedSource"
   ],
   "uiTestSelectors": []
 }

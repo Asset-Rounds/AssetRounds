@@ -443,6 +443,72 @@ struct C23FieldReferenceCorpus: Decodable {
 
 @MainActor
 final class V9_37FieldReferencePackTests: XCTestCase {
+    func testImportItemVerifiesActualBytesAndEveryDeclaredDigest() async throws {
+        let workspace = C23FieldReferenceTestSupport.workspace()
+        let original = try C23FieldReferenceTestSupport.content(workspaceID: workspace, index: 91)
+        let observed = try ContentIntegrityV1.observe(workspaceID: original.reference.workspaceID,
+            contentID: original.reference.contentID, data: original.bytes,
+            mediaType: original.reference.mediaType, algorithms: [.sha256, .sha512])
+        func reference(_ digests: ContentDigestSetV1) throws -> ContentReferenceV1 {
+            try .init(workspaceID: original.reference.workspaceID,
+                contentID: original.reference.contentID, byteLength: original.reference.byteLength,
+                mediaType: original.reference.mediaType, digests: digests,
+                byteRole: original.reference.byteRole, createdAt: original.reference.createdAt)
+        }
+        let dual = try reference(observed.digests)
+        let item = try FieldReferenceImportItemV1(reference: dual, locator: original.locator,
+            bytes: original.bytes)
+        XCTAssertEqual(item.bytes, original.bytes)
+        XCTAssertEqual(item.reference.digests.values.map(\.algorithm), [.sha256, .sha512])
+        var tampered = original.bytes
+        tampered[0] ^= 1
+        XCTAssertEqual(tampered.count, original.bytes.count)
+        XCTAssertThrowsError(try FieldReferenceImportItemV1(reference: dual, locator: original.locator,
+            bytes: tampered)) { XCTAssertEqual($0 as? ContentIntegrityFailureV1, .digestMismatch) }
+        XCTAssertThrowsError(try FieldReferenceImportItemV1(reference: dual, locator: original.locator,
+            bytes: Data(original.bytes.dropLast()))) {
+            XCTAssertEqual($0 as? ContentIntegrityFailureV1, .byteLengthMismatch)
+        }
+        let badSecondary = try ContentDigestSetV1([
+            XCTUnwrap(observed.digests.digest(for: .sha256)),
+            .init(algorithm: .sha512, hexadecimalValue: String(repeating: "0", count: 128)),
+        ])
+        XCTAssertThrowsError(try FieldReferenceImportItemV1(reference: reference(badSecondary),
+            locator: original.locator, bytes: original.bytes)) {
+            XCTAssertEqual($0 as? ContentIntegrityFailureV1, .digestMismatch)
+        }
+        for wrongWorkspace in [false, true] {
+            let wrong = try ContentLocatorV1(locatorID: original.locator.locatorID,
+                workspaceID: wrongWorkspace ? C23FieldReferenceTestSupport.workspaceString(
+                    C23FieldReferenceTestSupport.workspace(2)) : dual.workspaceID,
+                contentID: wrongWorkspace ? dual.contentID : "c23.wrong-content",
+                locatorRevision: original.locator.locatorRevision,
+                contentDigest: original.locator.contentDigest,
+                expectedByteLength: original.locator.expectedByteLength)
+            XCTAssertThrowsError(try FieldReferenceImportItemV1(reference: dual, locator: wrong,
+                bytes: original.bytes)) {
+                XCTAssertEqual($0 as? ContentIntegrityFailureV1,
+                    wrongWorkspace ? .wrongWorkspace : .missingContent)
+            }
+        }
+        let contents = [C23FieldReferenceTestSupport.ContentFixture(reference: dual,
+            locator: original.locator, bytes: original.bytes)]
+        let release = try C23FieldReferenceTestSupport.release(workspaceID: workspace, contents: contents)
+        let plan = try FieldReferenceImportPlanV1(release: release, items: [item])
+        let contentStore = C23FieldReferenceContentStore(), writer = C23FieldReferenceWriter()
+        let coordinator = FieldReferencePackCoordinatorV1(content: contentStore, writer: writer)
+        let first = try await coordinator.importRelease(plan)
+        let retry = try await coordinator.importRelease(plan)
+        XCTAssertEqual(first, retry)
+        try await contentStore.validateReadback(plan)
+        let contentCounts = await contentStore.counts(), writerCounts = await writer.counts()
+        XCTAssertEqual(contentCounts.persist, 1)
+        XCTAssertEqual(contentCounts.discard, 0)
+        XCTAssertEqual(writerCounts.release, 1)
+        XCTAssertEqual(writerCounts.binding, 0)
+        XCTAssertEqual(plan.items[0].bytes, original.bytes)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

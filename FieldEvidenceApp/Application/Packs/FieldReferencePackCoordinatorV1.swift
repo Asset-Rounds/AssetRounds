@@ -1,6 +1,20 @@
 import Foundation
 
-struct FieldReferenceImportItemV1:Equatable,Sendable{let reference:ContentReferenceV1;let locator:ContentLocatorV1;let bytes:Data;init(reference:ContentReferenceV1,locator:ContentLocatorV1,bytes:Data)throws{try ContentIntegrityV1.verify(reference:reference,locator:locator,observed:.init(byteLength:Int64(bytes.count),sha256:KernelCanonicalHashV1.sha256(bytes)));self.reference=reference;self.locator=locator;self.bytes=bytes}}
+struct FieldReferenceImportItemV1: Equatable, Sendable {
+    let reference: ContentReferenceV1
+    let locator: ContentLocatorV1
+    let bytes: Data
+
+    init(reference: ContentReferenceV1, locator: ContentLocatorV1, bytes: Data) throws {
+        let observed = try ContentIntegrityV1.observe(
+            workspaceID: reference.workspaceID, contentID: reference.contentID,
+            data: bytes, mediaType: reference.mediaType,
+            algorithms: reference.digests.values.map(\.algorithm)
+        )
+        try ContentIntegrityV1.verify(reference: reference, locator: locator, observed: observed)
+        self.reference = reference; self.locator = locator; self.bytes = bytes
+    }
+}
 struct FieldReferenceImportPlanV1:Equatable,Sendable{let release:FieldReferenceReleaseV1;let items:[FieldReferenceImportItemV1];init(release:FieldReferenceReleaseV1,items:[FieldReferenceImportItemV1])throws{try release.validateContent(references:items.map(\.reference),locators:items.map(\.locator));guard items.count==release.manifest.entries.count,items.reduce(0,{$0+$1.bytes.count})<=64*1_048_576 else{throw FieldReferencePackFailureV1.invalidValue};self.release=release;self.items=items}}
 struct FieldReferenceWriteReceiptV1:Codable,Equatable,Sendable{let mutationID:MutationIDV1;let postImageSHA256:String;let canonicalMutationReceiptSHA256:String;init(mutationID:MutationIDV1,postImageSHA256:String,canonicalMutationReceiptSHA256:String)throws{try FieldReferenceValidationV1.digest(postImageSHA256);try FieldReferenceValidationV1.digest(canonicalMutationReceiptSHA256);self.mutationID=mutationID;self.postImageSHA256=postImageSHA256;self.canonicalMutationReceiptSHA256=canonicalMutationReceiptSHA256}}
 protocol FieldReferenceContentAuthorityV1:Sendable{func persist(_ plan:FieldReferenceImportPlanV1)async throws;func validateReadback(_ plan:FieldReferenceImportPlanV1)async throws;func readinessInputs(release:FieldReferenceReleaseV1,binding:FieldReferenceBindingV1,evaluatedAt:Date)async throws->FieldReferenceReadinessInputsV1;func discardIfUnbound(_ plan:FieldReferenceImportPlanV1)async throws}
