@@ -70,6 +70,20 @@ The initial selector's only change from c45fa0f is taskID `V23-INTEGRATION-20260
 
 No fixed new-path allowance for the remaining runtime work is inferred from this list. Hydrate each demonstrated causal batch before editing. Do not add future-market behavior, cloud/accounts, payment changes, public claims, new permissions or external services beyond already explicit V23 scope.
 
+## Owner-selected minimal affected-state branding verification
+
+The owner directs: "Okay if that's the case then the same way we did phase 10 can we do for this expansion merged into one. Only states that matter. Don't worry about the minimum smoke or whatever. Just whatever shards and states that is bare minimum like how phase 10 did. Hopefully it's not as many states as first app."
+
+Apply this prospectively to the combined-app branding verification, not to historical S10 evidence. Use the current iPhone17/iOS26.2 route and the smallest source-grounded affected-state set. Do not repeat the original 67-state matrix or multiply every expansion state by every historical profile automatically. Minimum-runtime testing, the separate minimum core smoke and S10.5 physical testing remain excluded/deferred; changing this verification scope does not change the iOS18.0 deployment target or claim its runtime verified.
+
+Derive and independently review the final state/shard list after production routes are connected, before dispatching the final branding candidate. Select states because they cover a new/changed user-visible layout, essential action, meaningful failure/recovery, or integration seam. Group continuous journeys and shared-layout representatives where one execution genuinely covers their obligations. Preserve real native actions/assertions; screenshots or static manifests alone cannot prove functional closure. No invented lower state count or arbitrary numeric cap is promised.
+
+Use normal Light/Dark and the necessary large-text/contrast representatives for the affected UI and component families. Add motion, transparency, localization or additional appearance cases only when changed behavior or source-backed risk requires them. Reuse the unchanged accepted Phase 10 system as the baseline; add broader affected coverage if a shared component/token or formerly accepted state changes. Record why each retained variant matters and why omitted duplicate coverage adds no distinct obligation. Do not call omitted/deferred coverage PASS.
+
+This narrows redundant visual CI, not product correctness. Preserve targeted native regressions for storage migration, sole-writer/generation fencing, backup/restore/Erase, immutable evidence/reports, entitlement/data rights, and every retained essential expansion journey. Keep exact-head build/test evidence, strict applicable accessibility/contrast/geometry assertions, independent integration review and genuine review of new visual evidence before final main acceptance. Historical human approval is not approval of unseen changed screens.
+
+The final inventory and minimal shard count are pending actual feature adoption. Source-combination run `34546059070` at `e3a8dcb06c493afb45f733484cfa1e178b55e60e` is the first N8 compiler/regression diagnostic, not this final visual proof.
+
 ## Preserved deferrals and truth
 
 S10 has exactly five real accepted stages: Inventory, ComponentSystem, Migration, AutomatedLab and Release. S10.5 PhysicalExperience remains indefinitely DEFERRED until actual App Store release plus a new explicit owner instruction; no PhysicalExperience receipt or sixth accepted stage. S10.4 minimum-runtime coverage and smoke remain indefinitely DEFERRED with no retries or automatic activity. Both deferrals are nonblocking under their existing narrow owner policies, never PASS.
