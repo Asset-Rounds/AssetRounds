@@ -68,6 +68,9 @@ enum MutationQuarantineIdentityDomainV1: String, Codable, Equatable, Sendable {
 }
 
 enum MutationPostImageV1: Codable, Equatable, Sendable {
+    case importMappingProfile(id: UUID, revision: UInt64, semanticSHA256: String)
+    case bulkSession(id: UUID, revision: UInt64, semanticSHA256: String)
+    case bulkCommitReceipt(id: UUID, revision: UInt64, semanticSHA256: String)
     case site(id: UUID, revision: UInt64, semanticSHA256: String)
     case asset(id: UUID, revision: UInt64, semanticSHA256: String)
     case locationNode(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -203,6 +206,9 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     var identity: WorkspaceEntityIdentityV1 {
         get throws {
             switch self {
+            case let .importMappingProfile(id, _, _): return try .init(kind: .importMappingProfile, id: id)
+            case let .bulkSession(id, _, _): return try .init(kind: .bulkSession, id: id)
+            case let .bulkCommitReceipt(id, _, _): return try .init(kind: .bulkCommitReceipt, id: id)
             case let .site(id, _, _): return try .init(kind: .site, id: id)
             case let .asset(id, _, _): return try .init(kind: .asset, id: id)
             case let .locationNode(id, _, _): return try .init(kind: .locationNode, id: id)
@@ -340,6 +346,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var semanticSHA256: String {
         switch self {
+        case let .importMappingProfile(_, _, value), let .bulkSession(_, _, value), let .bulkCommitReceipt(_, _, value): return value
         case let .serviceRequestRecord(_,_,_,value),
              let .serviceRequestDispositionEvent(_,_,_,value),
              let .serviceRequestWorkLinkEvent(_,_,_,value),let .assetServiceIncident(_,_,_,value),
@@ -380,6 +387,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     var concurrencyIdentity: WorkspaceEntityIdentityV1 {
         get throws {
             switch self {
+            case .importMappingProfile, .bulkSession, .bulkCommitReceipt: return try identity
             case let .serviceRequestRecord(_,value,_,_):
                 guard value.kind == .serviceRequestRecord else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
             case let .serviceRequestDispositionEvent(_,value,_,_):
@@ -528,6 +536,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var revision: UInt64 {
         switch self {
+        case let .importMappingProfile(_, value, _), let .bulkSession(_, value, _), let .bulkCommitReceipt(_, value, _): return value
         case let .serviceRequestRecord(_,_,value,_),
              let .serviceRequestDispositionEvent(_,_,value,_),
              let .serviceRequestWorkLinkEvent(_,_,value,_),let .assetServiceIncident(_,_,value,_),

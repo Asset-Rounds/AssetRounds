@@ -546,8 +546,8 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
             }
         }
 
-        try validatePersistentModels()
-        try validateOwnedFileClasses()
+        try Self.validatePersistentModels()
+        try Self.validateOwnedFileClasses()
         try requireExactCategory(
             persistentModelSubjects,
             category: .persistentModel,
@@ -1412,7 +1412,9 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV16":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames)
         case "StoreSemanticEnvelopeV17":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames)
         case "StoreSemanticEnvelopeV18":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames)
-        case "StoreSemanticEnvelopeV19":return try subjects(category:.persistentModel,names:(v1PersistentModelNames+v2PersistentModelNames+v3PersistentModelNames+v4PersistentModelNames+v5PersistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames+v19PersistentModelNames))
+        case "StoreSemanticEnvelopeV19":
+            let names: [String] = [persistentModelNames, v6PersistentModelNames, v7PersistentModelNames, v8PersistentModelNames, v9PersistentModelNames, v10PersistentModelNames, v11PersistentModelNames, v12PersistentModelNames, v13PersistentModelNames, v14PersistentModelNames, v15PersistentModelNames, v16PersistentModelNames, v17PersistentModelNames, v18PersistentModelNames, v19PersistentModelNames].flatMap { $0 }
+            return try subjects(category: .persistentModel, names: names)
         case "StoreSemanticEnvelopeV20":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v21PersistentModelNames+v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames+v40PersistentModelNames+v41PersistentModelNames+v42PersistentModelNames+v43PersistentModelNames+v44PersistentModelNames+v45PersistentModelNames).contains($0)})
         case "StoreSemanticEnvelopeV21":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames+v40PersistentModelNames+v41PersistentModelNames+v42PersistentModelNames+v43PersistentModelNames+v44PersistentModelNames+v45PersistentModelNames).contains($0)})
         case "RecoverabilityVerificationStagingV1","RecoverabilityFreshnessProjectionV1","RecoverabilityVerificationLifecycleV1":return[try subject(category:.persistentModel,name:"RecoverabilityVerificationReceiptRow")]
@@ -1648,6 +1650,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             PracticeWorkspaceProvenanceRowV1.self,
             LightingDayInventoryWorkflowRowV1.self,LightingNightWorkflowRowV1.self,
         ]
+        let expectedV52 = expected.filter {
+            ObjectIdentifier($0) != ObjectIdentifier(LightingNightWorkflowRowV1.self)
+        }
         let runtimeNames = PersistentSchemaV53.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
@@ -1662,8 +1667,11 @@ private extension CurrentSyncClassificationCatalogV1 {
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
               PersistentSchemaV52.models.count == 167,
-              PersistentSchemaV52.models.count == expected.count,
+              PersistentSchemaV52.models.count == expectedV52.count,
               Set(PersistentSchemaV52.models.map { ObjectIdentifier($0) })
+                == Set(expectedV52.map { ObjectIdentifier($0) }),
+              PersistentSchemaV53.models.count == expected.count,
+              Set(PersistentSchemaV53.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),
@@ -1792,7 +1800,7 @@ enum C52ServiceRequestSyncClassificationBoundaryV1 {
             && CurrentSyncClassificationCatalogV1.v39PersistentModelNames.count == 3
     }
 }
-enum C53AssetServiceReliabilitySyncClassificationBoundaryV1{static let localOnlyCanonicalKinds=AssetServiceReliabilityPersistenceEnrollmentV1.durableModels.map{String(describing:$0)};static let integrationEventKinds=["ASSET_SERVICE_INCIDENT","SERVICE_IMPACT_SEGMENT","SERVICE_CAUSE_ASSERTION","SERVICE_REMEDY_ASSERTION","SERVICE_REPAIR_INTERVAL","SERVICE_RESTORATION_ASSERTION","QUALIFIED_SERVICE_EXPOSURE"];static let reliabilityProjectionIsCanonicalSyncState=false;static func validate()->Bool{Set(localOnlyCanonicalKinds)==Set(CurrentSyncClassificationCatalogV1.v40PersistentModelNames)&&integrationEventKinds.count==7&&!reliabilityProjectionIsCanonicalSyncState}}
+enum C53AssetServiceReliabilitySyncClassificationBoundaryV1{static let localOnlyCanonicalKinds=AssetServiceReliabilityPersistenceEnrollmentV1.durableModels.map{String(describing:$0)};static let integrationEventKinds=["ASSET_SERVICE_INCIDENT","SERVICE_IMPACT_SEGMENT","SERVICE_CAUSE_ASSERTION","SERVICE_REMEDY_ASSERTION","SERVICE_REPAIR_INTERVAL","SERVICE_RESTORATION_ASSERTION","QUALIFIED_SERVICE_EXPOSURE"];static let reliabilityProjectionIsCanonicalSyncState=false;static func validate()->Bool{Set(localOnlyCanonicalKinds)==Set(CurrentSyncClassificationCatalogV1.v40PersistentModelNames)&&integrationEventKinds.count==7 && !reliabilityProjectionIsCanonicalSyncState}}
 enum C08ImportBulkSyncClassificationBoundaryV1 { static func validate() -> Bool { CurrentSyncClassificationCatalogV1.v46PersistentModelNames.count == 3 && Set(CurrentSyncClassificationCatalogV1.v46PersistentModelNames) == Set(["ImportMappingProfileRowV1", "BulkSessionRowV1", "BulkCommitReceiptRowV1"]) } }
 enum C17LightingDayInventorySyncClassificationBoundaryV1 {
     static func validate() -> Bool {

@@ -146,6 +146,195 @@ private final class CompilerWriterAdmissionHarnessV1 {
 }
 
 final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
+    func testCurrentModelInventoryPreservesV52AndAdmitsOnlyV53NightRow() throws {
+        XCTAssertEqual(PersistentSchemaV52.models.count, 167)
+        let prior = Set(PersistentSchemaV52.models.map { ObjectIdentifier($0) })
+        let current = Set(PersistentSchemaV53.models.map { ObjectIdentifier($0) })
+        XCTAssertTrue(prior.isSubset(of: current))
+        XCTAssertEqual(current.subtracting(prior), [ObjectIdentifier(LightingNightWorkflowRowV1.self)])
+        XCTAssertEqual(PersistentSchemaV53.models.count, PersistentSchemaV52.models.count + 1)
+        XCTAssertNoThrow(try CurrentSyncClassificationCatalogV1.validatePersistentModels())
+    }
+
+    @MainActor
+    func testImportBulkProductionRowsHaveTypedCanonicalReceiptsAndReplay() throws {
+        let harness = try CompilerWriterAdmissionHarnessV1()
+        let workspace = harness.identity.workspaceID
+        let budget = try ImportStreamingBudgetV1(maximumSourceBytes: 1_024, maximumRows: 1,
+            maximumColumns: 2, maximumCellBytes: 128, maximumScalarsPerCell: 128)
+        let schema = try ImportSchemaReleaseV1(releaseID: "journal_import_schema", release: 1,
+            entityKind: .asset, externalKeyColumn: "asset_key", columns: [
+                try .init(key: "asset_key", scalar: .identifier, required: true,
+                    editableOnExactUpdate: false, maximumCellBytes: 128, maximumScalars: 128),
+            ], budget: budget)
+        let sourceHash = String(repeating: "a", count: 64)
+        let workspaceHash = String(repeating: "b", count: 64)
+        let source = try ImportSourceV1(sourceID: UUID(), workspaceID: workspace, kind: .userSelectedFile,
+            sourceSHA256: sourceHash, byteCount: 32, leaseID: UUID(), importedAt: CompilerWriterAdmissionHarnessV1.date)
+        let rowIdentity = try ImportRowIdentityV1(workspaceID: workspace, sourceSHA256: sourceHash,
+            sourceOrdinal: 1, canonicalRowSHA256: String(repeating: "c", count: 64), stableExternalKey: "asset_001",
+            schemaReleaseID: schema.releaseID, schemaRelease: schema.release)
+        let fields = [try ImportMappedFieldV1(key: "asset_key", value: "asset_001")]
+        let commandHash = try ImportProposedCommandV1.canonicalPayloadSHA256(commandID: "create_asset_001",
+            kind: .createAsset, targetStableID: nil, expectedRevision: nil, dependencyCommandIDs: [],
+            rowIdentity: rowIdentity, schemaRelease: schema, mappedFields: fields)
+        let command = try ImportProposedCommandV1(commandID: "create_asset_001", kind: .createAsset,
+            targetStableID: nil, expectedRevision: nil, dependencyCommandIDs: [], payloadSHA256: commandHash)
+        let row = try ImportPlanRowV1(identity: rowIdentity, disposition: .create, reasons: [.exactStableKeyCreate],
+            mappedFields: fields, commands: [command], expectedTargetRevision: nil)
+        let planID = try ImportPlanV1.deterministicPlanID(workspaceID: workspace, source: source,
+            schemaRelease: schema, mappingProfileSHA256: nil, workspaceRevisionSHA256: workspaceHash, rows: [row])
+        let plan = try ImportPlanV1(planID: planID, workspaceID: workspace, source: source, schemaRelease: schema,
+            mappingProfileSHA256: nil, workspaceRevisionSHA256: workspaceHash, rows: [row])
+        let chunk = try BulkChunkPlanV1(chunkIndex: 0, rowIdentitySHA256s: [rowIdentity.identitySHA256], mutationIDs: [
+            BulkCommandPlanV1.deterministicMutationID(importPlanID: planID, chunkIndex: 0,
+                rowIdentitySHA256: rowIdentity.identitySHA256),
+        ])
+        let bulkID = try BulkCommandPlanV1.deterministicBulkPlanID(importPlan: plan, atomicity: .allOrNothing, chunks: [chunk])
+        let bulk = try BulkCommandPlanV1(bulkPlanID: bulkID, importPlan: plan, atomicity: .allOrNothing, chunks: [chunk])
+        let profile = try ImportMappingProfileV1(profileID: UUID(), workspaceID: workspace,
+            profileName: "Journal mapping", schemaRelease: schema,
+            mappings: [try .init(sourceColumn: "external_key", targetColumn: "asset_key")])
+        let session = try BulkSessionV1(sessionID: UUID(), workspaceID: workspace, bulkPlan: bulk,
+            sourceSHA256: sourceHash, expectedWorkspaceRevisionSHA256: workspaceHash)
+        // A cancelled chunk is a real terminal receipt without fabricated asset mutations.
+        let receipt = try BulkCommitReceiptV1(receiptID: UUID(), workspaceID: workspace, bulkPlan: bulk,
+            chunkIndex: 0, expectedWorkspaceRevisionSHA256: workspaceHash,
+            disposition: .cancelledBeforeCommit, committedMutationIDs: [])
+        let cancelled = try BulkSessionV1(sessionID: session.sessionID, workspaceID: workspace, bulkPlan: bulk,
+            sourceSHA256: sourceHash, expectedWorkspaceRevisionSHA256: workspaceHash,
+            state: .cancelled, chunkReceipts: [receipt])
+        let updatedProfile = try ImportMappingProfileV1(profileID: profile.profileID, workspaceID: workspace,
+            profileName: "Updated journal mapping", schemaRelease: schema, mappings: profile.mappings)
+        let operations: [(ImportBulkWorkspaceOperationV1, UInt64, MutationPostImageV1)] = [
+            (.upsertMappingProfile(profile: profile, expectedProfileSHA256: nil), 0,
+             .importMappingProfile(id: profile.profileID, revision: 1, semanticSHA256: profile.profileSHA256)),
+            (.advanceSession(session: session, expectedSessionSHA256: nil), 0,
+             .bulkSession(id: session.sessionID, revision: 1, semanticSHA256: session.sessionSHA256)),
+            (.appendReceipt(receipt), 0,
+             .bulkCommitReceipt(id: receipt.receiptID, revision: 1, semanticSHA256: receipt.receiptSHA256)),
+            (.advanceSession(session: cancelled, expectedSessionSHA256: session.sessionSHA256), 1,
+             .bulkSession(id: session.sessionID, revision: 2, semanticSHA256: cancelled.sessionSHA256)),
+            (.upsertMappingProfile(profile: updatedProfile, expectedProfileSHA256: profile.profileSHA256), 1,
+             .importMappingProfile(id: profile.profileID, revision: 2, semanticSHA256: updatedProfile.profileSHA256)),
+        ]
+        for (operation, expectedRevision, image) in operations {
+            let mutation = try ImportBulkWorkspaceMutationV1(workspaceID: workspace,
+                expectedRevision: expectedRevision, mutationID: .init(rawValue: UUID()), operation: operation)
+            let target = try mutation.affectedIdentity
+            let request = try WorkspaceMutationRequestV1(mutationID: mutation.mutationID,
+                expectedRevision: harness.expected([.init(identity: target, revision: expectedRevision)]),
+                command: .applyImportBulk(mutation))
+            _ = try harness.writer.execute(request)
+            let durable = try XCTUnwrap(harness.journal.receipt(mutationID: mutation.mutationID))
+            XCTAssertEqual(durable.postImages, [image])
+            XCTAssertEqual(try image.identity, target)
+            XCTAssertEqual(try image.concurrencyIdentity, target)
+            XCTAssertEqual(image.revision, expectedRevision + 1)
+            let encoded = try durable.canonicalData()
+            XCTAssertEqual(try MutationReceiptV1.decodeCanonical(from: encoded), durable)
+            let beforeReplay = try harness.journal.exportSnapshot()
+            _ = try harness.writer.execute(request)
+            XCTAssertEqual(try harness.journal.exportSnapshot(), beforeReplay)
+            XCTAssertEqual(try XCTUnwrap(harness.journal.receipt(mutationID: mutation.mutationID)).canonicalData(), encoded)
+            try harness.journal.validateAll()
+        }
+        XCTAssertEqual(try XCTUnwrap(harness.context.fetch(FetchDescriptor<ImportMappingProfileRowV1>()).first).value(), updatedProfile)
+        XCTAssertEqual(try XCTUnwrap(harness.context.fetch(FetchDescriptor<BulkSessionRowV1>()).first).value(), cancelled)
+        XCTAssertEqual(try XCTUnwrap(harness.context.fetch(FetchDescriptor<BulkCommitReceiptRowV1>()).first).value(), receipt)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<ImportMappingProfileRowV1>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<BulkSessionRowV1>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<BulkCommitReceiptRowV1>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 5)
+        let history = try harness.journal.exportSnapshot()
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(history, sourcePersistentSchemaVersion: 46))
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(history, sourcePersistentSchemaVersion: 45))
+        let recreated = try harness.makeWriter(instanceID: UUID())
+        XCTAssertEqual(try recreated.currentRevision().revision, 5)
+        try harness.journal.validateAll()
+    }
+
+    @MainActor
+    func testPlanLocatorReferenceRequiresCanonicalOwnerAndExactReceipt() throws {
+        let harness = try CompilerWriterAdmissionHarnessV1()
+        let workspace = harness.identity.workspaceID
+        let now = CompilerWriterAdmissionHarnessV1.date
+        let contentDigest = try ContentDigestV1(algorithm: .sha256, hexadecimalValue: String(repeating: "a", count: 64))
+        let entry = try ContentManifestEntryV1(contentID: "journal-plan-pdf", expectedByteLength: 4,
+            mediaType: "application/pdf", digest: contentDigest, expectedLocatorRevision: 1, requiredForOpen: true)
+        let manifest = try ContentManifestV1(manifestID: "journal-plan-manifest",
+            workspaceID: workspace.rawValue.uuidString.lowercased(), manifestRevision: 1, entries: [entry])
+        let content = try ContentReferenceV1(workspaceID: workspace.rawValue.uuidString.lowercased(),
+            contentID: entry.contentID, byteLength: entry.expectedByteLength, mediaType: entry.mediaType,
+            digests: .init([contentDigest]), byteRole: .immutableOriginal, createdAt: "2026-09-01T00:00:00.000Z")
+        let contentLocator = try ContentLocatorV1(locatorID: "journal-plan-content-locator", workspaceID: content.workspaceID,
+            contentID: content.contentID, locatorRevision: 1, contentDigest: contentDigest, expectedByteLength: content.byteLength)
+        let provenance = try FieldReferenceProvenanceV1(kind: .synthetic, sourceName: "Journal plan fixture",
+            sourceReleaseIdentifier: "journal-plan-1", licenseScope: .localUseOnly)
+        let release = try FieldReferenceReleaseV1(releaseID: UUID(), workspaceID: workspace,
+            referencePackID: "journal-plan-pack", kind: .drawing, semanticVersion: "1.0.0", provenance: provenance,
+            manifest: manifest, issuedAt: now, mutationID: .init(rawValue: UUID()))
+        let document = try PlanDocumentV1(planDocumentID: UUID(), workspaceID: workspace, stablePlanKey: "journal-plan",
+            displayName: "Journal plan", revision: 1, mutationID: .init(rawValue: UUID()), recordedAt: now)
+        let crop = try PlanCropRectV1(minX: .init(millionths: 0), minY: .init(millionths: 0),
+            maxX: .init(millionths: PlanLimitsV1.normalizedScale), maxY: .init(millionths: PlanLimitsV1.normalizedScale))
+        let page = try PlanPageReferenceV1(pageID: UUID(), sourcePageOrdinal: 0, presentedPageOrdinal: 0,
+            pixelWidth: 2_000, pixelHeight: 1_000, crop: crop, rotation: .degrees0,
+            sourcePageSHA256: String(repeating: "b", count: 64))
+        let frame = try SpatialReferenceFrameV1(frameID: UUID(), pageID: page.pageID)
+        let localActor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Journal actor")
+        let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: localActor,
+            responsibility: .recordedBy, displayNameAtTime: localActor.displayName, capturedAt: now)
+        let revision = try PlanRevisionV1(planRevisionID: UUID(), workspaceID: workspace,
+            planDocument: document.reference,
+            contentBinding: .init(content: content, locator: contentLocator, fieldReferenceRelease: release),
+            pages: [page], spatialFrames: [frame], state: .released, revision: 1,
+            mutationID: .init(rawValue: UUID()), recordedBy: actor, recordedAt: now)
+        let locator = try AssetLocatorV1(locatorID: UUID(), workspaceID: workspace, assetID: UUID(),
+            representation: .externalKey(.init(namespaceID: "journal.fixture", normalization: .exactNFC, suppliedValue: "asset-1")),
+            state: .active, revision: 1, mutationID: .init(rawValue: UUID()), recordedAt: now)
+        let preview = try LocatorBindingPreviewV1(workspaceID: workspace, action: .bind, before: nil,
+            after: locator.reference, replacement: nil, generatedAt: now)
+        let receipt = try LocatorBindingReceiptV1(receiptID: UUID(), preview: preview, recordedBy: actor,
+            predecessor: nil, revision: 1, mutationID: .init(rawValue: UUID()), recordedAt: now)
+        let binding = try PlanAssetLocatorBindingV1(locator: locator, receipt: receipt)
+        func mutation(_ binding: PlanAssetLocatorBindingV1) throws -> PlanMutationV1 {
+            let placement = try PlanPlacementV1(placementID: UUID(), workspaceID: workspace, subjectKind: .asset,
+                subjectID: binding.assetID, planRevision: revision.reference, spatialFrameID: frame.frameID,
+                x: .init(millionths: 300_000), y: .init(millionths: 400_000), assetLocatorBinding: binding,
+                revision: 1, mutationID: .init(rawValue: UUID()), recordedAt: now)
+            return try PlanMutationV1(workspaceID: workspace, mutationID: placement.mutationID,
+                payload: .appendPlacement(placement, predecessor: nil, planRevision: revision))
+        }
+        harness.context.insert(try PlanRevisionRow(revision))
+        harness.context.insert(try LocatorBindingReceiptRow(receipt))
+        try harness.context.save()
+        let valid = try mutation(binding)
+        XCTAssertThrowsError(try harness.journal.validatePlanReferences(valid)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        let locatorRow = try AssetLocatorRow(locator)
+        harness.context.insert(locatorRow)
+        try harness.context.save()
+        XCTAssertNoThrow(try harness.journal.validatePlanReferences(valid))
+        for key in ["assetID", "bindingReceiptSHA256"] {
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(with: PlanCanonicalCodecV1.encode(binding)) as? [String: Any])
+            object[key] = key == "assetID" ? UUID().uuidString : String(repeating: "f", count: 64)
+            let forged = try JSONDecoder().decode(PlanAssetLocatorBindingV1.self,
+                from: JSONSerialization.data(withJSONObject: object))
+            try forged.validate()
+            // Intrinsic validity cannot prove the owner of a locator reference.
+            let hostile = try mutation(forged)
+            XCTAssertThrowsError(try harness.journal.validatePlanReferences(hostile)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+            }
+        }
+        XCTAssertEqual(try locatorRow.value(), locator)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<PlanPlacementRow>()), 0)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        XCTAssertFalse(harness.context.hasChanges)
+    }
+
     @MainActor
     func testWorkspaceExperiencePortableAuthorityRebindsAndReplaysOneCanonicalEffect() throws {
         let harness = try CompilerWriterAdmissionHarnessV1()

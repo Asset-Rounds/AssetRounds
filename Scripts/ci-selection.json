@@ -48,7 +48,10 @@
     "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testCanonicalWorkAuthorityRoundTripsAndRequiresOriginalV53Source",
     "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testCanonicalWorkRejectsHostileCommandAndAuthorityBytes",
     "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testCanonicalWorkImportRejectsResealedEnvelopeAndUnchangedSourceRevisionForgery",
-    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testV9_08R01CompleteReversalPolicyAndPurePreview"
+    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testV9_08R01CompleteReversalPolicyAndPurePreview",
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testImportBulkProductionRowsHaveTypedCanonicalReceiptsAndReplay",
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testPlanLocatorReferenceRequiresCanonicalOwnerAndExactReceipt",
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testCurrentModelInventoryPreservesV52AndAdmitsOnlyV53NightRow"
   ],
   "uiTestSelectors": []
 }
