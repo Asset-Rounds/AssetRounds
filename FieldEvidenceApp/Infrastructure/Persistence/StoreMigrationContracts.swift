@@ -577,7 +577,11 @@ struct CurrentGenerationPointerV3: Codable, Equatable, Sendable {
     func validate() throws {
         let zero = "00000000-0000-0000-0000-000000000000"
         guard schemaVersion == 3,
-              (2...26).contains(storeSchemaVersion),
+              (2...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+                .contains(storeSchemaVersion),
+              PersistentSchemaReleaseRegistryV1.releases.contains(where: {
+                  $0.versionIdentifier.major == storeSchemaVersion
+              }),
               Self.canonicalUUID(generationID) != nil,
               Self.canonicalUUID(workspaceID) != nil,
               Self.canonicalUUID(replicaID) != nil,

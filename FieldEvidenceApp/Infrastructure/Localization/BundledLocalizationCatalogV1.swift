@@ -3586,6 +3586,54 @@ enum BundledLocalizationCatalogV1 {
                 preconditionFailure("Declared pose localization mapping is incomplete.")
             }
             return poseKey.englishDefaultValue
+        case .lightingSystemHeading,
+             .lightingTopology,
+             .lightingZones,
+             .lightingControlGroups,
+             .lightingLuminaires,
+             .lightingObservationHeading,
+             .lightingObservationRecorded,
+             .lightingIssueRecorded,
+             .lightingIssueOpen,
+             .lightingIssueResolved,
+             .lightingIssueSuperseded,
+             .lightingMeasurementHeading,
+             .lightingIlluminance,
+             .lightingCalibration,
+             .lightingClaimObserved,
+             .lightingClaimMeasured,
+             .lightingClaimDerived,
+             .lightingClaimCriterion,
+             .lightingClaimExternal,
+             .lightingClaimUnavailable,
+             .lightingSafetyStop,
+             .lightingSafetyNextStep,
+             .lightingClaimBoundary,
+             .lightingHistoryFrozen,
+             .lightingManualOffline:
+            guard let lightingKey = C31LightingLocalizationKeyV1(rawValue: key.rawValue) else {
+                preconditionFailure("Declared lighting localization mapping is incomplete.")
+            }
+            return lightingKey.englishDefaultValue
+        case .operationalContactDirections,
+             .operationalContactCall,
+             .operationalContactText,
+             .operationalContactEmail,
+             .operationalContactOpensSystemApp,
+             .operationalContactHandedOff,
+             .operationalContactTargetMissing,
+             .operationalContactTargetStale,
+             .operationalContactTargetInvalid,
+             .operationalContactSystemUnavailable,
+             .operationalContactSystemRejected,
+             .operationalContactCancelled,
+             .operationalContactClaimBoundary:
+            guard let operationalContactKey = OperationalContactLocalizationKeyV1(
+                rawValue: key.rawValue
+            ) else {
+                preconditionFailure("Declared operational-contact localization mapping is incomplete.")
+            }
+            return operationalContactLocalized(operationalContactKey, bundle: bundle)
         }
     }
 

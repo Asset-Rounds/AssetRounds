@@ -1784,6 +1784,16 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
             ),
             "L’actif A-42 a 3 observations"
         )
+
+        let operationalContact = BundledLocalizationCatalogV1.localized(
+            .operationalContactDirections,
+            bundle: fixture.bundle
+        )
+        XCTAssertEqual(operationalContact, "Injected bundle directions")
+        XCTAssertNotEqual(
+            operationalContact,
+            BundledLocalizationCatalogV1.operationalContactEnglish(.directions)
+        )
     }
 
     func testIntegrationBundledLocalizationTypedMappingsAreExhaustive() throws {
@@ -1811,6 +1821,14 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
             C37PoseLocalizationKeyV1.self,
             english: { $0.englishDefaultValue }
         )
+        try assertBundledMappings(
+            C31LightingLocalizationKeyV1.self,
+            english: { $0.englishDefaultValue }
+        )
+        try assertBundledMappings(
+            OperationalContactLocalizationKeyV1.self,
+            english: { BundledLocalizationCatalogV1.operationalContactEnglish($0) }
+        )
 
         XCTAssertEqual(FieldDraftLocalizationKeyV1.allCases.count, 66)
         XCTAssertEqual(PrivacyTransformLocalizationKeyV1.allCases.count, 22)
@@ -1818,6 +1836,8 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         XCTAssertEqual(FieldReferenceLocalizationKeyV1.allCases.count, 38)
         XCTAssertEqual(AccessibleDocumentLocalizationKeyV1.allCases.count, 33)
         XCTAssertEqual(C37PoseLocalizationKeyV1.allCases.count, 36)
+        XCTAssertEqual(C31LightingLocalizationKeyV1.allCases.count, 25)
+        XCTAssertEqual(OperationalContactLocalizationKeyV1.allCases.count, 13)
     }
 
     private func temporaryDynamicLocalizationBundle() throws -> (bundle: Bundle, url: URL) {
@@ -1845,6 +1865,8 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
             [
                 "integration.localization.greeting": "English locale value",
                 "integration.localization.format": "Asset %@ has %lld findings",
+                OperationalContactLocalizationKeyV1.directions.rawValue:
+                    "Injected bundle directions",
             ],
             locale: "en",
             bundleURL: root
@@ -1853,6 +1875,8 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
             [
                 "integration.localization.greeting": "Valeur française",
                 "integration.localization.format": "L’actif %@ a %lld observations",
+                OperationalContactLocalizationKeyV1.directions.rawValue:
+                    "Injected bundle directions",
             ],
             locale: "fr",
             bundleURL: root

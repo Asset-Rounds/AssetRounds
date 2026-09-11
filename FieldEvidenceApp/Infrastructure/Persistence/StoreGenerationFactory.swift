@@ -4787,43 +4787,9 @@ private extension StoreGenerationFactory {
             targetGenerationID: generationID,
             expectedDigest: pointer.generationManifestSHA256
         )
-        let expectedRelease: PersistentSchemaReleaseV1
-        switch pointer.storeSchemaVersion {
-        case 2: expectedRelease = .v2
-        case 3: expectedRelease = .v3
-        case 4: expectedRelease = .v4
-        case 5: expectedRelease = .v5
-        case 6: expectedRelease = .v6
-        case 7: expectedRelease = .v7
-        case 8: expectedRelease = .v8
-        case 9: expectedRelease = .v9
-        case 10: expectedRelease = .v10
-        case 11: expectedRelease = .v11
-        case 12: expectedRelease = .v12
-        case 13: expectedRelease = .v13
-        case 14: expectedRelease = .v14
-        case 15: expectedRelease = .v15
-        case 16: expectedRelease = .v16
-        case 17: expectedRelease = .v17
-        case 18: expectedRelease = .v18
-        case 19: expectedRelease = .v19
-        case 20: expectedRelease = .v20
-        case 21: expectedRelease = .v21
-        case 22: expectedRelease = .v22
-        case 23: expectedRelease = .v23
-        case 24: expectedRelease = .v24
-        case 25: expectedRelease = .v25
-        case 26: expectedRelease = .v26
-        case 27: expectedRelease = .v27
-        case 28: expectedRelease = .v28
-        case 29: expectedRelease = .v29
-        case 30: expectedRelease = .v30
-        case 31: expectedRelease = .v31
-        case 32: expectedRelease = .v32
-        case 33: expectedRelease = .v33
-        case 34: expectedRelease = .v34
-        case 35: expectedRelease = .v35
-        default:
+        guard let expectedRelease = PersistentSchemaReleaseRegistryV1.releases.first(where: {
+            $0.versionIdentifier.major == pointer.storeSchemaVersion
+        }) else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
         guard manifest.generationID == generationID,

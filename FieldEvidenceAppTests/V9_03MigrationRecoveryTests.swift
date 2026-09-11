@@ -458,6 +458,37 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
     }
 
     func testFreshBootstrapPersistsActiveMarkerManifestAndPointerAcrossReopen() throws {
+        let generationID = fixedUUID("53000000-0000-4000-8000-000000000001")
+        let workspaceID = WorkspaceID(rawValue: fixedUUID("53000000-0000-4000-8000-000000000002"))
+        let replicaID = ReplicaID(rawValue: fixedUUID("53000000-0000-4000-8000-000000000003"))
+        let priorReplica = ReplicaID(rawValue: fixedUUID("53000000-0000-4000-8000-000000000004"))
+        for version in [2, 26, 27, 35, 36, 53] {
+            let value = try CurrentGenerationPointerV3(
+                generationID: generationID,
+                generationManifestSHA256: String(repeating: "a", count: 64),
+                workspaceID: workspaceID,
+                replicaID: replicaID,
+                knownReplicaIDs: [priorReplica],
+                storeSchemaVersion: version
+            )
+            let data = try value.canonicalData()
+            let decoded = try CurrentGenerationPointerV3.decodeCanonical(from: data)
+            XCTAssertEqual(decoded, value)
+            XCTAssertEqual(decoded.storeSchemaVersion, version)
+            XCTAssertEqual(try decoded.knownReplicaIdentitySet(), [priorReplica, replicaID])
+            XCTAssertEqual(try decoded.canonicalData(), data)
+        }
+        for version in [1, 54, Int.max] {
+            XCTAssertThrowsError(try CurrentGenerationPointerV3(
+                generationID: generationID,
+                generationManifestSHA256: String(repeating: "a", count: 64),
+                workspaceID: workspaceID,
+                replicaID: replicaID,
+                storeSchemaVersion: version
+            )) { error in
+                XCTAssertEqual(error as? StoreMigrationFailure, .invalidContract)
+            }
+        }
         let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
@@ -475,6 +506,18 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let reopened = try factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, first.generationID)
         XCTAssertEqual(reopened.workspaceIdentity, first.workspaceIdentity)
+        XCTAssertEqual(try factory.currentGenerationID(), first.generationID)
+        let epoch = try factory.currentGenerationEpoch()
+        XCTAssertEqual(epoch.generationID, first.generationID)
+        XCTAssertEqual(epoch.generationManifestSHA256, pointer.generationManifestSHA256)
+        XCTAssertEqual(reopened.generationEpoch, epoch)
+        let coordinator = try StoreSessionCoordinator(validatingSession: reopened)
+        XCTAssertEqual(coordinator.generationID, reopened.generationID)
+        XCTAssertEqual(coordinator.workspaceIdentity, reopened.workspaceIdentity)
+        let revision = try coordinator.workspaceWriter.currentRevision()
+        XCTAssertEqual(revision.workspaceID, reopened.workspaceID)
+        XCTAssertEqual(revision.generationID, reopened.generationID)
+        XCTAssertEqual(revision.revision, 0)
         XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<LightingNightWorkflowRowV1>()), 0)
         XCTAssertNil(try store.loadJournal())
     }
