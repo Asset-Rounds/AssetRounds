@@ -618,7 +618,7 @@ final class AssistanceLifecycleAdapterV1: AssistanceProposalLifecycleV1 {
                 }
             }
         }
-        try await remove(
+        return try await remove(
             proposalID: proposalID,
             kind: kind,
             expiryReason: expiryReason,

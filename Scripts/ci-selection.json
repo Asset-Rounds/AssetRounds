@@ -64,7 +64,8 @@
     "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testQueryExistingRetainsMyDayHistoryAndUsesCarryoverMutationIdentity",
     "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testQueryExistingRejectsCorruptDuplicateHistoryAndForeignWorkspace",
     "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testQueryExistingUsesEvidenceAssociationStreamIdentity",
-    "FieldEvidenceAppTests/V9_08GenerationLeaseTests/testLegacyAndV2RestorePublicationRetainsV3ManifestAndRejectsStalePointerBytes"
+    "FieldEvidenceAppTests/V9_08GenerationLeaseTests/testLegacyAndV2RestorePublicationRetainsV3ManifestAndRejectsStalePointerBytes",
+    "FieldEvidenceAppTests/V9_48AssistanceProposalTests/testV23P03C32G01ProposalReviewAcceptanceUsesOneCanonicalMutation"
   ],
   "uiTestSelectors": []
 }

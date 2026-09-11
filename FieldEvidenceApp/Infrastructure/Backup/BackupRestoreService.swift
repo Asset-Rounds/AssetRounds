@@ -11590,33 +11590,35 @@ private extension BackupRestoreService {
             current = descriptor
         }
 
-        let pinned = pins
-        func verifyDirectories() throws {
-            try authorityCheck()
-            for pin in pinned {
-                var information = stat()
-                guard Darwin.fstat(pin.descriptor, &information) == 0,
-                      PinnedIdentity(information) == pin.identity else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
-                }
-                if let parent = pin.parent, let name = pin.name {
-                    var pathInformation = stat()
-                    guard Darwin.fstatat(
-                        parent,
-                        name,
-                        &pathInformation,
-                        AT_SYMLINK_NOFOLLOW
-                    ) == 0,
-                          PinnedIdentity(pathInformation) == pin.identity else {
+        return try withoutActuallyEscaping(authorityCheck) { authorityCheck in
+            let pinned = pins
+            func verifyDirectories() throws {
+                try authorityCheck()
+                for pin in pinned {
+                    var information = stat()
+                    guard Darwin.fstat(pin.descriptor, &information) == 0,
+                          PinnedIdentity(information) == pin.identity else {
                         throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                    if let parent = pin.parent, let name = pin.name {
+                        var pathInformation = stat()
+                        guard Darwin.fstatat(
+                            parent,
+                            name,
+                            &pathInformation,
+                            AT_SYMLINK_NOFOLLOW
+                        ) == 0,
+                              PinnedIdentity(pathInformation) == pin.identity else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
                     }
                 }
             }
+            try verifyDirectories()
+            let result = try body(current, verifyDirectories)
+            try verifyDirectories()
+            return result
         }
-        try verifyDirectories()
-        let result = try body(current, verifyDirectories)
-        try verifyDirectories()
-        return result
     }
 
     private func withPinnedExistingItem<T>(
@@ -11657,24 +11659,26 @@ private extension BackupRestoreService {
                   expectedDirectory || identity.linkCount == 1 else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
-            func verifyItem() throws {
-                try verifyDirectories()
-                guard try itemIdentity(
-                    parent: parentDescriptor,
-                    name: name
-                ) == identity else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+            return try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
+                func verifyItem() throws {
+                    try verifyDirectories()
+                    guard try itemIdentity(
+                        parent: parentDescriptor,
+                        name: name
+                    ) == identity else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                    var descriptorInformation = stat()
+                    guard Darwin.fstat(descriptor, &descriptorInformation) == 0,
+                          PinnedIdentity(descriptorInformation) == identity else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
                 }
-                var descriptorInformation = stat()
-                guard Darwin.fstat(descriptor, &descriptorInformation) == 0,
-                      PinnedIdentity(descriptorInformation) == identity else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
-                }
+                try verifyItem()
+                let result = try body(parentDescriptor, descriptor, verifyItem)
+                try verifyItem()
+                return result
             }
-            try verifyItem()
-            let result = try body(parentDescriptor, descriptor, verifyItem)
-            try verifyItem()
-            return result
         }
     }
 
