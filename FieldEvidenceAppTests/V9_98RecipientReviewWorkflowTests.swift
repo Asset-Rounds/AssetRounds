@@ -95,6 +95,37 @@ final class V9_98RecipientReviewWorkflowTests: XCTestCase {
             statistics: baselineStatistics, sessions: baselineSessions, transitions: baselineRows
         )
 
+        let elsewhere = try OriginRecordedReviewResponseV1(
+            requestPublicID: h.requestID,
+            responseBody: try ReviewResponseBodyV1(
+                disposition: .acknowledged,
+                author: try ResponseAuthorAssertionV1(
+                    displayName: "Unverified recipient",
+                    source: .originUserAssertionUnverified
+                )
+            ),
+            sourceWording: "Recorder states that a response was received outside the app; identity and delivery are unverified.",
+            recordedByActorID: C35Support.id(302),
+            recordedAt: C35Support.date
+        )
+        let missingSession = try RecipientReviewWorkflowContextV1(requestPublicID: h.requestID)
+        await XCTAssertThrowsErrorAsync(try await h.workflow.execute(
+            .recordResponseReceivedElsewhere(elsewhere), context: missingSession
+        )) { XCTAssertEqual($0 as? RecipientReviewWorkflowFailureV1, .requestUnavailable) }
+        let mismatchedElsewhere = try OriginRecordedReviewResponseV1(
+            requestPublicID: try .init("review-request-c35-mismatch"),
+            responseBody: elsewhere.responseBody,
+            sourceWording: elsewhere.sourceWording,
+            recordedByActorID: elsewhere.recordedByActorID,
+            recordedAt: elsewhere.recordedAt
+        )
+        await XCTAssertThrowsErrorAsync(try await h.workflow.execute(
+            .recordResponseReceivedElsewhere(mismatchedElsewhere), context: h.workflowContext
+        )) { XCTAssertEqual($0 as? RecipientReviewWorkflowFailureV1, .requestUnavailable) }
+        try await h.assertNoHostileEffect(
+            statistics: baselineStatistics, sessions: baselineSessions, transitions: baselineRows
+        )
+
         let badProof = try ReviewCapabilityProofV1(rawBytes: C35Support.flipped(response.proof.rawBytes))
         let bad = try ReviewResponseEnvelopeV1(
             responsePublicID: "review-response-c35-bad-proof", requestPublicID: h.requestID,

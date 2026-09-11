@@ -263,7 +263,7 @@ final class RecipientReviewWorkflowCoordinatorV1 {
         case let .recordResponseReceivedElsewhere(response):
             guard let sessionID = context.sessionID,
                   response.requestPublicID == context.requestPublicID else {
-                throw PortableReviewWorkflowFailureV1.requestUnavailable
+                throw RecipientReviewWorkflowFailureV1.requestUnavailable
             }
             return .unverifiedHistoryRecorded(try await recordResponseReceivedElsewhere(
                 sessionID: sessionID,

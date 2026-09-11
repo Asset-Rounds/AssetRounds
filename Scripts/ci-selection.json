@@ -9,11 +9,10 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV9_14H01CapabilityPermissionsConsentFallbackAndScratchAreClosed",
-    "FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV9_14RatingLedgerRejectsZeroOperationAndReloadsExactReceipt",
-    "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests/testV9_10R01StorageReconciliationAndClockTimezoneDSTRecovery",
-    "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16H02HygieneReceiptPersistenceRejectsHostileBytes",
-    "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests/testV23P04C45H01MalformedTranscriptAndHostileCallbacksFailClosed"
+    "FieldEvidenceAppTests/V9_23PartyAccountabilityTests/testCompilerRepairProjectionAndPreviewMutationIDBranchesUseRealCoordinator",
+    "FieldEvidenceAppTests/V9_28InspectionReviewCorrectiveActionTests/testCompilerRepairCoordinatorBoundaryUsesDomainProjectionValidation",
+    "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests/testV23P04C35H01HostileMismatchDivergenceStalePreviewAndClaimsFailWithoutEffect",
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testV9_19H01SortingFilteringUnicodeAndPrivacyBoundary"
   ],
   "uiTestSelectors": []
 }

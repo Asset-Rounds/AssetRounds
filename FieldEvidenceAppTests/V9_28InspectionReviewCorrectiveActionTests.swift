@@ -529,6 +529,63 @@ final class V9_28InspectionReviewCorrectiveActionTests: XCTestCase {
     }
 }
 
+extension V9_28InspectionReviewCorrectiveActionTests {
+    func testCompilerRepairCoordinatorBoundaryUsesDomainProjectionValidation() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 150_028)
+        let valid = InspectionReviewProjectionV1(
+            workspaceID: fixture.workspaceID,
+            reviewID: fixture.reviewID,
+            state: .changesRequested,
+            revision: 3,
+            headTransitionID: fixture.transitions[2].transitionID,
+            openChangeRequests: [fixture.changeRequest]
+        )
+        XCTAssertNoThrow(
+            try C50InspectionReviewIncumbentCoordinatorBoundaryV1.validateProjection(valid)
+        )
+
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        let malformed = [
+            InspectionReviewProjectionV1(
+                workspaceID: WorkspaceID(rawValue: zero), reviewID: valid.reviewID,
+                state: valid.state, revision: valid.revision,
+                headTransitionID: valid.headTransitionID, openChangeRequests: []
+            ),
+            InspectionReviewProjectionV1(
+                workspaceID: valid.workspaceID, reviewID: zero,
+                state: valid.state, revision: valid.revision,
+                headTransitionID: valid.headTransitionID, openChangeRequests: []
+            ),
+            InspectionReviewProjectionV1(
+                workspaceID: valid.workspaceID, reviewID: valid.reviewID,
+                state: valid.state, revision: 0,
+                headTransitionID: valid.headTransitionID, openChangeRequests: []
+            ),
+            InspectionReviewProjectionV1(
+                workspaceID: valid.workspaceID, reviewID: valid.reviewID,
+                state: valid.state, revision: valid.revision,
+                headTransitionID: zero, openChangeRequests: []
+            ),
+        ]
+        for projection in malformed {
+            XCTAssertThrowsError(
+                try C50InspectionReviewIncumbentCoordinatorBoundaryV1.validateProjection(projection)
+            )
+        }
+
+        var encoded = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: InspectionReviewCanonicalCodecV1.encode(fixture.changeRequest)
+            ) as? [String: Any]
+        )
+        encoded["requestSHA256"] = String(repeating: "0", count: 64)
+        XCTAssertThrowsError(try InspectionReviewCanonicalCodecV1.decode(
+            ChangeRequestV1.self,
+            from: JSONSerialization.data(withJSONObject: encoded, options: [.sortedKeys])
+        ))
+    }
+}
+
 private final class C48PortableReviewV928C14ReconciliationTests: XCTestCase {
     func testC48AcceptedResponseUsesExistingC14WriterAndOriginRemainsUnverified() {
         XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.acceptedResponseUsesExistingC14Writer)

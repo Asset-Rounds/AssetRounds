@@ -443,6 +443,79 @@ final class V9_23PartyAccountabilityTests: XCTestCase {
         XCTAssertFalse(contractSource.contains("customer approved"))
         XCTAssertFalse(contractSource.contains("verified identity"))
     }
+
+    func testCompilerRepairProjectionAndPreviewMutationIDBranchesUseRealCoordinator() throws {
+        let values = try makeValues()
+        let secondParty = try ServicePartyReferenceV1(
+            partyID: uuid(9), workspaceID: values.workspace, kind: .organization,
+            displayName: "Acme Service", provenance: .locallyRecorded, state: .effective,
+            effectiveAt: baseDate, revision: 1, mutationID: try mutation(9)
+        )
+        let reversed = try PartyAccountabilityProjectionV1(
+            workspaceID: values.workspace, asOf: baseDate,
+            parties: [values.party, secondParty], siteRoleEvents: [values.role],
+            actorSnapshots: [values.actor], qualificationSnapshots: [values.qualification],
+            signoffs: [values.signoff]
+        )
+        let ordered = try PartyAccountabilityProjectionV1(
+            workspaceID: values.workspace, asOf: baseDate,
+            parties: [secondParty, values.party], siteRoleEvents: [values.role],
+            actorSnapshots: [values.actor], qualificationSnapshots: [values.qualification],
+            signoffs: [values.signoff]
+        )
+        XCTAssertEqual(reversed.parties.map(\.partyID), [secondParty.partyID, values.party.partyID])
+        XCTAssertEqual(reversed.projectionSHA256, ordered.projectionSHA256)
+        XCTAssertNoThrow(try reversed.validate())
+
+        let suppliedIDs = CompilerRepairPartyIDSourceV1(values: [uuid(201)])
+        let suppliedWriter = try compilerRepairWriter(workspaceID: values.workspace, ids: suppliedIDs)
+        let suppliedRevision = try suppliedWriter.currentRevision()
+        let suppliedCoordinator = PartyAccountabilityCoordinatorV1(
+            writer: suppliedWriter,
+            idSource: CompilerRepairPartyFixedIDSourceV1(value: uuid(202))
+        )
+        let suppliedPlan = try suppliedCoordinator.preview(
+            mutation: .recordParty(values.party),
+            expectedRevision: WorkspaceExpectedRevisionV1(snapshot: suppliedRevision),
+            workspaceID: values.workspace
+        )
+        XCTAssertEqual(suppliedPlan.mutationID, values.party.mutationID)
+        XCTAssertEqual(suppliedIDs.callCount, 1, "supplied mutation ID must not invoke the writer maker")
+
+        let generatedID = try mutation(203)
+        let generatedIDs = CompilerRepairPartyIDSourceV1(values: [uuid(204), generatedID.rawValue])
+        let generatedWriter = try compilerRepairWriter(workspaceID: values.workspace, ids: generatedIDs)
+        let generatedRevision = try generatedWriter.currentRevision()
+        let generatedCoordinator = PartyAccountabilityCoordinatorV1(
+            writer: generatedWriter,
+            idSource: CompilerRepairPartyFixedIDSourceV1(value: uuid(205))
+        )
+        let generatedPlan = try generatedCoordinator.preview(
+            mutation: .appendActorSnapshot(values.actor),
+            expectedRevision: WorkspaceExpectedRevisionV1(snapshot: generatedRevision),
+            workspaceID: values.workspace
+        )
+        XCTAssertEqual(generatedPlan.mutationID, generatedID)
+        XCTAssertEqual(generatedIDs.callCount, 2)
+
+        let failingIDs = CompilerRepairPartyIDSourceV1(
+            values: [uuid(206), SettingsValidationV1.zeroUUID]
+        )
+        let failingWriter = try compilerRepairWriter(workspaceID: values.workspace, ids: failingIDs)
+        let failingRevision = try failingWriter.currentRevision()
+        let failingCoordinator = PartyAccountabilityCoordinatorV1(
+            writer: failingWriter,
+            idSource: CompilerRepairPartyFixedIDSourceV1(value: uuid(207))
+        )
+        XCTAssertThrowsError(try failingCoordinator.preview(
+            mutation: .appendQualificationSnapshot(values.qualification),
+            expectedRevision: WorkspaceExpectedRevisionV1(snapshot: failingRevision),
+            workspaceID: values.workspace
+        )) { error in
+            XCTAssertEqual(error as? WorkspaceMutationContractFailureV1, .invalidID)
+        }
+        XCTAssertEqual(failingIDs.callCount, 2)
+    }
 }
 
 private extension V9_23PartyAccountabilityTests {
@@ -623,6 +696,72 @@ private extension V9_23PartyAccountabilityTests {
             contentsOf: root.appendingPathComponent(relativePath),
             encoding: .utf8
         )
+    }
+
+    func compilerRepairWriter(
+        workspaceID: WorkspaceID,
+        ids: CompilerRepairPartyIDSourceV1
+    ) throws -> WorkspaceWriterV1 {
+        let generationID = uuid(220)
+        return try WorkspaceWriterV1(
+            identity: WorkspaceReplicaIdentityV1(
+                workspaceID: workspaceID,
+                replicaID: ReplicaID(rawValue: uuid(221))
+            ),
+            generationID: generationID,
+            initialRevision: WorkspaceRevisionV1(
+                workspaceID: workspaceID,
+                generationID: generationID,
+                revision: 0,
+                entityRevisions: []
+            ),
+            clock: CompilerRepairPartyClockV1(value: baseDate),
+            idSource: ids,
+            fileAuthority: CompilerRepairPartyFileAuthorityV1(),
+            adapter: CompilerRepairPartyWriterAdapterV1()
+        )
+    }
+}
+
+private final class CompilerRepairPartyIDSourceV1: ApplicationIDSource, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [UUID]
+    private(set) var callCount = 0
+
+    init(values: [UUID]) { self.values = values }
+
+    func makeID() -> UUID {
+        lock.withLock {
+            callCount += 1
+            return values.isEmpty ? SettingsValidationV1.zeroUUID : values.removeFirst()
+        }
+    }
+}
+
+private struct CompilerRepairPartyFixedIDSourceV1: ApplicationIDSource {
+    let value: UUID
+    func makeID() -> UUID { value }
+}
+
+private struct CompilerRepairPartyClockV1: ApplicationClock {
+    let value: Date
+    func now() -> Date { value }
+}
+
+private struct CompilerRepairPartyFileAuthorityV1: ApplicationFileAuthorityV1 {
+    func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
+        "mutation-staging/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+    }
+}
+
+@MainActor
+private final class CompilerRepairPartyWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
+    func apply(
+        _ command: WorkspaceCommandV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
     }
 }
 

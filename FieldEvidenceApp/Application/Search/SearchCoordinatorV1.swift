@@ -301,7 +301,7 @@ private extension SearchCoordinatorV1 {
         }
     }
 
-    static func isBetter(_ lhs: Candidate, than rhs: Candidate) -> Bool {
+    private static func isBetter(_ lhs: Candidate, than rhs: Candidate) -> Bool {
         if lhs.tier != rhs.tier { return lhs.tier < rhs.tier }
         if lhs.record.projectionIdentity != rhs.record.projectionIdentity {
             return lhs.record.projectionIdentity < rhs.record.projectionIdentity

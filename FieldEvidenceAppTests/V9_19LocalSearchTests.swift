@@ -495,8 +495,16 @@ final class V9_19LocalSearchTests: XCTestCase {
         XCTAssertEqual(fieldMappings, expectedFieldMappings)
         XCTAssertEqual(Set(registry.fields.map(\.fieldID)), Set(expectedIndexedFieldIDs))
 
+        let olderPreferred = try record(
+            id: "same", text: "Shared", status: "INCOMPLETE", revision: 42, timestamp: 9
+        )
+        let newerAlternate = try record(
+            id: "same", fieldID: "asset_label", text: "Shared alternate label",
+            status: "INCOMPLETE", revision: 42, timestamp: 99
+        )
         let sortValues = try [
-            record(id: "same", text: "Shared", status: "INCOMPLETE", revision: 42, timestamp: 9),
+            olderPreferred,
+            newerAlternate,
             record(id: "same", kind: .work, fieldID: "work_summary", text: "Shared",
                    status: "INCOMPLETE", revision: 42, timestamp: 8, dueAt: Date(timeIntervalSince1970: 20)),
             record(id: "z-last", kind: .work, fieldID: "work_summary", text: "Shared",
@@ -517,6 +525,37 @@ final class V9_19LocalSearchTests: XCTestCase {
         XCTAssertEqual(
             statusResponse.results.map { "\($0.stableID):\($0.sourceKind.rawValue)" },
             ["same:ASSET", "same:WORK", "z-last:WORK"]
+        )
+        XCTAssertEqual(
+            statusResponse.results.first(where: { $0.sourceKind == .asset })?.displayIdentity,
+            "Shared",
+            "the exact display match wins for the shared query"
+        )
+        let equalTierPlan = try coordinator.makePlan(
+            query: "sha", filters: [incomplete],
+            sort: .statusThenStableID, sourceRevision: 42
+        )
+        let equalTierResponse = try await coordinator.search(
+            equalTierPlan, source: revision, registry: registry
+        )
+        let equalTierAsset = try XCTUnwrap(
+            equalTierResponse.results.first(where: { $0.sourceKind == .asset })
+        )
+        XCTAssertEqual(equalTierAsset.rankingKey.tier, .prefix)
+        XCTAssertEqual(
+            equalTierAsset.displayIdentity,
+            "Shared",
+            "equal-tier duplicates choose asset_identifier before the newer asset_label candidate"
+        )
+        try await harness.store.replaceProjection(
+            source: revision, records: [newerAlternate], registry: registry
+        )
+        let alternateOnlyResponse = try await coordinator.search(
+            equalTierPlan, source: revision, registry: registry
+        )
+        XCTAssertEqual(try XCTUnwrap(alternateOnlyResponse.results.first).rankingKey.tier, .prefix)
+        try await harness.store.replaceProjection(
+            source: revision, records: sortValues, registry: registry
         )
         let duePlan = try coordinator.makePlan(
             query: "due", scope: .work, filters: [filter],

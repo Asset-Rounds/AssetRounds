@@ -60,11 +60,7 @@ enum C50InspectionReviewIncumbentCoordinatorBoundaryV1 {
     static let disabledProfileHasNoIntegrationClaim = true
 
     static func validateProjection(_ projection: InspectionReviewProjectionV1) throws {
-        try InspectionReviewValidationV1.workspace(projection.workspaceID)
-        try InspectionReviewValidationV1.id(projection.reviewID)
-        try InspectionReviewValidationV1.revision(projection.revision)
-        try InspectionReviewValidationV1.id(projection.headTransitionID)
-        try projection.openChangeRequests.forEach { try $0.validate() }
+        try C50InspectionReviewIncumbentExchangeBoundaryV1.validateReviewProjection(projection)
     }
 }
 

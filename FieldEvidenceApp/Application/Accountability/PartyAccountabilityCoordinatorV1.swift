@@ -485,8 +485,8 @@ struct PartyAccountabilityProjectionV1: Codable, Equatable, Sendable {
         schemaVersion = Self.schemaVersion
         self.workspaceID = workspaceID
         self.asOf = asOf
-        parties = orderedParties
-        siteRoleEvents = orderedRoles
+        self.parties = orderedParties
+        self.siteRoleEvents = orderedRoles
         self.actorSnapshots = orderedActors
         self.qualificationSnapshots = orderedQualifications
         self.signoffs = orderedSignoffs
@@ -698,7 +698,7 @@ final class PartyAccountabilityCoordinatorV1 {
         guard try writer.currentRevision() == observedBefore else {
             throw PartyAccountabilityCoordinatorFailureV1.staleRevision
         }
-        let mutationID = normalizedBasis.mutation.mutationID ?? (try writer.makeMutationID())
+        let mutationID = try normalizedBasis.mutation.mutationID ?? writer.makeMutationID()
         let plan = try PartyAccountabilityChangePlanV1(
             operationID: idSource.makeID(),
             mutationID: mutationID,
