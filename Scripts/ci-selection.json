@@ -32,7 +32,8 @@
     "FieldEvidenceAppTests/S6_2BackupExportTests/testPopulatedQualityAndInboxSurvivePackageTransportAndPhysicalReplace",
     "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently",
     "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testPopulatedIdentityInventorySurvivesPhysicalRestoreAndRejectsTampering",
-    "FieldEvidenceAppTests/V9_19LocalSearchTests/testC57SearchIsDeterministicWorkspaceScopedDisposableAndSourcePrivate"
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testC57SearchIsDeterministicWorkspaceScopedDisposableAndSourcePrivate",
+    "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testV9_11H01DSTGapFoldRollbackUnknownZoneAndNoWallClockCausality"
   ],
   "uiTestSelectors": []
 }

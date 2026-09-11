@@ -331,8 +331,7 @@ struct TemporalContextV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
-        let offsetRange = -Self.maximumAbsoluteUTCOffsetSeconds...
-            Self.maximumAbsoluteUTCOffsetSeconds
+        let offsetRange = (-Self.maximumAbsoluteUTCOffsetSeconds)...Self.maximumAbsoluteUTCOffsetSeconds
         guard version == Self.schemaVersion else {
             throw ObservationAndTimeValidationFailureV1.unsupportedSchemaVersion
         }

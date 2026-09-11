@@ -12,7 +12,7 @@ enum InspectionReviewLimitsV1 {
     static let maximumHistory = 4_096
 }
 
-private enum InspectionReviewValidationV1 {
+enum InspectionReviewValidationV1 {
     static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     static func id(_ value: UUID) throws { guard value != zero else { throw InspectionReviewFailureV1.invalidValue } }
     static func workspace(_ value: WorkspaceID) throws { guard value.rawValue != zero else { throw InspectionReviewFailureV1.wrongWorkspace } }
