@@ -190,10 +190,23 @@ enum WorkPacketProjectionBuilderV1{
             let itemHandoffs=Array(Set(handoffs.filter{$0.item==reference})).sorted{($0.handedOffAt,$0.handoffID.uuidString,$0.handoffSHA256)<($1.handedOffAt,$1.handoffID.uuidString,$1.handoffSHA256)};for v in itemHandoffs{guard let r=itemReleases.first(where:{$0.releaseID==v.releaseID})else{throw WorkPacketFailureV1.invalidValue};try v.validate(release:r)}
             var exceptions:[WorkPacketReviewExceptionV1]=[];let activeClaims=itemClaims.filter{claim in !itemReleases.contains(where:{$0.claimID==claim.claimID})};if activeClaims.count>1{exceptions.append(try exception(workspaceID:workspaceID,packetID:manifest.packetID,itemID:item.itemID,kind:.simultaneousClaim,results:itemReleases.flatMap(\.resultLinks)))}
             let results=(itemReleases.flatMap(\.resultLinks)+itemHandoffs.flatMap(\.resultLinks)).sorted();let grouped=Dictionary(grouping:results,by:{$0.resultID})
-            let divergentDurableDigests = Dictionary(grouping:itemClaims,by:{$0.claimID}).values.flatMap{Set($0.map(\.claimSHA256)).count>1 ? $0.map(\.claimSHA256):[]}
-                + Dictionary(grouping:itemLeases,by:{$0.leaseID}).values.flatMap{Set($0.map(\.leaseSHA256)).count>1 ? $0.map(\.leaseSHA256):[]}
-                + Dictionary(grouping:itemReleases,by:{$0.releaseID}).values.flatMap{Set($0.map(\.releaseSHA256)).count>1 ? $0.map(\.releaseSHA256):[]}
-                + Dictionary(grouping:itemHandoffs,by:{$0.handoffID}).values.flatMap{Set($0.map(\.handoffSHA256)).count>1 ? $0.map(\.handoffSHA256):[]}
+            let divergentClaimDigests: [String] = Dictionary(grouping: itemClaims, by: { $0.claimID }).values.flatMap { group -> [String] in
+                let digests = group.map(\.claimSHA256)
+                return Set(digests).count > 1 ? digests : []
+            }
+            let divergentLeaseDigests: [String] = Dictionary(grouping: itemLeases, by: { $0.leaseID }).values.flatMap { group -> [String] in
+                let digests = group.map(\.leaseSHA256)
+                return Set(digests).count > 1 ? digests : []
+            }
+            let divergentReleaseDigests: [String] = Dictionary(grouping: itemReleases, by: { $0.releaseID }).values.flatMap { group -> [String] in
+                let digests = group.map(\.releaseSHA256)
+                return Set(digests).count > 1 ? digests : []
+            }
+            let divergentHandoffDigests: [String] = Dictionary(grouping: itemHandoffs, by: { $0.handoffID }).values.flatMap { group -> [String] in
+                let digests = group.map(\.handoffSHA256)
+                return Set(digests).count > 1 ? digests : []
+            }
+            let divergentDurableDigests = divergentClaimDigests + divergentLeaseDigests + divergentReleaseDigests + divergentHandoffDigests
             if grouped.values.contains(where:{$0.count>1&&Set($0.map(\.resultSHA256)).count>1}) || !divergentDurableDigests.isEmpty{exceptions.append(try exception(workspaceID:workspaceID,packetID:manifest.packetID,itemID:item.itemID,kind:.divergentSameIdentity,results:results,additionalDigests:divergentDurableDigests))};if results.contains(where:{$0.itemExpectedRevision != item.expectedRevision}){exceptions.append(try exception(workspaceID:workspaceID,packetID:manifest.packetID,itemID:item.itemID,kind:.staleResultRevision,results:results))}
             let hasExpiredLeaseResult=itemReleases.contains{release in
                 guard !release.resultLinks.isEmpty,let sourceLease=itemLeases.first(where:{$0.leaseID==release.leaseID})else{return false}

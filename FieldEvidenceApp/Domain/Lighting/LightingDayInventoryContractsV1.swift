@@ -267,7 +267,7 @@ struct LightingDayInventoryAdmissionClosureV1:Codable,Equatable,Sendable{
         if let plan=value.nightFollowupPlan{
             guard let occurrence,let workPacket,let readiness else{throw LightingDayInventoryFailureV1.staleReference}
             try occurrence.validateIntrinsic();try workPacket.validate();try readiness.validate()
-            guard LightingNightOccurrenceBindingV1(occurrence)==plan.occurrence,
+            guard try LightingNightOccurrenceBindingV1(occurrence)==plan.occurrence,
                   try WorkPacketManifestReferenceV1(workPacket)==plan.workPacket,
                   occurrence.workspaceID==value.workspaceID,workPacket.workspaceID==value.workspaceID,
                   readiness.session.workspaceID==value.workspaceID,

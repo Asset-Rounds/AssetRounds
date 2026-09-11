@@ -209,7 +209,7 @@ struct IncumbentExchangeScopeV1: Codable, Equatable, Sendable {
         guard let privacyApproval,
               workspaceID == expectedWorkspaceID,
               workspaceRevision == expectedWorkspaceRevision,
-              projectionKind == expectedProjectionKind,
+              privacyApproval.projectionKind == expectedProjectionKind,
               allowedCanonicalFields == expectedAllowedCanonicalFields,
               privacyApproval.workspaceFrontier == expectedWorkspaceFrontier,
               privacyApproval.canonicalProjectionValues == expectedCanonicalProjectionValues,

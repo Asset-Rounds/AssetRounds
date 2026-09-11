@@ -763,7 +763,7 @@ struct LightingNightWorkflowV1: Codable, Equatable, Sendable {
             throw LightingNightWorkflowFailureV1.staleReference
         }
         try safety.validate(nightPlan: sourcePlan)
-        guard Set(deltas.map(\.luminaireID)).isSubset(of: Set(plan.selectedLuminaireIDs)) else {
+        guard Set(deltas.map(\.luminaireID)).isSubset(of: Set(sourcePlan.selectedLuminaireIDs)) else {
             throw LightingNightWorkflowFailureV1.staleReference
         }
     }

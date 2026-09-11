@@ -340,7 +340,7 @@ extension ResponseValueV1 {
 
     func c19LocalMeasurement() throws -> ExactMeasurementV1 {
         guard case let .measurement(value) = self,
-              value.isLocalMeasurementCaptureSource else {
+              value.source.isLocalMeasurementCaptureSource else {
             throw MeasurementIntegrityFailureV1.unsupportedSource
         }
         try value.validate()

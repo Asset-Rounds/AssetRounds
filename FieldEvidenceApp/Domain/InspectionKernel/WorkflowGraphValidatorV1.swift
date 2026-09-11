@@ -139,9 +139,9 @@ enum WorkflowGraphValidatorV1 {
                 nodes: nodes
             )
         }
-        let factNodeByField = Dictionary(uniqueKeysWithValues: factNodes.compactMap {
-            guard let fieldID = $0.fieldID else { return nil }
-            return (fieldID, $0.nodeID)
+        let factNodeByField: [String: String] = Dictionary(uniqueKeysWithValues: factNodes.compactMap { node -> (String, String)? in
+            guard let fieldID = node.fieldID else { return nil }
+            return (fieldID, node.nodeID)
         })
         for node in definition.nodes where node.kind == .branch {
             guard let predicate = node.predicate else {

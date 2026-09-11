@@ -1505,7 +1505,7 @@ enum WorkPacketLocalizationPolicyV1 {
     static func containsProhibitedClaim(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            prohibitedClaimPhrases.contains { phrase in
+            return prohibitedClaimPhrases.contains { phrase in
                 bounded.contains(" \(normalized(phrase)) ")
             }
         }
@@ -1514,7 +1514,7 @@ enum WorkPacketLocalizationPolicyV1 {
     static func containsSensitiveDataLeakage(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            [
+            return [
                 "customer data", "customer information", "customer record", "private data",
                 "personal data", "work data", "work item data", "work product", "secret",
                 "credentials", "credential", "password", "token", "account", "accounts",
@@ -2666,14 +2666,14 @@ enum PrivacyTransformLocalizationPolicyV1 {
     static func containsProhibitedClaim(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+            return prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
         }
     }
 
     static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            [" customer data ", " customer information ", " work data ", " private data ", " credentials ", " password ", " token "]
+            return [" customer data ", " customer information ", " work data ", " private data ", " credentials ", " password ", " token "]
                 .contains { bounded.contains($0) }
         }
     }
@@ -2890,14 +2890,14 @@ enum ClientCapabilityLocalizationPolicyV1 {
     static func containsProhibitedClaim(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+            return prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
         }
     }
 
     static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            [
+            return [
                 " customer data ", " customer information ", " work data ",
                 " private data ", " credentials ", " token ", " tenant ",
             ].contains { bounded.contains($0) }
@@ -3111,14 +3111,14 @@ enum FieldReferenceLocalizationPolicyV1 {
     static func containsProhibitedClaim(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+            return prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
         }
     }
 
     static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            [" customer data ", " work data ", " private data ", " password ", " credential ", " token ", " locator "]
+            return [" customer data ", " work data ", " private data ", " password ", " credential ", " token ", " locator "]
                 .contains { bounded.contains($0) }
         }
     }
@@ -3301,14 +3301,14 @@ enum AccessibleDocumentLocalizationPolicyV1 {
     static func containsProhibitedClaim(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+            return prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
         }
     }
 
     static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
         values.contains { value in
             let bounded = " \(normalized(value)) "
-            [
+            return [
                 " customer data ", " work data ", " private data ", " password ",
                 " credential ", " token ", " locator ", " assessor ", " evidence id ",
             ].contains { bounded.contains($0) }
@@ -3982,7 +3982,7 @@ enum AssetLocatorLocalizationPolicyV1 {
     }
 
     static func validate() throws {
-        let typed = try AssetLocatorLocalizationKeyV1.allCases.map { try key($0) }
+        let typed = try AssetLocatorLocalizationKeyV1.allCases.map { try AssetLocatorLocalizationKeyV1.key($0) }
         guard typed.map(\.rawValue).sorted() == keys,
               Set(keys).count == keys.count,
               denyByDefault, englishOnly, requiresTextState,
