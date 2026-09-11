@@ -704,7 +704,7 @@ struct AssistanceAcceptanceReceiptV1: Codable, Equatable, Sendable {
     func validate(canonicalMutationReceipt: MutationReceiptV1) throws {
         try validate()
         try canonicalMutationReceipt.validate()
-        let imageIdentities = try canonicalMutationReceipt.postImages.map(\.identity)
+        let imageIdentities = try canonicalMutationReceipt.postImages.map { try $0.identity }
         let portableExpectedRevision = try MutationPortableExpectedRevisionV1(expectedRevision)
         guard canonicalMutationReceipt.identity == canonicalMutationReceiptIdentity,
               canonicalMutationReceipt.mutationID == mutationID,

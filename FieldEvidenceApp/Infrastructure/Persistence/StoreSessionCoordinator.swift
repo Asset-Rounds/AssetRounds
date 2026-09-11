@@ -146,6 +146,12 @@ final class StoreSessionCoordinator: ObservableObject {
         workspaceWriter
     }
 
+    /// Construction reads no private rows. Every snapshot obtains a fresh
+    /// concrete access epoch and rejects this provider after session activation.
+    func makeMyDaySourceProvider(accessGate: AppAccessGateV1) -> ProductionMyDaySourceProviderV1 {
+        ProductionMyDaySourceProviderV1(session: self, accessGate: accessGate)
+    }
+
     func dropSearchProjectionForRebuild() async throws {
         try await searchIndexStore.dropProjection(workspaceID: workspaceID.rawValue)
     }

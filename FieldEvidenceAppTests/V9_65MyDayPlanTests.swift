@@ -349,6 +349,37 @@ private func assertC57Failure(
 
 @MainActor
 final class V9_65MyDayPlanTests: XCTestCase {
+    func testSourceSelectionAndRouteSemanticsAreKindSpecific() throws {
+        let round = C57MyDayTestSupport.roundReference(810)
+        let draft = C57MyDayTestSupport.draftReference(811)
+        let packet = try C57MyDayTestSupport.workPacketReference(812)
+        for state in MyDaySourceStateV1.allCases {
+            XCTAssertEqual(MyDaySourceSemanticsV1.isSelectable(state, reference: round),
+                           [.draft, .active, .paused].contains(state))
+            XCTAssertEqual(MyDaySourceSemanticsV1.isSelectable(state, reference: draft),
+                           [.draft, .active, .conflicted, .recoveryRequired].contains(state))
+            XCTAssertEqual(MyDaySourceSemanticsV1.isSelectable(state, reference: packet),
+                           [.active, .reopened].contains(state))
+        }
+        XCTAssertFalse(MyDaySourceSemanticsV1.resumes(.draft, reference: round, occurrenceStarted: false))
+        XCTAssertTrue(MyDaySourceSemanticsV1.resumes(.active, reference: round, occurrenceStarted: false))
+        XCTAssertTrue(MyDaySourceSemanticsV1.resumes(.paused, reference: round, occurrenceStarted: false))
+        XCTAssertTrue(MyDaySourceSemanticsV1.resumes(.conflicted, reference: draft, occurrenceStarted: false))
+        for state in [MyDaySourceStateV1.committing, .committed, .discardPending, .discarded] {
+            let item = try C57MyDayTestSupport.item(813, reference: draft, order: 0)
+            let frontier = try MyDaySourceFrontierV1(membershipID: item.membershipID,
+                plannedReference: draft, currentReference: draft, state: state,
+                readiness: .unavailable, dueAt: nil, evaluatedAt: C57MyDayTestSupport.instant)
+            let summary = try MyDaySummaryItemV1(item: item, frontier: frontier, dueReason: nil)
+            try summary.validate()
+            XCTAssertEqual(summary.sourceState, state)
+            XCTAssertNil(summary.routeIntent)
+            XCTAssertFalse(summary.carryoverEligible)
+            XCTAssertNotEqual(summary.status, .completed)
+            XCTAssertNotEqual(summary.status, .cancelled)
+        }
+    }
+
     func testMetadataEditsRetainExactMembershipWithoutReadingChangedSources() throws {
         let key = try C57MyDayTestSupport.key()
         for state in [MyDaySourceStateV1.completed, .cancelled, .retired, .missing, .stale] {
@@ -468,7 +499,13 @@ final class V9_65MyDayPlanTests: XCTestCase {
         XCTAssertTrue(corpus.coveredReferenceKinds.contains("WORK_PACKET"))
         XCTAssertTrue(corpus.coveredReferenceKinds.contains("ROUND_SESSION"))
         XCTAssertTrue(corpus.coveredReferenceKinds.contains("RESUMABLE_DRAFT"))
-        XCTAssertEqual(corpus.sourceStates, MyDaySourceStateV1.allCases.map(\.rawValue))
+        // The frozen seven-state corpus remains historical evidence. Production
+        // source adoption adds distinct nonpersistent states, not a fixture repin.
+        XCTAssertEqual(corpus.sourceStates, Array(MyDaySourceStateV1.allCases.prefix(7)).map(\.rawValue))
+        XCTAssertEqual(Array(MyDaySourceStateV1.allCases.dropFirst(7)).map(\.rawValue), [
+            "DRAFT", "PAUSED", "ARCHIVED", "SKIPPED", "MISSED", "RULE_RETIRED", "COMMITTING",
+            "CONFLICTED", "RECOVERY_REQUIRED", "COMMITTED", "DISCARD_PENDING", "DISCARDED",
+        ])
         XCTAssertEqual(corpus.readinessStates, MyDayReadinessV1.allCases.map(\.rawValue))
 
         let key = try C57MyDayTestSupport.key(

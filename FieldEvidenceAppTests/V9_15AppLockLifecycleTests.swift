@@ -5,6 +5,127 @@ import XCTest
 
 @MainActor
 final class V9_15AppLockLifecycleTests: XCTestCase {
+    private func assertReadDenied(_ gate: AppAccessGateV1,
+                                  token: AppAccessGateV1.ContentReadToken? = nil,
+                                  surface: AppAccessContentReadSurfaceV1 = .search,
+                                  file: StaticString = #filePath, line: UInt = #line) async {
+        do {
+            if let token { try await gate.validateContentRead(token, for: surface) }
+            else { _ = try await gate.beginContentRead(for: surface) }
+            XCTFail("revoked or unavailable content read was admitted", file: file, line: line)
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied, file: file, line: line)
+        }
+    }
+
+    func testContentReadTokensBindOwnerSurfaceAndNeverAuthenticateOrConsumeIDs() async throws {
+        let auth = V915AuthenticationClient(outcomes: [.authenticated])
+        let gate = AppAccessGateV1(setting: .absentDisabled, authentication: auth,
+            clock: V915Clock(), identifiers: V915IDs(values: [Self.id(701), Self.id(702)]))
+        let token = try await gate.beginContentRead(for: .search)
+        for _ in 0..<3 {
+            try await gate.validateContentRead(token, for: .search)
+            let fresh = try await gate.beginContentRead(for: .render)
+            try await gate.validateContentRead(fresh, for: .render)
+        }
+        await assertReadDenied(gate, token: token, surface: .render)
+        let other = AppAccessGateV1(setting: .absentDisabled, authentication: auth,
+            clock: V915Clock(), identifiers: V915IDs(values: []))
+        await assertReadDenied(other, token: token)
+        for setting in [DeviceLocalAppLockSettingReadV1.value(.init(isEnabled: true)),
+                        .corruptOrAmbiguous, .protectedDataUnavailable] {
+            let locked = AppAccessGateV1(setting: setting, authentication: auth,
+                clock: V915Clock(), identifiers: V915IDs(values: []))
+            await assertReadDenied(locked)
+            await assertReadDenied(locked, token: token)
+        }
+        let noAttempts = await auth.attempts
+        XCTAssertTrue(noAttempts.isEmpty)
+        let outcome = await gate.authenticate(trigger: .enableAppLock)
+        XCTAssertEqual(outcome, .authenticated)
+        let attempts = await auth.attempts
+        XCTAssertEqual(attempts.map(\.attemptID), [Self.id(701)])
+        let state = await gate.currentState()
+        XCTAssertEqual(state, .unlockedForeground(sessionID: Self.id(702)))
+        await assertReadDenied(gate, token: token)
+        let authenticated = try await gate.beginContentRead(for: .search)
+        try await gate.validateContentRead(authenticated, for: .search)
+    }
+
+    func testContentReadTokensRejectLockInactivityRecoverySettingAndEraseABA() async throws {
+        let auth = V915AuthenticationClient(outcomes: [.authenticated, .authenticated, .authenticated])
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)), authentication: auth,
+            clock: V915Clock(), identifiers: V915IDs(values: (710...715).map(Self.id)))
+        let firstUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(firstUnlock, .authenticated)
+        let token = try await gate.beginContentRead(for: .search)
+        let beforeInactive = await gate.currentState()
+        await gate.sceneBecameInactive()
+        await assertReadDenied(gate)
+        await assertReadDenied(gate, token: token)
+        let covered = await gate.privacyCoverRequired()
+        let duringInactive = await gate.currentState()
+        XCTAssertTrue(covered)
+        XCTAssertEqual(duringInactive, beforeInactive)
+        await gate.sceneBecameActive()
+        let afterActive = await gate.currentState()
+        XCTAssertEqual(afterActive, beforeInactive)
+        await assertReadDenied(gate, token: token)
+        let beforeLock = try await gate.beginContentRead(for: .search)
+        await gate.lock(reason: .returnedFromBackground)
+        await assertReadDenied(gate)
+        let secondUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(secondUnlock, .authenticated)
+        await assertReadDenied(gate, token: beforeLock)
+        let beforeConfiguration = try await gate.beginContentRead(for: .search)
+        await gate.markConfigurationUnknown()
+        await assertReadDenied(gate)
+        let repair = await gate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(repair, .authenticated)
+        await assertReadDenied(gate, token: beforeConfiguration)
+        let beforeSetting = try await gate.beginContentRead(for: .search)
+        try await gate.setEnabledAfterAuthenticated(false)
+        await assertReadDenied(gate, token: beforeSetting)
+        let beforeRecovery = try await gate.beginContentRead(for: .search)
+        try await gate.markRecoveryComplete(enabled: false)
+        await assertReadDenied(gate, token: beforeRecovery)
+        let beforeErase = try await gate.beginContentRead(for: .search)
+        await gate.eraseAccessState()
+        await assertReadDenied(gate, token: beforeErase)
+        let fresh = try await gate.beginContentRead(for: .search)
+        try await gate.validateContentRead(fresh, for: .search)
+        let attempts = await auth.attempts
+        XCTAssertEqual(attempts.count, 3)
+    }
+
+    func testTransientInactiveRevokesReadsWithoutCancellingSystemAuthentication() async throws {
+        let auth = V915GatedAuthenticationClient()
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)), authentication: auth,
+            clock: V915Clock(), identifiers: V915IDs(values: [Self.id(720), Self.id(721)]))
+        let unlocking = Task { await gate.authenticate(trigger: .unlock) }
+        await auth.waitUntilAttemptStarted()
+        let authenticating = await gate.currentState()
+        await gate.sceneBecameInactive()
+        let stillAuthenticating = await gate.currentState()
+        XCTAssertEqual(stillAuthenticating, authenticating)
+        await assertReadDenied(gate)
+        await auth.finish(.authenticated)
+        let outcome = await unlocking.value
+        XCTAssertEqual(outcome, .authenticated)
+        let cancellations = await auth.cancelledAttemptIDs
+        XCTAssertTrue(cancellations.isEmpty)
+        let covered = await gate.privacyCoverRequired()
+        XCTAssertTrue(covered)
+        let unlocked = await gate.currentState()
+        XCTAssertEqual(unlocked, .unlockedForeground(sessionID: Self.id(721)))
+        await assertReadDenied(gate)
+        await gate.sceneBecameActive()
+        let token = try await gate.beginContentRead(for: .search)
+        try await gate.validateContentRead(token, for: .search)
+        let revealed = await gate.privacyCoverRequired()
+        XCTAssertFalse(revealed)
+    }
+
     func testV9_15G01OptInAccessGateUsesFreshDeviceOwnerAuthentication() async throws {
         let corpus = try Self.corpus()
         XCTAssertEqual(corpus.string("authority.cardID"), "V23-P02-C11")

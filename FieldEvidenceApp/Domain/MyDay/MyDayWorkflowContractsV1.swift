@@ -149,29 +149,12 @@ struct MyDaySummaryItemV1: Codable, Equatable, Hashable, Sendable {
         dueAt = frontier.dueAt
         dueCue = Self.cue(dueReason)
         let exactCurrentReference = frontier.currentReference == item.reference
-        if !exactCurrentReference,
-           frontier.state == .active || frontier.state == .reopened {
-            status = .unavailable
-        } else {
-            switch frontier.state {
-            case .active:
-                status = .actionable
-            case .reopened:
-                status = .reopened
-            case .completed:
-                status = .completed
-            case .cancelled:
-                status = .cancelled
-            case .retired, .missing, .stale:
-                status = .unavailable
-            }
-        }
+        status = Self.status(state: frontier.state, reference: item.reference, exact: exactCurrentReference)
         let mayAct = exactCurrentReference
-            && (frontier.state == .active || frontier.state == .reopened)
+            && MyDaySourceSemanticsV1.isSelectable(frontier.state, reference: item.reference)
         if mayAct, let current = frontier.currentReference {
-            let resumes = frontier.state == .reopened
-                || dueReason == .started
-                || Self.isResumableDraft(current)
+            let resumes = MyDaySourceSemanticsV1.resumes(frontier.state, reference: current,
+                                                        occurrenceStarted: dueReason == .started)
             routeIntent = try .init(
                 reference: current,
                 action: resumes ? .resume : .start
@@ -186,36 +169,34 @@ struct MyDaySummaryItemV1: Codable, Equatable, Hashable, Sendable {
         try item.validate()
         try currentReference?.validate()
         try routeIntent?.reference.validate()
-        let expectedStatus: MyDayWorkflowItemStatusV1
         let exactCurrentReference = currentReference == item.reference
-        if !exactCurrentReference,
-           sourceState == .active || sourceState == .reopened {
-            expectedStatus = .unavailable
-        } else {
-            switch sourceState {
-            case .active: expectedStatus = .actionable
-            case .reopened: expectedStatus = .reopened
-            case .completed: expectedStatus = .completed
-            case .cancelled: expectedStatus = .cancelled
-            case .retired, .missing, .stale: expectedStatus = .unavailable
-            }
-        }
+        let expectedStatus = Self.status(state: sourceState, reference: item.reference, exact: exactCurrentReference)
         let expectedEligible = exactCurrentReference
-            && (sourceState == .active || sourceState == .reopened)
+            && MyDaySourceSemanticsV1.isSelectable(sourceState, reference: item.reference)
+        let expectedAction: MyDayExistingRouteActionV1 = MyDaySourceSemanticsV1.resumes(
+            sourceState, reference: item.reference, occurrenceStarted: dueCue == .started) ? .resume : .start
         guard status == expectedStatus,
               carryoverEligible == expectedEligible,
               (routeIntent != nil) == expectedEligible,
               (!expectedEligible || routeIntent?.reference == currentReference),
               (routeIntent?.workStarted ?? false) == false,
               (routeIntent?.routeRequested ?? false) == false,
-              (!expectedEligible || sourceState != .reopened || routeIntent?.action == .resume) else {
+              (!expectedEligible || routeIntent?.action == expectedAction) else {
             throw MyDayWorkflowFailureV1.staleProjection
         }
     }
 
-    private static func isResumableDraft(_ value: MyDayEligibleReferenceV1) -> Bool {
-        if case .resumableDraft = value { return true }
-        return false
+    private static func status(state: MyDaySourceStateV1, reference: MyDayEligibleReferenceV1,
+                               exact: Bool) -> MyDayWorkflowItemStatusV1 {
+        if MyDaySourceSemanticsV1.isSelectable(state, reference: reference) {
+            guard exact else { return .unavailable }
+            return state == .reopened ? .reopened : .actionable
+        }
+        switch state {
+        case .completed: return .completed
+        case .cancelled: return .cancelled
+        default: return .unavailable
+        }
     }
 
     private static func cue(_ reason: OccurrenceDueReasonV1?) -> MyDayDueCueV1 {

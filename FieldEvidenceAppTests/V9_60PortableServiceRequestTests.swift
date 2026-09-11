@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -333,6 +334,116 @@ private enum C52PortableServiceRequestTestSupport {
 
 @MainActor
 final class V9_60PortableServiceRequestTests: XCTestCase {
+    func testContactPreviewAndDispositionReplayPreserveCanonicalReceiptAndZeroDuplicateEffects() throws {
+        func id(_ value: Int) -> UUID {
+            UUID(uuidString: String(format: "c5200000-0000-4000-8000-%012d", value))!
+        }
+        let golden = try C52PortableServiceRequestTestSupport.golden()
+        let workspace = C52PortableServiceRequestTestSupport.workspace
+        let now = Date(timeIntervalSince1970: 1_700_000_205)
+        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
+            ModelConfiguration("C52Disposition", schema: schema, isStoredInMemoryOnly: true,
+                allowsSave: true, cloudKitDatabase: .none),
+        ])
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspace,
+            replicaID: ReplicaID(rawValue: id(1)))
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: id(2))
+        let writer = try WorkspaceWriterV1(identity: identity, generationID: id(2),
+            initialRevision: journal.currentRevision(writerInstanceID: id(3)),
+            clock: C52PortableServiceRequestFixedClock(value: now),
+            idSource: C52PortableServiceRequestConstantIDSource(value: id(3)),
+            fileAuthority: SystemApplicationFileAuthorityV1(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+        func record(contact: String?) throws -> ServiceRequestRecordV1 {
+            try .init(recordID: id(4), workspaceID: workspace, source: .phone, scope: golden.scope,
+                body: .init(requestText: golden.body.requestText, statedDate: golden.body.statedDate,
+                    urgency: golden.body.urgency, requester: golden.body.requester,
+                    contact: .init(value: contact), category: golden.body.category),
+                mediaManifest: golden.media,
+                capabilityAssessment: .init(proofValidity: .unavailable, importEligibility: .unavailable),
+                revision: 1, mutationID: .init(rawValue: id(5)), recordedAt: now)
+        }
+        let original = try record(contact: "+1 555 0100")
+        let originalBytes = try ServiceRequestCanonicalCodecV1.data(original)
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: workspace, generationID: id(2),
+            writerInstanceID: id(3), workspaceRevision: 0,
+            entityRevisions: [.init(identity: .init(kind: .serviceRequestRecord, id: original.recordID), revision: 0)])
+        _ = try writer.commitServiceRequest(.init(workspaceID: workspace, expectedRevision: expected,
+            mutationID: original.mutationID, payloads: [.appendRecord(original)]))
+        let duplicateProjection = try ServiceRequestDuplicateProjectionV1(
+            basisRequestSHA256: original.recordSHA256,
+            ruleReleaseSHA256: C52PortableServiceRequestTestSupport.digest("a"), candidates: [])
+        let supportURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c52-disposition-\(UUID().uuidString)", isDirectory: true)
+        let store = try PortableExchangeSessionStoreV2(applicationSupportURL: supportURL)
+        addTeardownBlock {
+            if FileManager.default.fileExists(atPath: supportURL.path) {
+                try FileManager.default.removeItem(at: supportURL)
+            }
+        }
+        let contactProvider = C52ValidatedContactPreviewProviderV1()
+        let coordinator = ServiceRequestCoordinatorV1(
+            duplicates: C52PortableServiceRequestDuplicateProjectionProviderV1(projection: duplicateProjection),
+            writer: writer, lifecycle: .init(store: store), contactPromotion: contactProvider,
+            clock: C52PortableServiceRequestFixedClock(value: now),
+            idSource: C52PortableServiceRequestSequenceIDSourceV1(values: [id(6), id(7)]))
+        let party = try ServicePartyReferenceV1(partyID: id(8), workspaceID: workspace, kind: .person,
+            displayName: "Local requester", provenance: .locallyRecorded, state: .effective,
+            effectiveAt: now, revision: 1, mutationID: .init(rawValue: id(9)))
+        let baseline = try writer.currentRevision()
+        for (value, kind) in [("+1 555 0100", ServiceContactKindV1.phone),
+                              ("requester@example.invalid", .email)] {
+            contactProvider.kind = kind
+            let preview = try coordinator.previewContactPromotion(request: record(contact: value), party: party)
+            XCTAssertEqual(preview.assertedValue, value)
+            XCTAssertEqual(preview.suggestedKind, kind)
+            XCTAssertEqual(preview.purpose, "OPERATIONAL_CONTACT_ONLY")
+            XCTAssertTrue(preview.zeroWrite)
+        }
+        for (value, kind) in [("555#123", ServiceContactKindV1.phone),
+                              ("requester@example.invalid?subject=Injected", .email),
+                              ("missing-domain@", .email)] {
+            contactProvider.kind = kind
+            XCTAssertThrowsError(try coordinator.previewContactPromotion(request: record(contact: value), party: party)) {
+                XCTAssertEqual($0 as? OperationalContactFailureV1, .invalidValue)
+            }
+        }
+        XCTAssertThrowsError(try coordinator.previewContactPromotion(request: record(contact: nil), party: party)) {
+            XCTAssertEqual($0 as? ServiceRequestCoordinatorFailureV1, .contactPromotionUnavailable)
+        }
+        XCTAssertEqual(try writer.currentRevision(), baseline)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MutationReceiptRow>()).count, 1)
+        let plan = try coordinator.previewDisposition(record: original,
+            expectedRevision: .init(snapshot: baseline), disposition: .acceptAsNew,
+            selectedDuplicate: nil, reason: nil, predecessor: nil,
+            duplicateProjection: duplicateProjection, mutationID: .init(rawValue: id(10)))
+        let receipt = try coordinator.commitDisposition(plan)
+        let canonical = try XCTUnwrap(journal.receipt(mutationID: plan.event.mutationID))
+        XCTAssertEqual(receipt.plan, plan)
+        XCTAssertEqual(receipt.canonicalMutationReceiptSHA256,
+            try WorkspaceMutationCanonicalV1.sha256(canonical))
+        let committed = try writer.currentRevision()
+        XCTAssertEqual(try coordinator.recoverDisposition(plan), receipt)
+        XCTAssertEqual(try writer.currentRevision(), committed)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MutationReceiptRow>()).count, 2)
+        let divergent = try coordinator.previewDisposition(record: original,
+            expectedRevision: .init(snapshot: baseline), disposition: .declineWithReason,
+            selectedDuplicate: nil, reason: "Not in the selected scope", predecessor: nil,
+            duplicateProjection: duplicateProjection, mutationID: plan.event.mutationID)
+        XCTAssertThrowsError(try coordinator.commitDisposition(divergent))
+        XCTAssertEqual(try writer.currentRevision(), committed)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MutationReceiptRow>()).count, 2)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ServiceRequestRecordRow>()).map { try $0.value() }, [original])
+        XCTAssertEqual(try ServiceRequestCanonicalCodecV1.data(original), originalBytes)
+        try journal.validateAll()
+    }
+
     func testPublicIDsPreserveValidatedConstructorsAndExactStringWireEncoding() throws {
         let invitationRaw = "INV-INTEGRATION-001"
         let submissionRaw = "SUB-INTEGRATION-001"
@@ -1122,6 +1233,20 @@ private final class C52PortableServiceRequestContactPromotionProviderV1: Service
         party: ServicePartyReferenceV1
     ) throws -> ServiceRequestContactPromotionPreviewV1 {
         throw ServiceRequestCoordinatorFailureV1.contactPromotionUnavailable
+    }
+}
+
+/// Explicit C46 boundary double: it invokes the real validating preview
+/// constructor and owns no persistence or system-handoff authority.
+@MainActor
+private final class C52ValidatedContactPreviewProviderV1: ServiceRequestContactPromotionPreviewingV1 {
+    var kind: ServiceContactKindV1 = .phone
+    func previewOperationalContactPromotion(request: ServiceRequestRecordV1,
+                                            party: ServicePartyReferenceV1) throws -> ServiceRequestContactPromotionPreviewV1 {
+        guard let value = request.body.contact.value else {
+            throw ServiceRequestCoordinatorFailureV1.contactPromotionUnavailable
+        }
+        return try .init(request: request.reference, party: party, assertedValue: value, suggestedKind: kind)
     }
 }
 

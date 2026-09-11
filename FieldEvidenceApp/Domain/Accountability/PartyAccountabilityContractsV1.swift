@@ -807,7 +807,7 @@ extension ActorSnapshotV1 {
     func validateAuthoritySelection(workspaceID: WorkspaceID) throws {
         try validate()
         guard self.workspaceID == workspaceID else {
-            throw PartyAccountabilityFailureV1.wrongWorkspace
+            throw PartyAccountabilityFailureV1.crossWorkspaceReference
         }
     }
 }

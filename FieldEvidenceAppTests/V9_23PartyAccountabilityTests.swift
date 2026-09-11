@@ -10,6 +10,20 @@ import XCTest
 final class V9_23PartyAccountabilityTests: XCTestCase {
     private let baseDate = Date(timeIntervalSince1970: 1_787_847_600)
 
+    func testActorAuthoritySelectionPreservesLocalResponsibilityAndRejectsForeignWorkspace() throws {
+        let values = try makeValues()
+        let original = try PartyAccountabilitySnapshotCodecV1.encode(values.actor)
+        try values.actor.validateAuthoritySelection(workspaceID: values.workspace)
+        XCTAssertEqual(values.actor.responsibility, .performedBy)
+        XCTAssertEqual(values.actor.actor.partyID, values.party.partyID)
+        XCTAssertThrowsError(try values.actor.validateAuthoritySelection(
+            workspaceID: WorkspaceID(rawValue: uuid(901)))) {
+            XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .crossWorkspaceReference)
+        }
+        XCTAssertEqual(try PartyAccountabilitySnapshotCodecV1.encode(values.actor), original)
+        try values.actor.validateAuthoritySelection(workspaceID: values.workspace)
+    }
+
     func testV23P03C38G01FixtureAndClosedEnumContractAreComplete() throws {
         let (object, corpus) = try loadFixture()
         XCTAssertEqual(

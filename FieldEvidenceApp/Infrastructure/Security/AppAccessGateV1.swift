@@ -1,6 +1,16 @@
 import Foundation
 
 actor AppAccessGateV1: AppAccessGatePortV1 {
+    fileprivate final class ContentReadOwner: Sendable {}
+
+    /// An operation-scoped publication check, not a portable access permit.
+    /// Only this file can construct one; neither it nor its owner is Codable.
+    struct ContentReadToken: Sendable {
+        fileprivate let owner: ContentReadOwner
+        fileprivate let epoch: UInt64
+        fileprivate let surface: AppAccessContentReadSurfaceV1
+    }
+
     private let authentication: any LocalAuthenticationClient
     private let clock: any ApplicationClock
     private let identifiers: any ApplicationIDSource
@@ -9,6 +19,10 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     private var generation: UInt64 = 0
     private var activeAttemptID: UUID?
     private var privacyCover = true
+    private let contentReadOwner = ContentReadOwner()
+    private var contentReadEpoch: UInt64 = 0
+    private var contentReadEpochExhausted = false
+    private var sceneIsActive = true
 
     init(
         setting: DeviceLocalAppLockSettingReadV1,
@@ -49,6 +63,39 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     func currentState() -> AppAccessStateV1 { state }
 
     func privacyCoverRequired() -> Bool { privacyCover }
+
+    func beginContentRead(for surface: AppAccessContentReadSurfaceV1) throws -> ContentReadToken {
+        try requireCurrentContentReadAccess()
+        return ContentReadToken(owner: contentReadOwner, epoch: contentReadEpoch, surface: surface)
+    }
+
+    func validateContentRead(_ token: ContentReadToken,
+                             for surface: AppAccessContentReadSurfaceV1) throws {
+        try requireCurrentContentReadAccess()
+        guard token.owner === contentReadOwner, token.epoch == contentReadEpoch,
+              token.surface == surface else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
+
+    private func requireCurrentContentReadAccess() throws {
+        guard !contentReadEpochExhausted, state.permitsContentAccess, !privacyCover,
+              !enabled || sceneIsActive else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
+
+    private func revokeContentReads() {
+        guard !contentReadEpochExhausted else { return }
+        let (next, overflow) = contentReadEpoch.addingReportingOverflow(1)
+        if overflow {
+            // Never wrap and revive an old token, even if legacy gate state
+            // subsequently returns to disabled or unlocked.
+            contentReadEpochExhausted = true
+        } else {
+            contentReadEpoch = next
+        }
+    }
 
     func requireContentAccess() throws {
         guard state.permitsContentAccess else {
@@ -115,10 +162,14 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     func sceneBecameInactive() {
+        revokeContentReads()
+        sceneIsActive = false
         privacyCover = enabled
     }
 
     func sceneBecameActive() {
+        revokeContentReads()
+        sceneIsActive = true
         switch state {
         case .disabled, .unlockedForeground:
             privacyCover = false
@@ -143,6 +194,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         guard value == enabled else {
             throw AppAccessContractFailureV1.effectMismatch
         }
+        revokeContentReads()
         state = value ? .locked(reason: .coldLaunch) : .disabled
         privacyCover = value
     }
@@ -174,6 +226,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
               generation < UInt64.max else {
             return .interrupted
         }
+        revokeContentReads()
         generation += 1
         let capturedGeneration = generation
         let attemptID = identifiers.makeID()
@@ -202,6 +255,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
             return .interrupted
         }
         guard availability.permitsDeviceOwnerAuthentication else {
+            revokeContentReads()
             activeAttemptID = nil
             applyUnavailable(availability.status)
             return outcome(for: availability.status)
@@ -210,6 +264,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         guard isCurrentAttempt(attemptID, generation: capturedGeneration) else {
             return .interrupted
         }
+        revokeContentReads()
         activeAttemptID = nil
         switch result {
         case .authenticated:
@@ -237,7 +292,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         case .interrupted:
             state = .interruptedLocked
         }
-        privacyCover = !state.permitsContentAccess
+        privacyCover = !state.permitsContentAccess || (enabled && !sceneIsActive)
         return result
     }
 
@@ -261,6 +316,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     private func advanceGenerationOrFailClosed() {
+        revokeContentReads()
         if generation == UInt64.max {
             state = .configurationUnknownLocked
             enabled = true

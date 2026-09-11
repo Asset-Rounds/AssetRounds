@@ -1796,7 +1796,7 @@ struct PunchFindingLinkV1:Codable,Equatable,Hashable,Sendable{
         self.sourceContext=sourceContext;self.supportingRecords=supports;try validate()}
     func validate()throws{try sourceContext.activityKind.requireKnownForMutation();try supportingRecords.forEach{try $0.validate()}
         guard findingID != ActivityContractValidationV2.zeroUUID,findingRevision>=0,
-        ActivityContractValidationV2.digest(findingSHA256),sourceContext.activityKind==.installation || sourceContext.activityKind==.punchReview,
+        ActivityContractValidationV2.digest(findingSHA256),sourceContext.activityKind == .installation || sourceContext.activityKind == .punchReview,
         supportingRecords==supportingRecords.sorted(by:{$0.kind.rawValue<$1.kind.rawValue}),
         Set(supportingRecords.map(\.kind)).count==supportingRecords.count
         else{throw ActivityContractFailureV2.invalidValue}}

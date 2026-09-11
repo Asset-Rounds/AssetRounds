@@ -522,6 +522,52 @@ private enum C47ActivityTestSupport {
 
 @MainActor
 final class V9_54ActivityContractFamiliesTests: XCTestCase {
+    func testPunchFindingLinksRetainBothAllowedKindsAndStrictSupportingRecords() throws {
+        let corrective = try ActivitySupportingRecordReferenceV2(kind: .correctiveAction,
+            recordID: C47ActivityTestSupport.id(9901), revision: 1,
+            recordSHA256: C47ActivityTestSupport.digest("a"))
+        let recheck = try ActivitySupportingRecordReferenceV2(kind: .operationalRecheck,
+            recordID: C47ActivityTestSupport.id(9902), revision: 2,
+            recordSHA256: C47ActivityTestSupport.digest("b"))
+        func context(_ kind: ActivityKindV2) throws -> FindingSourceContextV1 {
+            try .init(workspaceID: C47ActivityTestSupport.workspace(),
+                activityID: C47ActivityTestSupport.id(9903), activityKind: kind,
+                activityRevision: 3, activitySHA256: C47ActivityTestSupport.digest("c"),
+                taskOrScopeID: "scope.finding")
+        }
+        for kind in [ActivityKindV2.installation, .punchReview] {
+            let link = try PunchFindingLinkV1(findingID: C47ActivityTestSupport.id(9904),
+                findingRevision: 1, findingSHA256: C47ActivityTestSupport.digest("d"),
+                sourceContext: context(kind), supportingRecords: [recheck, corrective])
+            try link.validate()
+            XCTAssertEqual(link.sourceContext.activityKind, kind)
+            XCTAssertEqual(link.supportingRecords, [corrective, recheck])
+            XCTAssertThrowsError(try PunchFindingLinkV1(findingID: link.findingID,
+                findingRevision: 1, findingSHA256: link.findingSHA256,
+                sourceContext: link.sourceContext, supportingRecords: [corrective, corrective])) {
+                XCTAssertEqual($0 as? ActivityContractFailureV2, .invalidValue)
+            }
+            XCTAssertThrowsError(try PunchFindingLinkV1(findingID: ActivityContractValidationV2.zeroUUID,
+                findingRevision: 1, findingSHA256: link.findingSHA256,
+                sourceContext: link.sourceContext, supportingRecords: link.supportingRecords))
+            XCTAssertThrowsError(try PunchFindingLinkV1(findingID: link.findingID,
+                findingRevision: -1, findingSHA256: link.findingSHA256,
+                sourceContext: link.sourceContext, supportingRecords: link.supportingRecords))
+        }
+        for kind in ActivityKindV2.knownCases where kind != .installation && kind != .punchReview {
+            XCTAssertThrowsError(try PunchFindingLinkV1(findingID: C47ActivityTestSupport.id(9904),
+                findingRevision: 1, findingSHA256: C47ActivityTestSupport.digest("d"),
+                sourceContext: context(kind), supportingRecords: [corrective, recheck])) {
+                XCTAssertEqual($0 as? ActivityContractFailureV2, .invalidValue)
+            }
+        }
+        XCTAssertThrowsError(try ActivitySupportingRecordReferenceV2(kind: .correctiveAction,
+            recordID: ActivityContractValidationV2.zeroUUID, revision: 1,
+            recordSHA256: C47ActivityTestSupport.digest("a")))
+        XCTAssertThrowsError(try ActivitySupportingRecordReferenceV2(kind: .operationalRecheck,
+            recordID: recheck.recordID, revision: 0, recordSHA256: recheck.recordSHA256))
+    }
+
     func testEnvelopeDateOrderingPreservesOptionalDatesAndStateRequirements() throws {
         let draft = try C47ActivityTestSupport.envelope(kind: .installation)
         let start = C47ActivityTestSupport.fixedDate

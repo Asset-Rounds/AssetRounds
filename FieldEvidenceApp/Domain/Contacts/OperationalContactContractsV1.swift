@@ -21,7 +21,7 @@ enum OperationalContactLimitsV1 {
     static let maximumMutationContacts = 64
 }
 
-private enum OperationalContactValidationV1 {
+enum OperationalContactValidationV1 {
     static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     static func id(_ value: UUID) throws { guard value != zero else { throw OperationalContactFailureV1.invalidValue } }
     static func digest(_ value: String) throws {

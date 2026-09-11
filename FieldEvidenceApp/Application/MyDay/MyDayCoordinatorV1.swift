@@ -246,7 +246,7 @@ import Foundation
         guard zip(frontiers, plan.items).allSatisfy({ pair in
             !required.contains(pair.1.membershipID)
                 || (pair.0.currentReference == pair.1.reference
-                    && (pair.0.state == .active || pair.0.state == .reopened))
+                    && MyDaySourceSemanticsV1.isSelectable(pair.0.state, reference: pair.1.reference))
         }) else { throw MyDayFailureV1.staleRevision }
     }
 

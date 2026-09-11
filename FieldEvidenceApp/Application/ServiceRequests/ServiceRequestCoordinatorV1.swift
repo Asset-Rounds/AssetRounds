@@ -681,7 +681,7 @@ final class ServiceRequestCoordinatorV1 {
             ?? writer.commitServiceRequest(mutation)
         return .init(
             plan: plan,
-            canonicalMutationReceiptSHA256: WorkspaceMutationCanonicalV1.sha256(
+            canonicalMutationReceiptSHA256: try WorkspaceMutationCanonicalV1.sha256(
                 canonical.mutationReceipt
             )
         )

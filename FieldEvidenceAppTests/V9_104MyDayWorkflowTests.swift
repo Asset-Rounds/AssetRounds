@@ -35,7 +35,7 @@ private enum C41 {
     static func workPacket(_ value: Int, workspaceID: WorkspaceID = workspace) throws
         -> MyDayEligibleReferenceV1 {
         let packetItem = try WorkPacketItemV1(itemID: "c41-item-\(value)", kind: .inspection,
-            expectedRevision: 1, itemSHA256: digest("w"))
+            expectedRevision: 1, itemSHA256: digest("a"))
         let manifest = try WorkPacketManifestV1(manifestID: id(230 + value),
             packetID: id(240 + value), packetVersion: 1, workspaceID: workspaceID,
             items: [packetItem], packageReleases: [], creationBasis: .explicitLocalSelection,
@@ -99,7 +99,12 @@ private struct C41ExactExceptionResolver: ExceptionQueueCanonicalSourceResolving
 
     func sourceFrontiers(for plan: MyDayPlanV1, evaluatedAt: Date) throws -> [MyDaySourceFrontierV1] {
         try plan.items.map { item in
-            let state = states[item.membershipID] ?? .active
+            let initialState: MyDaySourceStateV1
+            switch item.reference {
+            case .roundSession, .resumableDraft: initialState = .draft
+            default: initialState = .active
+            }
+            let state = states[item.membershipID] ?? initialState
             let resolved: MyDayEligibleReferenceV1?
             if let supplied = current[item.membershipID] { resolved = supplied }
             else { resolved = state == .missing ? nil : item.reference }
@@ -298,7 +303,444 @@ private enum C41InjectedFailure: Error, Equatable { case afterEffectBeforeReceip
     }
 }
 
+private actor C41ReadAuthentication: LocalAuthenticationClient {
+    private(set) var count = 0
+    func availability() -> LocalAuthenticationAvailabilityV1 { .systemValue(status: .available, biometry: .faceID) }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        count += 1
+        return .authenticated
+    }
+    func cancel(attemptID: UUID) {}
+}
+
+@MainActor private final class C41ProductionSourceHarness {
+    let root: URL
+    let store: StoreGenerationSession
+    let coordinator: StoreSessionCoordinator
+    let authentication = C41ReadAuthentication()
+    let gate: AppAccessGateV1
+    let recorder: ActorSnapshotV1
+    let holder: ActorSnapshotV1
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("c41-production-source-\(UUID().uuidString)")
+        store = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        coordinator = try StoreSessionCoordinator(validatingSession: store)
+        gate = AppAccessGateV1(setting: .absentDisabled, authentication: authentication,
+                               clock: C41Clock(), identifiers: SystemApplicationIDSource())
+        recorder = try C41.actor(1900, workspaceID: store.workspaceID)
+        holder = try ActorSnapshotV1(snapshotID: C41.id(1902), workspaceID: store.workspaceID,
+            actor: recorder.actor, responsibility: .assignedTo, displayNameAtTime: recorder.displayNameAtTime,
+            capturedAt: C41.now)
+        _ = try coordinator.workspaceWriter.execute(.applyPartyAccountability(.appendActorSnapshot(recorder)),
+                                                     mutationID: C41.mutation(1903))
+        _ = try coordinator.workspaceWriter.execute(.applyPartyAccountability(.appendActorSnapshot(holder)),
+                                                     mutationID: C41.mutation(1904))
+    }
+
+    deinit { try? FileManager.default.removeItem(at: root) }
+
+    func packet(seed: Int, version: UInt64 = 1, packetID: UUID? = nil) throws -> WorkPacketManifestV1 {
+        try .init(manifestID: C41.id(seed), packetID: packetID ?? C41.id(seed + 1), packetVersion: version,
+            workspaceID: store.workspaceID,
+            items: [.init(itemID: "source-item", kind: .inspection, expectedRevision: 1, itemSHA256: C41.digest("a"))],
+            packageReleases: [], creationBasis: .explicitLocalSelection, creator: recorder,
+            createdAt: C41.now, mutationID: C41.mutation(seed + 2))
+    }
+    func append(_ manifest: WorkPacketManifestV1) throws {
+        try writePacket(.appendManifest(manifest), mutationID: manifest.mutationID)
+    }
+    func writePacket(_ payload: WorkPacketMutationPayloadV1, mutationID: MutationIDV1,
+                     expectedRevision: UInt64 = 0) throws {
+        let mutation = try WorkPacketMutationV1(workspaceID: store.workspaceID,
+            expectedRevision: expectedRevision, mutationID: mutationID, postImage: payload)
+        _ = try coordinator.workspaceWriter.execute(.applyWorkPacket(mutation), mutationID: mutationID)
+    }
+    func claim(item: WorkPacketItemReferenceV1, manifest: WorkPacketManifestV1, seed: Int,
+               predecessor: WorkItemClaimV1? = nil) throws -> WorkItemClaimV1 {
+        try .init(claimID: C41.id(seed), workspaceID: store.workspaceID, manifest: .init(manifest),
+            item: item, holder: holder, claimSequence: (predecessor?.claimSequence ?? 0) + 1,
+            claimedAt: C41.now, supersedesClaimID: predecessor?.claimID,
+            revision: (predecessor?.revision ?? 0) + 1, mutationID: C41.mutation(seed + 1))
+    }
+    func lease(claim: WorkItemClaimV1, seed: Int) throws -> WorkLeaseV1 {
+        try .init(leaseID: C41.id(seed), workspaceID: store.workspaceID, claimID: claim.claimID,
+            item: claim.item, holder: holder, leaseSequence: 1, startsAt: C41.now,
+            expiresAt: C41.now.addingTimeInterval(600), mutationID: C41.mutation(seed + 1))
+    }
+    func release(claim: WorkItemClaimV1, lease: WorkLeaseV1, reason: WorkReleaseReasonV1,
+                 seed: Int) throws -> WorkReleaseV1 {
+        let result = try WorkPacketResultLinkV1(resultID: C41.id(seed + 2), resultMutationID: C41.mutation(seed + 3),
+            itemExpectedRevision: claim.item.expectedRevision, resultRevision: 1,
+            resultSHA256: C41.digest("b"), evidence: [])
+        return try .init(releaseID: C41.id(seed), workspaceID: store.workspaceID, claimID: claim.claimID,
+            leaseID: lease.leaseID, item: claim.item, holder: holder, reason: reason,
+            resultLinks: reason == .completed ? [result] : [],
+            releasedAt: reason == .leaseExpired || reason == .reclaimed ? lease.expiresAt : C41.now,
+            mutationID: C41.mutation(seed + 1))
+    }
+    func plan(items: [MyDayItemV1], seed: Int) throws -> MyDayPlanV1 {
+        try .init(planID: C41.id(seed), key: C41.key(workspaceID: store.workspaceID), items: items,
+            predecessor: nil, revision: 1, mutationID: C41.mutation(seed + 1), authoredBy: recorder, authoredAt: C41.now)
+    }
+    func draft(seed: Int, revision: UInt64, state: FieldDraftStateV1, mutation: Int,
+               discardReceipt: DraftDiscardReceiptV1? = nil) throws -> FieldDraftCheckpointV1 {
+        try .init(draftID: C41.id(seed), workspaceID: store.workspaceID,
+            scope: .init(scopeKind: "C41_SOURCE_TEST", stableComponentIDs: ["explicit-test-scope"]),
+            purpose: .assetFieldEdit, codec: .init(codecID: "C41_SOURCE_TEST", codecVersion: 1,
+                releaseSHA256: C41.digest("c")), baseCanonicalRevision: 0, draftRevision: revision,
+            payloadData: Data("source checkpoint".utf8), stageIDs: [], resumeAnchor: .init(sectionID: "source"),
+            state: state, lastDurableMutationID: discardReceipt?.mutationID,
+            lastReceiptSHA256: discardReceipt?.receiptSHA256, updatedAt: C41.now, mutationID: C41.mutation(mutation))
+    }
+
+    struct Baseline: Equatable {
+        let revision: WorkspaceRevisionV1
+        let receipts: Int
+        let files: [String: Data]
+    }
+    func baseline() throws -> Baseline {
+        let revision = try coordinator.workspaceWriter.currentRevision()
+        let receipts = try coordinator.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count
+        var files: [String: Data] = [:]
+        for path in try FileManager.default.subpathsOfDirectory(atPath: root.path).sorted() {
+            let url = root.appendingPathComponent(path)
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+            // SQLite's shared-memory reader marks are not canonical data.
+            if values.isRegularFile == true && !path.hasSuffix("-shm") { files[path] = try Data(contentsOf: url) }
+        }
+        return .init(revision: revision, receipts: receipts, files: files)
+    }
+}
+
 final class V9_104MyDayWorkflowTests: XCTestCase {
+    @MainActor
+    func testProductionMyDayReadsExactPacketHistoryWithoutEffects() async throws {
+        let h = try C41ProductionSourceHarness()
+        let first = try h.packet(seed: 2000, version: 1)
+        let second = try h.packet(seed: 2010, version: 2, packetID: first.packetID)
+        try h.append(first)
+        try h.append(second)
+        let provider = h.coordinator.makeMyDaySourceProvider(accessGate: h.gate)
+        let selected = try MyDayItemV1(membershipID: C41.id(2020), reference: .workPacket(.init(first)),
+                                      manualOrder: 0, estimate: nil)
+        let plan = try h.plan(items: [selected], seed: 2021)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline()
+        let initial = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
+        XCTAssertEqual(initial.readinessAssessment, .notAssessed)
+        XCTAssertEqual(initial.eligibleReferences, [.workPacket(try .init(first)), .workPacket(try .init(second))])
+        XCTAssertEqual(initial.frontiers[0].currentReference, selected.reference)
+        XCTAssertEqual(initial.frontiers[0].readiness, .unavailable)
+        XCTAssertEqual(try h.baseline(), baseline)
+        let absentVersion = try h.packet(seed: 2015, version: 3, packetID: first.packetID)
+        let absentMember = try MyDayItemV1(membershipID: C41.id(2018), reference: .workPacket(.init(absentVersion)),
+                                         manualOrder: 0, estimate: nil)
+        let absent = try await provider.snapshot(for: h.plan(items: [absentMember], seed: 2019), evaluatedAt: C41.now)
+        XCTAssertEqual(absent.frontiers[0].state, .missing)
+        XCTAssertNil(absent.frontiers[0].currentReference, "Never substitute another immutable packet version")
+        XCTAssertEqual(try h.baseline(), baseline)
+
+        let item = try WorkPacketItemReferenceV1(manifest: first, item: first.items[0])
+        let claim = try h.claim(item: item, manifest: first, seed: 2030)
+        let lease = try h.lease(claim: claim, seed: 2040)
+        try h.writePacket(.appendClaim(claim), mutationID: claim.mutationID)
+        try h.writePacket(.appendLease(lease), mutationID: lease.mutationID)
+        let released = try h.release(claim: claim, lease: lease, reason: .deliberatelyReleased, seed: 2050)
+        try h.writePacket(.recordRelease(released), mutationID: released.mutationID)
+        let ordinary = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
+        XCTAssertEqual(ordinary.frontiers[0].state, .active, "Release is not completion")
+
+        let nextClaim = try h.claim(item: item, manifest: first, seed: 2060, predecessor: claim)
+        let nextLease = try h.lease(claim: nextClaim, seed: 2070)
+        try h.writePacket(.supersedeClaim(nextClaim), mutationID: nextClaim.mutationID, expectedRevision: claim.revision)
+        try h.writePacket(.appendLease(nextLease), mutationID: nextLease.mutationID)
+        let completed = try h.release(claim: nextClaim, lease: nextLease, reason: .completed, seed: 2080)
+        try h.writePacket(.recordRelease(completed), mutationID: completed.mutationID)
+        let done = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
+        XCTAssertEqual(done.frontiers[0].state, .completed)
+        XCTAssertFalse(done.eligibleReferences.contains(selected.reference))
+        XCTAssertTrue(done.eligibleReferences.contains(.workPacket(try .init(second))))
+        let reopened = try h.claim(item: item, manifest: first, seed: 2090, predecessor: nextClaim)
+        try h.writePacket(.supersedeClaim(reopened), mutationID: reopened.mutationID, expectedRevision: nextClaim.revision)
+        let open = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
+        XCTAssertEqual(open.frontiers[0].state, .reopened)
+        let summary = try MyDaySummaryItemV1(item: selected, frontier: open.frontiers[0], dueReason: nil)
+        try summary.validate()
+        XCTAssertEqual(summary.routeIntent?.action, .resume)
+
+        // A competing original claim is retained as a real owner-projected
+        // conflict, never silently chosen as a current holder.
+        let competing = try h.claim(item: item, manifest: first, seed: 2100)
+        try h.writePacket(.appendClaim(competing), mutationID: competing.mutationID)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let conflictBaseline = try h.baseline()
+        let conflict = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
+        XCTAssertEqual(conflict.frontiers[0].state, .conflicted)
+        XCTAssertFalse(conflict.eligibleReferences.contains(selected.reference))
+        XCTAssertEqual(try h.baseline(), conflictBaseline)
+        let repeated = try await provider.snapshot(for: plan, evaluatedAt: C41.now)
+        XCTAssertEqual(repeated.sourceClosureSHA256, conflict.sourceClosureSHA256)
+        XCTAssertEqual(try h.baseline(), conflictBaseline)
+        let authenticationCount = await h.authentication.count
+        XCTAssertEqual(authenticationCount, 0)
+    }
+
+    @MainActor
+    func testProductionMyDayDoesNotCompleteExpiredReclaimedOrHandedOffPackets() async throws {
+        let h = try C41ProductionSourceHarness()
+        let nextActor = try C41.actor(1910, workspaceID: h.store.workspaceID)
+        let nextHolder = try ActorSnapshotV1(snapshotID: C41.id(1912), workspaceID: h.store.workspaceID,
+            actor: nextActor.actor, responsibility: .assignedTo, displayNameAtTime: nextActor.displayNameAtTime,
+            capturedAt: C41.now)
+        _ = try h.coordinator.workspaceWriter.execute(.applyPartyAccountability(.appendActorSnapshot(nextHolder)),
+                                                      mutationID: C41.mutation(1913))
+        let provider = h.coordinator.makeMyDaySourceProvider(accessGate: h.gate)
+        for (index, reason) in [WorkReleaseReasonV1.leaseExpired, .reclaimed, .handoff].enumerated() {
+            let seed = 2500 + index * 100
+            let packet = try h.packet(seed: seed)
+            try h.append(packet)
+            let item = try WorkPacketItemReferenceV1(manifest: packet, item: packet.items[0])
+            let claim = try h.claim(item: item, manifest: packet, seed: seed + 10)
+            let lease = try h.lease(claim: claim, seed: seed + 20)
+            try h.writePacket(.appendClaim(claim), mutationID: claim.mutationID)
+            try h.writePacket(.appendLease(lease), mutationID: lease.mutationID)
+            let release = try h.release(claim: claim, lease: lease, reason: reason, seed: seed + 30)
+            try h.writePacket(.recordRelease(release), mutationID: release.mutationID)
+            if reason == .handoff {
+                let handoff = try WorkHandoffV1(handoffID: C41.id(seed + 40), workspaceID: h.store.workspaceID,
+                    releaseID: release.releaseID, item: item, fromHolder: h.holder, toHolder: nextHolder,
+                    resultLinks: [], reason: "Explicit local handoff", handedOffAt: C41.now,
+                    mutationID: C41.mutation(seed + 41))
+                try h.writePacket(.recordHandoff(handoff), mutationID: handoff.mutationID)
+            }
+            try await h.coordinator.awaitSearchIndexLifecycle()
+            let baseline = try h.baseline()
+            let snapshot = try await provider.snapshot(evaluatedAt: C41.now.addingTimeInterval(600))
+            let reference = MyDayEligibleReferenceV1.workPacket(try .init(packet))
+            let source = try XCTUnwrap(snapshot.sources.first { $0.reference == reference })
+            XCTAssertEqual(source.state, .active)
+            XCTAssertEqual(try h.baseline(), baseline)
+        }
+    }
+
+    @MainActor
+    func testProductionMyDayPreservesRoundAndDraftStates() async throws {
+        let h = try C41ProductionSourceHarness()
+        let provider = h.coordinator.makeMyDaySourceProvider(accessGate: h.gate)
+        let requirement = try RoundPackageContentRequirementV1(packageRelease: .init(
+            packageReleaseID: C41.digest("a"), packageID: "c41-source", packageContentVersion: 1,
+            packageSHA256: C41.digest("b"), workflowSHA256: C41.digest("c")), requiredContent: [])
+        let item = try RoundItemV1(itemID: C41.id(2200), order: 0,
+            selection: .init(assetID: C41.id(2201), siteID: C41.id(2202), labelAtSelection: "Source round"),
+            requirement: requirement)
+        var previous: RoundSessionV1?
+        var planned: MyDayItemV1?
+        let steps: [(RoundSessionStateV1, RoundSessionTransitionV1, MyDaySourceStateV1)] = [
+            (.draft, .create, .draft), (.active, .start, .active), (.paused, .pause, .paused),
+            (.active, .resume, .active), (.active, .skipItem, .active),
+            (.completed, .close, .completed), (.archived, .archive, .archived),
+        ]
+        for (index, step) in steps.enumerated() {
+            let items = index >= 4 ? [try RoundItemV1(itemID: item.itemID, order: 0,
+                selection: item.selection, requirement: requirement, disposition: .skipped, reason: .notRequired)] : [item]
+            let round = try RoundSessionV1(workspaceID: h.coordinator.workspaceID, sessionID: C41.id(2203),
+                predecessor: previous, revision: UInt64(index + 1), mutationID: C41.mutation(2210 + index),
+                state: step.0, transition: step.1, transitionItemID: index == 4 ? item.itemID : nil,
+                items: items, recordedBy: h.recorder, recordedAt: C41.now)
+            _ = try h.coordinator.workspaceWriter.commitRoundSession(.init(workspaceID: h.coordinator.workspaceID,
+                expectedRevision: previous?.revision ?? 0, mutationID: round.mutationID, session: round))
+            previous = round
+            let reference = MyDayEligibleReferenceV1.roundSession(workspaceID: round.workspaceID,
+                sessionID: round.sessionID, revision: round.revision, sessionSHA256: round.sessionSHA256)
+            let member = try MyDayItemV1(membershipID: C41.id(2220), reference: reference, manualOrder: 0, estimate: nil)
+            if planned == nil { planned = member }
+            let snapshot = try await provider.snapshot(for: h.plan(items: [member], seed: 2230), evaluatedAt: C41.now)
+            XCTAssertEqual(snapshot.frontiers[0].state, step.2)
+            let summary = try MyDaySummaryItemV1(item: member, frontier: snapshot.frontiers[0], dueReason: nil)
+            try summary.validate()
+            XCTAssertEqual(summary.routeIntent?.action, index == 0 ? .start : (index < 5 ? .resume : nil))
+            XCTAssertEqual(snapshot.frontiers[0].readiness, .unavailable)
+        }
+        let historical = try XCTUnwrap(planned)
+        let oldPlan = try h.plan(items: [historical], seed: 2240)
+        let archived = try await provider.snapshot(for: oldPlan, evaluatedAt: C41.now)
+        XCTAssertEqual(archived.frontiers[0].plannedReference, historical.reference)
+        XCTAssertNotEqual(archived.frontiers[0].currentReference, historical.reference)
+        XCTAssertEqual(archived.frontiers[0].state, .archived)
+
+        var checkpoint: FieldDraftCheckpointV1?
+        for (index, state) in [FieldDraftStateV1.active, .committing, .conflicted, .active,
+                              .committing, .recoveryRequired, .discardPending].enumerated() {
+            let next = try h.draft(seed: 2250, revision: UInt64(index + 1), state: state, mutation: 2260 + index)
+            let mutation = try FieldDraftMutationV1(workspaceID: h.coordinator.workspaceID,
+                expectedRevision: checkpoint?.draftRevision ?? 0, expectedBaseCanonicalRevision: 0,
+                mutationID: next.mutationID, postImage: checkpoint == nil ? .createCheckpoint(next) : .reviseCheckpoint(next))
+            _ = try h.coordinator.workspaceWriter.execute(.applyFieldDraft(mutation), mutationID: mutation.mutationID)
+            checkpoint = next
+            let snapshot = try await provider.snapshot(evaluatedAt: C41.now)
+            let source = try XCTUnwrap(snapshot.sources.first { if case .resumableDraft = $0.reference { return true }; return false })
+            let expected: [MyDaySourceStateV1] = [.draft, .committing, .conflicted, .draft, .committing, .recoveryRequired, .discardPending]
+            XCTAssertEqual(source.state, expected[index])
+            XCTAssertEqual(source.isSelectable, [.active, .conflicted, .recoveryRequired].contains(state))
+        }
+        let pending = try XCTUnwrap(checkpoint)
+        let discardPlan = try DraftDiscardPlanV1(planID: C41.id(2271), workspaceID: h.store.workspaceID,
+            draftID: pending.draftID, expectedDraftRevision: pending.draftRevision,
+            nonemptyPayload: true, stageIDs: [], reservationIDs: [], estimatedBytes: Int64(pending.payloadData.count))
+        let receipt = try DraftDiscardReceiptV1(receiptID: C41.id(2272), workspaceID: h.store.workspaceID,
+            draftID: pending.draftID, planSHA256: discardPlan.planSHA256, disposedStageIDs: [],
+            quarantinedReservationIDs: [], discardedAt: C41.now, mutationID: C41.mutation(2270))
+        let discarded = try h.draft(seed: 2250, revision: pending.draftRevision + 1,
+            state: .discarded, mutation: 2270, discardReceipt: receipt)
+        let discardMutation = try FieldDraftMutationV1(workspaceID: h.store.workspaceID,
+            expectedRevision: pending.draftRevision, expectedBaseCanonicalRevision: 0,
+            mutationID: receipt.mutationID, postImage: .applyDiscardTerminal(.init(discardedCheckpoint: discarded, receipt: receipt)))
+        _ = try h.coordinator.workspaceWriter.execute(.applyFieldDraft(discardMutation), mutationID: discardMutation.mutationID)
+        let discardedSnapshot = try await provider.snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(discardedSnapshot.sources.first { if case .resumableDraft = $0.reference { return true }; return false }?.state, .discarded)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline()
+        _ = try await provider.snapshot(for: oldPlan, evaluatedAt: C41.now)
+        XCTAssertEqual(try h.baseline(), baseline)
+    }
+
+    @MainActor
+    func testProductionMyDayReadRejectsAccessSourceAndSessionDrift() async throws {
+        let h = try C41ProductionSourceHarness()
+        let provider = h.coordinator.makeMyDaySourceProvider(accessGate: h.gate)
+        let packet = try h.packet(seed: 2300)
+        try h.append(packet)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline()
+        #if DEBUG
+        var didMaterialize = false
+        provider.afterSourceMaterializationForTesting = { didMaterialize = true }
+        await h.gate.markConfigurationUnknown()
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("locked read published") }
+        catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+            XCTAssertFalse(didMaterialize)
+        }
+        XCTAssertEqual(try h.baseline(), baseline)
+        await h.gate.eraseAccessState()
+        provider.afterSourceMaterializationForTesting = {
+            await h.gate.markConfigurationUnknown()
+            await h.gate.eraseAccessState()
+        }
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("access ABA published") }
+        catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+            XCTAssertEqual(try h.baseline(), baseline)
+        }
+        provider.afterSourceMaterializationForTesting = {
+            try h.append(h.packet(seed: 2310))
+        }
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("source drift published") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        provider.afterSourceMaterializationForTesting = {
+            try h.coordinator.activateValidating(session: h.store)
+        }
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("session drift published") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sessionChanged) }
+        provider.afterSourceMaterializationForTesting = nil
+        do { _ = try await provider.snapshot(evaluatedAt: C41.now); XCTFail("retired provider reused") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sessionChanged) }
+        #endif
+        let fresh = h.coordinator.makeMyDaySourceProvider(accessGate: h.gate)
+        let result = try await fresh.snapshot(evaluatedAt: C41.now)
+        XCTAssertEqual(result.sources.count, 2)
+        let pending = try h.packet(seed: 2320)
+        h.coordinator.modelContext.insert(try WorkPacketManifestRow(pending))
+        do { _ = try await fresh.snapshot(evaluatedAt: C41.now); XCTFail("unsaved source published") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        XCTAssertTrue(h.coordinator.modelContext.hasChanges, "Reader must not rollback caller work")
+        h.coordinator.modelContext.rollback()
+        let authenticationCount = await h.authentication.count
+        XCTAssertEqual(authenticationCount, 0)
+    }
+
+    @MainActor
+    func testProductionMyDayReadsDueClosureAndRuleRetirementWithoutScheduling() async throws {
+        let h = try C41ProductionSourceHarness()
+        let fixture = try C41MyDayScheduleFixtureV1.make(workspaceID: h.store.workspaceID, actor: h.recorder)
+        let definition = fixture.definition
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let beforeDST = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 7, hour: 9)))
+        let afterDST = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 9)))
+        XCTAssertEqual(afterDST.timeIntervalSince(beforeDST), 23 * 3_600)
+        var events: [OccurrenceHistoryEventV1] = []
+        for (index, date) in [beforeDST, afterDST].enumerated() {
+            let basis = ResolvedOccurrenceBasisV1(nominalLocalDate: index == 0 ? "2026-03-07" : "2026-03-08",
+                nominalLocalTime: "09:00:00", resolvedAtUTC: date,
+                utcOffsetSeconds: calendar.timeZone.secondsFromGMT(for: date), disposition: .unambiguous,
+                timeBasisSHA256: try definition.timeBasis.canonicalSHA256(), adjustmentProvenanceSHA256: nil)
+            let occurrenceID = try OccurrenceIDV1(scheduleDefinitionID: definition.scheduleDefinitionID,
+                identityNamespaceID: definition.occurrenceIdentityNamespaceID, nominalKey: basis.nominalKey)
+            events.append(try .init(eventID: C41.id(2400 + index), workspaceID: h.store.workspaceID,
+                occurrenceID: occurrenceID, scheduleRelease: .init(definition), action: .generated,
+                nominalBasis: basis, effectiveBasis: basis, predecessor: nil, revision: 1,
+                mutationID: C41.mutation(2410 + index), recordedBy: h.recorder, recordedAt: C41.now))
+        }
+        try ScheduleLifecycleClosureV1(definitions: [definition], history: events).validate()
+        // Explicit canonical read fixtures, not writer/receipt acceptance. Their
+        // coherent recorded instants cross DST; this test does not qualify a
+        // schedule generator or reuse the old helper's inconsistent time basis.
+        h.coordinator.modelContext.insert(try ScheduleDefinitionReleaseRow(definition))
+        for event in events { h.coordinator.modelContext.insert(try OccurrenceHistoryEventRow(event)) }
+        try h.coordinator.modelContext.save()
+        let provider = h.coordinator.makeMyDaySourceProvider(accessGate: h.gate)
+        let offsets: [(TimeInterval, OccurrenceDueReasonV1)] = [
+            (-3_601, .beforeReadyWindow), (-3_600, .readyWindowOpen), (0, .dueWithinGrace),
+            (7_201, .overdueAfterGrace),
+        ]
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let baseline = try h.baseline()
+        for (offset, reason) in offsets {
+            let snapshot = try await provider.snapshot(evaluatedAt: afterDST.addingTimeInterval(offset))
+            XCTAssertEqual(snapshot.dueQueue.items.first { $0.entry.occurrenceID == events[1].occurrenceID }?.reason, reason)
+            XCTAssertEqual(snapshot.sources.first { if case let .scheduleOccurrence(anchor, _) = $0.reference {
+                return anchor.occurrenceID == events[1].occurrenceID
+            }; return false }?.dueAt, afterDST)
+            XCTAssertEqual(try h.baseline(), baseline)
+        }
+        var predecessor = events[0]
+        for (index, kind) in [ScheduleExceptionKindV1.deferred, .skipped, .missed, .cancelled, .retiredForRuleChange].enumerated() {
+            let replacement = kind == .deferred ? events[1].effectiveBasis : nil
+            let exception = try ScheduleExceptionV1(exceptionID: C41.id(2420 + index), kind: kind,
+                priorEffectiveBasisSHA256: ScheduleCanonicalCodecV1.sha256(predecessor.effectiveBasis),
+                replacementBasis: replacement,
+                replacementOccurrenceID: kind == .retiredForRuleChange ? events[1].occurrenceID : nil,
+                reasonCode: "C41_EXPLICIT_SOURCE_FIXTURE", recordedBy: h.recorder, recordedAt: C41.now)
+            let event = try OccurrenceHistoryEventV1(eventID: C41.id(2430 + index), workspaceID: h.store.workspaceID,
+                occurrenceID: predecessor.occurrenceID, scheduleRelease: predecessor.scheduleRelease,
+                action: .applyException, nominalBasis: predecessor.nominalBasis,
+                effectiveBasis: replacement ?? predecessor.effectiveBasis, exception: exception,
+                predecessor: predecessor, revision: predecessor.revision + 1,
+                mutationID: C41.mutation(2440 + index), recordedBy: h.recorder, recordedAt: C41.now)
+            h.coordinator.modelContext.insert(try OccurrenceHistoryEventRow(event))
+            try h.coordinator.modelContext.save()
+            predecessor = event
+            let captured = try h.baseline()
+            let snapshot = try await provider.snapshot(evaluatedAt: beforeDST)
+            let source = try XCTUnwrap(snapshot.sources.first { if case let .scheduleOccurrence(anchor, _) = $0.reference {
+                return anchor.occurrenceID == event.occurrenceID
+            }; return false })
+            XCTAssertEqual(source.state, [MyDaySourceStateV1.active, .skipped, .missed, .cancelled, .ruleRetired][index])
+            XCTAssertEqual(source.replacementOccurrenceID, kind == .retiredForRuleChange ? events[1].occurrenceID : nil)
+            XCTAssertEqual(try h.baseline(), captured)
+        }
+        // Broken history must throw, not disappear into an empty queue.
+        let original = try XCTUnwrap(h.coordinator.modelContext.fetch(FetchDescriptor<OccurrenceHistoryEventRow>())
+            .first { $0.eventID == events[0].eventID })
+        h.coordinator.modelContext.delete(original)
+        try h.coordinator.modelContext.save()
+        let corruptBaseline = try h.baseline()
+        do { _ = try await provider.snapshot(evaluatedAt: beforeDST); XCTFail("broken closure published") }
+        catch { XCTAssertEqual(try h.baseline(), corruptBaseline) }
+    }
+
     @MainActor
     func testActualWriterRetainsMissingHistoryAndRejectsNewOrReboundMembership() throws {
         let originalItem = try MyDayItemV1(membershipID: C41.id(1001), reference: C41.round(1001),
@@ -406,6 +848,8 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
     @MainActor
     func testActualWriterSelectsExactImmutablePacketVersions() throws {
         let h = try C41CanonicalWriterHarness()
+        _ = try h.writer.execute(.applyPartyAccountability(.appendActorSnapshot(C41.actor())),
+                                 mutationID: C41.mutation(1590))
         var manifests: [WorkPacketManifestV1] = []
         for version in 1...2 {
             let manifest = try WorkPacketManifestV1(manifestID: C41.id(1600 + version),
@@ -451,6 +895,8 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         let source = try initial(selected, key: C41.key(), seed: 1710)
         let target = try initial(missing, key: C41.key("2026-09-02"), seed: 1720)
         let h = try C41CanonicalWriterHarness(historicalPlans: [source, target])
+        _ = try h.writer.execute(.applyPartyAccountability(.appendActorSnapshot(C41.actor())),
+                                 mutationID: C41.mutation(1690))
         let packetMutation = try WorkPacketMutationV1(workspaceID: C41.workspace, expectedRevision: 0,
             mutationID: manifest.mutationID, postImage: .appendManifest(manifest))
         _ = try h.writer.execute(.applyWorkPacket(packetMutation), mutationID: manifest.mutationID)
@@ -601,7 +1047,7 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
     func testV23P04C41A01AccessibleMovesOptionalEstimatesAndLifecycleStates() throws {
         let h = C41Harness()
         let items = try [C41.item(11, reference: C41.round(11)),
-                         C41.item(12, reference: C41.draft(12), estimate: 20),
+                         C41.item(12, reference: C41.workPacket(12), estimate: 20),
                          C41.item(13, reference: C41.round(13), estimate: 40)]
         let draft = try h.workflow.draft(key: C41.key(), selectedItems: items,
                                          eligibleReferences: items.map(\.reference))
@@ -694,7 +1140,8 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
     func testV23P04C41R01RebuildAndCarryoverFilterPreserveHistoryAndNamespaces() throws {
         let h = C41Harness()
         let preview = try h.preview(items: try (0..<7).map {
-            try C41.item(40 + $0, reference: C41.round(40 + $0), estimate: $0 == 0 ? 10 : nil)
+            try C41.item(40 + $0, reference: $0 == 1 ? C41.workPacket(41) : C41.round(40 + $0),
+                         estimate: $0 == 0 ? 10 : nil)
         }, planID: C41.id(550), mutation: 551)
         guard case let .saved(saved) = try h.workflow.execute(.save(preview)) else {
             return XCTFail("save")
@@ -704,7 +1151,7 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         for (item, state) in zip(saved.plan.items, states) { h.sources.states[item.membershipID] = state }
         let staleItem = try XCTUnwrap(saved.plan.items.last)
         h.sources.current[staleItem.membershipID] = C41.round(
-            46, revision: 2, sha: "z"
+            46, revision: 2, sha: "c"
         )
         let due = try C41.emptyDue()
         let exceptions = try C41.emptyExceptions()

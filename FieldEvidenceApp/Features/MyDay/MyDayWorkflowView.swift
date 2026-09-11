@@ -388,6 +388,11 @@ struct MyDayWorkflowView: View {
     }
 
     private func sourceStateText(_ state: MyDaySourceStateV1) -> String {
-        state.rawValue.lowercased()
+        switch state {
+        case .ruleRetired: return "retired by schedule rule change"
+        case .recoveryRequired: return "recovery required"
+        case .discardPending: return "discard pending"
+        default: return state.rawValue.lowercased()
+        }
     }
 }

@@ -301,6 +301,33 @@ struct MyDayCarryoverReceiptV1: Codable, Equatable, Hashable, Sendable, MyDayCan
 enum MyDaySourceStateV1: String, Codable, CaseIterable, Hashable, Sendable {
     case active = "ACTIVE"; case completed = "COMPLETED"; case cancelled = "CANCELLED"
     case retired = "RETIRED"; case missing = "MISSING"; case stale = "STALE"; case reopened = "REOPENED"
+    case draft = "DRAFT", paused = "PAUSED", archived = "ARCHIVED"
+    case skipped = "SKIPPED", missed = "MISSED", ruleRetired = "RULE_RETIRED"
+    case committing = "COMMITTING", conflicted = "CONFLICTED", recoveryRequired = "RECOVERY_REQUIRED"
+    case committed = "COMMITTED", discardPending = "DISCARD_PENDING", discarded = "DISCARDED"
+}
+
+/// Selection is source-kind-specific. A recoverable draft conflict is not a
+/// work-packet claim conflict, and an archived round is not completed work.
+enum MyDaySourceSemanticsV1 {
+    static func isSelectable(_ state: MyDaySourceStateV1, reference: MyDayEligibleReferenceV1) -> Bool {
+        switch reference {
+        case .workPacket: return state == .active || state == .reopened
+        case .roundSession: return [.draft, .active, .paused].contains(state)
+        case .scheduleOccurrence: return state == .active
+        case .resumableDraft: return [.draft, .active, .conflicted, .recoveryRequired].contains(state)
+        }
+    }
+
+    static func resumes(_ state: MyDaySourceStateV1, reference: MyDayEligibleReferenceV1,
+                        occurrenceStarted: Bool) -> Bool {
+        switch reference {
+        case .workPacket: return state == .reopened
+        case .roundSession: return state == .active || state == .paused
+        case .scheduleOccurrence: return occurrenceStarted
+        case .resumableDraft: return true
+        }
+    }
 }
 
 enum MyDayReadinessV1: String, Codable, CaseIterable, Hashable, Sendable {

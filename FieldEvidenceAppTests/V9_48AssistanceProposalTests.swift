@@ -752,13 +752,14 @@ private final class C32PersistentAcceptanceHarness {
 
     init(
         slot: Int,
-        failureBoundary: MutationJournalFaultBoundaryV1? = nil
+        failureBoundary: MutationJournalFaultBoundaryV1? = nil,
+        useActiveSchema: Bool = false
     ) throws {
         let fixture = try C32AssistanceTestSupport.acceptanceFixture(
             slot: slot,
             workspaceRevision: 0
         )
-        let schema = Schema(
+        let schema = try useActiveSchema ? PersistentSchemaReleaseRegistryV1.activeSchema() : Schema(
             PersistentSchemaV32.models,
             version: PersistentSchemaV32.versionIdentifier
         )
@@ -791,7 +792,8 @@ private final class C32PersistentAcceptanceHarness {
         )
         context.insert(EntityMutationRevisionRow(
             identity: fixture.proposal.target.entity,
-            revision: fixture.proposal.target.revision
+            revision: fixture.proposal.target.revision,
+            externalProjectionSHA256: useActiveSchema ? session.sessionSHA256 : nil
         ))
         try context.save()
         let identity = try WorkspaceReplicaIdentityV1(
@@ -889,6 +891,76 @@ private final class C33TemporalEvidenceAnchorV948AssistanceProposal: XCTestCase 
 
 @MainActor
 final class V9_48AssistanceProposalTests: XCTestCase {
+    func testActualAcceptanceReceiptBindsPostImageIdentityAndRejectsForeignOrCorruptEvidence() throws {
+        let harness = try C32PersistentAcceptanceHarness(slot: 811, useActiveSchema: true)
+        let request = try harness.request()
+        let originalSessions = try harness.context.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }
+        try harness.store.validateAll()
+        let accepted = try harness.writer.commitAssistanceAcceptance(request)
+        let canonical = try XCTUnwrap(harness.store.receipt(mutationID: request.mutationID))
+        try accepted.validate(canonicalMutationReceipt: canonical)
+        XCTAssertEqual(accepted.canonicalEffectIdentities, try canonical.postImages.map { try $0.identity })
+        XCTAssertEqual(accepted.canonicalMutationReceiptSHA256, try canonical.canonicalSHA256())
+        XCTAssertEqual(try harness.writer.commitAssistanceAcceptance(request), accepted)
+        let after = try harness.writer.currentRevision()
+        let canonicalBytes = try canonical.canonicalData()
+        let captureRows = try harness.context.fetch(FetchDescriptor<FactCaptureRow>()).map { try $0.value() }
+
+        // A structurally valid receipt with a different physical effect must
+        // not become this acceptance merely by adopting its canonical hash.
+        XCTAssertEqual(canonical.postImages.count, 1)
+        let oldImage = try XCTUnwrap(canonical.postImages.first)
+        let oldIdentity = try oldImage.identity
+        XCTAssertEqual(oldIdentity.kind, .factCapture)
+        let wrongIdentity = try WorkspaceEntityIdentityV1(kind: .factCapture,
+            id: C32AssistanceTestSupport.id(99_811))
+        let wrongImage = MutationPostImageV1.factCapture(id: wrongIdentity.id,
+            concurrencyIdentity: try oldImage.concurrencyIdentity, revision: oldImage.revision,
+            semanticSHA256: oldImage.semanticSHA256)
+        let wrongResult = try MutationPortableExpectedRevisionV1(WorkspaceExpectedRevisionV1(
+            workspaceID: canonical.resultingRevision.workspaceID,
+            generationID: canonical.resultingRevision.generationID,
+            writerInstanceID: request.expectedRevision.writerInstanceID,
+            workspaceRevision: canonical.resultingRevision.workspaceRevision,
+            entityRevisions: canonical.resultingRevision.entityRevisions.map {
+                .init(identity: $0.identity == oldIdentity ? wrongIdentity : $0.identity, revision: $0.revision)
+            }))
+        let envelope = try MutationEnvelopeV1(request: request.canonicalWorkspaceMutationRequest(),
+            identity: harness.identity)
+        let wrongCanonical = try MutationReceiptV1(identity: canonical.identity, envelope: envelope,
+            resultingRevision: wrongResult, postImages: [wrongImage], committedAt: canonical.committedAt)
+        try wrongCanonical.validate()
+        XCTAssertEqual(try wrongImage.concurrencyIdentity, try oldImage.concurrencyIdentity)
+        XCTAssertNotEqual(try wrongImage.identity, oldIdentity)
+        XCTAssertThrowsError(try AssistanceAcceptanceReceiptV1(request: request,
+            canonicalMutationReceipt: wrongCanonical)) {
+            XCTAssertEqual($0 as? AssistanceContractFailureV1, .invalidReceipt)
+        }
+
+        let foreign = try C32AssistanceTestSupport.acceptanceFixture(slot: 812, workspaceRevision: 0,
+            workspaceID: C32AssistanceTestSupport.workspace(2))
+        let foreignRequest = try AssistanceAcceptanceRequestV1(proposal: foreign.proposal,
+            targetMutation: foreign.targetMutation, expectedRevision: foreign.expectedRevision,
+            mutationID: foreign.mutationID, acceptedBy: foreign.reviewer, acceptedAt: foreign.acceptedAt)
+        XCTAssertThrowsError(try AssistanceAcceptanceReceiptV1(request: foreignRequest,
+            canonicalMutationReceipt: canonical))
+        XCTAssertThrowsError(try harness.writer.commitAssistanceAcceptance(foreignRequest))
+        var corruptObject = try XCTUnwrap(JSONSerialization.jsonObject(with: canonicalBytes) as? [String: Any])
+        corruptObject["resultSHA256"] = String(repeating: "0", count: 64)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let corrupt = try decoder.decode(MutationReceiptV1.self,
+            from: JSONSerialization.data(withJSONObject: corruptObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try accepted.validate(canonicalMutationReceipt: corrupt))
+        XCTAssertEqual(try harness.writer.currentRevision(), after)
+        XCTAssertEqual(try harness.store.receipt(mutationID: request.mutationID)?.canonicalData(), canonicalBytes)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<FactCaptureRow>()).map { try $0.value() }, captureRows)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }, originalSessions)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<AssistanceAcceptanceReceiptRow>()), 1)
+        try harness.store.validateAll()
+    }
+
     private func corpus() throws -> C32AssistanceCorpusV1 {
         let url: URL
 #if SWIFT_PACKAGE

@@ -9,15 +9,19 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_37FieldReferencePackTests/testImportItemVerifiesActualBytesAndEveryDeclaredDigest",
-    "FieldEvidenceAppTests/V9_37FieldReferencePackTests/testV23P03C23I01ImportAndBindInterruptionRecoverWithoutPartialCanonicalState",
-    "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests/testRecoveryHashesCompleteNestedProjectionAndRejectsCheckpointMismatch",
-    "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests/testV23P04C03I01InterruptedCaptureCheckpointAndReplayAreZeroOrComplete",
-    "FieldEvidenceAppTests/V9_03MigrationRecoveryTests/testAggregatePopulatedLegacyPublishesOnlyActiveThenRequiresIndependentProcessAndPreservesSource",
-    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testOriginalRecoveryThroughActiveUpgradePreservesReportsPDFAndMedia",
-    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testCurrentActiveValidateAllBehaviorRemainsStrict",
-    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testActualWriterRetainsMissingHistoryAndRejectsNewOrReboundMembership",
-    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testActualWriterCarryoverChecksBothLiveTipsAndEverySelectedSource"
+    "FieldEvidenceAppTests/V9_60PortableServiceRequestTests/testContactPreviewAndDispositionReplayPreserveCanonicalReceiptAndZeroDuplicateEffects",
+    "FieldEvidenceAppTests/V9_23PartyAccountabilityTests/testActorAuthoritySelectionPreservesLocalResponsibilityAndRejectsForeignWorkspace",
+    "FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testPunchFindingLinksRetainBothAllowedKindsAndStrictSupportingRecords",
+    "FieldEvidenceAppTests/V9_48AssistanceProposalTests/testActualAcceptanceReceiptBindsPostImageIdentityAndRejectsForeignOrCorruptEvidence",
+    "FieldEvidenceAppTests/V9_65MyDayPlanTests/testSourceSelectionAndRouteSemanticsAreKindSpecific",
+    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayReadsExactPacketHistoryWithoutEffects",
+    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayDoesNotCompleteExpiredReclaimedOrHandedOffPackets",
+    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayPreservesRoundAndDraftStates",
+    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayReadRejectsAccessSourceAndSessionDrift",
+    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayReadsDueClosureAndRuleRetirementWithoutScheduling",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testContentReadTokensBindOwnerSurfaceAndNeverAuthenticateOrConsumeIDs",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testContentReadTokensRejectLockInactivityRecoverySettingAndEraseABA",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testTransientInactiveRevokesReadsWithoutCancellingSystemAuthentication"
   ],
   "uiTestSelectors": []
 }

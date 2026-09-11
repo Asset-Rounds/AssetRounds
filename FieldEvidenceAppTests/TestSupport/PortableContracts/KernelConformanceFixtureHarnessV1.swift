@@ -221,6 +221,8 @@ enum C41MyDayScheduleFixtureV1 {
     struct Fixture {
         let reference: MyDayEligibleReferenceV1
         let dueQueue: OccurrenceDueQueueStateV1
+        let definition: ScheduleDefinitionReleaseV1
+        let event: OccurrenceHistoryEventV1
     }
 
     static func make(workspaceID: WorkspaceID, actor: ActorSnapshotV1) throws -> Fixture {
@@ -251,7 +253,7 @@ enum C41MyDayScheduleFixtureV1 {
             reportProjection: .init(projectionID: "report", projectionVersion: "1",
                 headingLocalizationKey: "c41.report", emptyValueLocalizationKey: "c41.empty",
                 sectionIDs: ["section"], includedFactIDs: ["fact"]),
-            localizationReleaseSHA256: digest("l"), revision: 1, mutationID: mutation(12),
+            localizationReleaseSHA256: digest("e"), revision: 1, mutationID: mutation(12),
             authoredBy: actor, authoredAt: now
         )
         let workflow = try WorkflowDefinitionV1(
@@ -271,7 +273,7 @@ enum C41MyDayScheduleFixtureV1 {
         ).release
         let timeBasis = try FrozenScheduleTimeBasisV1(
             ianaTimeZoneIdentifier: "America/New_York", timeZoneRuleSetVersion: "2026a",
-            timeZoneRuleSetSHA256: digest("t"), ambiguousTimePolicy: .earlierOffset,
+            timeZoneRuleSetSHA256: digest("f"), ambiguousTimePolicy: .earlierOffset,
             nonexistentTimePolicy: .shiftForwardByGap,
             calendarBasisSHA256: digest("c")
         )
@@ -312,7 +314,7 @@ enum C41MyDayScheduleFixtureV1 {
             definitions: [definition], history: [event]).recurringRoundState()
         return Fixture(reference: .scheduleOccurrence(try .init(event: event),
                                                        sourceEventSHA256: event.eventSHA256),
-                       dueQueue: queue)
+                       dueQueue: queue, definition: definition, event: event)
     }
 }
 
