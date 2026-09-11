@@ -1518,7 +1518,7 @@ struct InstallationTaskResultV1:Codable,Equatable,Comparable,Sendable{
                 createdAt: $0.createdAt
             )
         }
-        try Self(resultID:resultID,workspaceID:workspaceID,activityID:activityID,taskID:taskID,outcome:outcome,
+        return try Self(resultID:resultID,workspaceID:workspaceID,activityID:activityID,taskID:taskID,outcome:outcome,
             deferredReason:deferredReason,unableReason:unableReason,note:note,evidenceReferences:reboundEvidence,
             revision:revision,mutationID:mutationID,predecessorResultID:mappedPredecessorResultID,
             predecessorResultSHA256:mappedPredecessorResultSHA256)}
