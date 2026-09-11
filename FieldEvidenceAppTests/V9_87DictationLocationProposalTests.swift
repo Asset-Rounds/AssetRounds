@@ -4,6 +4,86 @@ import XCTest
 
 @MainActor
 final class V9_87DictationLocationProposalTests: XCTestCase {
+    func testPermissionRequestsReturnExactIndependentResultsAndPreservePolicyAndErrors() async throws {
+        let microphone = try SpeechPermissionDispositionV1(
+            microphone: .denied, speechRecognition: .notDetermined,
+            observedAt: C24Support.permissionDate)
+        let recognition = try SpeechPermissionDispositionV1(
+            microphone: .authorized, speechRecognition: .restricted,
+            observedAt: C24Support.permissionDate.addingTimeInterval(1))
+        let location = try LocationPermissionDispositionV1(
+            whenInUse: .authorized, observedAt: C24Support.permissionDate.addingTimeInterval(2))
+        for mode in 0..<3 {
+            let enabled = mode != 2
+            let fails = mode == 1
+            let calls = C24PermissionCalls()
+            let scratch = C24ScratchLifecycle()
+            let lifecycle = C24AssistanceLifecycle()
+            let coordinator = try DictationLocationProposalCoordinatorV1(
+                policy: C24Support.policy(enabled: enabled), access: C24AccessGate(),
+                speech: InjectedOnDeviceSpeechCapabilityAdapterV1(
+                    permission: { await calls.record("unexpectedSpeechRead"); return microphone },
+                    requestMicrophone: {
+                        await calls.record("microphone")
+                        if fails { throw C24TestFailure.audioInterrupted }
+                        return microphone
+                    },
+                    requestSpeechRecognition: {
+                        await calls.record("recognition")
+                        if fails { throw C24TestFailure.audioInterrupted }
+                        return recognition
+                    },
+                    dictate: { _ in await calls.record("unexpectedDictation"); throw C24TestFailure.unavailable }),
+                location: InjectedOneShotLocationCapabilityAdapterV1(
+                    permission: { await calls.record("unexpectedLocationRead"); return location },
+                    requestWhenInUse: {
+                        await calls.record("location")
+                        if fails { throw C24TestFailure.locationTimeout }
+                        return location
+                    },
+                    locate: { _ in await calls.record("unexpectedLocation"); throw C24TestFailure.unavailable }),
+                scratch: scratch, assistance: AssistanceCoordinatorV1(lifecycle: lifecycle))
+            if enabled && !fails {
+                let result = try await coordinator.requestMicrophonePermission()
+                XCTAssertEqual(result, microphone)
+            } else {
+                await XCTAssertThrowsC24(try await coordinator.requestMicrophonePermission()) { error in
+                    if enabled { XCTAssertEqual(error as? C24TestFailure, .audioInterrupted) }
+                    else { XCTAssertEqual(error as? DictationLocationProposalFailureV1, .unavailable) }
+                }
+            }
+            let afterMicrophone = await calls.values()
+            XCTAssertEqual(afterMicrophone, enabled ? ["microphone"] : [])
+            if enabled && !fails {
+                let result = try await coordinator.requestSpeechRecognitionPermission()
+                XCTAssertEqual(result, recognition)
+            } else {
+                await XCTAssertThrowsC24(try await coordinator.requestSpeechRecognitionPermission()) { error in
+                    if enabled { XCTAssertEqual(error as? C24TestFailure, .audioInterrupted) }
+                    else { XCTAssertEqual(error as? DictationLocationProposalFailureV1, .unavailable) }
+                }
+            }
+            let afterRecognition = await calls.values()
+            XCTAssertEqual(afterRecognition, enabled ? ["microphone", "recognition"] : [])
+            if enabled && !fails {
+                let result = try await coordinator.requestWhenInUseLocationPermission()
+                XCTAssertEqual(result, location)
+            } else {
+                await XCTAssertThrowsC24(try await coordinator.requestWhenInUseLocationPermission()) { error in
+                    if enabled { XCTAssertEqual(error as? C24TestFailure, .locationTimeout) }
+                    else { XCTAssertEqual(error as? DictationLocationProposalFailureV1, .unavailable) }
+                }
+            }
+            let afterLocation = await calls.values()
+            XCTAssertEqual(afterLocation, enabled ? ["microphone", "recognition", "location"] : [])
+            XCTAssertEqual(scratch.prepareCount, 0)
+            XCTAssertEqual(scratch.discardCount, 0)
+            XCTAssertEqual(lifecycle.acceptCount, 0)
+            XCTAssertEqual(lifecycle.scratchTransferCount, 0)
+            XCTAssertEqual(lifecycle.scratchTerminalCount, 0)
+        }
+    }
+
     func testV23P04C24G01EnabledOnDeviceDictationEditAcceptAndOneShotLocationReview() async throws {
         let policy = try C24Support.policy(enabled: true)
         let dictation = try C24Support.dictationBundle(policy: policy)
@@ -150,12 +230,14 @@ final class V9_87DictationLocationProposalTests: XCTestCase {
             providerCalls: providerCalls,
             lifecycle: C24AssistanceLifecycle()
         )
+        let deniedDictationOutcome = try await coordinator.dictate(dictation.request)
         XCTAssertEqual(
-            try await coordinator.dictate(dictation.request),
+            deniedDictationOutcome,
             .manualDictation(DictationManualFallbackV1.allCases)
         )
+        let deniedLocationOutcome = try await coordinator.locate(location.request)
         XCTAssertEqual(
-            try await coordinator.locate(location.request),
+            deniedLocationOutcome,
             .manualLocation(LocationManualFallbackV1.allCases)
         )
         let deniedProviderCount = await providerCalls.value()
@@ -176,8 +258,9 @@ final class V9_87DictationLocationProposalTests: XCTestCase {
             providerCalls: independentCalls,
             lifecycle: C24AssistanceLifecycle()
         )
+        let independentDictationOutcome = try await independentCoordinator.dictate(dictation.request)
         XCTAssertEqual(
-            try await independentCoordinator.dictate(dictation.request),
+            independentDictationOutcome,
             .manualDictation(DictationManualFallbackV1.allCases)
         )
         guard case .location = try await independentCoordinator.locate(location.request) else {
@@ -203,8 +286,9 @@ final class V9_87DictationLocationProposalTests: XCTestCase {
             providerCalls: calls,
             lifecycle: C24AssistanceLifecycle()
         )
+        let unsupportedDictationOutcome = try await coordinator.dictate(unsupported.request)
         XCTAssertEqual(
-            try await coordinator.dictate(unsupported.request),
+            unsupportedDictationOutcome,
             .manualDictation(DictationManualFallbackV1.allCases)
         )
         let unsupportedProviderCount = await calls.value()
@@ -654,6 +738,12 @@ private enum C24Support {
             with: Data(contentsOf: url)
         ) as? [String: Any])
     }
+}
+
+private actor C24PermissionCalls {
+    private var calls: [String] = []
+    func record(_ operation: String) { calls.append(operation) }
+    func values() -> [String] { calls }
 }
 
 private actor C24CallCounter {

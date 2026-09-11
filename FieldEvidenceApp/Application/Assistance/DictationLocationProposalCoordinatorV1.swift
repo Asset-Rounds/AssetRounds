@@ -25,15 +25,15 @@ import Foundation
     }
     func requestMicrophonePermission()async throws->SpeechPermissionDispositionV1{
         guard policy.dictationActivation == .enabledOnDevice else{throw DictationLocationProposalFailureV1.unavailable}
-        try await speech.requestMicrophonePermission()
+        return try await speech.requestMicrophonePermission()
     }
     func requestSpeechRecognitionPermission()async throws->SpeechPermissionDispositionV1{
         guard policy.dictationActivation == .enabledOnDevice else{throw DictationLocationProposalFailureV1.unavailable}
-        try await speech.requestSpeechRecognitionPermission()
+        return try await speech.requestSpeechRecognitionPermission()
     }
     func requestWhenInUseLocationPermission()async throws->LocationPermissionDispositionV1{
         guard policy.locationActivation == .enabledOnDevice else{throw DictationLocationProposalFailureV1.unavailable}
-        try await location.requestWhenInUsePermission()
+        return try await location.requestWhenInUsePermission()
     }
 
     func dictate(_ request:OnDeviceDictationRequestV1)async throws->DictationLocationProposalOutcomeV1{

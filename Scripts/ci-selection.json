@@ -9,19 +9,9 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_60PortableServiceRequestTests/testContactPreviewAndDispositionReplayPreserveCanonicalReceiptAndZeroDuplicateEffects",
-    "FieldEvidenceAppTests/V9_23PartyAccountabilityTests/testActorAuthoritySelectionPreservesLocalResponsibilityAndRejectsForeignWorkspace",
-    "FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testPunchFindingLinksRetainBothAllowedKindsAndStrictSupportingRecords",
-    "FieldEvidenceAppTests/V9_48AssistanceProposalTests/testActualAcceptanceReceiptBindsPostImageIdentityAndRejectsForeignOrCorruptEvidence",
-    "FieldEvidenceAppTests/V9_65MyDayPlanTests/testSourceSelectionAndRouteSemanticsAreKindSpecific",
-    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayReadsExactPacketHistoryWithoutEffects",
-    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayDoesNotCompleteExpiredReclaimedOrHandedOffPackets",
-    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayPreservesRoundAndDraftStates",
-    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayReadRejectsAccessSourceAndSessionDrift",
-    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testProductionMyDayReadsDueClosureAndRuleRetirementWithoutScheduling",
-    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testContentReadTokensBindOwnerSurfaceAndNeverAuthenticateOrConsumeIDs",
-    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testContentReadTokensRejectLockInactivityRecoverySettingAndEraseABA",
-    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testTransientInactiveRevokesReadsWithoutCancellingSystemAuthentication"
+    "FieldEvidenceAppTests/V9_87DictationLocationProposalTests/testPermissionRequestsReturnExactIndependentResultsAndPreservePolicyAndErrors",
+    "FieldEvidenceAppTests/V9_87DictationLocationProposalTests/testV23P04C24A01IndependentPermissionDenialsAndCompleteManualFallbacks",
+    "FieldEvidenceAppTests/V9_87DictationLocationProposalTests/testV23P04C24I01AudioInterruptionLocationTimeoutAndScratchCleanup"
   ],
   "uiTestSelectors": []
 }
