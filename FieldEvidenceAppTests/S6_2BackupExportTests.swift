@@ -147,8 +147,12 @@ final class S6_2BackupExportTests: XCTestCase {
         let validated = try importer.stageAndValidate(selectedPackageURL: package)
         defer { try? importer.discard(validated) }
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 8)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 7)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 53)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 52)
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
+            Schema.Version(validated.manifest.source.persistentSchemaVersion, 0, 0)
+        )
         XCTAssertEqual(validated.records.requirementAssurance.count, validated.records.workflowRecords.count)
         XCTAssertTrue(validated.records.requirementAssurance.allSatisfy {
             (try? $0.validate()) != nil
@@ -166,7 +170,189 @@ final class S6_2BackupExportTests: XCTestCase {
 
         let recordsData = try XCTUnwrap(validated.members["records.json"])
         let decodedRecords = try BackupCanonicalDecoderV1().decodeRecords(recordsData)
+        XCTAssertEqual(decodedRecords.recordsSchemaVersion, 52)
+        XCTAssertEqual(
+            validated.manifest.source.recordsSchemaVersion,
+            decodedRecords.recordsSchemaVersion
+        )
         XCTAssertEqual(decodedRecords, validated.records)
+        let originalCurrentBytes = try BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data
+        let originalCurrentHistory = decodedRecords.mutationHistory
+        let semanticBytes = try BackupCanonicalEncoderV1().encodeSemanticRecords(decodedRecords).data
+        var expectedSemanticFields = try XCTUnwrap(JSONSerialization.jsonObject(with: originalCurrentBytes)
+            as? [String: Any])
+        XCTAssertNotNil(expectedSemanticFields.removeValue(forKey: "mutationHistory"))
+        let actualSemanticFields = try XCTUnwrap(JSONSerialization.jsonObject(with: semanticBytes)
+            as? [String: Any])
+        XCTAssertTrue(NSDictionary(dictionary: expectedSemanticFields).isEqual(to: actualSemanticFields))
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeSemanticRecords(decodedRecords).data, semanticBytes)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data, originalCurrentBytes)
+        XCTAssertEqual(decodedRecords.mutationHistory, originalCurrentHistory)
+        XCTAssertNil(decodedRecords.practiceWorkspaceProvenance)
+        XCTAssertNil(expectedSemanticFields["practiceWorkspaceProvenance"])
+        // Exercise the nonnil codec branch with validated practice provenance,
+        // not an invented placeholder in the REAL-workspace export above.
+        let practiceTemplate = try StarterWorkspaceTemplateReleaseV1(
+            templateID: UUID(), release: 1, titleKey: "workspace.starter.practice.title",
+            packageReleaseIDs: ["shipping.illuminated-sign.v1"],
+            practiceWatermark: "PRACTICE — NOT FOR FIELD USE"
+        )
+        let practiceWorkspaceID = try XCTUnwrap(validated.manifest.source.workspaceID)
+        let practicePlan = try StarterWorkspaceInstallPlanV1(
+            planID: UUID(), workspaceID: WorkspaceID(rawValue: practiceWorkspaceID),
+            template: practiceTemplate, mutationID: MutationIDV1(rawValue: UUID()),
+            requestedAt: Date(timeIntervalSince1970: 1_777_593_600),
+            explicitUserRequest: true, destinationWasEmpty: true
+        )
+        let practiceReceipt = try StarterWorkspaceInstallReceiptV1(
+            receiptID: UUID(), plan: practicePlan, resultingWorkspaceRevision: 1,
+            installedAt: Date(timeIntervalSince1970: 1_777_593_601), disposition: .committed
+        )
+        let practiceSnapshot = try PracticeWorkspaceBackupSnapshotV1(provenance:
+            PracticeWorkspaceProvenanceV1(provenanceID: UUID(), plan: practicePlan,
+                receipt: practiceReceipt, revision: 1))
+        var practiceObject = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(decodedRecords))
+            as? [String: Any])
+        practiceObject["practiceWorkspaceProvenance"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(practiceSnapshot))
+        let practiceRecords = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+            JSONSerialization.data(withJSONObject: practiceObject, options: [.sortedKeys]))
+        let practiceFullBytes = try BackupCanonicalEncoderV1().encodeRecords(practiceRecords).data
+        let practiceSemanticBytes = try BackupCanonicalEncoderV1().encodeSemanticRecords(practiceRecords).data
+        var practiceFields = try XCTUnwrap(JSONSerialization.jsonObject(with: practiceFullBytes)
+            as? [String: Any])
+        XCTAssertNotNil(practiceFields["practiceWorkspaceProvenance"])
+        XCTAssertNotNil(practiceFields.removeValue(forKey: "mutationHistory"))
+        XCTAssertTrue(NSDictionary(dictionary: practiceFields).isEqual(to:
+            try XCTUnwrap(JSONSerialization.jsonObject(with: practiceSemanticBytes) as? [String: Any])))
+        let decodedPractice = try BackupCanonicalDecoderV1().decodeRecords(practiceFullBytes)
+        XCTAssertEqual(decodedPractice.practiceWorkspaceProvenance, practiceSnapshot)
+        XCTAssertEqual(try WorkspaceExperienceCanonicalCodecV1.data(
+            XCTUnwrap(decodedPractice.practiceWorkspaceProvenance)),
+            try WorkspaceExperienceCanonicalCodecV1.data(practiceSnapshot))
+        var noHistoryObject = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(decodedRecords))
+            as? [String: Any])
+        noHistoryObject.removeValue(forKey: "mutationHistory")
+        let noHistory = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+            JSONSerialization.data(withJSONObject: noHistoryObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeSemanticRecords(noHistory)) {
+            XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords)
+        }
+        let importBoundaries: [(Int, (ValidatedV4BackupPackageV1) throws -> Void)] = [
+            (36, C49WorkResourceBackupImportPolicyV1.validate),
+            (38, C52ServiceRequestBackupImportServiceBoundaryV1.validate),
+            (39, C53ServiceReliabilityBackupImportServiceBoundaryV1.validate),
+            (40, C55PartsStockBackupImportServiceBoundaryV1.validate),
+            (41, C57MyDayBackupImportServiceBoundaryV1.validate)
+        ]
+        func boundaryPackage(
+            records: V4BackupRecordsV1,
+            declaredRecords: Int,
+            persistent: Int
+        ) -> ValidatedV4BackupPackageV1 {
+            let original = validated.manifest
+            return ValidatedV4BackupPackageV1(
+                stagedPackageURL: validated.stagedPackageURL,
+                manifest: V4BackupManifestV1(
+                    backupSchemaVersion: original.backupSchemaVersion,
+                    consumedEvaluationRootIDs: original.consumedEvaluationRootIDs,
+                    declaredPayloadByteCount: original.declaredPayloadByteCount,
+                    entries: original.entries, exportedAt: original.exportedAt,
+                    packs: original.packs,
+                    source: V4BackupSourceV1(
+                        appBuild: original.source.appBuild,
+                        appVersion: original.source.appVersion,
+                        persistentSchemaVersion: persistent,
+                        replicaID: original.source.replicaID,
+                        recordsSchemaVersion: declaredRecords,
+                        sourceGenerationID: original.source.sourceGenerationID,
+                        workspaceID: original.source.workspaceID
+                    )
+                ),
+                records: records, members: validated.members, summary: validated.summary
+            )
+        }
+        // These typed variants test the admission boundaries, not archive
+        // integrity. The unchanged package above went through real extraction,
+        // checksum validation, decoding and all five importer calls.
+        var futureObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(decodedRecords)
+        ) as? [String: Any])
+        futureObject["recordsSchemaVersion"] = 53
+        let futureRecords = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+            JSONSerialization.data(withJSONObject: futureObject, options: [.sortedKeys]))
+        let hostilePackages = [
+            boundaryPackage(records: decodedRecords, declaredRecords: 51, persistent: 53),
+            boundaryPackage(records: decodedRecords, declaredRecords: 52, persistent: 52),
+            boundaryPackage(records: futureRecords, declaredRecords: 53, persistent: 54)
+        ]
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(futureRecords)) {
+            XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords)
+        }
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeSemanticRecords(futureRecords)) {
+            XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords)
+        }
+        for hostile in hostilePackages {
+            XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeManifest(hostile.manifest)) {
+                XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidManifest)
+            }
+        }
+        var unknownVersionObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data
+        ) as? [String: Any])
+        unknownVersionObject["recordsSchemaVersion"] = 53
+        // This is an unknown-version input derived from actual canonical
+        // current bytes, not a claimed canonical unknown-schema round-trip.
+        let unknownVersionData = try JSONSerialization.data(
+            withJSONObject: unknownVersionObject, options: [.sortedKeys]
+        )
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(unknownVersionData)) {
+            XCTAssertEqual($0 as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+        }
+        let emptyHistory = MutationHistorySnapshotV1(
+            workspaceRevision: 0, lastLocalSequence: 0,
+            receipts: [], quarantines: [], entityRevisions: []
+        )
+        let actualStock = try XCTUnwrap(decodedRecords.partsStockSnapshot)
+        for (introductionVersion, validateBoundary) in importBoundaries {
+            XCTAssertNoThrow(try validateBoundary(validated))
+            for hostile in hostilePackages {
+                XCTAssertThrowsError(try validateBoundary(hostile)) { error in
+                    XCTAssertEqual(error as? BackupImportServiceError, .invalidGeneration)
+                }
+            }
+            // Each family's original introduction remains an admitted typed
+            // empty workspace, with a real stock snapshot once C55 exists.
+            let introduction = V4BackupRecordsV1(
+                assets: [], deletionLedger: .empty, evidenceFiles: [], issues: [],
+                mutationHistory: emptyHistory, packets: [],
+                recordsSchemaVersion: introductionVersion,
+                reports: [], sites: [], workflowRecords: [],
+                partsStockSnapshot: introductionVersion >= 40 ? actualStock : nil
+            )
+            let introductionPackage = boundaryPackage(
+                records: introduction, declaredRecords: introductionVersion,
+                persistent: introductionVersion + 1
+            )
+            XCTAssertNoThrow(try validateBoundary(introductionPackage))
+            if introductionVersion >= 40 {
+                XCTAssertNoThrow(try C55PartsStockBackupImportBoundaryV1.validate(introduction))
+            }
+        }
+        XCTAssertNoThrow(try C55PartsStockBackupImportBoundaryV1.validate(decodedRecords))
+        XCTAssertThrowsError(try C55PartsStockBackupImportBoundaryV1.validate(futureRecords)) {
+            XCTAssertEqual($0 as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+        }
+        XCTAssertNoThrow(try C53ServiceReliabilityBackupPackageValidationV1.validate(
+            decodedRecords, manifest: validated.manifest
+        ))
+        for hostile in hostilePackages {
+            XCTAssertThrowsError(try C53ServiceReliabilityBackupPackageValidationV1.validate(
+                hostile.records, manifest: hostile.manifest
+            )) { error in
+                XCTAssertEqual(error as? BackupPackageValidationErrorV1, .invalidPackage)
+            }
+        }
         XCTAssertEqual(
             try BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data,
             recordsData

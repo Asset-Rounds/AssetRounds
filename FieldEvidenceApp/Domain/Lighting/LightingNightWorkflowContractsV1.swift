@@ -185,6 +185,18 @@ struct LightingNightPlanFrontierV1: Codable, Equatable, Hashable, Sendable {
         try LightingNightWorkflowLimitsV1.digest(readinessManifestSHA256)
         try LightingLimitsV1.instant(readinessCheckedAt)
     }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(occurrence.occurrenceID)
+        hasher.combine(occurrence.eventID)
+        hasher.combine(occurrence.eventRevision)
+        hasher.combine(occurrence.eventSHA256)
+        hasher.combine(occurrence.scheduleRelease)
+        hasher.combine(workPacket)
+        hasher.combine(readinessSourceSHA256)
+        hasher.combine(readinessManifestSHA256)
+        hasher.combine(readinessCheckedAt)
+    }
 }
 
 struct LightingNightSafetyIntakeV1: Codable, Equatable, Sendable {

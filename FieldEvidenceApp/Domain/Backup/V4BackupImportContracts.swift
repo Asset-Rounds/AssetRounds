@@ -116,7 +116,8 @@ enum C55PartsStockBackupImportBoundaryV1 {
     static let derivedBalanceAndSearchAreRebuilt = true
 
     static func validate(_ records: V4BackupRecordsV1, workspaceID: WorkspaceID? = nil) throws {
-        guard records.recordsSchemaVersion == recordsSchemaVersion,
+        guard (recordsSchemaVersion...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion),
               persistentSchemaVersion == 41,
               restoresSevenFamiliesAtomically,
               usesIncumbentLifecyclePort,
@@ -450,7 +451,7 @@ enum C46OperationalContactBoundary_02{static let recordsSchemaVersion=34;static 
 enum C47ActivityContractImportBoundaryV2 { static let persistentSchemaVersion=36;static let recordsSchemaVersion=35;static let canonicalFiveRowRecordsImportable=true;static let completedSnapshotUsesReleasedArchiveMember=true;static let conformanceReceiptsImportable=false }
 
 enum C48PortableExchangeImportBoundaryV2 {
-    static let member = PortableExchangeBackupMemberV2.relativePath
+    static let member = PortableExchangeBackupMemberV2.path
     static let sessionTruthIsNonpersistent = true
     static func validate(_ snapshot: PortableExchangeBackupSnapshotV2) throws {
         try snapshot.validate()

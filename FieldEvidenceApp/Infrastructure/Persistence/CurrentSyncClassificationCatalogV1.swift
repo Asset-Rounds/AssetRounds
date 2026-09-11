@@ -1761,16 +1761,16 @@ enum C50IncumbentFileExchangeSyncBoundaryV1 {
 
 enum C34SceneNavigationSyncBoundaryV1 {
     static let filesystemBackup = CurrentFilesystemBackupDispositionV1.excluded
-    static let semanticBackup = ReplicationBackupDispositionV1.excluded
-    static let portableExport = ReplicationExportDispositionV1.excluded
+    static let semanticBackup = ReplicationBackupDispositionV1.exclude
+    static let portableExport = ReplicationExportDispositionV1.exclude
     static let journalParticipation = false
     static let customerExportParticipation = false
 
     static func validate() -> Bool {
         C34SceneNavigationDeviceLifecycleBoundaryV1.validate()
             && filesystemBackup == .excluded
-            && semanticBackup == .excluded
-            && portableExport == .excluded
+            && semanticBackup == .exclude
+            && portableExport == .exclude
             && !journalParticipation
             && !customerExportParticipation
     }

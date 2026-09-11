@@ -203,7 +203,7 @@ struct FastSurveyInboxLifecycleAdapterV1 {
 
 enum C23FastSurveyInboxOCRLifecycleBoundaryV1 {
     static let proposalRows = OCRProposalPersistenceBoundaryV1.addedDurableRowCount
-    static let acceptedReceiptRowType = OCRProposalPersistenceBoundaryV1.acceptanceRowType
+    static let acceptedReceiptRowType = OCRProposalPersistenceEnrollmentV1.receiptRow
     static let scratchCleanupUsesAssistanceLifecycle = true
     static let rejectedCorpusIsPersistent = false
     static let replaceRestoreAddsOCRProposalRecords = false

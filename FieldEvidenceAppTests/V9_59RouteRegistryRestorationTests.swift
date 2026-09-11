@@ -105,6 +105,12 @@ final class V9_59RouteRegistryRestorationTests: XCTestCase {
         XCTAssertFalse(lifecycle.backupIncluded)
         XCTAssertFalse(lifecycle.journalIncluded)
         XCTAssertTrue(lifecycle.eraseClears)
+        XCTAssertTrue(C34SceneNavigationSyncBoundaryV1.validate())
+        XCTAssertEqual(C34SceneNavigationSyncBoundaryV1.filesystemBackup, .excluded)
+        XCTAssertEqual(C34SceneNavigationSyncBoundaryV1.semanticBackup, .exclude)
+        XCTAssertEqual(C34SceneNavigationSyncBoundaryV1.portableExport, .exclude)
+        XCTAssertFalse(C34SceneNavigationSyncBoundaryV1.journalParticipation)
+        XCTAssertFalse(C34SceneNavigationSyncBoundaryV1.customerExportParticipation)
     }
 
     func testSignoffRoutesBindStableIdentity() throws {

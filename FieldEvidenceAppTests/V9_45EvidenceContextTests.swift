@@ -218,6 +218,40 @@ private struct C30EvidenceContextCorpus: Decodable {
 
 @MainActor
 final class V9_45EvidenceContextTests: XCTestCase {
+    private struct ContextDigestBasis: Encodable {
+        let schemaVersion: Int
+        let contextID: UUID
+        let workspaceID: WorkspaceID
+        let evidenceID: String
+        let evidenceSHA256: String
+        let evidenceRevision: UInt64
+        let assetID: UUID
+        let assetRevision: UInt64
+        let temporalContext: TemporalContextV1
+        let userObserved: UserObservedEvidenceContextV1
+        let derivedSolar: DerivedSolarContextV1?
+        let controlExpectation: ControlExpectationV1?
+        let predecessorContextSHA256: String?
+        let revision: UInt64
+        let mutationID: MutationIDV1
+        let recordedBy: ActorSnapshotV1
+        let recordedAt: Date
+    }
+
+    private struct PairDigestBasis: Encodable {
+        let schemaVersion: Int
+        let linkID: UUID
+        let workspaceID: WorkspaceID
+        let first: PairedObservationReferenceV1
+        let second: PairedObservationReferenceV1
+        let mismatchReasons: [PairedObservationMismatchReasonV1]
+        let predecessorLinkSHA256: String?
+        let revision: UInt64
+        let mutationID: MutationIDV1
+        let recordedBy: ActorSnapshotV1
+        let recordedAt: Date
+    }
+
     private func loadCorpus() throws -> C30EvidenceContextCorpus {
         let bundle = Bundle(for: V9_45EvidenceContextTests.self)
         let url = try XCTUnwrap(
@@ -273,6 +307,35 @@ final class V9_45EvidenceContextTests: XCTestCase {
             contextSlot: 12
         )
         let bytes = try EvidenceContextCanonicalCodecV1.encode(context)
+        let repeated = try C30EvidenceContextTestSupport.context(
+            workspaceID: workspace, evidenceID: "C30_DAYLIGHT_EVIDENCE",
+            assetID: C30EvidenceContextTestSupport.id(10), condition: .daylight,
+            temporal: temporal, derivedSolar: first,
+            controlExpectation: C30EvidenceContextTestSupport.control(state: .expectedOperating),
+            mutationSlot: 11, contextSlot: 12
+        )
+        XCTAssertEqual(repeated, context)
+        XCTAssertEqual(try EvidenceContextCanonicalCodecV1.encode(repeated), bytes)
+        let basis = ContextDigestBasis(
+            schemaVersion: context.schemaVersion, contextID: context.contextID,
+            workspaceID: context.workspaceID, evidenceID: context.evidenceID,
+            evidenceSHA256: context.evidenceSHA256, evidenceRevision: context.evidenceRevision,
+            assetID: context.assetID, assetRevision: context.assetRevision,
+            temporalContext: context.temporalContext, userObserved: context.userObserved,
+            derivedSolar: context.derivedSolar, controlExpectation: context.controlExpectation,
+            predecessorContextSHA256: context.predecessorContextSHA256, revision: context.revision,
+            mutationID: context.mutationID, recordedBy: context.recordedBy, recordedAt: context.recordedAt
+        )
+        XCTAssertEqual(context.contextSHA256, try EvidenceContextCanonicalCodecV1.sha256(basis))
+        var wrongDigest = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(context)
+        ) as? [String: Any])
+        wrongDigest["contextSHA256"] = String(repeating: "0", count: 64)
+        let invalidContext = try JSONDecoder().decode(EvidenceContextV1.self,
+            from: JSONSerialization.data(withJSONObject: wrongDigest))
+        XCTAssertThrowsError(try invalidContext.validateIntrinsic()) {
+            XCTAssertEqual($0 as? EvidenceContextFailureV1, .invalidValue)
+        }
         XCTAssertEqual(
             try EvidenceContextCanonicalCodecV1.decode(EvidenceContextV1.self, from: bytes),
             context
@@ -324,6 +387,30 @@ final class V9_45EvidenceContextTests: XCTestCase {
         )
         try link.validateCompatiblePair()
         XCTAssertTrue(link.mismatchReasons.isEmpty)
+        let reversed = try C30EvidenceContextTestSupport.pair(
+            workspaceID: workspace, first: second, second: first,
+            mutationSlot: 25, linkSlot: 26
+        )
+        XCTAssertEqual(reversed, link)
+        XCTAssertEqual(try EvidenceContextCanonicalCodecV1.encode(reversed),
+                       try EvidenceContextCanonicalCodecV1.encode(link))
+        let basis = PairDigestBasis(
+            schemaVersion: link.schemaVersion, linkID: link.linkID,
+            workspaceID: link.workspaceID, first: link.first, second: link.second,
+            mismatchReasons: link.mismatchReasons, predecessorLinkSHA256: link.predecessorLinkSHA256,
+            revision: link.revision, mutationID: link.mutationID,
+            recordedBy: link.recordedBy, recordedAt: link.recordedAt
+        )
+        XCTAssertEqual(link.linkSHA256, try EvidenceContextCanonicalCodecV1.sha256(basis))
+        var wrongDigest = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(link)
+        ) as? [String: Any])
+        wrongDigest["linkSHA256"] = String(repeating: "0", count: 64)
+        let invalidLink = try JSONDecoder().decode(PairedObservationLinkV1.self,
+            from: JSONSerialization.data(withJSONObject: wrongDigest))
+        XCTAssertThrowsError(try invalidLink.validateIntrinsic()) {
+            XCTAssertEqual($0 as? EvidenceContextFailureV1, .invalidValue)
+        }
         XCTAssertEqual(
             try EvidenceContextCanonicalCodecV1.decode(
                 PairedObservationLinkV1.self,

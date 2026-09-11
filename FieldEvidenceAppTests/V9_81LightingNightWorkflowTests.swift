@@ -3,6 +3,122 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_81LightingNightWorkflowTests: XCTestCase {
+    func testNightPlanFrontierHashingPreservesEverySourceField() throws {
+        let packetFixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 180_081)
+        let workspace = packetFixture.workspaceID
+        // 2027-01-15 21:00:00 UTC matches the nominal night occurrence below.
+        let date = Date(timeIntervalSince1970: 1_800_046_800)
+        let actor = try C26SurveySessionTestSupport.actor(workspaceID: workspace, slot: 8_100)
+        let definition = try C26SurveySessionTestSupport.release(workspaceID: workspace)
+        let package = try C26SurveySessionTestSupport.packageRelease()
+        let timeBasis = try FrozenScheduleTimeBasisV1(
+            ianaTimeZoneIdentifier: "UTC", timeZoneRuleSetVersion: "test-frozen-v1",
+            timeZoneRuleSetSHA256: digest("a"), ambiguousTimePolicy: .earlierOffset,
+            nonexistentTimePolicy: .shiftForwardByGap, calendarBasisSHA256: digest("b")
+        )
+        let anchor = ScheduleLocalAnchorV1(
+            year: nil, month: nil, day: nil, weekday: nil, weekdayOrdinal: nil,
+            hour: 21, minute: 0, second: 0
+        )
+        let schedule = try ScheduleDefinitionReleaseV1(
+            scheduleDefinitionID: id(8_101), releaseID: id(8_102), workspaceID: workspace,
+            occurrenceIdentityNamespaceID: id(8_103), action: .create, lifecycleState: .active,
+            recurrence: .fixedCalendar(.init(cadence: .daily, interval: 1, anchor: anchor)),
+            timeBasis: timeBasis, startsAtUTC: date, generationHorizonDays: 30,
+            maximumGeneratedOccurrences: 8, readyLeadSeconds: 0, overdueGraceSeconds: 0,
+            subject: WorkSubjectReferenceV1(kind: .asset, subjectID: id(8_104),
+                                            revision: 1, ownerAssetID: nil),
+            workDefinition: ScheduledWorkDefinitionReferenceV1(
+                kind: .workPacket, definition: definition, packageRelease: package
+            ),
+            revision: 1, mutationID: MutationIDV1(rawValue: id(8_105)),
+            authoredBy: actor, authoredAt: date
+        )
+        let basis = ResolvedOccurrenceBasisV1(
+            nominalLocalDate: "2027-01-15", nominalLocalTime: "21:00:00",
+            resolvedAtUTC: date, utcOffsetSeconds: 0, disposition: .unambiguous,
+            timeBasisSHA256: try timeBasis.canonicalSHA256(), adjustmentProvenanceSHA256: nil
+        )
+        let occurrenceID = try OccurrenceIDV1(
+            scheduleDefinitionID: schedule.scheduleDefinitionID,
+            identityNamespaceID: schedule.occurrenceIdentityNamespaceID, nominalKey: basis.nominalKey
+        )
+        let event = try OccurrenceHistoryEventV1(
+            eventID: id(8_106), workspaceID: workspace, occurrenceID: occurrenceID,
+            scheduleRelease: ScheduleDefinitionReleaseReferenceV1(schedule),
+            action: .generated, nominalBasis: basis, effectiveBasis: basis,
+            predecessor: nil, revision: 1, mutationID: MutationIDV1(rawValue: id(8_107)),
+            recordedBy: actor, recordedAt: date
+        )
+        let plan = try LightingNightFollowupPlanV1(
+            planID: id(8_108), workspaceID: workspace, sourceSystemID: id(8_109),
+            sourceSystemRevision: 1, sourceSystemSHA256: digest("c"),
+            sourceDayInventoryContentSHA256: digest("d"), selectedLuminaireIDs: [id(8_110)],
+            occurrence: LightingNightOccurrenceBindingV1(event),
+            workPacket: WorkPacketManifestReferenceV1(packetFixture.manifest),
+            offlineReadinessSourceSHA256: digest("e"), offlineReadinessManifestSHA256: digest("f"),
+            readinessCheckedAt: date, createdBy: actor, createdAt: date
+        )
+        try plan.validate()
+        let frontier = try LightingNightPlanFrontierV1(plan)
+        let bytes = try LightingDayInventoryCanonicalCodecV1.encode(frontier)
+        let decoded = try LightingDayInventoryCanonicalCodecV1.decode(
+            LightingNightPlanFrontierV1.self, from: bytes
+        )
+        try decoded.validate()
+        XCTAssertEqual(decoded, frontier)
+        XCTAssertEqual(decoded.hashValue, frontier.hashValue)
+        XCTAssertEqual(Set([frontier, decoded]).count, 1)
+        XCTAssertEqual(try LightingDayInventoryCanonicalCodecV1.encode(decoded), bytes)
+        XCTAssertEqual(frontier.occurrence, plan.occurrence)
+        XCTAssertEqual(frontier.workPacket, plan.workPacket)
+        XCTAssertEqual(frontier.readinessSourceSHA256, plan.offlineReadinessSourceSHA256)
+        XCTAssertEqual(frontier.readinessManifestSHA256, plan.offlineReadinessManifestSHA256)
+        XCTAssertEqual(frontier.readinessCheckedAt, plan.readinessCheckedAt)
+
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(frontier)
+        ) as? [String: Any])
+        let otherOccurrence = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(OccurrenceIDV1(rawValue: digest("9"))),
+            options: [.fragmentsAllowed]
+        )
+        let replacements: [(String, String?, Any)] = [
+            ("occurrence", "occurrenceID", otherOccurrence),
+            ("occurrence", "eventID", id(8_120).uuidString),
+            ("occurrence", "eventRevision", 2),
+            ("occurrence", "eventSHA256", digest("8")),
+            ("occurrence", "scheduleRelease", 2),
+            ("workPacket", "packetVersion", 2),
+            ("readinessSourceSHA256", nil, digest("7")),
+            ("readinessManifestSHA256", nil, digest("6")),
+            ("readinessCheckedAt", nil, date.addingTimeInterval(1).timeIntervalSinceReferenceDate)
+        ]
+        var values: Set<LightingNightPlanFrontierV1> = [frontier]
+        for (key, nestedKey, replacement) in replacements {
+            var changed = object
+            if let nestedKey {
+                var nested = try XCTUnwrap(changed[key] as? [String: Any])
+                if nestedKey == "scheduleRelease" {
+                    var reference = try XCTUnwrap(nested[nestedKey] as? [String: Any])
+                    reference["revision"] = replacement
+                    nested[nestedKey] = reference
+                } else {
+                    nested[nestedKey] = replacement
+                }
+                changed[key] = nested
+            } else {
+                changed[key] = replacement
+            }
+            let variant = try JSONDecoder().decode(LightingNightPlanFrontierV1.self,
+                from: JSONSerialization.data(withJSONObject: changed))
+            try variant.validate()
+            XCTAssertNotEqual(variant, frontier)
+            XCTAssertTrue(values.insert(variant).inserted)
+        }
+        XCTAssertEqual(values.count, 10)
+    }
+
     func testV23P04C18G01DayNightDeltaPreservesExpectedObservedAndExactFrontiers() throws {
         let corpus = try loadCorpus()
         XCTAssertEqual(corpus.cardID, "V23-P04-C18")

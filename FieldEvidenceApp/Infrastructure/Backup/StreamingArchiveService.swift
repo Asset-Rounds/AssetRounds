@@ -1275,7 +1275,7 @@ private extension StreamingArchiveService {
         }
     }
 
-    func createExtractionRoot(_ url: URL) throws -> CreatedExtraction {
+    private func createExtractionRoot(_ url: URL) throws -> CreatedExtraction {
         let root = url.standardizedFileURL
         guard validLeaf(root.lastPathComponent) else {
             throw StreamingArchiveFailureV1.invalidDestination
@@ -1320,7 +1320,7 @@ private extension StreamingArchiveService {
         }
     }
 
-    func ensureParentDirectory(
+    private func ensureParentDirectory(
         for path: String,
         extraction: inout CreatedExtraction
     ) throws {
@@ -1329,7 +1329,7 @@ private extension StreamingArchiveService {
         guard Darwin.fsync(extraction.rootDescriptor)==0 else{throw Self.mapWriteFailure()}
     }
 
-    func cleanupExtraction(_ extraction: inout CreatedExtraction) -> Bool {
+    private func cleanupExtraction(_ extraction: inout CreatedExtraction) -> Bool {
         var success = true
         for path in extraction.files.reversed() {
             let components = path.split(separator: "/").map(String.init)

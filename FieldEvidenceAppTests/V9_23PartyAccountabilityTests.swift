@@ -10,6 +10,102 @@ import XCTest
 final class V9_23PartyAccountabilityTests: XCTestCase {
     private let baseDate = Date(timeIntervalSince1970: 1_787_847_600)
 
+    func testLifecycleSignoffsUseNestedActorIdentityAndPreserveObservedHistory() throws {
+        let values = try makeValues()
+        let schema = Schema([ServicePartyRow.self, ActorSnapshotRow.self,
+                             QualificationSnapshotRow.self, SignoffSnapshotRow.self])
+        let container = try ModelContainer(
+            for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
+        )
+        let context = ModelContext(container)
+        context.insert(try ServicePartyRow(values.party))
+        context.insert(try ActorSnapshotRow(values.actor))
+        context.insert(try QualificationSnapshotRow(values.qualification))
+        context.insert(try SignoffSnapshotRow(values.signoff))
+        try context.save()
+        let adapter = PartyAccountabilityLifecycleAdapterV1(
+            modelContext: context, workspaceID: values.workspace
+        )
+        let originalActorBytes = try PartyAccountabilitySnapshotCodecV1.encode(values.actor)
+        let originalSignoffBytes = try PartyAccountabilitySnapshotCodecV1.encode(values.signoff)
+        func actor(snapshot: Int, reference: LocalActorReferenceV1,
+                   responsibility: ResponsibilityKindV1) throws -> ActorSnapshotV1 {
+            try ActorSnapshotV1(snapshotID: uuid(snapshot), workspaceID: values.workspace,
+                actor: reference, responsibility: responsibility,
+                displayNameAtTime: reference.displayName, capturedAt: baseDate.addingTimeInterval(10))
+        }
+        func signoff(_ actor: ActorSnapshotV1, slot: Int,
+                     qualification: QualificationSnapshotV1? = nil) throws -> SignoffSnapshotV1 {
+            try SignoffSnapshotV1(
+                snapshotID: uuid(slot), workspaceID: values.workspace,
+                purpose: values.signoff.purpose, subjectID: values.signoff.subjectID,
+                subjectRevision: 1, disposition: .recordedLocalAssertion, method: .typedLocalAssertion,
+                roleAssertion: SignoffRoleAssertionV1(claimedRole: "Local reviewer",
+                    actor: actor, disclosureRelease: values.disclosure),
+                qualification: qualification, occurredAt: baseDate.addingTimeInterval(11),
+                recordedAt: baseDate.addingTimeInterval(12), mutationID: mutation(slot)
+            )
+        }
+        let sameActor = try actor(snapshot: 8_001, reference: values.actor.actor,
+                                  responsibility: .verifiedBy)
+        context.insert(try ActorSnapshotRow(sameActor))
+        try context.save()
+        XCTAssertNotEqual(sameActor.snapshotID, values.actor.snapshotID)
+        XCTAssertEqual(sameActor.actor.actorReferenceID, values.actor.actor.actorReferenceID)
+        let conflicting = try signoff(sameActor, slot: 8_002)
+        XCTAssertThrowsError(try adapter.validateSeparationOfDuty(candidate: conflicting)) {
+            XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .unsupportedClaim)
+        }
+        XCTAssertThrowsError(try adapter.validate(.appendSignoff(conflicting))) {
+            XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .unsupportedClaim)
+        }
+        let distinctReference = try LocalActorReferenceV1(
+            actorReferenceID: uuid(8_003), workspaceID: values.workspace,
+            partyID: values.party.partyID, displayName: values.actor.displayNameAtTime
+        )
+        let distinctActor = try actor(snapshot: 8_004, reference: distinctReference,
+                                      responsibility: .verifiedBy)
+        context.insert(try ActorSnapshotRow(distinctActor))
+        try context.save()
+        XCTAssertEqual(distinctActor.actor.partyID, values.actor.actor.partyID)
+        XCTAssertEqual(distinctActor.displayNameAtTime, values.actor.displayNameAtTime)
+        XCTAssertNotEqual(distinctActor.actor.actorReferenceID, values.actor.actor.actorReferenceID)
+        try adapter.validate(.appendSignoff(signoff(distinctActor, slot: 8_005,
+                                                  qualification: values.qualification)))
+        let missingPartyReference = try LocalActorReferenceV1(
+            actorReferenceID: uuid(8_006), workspaceID: values.workspace,
+            partyID: uuid(8_007), displayName: "Unresolved local party"
+        )
+        let missingPartyActor = try actor(snapshot: 8_008, reference: missingPartyReference,
+                                         responsibility: .observedBy)
+        context.insert(try ActorSnapshotRow(missingPartyActor))
+        try context.save()
+        XCTAssertThrowsError(try adapter.validate(
+            .appendSignoff(signoff(missingPartyActor, slot: 8_009))
+        )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .crossWorkspaceReference) }
+        let changedSnapshot = try actor(snapshot: 8_004, reference: distinctReference,
+                                        responsibility: .approvedBy)
+        XCTAssertThrowsError(try adapter.validate(
+            .appendSignoff(signoff(changedSnapshot, slot: 8_010))
+        )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .immutableHistory) }
+        let changedQualification = try QualificationSnapshotV1(
+            snapshotID: values.qualification.snapshotID, workspaceID: values.workspace,
+            declaredScope: "Different recorded scope", provenance: .selfDeclared,
+            capturedAt: values.qualification.capturedAt
+        )
+        XCTAssertThrowsError(try adapter.validate(.appendSignoff(
+            signoff(distinctActor, slot: 8_011, qualification: changedQualification)
+        ))) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .immutableHistory) }
+        let storedActors = try adapter.actorSnapshots()
+        let originalActor = try XCTUnwrap(storedActors.first { $0.snapshotID == values.actor.snapshotID })
+        XCTAssertEqual(originalActor.responsibility, .performedBy)
+        XCTAssertEqual(try PartyAccountabilitySnapshotCodecV1.encode(originalActor), originalActorBytes)
+        let storedSignoffs = try adapter.signoffSnapshots(subjectID: values.signoff.subjectID)
+        XCTAssertEqual(storedSignoffs, [values.signoff], "Validation must not append a signoff")
+        XCTAssertEqual(try PartyAccountabilitySnapshotCodecV1.encode(XCTUnwrap(storedSignoffs.first)),
+                       originalSignoffBytes)
+    }
+
     func testActorAuthoritySelectionPreservesLocalResponsibilityAndRejectsForeignWorkspace() throws {
         let values = try makeValues()
         let original = try PartyAccountabilitySnapshotCodecV1.encode(values.actor)

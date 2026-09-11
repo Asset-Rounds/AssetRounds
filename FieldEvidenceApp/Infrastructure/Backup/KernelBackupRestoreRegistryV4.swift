@@ -944,7 +944,7 @@ enum C47ActivityContractKernelBackupRestoreEnrollmentV2 { static let persistentS
 
 enum C48PortableExchangeKernelBackupRestoreEnrollmentV2 {
     static let durableRowCount = 0
-    static let explicitArchiveMember = PortableExchangeBackupMemberV2.relativePath
+    static let explicitArchiveMember = PortableExchangeBackupMemberV2.path
     static let restoreUsesProtectedSidecar = true
     static let cloneForkInvalidatesCapabilities = true
     static func validate() throws {

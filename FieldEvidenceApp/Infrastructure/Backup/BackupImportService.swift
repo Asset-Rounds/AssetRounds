@@ -1659,8 +1659,9 @@ enum C49WorkResourceBackupImportPolicyV1 {
             return
         }
         guard (C49BackupEnrollmentV1.recordsSchemaVersion ...
-                C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
+                LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
+              package.manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
               persistentSchemaVersion == records.recordsSchemaVersion + 1 else {
             throw BackupImportServiceError.invalidGeneration
         }
@@ -1686,9 +1687,10 @@ enum C52ServiceRequestBackupImportServiceBoundaryV1 {
             try C52ServiceRequestBackupDecodingBoundaryV1.validate(records)
             return
         }
-        guard persistent == records.recordsSchemaVersion + 1,
-              (recordsSchemaVersion...C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
+              package.manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
+              persistent == records.recordsSchemaVersion + 1,
               importsCanonicalHistoryThroughRestoreAuthority,
               !importedOutstandingCapabilitiesRemainValid,
               importedDuplicateProjectionIsRebuilt else {
@@ -1725,9 +1727,10 @@ enum C53ServiceReliabilityBackupImportServiceBoundaryV1 {
             try C53ServiceReliabilityBackupEnrollmentV1.validate(records: records)
             return
         }
-        guard persistent == records.recordsSchemaVersion + 1,
-              (recordsSchemaVersion...C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
+              package.manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
+              persistent == records.recordsSchemaVersion + 1,
               importsAllSevenSourceFamilies,
               validatesCanonicalHistoryBeforeMaterialization,
               preservesIdentityEpochs,
@@ -1758,8 +1761,10 @@ enum C55PartsStockBackupImportServiceBoundaryV1 {
             try C55PartsStockBackupEnrollmentV1.validate(package.records)
             return
         }
-        guard package.records.recordsSchemaVersion == recordsSchemaVersion,
-              package.manifest.source.persistentSchemaVersion == persistentSchemaVersion,
+        guard (recordsSchemaVersion...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(package.records.recordsSchemaVersion),
+              package.manifest.source.recordsSchemaVersion == package.records.recordsSchemaVersion,
+              package.manifest.source.persistentSchemaVersion == package.records.recordsSchemaVersion + 1,
               !acceptsParallelStore else {
             throw BackupImportServiceError.invalidGeneration
         }
@@ -1784,9 +1789,10 @@ enum C57MyDayBackupImportServiceBoundaryV1 {
             try C57MyDayBackupEnrollmentV1.validate(package.records)
             return
         }
-        guard package.records.recordsSchemaVersion == recordsSchemaVersion,
-              package.manifest.source.persistentSchemaVersion == persistentSchemaVersion,
-              package.manifest.source.recordsSchemaVersion == recordsSchemaVersion else {
+        guard (recordsSchemaVersion...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(package.records.recordsSchemaVersion),
+              package.manifest.source.persistentSchemaVersion == package.records.recordsSchemaVersion + 1,
+              package.manifest.source.recordsSchemaVersion == package.records.recordsSchemaVersion else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {

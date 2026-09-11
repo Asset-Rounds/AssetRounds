@@ -218,6 +218,10 @@ final class V9_86OCRProposalTests: XCTestCase {
             OCRProposalPersistenceBoundaryV1.acceptanceRowName,
             "AssistanceAcceptanceReceiptRow"
         )
+        XCTAssertEqual(
+            ObjectIdentifier(C23FastSurveyInboxOCRLifecycleBoundaryV1.acceptedReceiptRowType),
+            ObjectIdentifier(AssistanceAcceptanceReceiptRow.self)
+        )
         XCTAssertTrue(OCRProposalSearchRebuildBoundaryV1.acceptedCanonicalTargetUsesIncumbentProjection)
         XCTAssertTrue(OCRProposalReportProjectionBoundaryV1.acceptedCanonicalTargetUsesIncumbentProjection)
         XCTAssertFalse(OCRProposalSearchRebuildBoundaryV1.acceptedReceiptIndexedAsFact)
@@ -232,6 +236,9 @@ final class V9_86OCRProposalTests: XCTestCase {
         )
         try restored.validate(ocrEvidence: bundle.evidence)
         XCTAssertEqual(restored, receipt)
+        let row = try AssistanceAcceptanceReceiptRow(receipt)
+        try OCRProposalPersistenceEnrollmentV1.validate(row, evidence: bundle.evidence)
+        XCTAssertEqual(try row.value(), receipt)
 
         let localization = try BundledLocalizationCatalogV1.ocrProposalRegistry()
         let accessibility = try BundledLocalizationCatalogV1.ocrProposalAccessibilityRegistry(

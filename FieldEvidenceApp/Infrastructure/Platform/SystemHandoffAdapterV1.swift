@@ -199,7 +199,7 @@ final class SystemHandoffAdapterV1: SystemHandoffPortV1 {
 
     init(
         opener: any SystemURLHandoffOpeningV1,
-        directionsPresenter: any SystemDirectionsHandoffPresentingV1 = MKMapItemSystemDirectionsPresenterV1(),
+        directionsPresenter: any SystemDirectionsHandoffPresentingV1,
         clock: any ApplicationClock
     ) {
         self.opener = opener
@@ -207,8 +207,23 @@ final class SystemHandoffAdapterV1: SystemHandoffPortV1 {
         self.clock = clock
     }
 
+    convenience init(
+        opener: any SystemURLHandoffOpeningV1,
+        clock: any ApplicationClock
+    ) {
+        self.init(
+            opener: opener,
+            directionsPresenter: MKMapItemSystemDirectionsPresenterV1(),
+            clock: clock
+        )
+    }
+
     convenience init(clock: any ApplicationClock) {
-        self.init(opener: UIApplicationSystemURLHandoffOpenerV1(), clock: clock)
+        self.init(
+            opener: UIApplicationSystemURLHandoffOpenerV1(),
+            directionsPresenter: MKMapItemSystemDirectionsPresenterV1(),
+            clock: clock
+        )
     }
 
     func handOff(_ request: SystemHandoffRequestV1) async -> SystemHandoffResultV1 {

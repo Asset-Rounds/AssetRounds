@@ -776,7 +776,7 @@ final class BackupExportService {
 }
 
 private extension BackupExportService {
-    func buildStreamingPrepared(
+    private func buildStreamingPrepared(
         previewID: UUID,
         exportedAt: Date
     ) throws -> StreamingPrepared {
@@ -820,59 +820,8 @@ private extension BackupExportService {
         let portableExchangeSnapshotData: Data
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
-            let semanticRecords = V4BackupRecordsV1(
-                guidedSurveys:[],
-                assetLocators: records.assetLocators,
-                schedules: records.schedules,
-                plans: records.plans,
-                placementPoses: records.placementPoses,
-                fieldReferences:records.fieldReferences,
-                fieldDrafts: records.fieldDrafts,
-                workPackets: records.workPackets,
-                inspectionReview: records.inspectionReview,
-                evidenceAssurance: records.evidenceAssurance,
-                functionalRelationships: records.functionalRelationships,
-                authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
-                assetCompositionEdges: records.assetCompositionEdges,
-                assetCompositionEvents: records.assetCompositionEvents,
-                assetPlacementEvents: records.assetPlacementEvents,
-                assets: records.assets,
-                deletionLedger: records.deletionLedger,
-                evidenceFiles: records.evidenceFiles,
-                issues: records.issues,
-                locationHierarchyEvents: records.locationHierarchyEvents,
-                locationMigrationReceipts: records.locationMigrationReceipts,
-                locationNodes: records.locationNodes,
-                mutationHistory: nil,
-                packets: records.packets,
-                partyAccountability: records.partyAccountability,
-                recordsSchemaVersion: records.recordsSchemaVersion,
-                reports: records.reports,
-                requirementAssurance: records.requirementAssurance,
-                savedSmartViews: records.savedSmartViews,
-                sites: records.sites,
-                workflowRecords: records.workflowRecords,
-                lighting: records.lighting,
-                lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
-                lightingNightWorkflows: records.lightingNightWorkflows,
-                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-                temporalEvidence: records.temporalEvidence,
-                acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
-                activityContracts: records.activityContracts,
-                workResources: records.workResources,
-                serviceRequests: records.serviceRequests,
-                serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
-                partsStockSnapshot: records.partsStockSnapshot,
-                myDayPlans: records.myDayPlans,
-                myDayCarryoverReceipts: records.myDayCarryoverReceipts,
-                nonactivePlanReferences: records.nonactivePlanReferences,
-                evidenceAssociationEvents: records.evidenceAssociationEvents,
-                evidenceSequenceRevisions: records.evidenceSequenceRevisions,
-                reinspectionExceptionQueue: records.reinspectionExceptionQueue
-            )
             semanticRecordsData = try BackupCanonicalEncoderV1()
-                .encodeSemanticRecords(semanticRecords).data
+                .encodeSemanticRecords(records).data
             portableExchangeSnapshotData = try portableExchangeBackupSnapshotData(
                 snapshotID: previewID,
                 createdAt: exportedAt
@@ -1141,9 +1090,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion,
+                persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+                recordsSchemaVersion: records.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -3515,7 +3464,7 @@ private extension BackupExportService {
         }
     }
 
-    func validateDeletionLedger(_ ledger: DeletionLedgerV2, rows: Rows) throws {
+    private func validateDeletionLedger(_ ledger: DeletionLedgerV2, rows: Rows) throws {
         try ledger.validate()
         guard ledger.entries.count <= DeletionLedgerV2.maximumEntryCount else {
             throw BackupExportServiceError.invalidAuthority
@@ -3715,7 +3664,7 @@ private extension BackupExportService {
         }
     }
 
-    func writeOwnedStagingSource(
+    private func writeOwnedStagingSource(
         _ data: Data,
         to url: URL,
         expectedRootIdentity: StreamingArchiveRootIdentityV1
@@ -3891,7 +3840,7 @@ private extension BackupExportService {
         )
     }
 
-    func cleanupOwnedStagingSources(
+    private func cleanupOwnedStagingSources(
         _ sources: [OwnedStagingSource],
         within stagingRootURL: URL,
         directoryDescriptor: Int32,

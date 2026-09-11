@@ -315,7 +315,14 @@ struct EvidenceContextV1: Codable, Equatable, Sendable {
         self.controlExpectation = controlExpectation
         predecessorContextSHA256 = predecessor?.contextSHA256; self.revision = revision
         self.mutationID = mutationID; self.recordedBy = recordedBy; self.recordedAt = recordedAt
-        contextSHA256 = try EvidenceContextCanonicalCodecV1.sha256(basisWithoutDigest)
+        let basis = Basis(schemaVersion: schemaVersion, contextID: contextID,
+            workspaceID: workspaceID, evidenceID: evidenceID, evidenceSHA256: evidenceSHA256,
+            evidenceRevision: evidenceRevision,
+            assetID: assetID, assetRevision: assetRevision, temporalContext: temporalContext,
+            userObserved: userObserved, derivedSolar: derivedSolar, controlExpectation: controlExpectation,
+            predecessorContextSHA256: predecessorContextSHA256, revision: revision, mutationID: mutationID,
+            recordedBy: recordedBy, recordedAt: recordedAt)
+        contextSHA256 = try EvidenceContextCanonicalCodecV1.sha256(basis)
         try validateIntrinsic(); if let predecessor { try validateSuccessor(of: predecessor) }
     }
     func validateIntrinsic() throws {
@@ -461,7 +468,11 @@ struct PairedObservationLinkV1: Codable, Equatable, Sendable {
         mismatchReasons = Self.mismatches(self.first, self.second)
         predecessorLinkSHA256 = predecessor?.linkSHA256; self.revision = revision
         self.mutationID = mutationID; self.recordedBy = recordedBy; self.recordedAt = recordedAt
-        linkSHA256 = try EvidenceContextCanonicalCodecV1.sha256(basisWithoutDigest)
+        let basis = Basis(schemaVersion: schemaVersion, linkID: linkID,
+            workspaceID: workspaceID, first: self.first, second: self.second, mismatchReasons: mismatchReasons,
+            predecessorLinkSHA256: predecessorLinkSHA256, revision: revision,
+            mutationID: mutationID, recordedBy: recordedBy, recordedAt: recordedAt)
+        linkSHA256 = try EvidenceContextCanonicalCodecV1.sha256(basis)
         try validateIntrinsic(); if let predecessor { try validateSuccessor(of: predecessor) }
     }
     static func mismatches(_ lhs: PairedObservationReferenceV1,

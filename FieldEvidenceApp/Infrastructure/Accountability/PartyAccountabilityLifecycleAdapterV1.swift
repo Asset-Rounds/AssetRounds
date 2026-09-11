@@ -537,14 +537,14 @@ final class PartyAccountabilityLifecycleAdapterV1: PartyAccountabilityLifecycleP
         guard candidate.workspaceID == workspaceID else {
             throw PartyAccountabilityFailureV1.crossWorkspaceReference
         }
-        guard let candidateActor = candidate.roleAssertion?.actor.actorReferenceID,
+        guard let candidateActor = candidate.roleAssertion?.actor.actor.actorReferenceID,
               let candidateKind = candidate.roleAssertion?.actor.responsibility else {
             return
         }
         let existing = try signoffSnapshots(subjectID: candidate.subjectID)
         for prior in existing {
             guard let actor = prior.roleAssertion?.actor,
-                  actor.actorReferenceID == candidateActor,
+                  actor.actor.actorReferenceID == candidateActor,
                   let priorKind = prior.roleAssertion?.actor.responsibility else {
                 continue
             }
@@ -677,11 +677,11 @@ final class PartyAccountabilityLifecycleAdapterV1: PartyAccountabilityLifecycleP
         guard try signoffRows().allSatisfy({ $0.snapshotID != value.snapshotID }) else {
             throw PartyAccountabilityFailureV1.invalidValue
         }
-        if let partyID = value.roleAssertion?.actor.partyID {
+        if let partyID = value.roleAssertion?.actor.actor.partyID {
             guard let party = try party(partyID: partyID) else {
                 throw PartyAccountabilityFailureV1.crossWorkspaceReference
             }
-            try value.roleAssertion?.actor.validatePartyReference(party)
+            try value.roleAssertion?.actor.actor.validatePartyReference(party)
         }
         if let embeddedActor = value.roleAssertion?.actor {
             guard let persistedActor = try actorSnapshot(

@@ -352,7 +352,7 @@ private extension EntitlementStore {
         }
     }
 
-    func applyPublishedPolicy(
+    private func applyPublishedPolicy(
         _ kind: OwnedFileKindV1,
         name: String,
         descriptor: Int32? = nil,
@@ -437,7 +437,7 @@ private extension EntitlementStore {
         }
     }
 
-    func createTemporary(_ data: Data) throws -> ReadValue {
+    private func createTemporary(_ data: Data) throws -> ReadValue {
         guard case nil = try readIfPresent(Self.temporaryName) else {
             throw EntitlementStoreError.collidingAuthority
         }
@@ -491,7 +491,7 @@ private extension EntitlementStore {
         }
     }
 
-    func removeIfExact(_ name: String, expected: Identity) throws {
+    private func removeIfExact(_ name: String, expected: Identity) throws {
         guard let current = try readIfPresent(name),
               current.identity == expected,
               Darwin.unlinkat(commerceDescriptor, name, 0) == 0,
@@ -501,7 +501,7 @@ private extension EntitlementStore {
         }
     }
 
-    func removeExact(_ name: String, expected: ReadValue) throws {
+    private func removeExact(_ name: String, expected: ReadValue) throws {
         guard let current = try readIfPresent(name),
               current.identity == expected.identity,
               current.data == expected.data,
@@ -512,7 +512,7 @@ private extension EntitlementStore {
         }
     }
 
-    func verifyLeaf(
+    private func verifyLeaf(
         _ name: String,
         descriptor: Int32,
         expected: Identity

@@ -596,11 +596,15 @@ private final class C55ProductionWriterHarness {
     let journal: MutationJournalStoreV1
     let writer: WorkspaceWriterV1
 
-    init(workspaceID: WorkspaceID, configurationName: String = "C55-Production-Writer") throws {
-        let schema = Schema(
-            PersistentSchemaV41.models,
-            version: PersistentSchemaV41.versionIdentifier
-        )
+    init(
+        workspaceID: WorkspaceID,
+        configurationName: String = "C55-Production-Writer",
+        replicaID: UUID = C55PartsStockTestSupport.id(971),
+        currentSchema: Bool = false
+    ) throws {
+        let schema = currentSchema
+            ? Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+            : Schema(PersistentSchemaV41.models, version: PersistentSchemaV41.versionIdentifier)
         let installedContainer = try ModelContainer(
             for: schema,
             migrationPlan: nil,
@@ -613,7 +617,7 @@ private final class C55ProductionWriterHarness {
         installedContext.autosaveEnabled = false
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: workspaceID,
-            replicaID: ReplicaID(rawValue: C55PartsStockTestSupport.id(971))
+            replicaID: ReplicaID(rawValue: replicaID)
         )
         let generationID = C55PartsStockTestSupport.id(970)
         let writerInstanceID = C55PartsStockTestSupport.id(972)
@@ -3095,7 +3099,7 @@ final class V9_63PartsStockTests: XCTestCase {
             itemID: "C55-MIXED-MATERIAL",
             kind: .inspection,
             expectedRevision: 1,
-            itemSHA256: C55PartsStockTestSupport.digest("i")
+            itemSHA256: CanonicalJSONV1.sha256(Data("C55-MIXED-MATERIAL".utf8))
         )
         let mixedManifest = try WorkPacketManifestV1(
             manifestID: C55PartsStockTestSupport.id(1202),
@@ -3248,6 +3252,7 @@ final class V9_63PartsStockTests: XCTestCase {
             packetRecord: V15BackupWorkPacketRecordV1
         ) -> V4BackupRecordsV1 {
             V4BackupRecordsV1(
+                workPackets: [packetRecord],
                 assets: [],
                 deletionLedger: .empty,
                 evidenceFiles: [],
@@ -3259,7 +3264,6 @@ final class V9_63PartsStockTests: XCTestCase {
                 reports: [],
                 sites: [],
                 workflowRecords: [],
-                workPackets: [packetRecord],
                 workResources: mixedWorkRows,
                 partsStockSnapshot: mixedSnapshot
             )
@@ -3926,6 +3930,447 @@ final class V9_63PartsStockTests: XCTestCase {
         XCTAssertEqual(replacement.partsStockSnapshot, mixedSnapshot)
         XCTAssertEqual(replacement.workResources, sourceRecords.workResources)
         XCTAssertEqual(replacement.mutationHistory, sourceRecords.mutationHistory)
+    }
+
+    @MainActor
+    func testMixedActivityAndWorkResourceRestoreSharesHistoricalReplicaScope() async throws {
+        let workspaceID = C55PartsStockTestSupport.workspace(1500)
+        let sourceReplicaIDs = [1501, 1502].map(C55PartsStockTestSupport.id)
+        let fixture = try Self.fixture()
+        let frozenPart = try C55PartsStockTestSupport.part(
+            fixture.golden, workspaceID: workspaceID, slot: 1503
+        ).frozenReference()
+        var histories: [MutationHistorySnapshotV1] = []
+        var actors: [V9BackupPartyAccountabilityRecordV1] = []
+        var packets: [V15BackupWorkPacketRecordV1] = []
+        var workRows: [V37BackupWorkResourceRecordV1] = []
+        var activityRows: [V36BackupActivityContractRecordV2] = []
+        var sourceStock: PartsStockBackupSnapshotV1?
+        var sourceReinspection: ReinspectionExceptionQueueBackupSnapshotV1?
+        var sourceIdentityResolution: EntityIdentityResolutionBackupSnapshotV1?
+
+        for (index, replicaID) in sourceReplicaIDs.enumerated() {
+            let slot = 1520 + index * 20
+            let harness = try C55ProductionWriterHarness(
+                workspaceID: workspaceID,
+                configurationName: "Mixed-C47-C49-\(index)",
+                replicaID: replicaID,
+                currentSchema: true
+            )
+            var writer = harness.writer
+            if let previous = histories.last {
+                // Restore the exact persisted closure into the next replica,
+                // then continue its real workspace frontier. Concatenating two
+                // independent 0-based histories would be an invalid chain.
+                for row in actors {
+                    harness.context.insert(try ActorSnapshotRow(
+                        PartyAccountabilitySnapshotCodecV1.decode(
+                            ActorSnapshotV1.self, from: row.canonicalData
+                        )
+                    ))
+                }
+                for row in packets {
+                    harness.context.insert(try WorkPacketManifestRow(
+                        WorkPacketCanonicalCodecV1.decode(
+                            WorkPacketManifestV1.self, from: row.canonicalData
+                        )
+                    ))
+                }
+                for row in activityRows {
+                    harness.context.insert(try ActivitySessionEnvelopeRow(row.envelopeValue()))
+                }
+                for row in workRows {
+                    harness.context.insert(try ManualWorkResourceRecordRow(row.value()))
+                }
+                try harness.context.save()
+                let before = try writer.currentRevision()
+                let destination = try WorkspaceReplicaIdentityV1(
+                    workspaceID: workspaceID, replicaID: ReplicaID(rawValue: replicaID)
+                )
+                try harness.journal.replaceHistory(
+                    with: previous,
+                    identityDisposition: .destination(destination, generationID: before.generationID)
+                )
+                writer = try WorkspaceWriterV1(
+                    identity: destination, generationID: before.generationID,
+                    initialRevision: harness.journal.currentRevision(
+                        writerInstanceID: before.writerInstanceID
+                    ),
+                    clock: C55ProductionWriterClock(),
+                    idSource: C55ProductionWriterIDSource(value: before.writerInstanceID),
+                    fileAuthority: C55ProductionWriterFileAuthority(),
+                    adapter: WorkspaceWriterAdapterV1(modelContext: harness.context),
+                    journalStore: harness.journal
+                )
+                XCTAssertEqual(try writer.currentRevision().revision, previous.workspaceRevision)
+            }
+            let actor = try C55PartsStockTestSupport.actor(workspaceID: workspaceID, slot: slot)
+            let packet = try WorkPacketManifestV1(
+                manifestID: C55PartsStockTestSupport.id(slot + 3),
+                packetID: C55PartsStockTestSupport.id(slot + 4),
+                packetVersion: 1,
+                workspaceID: workspaceID,
+                items: [try WorkPacketItemV1(
+                    itemID: "MIXED-HISTORY-\(index)", kind: .inspection,
+                    expectedRevision: 1,
+                    itemSHA256: CanonicalJSONV1.sha256(Data("item-\(index)".utf8))
+                )],
+                packageReleases: [], creationBasis: .explicitLocalSelection,
+                creator: actor, createdAt: C55PartsStockTestSupport.fixedDate,
+                mutationID: try C55PartsStockTestSupport.mutation(slot + 5)
+            )
+            harness.context.insert(try ActorSnapshotRow(actor))
+            harness.context.insert(try WorkPacketManifestRow(packet))
+            try harness.context.save()
+            actors.append(V9BackupPartyAccountabilityRecordV1(
+                kind: .actorSnapshot, id: actor.snapshotID,
+                workspaceID: workspaceID.rawValue, revision: nil,
+                canonicalData: try PartyAccountabilitySnapshotCodecV1.encode(actor)
+            ))
+            packets.append(V15BackupWorkPacketRecordV1(
+                kind: .manifest, id: packet.manifestID,
+                workspaceID: workspaceID.rawValue, revision: packet.revision,
+                canonicalData: try WorkPacketCanonicalCodecV1.encode(packet)
+            ))
+
+            if index == 0 {
+                // This is the real shared-only C47 draft contract: no selected
+                // installation basis, completed report, or invented workflow.
+                let activityID = C55PartsStockTestSupport.id(slot + 6)
+                let mutationID = try C55PartsStockTestSupport.mutation(slot + 7)
+                let envelope = try ActivitySessionEnvelopeV2(
+                    activityID: activityID, workspaceID: workspaceID,
+                    kind: .installation, state: .draft, reviewState: .notRequested,
+                    subjectID: C55PartsStockTestSupport.id(slot + 8),
+                    title: "Mixed historical draft",
+                    readiness: [try ActivityReadinessFacetV1(
+                        facetID: "access", kind: .access, disposition: .ready
+                    )],
+                    revision: 1, mutationID: mutationID
+                )
+                let current = try writer.currentRevision()
+                let mutation = try ActivityContractMutationV2(
+                    workspaceID: workspaceID,
+                    expectedRevision: WorkspaceExpectedRevisionV1(
+                        workspaceID: workspaceID, generationID: current.generationID,
+                        writerInstanceID: current.writerInstanceID,
+                        workspaceRevision: current.revision,
+                        entityRevisions: [WorkspaceEntityRevisionV1(
+                            identity: try WorkspaceEntityIdentityV1(
+                                kind: .activitySessionEnvelope, id: activityID
+                            ), revision: 0
+                        )]
+                    ),
+                    mutationID: mutationID, successorEnvelope: envelope
+                )
+                let committed = try await writer.commitActivityContract(mutation)
+                XCTAssertEqual(committed.identity.replicaID.rawValue, replicaID)
+                XCTAssertEqual(committed.identity.localSequence, 1)
+                let persisted = try XCTUnwrap(
+                    harness.context.fetch(FetchDescriptor<ActivitySessionEnvelopeRow>()).first
+                ).value()
+                XCTAssertEqual(persisted, envelope)
+                activityRows.append(try V36BackupActivityContractRecordV2(persisted))
+            }
+
+            let entry = try C55PartsStockTestSupport.workEntry(
+                workspaceID: workspaceID, part: frozenPart,
+                quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0),
+                lineID: C55PartsStockTestSupport.id(slot + 9),
+                mutationID: C55PartsStockTestSupport.mutation(slot + 10),
+                slot: slot + 11,
+                subject: WorkResourceSubjectV1(
+                    workspaceID: workspaceID, kind: .workPacket,
+                    subjectID: packet.manifestID.uuidString,
+                    subjectRevision: packet.revision, subjectSHA256: packet.manifestSHA256
+                ),
+                entryActor: actor
+            )
+            let mutation = try WorkResourceMutationV1(
+                workspaceID: workspaceID, mutationID: entry.mutationID, postImage: entry
+            )
+            let current = try writer.currentRevision()
+            let committed = try writer.commitWorkResource(
+                mutation,
+                expectedRevision: WorkspaceExpectedRevisionV1(
+                    workspaceID: workspaceID, generationID: current.generationID,
+                    writerInstanceID: current.writerInstanceID,
+                    workspaceRevision: current.revision,
+                    entityRevisions: [WorkspaceEntityRevisionV1(
+                        identity: try mutation.concurrencyIdentity, revision: 0
+                    )]
+                )
+            )
+            XCTAssertEqual(committed.mutationReceipt.identity.replicaID.rawValue, replicaID)
+            XCTAssertEqual(committed.mutationReceipt.identity.localSequence, index == 0 ? 2 : 1)
+            let persisted = try XCTUnwrap(
+                harness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>())
+                    .first { $0.entryID == entry.entryID }
+            ).value()
+            XCTAssertEqual(persisted, entry)
+            workRows.append(try V37BackupWorkResourceRecordV1(persisted))
+            histories.append(try writer.sourceMutationHistorySnapshot())
+            sourceStock = try PartsStockLifecycleAdapterV1(modelContext: harness.context)
+                .snapshotForBackup(workspaceID: workspaceID)
+            // These later families are actually empty in this current-schema
+            // store. Snapshot the physical rows; do not omit required families
+            // or manufacture their emptiness to satisfy the current codec.
+            XCTAssertTrue(try harness.context.fetch(FetchDescriptor<ReinspectionPlanRowV1>()).isEmpty)
+            XCTAssertTrue(try harness.context.fetch(FetchDescriptor<UnchangedAttestationRowV1>()).isEmpty)
+            XCTAssertTrue(try harness.context.fetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>()).isEmpty)
+            XCTAssertTrue(try harness.context.fetch(FetchDescriptor<ReinspectionExceptionMutationReceiptRowV1>()).isEmpty)
+            sourceReinspection = try ReinspectionExceptionQueueLifecycleAdapterV1(
+                modelContext: harness.context, workspaceID: workspaceID
+            ).backupSnapshot(effectProvenance: [])
+            let aliases = try harness.context.fetch(FetchDescriptor<EntityAliasLinkRowV1>())
+                .map { try $0.value() }
+            let consolidations = try harness.context.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>())
+                .map { try $0.value() }
+            let identityReceipts = try harness.context.fetch(FetchDescriptor<EntityIdentityResolutionMutationReceiptRowV1>())
+                .map { try $0.value() }
+            XCTAssertTrue(aliases.isEmpty)
+            XCTAssertTrue(consolidations.isEmpty)
+            XCTAssertTrue(identityReceipts.isEmpty)
+            sourceIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(
+                workspaceID: workspaceID, generationID: writer.currentRevision().generationID,
+                aliasLinks: aliases, consolidationReceipts: consolidations,
+                mutationReceipts: identityReceipts
+            )
+        }
+        let continuedHistory = try XCTUnwrap(histories.last)
+        XCTAssertEqual(continuedHistory.workspaceRevision, 3)
+        XCTAssertEqual(continuedHistory.lastLocalSequence, 1)
+        XCTAssertEqual(Array(continuedHistory.receipts.prefix(2)), histories[0].receipts)
+        let originalReceipts = continuedHistory.receipts
+        let originalEnvelopes = try originalReceipts.map {
+            try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
+        }
+        let originalQuarantines = try originalEnvelopes.map { envelope in
+            let conflicting = try MutationEnvelopeV1(
+                request: WorkspaceMutationRequestV1(
+                    mutationID: envelope.mutationID,
+                    expectedRevision: WorkspaceExpectedRevisionV1(
+                        workspaceID: envelope.workspaceID,
+                        generationID: envelope.generationID,
+                        writerInstanceID: C55PartsStockTestSupport.id(972),
+                        workspaceRevision: envelope.expectedRevision.workspaceRevision,
+                        entityRevisions: envelope.expectedRevision.entityRevisions
+                    ),
+                    command: envelope.command
+                ),
+                identity: WorkspaceReplicaIdentityV1(
+                    workspaceID: envelope.workspaceID, replicaID: envelope.replicaID
+                ),
+                sourceKind: envelope.sourceKind,
+                contentDependencyIDs: envelope.contentDependencyIDs,
+                correlationID: C55PartsStockTestSupport.id(1570)
+            )
+            return MutationHistoryQuarantineRecordV1(
+                workspaceID: envelope.workspaceID,
+                mutationID: envelope.mutationID.rawValue,
+                identityDomain: .mutationEnvelope,
+                acceptedIdentitySHA256: try envelope.canonicalSHA256(),
+                conflictingIdentitySHA256: try conflicting.canonicalSHA256(),
+                detectedAt: C55PartsStockTestSupport.fixedDate
+            )
+        }
+        let history = MutationHistorySnapshotV1(
+            workspaceRevision: continuedHistory.workspaceRevision,
+            lastLocalSequence: continuedHistory.lastLocalSequence,
+            receipts: originalReceipts, quarantines: originalQuarantines,
+            entityRevisions: continuedHistory.entityRevisions
+        )
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        let source = V4BackupRecordsV1(
+            workPackets: packets,
+            assets: [], deletionLedger: .empty, evidenceFiles: [], issues: [],
+            mutationHistory: history, packets: [], partyAccountability: actors,
+            recordsSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+            reports: [], sites: [], workflowRecords: [],
+            activityContracts: activityRows, workResources: workRows,
+            partsStockSnapshot: try XCTUnwrap(sourceStock),
+            reinspectionExceptionQueue: try XCTUnwrap(sourceReinspection),
+            entityIdentityResolution: try XCTUnwrap(sourceIdentityResolution)
+        )
+        _ = try source.validateC47ActivityContracts()
+        _ = try source.validateC49WorkResources()
+        XCTAssertEqual(source.recordsSchemaVersion, 52)
+        var futureObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(source)
+        ) as? [String: Any])
+        futureObject["recordsSchemaVersion"] = 53
+        let future = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+            JSONSerialization.data(withJSONObject: futureObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try future.validateC47ActivityContracts()) {
+            XCTAssertEqual($0 as? ActivityContractFailureV2, .invalidValue)
+        }
+        XCTAssertThrowsError(try future.validateC49WorkResources()) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .invalidValue)
+        }
+        let originalBytes = try BackupCanonicalEncoderV1().encodeRecords(source)
+        let semanticBytes = try BackupCanonicalEncoderV1().encodeSemanticRecords(source).data
+        var semanticFields = try XCTUnwrap(JSONSerialization.jsonObject(with: originalBytes.data)
+            as? [String: Any])
+        XCTAssertNotNil(semanticFields.removeValue(forKey: "mutationHistory"))
+        let actualSemanticFields = try XCTUnwrap(JSONSerialization.jsonObject(with: semanticBytes)
+            as? [String: Any])
+        XCTAssertTrue(NSDictionary(dictionary: semanticFields).isEqual(to: actualSemanticFields))
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeSemanticRecords(source).data, semanticBytes)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(source), originalBytes)
+        XCTAssertEqual(source.mutationHistory, history)
+        XCTAssertNil(source.practiceWorkspaceProvenance)
+        XCTAssertNil(semanticFields["practiceWorkspaceProvenance"])
+        XCTAssertNil(try BackupCanonicalDecoderV1().decodeRecords(originalBytes.data).practiceWorkspaceProvenance)
+        var noHistoryObject = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(source))
+            as? [String: Any])
+        noHistoryObject.removeValue(forKey: "mutationHistory")
+        let noHistory = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+            JSONSerialization.data(withJSONObject: noHistoryObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeSemanticRecords(noHistory)) {
+            XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords)
+        }
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeSemanticRecords(future)) {
+            XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords)
+        }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Mixed-History-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try BackupRestoreService(applicationSupportURL: root)
+        let members = ValidatedV4BackupMembersV1(
+            rootURL: root, rootIdentity: try BackupPackageAnchoredFile.rootIdentity(at: root),
+            descriptors: [:], maximumMemberByteCount: 0
+        )
+        for (index, mode) in [BackupRestoreMode.clone, .fork].enumerated() {
+            let targetWorkspaceID = C55PartsStockTestSupport.id(1580 + index)
+            let targetReplicaID = C55PartsStockTestSupport.id(1582 + index)
+            let generationID = C55PartsStockTestSupport.id(1584 + index)
+            let identity = try RestoreIdentityDecisionV1.decide(RestoreIdentityDecisionInputV1(
+                mode: mode,
+                source: RestoreSourceIdentityV1(
+                    workspaceID: workspaceID.rawValue, replicaID: sourceReplicaIDs[1]
+                ),
+                oldPointer: RestorePointerIdentityV1(
+                    generationID: C55PartsStockTestSupport.id(1590),
+                    generationManifestSHA256: C55PartsStockTestSupport.digest("a"),
+                    knownReplicaIDs: [], workspaceID: C55PartsStockTestSupport.id(1591),
+                    replicaID: C55PartsStockTestSupport.id(1592)
+                ),
+                targetGenerationID: generationID,
+                targetGenerationManifestSHA256: C55PartsStockTestSupport.digest("b"),
+                allocatedWorkspaceID: targetWorkspaceID, allocatedReplicaID: targetReplicaID
+            ))
+            func materialize(_ records: V4BackupRecordsV1) throws -> V4BackupRecordsV1 {
+                try service.c55RecordsForMaterializationForTesting(
+                    records, members: members, identityDecision: identity,
+                    legacyWorkspaceID: workspaceID.rawValue,
+                    partsStockOperationID: C55PartsStockTestSupport.id(1593 + index)
+                )
+            }
+            let restored = try materialize(source)
+            XCTAssertThrowsError(try materialize(future))
+            XCTAssertEqual(try materialize(source), restored)
+            let restoredHistory = try XCTUnwrap(restored.mutationHistory)
+            try MutationJournalStoreV1.validateImportedSnapshot(restoredHistory)
+            _ = try restored.validateC47ActivityContracts()
+            _ = try restored.validateC49WorkResources()
+            XCTAssertEqual(restoredHistory.receipts.count, 3)
+            XCTAssertEqual(restoredHistory.quarantines.count, 3)
+            var mappedReplicaBySource: [UUID: UUID] = [:]
+            for (original, sourceEnvelope) in zip(originalReceipts, originalEnvelopes) {
+                let expectedMutationID: MutationIDV1
+                switch sourceEnvelope.command {
+                case .applyActivityContract:
+                    expectedMutationID = try identity.destinationActivityContractMutationID(
+                        for: sourceEnvelope.mutationID
+                    )
+                case .applyWorkResource:
+                    expectedMutationID = try identity.destinationWorkResourceMutationID(
+                        for: sourceEnvelope.mutationID
+                    )
+                default:
+                    XCTFail("unexpected source family"); continue
+                }
+                let targetRecord = try XCTUnwrap(restoredHistory.receipts.first {
+                    (try? MutationReceiptV1.decodeCanonical(from: $0.receiptData).mutationID)
+                        == expectedMutationID
+                })
+                let receipt = try MutationReceiptV1.decodeCanonical(from: targetRecord.receiptData)
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: targetRecord.envelopeData)
+                let sourceReceipt = try MutationReceiptV1.decodeCanonical(from: original.receiptData)
+                XCTAssertEqual(receipt.identity.workspaceID.rawValue, targetWorkspaceID)
+                XCTAssertEqual(receipt.identity.localSequence, sourceReceipt.identity.localSequence)
+                XCTAssertEqual(receipt.identity.replicaID, envelope.replicaID)
+                XCTAssertEqual(receipt.envelopeSHA256, try envelope.canonicalSHA256())
+                XCTAssertEqual(receipt.commandBodySHA256, envelope.commandBodySHA256)
+                XCTAssertEqual(receipt.expectedRevision, envelope.expectedRevision)
+                XCTAssertEqual(envelope.sourceKind, .importedHistory)
+                XCTAssertEqual(envelope.generationID, generationID)
+                XCTAssertEqual(receipt.committedAt, sourceReceipt.committedAt)
+                XCTAssertNil(targetRecord.reversalBasisData)
+                XCTAssertNil(targetRecord.semanticReversalData)
+                let mapped = receipt.identity.replicaID.rawValue
+                XCTAssertNotEqual(mapped, targetReplicaID)
+                XCTAssertNotEqual(mapped, targetWorkspaceID)
+                if let prior = mappedReplicaBySource[sourceEnvelope.replicaID.rawValue] {
+                    XCTAssertEqual(mapped, prior, "C49 must reuse C47's source replica mapping")
+                } else {
+                    mappedReplicaBySource[sourceEnvelope.replicaID.rawValue] = mapped
+                }
+                // Independent declaration of the original C47 attempt-zero
+                // derivation; no production mapper or observed ID is injected.
+                let digest = CanonicalJSONV1.sha256(Data(
+                    "activity-contract-restore-history-replica\u{0}\(sourceEnvelope.replicaID.rawValue.uuidString.lowercased())\u{0}\(targetWorkspaceID.uuidString.lowercased())\u{0}\(generationID.uuidString.lowercased())\u{0}0".utf8
+                ))
+                var bytes = try stride(from: 0, to: 32, by: 2).map {
+                    try XCTUnwrap(UInt8(digest.dropFirst($0).prefix(2), radix: 16))
+                }
+                bytes[6] = (bytes[6] & 0x0f) | 0x50
+                bytes[8] = (bytes[8] & 0x3f) | 0x80
+                let expectedReplica = UUID(uuid: (
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                    bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+                ))
+                XCTAssertEqual(mapped, expectedReplica)
+                let quarantine = try XCTUnwrap(restoredHistory.quarantines.first {
+                    $0.mutationID == expectedMutationID.rawValue
+                })
+                XCTAssertEqual(quarantine.workspaceID.rawValue, targetWorkspaceID)
+                XCTAssertEqual(quarantine.identityDomain, .mutationEnvelope)
+                XCTAssertEqual(quarantine.acceptedIdentitySHA256, receipt.envelopeSHA256)
+                let originalQuarantine = try XCTUnwrap(originalQuarantines.first {
+                    $0.mutationID == sourceEnvelope.mutationID.rawValue
+                })
+                XCTAssertEqual(quarantine.conflictingIdentitySHA256, originalQuarantine.conflictingIdentitySHA256)
+                XCTAssertEqual(quarantine.detectedAt, originalQuarantine.detectedAt)
+            }
+            XCTAssertEqual(mappedReplicaBySource.count, 2)
+            XCTAssertEqual(Set(mappedReplicaBySource.values).count, 2)
+            for position in originalQuarantines.indices {
+                var quarantines = originalQuarantines
+                let original = quarantines[position]
+                quarantines[position] = MutationHistoryQuarantineRecordV1(
+                    workspaceID: original.workspaceID, mutationID: original.mutationID,
+                    identityDomain: original.identityDomain,
+                    acceptedIdentitySHA256: CanonicalJSONV1.sha256(Data("wrong-accepted-identity".utf8)),
+                    conflictingIdentitySHA256: original.conflictingIdentitySHA256,
+                    detectedAt: original.detectedAt
+                )
+                var object = try XCTUnwrap(JSONSerialization.jsonObject(
+                    with: JSONEncoder().encode(source)
+                ) as? [String: Any])
+                var changedHistory = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
+                changedHistory["quarantines"] = try JSONSerialization.jsonObject(
+                    with: JSONEncoder().encode(quarantines)
+                )
+                object["mutationHistory"] = changedHistory
+                let hostile = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+                    JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+                XCTAssertThrowsError(try materialize(hostile))
+            }
+            XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(source), originalBytes)
+            XCTAssertEqual(source.mutationHistory, history)
+        }
     }
 
     @MainActor

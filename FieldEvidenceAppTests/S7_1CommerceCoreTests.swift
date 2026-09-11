@@ -203,6 +203,21 @@ final class S7_1CommerceCoreTests: XCTestCase {
         )
         await assertThrowsStore(.invalidCache) { _ = try await malformedStore.load() }
 
+        let currentJSON = try XCTUnwrap(String(data: bytes, encoding: .utf8))
+        let futureJSON = currentJSON.replacingOccurrences(
+            of: "\"schemaVersion\":1",
+            with: "\"schemaVersion\":2"
+        )
+        XCTAssertNotEqual(futureJSON, currentJSON)
+        let futureBytes = Data(futureJSON.utf8)
+        let futureRoot = try makeRoot("future-schema")
+        defer { try? FileManager.default.removeItem(at: futureRoot) }
+        let futureStore = try EntitlementStore(applicationSupportURL: futureRoot)
+        let futureURL = commerce(futureRoot, "entitlement.json")
+        try futureBytes.write(to: futureURL)
+        await assertThrowsStore(.invalidCache) { _ = try await futureStore.load() }
+        XCTAssertEqual(try Data(contentsOf: futureURL), futureBytes)
+
         let collisionRoot = try makeRoot("collision")
         defer { try? FileManager.default.removeItem(at: collisionRoot) }
         let collisionStore = try EntitlementStore(applicationSupportURL: collisionRoot)

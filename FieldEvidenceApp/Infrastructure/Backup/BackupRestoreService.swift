@@ -2829,12 +2829,14 @@ private extension BackupRestoreService {
             )
             _ = try normalized.validateC46OperationalContacts()
         }
+        var historicReplicas = RestoreHistoricReplicaScope()
         if let identityDecision,
            normalized.recordsSchemaVersion >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
             normalized = try rebindingActivityContracts(
                 in: normalized,
                 sourceRecords: records,
-                identity: identityDecision
+                identity: identityDecision,
+                historicReplicas: &historicReplicas
             )
         } else if normalized.recordsSchemaVersion >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
             _ = try normalized.validateC47ActivityContracts()
@@ -2855,7 +2857,8 @@ private extension BackupRestoreService {
                 in: normalized,
                 sourceRecords: records,
                 identity: identityDecision,
-                partsStockOperationID: partsStockOperationID
+                partsStockOperationID: partsStockOperationID,
+                historicReplicas: &historicReplicas
             )
         } else if normalized.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
             _ = try normalized.validateC49WorkResources()
@@ -4196,31 +4199,18 @@ private extension BackupRestoreService {
         }
     }
 
-    func rebindingActivityContracts(
-        in records: V4BackupRecordsV1,
-        sourceRecords: V4BackupRecordsV1,
-        identity: RestoreIdentityV1
-    ) throws -> V4BackupRecordsV1 {
-        let targetWorkspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
-        guard let history = records.mutationHistory else { throw BackupRestoreServiceError.invalidPackage }
-        if identity.source.workspaceID == identity.targetPointer.workspaceID {
-            _ = try records.validateC47ActivityContracts()
-            return records
-        }
-        let targetIdentity = try workspaceIdentity(identity)
-        var envelopeBySourceSHA: [String: ActivitySessionEnvelopeV2] = [:]
-        var transitionBySourceSHA: [String: ActivityStateTransitionV2] = [:]
-        var taskResultBySourceSHA: [String: InstallationTaskResultV1] = [:]
-        var installationBasisBySourceSHA: [String: InstallationBasisSnapshotV1] = [:]
-        var asBuiltBySourceSHA: [String: InstallationAsBuiltSnapshotV1] = [:]
-        var punchBySourceSHA: [String: PunchReviewBasisSnapshotV1] = [:]
-        var transformedReceiptByIndex: [Int: MutationHistoryReceiptRecordV1] = [:]
-        var targetRevisionByIdentity: [
-            WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1
-        ] = [:]
-        var historicReplicaBySource: [ReplicaID: ReplicaID] = [:]
-        var sourceReplicaByHistoric: [ReplicaID: ReplicaID] = [:]
-        func historicReplicaID(for sourceReplicaID: ReplicaID) throws -> ReplicaID {
+    /// One materialization shares historical replica reservations across C47
+    /// and C49, in their existing allocation order. Never persisted or reused.
+    private struct RestoreHistoricReplicaScope {
+        private var historicReplicaBySource: [ReplicaID: ReplicaID] = [:]
+        private var sourceReplicaByHistoric: [ReplicaID: ReplicaID] = [:]
+
+        mutating func historicReplicaID(
+            for sourceReplicaID: ReplicaID,
+            identity: RestoreIdentityV1,
+            targetIdentity: WorkspaceReplicaIdentityV1
+        ) throws -> ReplicaID {
+            let targetWorkspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
             if let existing = historicReplicaBySource[sourceReplicaID] { return existing }
             for attempt in 0..<16 {
                 let digest = CanonicalJSONV1.sha256(Data(
@@ -4248,6 +4238,31 @@ private extension BackupRestoreService {
             }
             throw BackupRestoreServiceError.invalidPackage
         }
+    }
+
+    private func rebindingActivityContracts(
+        in records: V4BackupRecordsV1,
+        sourceRecords: V4BackupRecordsV1,
+        identity: RestoreIdentityV1,
+        historicReplicas: inout RestoreHistoricReplicaScope
+    ) throws -> V4BackupRecordsV1 {
+        let targetWorkspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        guard let history = records.mutationHistory else { throw BackupRestoreServiceError.invalidPackage }
+        if identity.source.workspaceID == identity.targetPointer.workspaceID {
+            _ = try records.validateC47ActivityContracts()
+            return records
+        }
+        let targetIdentity = try workspaceIdentity(identity)
+        var envelopeBySourceSHA: [String: ActivitySessionEnvelopeV2] = [:]
+        var transitionBySourceSHA: [String: ActivityStateTransitionV2] = [:]
+        var taskResultBySourceSHA: [String: InstallationTaskResultV1] = [:]
+        var installationBasisBySourceSHA: [String: InstallationBasisSnapshotV1] = [:]
+        var asBuiltBySourceSHA: [String: InstallationAsBuiltSnapshotV1] = [:]
+        var punchBySourceSHA: [String: PunchReviewBasisSnapshotV1] = [:]
+        var transformedReceiptByIndex: [Int: MutationHistoryReceiptRecordV1] = [:]
+        var targetRevisionByIdentity: [
+            WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1
+        ] = [:]
         let sourcePlanPlacements = try PlanBackupRecordSetV1.decode(sourceRecords.plans).placements
         let sourcePlanPlacementsByID = Dictionary(grouping: sourcePlanPlacements, by: \.placementID)
         let sourcePoseEvents = try PlacementPoseBackupRecordSetV1.decode(
@@ -4637,7 +4652,11 @@ private extension BackupRestoreService {
             }
             let targetHistoricIdentity = try WorkspaceReplicaIdentityV1(
                 workspaceID: targetWorkspaceID,
-                replicaID: historicReplicaID(for: sourceReceipt.identity.replicaID)
+                replicaID: historicReplicas.historicReplicaID(
+                    for: sourceReceipt.identity.replicaID,
+                    identity: identity,
+                    targetIdentity: targetIdentity
+                )
             )
             let mappedCausationMutationID = try sourceEnvelope.causationMutationID.map { source in
                 if c47SourceMutationIDs.contains(source.rawValue) {
@@ -4781,11 +4800,12 @@ private extension BackupRestoreService {
         return result
     }
 
-    func rebindingWorkResources(
+    private func rebindingWorkResources(
         in destination: V4BackupRecordsV1,
         sourceRecords: V4BackupRecordsV1,
         identity: RestoreIdentityV1,
-        partsStockOperationID: UUID
+        partsStockOperationID: UUID,
+        historicReplicas: inout RestoreHistoricReplicaScope
     ) throws -> V4BackupRecordsV1 {
         guard let history = destination.mutationHistory,
               let sourceHistory = sourceRecords.mutationHistory else {
@@ -5314,7 +5334,11 @@ private extension BackupRestoreService {
             )
             let targetIdentity = try WorkspaceReplicaIdentityV1(
                 workspaceID: targetWorkspaceID,
-                replicaID: historicReplicaID(for: value.receipt.identity.replicaID)
+                replicaID: historicReplicas.historicReplicaID(
+                    for: value.receipt.identity.replicaID,
+                    identity: identity,
+                    targetIdentity: workspaceIdentity(identity)
+                )
             )
             let causation = value.envelope.causationMutationID.map { sourceID in
                 if let targetID = targetMutationIDBySourceID[sourceID.rawValue] {
@@ -5537,7 +5561,7 @@ private extension BackupRestoreService {
             )
         }
 
-        let transformedQuarantines = try history.quarantines.compactMap { quarantine in
+        let transformedQuarantines = try history.quarantines.compactMap { quarantine -> MutationHistoryQuarantineRecordV1? in
             if stripPartsStock,
                removedPartsStockMutationIDs.contains(quarantine.mutationID) {
                 // A quarantine for a removed stock mutation has no accepted
@@ -8982,7 +9006,7 @@ private extension BackupRestoreService {
             )
     }
 
-    func persistPortableExchangeRestoreSidecar(
+    private func persistPortableExchangeRestoreSidecar(
         _ sidecar: PortableExchangeRestoreSidecarV1
     ) throws {
         try sidecar.validate()
@@ -9019,7 +9043,7 @@ private extension BackupRestoreService {
         }
     }
 
-    func portableExchangeRestoreSidecar(
+    private func portableExchangeRestoreSidecar(
         matching intent: RestoreIntentV1
     ) throws -> PortableExchangeRestoreSidecarV1 {
         let url = portableExchangeRestoreSidecarURL()
@@ -13795,11 +13819,13 @@ internal extension BackupRestoreService {
         identity: RestoreIdentityV1,
         partsStockOperationID: UUID
     ) throws -> V4BackupRecordsV1 {
-        try rebindingWorkResources(
+        var historicReplicas = RestoreHistoricReplicaScope()
+        return try rebindingWorkResources(
             in: destination,
             sourceRecords: sourceRecords,
             identity: identity,
-            partsStockOperationID: partsStockOperationID
+            partsStockOperationID: partsStockOperationID,
+            historicReplicas: &historicReplicas
         )
     }
 

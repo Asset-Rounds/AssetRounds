@@ -320,7 +320,7 @@ final class RestoreIntentStore {
 }
 
 private extension RestoreIntentStore {
-    func protect(
+    private func protect(
         _ kind: OwnedFileKindV1,
         name: String,
         expected: Identity? = nil
@@ -478,7 +478,7 @@ private extension RestoreIntentStore {
         )
     }
 
-    func createLeaf(_ name: String, data: Data) throws -> Identity {
+    private func createLeaf(_ name: String, data: Data) throws -> Identity {
         let descriptor = Darwin.openat(
             restoreDescriptor,
             name,
