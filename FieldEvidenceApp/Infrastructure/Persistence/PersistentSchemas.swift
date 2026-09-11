@@ -1133,8 +1133,8 @@ enum EntityIdentityResolutionSchemaMigrationBoundaryV1 {
             && PersistentSchemaV50.models.count == 165
             && PersistentSchemaV50.models.count == PersistentSchemaV49.models.count + durableModelCount
             && PersistentSchemaV50.models.suffix(durableModelCount).map { ObjectIdentifier($0) }
-                == [EntityAliasLinkRowV1.self, EntityConsolidationReceiptRowV1.self,
-                    EntityIdentityResolutionMutationReceiptRowV1.self].map { ObjectIdentifier($0) }
+                == ([EntityAliasLinkRowV1.self, EntityConsolidationReceiptRowV1.self,
+                    EntityIdentityResolutionMutationReceiptRowV1.self] as [any PersistentModel.Type]).map { ObjectIdentifier($0) }
     }
 }
 

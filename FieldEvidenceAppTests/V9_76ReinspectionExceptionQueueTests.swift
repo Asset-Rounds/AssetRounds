@@ -203,6 +203,27 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
         try ReinspectionExceptionEraseAllPolicyV1.validatePublishedEmptyGeneration(f.context)
     }
 
+    func testLifecycleSearchRequiresCallerEvaluationTimeForLiveSources() throws {
+        let f = try C12Fixture()
+        let boundary = f.date.addingTimeInterval(1)
+        f.providers[0].availableAt = boundary
+        let query = try ReinspectionExceptionQueryV1(workspaceID: f.workspaceID, target: .queue(try .init()))
+        for instant in [f.date, boundary.addingTimeInterval(1)] {
+            f.authority.trace.provider.removeAll(); f.authority.trace.resolver.removeAll()
+            guard case let .queue(values) = try f.lifecycle.search(query, evaluatedAt: instant) else {
+                return XCTFail("queue expected")
+            }
+            let expectedCount = ExceptionQueueSourceKindV1.allCases.count - (instant < boundary ? 1 : 0)
+            XCTAssertEqual(values.count, expectedCount)
+            XCTAssertEqual(Set(f.authority.trace.provider), Set([instant]))
+            XCTAssertEqual(Set(f.authority.trace.resolver), Set([instant]))
+        }
+        f.authority.trace.provider.removeAll(); f.authority.trace.resolver.removeAll()
+        XCTAssertThrowsError(try f.lifecycle.search(query, evaluatedAt: Date(timeIntervalSince1970: .nan)))
+        XCTAssertTrue(f.authority.trace.provider.isEmpty)
+        XCTAssertTrue(f.authority.trace.resolver.isEmpty)
+    }
+
     func testV23P04C12T01WriterUsesOneEvaluationInstantPerQueryWithoutCaching() throws {
         let f = try C12Fixture()
         let boundary = f.date.addingTimeInterval(1)

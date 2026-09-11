@@ -1857,7 +1857,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             $0.mutationID == mutation.mutationID.rawValue &&
             $0.receiptSHA256 == receipt.receiptSHA256
         }
-        return receiptRows.count == 1 && (try receiptRows[0].value()) == receipt
+        return try receiptRows.count == 1 && receiptRows[0].value() == receipt
     }
 
     func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1? {
@@ -2683,7 +2683,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
             guard receipt.mutationID == envelope.mutationID,
                   receipt.identity.workspaceID == envelope.workspaceID,
-                  receipt.envelopeSHA256 == envelope.envelopeSHA256,
+                  receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
                   receipt.commandBodySHA256
                     == (try WorkspaceMutationCanonicalV1.sha256(envelope.command)) else {
                 throw WorkspaceMutationFailureV1.invalidCommand
@@ -3301,7 +3301,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case let .promoteSubject(v,r,preview,predecessor):let sid=v.provisionalSubjectID,rid=r.receiptID,subjects=try modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>(predicate:#Predicate{$0.provisionalSubjectID==sid})),receipts=try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>(predicate:#Predicate{$0.receiptID==rid}));guard subjects.count==1,let subjectRow=subjects.first,receipts.isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};let storedSubject=try subjectRow.value(),expectedState:ProvisionalSubjectStateV1 = r.action == .promoteToAsset ? .promoted : (r.action == .reconcileAsAlias ? .reconciledAlias : .promotionReversed);guard storedSubject.revision<UInt64.max,v.revision==storedSubject.revision+1,v.supersedesSubjectSHA256==storedSubject.subjectSHA256,r.provisionalSubject==storedSubject.reference,v.state==expectedState else{throw WorkspaceMutationFailureV1.invalidCommand};if let predecessor{let predecessorID=predecessor.receiptID,priorRows=try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>(predicate:#Predicate{$0.receiptID==predecessorID}));guard priorRows.count==1,try priorRows.first?.value()==predecessor else{throw WorkspaceMutationFailureV1.invalidCommand};let all=try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()).map{try $0.value()};guard all.filter({$0.predecessorReceiptID==predecessorID}).isEmpty else{throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind:.subjectPromotionReceipt,id:predecessorID))}};try r.validate(preview:preview,predecessor:predecessor);try subjectRow.replaceForPromotion(with:v,action:r.action,expectedRevision:storedSubject.revision);modelContext.insert(try SubjectPromotionReceiptRow(r))
         case let .publish(s,p,d,c):try validateSurveyPackageRelease(session:s,definition:d);try validateSurveyPublication(session:s,snapshot:p,definition:d,captures:c);let sid=s.sessionID,pid=p.snapshotID,sessions=try modelContext.fetch(FetchDescriptor<SurveySessionRow>(predicate:#Predicate{$0.sessionID==sid})),snapshots=try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>(predicate:#Predicate{$0.snapshotID==pid}));guard sessions.count==1,let row=sessions.first,snapshots.isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessorID=p.supersedesSnapshotID{let all=try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>()).map{try $0.value()},prior=all.filter{$0.snapshotID==predecessorID},successors=all.filter{$0.supersedesSnapshotID==predecessorID};guard prior.count==1,successors.isEmpty,prior[0].workspaceID==p.workspaceID,prior[0].sessionID==p.sessionID,prior[0].revision<UInt64.max,p.revision==prior[0].revision+1 else{throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind:.surveyPublicationSnapshot,id:predecessorID))}}else{guard p.revision==1 else{throw WorkspaceMutationFailureV1.invalidCommand}};try row.replace(with:s,publication:p,expectedRevision:s.revision-1);modelContext.insert(try SurveyPublicationSnapshotRow(p))};return try WorkspaceMutationEffectV1(affectedEntities:mutation.affectedIdentities,temporaryRelativePath:temporaryRelativePath)}catch let f as WorkspaceMutationFailureV1{modelContext.rollback();throw f}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
     private func validateSurveyPackageRelease(session:SurveySessionV1,definition:SurveyDefinitionReleaseV1)throws{let packageReleaseID=session.authority.packageRelease.packageReleaseID,rows=try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()),matches=try rows.map{try $0.value().packageRelease}.filter{$0.packageReleaseID==packageReleaseID};guard matches.count==1,let release=matches.first else{throw WorkspaceMutationFailureV1.invalidCommand};try session.validate(definition:definition);try session.authority.validate(definition:definition,packageRelease:release)}
-    private func validateSurveyPublication(session:SurveySessionV1,snapshot:SurveyPublicationSnapshotV1,definition:SurveyDefinitionReleaseV1,captures:[FactCaptureV1])throws{let allCaptures=try modelContext.fetch(FetchDescriptor<FactCaptureRow>()).map{try $0.value()}.filter{$0.workspaceID==session.workspaceID&&$0.sessionID==session.sessionID};_ = try SurveySessionLifecycleClosureV1(definition:definition,sessions:[session],captures:allCaptures,provisionalSubjects:[],promotionReceipts:[],publications:[]);let referenced=Set(allCaptures.flatMap{$0.predecessors.map(\.captureID)}),heads=allCaptures.filter{!referenced.contains($0.captureID)},suppliedIDs=captures.map(\.captureID);guard Set(suppliedIDs).count==suppliedIDs.count,Set(suppliedIDs)==Set(heads.map(\.captureID)),captures.allSatisfy({value in allCaptures.filter{$0.captureID==value.captureID}.count==1&&allCaptures.first(where:{$0.captureID==value.captureID})==value})else{throw WorkspaceMutationFailureV1.invalidCommand};let allReceipts=try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()).map{try $0.value()}.filter{$0.workspaceID==session.workspaceID};for receipt in allReceipts{let predecessor=receipt.predecessorReceiptID.flatMap{id in allReceipts.first{$0.receiptID==id}};try receipt.validate(preview:receipt.reconstructedPreview,predecessor:predecessor);if let predecessorID=receipt.predecessorReceiptID{guard allReceipts.filter({$0.receiptID==predecessorID}).count==1,allReceipts.filter({$0.predecessorReceiptID==predecessorID}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand}}};let supersededReceiptIDs=Set(allReceipts.compactMap(\.predecessorReceiptID)),receiptHeads=allReceipts.filter{$0.affectedSessionIDs.contains(session.sessionID)&&!supersededReceiptIDs.contains($0.receiptID)},embedded=snapshot.promotionReceiptsAtPublication,embeddedIDs=embedded.map(\.receiptID);guard Set(embeddedIDs).count==embeddedIDs.count,Set(embeddedIDs)==Set(receiptHeads.map(\.receiptID)),embedded.allSatisfy({value in allReceipts.filter{$0.receiptID==value.receiptID}.count==1&&allReceipts.first(where:{$0.receiptID==value.receiptID})==value})else{throw WorkspaceMutationFailureV1.invalidCommand};try snapshot.validate(session:session,definition:definition,captures:heads)}
+    private func validateSurveyPublication(session:SurveySessionV1,snapshot:SurveyPublicationSnapshotV1,definition:SurveyDefinitionReleaseV1,captures:[FactCaptureV1])throws{let allCaptures=try modelContext.fetch(FetchDescriptor<FactCaptureRow>()).map{try $0.value()}.filter{$0.workspaceID==session.workspaceID&&$0.sessionID==session.sessionID};_ = try SurveySessionLifecycleClosureV1(definition:definition,sessions:[session],captures:allCaptures,provisionalSubjects:[],promotionReceipts:[],publications:[]);let referenced=Set(allCaptures.flatMap{$0.predecessors.map(\.captureID)}),heads=allCaptures.filter{!referenced.contains($0.captureID)},suppliedIDs=captures.map(\.captureID);guard Set(suppliedIDs).count==suppliedIDs.count,Set(suppliedIDs)==Set(heads.map(\.captureID)),captures.allSatisfy({value in allCaptures.filter{$0.captureID==value.captureID}.count==1&&allCaptures.first(where:{$0.captureID==value.captureID})==value})else{throw WorkspaceMutationFailureV1.invalidCommand};let allReceipts=try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()).map{try $0.value()}.filter{$0.workspaceID==session.workspaceID};for receipt in allReceipts{let predecessor=receipt.predecessorReceiptID.flatMap{id in allReceipts.first{$0.receiptID==id}};try receipt.validate(preview:receipt.reconstructedPreview,predecessor:predecessor);if let predecessorID=receipt.predecessorReceiptID{guard allReceipts.filter({$0.receiptID==predecessorID}).count==1,allReceipts.filter({$0.predecessorReceiptID==predecessorID}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand}}};let supersededReceiptIDs=Set(allReceipts.compactMap(\.predecessorReceiptID)),receiptHeads=allReceipts.filter{$0.affectedSessionIDs.contains(session.sessionID) && !supersededReceiptIDs.contains($0.receiptID)},embedded=snapshot.promotionReceiptsAtPublication,embeddedIDs=embedded.map(\.receiptID);guard Set(embeddedIDs).count==embeddedIDs.count,Set(embeddedIDs)==Set(receiptHeads.map(\.receiptID)),embedded.allSatisfy({value in allReceipts.filter{$0.receiptID==value.receiptID}.count==1&&allReceipts.first(where:{$0.receiptID==value.receiptID})==value})else{throw WorkspaceMutationFailureV1.invalidCommand};try snapshot.validate(session:session,definition:definition,captures:heads)}
     private func applyAssetLocator(_ mutation:AssetLocatorMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{
         do{
             try mutation.validate()
@@ -3512,7 +3512,9 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 modelContext.insert(try ExceptionCalendarReleaseRow(value))
             case let .appendOverrideEvent(value, predecessor, release):
                 try appendOverride(value, predecessor, release)
-            case let .appendOccurrenceEvent(value, predecessor, release), let .startOccurrence(value, predecessor, release):
+            case let .appendOccurrenceEvent(value, predecessor, release):
+                try appendEvent(value, predecessor, release)
+            case let .startOccurrence(value, predecessor, release):
                 try appendEvent(value, predecessor, release)
             case let .generateOccurrences(release, plan, values):
                 try requireRelease(release); try plan.validate(definition: release)
@@ -3528,7 +3530,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
         }
     }
-    private func applyPlan(_ mutation:PlanMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let documents=try modelContext.fetch(FetchDescriptor<PlanDocumentRow>()).map{try $0.value()},revisions=try modelContext.fetch(FetchDescriptor<PlanRevisionRow>()).map{try $0.value()},placements=try modelContext.fetch(FetchDescriptor<PlanPlacementRow>()).map{try $0.value()},receipts=try modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()).map{try $0.value()};func noSuccessor<T>(_ all:[T],_ count:(T)->Bool)throws{let n=all.filter(count).count;guard n==0 else{throw n>1 ? WorkspaceMutationFailureV1.persistenceFailed:.staleWorkspaceRevision}};func requireRevisionReferences(_ value:PlanRevisionV1)throws{let releaseID=value.contentBinding.fieldReferenceReleaseID,releaseRows=try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>(predicate:#Predicate{$0.releaseID==releaseID}));guard releaseRows.count==1,let release=try releaseRows.first?.value(),release.workspaceID==value.workspaceID,release.revision==value.contentBinding.fieldReferenceReleaseRevision,release.releaseSHA256==value.contentBinding.fieldReferenceReleaseSHA256,release.manifestSHA256==value.contentBinding.fieldReferenceManifestSHA256 else{throw WorkspaceMutationFailureV1.invalidCommand};let documentMatches=documents.filter{$0.planDocumentID==value.planDocument.planDocumentID&&$0.revision==value.planDocument.revision&&$0.documentSHA256==value.planDocument.documentSHA256};guard documentMatches.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand}};func requirePlacementReferences(_ value:PlanPlacementV1)throws{let revisionMatches=revisions.filter{$0.planRevisionID==value.planRevision.planRevisionID&&$0.revision==value.planRevision.revision&&$0.revisionSHA256==value.planRevision.revisionSHA256};guard revisionMatches.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};if let binding=value.assetLocatorBinding{let receiptID=binding.bindingReceiptID,rows=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate:#Predicate{$0.receiptID==receiptID}));guard rows.count==1,let stored=try rows.first?.value(),stored.revision==binding.bindingReceiptRevision,stored.receiptSHA256==binding.bindingReceiptSHA256,stored.after==binding.locator,stored.after.assetID==binding.assetID else{throw WorkspaceMutationFailureV1.invalidCommand}}};switch mutation.payload{case let .appendDocument(value,predecessor):guard documents.filter({$0.mutationID==value.mutationID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard documents.filter({$0.documentSHA256==predecessor.documentSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(documents){$0.supersedesDocumentSHA256==predecessor.documentSHA256}};modelContext.insert(try PlanDocumentRow(value));case let .appendRevision(value,predecessor,_):try requireRevisionReferences(value);guard revisions.filter({$0.planRevisionID==value.planRevisionID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard revisions.filter({$0.planRevisionID==predecessor.planRevisionID&&$0==predecessor}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(revisions){$0.supersedesPlanRevisionID==predecessor.planRevisionID}};modelContext.insert(try PlanRevisionRow(value));case let .appendPlacement(value,predecessor,_):try requirePlacementReferences(value);if let predecessor{guard placements.filter({$0.placementSHA256==predecessor.placementSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(placements){$0.supersedesPlacementSHA256==predecessor.placementSHA256}};modelContext.insert(try PlanPlacementRow(value));case let .applyRebase(newRevision,priorRevision,values,priors,receipt,predecessorReceipt,poseEffects):guard revisions.filter({$0.planRevisionID==priorRevision.planRevisionID&&$0==priorRevision}).count==1,revisions.filter({$0.planRevisionID==newRevision.planRevisionID}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};try noSuccessor(revisions){$0.supersedesPlanRevisionID==priorRevision.planRevisionID};try requireRevisionReferences(newRevision);for prior in priors{guard placements.filter({$0.placementSHA256==prior.placementSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(placements){$0.supersedesPlacementSHA256==prior.placementSHA256}};for value in values{try requirePlacementReferencesAgainst(value,newRevision)};try requireReceiptPredecessor(predecessorReceipt,receipts);if let poseEffects{_ = try applyPlacementPose(poseEffects,temporaryRelativePath:temporaryRelativePath)};modelContext.insert(try PlanRevisionRow(newRevision));for value in values{modelContext.insert(try PlanPlacementRow(value))};modelContext.insert(try RebaseReceiptRow(receipt));case let .recordRebaseRejection(receipt,predecessorReceipt):try requireReceiptPredecessor(predecessorReceipt,receipts);modelContext.insert(try RebaseReceiptRow(receipt))};return try WorkspaceMutationEffectV1(affectedEntities:mutation.affectedIdentities,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
+    private func applyPlan(_ mutation:PlanMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let documents=try modelContext.fetch(FetchDescriptor<PlanDocumentRow>()).map{try $0.value()},revisions=try modelContext.fetch(FetchDescriptor<PlanRevisionRow>()).map{try $0.value()},placements=try modelContext.fetch(FetchDescriptor<PlanPlacementRow>()).map{try $0.value()},receipts=try modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()).map{try $0.value()};func noSuccessor<T>(_ all:[T],_ count:(T)->Bool)throws{let n=all.filter(count).count;guard n==0 else{throw n>1 ? WorkspaceMutationFailureV1.persistenceFailed:.staleWorkspaceRevision}};func requireRevisionReferences(_ value:PlanRevisionV1)throws{let releaseID=value.contentBinding.fieldReferenceReleaseID,releaseRows=try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>(predicate:#Predicate{$0.releaseID==releaseID}));guard releaseRows.count==1,let release=try releaseRows.first?.value(),release.workspaceID==value.workspaceID,release.revision==value.contentBinding.fieldReferenceReleaseRevision,release.releaseSHA256==value.contentBinding.fieldReferenceReleaseSHA256,release.manifestSHA256==value.contentBinding.fieldReferenceManifestSHA256 else{throw WorkspaceMutationFailureV1.invalidCommand};let documentMatches=documents.filter{$0.planDocumentID==value.planDocument.planDocumentID&&$0.revision==value.planDocument.revision&&$0.documentSHA256==value.planDocument.documentSHA256};guard documentMatches.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand}};func requirePlacementReferences(_ value:PlanPlacementV1)throws{let revisionMatches=revisions.filter{$0.planRevisionID==value.planRevision.planRevisionID&&$0.revision==value.planRevision.revision&&$0.revisionSHA256==value.planRevision.revisionSHA256};guard revisionMatches.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};if let binding=value.assetLocatorBinding{try requireStoredPlanLocatorBinding(binding,workspaceID:value.workspaceID)}};switch mutation.payload{case let .appendDocument(value,predecessor):guard documents.filter({$0.mutationID==value.mutationID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard documents.filter({$0.documentSHA256==predecessor.documentSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(documents){$0.supersedesDocumentSHA256==predecessor.documentSHA256}};modelContext.insert(try PlanDocumentRow(value));case let .appendRevision(value,predecessor,_):try requireRevisionReferences(value);guard revisions.filter({$0.planRevisionID==value.planRevisionID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard revisions.filter({$0.planRevisionID==predecessor.planRevisionID&&$0==predecessor}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(revisions){$0.supersedesPlanRevisionID==predecessor.planRevisionID}};modelContext.insert(try PlanRevisionRow(value));case let .appendPlacement(value,predecessor,_):try requirePlacementReferences(value);if let predecessor{guard placements.filter({$0.placementSHA256==predecessor.placementSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(placements){$0.supersedesPlacementSHA256==predecessor.placementSHA256}};modelContext.insert(try PlanPlacementRow(value));case let .applyRebase(newRevision,priorRevision,values,priors,receipt,predecessorReceipt,poseEffects):guard revisions.filter({$0.planRevisionID==priorRevision.planRevisionID&&$0==priorRevision}).count==1,revisions.filter({$0.planRevisionID==newRevision.planRevisionID}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};try noSuccessor(revisions){$0.supersedesPlanRevisionID==priorRevision.planRevisionID};try requireRevisionReferences(newRevision);for prior in priors{guard placements.filter({$0.placementSHA256==prior.placementSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(placements){$0.supersedesPlacementSHA256==prior.placementSHA256}};for value in values{try requirePlacementReferencesAgainst(value,newRevision)};try requireReceiptPredecessor(predecessorReceipt,receipts);if let poseEffects{_ = try applyPlacementPose(poseEffects,temporaryRelativePath:temporaryRelativePath)};modelContext.insert(try PlanRevisionRow(newRevision));for value in values{modelContext.insert(try PlanPlacementRow(value))};modelContext.insert(try RebaseReceiptRow(receipt));case let .recordRebaseRejection(receipt,predecessorReceipt):try requireReceiptPredecessor(predecessorReceipt,receipts);modelContext.insert(try RebaseReceiptRow(receipt))};return try WorkspaceMutationEffectV1(affectedEntities:mutation.affectedIdentities,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
 
     private func applyEvidenceContext(_ operation:EvidenceContextWriteOperationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try operation.validate();switch operation{case let .appendContext(value,predecessor):let rows=try modelContext.fetch(FetchDescriptor<EvidenceContextRow>()).map{try $0.value()};guard rows.filter({$0.contextID==value.contextID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard rows.filter({$0==predecessor}).count==1,rows.filter({$0.predecessorContextSHA256==predecessor.contextSHA256}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}else{guard rows.filter({$0.workspaceID==value.workspaceID&&$0.evidenceID==value.evidenceID}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}};modelContext.insert(try EvidenceContextRow(value));case let .appendPair(value,predecessor):let rows=try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()).map{try $0.value()};try validateEvidencePairPurpose(value,existing:rows);guard rows.filter({$0.linkID==value.linkID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard rows.filter({$0==predecessor}).count==1,rows.filter({$0.predecessorLinkSHA256==predecessor.linkSHA256}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}else{guard rows.filter({$0.workspaceID==value.workspaceID&&Set([$0.first.evidenceID,$0.second.evidenceID])==Set([value.first.evidenceID,value.second.evidenceID])}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}};modelContext.insert(try PairedObservationLinkRow(value))};return try WorkspaceMutationEffectV1(affectedEntities:[operation.affectedIdentity],temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
 
@@ -3738,7 +3740,25 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         let placements=try modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>()).map{try $0.value()}
         for value in closure.placementEvents{guard placements.filter({$0==value}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand}}
     }
-    private func requirePlacementReferencesAgainst(_ value:PlanPlacementV1,_ revision:PlanRevisionV1)throws{guard value.planRevision==(try revision.reference)else{throw WorkspaceMutationFailureV1.invalidCommand};if let binding=value.assetLocatorBinding{let receiptID=binding.bindingReceiptID,rows=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate:#Predicate{$0.receiptID==receiptID}));guard rows.count==1,let stored=try rows.first?.value(),stored.revision==binding.bindingReceiptRevision,stored.receiptSHA256==binding.bindingReceiptSHA256,stored.after==binding.locator,stored.after.assetID==binding.assetID else{throw WorkspaceMutationFailureV1.invalidCommand}}}
+    private func requireStoredPlanLocatorBinding(
+        _ binding: PlanAssetLocatorBindingV1, workspaceID: WorkspaceID
+    ) throws {
+        let receiptID = binding.bindingReceiptID, locatorID = binding.locator.locatorID
+        let receipts = try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate: #Predicate { $0.receiptID == receiptID }))
+        let locators = try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate: #Predicate { $0.locatorID == locatorID }))
+        guard receipts.count == 1, locators.count == 1,
+              let receipt = try receipts.first?.value(), let locator = try locators.first?.value(),
+              receipt.workspaceID == workspaceID, locator.workspaceID == workspaceID,
+              receipt.revision == binding.bindingReceiptRevision,
+              receipt.receiptSHA256 == binding.bindingReceiptSHA256, receipt.after == binding.locator,
+              locator.assetID == binding.assetID, locator.locatorID == binding.locator.locatorID,
+              locator.revision == binding.locator.revision,
+              locator.locatorSHA256 == binding.locator.locatorSHA256 else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        try binding.validate(locator: locator, receipt: receipt)
+    }
+    private func requirePlacementReferencesAgainst(_ value:PlanPlacementV1,_ revision:PlanRevisionV1)throws{guard value.planRevision==(try revision.reference)else{throw WorkspaceMutationFailureV1.invalidCommand};if let binding=value.assetLocatorBinding{try requireStoredPlanLocatorBinding(binding,workspaceID:value.workspaceID)}}
     private func requireReceiptPredecessor(_ predecessor:RebaseReceiptV1?,_ receipts:[RebaseReceiptV1])throws{guard let predecessor else{return};let matches=receipts.filter{$0.receiptID==predecessor.receiptID},successors=receipts.filter{$0.supersedesReceiptSHA256==predecessor.receiptSHA256};guard matches.count==1,matches[0]==predecessor,successors.isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}
     private func validateAccessibleDocumentExternalProof(_ receipt:AccessibleDocumentAssessmentReceiptV1)throws{
         guard receipt.scope == .currentOutput,receipt.state == .externallyProved else{return}
@@ -4479,6 +4499,61 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         return value
     }
 
+    private func queryUniqueRows<Row>(
+        _ rows: [Row], workspace: (Row) throws -> WorkspaceID
+    ) throws -> Bool {
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        guard let row = rows.first else { return false }
+        guard try workspace(row) == currentWorkspaceID() else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return true
+    }
+
+    private func queryHistoryValues<Value>(
+        _ values: [Value], workspace: (Value) -> WorkspaceID,
+        revision: (Value) -> UInt64,
+        validate: (Value, Value?) throws -> Void
+    ) throws -> Bool {
+        guard !values.isEmpty else { return false }
+        let expectedWorkspace = try currentWorkspaceID()
+        let history = values.sorted { revision($0) < revision($1) }
+        guard history.allSatisfy({ workspace($0) == expectedWorkspace }),
+              Set(history.map(revision)).count == history.count,
+              revision(history[0]) == 1 else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        for index in history.indices {
+            let predecessor = index == history.startIndex ? nil : history[index - 1]
+            if let predecessor {
+                guard revision(predecessor) < UInt64.max,
+                      revision(history[index]) == revision(predecessor) + 1 else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+            }
+            try validate(history[index], predecessor)
+        }
+        return true
+    }
+
+    private func queryPackageRelease(_ packageReleaseID: String) throws -> InspectionPackageReleaseV1 {
+        let releases = try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+            .map { try $0.value() }.filter { $0.packageRelease.packageReleaseID == packageReleaseID }
+        guard releases.count == 1, let release = releases.first,
+              release.workspaceID == (try currentWorkspaceID()) else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return release.packageRelease
+    }
+
+    private func queryQualityAssessment(_ row: EvidenceQualityAssessmentRowV1) throws -> EvidenceQualityAssessmentV1 {
+        let rules = try modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { try $0.value() }
+        let matches = rules.compactMap { try? row.value(ruleSet: $0) }
+        guard matches.count == 1, let value = matches.first else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return value
+    }
     func queryExisting(
         identities: [WorkspaceEntityIdentityV1]
     ) throws -> (
@@ -4514,6 +4589,297 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             let id = identity.id
             let exists: Bool
             switch identity.kind {
+            case .myDayPlan:
+                let values = try modelContext.fetch(FetchDescriptor<MyDayPlanRowV1>())
+                    .filter { $0.planID == id }.map { try $0.value() }
+                exists = try queryHistoryValues(values, workspace: { $0.key.workspaceID }, revision: { $0.revision }) {
+                    try $0.validate(predecessor: $1)
+                }
+            case .planDocument:
+                let values = try modelContext.fetch(FetchDescriptor<PlanDocumentRow>())
+                    .filter { $0.planDocumentID == id }.map { try $0.value() }
+                exists = try queryHistoryValues(values, workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                    if let predecessor { try value.validateSuccessor(of: predecessor) }
+                    else { guard value.supersedesDocumentSHA256 == nil else { throw WorkspaceMutationFailureV1.persistenceFailed } }
+                }
+            case .planPlacement:
+                let values = try modelContext.fetch(FetchDescriptor<PlanPlacementRow>())
+                    .filter { $0.placementID == id }.map { try $0.value() }
+                exists = try queryHistoryValues(values, workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                    if let predecessor { try value.validateSuccessor(of: predecessor) }
+                    else { guard value.supersedesPlacementSHA256 == nil else { throw WorkspaceMutationFailureV1.persistenceFailed } }
+                }
+            case .shopReportProfile:
+                let values = try modelContext.fetch(FetchDescriptor<ShopReportProfileRowV1>())
+                    .filter { $0.profileID == id }.map { try $0.value() }
+                let workspace = try currentWorkspaceID()
+                guard values.allSatisfy({ $0.workspaceID == workspace }) else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = try !shopReportProfileHistory(workspaceID: workspace, profileID: id).isEmpty
+            case .roundSession:
+                let values = try modelContext.fetch(FetchDescriptor<RoundSessionRevisionRowV1>())
+                    .filter { $0.sessionID == id }.map { try $0.value() }
+                let workspace = try currentWorkspaceID()
+                guard values.allSatisfy({ $0.workspaceID == workspace }) else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = try !roundSessionHistory(workspaceID: workspace, sessionID: id).isEmpty
+            case .evidenceSequenceRevision:
+                let values = try modelContext.fetch(FetchDescriptor<EvidenceSequenceRevisionRowV1>())
+                    .filter { $0.sequenceID == id }.map { try $0.value() }
+                let workspace = try currentWorkspaceID()
+                guard values.allSatisfy({ $0.workspaceID == workspace }) else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = try !evidenceSequenceHistory(workspaceID: workspace, sequenceID: id).isEmpty
+            case .evidenceAssociationEvent:
+                let values = try modelContext.fetch(FetchDescriptor<EvidenceAssociationEventRowV1>()).map { try $0.value() }
+                    .filter { try EvidenceMetadataMutationV1.associationEntityIdentity(workspaceID: $0.workspaceID, evidenceID: $0.evidenceID) == identity }
+                let workspace = try currentWorkspaceID()
+                guard values.allSatisfy({ $0.workspaceID == workspace.rawValue.uuidString.lowercased() }) else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                _ = try validatedEvidenceAssociations(workspaceID: workspace)
+                exists = !values.isEmpty
+            case .captureInboxItem:
+                let values = try modelContext.fetch(FetchDescriptor<CaptureInboxItemRowV1>())
+                    .filter { $0.inboxItemID == id }.map { try $0.value() }
+                exists = try queryHistoryValues(values, workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                    if let predecessor { try value.validateSuccessor(of: predecessor) }
+                }
+            case .snippet:
+                let values = try modelContext.fetch(FetchDescriptor<SnippetRowV1>())
+                    .filter { $0.snippetID == id }.map { try $0.value() }
+                exists = try queryHistoryValues(values, workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                    if let predecessor { try value.validateSuccessor(of: predecessor) }
+                }
+            case .reinspectionPlan:
+                let values = try modelContext.fetch(FetchDescriptor<ReinspectionPlanRowV1>())
+                    .filter { $0.planID == id }.map { try $0.value() }
+                exists = try queryHistoryValues(values, workspace: { $0.workspaceID }, revision: { $0.revision }) {
+                    try $0.validate(predecessor: $1)
+                }
+            case .exceptionQueueAcknowledgement:
+                let values = try modelContext.fetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>()).map { try $0.value() }
+                    .filter { ReinspectionExceptionMutationCommandV1.acknowledgementIdentity($0.logicalExceptionKey) == id }
+                exists = try queryHistoryValues(values, workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                    guard value.supersedesAcknowledgementID == predecessor?.acknowledgementID,
+                          value.predecessorSHA256 == predecessor?.acknowledgementSHA256 else {
+                        throw WorkspaceMutationFailureV1.persistenceFailed
+                    }
+                }
+            case .unchangedAttestation:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<UnchangedAttestationRowV1>()).filter { $0.attestationID == id }) { row in
+                    let value = try row.value()
+                    let plans = try modelContext.fetch(FetchDescriptor<ReinspectionPlanRowV1>()).map { try $0.value() }
+                        .filter { $0.workspaceID == value.workspaceID && $0.planID == value.planID && $0.revision == value.planRevision && $0.planSHA256 == value.planSHA256 }
+                    guard plans.count == 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                    try value.validate(plan: plans[0])
+                    return value.workspaceID
+                }
+            case .capturePromotion:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<CapturePromotionRowV1>()).filter { $0.promotionID == id }) { row in
+                    let items = try modelContext.fetch(FetchDescriptor<CaptureInboxItemRowV1>()).filter { $0.inboxItemID == row.sourceInboxItemID }.map { try $0.value() }
+                    let sources = items.filter { $0.revision == 1 }, promoted = items.filter { $0.revision == 2 }
+                    guard sources.count == 1, promoted.count == 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                    return try row.value(source: sources[0], promotedItem: promoted[0]).workspaceID
+                }
+            case .snippetInsertion:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<SnippetInsertionHistoryRowV1>()).filter { $0.insertionEventID == id }) { row in
+                    let value = try row.value()
+                    let snippets = try modelContext.fetch(FetchDescriptor<SnippetRowV1>()).map { try $0.value() }
+                        .filter { $0.workspaceID == value.workspaceID && $0.snippetID == value.snippetID && $0.revision == value.snippetRevision && $0.snippetSHA256 == value.snippetSHA256 }
+                    guard snippets.count == 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                    return try row.value(snippet: snippets[0]).workspaceID
+                }
+            case .evidenceQualityRuleSet:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).filter { $0.ruleSetID == id }) { try $0.value().workspaceID }
+            case .evidenceQualityAssessment:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>()).filter { $0.assessmentID == id }) { try queryQualityAssessment($0).workspaceID }
+            case .evidenceQualityWaiverEvent:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EvidenceQualityWaiverRowV1>()).filter { $0.waiverEventID == id }) { row in
+                    let assessments = try modelContext.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>())
+                        .filter { $0.assessmentID == row.assessmentID }.map { try queryQualityAssessment($0) }
+                    guard assessments.count == 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                    return try row.value(assessment: assessments[0]).workspaceID
+                }
+            case .entityAliasLink:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).filter { $0.linkEventID == id }) { row in
+                    let value = try row.value()
+                    let values = try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).map { try $0.value() }
+                        .filter { $0.alias.identity == value.alias.identity }
+                    _ = try validatedEntityAliasHistory(values, identity: value.alias.identity,
+                        workspaceID: value.workspaceID, maximumResults: values.count)
+                    return value.workspaceID
+                }
+            case .entityConsolidationReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).filter { $0.consolidationReceiptID == id }) { row in
+                    let value = try row.value()
+                    let values = try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).map { try $0.value() }
+                    let root = try consolidationRoot(for: value, values: values)
+                    let chain = try validatedEntityConsolidationHistory(root: root, values: values, maximumResults: values.count)
+                    guard chain.allSatisfy({ $0.workspaceID == value.workspaceID }) else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                    for index in chain.indices {
+                        try chain[index].validate(predecessor: index == chain.startIndex ? nil : chain[index - 1])
+                    }
+                    return value.workspaceID
+                }
+            case .privacyRegion:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PrivacyRegionRow>()).filter { $0.regionID == id }) { try $0.value().workspaceID }
+            case .privacyTransformManifest:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PrivacyTransformManifestRow>()).filter { $0.manifestID == id }) { try privacyManifestValue($0).workspaceID }
+            case .privacyReviewReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PrivacyReviewReceiptRow>()).filter { $0.receiptID == id }) { try privacyReviewValue($0).workspaceID }
+            case .fieldReferenceBinding:
+                guard let value = try fieldReferenceValue(identity) else { exists = false; break }
+                guard case let .binding(binding) = value, binding.workspaceID == (try currentWorkspaceID()) else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = true
+            case .packageLifecyclePolicy:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()).filter { $0.policyID == id }) { try $0.value(release: queryPackageRelease($0.packageReleaseID)).workspaceID }
+            case .packageLifecycleDisposition:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()).filter { $0.dispositionID == id }) { try $0.value(release: queryPackageRelease($0.packageReleaseID)).workspaceID }
+            case .clientCapabilityAdmissionDecision:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>()).filter { $0.decisionID == id }) { row in
+                    guard case let .admission(value)? = try clientCapabilityRow(identity, release: queryPackageRelease(row.packageReleaseID)) else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                    return value.workspaceID
+                }
+            case .importMappingProfile:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ImportMappingProfileRowV1>()).filter { $0.profileID == id }) { try $0.value().workspaceID }
+            case .bulkSession:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<BulkSessionRowV1>()).filter { $0.sessionID == id }) { try $0.value().workspaceID }
+            case .bulkCommitReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<BulkCommitReceiptRowV1>()).filter { $0.receiptID == id }) { try $0.value().workspaceID }
+            case .scheduleDefinitionRelease:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>()).filter { $0.releaseID == id }) { try $0.value().workspaceID }
+            case .occurrenceHistoryEvent:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<OccurrenceHistoryEventRow>()).filter { $0.eventID == id }) { try $0.value().workspaceID }
+            case .exceptionCalendarRelease:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ExceptionCalendarReleaseRow>()).filter { $0.releaseID == id }) { try $0.value().workspaceID }
+            case .scheduleOverrideEvent:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ScheduleOverrideEventRow>()).filter { $0.eventID == id }) { try $0.value().workspaceID }
+            case .planRevision:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PlanRevisionRow>()).filter { $0.planRevisionID == id }) { try $0.value().workspaceID }
+            case .assetPoseEvent:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<AssetPoseEventRow>()).filter { $0.eventID == id }) { try $0.value().workspaceID }
+            case .spatialAnchorObservation:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<SpatialAnchorObservationRow>()).filter { $0.observationID == id }) { try $0.value().workspaceID }
+            case .planRebaseReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()).filter { $0.receiptID == id }) { try $0.value().workspaceID }
+            case .practiceWorkspaceProvenance:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>()).filter { $0.provenanceID == id }) { try $0.value().workspaceID }
+            case .myDayCarryoverReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<MyDayCarryoverReceiptRowV1>()).filter { $0.mutationID == id }) { try $0.value().sourcePlan.key.workspaceID }
+            case .functionalRelationshipTypeDescriptor:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()).filter { $0.descriptorReleaseID == id }) { try $0.value().workspaceID }
+            case .assetFunctionalRelationshipEvent:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>()).filter { $0.eventID == id }) { try $0.value().workspaceID }
+            case .evidenceVisibility:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EvidenceVisibilityRow>()).filter { $0.visibilityID == id }) { try $0.value().workspaceID }
+            case .claimEvidenceLink:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ClaimEvidenceLinkRow>()).filter { $0.linkID == id }) { try $0.value().workspaceID }
+            case .assuranceManifest:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<AssuranceManifestRow>()).filter { $0.manifestID == id }) { try $0.value().workspaceID }
+            case .attestation:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<AttestationRow>()).filter { $0.attestationID == id }) { try $0.value().workspaceID }
+            case .inspectionReviewTransition:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<InspectionReviewTransitionRow>()).filter { $0.transitionID == id }) { try $0.value().workspaceID }
+            case .reviewDisposition:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ReviewDispositionRow>()).filter { $0.dispositionID == id }) { try $0.value().workspaceID }
+            case .changeRequest:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ChangeRequestRow>()).filter { $0.requestRevisionID == id }) { try $0.value().workspaceID }
+            case .correctiveActionPolicy:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<CorrectiveActionPolicyRow>()).filter { $0.releaseID == id }) { try $0.value().workspaceID }
+            case .correctiveActionEvent:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<CorrectiveActionEventRow>()).filter { $0.eventID == id }) { try $0.value().workspaceID }
+            case .workPacketManifest:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>()).filter { $0.manifestID == id }) { try $0.value().workspaceID }
+            case .workItemClaim:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<WorkItemClaimRow>()).filter { $0.claimID == id }) { try $0.value().workspaceID }
+            case .workLease:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<WorkLeaseRow>()).filter { $0.leaseID == id }) { try $0.value().workspaceID }
+            case .workRelease:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<WorkReleaseRow>()).filter { $0.releaseID == id }) { try $0.value().workspaceID }
+            case .workHandoff:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<WorkHandoffRow>()).filter { $0.handoffID == id }) { try $0.value().workspaceID }
+            case .fieldDraftCheckpoint:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).filter { $0.draftID == id }) { try $0.value().workspaceID }
+            case .attachmentStagingItem:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>()).filter { $0.stageID == id }) { try $0.value().workspaceID }
+            case .draftCommitSaga:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<DraftCommitSagaRow>()).filter { $0.sagaID == id }) { try $0.value().workspaceID }
+            case .draftContentReservation:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<DraftContentReservationRow>()).filter { $0.reservationID == id }) { try $0.value().workspaceID }
+            case .draftCommitReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<DraftCommitReceiptRow>()).filter { $0.receiptID == id }) { try $0.value().workspaceID }
+            case .draftDiscardReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<DraftDiscardReceiptRow>()).filter { $0.receiptID == id }) { try $0.value().workspaceID }
+            case .promotedPackageRelease:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).filter { $0.releaseRecordID == id }) { try $0.value().workspaceID }
+            case .packageSandboxRun:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>()).filter { $0.runID == id }) { try $0.value().workspaceID }
+            case .packagePromotionReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>()).filter { $0.receiptID == id }) { try $0.value().workspaceID }
+            case .activePackageRegistryPointer:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>()).filter { $0.pointerID == id }) { try $0.value().workspaceID }
+            case .instrumentReference:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<InstrumentReferenceRow>()).filter { $0.referenceID == id }) { try $0.value().workspaceID }
+            case .calibrationStatusSnapshot:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()).filter { $0.snapshotID == id }) { try $0.value().workspaceID }
+            case .measurementCapture:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<MeasurementCaptureRow>()).filter { $0.captureID == id }) { try $0.value().workspaceID }
+            case .measurementSeries:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<MeasurementSeriesRow>()).filter { $0.snapshotID == id }) { try $0.value().workspaceID }
+            case .measurementQualityAssessment:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<MeasurementQualityAssessmentRow>()).filter { $0.assessmentID == id }) { try $0.value().workspaceID }
+            case .privacyTransformPolicy:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()).filter { $0.policyID == id }) { try $0.value().workspaceID }
+            case .clientCapabilityProfile:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ClientCapabilityProfileRow>()).filter { $0.profileID == id }) { try $0.value().workspaceID }
+            case .fieldReferenceRelease:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()).filter { $0.releaseID == id }) { try $0.value().workspaceID }
+            case .accessibleDocumentAssessmentReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>()).filter { $0.receiptID == id }) { try $0.value().workspaceID }
+            case .surveyDefinitionIdentity:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>()).filter { $0.definitionID == id }) { try $0.value().workspaceID }
+            case .surveyDefinitionRelease:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>()).filter { $0.releaseID == id }) { try $0.value().workspaceID }
+            case .surveySession:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<SurveySessionRow>()).filter { $0.sessionID == id }) { try $0.value().workspaceID }
+            case .factCapture:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<FactCaptureRow>()).filter { $0.captureID == id }) { try $0.value().workspaceID }
+            case .provisionalSubject:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>()).filter { $0.provisionalSubjectID == id }) { try $0.value().workspaceID }
+            case .subjectPromotionReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()).filter { $0.receiptID == id }) { try $0.value().workspaceID }
+            case .surveyPublicationSnapshot:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>()).filter { $0.snapshotID == id }) { try $0.value().workspaceID }
+            case .assetLocator:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<AssetLocatorRow>()).filter { $0.locatorID == id }) { try $0.value().workspaceID }
+            case .locatorBindingReceipt:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>()).filter { $0.receiptID == id }) { try $0.value().workspaceID }
+            case .evidenceContext:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EvidenceContextRow>()).filter { $0.contextID == id }) { try $0.value().workspaceID }
+            case .pairedObservationLink:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()).filter { $0.linkID == id }) { try $0.value().workspaceID }
+            case .lightingSystem:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<LightingSystemRow>()).filter { $0.recordID == id }) { try $0.value().workspaceID }
+            case .lightingObservation:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<LightingObservationRow>()).filter { $0.recordID == id }) { try $0.value().workspaceID }
+            case .lightingIssue:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<LightingIssueRow>()).filter { $0.recordID == id }) { try $0.value().workspaceID }
+            case .lightingMeasurementPlan:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<MeasurementPlanRow>()).filter { $0.recordID == id }) { try $0.value().workspaceID }
+            case .lightingClaimState:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<LightingClaimStateRow>()).filter { $0.recordID == id }) { try $0.value().workspaceID }
+            case .lightingDayInventoryWorkflow:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>()).filter { $0.recordID == id }) { try $0.value().workspaceID }
+            case .lightingNightWorkflow:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<LightingNightWorkflowRowV1>()).filter { $0.recordID == id }) { try $0.value().workspaceID }
+            case .temporalEvidenceClip:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).filter { $0.clipID == id }) { try $0.value().workspaceID }
+            case .timecodedEvidenceAnchor:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()).filter { $0.anchorID == id }) { try $0.value().workspaceID }
+            case .acceptedLabelGenerationSnapshot:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()).filter { $0.snapshotID == id }) { try $0.value().workspaceID }
+            case .serviceContactPoint:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).filter { $0.contactPointID == id }) { try $0.value().workspaceID }
+            case .systemHandoffIntent:
+                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<SystemHandoffIntentRow>()).filter { $0.intentID == id }) { try $0.value().workspaceID }
             case .stockBalanceStream: exists = false
             case .localPartDefinition: exists = try modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).contains { $0.partID == id }
             case .stockStorageLocation: exists = try modelContext.fetch(FetchDescriptor<StockStorageLocationRowV1>()).contains { $0.locationID == id }

@@ -120,7 +120,7 @@ enum SystemHandoffURLBuilderV1 {
             .union(CharacterSet(charactersIn:
                 "\u{00AD}\u{061C}\u{200B}\u{200C}\u{200D}\u{200E}\u{200F}\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2060}\u{2061}\u{2062}\u{2063}\u{2064}\u{2066}\u{2067}\u{2068}\u{2069}\u{206A}\u{206B}\u{206C}\u{206D}\u{206E}\u{206F}\u{FEFF}"
             ))
-        return value.unicodeScalars.contains(forbidden.contains)
+        return value.unicodeScalars.contains(where: forbidden.contains)
     }
 
     /// RFC 6068 recipient-only encoding over the exact NFC UTF-8 bytes. Only

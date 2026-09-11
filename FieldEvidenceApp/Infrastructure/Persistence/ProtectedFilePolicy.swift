@@ -137,7 +137,7 @@ enum ProtectedFilePolicyV1 {
         if let policyError = error as? ProtectedFilePolicyError {
             return policyError == .protectedDataUnavailable
         }
-        mapWriteError(error) == .protectedDataUnavailable
+        return mapWriteError(error) == .protectedDataUnavailable
     }
 
     static func isExcludedFromBackup(for kind: OwnedFileKindV1) -> Bool {
@@ -224,7 +224,8 @@ enum ProtectedFilePolicyV1 {
 
             var resourceValues = URLResourceValues()
             resourceValues.isExcludedFromBackup = disposition.isExcludedFromBackup
-            try url.setResourceValues(resourceValues)
+            var resourceURL = url
+            try resourceURL.setResourceValues(resourceValues)
         } catch {
             throw mapWriteError(error)
         }

@@ -531,7 +531,7 @@ final class LocalChangeJournalV1 {
                 isDeferred: Self.isDeferred(prior)
             )
         }
-        let expectedCursor = state.replayCursors.first {
+        let expectedCursor = try state.replayCursors.first {
             $0.consumerReplicaID == batch.beforeCursor.consumerReplicaID
                 && $0.checkpointID == batch.checkpointID
         } ?? (try initialCursor(
@@ -1128,7 +1128,7 @@ final class LocalChangeJournalV1 {
     }
 
     private func currentReplayCursor(for batch: ChangeBatchV1) throws -> ChangeCursorV1 {
-        state.replayCursors.first {
+        try state.replayCursors.first {
             $0.consumerReplicaID == batch.beforeCursor.consumerReplicaID
                 && $0.checkpointID == batch.checkpointID
         } ?? (try initialCursor(
@@ -1580,7 +1580,7 @@ final class LocalChangeJournalV1 {
         try WorkspaceMutationCanonicalV1.sha256(value)
     }
 
-    private static func isSHA256(_ value: String) -> Bool {
+    nonisolated private static func isSHA256(_ value: String) -> Bool {
         MutationEnvelopeV1.isSHA256(value)
     }
 
@@ -1740,7 +1740,7 @@ enum AssistanceLocalChangeJournalPolicyV1 {
             let affected = try request.targetMutation.affectedIdentities.sorted {
                 $0.stableKey < $1.stableKey
             }
-            let imageIdentities = try change.receipt.postImages.map(\.identity).sorted {
+            let imageIdentities = try change.receipt.postImages.map { try $0.identity }.sorted {
                 $0.stableKey < $1.stableKey
             }
             let projected = try AssistanceAcceptanceReceiptV1(
@@ -1813,7 +1813,7 @@ enum OperationalContactLocalChangeJournalPolicyV1 {
                   try change.receipt.postImages.allSatisfy({
                     durableKinds.contains(try $0.identity.kind)
                   }),
-                  receipt.mutationID == mutation.mutationID else {
+                  receipt.mutationReceipt.mutationID == mutation.mutationID else {
                 throw ChangeJournalFailureV1.tamperedBatch
             }
         } catch let failure as ChangeJournalFailureV1 { throw failure }

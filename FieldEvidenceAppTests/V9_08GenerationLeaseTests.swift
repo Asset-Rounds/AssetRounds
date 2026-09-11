@@ -7,6 +7,67 @@ import XCTest
 
 final class V9_08GenerationLeaseTests: XCTestCase {
     @MainActor
+    func testLegacyAndV2RestorePublicationRetainsV3ManifestAndRejectsStalePointerBytes() throws {
+        for version in [1, 2] {
+            let root = try makeApplicationSupport(label: "restore-pointer-v\(version)")
+            defer { try? fileManager.removeItem(at: root) }
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            let old = try autoreleasepool { () throws -> CurrentGenerationPointerV3 in
+                let session = try factory.openOrBootstrapCurrent()
+                return try factory.currentGenerationPointerV3(expectedGenerationID: session.generationID)
+            }
+            let oldID = try XCTUnwrap(UUID(uuidString: old.generationID)), newID = UUID()
+            let authority = try factory.makeRestoreGenerationAuthority()
+            try factory.createEmptyInstalledGeneration(id: newID, authority: authority)
+            let currentURL = root.appendingPathComponent("FieldEvidenceData/current.json")
+            // Exercise each supported predecessor encoding at the physical
+            // pointer boundary; the target is an actual factory-created store.
+            let original: Data
+            if version == 1 {
+                original = try StoreMigrationCanonicalJSONV1.encode(CurrentPointerV1(generationID: old.generationID, schemaVersion: 1))
+            } else {
+                original = try CurrentGenerationPointerV2(generationID: oldID,
+                    generationManifestSHA256: old.generationManifestSHA256).canonicalData()
+            }
+            try overwriteFilePreservingIdentity(original, at: currentURL)
+            XCTAssertEqual(try CurrentPointerCodecV1.decode(original).generationID, old.generationID)
+            try factory.switchCurrentGeneration(expected: oldID, to: newID, authority: authority)
+            let publishedBytes = try Data(contentsOf: currentURL)
+            let published = try CurrentGenerationPointerV3.decodeCanonical(from: publishedBytes)
+            XCTAssertEqual(published.generationID, newID.uuidString.lowercased())
+            XCTAssertEqual(published.storeSchemaVersion, PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+            let store = try StoreMigrationJournalStoreV1(applicationSupportURL: root)
+            let manifest = try store.loadManifest(targetGenerationID: newID, expectedDigest: published.generationManifestSHA256)
+            XCTAssertEqual(manifest.generationID, newID)
+            XCTAssertEqual(manifest.predecessorGenerationID, oldID)
+            XCTAssertEqual(manifest.storeSchemaRelease, PersistentSchemaReleaseRegistryV1.activeRelease)
+            let modelURL = factory.installedGenerationURL(id: newID).appendingPathComponent("model.sqlite")
+            let modelBefore = try Data(contentsOf: modelURL)
+            XCTAssertFalse(modelBefore.isEmpty)
+
+            // Same generation and same inode, but different canonical pointer
+            // bytes: generation-only and inode-only comparisons must both fail.
+            let drift = try CurrentGenerationPointerV2(generationID: oldID,
+                generationManifestSHA256: String(repeating: old.generationManifestSHA256 == String(repeating: "a", count: 64) ? "b" : "a", count: 64)).canonicalData()
+            try overwriteFilePreservingIdentity(drift, at: currentURL)
+            XCTAssertEqual(try authority.currentGenerationID(), oldID)
+            XCTAssertThrowsError(try authority.switchCurrentGeneration(expected: oldID, to: newID,
+                pointer: published, expectedCurrentPointerData: original)) {
+                XCTAssertEqual($0 as? StoreGenerationFailure, .dataPointerInvalid)
+            }
+            XCTAssertEqual(try Data(contentsOf: currentURL), drift)
+            XCTAssertEqual(try Data(contentsOf: modelURL), modelBefore)
+
+            try overwriteFilePreservingIdentity(original, at: currentURL)
+            try authority.switchCurrentGeneration(expected: oldID, to: newID,
+                pointer: published, expectedCurrentPointerData: original)
+            XCTAssertEqual(try Data(contentsOf: currentURL), publishedBytes)
+            XCTAssertEqual(try authority.currentGenerationID(), newID)
+            XCTAssertEqual(try Data(contentsOf: modelURL), modelBefore)
+        }
+    }
+
+    @MainActor
     func testOwnedGenerationQuarantineCleanupPreflightsNestedRemainingBytes() throws {
 #if DEBUG
         let fixture = try makeRealPruneFixture(label: "owned-tree-quarantine", offset: 81)

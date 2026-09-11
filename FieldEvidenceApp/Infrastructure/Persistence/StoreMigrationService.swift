@@ -2081,7 +2081,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         defer {
             if !succeeded {
                 if ownerLockWasAcquired, let descriptor = retained.last {
-                    _ = Darwin.flock(descriptor, LOCK_UN)
+                    _ = flock(descriptor, LOCK_UN)
                 }
                 retained.reversed().forEach { _ = Darwin.close($0) }
             }
@@ -2119,7 +2119,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             name: ownerName
         )
         retained.append(owner.descriptor)
-        guard Darwin.flock(owner.descriptor, LOCK_EX | LOCK_NB) == 0 else {
+        guard flock(owner.descriptor, LOCK_EX | LOCK_NB) == 0 else {
             throw GenerationLeaseRegistryFailureV1.duplicateLease
         }
         ownerLockWasAcquired = true
@@ -2181,7 +2181,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
 
     deinit {
         try? removeOwnerGuardIfUnused()
-        _ = Darwin.flock(ownerLockDescriptor, LOCK_UN)
+        _ = flock(ownerLockDescriptor, LOCK_UN)
         _ = Darwin.close(ownerLockDescriptor)
         _ = Darwin.close(mutationLockDescriptor)
         _ = Darwin.close(ownersDescriptor)
@@ -2332,8 +2332,8 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             defer { _ = Darwin.close(fd) }
             let identity = try Self.regularFileIdentity(fd)
             try requireNamedIdentity(parent: ownersDescriptor, name: name, expected: identity)
-            guard Darwin.flock(fd, LOCK_EX | LOCK_NB) == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-            defer { _ = Darwin.flock(fd, LOCK_UN) }
+            guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            defer { _ = flock(fd, LOCK_UN) }
             try requireNamedIdentity(parent: ownersDescriptor, name: name, expected: identity)
             let result = try replaceReservation()
             guard let replacement = try migrationReservationLocked(), replacement.ownerID == ownerID else {
@@ -2366,7 +2366,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             var retainedDescriptors: [(UUID, Int32, Identity)] = []
             defer {
                 for (_, descriptor, _) in retainedDescriptors {
-                    _ = Darwin.flock(descriptor, LOCK_UN)
+                    _ = flock(descriptor, LOCK_UN)
                     _ = Darwin.close(descriptor)
                 }
             }
@@ -2387,7 +2387,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                     _ = Darwin.close(descriptor)
                     throw GenerationLeaseRegistryFailureV1.uncertainOwner
                 }
-                if Darwin.flock(descriptor, LOCK_EX | LOCK_NB) == 0 {
+                if flock(descriptor, LOCK_EX | LOCK_NB) == 0 {
                     abandoned.insert(candidate)
                     retainedDescriptors.append((candidate, descriptor, identity))
                 } else {
@@ -2468,7 +2468,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         Self.processMutationLock.lock()
         defer { Self.processMutationLock.unlock() }
         if generationMutationLockDepth == 0 {
-            guard Darwin.flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            guard flock(mutationLockDescriptor, LOCK_EX) == 0 else {
                 throw GenerationLeaseRegistryFailureV1.invalidIdentity
             }
         }
@@ -2476,7 +2476,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         defer {
             generationMutationLockDepth -= 1
             if generationMutationLockDepth == 0 {
-                _ = Darwin.flock(mutationLockDescriptor, LOCK_UN)
+                _ = flock(mutationLockDescriptor, LOCK_UN)
             }
         }
         try verify()

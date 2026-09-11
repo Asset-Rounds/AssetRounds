@@ -375,7 +375,7 @@ struct ReinspectionExceptionQueueLifecycleAdapterV1 {
                      queueIsDerived: true, sourceDetailsExcluded: true)
     }
 
-    func search(_ query: ReinspectionExceptionQueryV1) throws -> ReinspectionExceptionQueryResultV1 {
-        try self.query(query)
+    func search(_ query: ReinspectionExceptionQueryV1, evaluatedAt: Date) throws -> ReinspectionExceptionQueryResultV1 {
+        try self.query(query, evaluatedAt: evaluatedAt)
     }
 }

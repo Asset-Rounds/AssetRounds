@@ -146,6 +146,108 @@ private final class CompilerWriterAdmissionHarnessV1 {
 }
 
 final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
+    @MainActor
+    func testQueryExistingCoversEveryCurrentKindWithoutCreatingRows() throws {
+        let harness = try CompilerWriterAdmissionHarnessV1()
+        let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
+        let identities = try WorkspaceEntityKindV1.allCases.map { try WorkspaceEntityIdentityV1(kind: $0, id: UUID()) }
+        let before = try harness.snapshot()
+        let result = try adapter.queryExisting(identities: identities)
+        XCTAssertTrue(result.identities.isEmpty)
+        XCTAssertTrue(result.packageBindings.isEmpty)
+        XCTAssertEqual(try harness.snapshot(), before)
+        XCTAssertFalse(harness.context.hasChanges)
+    }
+
+    @MainActor
+    func testQueryExistingRetainsMyDayHistoryAndUsesCarryoverMutationIdentity() throws {
+        let harness = try CompilerWriterAdmissionHarnessV1()
+        let workspace = harness.identity.workspaceID, now = CompilerWriterAdmissionHarnessV1.date
+        let localActor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Query actor")
+        let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: localActor,
+            responsibility: .recordedBy, displayNameAtTime: localActor.displayName, capturedAt: now)
+        let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: "UTC")
+        let item = try MyDayItemV1(membershipID: UUID(), reference: .roundSession(workspaceID: workspace,
+            sessionID: UUID(), revision: 1, sessionSHA256: String(repeating: "a", count: 64)), manualOrder: 0)
+        let first = try MyDayPlanV1(planID: UUID(), key: key, items: [item], revision: 1,
+            mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
+        let second = try MyDayPlanV1(planID: first.planID, key: key, items: [item], predecessor: first, revision: 2,
+            mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
+        let nextKey = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 12), ianaTimeZoneIdentifier: "UTC")
+        let target = try MyDayPlanV1(planID: UUID(), key: nextKey, items: [item], revision: 1,
+            mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
+        let carry = try MyDayCarryoverPlanV1(sourcePlan: second, targetKey: nextKey, membershipIDs: [item.membershipID])
+        let receipt = try MyDayCarryoverReceiptV1(plan: carry, source: second, target: target,
+            mutationID: target.mutationID, committedAt: now)
+        harness.context.insert(try MyDayPlanRowV1(first)); harness.context.insert(try MyDayPlanRowV1(second))
+        harness.context.insert(try MyDayPlanRowV1(target)); harness.context.insert(try MyDayCarryoverReceiptRowV1(receipt))
+        try harness.context.save()
+        let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
+        let identities = try [WorkspaceEntityIdentityV1(kind: .myDayPlan, id: first.planID),
+            WorkspaceEntityIdentityV1(kind: .myDayPlan, id: target.planID),
+            WorkspaceEntityIdentityV1(kind: .myDayCarryoverReceipt, id: receipt.mutationID.rawValue)]
+        XCTAssertEqual(try adapter.queryExisting(identities: Array(identities.reversed())).identities,
+            identities.sorted { $0.stableKey < $1.stableKey })
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MyDayPlanRowV1>()), 3)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<MyDayPlanRowV1>()).map { try $0.value() }
+            .filter { $0.planID == first.planID }.sorted { $0.revision < $1.revision }, [first, second])
+        XCTAssertTrue(try adapter.queryExisting(identities: [.init(kind: .myDayCarryoverReceipt, id: target.planID)]).identities.isEmpty)
+        XCTAssertFalse(harness.context.hasChanges)
+    }
+
+    @MainActor
+    func testQueryExistingRejectsCorruptDuplicateHistoryAndForeignWorkspace() throws {
+        for hostile in ["canonical", "duplicate", "foreign", "gap"] {
+            let harness = try CompilerWriterAdmissionHarnessV1()
+            let workspace = hostile == "foreign" ? WorkspaceID(rawValue: UUID()) : harness.identity.workspaceID
+            let now = CompilerWriterAdmissionHarnessV1.date
+            let localActor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Query actor")
+            let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: localActor,
+                responsibility: .recordedBy, displayNameAtTime: localActor.displayName, capturedAt: now)
+            let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: "UTC")
+            let first = try MyDayPlanV1(planID: UUID(), key: key, items: [], revision: 1,
+                mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
+            let row = try MyDayPlanRowV1(first)
+            if hostile == "canonical" { row.canonicalData.append(0x20) }
+            harness.context.insert(row)
+            if hostile == "duplicate" {
+                let duplicate = try MyDayPlanRowV1(first)
+                // A distinct physical key prevents SwiftData's unique-key upsert
+                // from masking a duplicate logical revision.
+                duplicate.rowID += "|duplicate"
+                harness.context.insert(duplicate)
+            }
+            if hostile == "gap" {
+                let second = try MyDayPlanV1(planID: first.planID, key: key, items: [], predecessor: first, revision: 2,
+                    mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
+                let third = try MyDayPlanV1(planID: first.planID, key: key, items: [], predecessor: second, revision: 3,
+                    mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
+                harness.context.insert(try MyDayPlanRowV1(third))
+            }
+            try harness.context.save()
+            let before = try harness.context.fetch(FetchDescriptor<MyDayPlanRowV1>()).map(\.canonicalData)
+            let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
+            XCTAssertThrowsError(try adapter.queryExisting(identities: [.init(kind: .myDayPlan, id: first.planID)]), hostile)
+            XCTAssertEqual(try harness.context.fetch(FetchDescriptor<MyDayPlanRowV1>()).map(\.canonicalData), before)
+            XCTAssertFalse(harness.context.hasChanges)
+        }
+    }
+
+    @MainActor
+    func testQueryExistingUsesEvidenceAssociationStreamIdentity() throws {
+        let fixture = try C05WriterMutationFixtureV1.make()
+        let harness = try CompilerWriterAdmissionHarnessV1(workspaceID: fixture.workspaceID)
+        _ = try harness.writer.commitEvidenceMetadata(fixture.mutation)
+        let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
+        let affected = try fixture.mutation.affectedIdentities
+        XCTAssertEqual(try adapter.queryExisting(identities: affected).identities, affected)
+        let eventUUID = try XCTUnwrap(UUID(uuidString: fixture.association.associationEventID))
+        let physicalEventIdentity = try WorkspaceEntityIdentityV1(kind: .evidenceAssociationEvent, id: eventUUID)
+        XCTAssertFalse(affected.contains(physicalEventIdentity))
+        XCTAssertTrue(try adapter.queryExisting(identities: [physicalEventIdentity]).identities.isEmpty)
+        XCTAssertFalse(harness.context.hasChanges)
+    }
+
     func testCurrentModelInventoryPreservesV52AndAdmitsOnlyV53NightRow() throws {
         XCTAssertEqual(PersistentSchemaV52.models.count, 167)
         let prior = Set(PersistentSchemaV52.models.map { ObjectIdentifier($0) })
@@ -246,6 +348,11 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<BulkSessionRowV1>()), 1)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<BulkCommitReceiptRowV1>()), 1)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 5)
+        let existing = try [WorkspaceEntityIdentityV1(kind: .importMappingProfile, id: updatedProfile.profileID),
+            WorkspaceEntityIdentityV1(kind: .bulkSession, id: cancelled.sessionID),
+            WorkspaceEntityIdentityV1(kind: .bulkCommitReceipt, id: receipt.receiptID)]
+        XCTAssertEqual(try WorkspaceWriterAdapterV1(modelContext: harness.context).queryExisting(identities: existing).identities,
+            existing.sorted { $0.stableKey < $1.stableKey })
         let history = try harness.journal.exportSnapshot()
         XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(history, sourcePersistentSchemaVersion: 46))
         XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(history, sourcePersistentSchemaVersion: 45))
@@ -310,7 +417,11 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
         harness.context.insert(try LocatorBindingReceiptRow(receipt))
         try harness.context.save()
         let valid = try mutation(binding)
+        let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
         XCTAssertThrowsError(try harness.journal.validatePlanReferences(valid)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertThrowsError(try adapter.apply(.applyPlan(valid), occurredAt: now, temporaryRelativePath: "mutation/query-locator")) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
         }
         let locatorRow = try AssetLocatorRow(locator)
@@ -328,7 +439,14 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             XCTAssertThrowsError(try harness.journal.validatePlanReferences(hostile)) {
                 XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
             }
+            XCTAssertThrowsError(try adapter.apply(.applyPlan(hostile), occurredAt: now, temporaryRelativePath: "mutation/query-locator")) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+            }
         }
+        let effect = try adapter.apply(.applyPlan(valid), occurredAt: now, temporaryRelativePath: "mutation/query-locator")
+        XCTAssertEqual(effect.affectedEntities, try valid.affectedIdentities)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<PlanPlacementRow>()), 1)
+        harness.context.rollback()
         XCTAssertEqual(try locatorRow.value(), locator)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<PlanPlacementRow>()), 0)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)

@@ -22,6 +22,8 @@ Accepted main is `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Preserve S10 brandi
 
 Primary agent implements by default; at most one delegated worker runs at a time. Use an independent reviewer at consequential checkpoints, not a permanent parallel team. Luna/max handles bounded support; Terra/low or medium is the default substantive worker. Escalate to Sol/Astra for a specific difficult question. Do not reuse an expensive worker for routine monitoring solely to preserve context. This supersedes earlier parallelism and strong-model preferences; hosted runner capacity is separate from model concurrency.
 
+Temporary owner exception approved 2026-09-11: up to two delegated workers may run alongside the primary for independent compiler fixes, review and CI evidence until the first clean build and focused tests pass. The one-worker limit resumes at that milestone; all other cost, scope and verification rules remain unchanged.
+
 Use the short active brief and targeted reads. No repeated full-history/log dumps, unnecessary worker messages, or repeated unchanged audits. Keep full evidence in its original files and update the brief at meaningful checkpoints. Preserve verification depth.
 
 ## Preserved historical instructions

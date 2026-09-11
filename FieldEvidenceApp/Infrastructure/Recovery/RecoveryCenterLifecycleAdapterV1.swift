@@ -74,7 +74,7 @@ actor RecoveryCenterLifecycleAdapterV1:
     ) async throws -> SupportExportResultV1 {
         try beginOperation()
         defer { operationInProgress = false }
-        try await supportBuilder.prepare(mode: mode, cancellation: cancellation)
+        return try await supportBuilder.prepare(mode: mode, cancellation: cancellation)
     }
 
     func finishSupportExport(
@@ -83,7 +83,7 @@ actor RecoveryCenterLifecycleAdapterV1:
     ) async throws -> SupportExportResultV1 {
         try beginOperation()
         defer { operationInProgress = false }
-        try await supportBuilder.finish(prepared, disposition: disposition)
+        return try await supportBuilder.finish(prepared, disposition: disposition)
     }
 
     func handoff(_ preview: FeedbackHandoffPreviewV1) async throws -> FeedbackHandoffResultV1 {

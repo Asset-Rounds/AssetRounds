@@ -91,7 +91,7 @@ final class StartupRouter: ObservableObject {
         let writer: WorkspaceWriterV1
         let generationID: UUID
 
-        init(_ coordinator: StoreSessionCoordinator) {
+        @MainActor init(_ coordinator: StoreSessionCoordinator) {
             self.coordinator = coordinator
             self.writer = coordinator.workspaceWriter
             self.generationID = coordinator.generationID
