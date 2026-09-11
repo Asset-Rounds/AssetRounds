@@ -45,7 +45,7 @@ enum AssetLocatorStreamingArchivePolicyV1 {
         guard (1...26).contains(records.recordsSchemaVersion) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
-        guard records.recordsSchemaVersion < recordsSchemaVersion else {
+        if records.recordsSchemaVersion >= recordsSchemaVersion {
             guard records.assetLocators.count <= 200_000 else {
                 throw StreamingArchiveFailureV1.entryLimitExceeded
             }
