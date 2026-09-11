@@ -42,6 +42,14 @@ Card 135 remains postponed, not abandoned or accepted. Other unfinished owner/mo
 
 ## Owner outcome and scope
 
+### Original warning-derived compiler follow-up — scoped before edits
+
+The original34657136884 warning delta arrived after compiler-only a7bfce5 was committed/pushed, before any descendant dispatch. Root read all28 new warning signatures and all raw process65/1/1 records. Two V9_36RecoverabilityVerificationTests lifecycleOperations callbacks have source-proven non-Void return omissions: materializeStaging's branch precedes reservation.advanced, and cleanup awaits its observer before constructing cleanup proof. Root may add only the two explicit returns in that already owned test path, preserving all operations/observer/failure semantics. Add the remaining C22 A01/I01/R01 callers to the already selected G01/H01, then verify exact selectors and independent source review. This is a direct-child test/selector/bookkeeping correction; C23 drafts stay excluded. Do not dispatch a7bfce5 with these known blockers.
+
+Source and independent review GO for the two explicit returns. Current106-selector keeps exact103 prefix and adds C22 A01/I01/R01; all106 actual declarations and unchanged N8 native validation pass, SHA256D7DA73F92D180BC75EB6E6D79CFE78B1D5FAE118E089A0F05C1AB5EBC4EE5014. All original test methods, observer ordering and failure paths remain. Native protocol inputs are unchanged.
+
+Original evidence housekeeping incident: the collector's copied diagnostic helper retained the previous34655573110 output root and rewrote three derived indexes; errors-index and warnings-index remained hash-identical, while warnings-comparison.json regenerated its timestamp (old attested SHA C02092924BB775878E5400CF69C44FD6506C9503A7FFA4A4B53E021CFEEF0A23; current SHA30203EFB7B9D8CEA1621D3F22997FAA10B597A0B03EA1D56AA039366F3AFCECE). Root rechecked the prior156-file inventory:155 files still match, including every original provider log/artifact and prior seal. Preserve the old inventory, changed derived file and new append-only incident record at34657136884/derived-audit-incident-20260911.json. Do not claim the prior derived comparison remains original bytes or recreate a timestamp. Current-run audit uses retained original inputs and records this limitation.
+
 ### Compiler diagnostic34657136884 — finite correction batch before edits
 
 The original de3c20f3 build is terminal failure and emits38 test-source diagnostics across11 existing files; none of its75 selected units ran. Root read every emitted error. One collector retains/audits the complete original. C23 drafts remain independent unaccepted source and must not enter the compiler-only commit.

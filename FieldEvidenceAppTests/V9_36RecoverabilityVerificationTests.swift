@@ -315,7 +315,7 @@ enum C22RecoverabilityTestSupport {
                 if failMaterialization {
                     throw RecoverabilityVerificationFailureV1.partialEffect
                 }
-                try reservation.advanced(to: .prepared)
+                return try reservation.advanced(to: .prepared)
             },
             validateStructure: { staging in
                 try staging.advanced(to: .structureValidated)
@@ -343,7 +343,7 @@ enum C22RecoverabilityTestSupport {
             },
             cleanup: { staging in
                 await cleanupObserver?.record(staging.stagingID)
-                try cleanup(for: staging)
+                return try cleanup(for: staging)
             },
             acceptedReceipt: { _ in nil },
             appendReceipt: { receipt in receipt }
