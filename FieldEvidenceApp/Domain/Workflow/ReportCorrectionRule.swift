@@ -336,7 +336,7 @@ struct ReportCorrectionRule {
                 return false
             }
             do {
-                return snapshot.observationBasis
+                return try snapshot.observationBasis
                         == (try ObservationAndTimeCodecV1.decodeObservationBasis(basisData))
                     && snapshot.temporalContext
                         == (try ObservationAndTimeCodecV1.decodeTemporalContext(temporalData))

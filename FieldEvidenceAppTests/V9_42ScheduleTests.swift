@@ -105,6 +105,69 @@ private struct C28ScheduleCompatibility: Decodable {
 }
 
 final class V9_42ScheduleTests: XCTestCase {
+    func testScheduleDeletionInventoryValidatesSourcesAndRetainsNonemptyHistory() throws {
+        let anchor = ScheduleLocalAnchorV1(year: nil, month: nil, day: nil, weekday: nil,
+            weekdayOrdinal: nil, hour: 9, minute: 0, second: 0)
+        let release = try C28ScheduleTestSupport.release(
+            recurrence: .fixedCalendar(.init(cadence: .daily, interval: 1, anchor: anchor)))
+        let basis = try C28ScheduleTestSupport.basis(date: "2027-03-15", time: "09:00:00",
+            resolved: C28ScheduleTestSupport.base, disposition: .unambiguous, schedule: release)
+        let occurrence = try OccurrenceIDV1(scheduleDefinitionID: release.scheduleDefinitionID,
+            identityNamespaceID: release.occurrenceIdentityNamespaceID, nominalKey: basis.nominalKey)
+        let generated = try C28ScheduleTestSupport.event(schedule: release, occurrence: occurrence,
+            basis: basis, action: .generated, slot: 900)
+        let inventory = try ScheduleDeletionInventoryV1(definitions: [release], history: [generated],
+            calendars: [], overrides: [])
+        XCTAssertEqual(inventory.releaseIDs, [release.releaseID])
+        XCTAssertEqual(inventory.occurrenceEventIDs, [generated.eventID])
+        XCTAssertNoThrow(try WholeSignDeletionRule.validateScheduleLifecycle(
+            before: inventory, after: inventory, workspaceErase: false))
+        XCTAssertNoThrow(try WholeSignDeletionRule.validateScheduleLifecycle(
+            before: inventory, after: .empty, workspaceErase: true))
+        XCTAssertThrowsError(try WholeSignDeletionRule.validateScheduleLifecycle(
+            before: inventory, after: inventory, workspaceErase: true))
+        XCTAssertThrowsError(try WholeSignDeletionRule.validateScheduleLifecycle(
+            before: inventory, after: .empty, workspaceErase: false))
+        let droppedHistory = try ScheduleDeletionInventoryV1(definitions: [release], history: [],
+            calendars: [], overrides: [])
+        XCTAssertThrowsError(try WholeSignDeletionRule.validateScheduleLifecycle(
+            before: inventory, after: droppedHistory, workspaceErase: false))
+        XCTAssertThrowsError(try ScheduleDeletionInventoryV1(definitions: [], history: [generated],
+            calendars: [], overrides: []))
+    }
+
+    func testResolvedOccurrenceBasisPreservesStrictGregorianDateAndTimeValidation() throws {
+        func basis(_ date: String, _ time: String) -> ResolvedOccurrenceBasisV1 {
+            .init(nominalLocalDate: date, nominalLocalTime: time,
+                  resolvedAtUTC: C28ScheduleTestSupport.base, utcOffsetSeconds: 0,
+                  disposition: .unambiguous, timeBasisSHA256: C28ScheduleTestSupport.digest(),
+                  adjustmentProvenanceSHA256: nil)
+        }
+        for date in ["0001-01-01", "2000-02-29", "2024-02-29", "9999-12-31"] {
+            for time in ["00:00:00", "23:59:59"] {
+                XCTAssertNoThrow(try basis(date, time).validate())
+            }
+        }
+        for date in ["0000-01-01", "1900-02-29", "2023-02-29", "2024-04-31",
+                     "2024-2-29", "２０２４-02-29", "2024-02-29 ", "2024-13-01"] {
+            XCTAssertThrowsError(try basis(date, "12:00:00").validate(), date)
+        }
+        for time in ["24:00:00", "23:60:00", "23:59:60", "1:00:00", "00:00:00.000",
+                     "00:00:00Z", " 00:00:00", "００:00:00"] {
+            XCTAssertThrowsError(try basis("2024-02-29", time).validate(), time)
+        }
+        let unresolvedGap = ResolvedOccurrenceBasisV1(
+            nominalLocalDate: "2024-03-10", nominalLocalTime: "02:30:00",
+            resolvedAtUTC: nil, utcOffsetSeconds: nil, disposition: .nonexistentGap,
+            timeBasisSHA256: C28ScheduleTestSupport.digest(), adjustmentProvenanceSHA256: nil)
+        XCTAssertNoThrow(try unresolvedGap.validate())
+        XCTAssertThrowsError(try ResolvedOccurrenceBasisV1(
+            nominalLocalDate: "2024-03-10", nominalLocalTime: "02:30:00",
+            resolvedAtUTC: C28ScheduleTestSupport.base, utcOffsetSeconds: 0,
+            disposition: .nonexistentGap, timeBasisSHA256: C28ScheduleTestSupport.digest(),
+            adjustmentProvenanceSHA256: nil).validate())
+    }
+
     func testV23P03C28G01DeterministicScheduleAndOccurrenceIdentitySurviveDSTAndTravel() throws {
         let bundle = Bundle(for: Self.self)
         let corpusURL = try XCTUnwrap(bundle.url(forResource: "V22P03C28ScheduleCorpusV1", withExtension: "json",

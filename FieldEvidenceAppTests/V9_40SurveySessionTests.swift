@@ -296,7 +296,7 @@ enum C26SurveySessionTestSupport {
             factID: "fact-a",
             action: action,
             value: value,
-            predecessors: try predecessors.map(\.reference),
+            predecessors: try predecessors.map { try $0.reference },
             capturedBy: try actor(workspaceID: session.workspaceID, slot: 700 + slot),
             capturedAt: fixedDate.addingTimeInterval(Double(slot)),
             revision: revision,
@@ -471,6 +471,55 @@ private struct C26SurveySessionCorpus: Decodable {
 
 @MainActor
 final class V9_40SurveySessionTests: XCTestCase {
+    func testZeroSurveyIdentitiesRejectAndCaptureSuccessorsRequireExactReferences() throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        let digest = C26SurveySessionTestSupport.digest()
+        XCTAssertThrowsError(try SurveyPinnedRevisionReferenceV1(
+            kind: .workPlan, referenceID: zero, revision: 1, semanticSHA256: digest).validate())
+        XCTAssertThrowsError(try ProvisionalSubjectReferenceV1(
+            provisionalSubjectID: zero, revision: 1, subjectSHA256: digest).validate())
+        XCTAssertThrowsError(try SurveyPublicationReferenceV1(
+            snapshotID: zero, revision: 1, snapshotSHA256: digest).validate())
+        XCTAssertThrowsError(try FactCaptureReferenceV1(
+            captureID: zero, revision: 1, captureSHA256: digest).validate())
+        let definition = try C26SurveySessionTestSupport.release()
+        let authority = try C26SurveySessionTestSupport.authority(for: definition)
+        let subject = SurveySessionSubjectV1.canonical(.init(
+            kind: .asset, subjectID: C26SurveySessionTestSupport.id(80), revision: 1, ownerAssetID: nil))
+        XCTAssertThrowsError(try C26SurveySessionTestSupport.session(
+            authority: authority, sessionID: zero, subject: subject,
+            state: .draft, transition: .create, revision: 1, actorSlot: 800))
+        let session = try C26SurveySessionTestSupport.session(
+            authority: authority, subject: subject, state: .draft,
+            transition: .create, revision: 1, actorSlot: 800)
+        let first = try C26SurveySessionTestSupport.capture(session: session, release: definition, slot: 810)
+        let parallel = try C26SurveySessionTestSupport.capture(session: session, release: definition, slot: 811)
+        let corrected = try C26SurveySessionTestSupport.captureWithPredecessors(
+            session: session, slot: 812, action: .correct, value: .text("corrected"),
+            predecessors: [first], revision: 2)
+        try corrected.validateSuccessor(of: [first], session: session, definition: definition)
+        XCTAssertEqual(corrected.predecessors, [try first.reference])
+        XCTAssertThrowsError(try corrected.validateSuccessor(
+            of: [parallel], session: session, definition: definition))
+        let resolved = try C26SurveySessionTestSupport.captureWithPredecessors(
+            session: session, slot: 813, action: .resolveConflict, value: .text("resolved"),
+            predecessors: [parallel, first], revision: 2)
+        try resolved.validateSuccessor(of: [parallel, first], session: session, definition: definition)
+        XCTAssertEqual(resolved.predecessors, try [first, parallel].map { try $0.reference })
+        XCTAssertThrowsError(try resolved.validateSuccessor(
+            of: [first], session: session, definition: definition))
+        XCTAssertThrowsError(try FactCaptureV1(
+            captureID: zero, workspaceID: session.workspaceID, sessionID: session.sessionID,
+            definitionRelease: authority.definitionRelease, factID: "fact-a", action: .record,
+            value: .text("observed"), capturedBy: first.capturedBy, capturedAt: first.capturedAt,
+            revision: 1, mutationID: first.mutationID))
+        XCTAssertThrowsError(try FactCaptureV1(
+            captureID: first.captureID, workspaceID: session.workspaceID, sessionID: zero,
+            definitionRelease: authority.definitionRelease, factID: "fact-a", action: .record,
+            value: .text("observed"), capturedBy: first.capturedBy, capturedAt: first.capturedAt,
+            revision: 1, mutationID: first.mutationID))
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

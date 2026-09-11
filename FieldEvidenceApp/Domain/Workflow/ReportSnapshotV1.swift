@@ -638,7 +638,7 @@ struct C17LightingDayConditionReportProjectionV1: Codable, Equatable, Comparable
     let pose: C37PlacementPoseFrozenSnapshotV1?
     let snapshotSHA256: String
 
-    init(
+    fileprivate init(
         snapshot: LightingDayConditionSnapshotV1,
         pose: C37PlacementPoseFrozenSnapshotV1?
     ) throws {
@@ -685,10 +685,11 @@ struct C17LightingDayConditionReportProjectionV1: Codable, Equatable, Comparable
               facts == facts.sorted(),
               Set(facts.map(\.aspect)).count == facts.count,
               notDeclared == !hasPoseBinding,
-              poseEvent.map({ $0.assetID == assetID && $0.axisID == .lightBeamCenterline }) ?? notDeclared,
+              poseEvent.map({ $0.assetID == assetID }) ?? notDeclared,
               pose.map({ value in
                   guard let poseEvent else { return false }
                   return value.projection.assetID == assetID
+                    && value.projection.workspaceID == poseEvent.workspaceID
                     && value.projection.history.contains(where: {
                         $0.eventID == poseEvent.eventID
                           && $0.axisID == poseEvent.axisID.rawValue
@@ -731,8 +732,10 @@ struct C17LightingDayInventoryReportProjectionV1: Codable, Equatable, Sendable {
 
     init(
         workflow: LightingDayInventoryWorkflowV1,
+        admission: LightingDayInventoryAdmissionClosureV1,
         poseSnapshots: [C37PlacementPoseFrozenSnapshotV1]
     ) throws {
+        try admission.validate(workflow)
         let source = try LightingDayInventoryProjectionV1(workflow)
         guard source.reportEligible else { throw LightingDayInventoryFailureV1.safetyStop }
         try poseSnapshots.forEach { try $0.validate() }
@@ -745,6 +748,20 @@ struct C17LightingDayInventoryReportProjectionV1: Codable, Equatable, Sendable {
             throw LightingDayInventoryFailureV1.staleReference
         }
         let projected = try workflow.conditionSnapshots.map { snapshot in
+            if let reference = snapshot.poseEvent {
+                guard let event = admission.poseEvents.first(where: {
+                    $0.reference == reference
+                }), let pose = poseByAsset[snapshot.assetID]?.first else {
+                    throw LightingDayInventoryFailureV1.staleReference
+                }
+                let expectedHistory = try C37PoseHistoryProjectionV1(event: event)
+                guard pose.projection.workspaceID == workflow.workspaceID,
+                      pose.projection.history.first(where: {
+                          $0.eventID == reference.eventID
+                      }) == expectedHistory else {
+                    throw LightingDayInventoryFailureV1.staleReference
+                }
+            }
             return try C17LightingDayConditionReportProjectionV1(
                 snapshot: snapshot, pose: poseByAsset[snapshot.assetID]?.first
             )
@@ -847,6 +864,7 @@ struct C17LightingDayInventoryFrozenSnapshotV1: Codable, Equatable, Sendable {
 
     init(
         workflow: LightingDayInventoryWorkflowV1,
+        admission: LightingDayInventoryAdmissionClosureV1,
         poseSnapshots: [C37PlacementPoseFrozenSnapshotV1],
         capturedAt: Date
     ) throws {
@@ -854,7 +872,7 @@ struct C17LightingDayInventoryFrozenSnapshotV1: Codable, Equatable, Sendable {
         sourceRecordID = workflow.recordID
         sourceWorkflowSHA256 = workflow.workflowSHA256
         self.capturedAt = capturedAt
-        projection = try .init(workflow: workflow, poseSnapshots: poseSnapshots)
+        projection = try .init(workflow: workflow, admission: admission, poseSnapshots: poseSnapshots)
         snapshotSHA256 = try LightingDayInventoryCanonicalCodecV1.sha256(Basis(
             sourceRecordID: workflow.recordID,
             sourceWorkflowSHA256: workflow.workflowSHA256,

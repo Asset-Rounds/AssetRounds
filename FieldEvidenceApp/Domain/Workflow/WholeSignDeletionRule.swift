@@ -52,7 +52,11 @@ struct AssetLocatorDeletionInventoryV1: Equatable, Sendable {
     let receiptIDs: Set<UUID>
     let assetIDs: Set<UUID>
 
-    static let empty = Self(locatorIDs: [], receiptIDs: [], assetIDs: [])
+    static let empty = Self()
+
+    private init() {
+        locatorIDs = []; receiptIDs = []; assetIDs = []
+    }
 
     init(locators: [AssetLocatorV1], receipts: [LocatorBindingReceiptV1]) throws {
         try AssetLocatorLifecycleClosureV1(
@@ -73,10 +77,12 @@ struct ScheduleDeletionInventoryV1: Equatable, Sendable {
     let exceptionCalendarReleaseIDs: Set<UUID>
     let scheduleOverrideEventIDs: Set<UUID>
 
-    static let empty = Self(
-        releaseIDs: [], occurrenceEventIDs: [], exceptionCalendarReleaseIDs: [],
-        scheduleOverrideEventIDs: []
-    )
+    static let empty = Self()
+
+    private init() {
+        releaseIDs = []; occurrenceEventIDs = []
+        exceptionCalendarReleaseIDs = []; scheduleOverrideEventIDs = []
+    }
 
     init(
         definitions: [ScheduleDefinitionReleaseV1],

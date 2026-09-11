@@ -4632,7 +4632,7 @@ struct C37PlacementPoseReportProjectionV1: Codable, Equatable, Sendable {
                   reference.workspaceID == workspaceID && reference.assetID == assetID
                       && history.contains(where: {
                           $0.eventID == reference.eventID
-                              && $0.axisID == reference.axisID
+                              && $0.axisID == reference.axisID.rawValue
                               && $0.revision == reference.revision
                               && $0.eventSHA256 == reference.eventSHA256
                       })

@@ -133,14 +133,17 @@ enum WorkflowAssetLocatorBoundaryV1 {
         try resolution.validate()
         try locator.validate()
         try receipt.validateIntrinsic()
+        let reference = try locator.reference
         guard resolution.outcome == .matched,
-              resolution.matchedLocator == locator.reference,
+              resolution.workspaceID == locator.workspaceID,
+              receipt.workspaceID == locator.workspaceID,
+              resolution.matchedLocator == reference,
               resolution.matchedAssetID == locator.assetID,
-              receipt.after == locator.reference else {
+              receipt.after == reference else {
             throw AssetLocatorFailureV1.invalidValue
         }
         return try FrozenAssetLocatorInterpretationV1(
-            locator: locator.reference, receipt: receipt, assetID: locator.assetID
+            locator: reference, receipt: receipt, assetID: locator.assetID
         )
     }
 }

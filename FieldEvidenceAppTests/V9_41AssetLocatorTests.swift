@@ -51,6 +51,69 @@ final class V9_41AssetLocatorTests: XCTestCase {
         XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
         XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
     }
+    func testWorkflowLocatorFreezeBindsExactReferenceReceiptAssetAndWorkspace() throws {
+        let workspaceID = Self.workspace(41)
+        let locator = try Self.externalLocator(workspaceID: workspaceID,
+            assetID: Self.id(42), locatorID: Self.id(43), value: "freeze-source", mutationSlot: 44)
+        let reference = try locator.reference
+        func receipt(in workspace: WorkspaceID, slot: UInt8) throws -> LocatorBindingReceiptV1 {
+            let preview = try LocatorBindingPreviewV1(workspaceID: workspace, action: .bind,
+                before: nil, after: reference, replacement: nil, generatedAt: Self.date(45))
+            return try LocatorBindingReceiptV1(receiptID: Self.id(slot), preview: preview,
+                recordedBy: Self.actor(workspaceID: workspace, slot: 46), predecessor: nil,
+                revision: 1, mutationID: Self.mutation(44), recordedAt: Self.date(47))
+        }
+        func resolution(in workspace: WorkspaceID, assetID: UUID) throws -> LocatorResolutionV1 {
+            try .init(workspaceID: workspace, source: .manual, inputSHA256: Self.digest("a"),
+                outcome: .matched, matchedLocator: reference, matchedAssetID: assetID,
+                replacementLocatorID: nil, evaluatedAt: Self.date(48))
+        }
+        let binding = try receipt(in: workspaceID, slot: 49)
+        let matched = try resolution(in: workspaceID, assetID: locator.assetID)
+        let sourceBytes = try AssetLocatorCanonicalCodecV1.encode(locator)
+        let receiptBytes = try AssetLocatorCanonicalCodecV1.encode(binding)
+        let frozen = try WorkflowAssetLocatorBoundaryV1.freeze(
+            resolution: matched, locator: locator, receipt: binding)
+        XCTAssertEqual(frozen.locator, reference)
+        XCTAssertEqual(frozen.assetIDAtCapture, locator.assetID)
+        XCTAssertEqual(frozen.bindingReceiptID, binding.receiptID)
+        XCTAssertEqual(frozen.bindingReceiptRevision, binding.revision)
+        XCTAssertEqual(frozen.bindingReceiptSHA256, binding.receiptSHA256)
+        XCTAssertEqual(try WorkflowAssetLocatorBoundaryV1.freeze(
+            resolution: matched, locator: locator, receipt: binding), frozen)
+
+        let foreignWorkspace = Self.workspace(50)
+        let foreignResolution = try resolution(in: foreignWorkspace, assetID: locator.assetID)
+        let wrongAssetResolution = try resolution(in: workspaceID, assetID: Self.id(51))
+        let foreignReceipt = try receipt(in: foreignWorkspace, slot: 52)
+        // These values each pass their own intrinsic validator. The workflow
+        // boundary must reject the cross-owner composition, not rely on decoding.
+        try foreignResolution.validate(); try wrongAssetResolution.validate()
+        try foreignReceipt.validateIntrinsic()
+        for candidate in [foreignResolution, wrongAssetResolution] {
+            XCTAssertThrowsError(try WorkflowAssetLocatorBoundaryV1.freeze(
+                resolution: candidate, locator: locator, receipt: binding)) {
+                XCTAssertEqual($0 as? AssetLocatorFailureV1, .invalidValue)
+            }
+        }
+        XCTAssertThrowsError(try WorkflowAssetLocatorBoundaryV1.freeze(
+            resolution: matched, locator: locator, receipt: foreignReceipt)) {
+            XCTAssertEqual($0 as? AssetLocatorFailureV1, .invalidValue)
+        }
+        let successor = try Self.successor(of: locator, value: "freeze-source",
+            mutationSlot: 53, state: .retired)
+        let retired = try LocatorResolutionV1(workspaceID: workspaceID, source: .manual,
+            inputSHA256: Self.digest("a"), outcome: .retired,
+            matchedLocator: successor.reference, matchedAssetID: successor.assetID,
+            replacementLocatorID: nil, evaluatedAt: Self.date(54))
+        XCTAssertThrowsError(try WorkflowAssetLocatorBoundaryV1.freeze(
+            resolution: matched, locator: successor, receipt: binding))
+        XCTAssertThrowsError(try WorkflowAssetLocatorBoundaryV1.freeze(
+            resolution: retired, locator: successor, receipt: binding))
+        XCTAssertEqual(try AssetLocatorCanonicalCodecV1.encode(locator), sourceBytes)
+        XCTAssertEqual(try AssetLocatorCanonicalCodecV1.encode(binding), receiptBytes)
+    }
+
     func testV23P03C27G01StableLocatorResolutionHasEightClosedOutcomesAndSourceParity() async throws {
         let workspaceID = Self.workspace(1)
         let active = try Self.externalLocator(

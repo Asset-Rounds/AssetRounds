@@ -293,6 +293,14 @@ struct TemporalContextV1: Codable, Equatable, Sendable {
     static let maximumAbsoluteUTCOffsetSeconds = 18 * 60 * 60
     static let maximumTimeZoneIdentifierBytes = 255
 
+    static func isCanonicalLocalDate(_ value: String) -> Bool {
+        ObservationAndTimeValidationV1.isISODate(value)
+    }
+
+    static func isCanonicalLocalTime(_ value: String) -> Bool {
+        ObservationAndTimeValidationV1.isISOTime(value)
+    }
+
     let version: Int
     let occurredAtUTC: Date?
     let recordedAtUTC: Date

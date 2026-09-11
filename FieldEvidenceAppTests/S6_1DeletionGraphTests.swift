@@ -37,6 +37,69 @@ private final class C30EvidenceContextAnchorS6_1DeletionGraph: XCTestCase {
 }
 
 final class S6_1DeletionGraphTests: XCTestCase {
+    func testDeletionInventoriesUseValidatedEmptyValuesAndExactLocatorClosure() throws {
+        let emptyLocators = try AssetLocatorDeletionInventoryV1(locators: [], receipts: [])
+        let emptySchedules = try ScheduleDeletionInventoryV1(
+            definitions: [], history: [], calendars: [], overrides: [])
+        XCTAssertEqual(emptyLocators, .empty)
+        XCTAssertEqual(emptySchedules, .empty)
+        XCTAssertTrue(emptyLocators.locatorIDs.isEmpty)
+        XCTAssertTrue(emptyLocators.receiptIDs.isEmpty)
+        XCTAssertTrue(emptyLocators.assetIDs.isEmpty)
+        XCTAssertTrue(emptySchedules.releaseIDs.isEmpty)
+        XCTAssertTrue(emptySchedules.occurrenceEventIDs.isEmpty)
+        XCTAssertTrue(emptySchedules.exceptionCalendarReleaseIDs.isEmpty)
+        XCTAssertTrue(emptySchedules.scheduleOverrideEventIDs.isEmpty)
+        for isErase in [false, true] {
+            try WholeSignDeletionRule.validateAssetLocatorLifecycle(
+                before: emptyLocators, after: emptyLocators, workspaceErase: isErase)
+            try WholeSignDeletionRule.validateScheduleLifecycle(
+                before: emptySchedules, after: emptySchedules, workspaceErase: isErase)
+        }
+
+        let workspace = WorkspaceID(rawValue: UUID())
+        let instant = Date(timeIntervalSince1970: 1_800_000_000)
+        let mutation = try MutationIDV1(rawValue: UUID())
+        let locator = try AssetLocatorV1(locatorID: UUID(), workspaceID: workspace, assetID: UUID(),
+            representation: .externalKey(try ExternalKeyV1(namespaceID: "asset",
+                normalization: .asciiCaseInsensitive, suppliedValue: "deletion-inventory")),
+            state: .active, replacedByLocatorID: nil, predecessorLocatorSHA256: nil,
+            revision: 1, mutationID: mutation, recordedAt: instant)
+        let preview = try LocatorBindingPreviewV1(workspaceID: workspace, action: .bind,
+            before: nil, after: locator.reference, replacement: nil, generatedAt: instant)
+        try preview.validate(before: nil, after: locator, replacement: nil)
+        let actorReference = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace,
+            displayName: "Inventory recorder")
+        let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: actorReference,
+            responsibility: .recordedBy, displayNameAtTime: actorReference.displayName, capturedAt: instant)
+        let receipt = try LocatorBindingReceiptV1(receiptID: UUID(), preview: preview, recordedBy: actor,
+            predecessor: nil, revision: 1, mutationID: mutation, recordedAt: instant)
+        let sourceLocatorBytes = try AssetLocatorCanonicalCodecV1.encode(locator)
+        let sourceReceiptBytes = try AssetLocatorCanonicalCodecV1.encode(receipt)
+        let populated = try AssetLocatorDeletionInventoryV1(locators: [locator], receipts: [receipt])
+        XCTAssertEqual(populated.locatorIDs, [locator.locatorID])
+        XCTAssertEqual(populated.receiptIDs, [receipt.receiptID])
+        XCTAssertEqual(populated.assetIDs, [locator.assetID])
+        XCTAssertNotEqual(populated, .empty)
+        try WholeSignDeletionRule.validateAssetLocatorLifecycle(
+            before: populated, after: populated, workspaceErase: false)
+        // Ordinary asset deletion may remove its exact locator subset; it may
+        // not introduce another locator. Workspace erase must remove all rows.
+        try WholeSignDeletionRule.validateAssetLocatorLifecycle(
+            before: populated, after: emptyLocators, workspaceErase: false)
+        try WholeSignDeletionRule.validateAssetLocatorLifecycle(
+            before: populated, after: emptyLocators, workspaceErase: true)
+        XCTAssertThrowsError(try WholeSignDeletionRule.validateAssetLocatorLifecycle(
+            before: emptyLocators, after: populated, workspaceErase: false))
+        XCTAssertThrowsError(try WholeSignDeletionRule.validateAssetLocatorLifecycle(
+            before: populated, after: populated, workspaceErase: true))
+        XCTAssertThrowsError(try AssetLocatorDeletionInventoryV1(locators: [locator], receipts: []))
+        XCTAssertThrowsError(try AssetLocatorDeletionInventoryV1(locators: [], receipts: [receipt]))
+        XCTAssertThrowsError(try AssetLocatorDeletionInventoryV1(locators: [locator, locator], receipts: [receipt]))
+        XCTAssertEqual(try AssetLocatorCanonicalCodecV1.encode(locator), sourceLocatorBytes)
+        XCTAssertEqual(try AssetLocatorCanonicalCodecV1.encode(receipt), sourceReceiptBytes)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

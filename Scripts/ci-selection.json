@@ -9,13 +9,13 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testWorkspaceExperiencePortableAuthorityRebindsAndReplaysOneCanonicalEffect",
-    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testWorkspaceExperienceStaleForeignAndWrongRuntimeAuthorityHaveZeroEffects",
-    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testArchivedPartUpsertCannotBypassArchiveProofOrRejectAssetSemantics",
-    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testThrowingMultiAndSingleIdentityWriterGuardsPersistOnlyMatchingCommands",
-    "FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests/testWriterBoundConvenienceReplaysExactRequestAndRejectsChangedMutationWithoutEffects",
-    "FieldEvidenceAppTests/V9_102RatingEligibilityWorkflowTests/testZeroAndEqualOperationIDsRejectBeforeRatingStoreOrNativeEffects",
-    "FieldEvidenceAppTests/V9_LocationHierarchyPlacementCompositionTests/testNonemptyHierarchyCommitRebindsPlacementAndPoseThroughCanonicalWriter"
+    "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testReportCorrectionRequiresExactV2ObservationAndTemporalSourceValues",
+    "FieldEvidenceAppTests/V9_41AssetLocatorTests/testWorkflowLocatorFreezeBindsExactReferenceReceiptAssetAndWorkspace",
+    "FieldEvidenceAppTests/S6_1DeletionGraphTests/testDeletionInventoriesUseValidatedEmptyValuesAndExactLocatorClosure",
+    "FieldEvidenceAppTests/V9_80LightingDayInventoryTests/testReportConstructionRequiresAdmittedBeamRoleAndExactDisplayedPose",
+    "FieldEvidenceAppTests/V9_40SurveySessionTests/testZeroSurveyIdentitiesRejectAndCaptureSuccessorsRequireExactReferences",
+    "FieldEvidenceAppTests/V9_42ScheduleTests/testResolvedOccurrenceBasisPreservesStrictGregorianDateAndTimeValidation",
+    "FieldEvidenceAppTests/V9_42ScheduleTests/testScheduleDeletionInventoryValidatesSourcesAndRetainsNonemptyHistory"
   ],
   "uiTestSelectors": []
 }

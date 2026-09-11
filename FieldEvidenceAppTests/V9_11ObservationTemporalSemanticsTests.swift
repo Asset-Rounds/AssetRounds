@@ -57,6 +57,112 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
         XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
         XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
     }
+    func testReportCorrectionRequiresExactV2ObservationAndTemporalSourceValues() throws {
+        let corpus = try Self.loadCorpus()
+        let basis = try Self.basis(kind: .directlyObserved, corpus: corpus)
+        let temporal = try Self.goldenTemporal(corpus)
+        let basisData = try ObservationAndTimeCodecV1.encode(basis)
+        let temporalData = try ObservationAndTimeCodecV1.encode(temporal)
+        let instant = temporal.recordedAtUTC
+        let pack = SignPack.illuminatedSignV1
+        let recordID = Self.id(201), packetID = Self.id(202), reportID = Self.id(203)
+        func record(_ observation: Data?, _ time: Data?) -> WorkflowRecordPayloadV1 {
+            .init(
+                id: recordID, schemaVersion: 1, assetID: Self.id(204),
+                packetID: packetID, issueID: nil, parentRecordID: nil,
+                recordRevisionRootID: recordID, revisesRecordID: nil,
+                evidenceSourceRecordID: nil, revisionKind: WorkflowRevisionKind.original.rawValue,
+                stage: WorkflowStage.check.rawValue, state: WorkflowState.completed.rawValue,
+                draftStepKey: nil, startedAt: instant.addingTimeInterval(-10), completedAt: instant,
+                observedAtUTC: temporal.occurredAtUTC, timeZoneID: "America/New_York",
+                utcOffsetMinutes: -300, localDate: "2026-01-15", localTime: "12:00:00",
+                afterDarkAcknowledgementKey: "after_dark", afterDarkAcknowledgementCopy: "After dark",
+                afterDarkAcknowledgementVersion: "1", afterDarkAcknowledgementAccepted: true,
+                safePositionAcknowledgementKey: "safe_authorized_position",
+                safePositionAcknowledgementCopy: "Safe position", safePositionAcknowledgementVersion: "1",
+                safePositionAcknowledgementAccepted: true, packID: pack.packID,
+                packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+                pdfTemplateID: "field.evidence.pdf.worklight.v1", pdfTemplateVersion: 1,
+                outcomeKey: "no_visible_issue", couldNotVerifyKey: nil,
+                couldNotVerifyDisplaySnapshot: nil, couldNotVerifyRegistryVersion: nil,
+                workPerformedLocalDate: nil, workDescription: nil, note: "Original note",
+                finalizationMutationID: Self.id(205), observationBasisV1Data: observation,
+                temporalContextV1Data: time
+            )
+        }
+        let snapshot = ReportSnapshotV1(
+            acknowledgements: [
+                .init(accepted: true, copy: "After dark", key: "after_dark", version: "1"),
+                .init(accepted: true, copy: "Safe position", key: "safe_authorized_position", version: "1")
+            ], asset: .init(label: "Sign"), couldNotVerify: nil, disclaimer: "Recorded observations only.",
+            display: .init(assetSingular: "sign", checkSingular: "check", issueSingular: "issue",
+                           outcome: "No visible issue", stage: "Check"),
+            evidence: [], evidenceSourceRecordID: recordID, history: [], issues: [], note: "Original note",
+            observationBasis: basis, outcome: "no_visible_issue",
+            pack: .init(contentVersion: pack.contentVersion, id: pack.packID, schemaVersion: pack.schemaVersion),
+            packetID: packetID, pdfTemplate: .init(id: "field.evidence.pdf.worklight.v1", version: 1),
+            reportID: reportID, site: .init(address: nil, label: "Site"), snapshotCreatedAt: instant,
+            snapshotSchemaVersion: 2, sourceApp: .init(build: "1", version: "1.0"),
+            sourceRecordID: recordID, stableRootID: Self.id(206), stage: WorkflowStage.check.rawValue,
+            temporalContext: temporal,
+            timeContext: .init(localDate: "2026-01-15", localTime: "12:00:00",
+                               observedAtUTC: try XCTUnwrap(temporal.occurredAtUTC),
+                               timeZoneID: "America/New_York", utcOffsetMinutes: -300)
+        )
+        let originalBytes = try ReportSnapshotEncoderV1().encode(snapshot)
+        let packet = PacketPayloadV1(id: packetID, schemaVersion: 1, stableRootID: snapshot.stableRootID,
+            currentRecordID: recordID, evaluationCounted: true, contentDeletedAt: nil,
+            createdAt: instant.addingTimeInterval(-10))
+        let report = ReportPayloadV1(id: reportID, schemaVersion: 1, packetID: packetID,
+            sourceRecordID: recordID, snapshotSchemaVersion: 2,
+            snapshotRelativePath: "snapshots/\(reportID.uuidString.lowercased()).json",
+            snapshotSHA256: originalBytes.sha256, pdfState: ReportPDFState.ready.rawValue,
+            pdfRelativePath: "pdfs/\(reportID.uuidString.lowercased()).pdf",
+            pdfSHA256: String(repeating: "a", count: 64), createdAt: instant, replacesReportID: nil)
+        let request = ReportCorrectionRuleRequest(note: "Corrected note",
+            snapshotCreatedAt: instant.addingTimeInterval(1), sourceApp: snapshot.sourceApp,
+            identifiers: .init(mutationID: Self.id(207), recordID: Self.id(208), reportID: Self.id(209)))
+        func source(_ candidate: ReportSnapshotV1, observation: Data?, time: Data?) -> ReportCorrectionRuleSource {
+            .init(currentRecord: record(observation, time), packet: packet,
+                  currentReport: report, currentSnapshot: candidate)
+        }
+        let accepted = try ReportCorrectionRule().makePlan(
+            source: source(snapshot, observation: basisData, time: temporalData), request: request)
+        XCTAssertEqual(accepted.recordAfter.observationBasisV1Data, basisData)
+        XCTAssertEqual(accepted.recordAfter.temporalContextV1Data, temporalData)
+        XCTAssertEqual(accepted.snapshot.observationBasis, basis)
+        XCTAssertEqual(accepted.snapshot.temporalContext, temporal)
+        XCTAssertEqual(accepted.snapshot.note, request.note)
+        XCTAssertEqual(accepted.reportInsert.replacesReportID, reportID)
+        XCTAssertEqual(try ReportSnapshotEncoderV1().encode(snapshot), originalBytes)
+
+        var differentBasis = snapshot
+        differentBasis.observationBasis = try Self.basis(kind: .reported, corpus: corpus)
+        var differentTime = snapshot
+        differentTime.temporalContext = try TemporalContextV1(
+            occurredAtUTC: temporal.occurredAtUTC,
+            recordedAtUTC: temporal.recordedAtUTC.addingTimeInterval(1),
+            localDate: temporal.localDate, localTime: temporal.localTime,
+            utcOffsetSeconds: temporal.utcOffsetSeconds,
+            ianaTimeZoneIdentifier: temporal.ianaTimeZoneIdentifier,
+            localTimeDisposition: temporal.localTimeDisposition)
+        var missingPair = snapshot
+        missingPair.observationBasis = nil; missingPair.temporalContext = nil
+        for candidate in [differentBasis, differentTime, missingPair] {
+            XCTAssertThrowsError(try ReportCorrectionRule().makePlan(
+                source: source(candidate, observation: basisData, time: temporalData), request: request)) {
+                XCTAssertEqual($0 as? ReportCorrectionRuleError, .invalidAuthority)
+            }
+        }
+        for bytes in [Data("not canonical observation data".utf8), basisData + Data(" ".utf8)] {
+            XCTAssertThrowsError(try ReportCorrectionRule().makePlan(
+                source: source(snapshot, observation: bytes, time: temporalData), request: request)) {
+                XCTAssertEqual($0 as? ReportCorrectionRuleError, .invalidAuthority)
+            }
+        }
+        XCTAssertEqual(try ReportSnapshotEncoderV1().encode(snapshot), originalBytes)
+    }
+
     func testV9_11G01ObservationBasisRoundTripsIndependentlyFromOutcome() throws {
         let corpus = try Self.loadCorpus()
         XCTAssertEqual(corpus.schemaVersion, 1)
