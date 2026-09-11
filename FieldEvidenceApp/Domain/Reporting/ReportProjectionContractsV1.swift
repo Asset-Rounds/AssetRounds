@@ -161,11 +161,11 @@ struct SurveyPublicationReportProjectionV1: Codable, Equatable, Sendable {
         case .provisional(let reference): subjectRevisionFits = reference.revision <= UInt64(Int.max)
         }
         guard projectionVersion == Self.projectionVersion,
-              snapshotID != UUID.zero,
-              sessionID != UUID.zero,
+              snapshotID != SearchContractValidationV1.zeroUUID,
+              sessionID != SearchContractValidationV1.zeroUUID,
               sessionRevision > 0,
               publicationRevision > 0,
-              definitionReleaseID != UUID.zero,
+              definitionReleaseID != SearchContractValidationV1.zeroUUID,
               definitionRevision > 0,
               subjectRevisionFits,
               packageContentVersion > 0,
@@ -859,39 +859,15 @@ struct MeasurementIntegrityReportProjectionV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
-        guard let expectedDigest = try? Self.digest(
-            workspaceID: workspaceID,
-            manifestID: manifestID,
-            reviewReceiptID: reviewReceiptID,
-            policyID: policyID,
-            audience: audience,
-            derivativeContentID: derivativeContentID,
-            derivativeSHA256: derivativeSHA256,
-            sourceRevision: sourceRevision,
-            sourceSHA256: sourceSHA256,
-            policyRevision: policyRevision,
-            policySHA256: policySHA256,
-            reviewRevision: reviewRevision,
-            reviewSHA256: reviewSHA256,
-            reviewDecision: reviewDecision,
-            staleState: staleState,
-            metadataSanitized: metadataSanitized,
-            redactionDeclared: redactionDeclared,
-            derivativeOnly: derivativeOnly,
-            originalReferenceExcluded: originalReferenceExcluded,
-            transformKinds: transformKinds,
-            regionCount: regionCount
-        ) else {
-            throw PrivacyTransformReportProjectionFailureV1.invalidValue
-        }
         guard schemaVersion == Self.schemaVersion,
               captureID != SearchContractValidationV1.zeroUUID,
               KernelCanonicalHashV1.validSHA256(packageReleaseID),
               KernelCanonicalHashV1.validSHA256(workflowSHA256),
               KernelCanonicalHashV1.validSHA256(captureSHA256),
-              SnapshotProjectionValidationV1.validID(enteredUnitID),
-              SnapshotProjectionValidationV1.validID(canonicalUnitID),
-              precisionScale == canonicalValue.scale,
+              let unit = try? KernelUnitRegistryV1.definition(unitID: enteredUnitID),
+              unit.canonicalUnitID == canonicalUnitID,
+              unit.dimension == dimension,
+              precisionScale == enteredValue.scale,
               MeasurementIntegrityValidationV1.token(captureMethodID),
               revision > 0,
               qualityReasonCodes == qualityReasonCodes.sorted(),
@@ -1358,6 +1334,31 @@ struct PrivacyTransformReportProjectionV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
+        guard let expectedDigest = try? Self.digest(
+            workspaceID: workspaceID,
+            manifestID: manifestID,
+            reviewReceiptID: reviewReceiptID,
+            policyID: policyID,
+            audience: audience,
+            derivativeContentID: derivativeContentID,
+            derivativeSHA256: derivativeSHA256,
+            sourceRevision: sourceRevision,
+            sourceSHA256: sourceSHA256,
+            policyRevision: policyRevision,
+            policySHA256: policySHA256,
+            reviewRevision: reviewRevision,
+            reviewSHA256: reviewSHA256,
+            reviewDecision: reviewDecision,
+            staleState: staleState,
+            metadataSanitized: metadataSanitized,
+            redactionDeclared: redactionDeclared,
+            derivativeOnly: derivativeOnly,
+            originalReferenceExcluded: originalReferenceExcluded,
+            transformKinds: transformKinds,
+            regionCount: regionCount
+        ) else {
+            throw PrivacyTransformReportProjectionFailureV1.invalidValue
+        }
         guard schemaVersion == Self.schemaVersion,
               projectionVersion == Self.projectionVersion,
               workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
@@ -2227,9 +2228,9 @@ struct ReportPreviewProjectionV1: Codable, Equatable, Sendable {
             profileSHA256: values.decode(String.self, forKey: .profileSHA256)
         )
         guard try values.decode(Bool.self, forKey: .markedPreview) == reconstructed.markedPreview,
-              values.decode(Bool.self, forKey: .hasReportEffect) == reconstructed.hasReportEffect,
-              values.decode(Bool.self, forKey: .hasMetricEffect) == reconstructed.hasMetricEffect,
-              values.decode(Bool.self, forKey: .hasShareEffect) == reconstructed.hasShareEffect else {
+              try values.decode(Bool.self, forKey: .hasReportEffect) == reconstructed.hasReportEffect,
+              try values.decode(Bool.self, forKey: .hasMetricEffect) == reconstructed.hasMetricEffect,
+              try values.decode(Bool.self, forKey: .hasShareEffect) == reconstructed.hasShareEffect else {
             throw SnapshotProjectionFailureV1.partialEffect
         }
         self = reconstructed
@@ -2403,10 +2404,10 @@ struct ReportInspectionReviewHistoryProjectionV1: Codable, Equatable, Sendable {
               Set(reviewDispositionIDs).count == reviewDispositionIDs.count,
               Set(changeRequestRevisionIDs).count == changeRequestRevisionIDs.count,
               Set(actionEventIDs).count == actionEventIDs.count,
-              reviewStateLabels.allSatisfy(SnapshotProjectionValidationV1.validText),
-              reviewDispositionLabels.allSatisfy(SnapshotProjectionValidationV1.validText),
-              changeStateLabels.allSatisfy(SnapshotProjectionValidationV1.validText),
-              actionStateLabels.allSatisfy(SnapshotProjectionValidationV1.validText) else {
+              reviewStateLabels.allSatisfy({ SnapshotProjectionValidationV1.validText($0) }),
+              reviewDispositionLabels.allSatisfy({ SnapshotProjectionValidationV1.validText($0) }),
+              changeStateLabels.allSatisfy({ SnapshotProjectionValidationV1.validText($0) }),
+              actionStateLabels.allSatisfy({ SnapshotProjectionValidationV1.validText($0) }) else {
             throw SnapshotProjectionFailureV1.invalidValue
         }
         let expected = try WorkspaceMutationCanonicalV1.sha256(Basis(
@@ -2672,7 +2673,7 @@ struct ReportWorkPacketProjectionV1: Codable, Equatable, Sendable {
             allowed: Set(CodingKeys.allCases.map(\.rawValue))
         )
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(
+        try self.init(
             sourceSnapshotSHA256: values.decode(String.self, forKey: .sourceSnapshotSHA256),
             packetID: values.decode(UUID.self, forKey: .packetID),
             manifestSHA256: values.decode(String.self, forKey: .manifestSHA256),
@@ -4055,7 +4056,7 @@ struct PlanRebaseReceiptReportProjectionV1: Codable, Equatable, Sendable {
     let decision: PlanRebaseDecisionV1
     let resultingRevision: PlanRevisionReferenceV1?
     let resultingPlacementsSHA256: String?
-    let canonicalMutationReceiptSHA256: String?
+    let canonicalPlanMutationSHA256: String?
     let recordedAt: Date
     let revision: UInt64
     let receiptSHA256: String
@@ -4069,7 +4070,7 @@ struct PlanRebaseReceiptReportProjectionV1: Codable, Equatable, Sendable {
         decision = receipt.decision
         resultingRevision = receipt.resultingRevision
         resultingPlacementsSHA256 = receipt.resultingPlacementsSHA256
-        canonicalMutationReceiptSHA256 = receipt.canonicalMutationReceiptSHA256
+        canonicalPlanMutationSHA256 = receipt.canonicalPlanMutationSHA256
         recordedAt = receipt.recordedAt
         revision = receipt.revision
         receiptSHA256 = receipt.receiptSHA256
@@ -4088,7 +4089,7 @@ struct PlanRebaseReceiptReportProjectionV1: Codable, Equatable, Sendable {
         try PlanLimitsV1.digest(previewSHA256)
         try resultingRevision?.validate()
         try resultingPlacementsSHA256.map(PlanLimitsV1.digest)
-        try canonicalMutationReceiptSHA256.map(PlanLimitsV1.digest)
+        try canonicalPlanMutationSHA256.map(PlanLimitsV1.digest)
         try PlanLimitsV1.instant(recordedAt)
         try PlanLimitsV1.revision(revision)
         try PlanLimitsV1.digest(receiptSHA256)
@@ -4100,7 +4101,7 @@ struct PlanRebaseReceiptReportProjectionV1: Codable, Equatable, Sendable {
               resultingRevision.map({ $0.revision <= UInt64(Int.max) }) ?? true,
               approved == (resultingRevision != nil
                            && resultingPlacementsSHA256 != nil
-                           && canonicalMutationReceiptSHA256 != nil) else {
+                           && canonicalPlanMutationSHA256 != nil) else {
             throw PlanReportProjectionFailureV1.stalePreview
         }
     }
@@ -5403,7 +5404,7 @@ struct TemporalEvidenceReportAnchorBindingV1:
 
     func validate(clip: TemporalEvidenceClipV1) throws {
         try clip.validateIntrinsic()
-        guard anchorID != .zero, revision > 0,
+        guard anchorID != SearchContractValidationV1.zeroUUID, revision > 0,
               MutationEnvelopeV1.isSHA256(anchorSHA256),
               clipID == clip.clipID, clipRevision == clip.revision,
               clipSHA256 == clip.clipSHA256,
@@ -5473,7 +5474,7 @@ struct TemporalEvidenceReportLinkV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         let description = accessibleDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard schemaVersion == Self.schemaVersion, clipID != .zero, clipRevision > 0,
+        guard schemaVersion == Self.schemaVersion, clipID != SearchContractValidationV1.zeroUUID, clipRevision > 0,
               MutationEnvelopeV1.isSHA256(clipSHA256),
               ContentContractValidationV1.validID(contentID), durationMilliseconds > 0,
               anchorBindings == anchorBindings.sorted(),
@@ -5616,9 +5617,9 @@ struct TemporalEvidenceReportDerivativeBindingV1: Codable, Equatable, Sendable {
     }
 
     private func validateIntrinsic() throws {
-        guard derivativeID != .zero, revision > 0,
+        guard derivativeID != SearchContractValidationV1.zeroUUID, revision > 0,
               MutationEnvelopeV1.isSHA256(derivativeSHA256),
-              sourceClipID != .zero, sourceClipRevision > 0,
+              sourceClipID != SearchContractValidationV1.zeroUUID, sourceClipRevision > 0,
               MutationEnvelopeV1.isSHA256(sourceClipSHA256),
               projection == .typedLinkWithDerivativePreview else {
             throw TemporalEvidenceContractFailureV1.invalidDerivative
@@ -5952,7 +5953,7 @@ struct C49WorkResourceReportProjectionV1: Codable, Equatable, Sendable {
               directCostPreview.totalsByCurrency.allSatisfy({ (try? C49CurrencyTotalProjectionV1(currencyCode: $0.currencyCode, minorUnitScale: $0.minorUnitScale, mantissa: $0.mantissa)) != nil }),
               (directCostPreview.audience == .customerSafe && !directCostPreview.optedIn) ? (!directCostPreview.included && directCostPreview.totalsByCurrency.isEmpty) : true,
               (directCostPreview.audience == .customerSafe && directCostPreview.included) ? directCostPreview.optedIn : true,
-              projectionSHA256 == try WorkspaceMutationCanonicalV1.sha256(
+              projectionSHA256 == (try WorkspaceMutationCanonicalV1.sha256(
                 Basis(
                     schemaVersion: schemaVersion,
                     workspaceID: workspaceID,
@@ -5961,7 +5962,7 @@ struct C49WorkResourceReportProjectionV1: Codable, Equatable, Sendable {
                     materials: materials,
                     directCostPreview: directCostPreview
                 )
-              ) else {
+              )) else {
             throw C49WorkResourceProjectionFailureV1.nonCanonical
         }
         guard durationMinutes >= 0 else {

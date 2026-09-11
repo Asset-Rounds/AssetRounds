@@ -9,7 +9,23 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_80LightingDayInventoryTests/testReportConstructionRequiresAdmittedBeamRoleAndExactDisplayedPose"
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testSearchConstructorsPreserveAheadStaleAndInvalidContextErrors",
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testMetadataPoliciesTokenizeMultiwordStatesWithoutAdmittingPrivateFields",
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testOperatingContextSearchTokenizesUnicodeAndPreservesWorkspacePrivacy",
+    "FieldEvidenceAppTests/V9_19LocalSearchTests/testMeasurementSearchPreservesUUIDWorkspaceAndRejectsZero",
+    "FieldEvidenceAppTests/V9_76ReinspectionExceptionQueueTests/testExceptionQueueProjectionSelectsLatestAcknowledgementAndRejectsDuplicateRevisions",
+    "FieldEvidenceAppTests/V9_55PortableReviewTests/testCanonicalReviewResponseWrapperRoundTripsAndRejectsTypedCountOrDigestTamper",
+    "FieldEvidenceAppTests/V9_61AssetServiceReliabilityTests/testServiceReliabilityIdentityAndTextKeepExactZeroAndControlSemantics",
+    "FieldEvidenceAppTests/V9_60PortableServiceRequestTests/testPublicIDsPreserveValidatedConstructorsAndExactStringWireEncoding",
+    "FieldEvidenceAppTests/V9_60PortableServiceRequestTests/testV23P03C52H01TamperReplayDivergenceScopeAndUnverifiedIdentityInputsFailClosed",
+    "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testV9_16I01InterruptedProjectionExposesZeroOrCompleteOutputAndRegeneratesIdempotently",
+    "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testV23P03C15SnapshotProjectionIncludesActiveClaimAndLease",
+    "FieldEvidenceAppTests/V9_33MeasurementIntegrityTests/testV23P03C19G01InstrumentCalibrationCaptureAndQualityReviewAreDeterministic",
+    "FieldEvidenceAppTests/V9_34PrivacyTransformTests/testV23P03C20A01ApprovedProjectionRequiresSanitizedDerivativeAndExactAudience",
+    "FieldEvidenceAppTests/V9_43PlanRebaseTests/testV23P03C29I01InterruptedApprovalExposesOldSetOrOneSealedNewSet",
+    "FieldEvidenceAppTests/V9_38AccessibleDocumentTests/testGuidedSurveyReportProjectionsRejectZeroIdentities",
+    "FieldEvidenceAppTests/V9_56WorkResourceTests/testV23P03C49G01CanonicalProjectionSeparatesCurrenciesAndDetectsOverflow",
+    "FieldEvidenceAppTests/V9_88TemporalEvidenceCaptureTests/testV23P04C25R01ReportPosterMetadataLinkAndLifecycleRecovery"
   ],
   "uiTestSelectors": []
 }

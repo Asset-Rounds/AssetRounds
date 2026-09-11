@@ -277,6 +277,50 @@ final class V9_88TemporalEvidenceCaptureTests: XCTestCase {
             XCTAssertFalse(link.embedsOriginalBytes)
             XCTAssertNil(link.manualTranscript, "report projection must not expose transcript text")
             XCTAssertEqual(link.accessibleDescription, current.accessibleDescription)
+            let linkBytes = try JSONEncoder().encode(link)
+            let decodedLink = try JSONDecoder().decode(
+                TemporalEvidenceReportLinkV1.self, from: linkBytes
+            )
+            try decodedLink.validate()
+            XCTAssertEqual(decodedLink, link)
+            var zeroClip = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: linkBytes) as? [String: Any]
+            )
+            zeroClip["clipID"] = "00000000-0000-0000-0000-000000000000"
+            let invalidLink = try JSONDecoder().decode(
+                TemporalEvidenceReportLinkV1.self,
+                from: JSONSerialization.data(withJSONObject: zeroClip)
+            )
+            XCTAssertThrowsError(try invalidLink.validate()) {
+                XCTAssertEqual($0 as? TemporalEvidenceContractFailureV1, .invalidValue)
+            }
+            let anchorBinding = try XCTUnwrap(link.anchorBindings.first)
+            var zeroAnchor = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(anchorBinding)
+            ) as? [String: Any])
+            zeroAnchor["anchorID"] = "00000000-0000-0000-0000-000000000000"
+            let invalidAnchor = try JSONDecoder().decode(
+                TemporalEvidenceReportAnchorBindingV1.self,
+                from: JSONSerialization.data(withJSONObject: zeroAnchor)
+            )
+            XCTAssertThrowsError(try invalidAnchor.validate(clip: current)) {
+                XCTAssertEqual($0 as? TemporalEvidenceContractFailureV1, .staleSource)
+            }
+            let derivativeBinding = try XCTUnwrap(link.derivativePreview)
+            let derivativeObject = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(derivativeBinding)
+            ) as? [String: Any])
+            for key in ["derivativeID", "sourceClipID"] {
+                var invalidObject = derivativeObject
+                invalidObject[key] = "00000000-0000-0000-0000-000000000000"
+                let invalidDerivative = try JSONDecoder().decode(
+                    TemporalEvidenceReportDerivativeBindingV1.self,
+                    from: JSONSerialization.data(withJSONObject: invalidObject)
+                )
+                XCTAssertThrowsError(try invalidDerivative.validate(clip: current)) {
+                    XCTAssertEqual($0 as? TemporalEvidenceContractFailureV1, .invalidDerivative)
+                }
+            }
             try TemporalEvidenceDetailCardBoundaryV1.validate(
                 link, clip: current, currentDerivative: try derivative.reference
             )

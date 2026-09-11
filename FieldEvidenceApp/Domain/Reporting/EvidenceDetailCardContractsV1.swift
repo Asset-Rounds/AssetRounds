@@ -208,7 +208,7 @@ struct AudiencePrivacyPolicyV1: Codable, Equatable, Sendable {
               audience != .customerSafe || !prohibitedCanaries.isEmpty,
               prohibitedCanaries == prohibitedCanaries.sorted(),
               Set(prohibitedCanaries).count == prohibitedCanaries.count,
-              prohibitedCanaries.allSatisfy(SnapshotProjectionValidationV1.validText) else {
+              prohibitedCanaries.allSatisfy({ SnapshotProjectionValidationV1.validText($0) }) else {
             throw SnapshotProjectionFailureV1.invalidValue
         }
         schemaVersion = Self.schemaVersion
@@ -626,7 +626,7 @@ struct EvidenceDetailCardV1: Codable, Equatable, Sendable {
               Set(outputReferences.map(\.outputReferenceID)).count == outputReferences.count,
               referenceLabels.count == outputReferences.count,
               annotations.count <= 128, referenceLabels.count <= 256,
-              (annotations + referenceLabels + [limitationsText]).allSatisfy(SnapshotProjectionValidationV1.validText),
+              (annotations + referenceLabels + [limitationsText]).allSatisfy({ SnapshotProjectionValidationV1.validText($0) }),
               outputReferences.allSatisfy({
                   $0.outputScopeID == outputScopeID
                     && $0.workspaceBindingSHA256 == KernelCanonicalHashV1.sha256(
@@ -1224,7 +1224,7 @@ extension AudiencePrivacyPolicyV1 {
               audience != .customerSafe || !prohibitedCanaries.isEmpty,
               prohibitedCanaries == prohibitedCanaries.sorted(),
               Set(prohibitedCanaries).count == prohibitedCanaries.count,
-              prohibitedCanaries.allSatisfy(SnapshotProjectionValidationV1.validText),
+              prohibitedCanaries.allSatisfy({ SnapshotProjectionValidationV1.validText($0) }),
               policySHA256 == (try Self.digest(
                 policyID: policyID,
                 policyVersion: policyVersion,
@@ -1281,8 +1281,8 @@ extension ReviewedEvidenceMarkupV1 {
         guard SnapshotProjectionValidationV1.validID(markupID),
               KernelCanonicalHashV1.validSHA256(sourcePrivacyDigest),
               orderedAnnotations.count <= 128, orderedReferenceLabels.count <= 256,
-              orderedAnnotations.allSatisfy(SnapshotProjectionValidationV1.validText),
-              orderedReferenceLabels.allSatisfy(SnapshotProjectionValidationV1.validText) else {
+              orderedAnnotations.allSatisfy({ SnapshotProjectionValidationV1.validText($0) }),
+              orderedReferenceLabels.allSatisfy({ SnapshotProjectionValidationV1.validText($0) }) else {
             throw SnapshotProjectionFailureV1.invalidValue
         }
     }
@@ -1334,7 +1334,7 @@ extension EvidenceDetailCardV1 {
               Set(outputReferences.map(\.outputReferenceID)).count == outputReferences.count,
               referenceLabels.count == outputReferences.count,
               annotations.count <= 128, referenceLabels.count <= 256,
-              (annotations + referenceLabels + [limitationsText]).allSatisfy(SnapshotProjectionValidationV1.validText),
+              (annotations + referenceLabels + [limitationsText]).allSatisfy({ SnapshotProjectionValidationV1.validText($0) }),
               outputReferences.allSatisfy({
                 let namespace = KernelCanonicalHashV1.sha256(
                     Data("\(workspaceID)|\(outputScopeID)|\($0.contentSHA256)".utf8)

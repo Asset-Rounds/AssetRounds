@@ -524,7 +524,7 @@ struct C20GuidedSurveyAccessibleDocumentProjectionV1: Codable, Equatable, Sendab
 
     func validate() throws {
         try definition.validate(); try frozenPublication?.validate()
-        guard sessionID != UUID.zero,
+        guard sessionID != SearchContractValidationV1.zeroUUID,
               Set(orderedStateKeys).count == orderedStateKeys.count,
               !orderedStateKeys.isEmpty,
               GuidedSurveyPrimaryActionV1.allCases.contains(primaryAction),

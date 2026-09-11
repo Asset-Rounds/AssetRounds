@@ -687,6 +687,67 @@ final class V9_33MeasurementIntegrityTests: XCTestCase {
         XCTAssertEqual(fixture.qualityOverride.result, .overridden)
         XCTAssertEqual(fixture.qualityReview.reasonCodes, [.calibrationExpired])
         XCTAssertEqual(fixture.qualityOverride.reasonCodes, [.humanOverride])
+        let report = try MeasurementIntegrityReportProjectionV1(
+            capture: fixture.capture, instrument: fixture.instrument,
+            calibration: fixture.currentCalibration, series: fixture.series,
+            quality: fixture.qualityClear
+        )
+        try report.validate()
+        XCTAssertEqual(report.captureSHA256, fixture.capture.captureSHA256)
+        XCTAssertEqual(report.enteredValue, fixture.capture.measurement.enteredValue)
+        XCTAssertEqual(report.canonicalValue, fixture.capture.measurement.canonicalValue)
+        XCTAssertEqual(report.seriesID, fixture.series.seriesID)
+        XCTAssertEqual(report.seriesObservedSampleCount, fixture.series.samples.count)
+        XCTAssertEqual(report.qualityPolicySHA256, fixture.qualityClear.policySHA256)
+        XCTAssertEqual(report.enteredUnitID, "[fc_i]")
+        XCTAssertEqual(report.canonicalUnitID, "lx")
+        XCTAssertEqual(report.precisionScale, 0)
+        XCTAssertEqual(report.enteredValue.scale, 0)
+        XCTAssertEqual(report.canonicalValue.scale, 5)
+        let reportBytes = try JSONEncoder().encode(report)
+        let decodedReport = try JSONDecoder().decode(
+            MeasurementIntegrityReportProjectionV1.self, from: reportBytes
+        )
+        try decodedReport.validate()
+        XCTAssertEqual(decodedReport, report)
+        let reportObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: reportBytes) as? [String: Any]
+        )
+        for (key, value) in [
+            ("enteredUnitID", "unknown-unit"),
+            ("canonicalUnitID", "m"),
+            ("dimension", MeasurementDimensionV1.length.rawValue)
+        ] {
+            var invalid = reportObject
+            invalid[key] = value
+            let decoded = try JSONDecoder().decode(
+                MeasurementIntegrityReportProjectionV1.self,
+                from: JSONSerialization.data(withJSONObject: invalid)
+            )
+            XCTAssertThrowsError(try decoded.validate()) {
+                XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .invalidValue)
+            }
+        }
+        var wrongPrecision = reportObject
+        wrongPrecision["precisionScale"] = report.canonicalValue.scale
+        let wrongPrecisionReport = try JSONDecoder().decode(
+            MeasurementIntegrityReportProjectionV1.self,
+            from: JSONSerialization.data(withJSONObject: wrongPrecision)
+        )
+        XCTAssertThrowsError(try wrongPrecisionReport.validate()) {
+            XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .invalidValue)
+        }
+        var invalidReport = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: reportBytes) as? [String: Any]
+        )
+        invalidReport["captureID"] = "00000000-0000-0000-0000-000000000000"
+        let invalidCaptureReport = try JSONDecoder().decode(
+            MeasurementIntegrityReportProjectionV1.self,
+            from: JSONSerialization.data(withJSONObject: invalidReport)
+        )
+        XCTAssertThrowsError(try invalidCaptureReport.validate()) {
+            XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .invalidValue)
+        }
         let stateReasons: [[MeasurementQualityReasonV1]] = [
             try MeasurementQualityEvaluatorV1.reasons(capture: fixture.capture, calibration: fixture.calibrations[0], requiresUncertainty: false),
             try MeasurementQualityEvaluatorV1.reasons(capture: fixture.capture, calibration: fixture.calibrations[1], requiresUncertainty: false),

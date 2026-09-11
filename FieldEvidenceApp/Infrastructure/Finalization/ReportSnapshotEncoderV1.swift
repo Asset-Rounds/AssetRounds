@@ -1072,7 +1072,7 @@ extension CanonicalJSONV1 {
             "decision": .string(value.decision.rawValue),
             "resultingRevision": value.resultingRevision.map(c29PlanRevisionReference) ?? .null,
             "resultingPlacementsSHA256": value.resultingPlacementsSHA256.map { .string($0) } ?? .null,
-            "canonicalMutationReceiptSHA256": value.canonicalMutationReceiptSHA256.map { .string($0) } ?? .null,
+            "canonicalPlanMutationSHA256": value.canonicalPlanMutationSHA256.map { .string($0) } ?? .null,
             "recordedAt": date(value.recordedAt),
             "revision": .integer(Int(value.revision)),
             "receiptSHA256": .string(value.receiptSHA256),

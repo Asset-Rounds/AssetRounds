@@ -563,16 +563,21 @@ struct ExceptionQueueProjectionV1: Codable, Equatable, Sendable {
         var selected: [ExceptionQueueSourceSnapshotV1] = []
         for source in sortedSources where selected.last?.logicalExceptionKey != source.logicalExceptionKey { selected.append(source) }
         let acknowledgementByKey = Dictionary(grouping: acknowledgements, by: \.logicalExceptionKey)
-        let built = try selected.map { source -> ExceptionQueueItemV1 in
-            let matching = (acknowledgementByKey[source.logicalExceptionKey] ?? [])
+        var built: [ExceptionQueueItemV1] = []
+        for source in selected {
+            let candidates: [ExceptionQueueAcknowledgementV1] = acknowledgementByKey[source.logicalExceptionKey] ?? []
+            let matching: [ExceptionQueueAcknowledgementV1] = candidates
                 .filter { acknowledgement in
                     acknowledgement.sourceKind == source.kind && acknowledgement.sourceID == source.sourceID &&
                     acknowledgement.sourceRevision == source.sourceRevision && acknowledgement.sourceSHA256 == source.sourceSHA256
                 }
                 .sorted { ($0.revision, $0.acknowledgementID.uuidString) < ($1.revision, $1.acknowledgementID.uuidString) }
-            guard Set(matching.map(\.revision)).count == matching.count else { throw ReinspectionExceptionFailureV1.duplicateIdentity }
-            return try ExceptionQueueItemV1(source: source, acknowledgement: matching.last)
-        }.sorted {
+            let revisions: [UInt64] = matching.map(\.revision)
+            guard Set(revisions).count == matching.count else { throw ReinspectionExceptionFailureV1.duplicateIdentity }
+            let latest: ExceptionQueueAcknowledgementV1? = matching.last
+            built.append(try ExceptionQueueItemV1(source: source, acknowledgement: latest))
+        }
+        built.sort {
             $0.source.severity == $1.source.severity
                 ? $0.queueItemID < $1.queueItemID
                 : $0.source.severity.rawValue > $1.source.severity.rawValue

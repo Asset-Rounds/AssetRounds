@@ -698,6 +698,87 @@ final class V9_43PlanRebaseTests: XCTestCase {
         XCTAssertNotNil(writer.received)
         try writer.received?.validate()
 
+        let submitted = try XCTUnwrap(writer.received)
+        guard case let .applyRebase(_, _, _, _, planReceipt, _, _) = submitted.payload else {
+            return XCTFail("The approved command must carry the exact plan receipt")
+        }
+        let commandBasis = try PlanRebaseCommandBasisV1(
+            workspaceID: fixture.workspaceID, mutationID: C29PlanTestSupport.mutation(90),
+            preview: fixture.preview, newRevision: fixture.newRevision,
+            predecessorRevision: fixture.oldRevision, placements: fixture.newPlacements,
+            predecessorPlacements: fixture.oldPlacements,
+            receiptID: C29PlanTestSupport.id(81), predecessorReceipt: nil,
+            reviewedBy: reviewer,
+            recordedAt: C29PlanTestSupport.fixedDate.addingTimeInterval(3),
+            poseEffects: nil
+        )
+        try planReceipt.validate(
+            preview: fixture.preview, commandBasis: commandBasis, predecessor: nil
+        )
+        let receiptReport = try PlanRebaseReceiptReportProjectionV1(
+            receipt: planReceipt, preview: fixture.preview
+        )
+        XCTAssertEqual(receiptReport.canonicalPlanMutationSHA256, try commandBasis.canonicalSHA256)
+        let receiptReportBytes = try PlanCanonicalCodecV1.encode(receiptReport)
+        XCTAssertEqual(try PlanCanonicalCodecV1.decode(
+            PlanRebaseReceiptReportProjectionV1.self, from: receiptReportBytes
+        ), receiptReport)
+        let rejected = try coordinator.rejectionReceipt(
+            preview: fixture.preview, receiptID: C29PlanTestSupport.id(82),
+            predecessorReceipt: nil, mutationID: C29PlanTestSupport.mutation(91),
+            reviewedBy: reviewer,
+            recordedAt: C29PlanTestSupport.fixedDate.addingTimeInterval(4)
+        )
+        let rejectedReport = try PlanRebaseReceiptReportProjectionV1(
+            receipt: rejected, preview: fixture.preview
+        )
+        XCTAssertNil(rejectedReport.canonicalPlanMutationSHA256)
+        XCTAssertNil(rejectedReport.resultingRevision)
+        XCTAssertNil(rejectedReport.resultingPlacementsSHA256)
+        let otherPreview = try C29PlanTestSupport.fixture(requiresReview: false).preview
+        XCTAssertNotEqual(otherPreview.previewSHA256, fixture.preview.previewSHA256)
+        XCTAssertThrowsError(try PlanRebaseReceiptReportProjectionV1(
+            receipt: planReceipt, preview: otherPreview
+        )) { XCTAssertEqual($0 as? PlanContractFailureV1, .stalePreview) }
+        var tamperedReceipt = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(planReceipt)
+        ) as? [String: Any])
+        tamperedReceipt["receiptSHA256"] = String(repeating: "0", count: 64)
+        let wrongReceipt = try JSONDecoder().decode(
+            RebaseReceiptV1.self,
+            from: JSONSerialization.data(withJSONObject: tamperedReceipt)
+        )
+        XCTAssertThrowsError(try PlanRebaseReceiptReportProjectionV1(
+            receipt: wrongReceipt, preview: fixture.preview
+        )) { XCTAssertEqual($0 as? PlanContractFailureV1, .invalidDigest) }
+
+        let planReport = try PlanReportProjectionV1(
+            document: fixture.document, revision: fixture.newRevision,
+            placements: fixture.newPlacements, preview: fixture.preview, receipt: planReceipt
+        )
+        let bundle = Bundle(for: Self.self)
+        let frozenURL = try XCTUnwrap(bundle.url(
+            forResource: "S3_3ReportSnapshotV1", withExtension: "json", subdirectory: "Fixtures"
+        ) ?? bundle.url(forResource: "S3_3ReportSnapshotV1", withExtension: "json"))
+        let originalBytes = try Data(contentsOf: frozenURL)
+        let encoder = ReportSnapshotEncoderV1()
+        var snapshot = try encoder.decode(originalBytes)
+        XCTAssertEqual(try encoder.encode(snapshot).data, originalBytes)
+        snapshot.planProjection = planReport
+        let encoded = try encoder.encode(snapshot).data
+        let encodedObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        let encodedPlan = try XCTUnwrap(encodedObject["planProjection"] as? [String: Any])
+        let encodedReceipt = try XCTUnwrap(encodedPlan["rebaseReceipt"] as? [String: Any])
+        XCTAssertEqual(encodedReceipt["canonicalPlanMutationSHA256"] as? String,
+                       try commandBasis.canonicalSHA256)
+        XCTAssertNil(encodedReceipt["canonicalMutationReceiptSHA256"])
+        let decoded = try encoder.decode(encoded)
+        XCTAssertEqual(decoded.planProjection, planReport)
+        XCTAssertEqual(try encoder.encode(decoded).data, encoded)
+        XCTAssertEqual(try Data(contentsOf: frozenURL), originalBytes)
+
         let adapter = PlanLifecycleAdapterV1(
             coordinator: coordinator,
             recovery: C29NoReceiptRecovery()

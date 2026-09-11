@@ -342,6 +342,24 @@ final class V9_56WorkResourceTests: XCTestCase {
         )
         XCTAssertEqual(projection.directCostPreview.totalsByCurrency.map(\.currencyCode), ["EUR", "USD"])
         XCTAssertEqual(projection.directCostPreview.totalsByCurrency.map(\.mantissa), [250, 125])
+        try projection.validate()
+        let projectionBytes = try JSONEncoder().encode(projection)
+        let decodedProjection = try JSONDecoder().decode(
+            C49WorkResourceReportProjectionV1.self, from: projectionBytes
+        )
+        try decodedProjection.validate()
+        XCTAssertEqual(decodedProjection, projection)
+        var invalidProjection = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: projectionBytes) as? [String: Any]
+        )
+        invalidProjection["projectionSHA256"] = String(repeating: "0", count: 64)
+        let wrongDigestProjection = try JSONDecoder().decode(
+            C49WorkResourceReportProjectionV1.self,
+            from: JSONSerialization.data(withJSONObject: invalidProjection)
+        )
+        XCTAssertThrowsError(try wrongDigestProjection.validate()) {
+            XCTAssertEqual($0 as? C49WorkResourceProjectionFailureV1, .nonCanonical)
+        }
 
         let maximum = try makeEntry(directCost: DirectCostEntryV1(
             amount: ExactMoneyAmountV1(mantissa: Int64.max, currencyCode: "USD", minorUnitScale: 2)

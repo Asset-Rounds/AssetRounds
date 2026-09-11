@@ -56,6 +56,120 @@ private final class C30EvidenceContextAnchorV9_19LocalSearch: XCTestCase {
 }
 
 final class V9_19LocalSearchTests: XCTestCase {
+    func testSearchConstructorsPreserveAheadStaleAndInvalidContextErrors() throws {
+        let source = try source(revision: 10)
+        let ranking = try SearchRankingKeyV1(tier: .normalizedExactToken, stableID: "asset-1",
+                                            timestamp: Date(timeIntervalSince1970: 0))
+        func context(indexRevision: UInt64, display: String = "Asset 1") throws -> SearchResultContextV1 {
+            try .init(workspaceID: source.workspaceID, sourceKind: .asset, stableID: "asset-1",
+                      displayIdentity: display, locationBreadcrumb: [], status: "Open",
+                      rankingKey: ranking, sourceRevision: 10, indexRevision: indexRevision)
+        }
+        XCTAssertNoThrow(try context(indexRevision: 10))
+        XCTAssertThrowsError(try context(indexRevision: 11)) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .indexAheadOfSource)
+        }
+        XCTAssertThrowsError(try context(indexRevision: 10, display: "")) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .invalidContext)
+        }
+        let registry = try makeRegistry()
+        for (revision, expected) in [(UInt64(9), SearchContractFailureV1.staleIndex),
+                                     (UInt64(11), SearchContractFailureV1.indexAheadOfSource)] {
+            let index = try SearchIndexRevisionV1(workspaceID: source.workspaceID,
+                generationID: source.generationID, indexedCommitRevision: revision)
+            XCTAssertThrowsError(try SearchIndexProjectionV1(source: source, index: index,
+                                                              records: [], registry: registry)) {
+                XCTAssertEqual($0 as? SearchContractFailureV1, expected)
+            }
+        }
+        let index = try SearchIndexRevisionV1(workspaceID: source.workspaceID,
+            generationID: source.generationID, indexedCommitRevision: 10)
+        XCTAssertNoThrow(try SearchIndexProjectionV1(source: source, index: index, records: [], registry: registry))
+    }
+
+    func testMetadataPoliciesTokenizeMultiwordStatesWithoutAdmittingPrivateFields() {
+        XCTAssertTrue(SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+            fieldID: "assurance_audience", tokens: ["internal", "review"], snippet: nil))
+        XCTAssertTrue(SearchInspectionReviewPersistencePolicyV1.acceptsMetadata(
+            fieldID: "inspection_review_disposition", tokens: ["changes", "requested"], snippet: "CHANGES_REQUESTED"))
+        XCTAssertTrue(SearchWorkPacketPersistencePolicyV1.acceptsMetadata(
+            fieldID: "work_packet_conflict_state", tokens: ["review", "required"], snippet: "REVIEW_REQUIRED"))
+        XCTAssertFalse(SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+            fieldID: "assurance_audience", tokens: ["privatecustomer"], snippet: nil))
+        XCTAssertFalse(SearchInspectionReviewPersistencePolicyV1.acceptsMetadata(
+            fieldID: "inspection_review_disposition", tokens: ["privatecustomer"], snippet: "privatecustomer"))
+        XCTAssertFalse(SearchWorkPacketPersistencePolicyV1.acceptsMetadata(
+            fieldID: "work_packet_conflict_state", tokens: ["privatecustomer"], snippet: "privatecustomer"))
+        XCTAssertFalse(SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+            fieldID: "actor_private_detail", tokens: ["internal", "review"], snippet: nil))
+        XCTAssertFalse(SearchInspectionReviewPersistencePolicyV1.acceptsMetadata(
+            fieldID: "review_reason", tokens: ["changes", "requested"], snippet: "CHANGES_REQUESTED"))
+        XCTAssertFalse(SearchWorkPacketPersistencePolicyV1.acceptsMetadata(
+            fieldID: "lease_identifier", tokens: ["review", "required"], snippet: "REVIEW_REQUIRED"))
+        XCTAssertFalse(SearchWorkPacketPersistencePolicyV1.acceptsMetadata(
+            fieldID: "work_packet_conflict_state", tokens: ["review", "required"], snippet: "NONE"))
+    }
+
+    func testOperatingContextSearchTokenizesUnicodeAndPreservesWorkspacePrivacy() throws {
+        let workspace = WorkspaceID(rawValue: try source(revision: 1).workspaceID)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let actor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace,
+                                              displayName: "Private recorder")
+        let snapshot = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: actor,
+            responsibility: .recordedBy, displayNameAtTime: actor.displayName, capturedAt: now)
+        let temporal = try TemporalContextV1(occurredAtUTC: now, recordedAtUTC: now,
+            localDate: nil, localTime: nil, utcOffsetSeconds: nil, ianaTimeZoneIdentifier: nil,
+            localTimeDisposition: .unknown)
+        let context = try EvidenceContextV1(contextID: UUID(), workspaceID: workspace,
+            evidenceID: "Café-مضخة/Ａ12", evidenceSHA256: String(repeating: "a", count: 64),
+            evidenceRevision: 1, assetID: UUID(), assetRevision: 1, temporalContext: temporal,
+            userObserved: .init(condition: .civilTwilight, observationNoteCode: "PRIVATE_NOTE"),
+            derivedSolar: nil, controlExpectation: nil, predecessor: nil, revision: 1,
+            mutationID: .init(rawValue: UUID()), recordedBy: snapshot, recordedAt: now)
+        let projection = try C30EvidenceContextReportReferenceV1(context: context)
+        let record = try C30OperatingContextSearchRecordV1(projection)
+        try record.validate()
+        XCTAssertEqual(record.workspaceID, workspace)
+        XCTAssertTrue(Set(["cafe", "مضخة", "a12", "civil", "twilight", "not", "linked"])
+            .isSubset(of: Set(record.normalizedTokens)))
+        XCTAssertEqual(record.normalizedTokens, Array(Set(record.normalizedTokens)).sorted())
+        XCTAssertFalse(record.normalizedTokens.contains("private"))
+        XCTAssertFalse(record.normalizedTokens.contains("recorder"))
+        XCTAssertFalse(record.normalizedTokens.contains("note"))
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as? [String: Any])
+        object["workspaceID"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(WorkspaceID(rawValue: SearchContractValidationV1.zeroUUID)),
+            options: [.fragmentsAllowed])
+        let wrongWorkspace = try JSONDecoder().decode(C30OperatingContextSearchRecordV1.self,
+            from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertThrowsError(try wrongWorkspace.validate()) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .invalidField)
+        }
+        object["workspaceID"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(workspace), options: [.fragmentsAllowed])
+        object["evidenceID"] = "invalid identifier"
+        let wrongField = try JSONDecoder().decode(C30OperatingContextSearchRecordV1.self,
+            from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertThrowsError(try wrongField.validate()) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .invalidField)
+        }
+    }
+
+    func testMeasurementSearchPreservesUUIDWorkspaceAndRejectsZero() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let projection = try MeasurementIntegrityReportProjectionV1(capture: fixture.manualCapture)
+        let record = try MeasurementIntegritySearchRecordV1(projection: projection)
+        XCTAssertEqual(record.workspaceID, fixture.workspace.rawValue)
+        try record.validate()
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as? [String: Any])
+        object["workspaceID"] = SearchContractValidationV1.zeroUUID.uuidString
+        let invalid = try JSONDecoder().decode(MeasurementIntegritySearchRecordV1.self,
+            from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertThrowsError(try invalid.validate()) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .forbiddenField)
+        }
+    }
+
     @MainActor
     func testActiveSearchProjectionPreservesPartySummaryAndUndatedActivityBytes() async throws {
         let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()

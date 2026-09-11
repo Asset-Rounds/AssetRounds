@@ -995,6 +995,101 @@ extension V9_38AccessibleDocumentTests {
     }
 }
 extension V9_38AccessibleDocumentTests {
+    func testGuidedSurveyReportProjectionsRejectZeroIdentities() throws {
+        let definition = try C26SurveySessionTestSupport.release()
+        let package = try C26SurveySessionTestSupport.packageRelease()
+        let authority = try C26SurveySessionTestSupport.authority(for: definition, package: package)
+        let provisional = try C26SurveySessionTestSupport.provisional()
+        let draft = try C26SurveySessionTestSupport.session(
+            authority: authority, subject: .provisional(provisional.reference),
+            state: .draft, transition: .create, revision: 1, actorSlot: 601
+        )
+        let event = try C25SurveyDefinitionTestSupport.event(
+            release: definition, action: .createDraft, priorState: nil,
+            resultingState: .draft, eventSlot: 8_500, revision: 1
+        )
+        let identity = try C25SurveyDefinitionTestSupport.identity(
+            release: definition, state: .draft, event: event,
+            createdBy: C25SurveyDefinitionTestSupport.actor(workspaceID: definition.workspaceID)
+        )
+        let resume = GuidedSurveyResumeContextV1(
+            workspaceID: draft.workspaceID, sessionID: draft.sessionID,
+            sessionRevision: draft.revision, sessionSHA256: draft.sessionSHA256,
+            sectionID: try XCTUnwrap(definition.sections.first).sectionID,
+            subject: draft.subject, factID: nil, repeatCoordinates: []
+        )
+        let flow = try GuidedSurveyFlowV1(
+            workspaceID: draft.workspaceID, definition: definition,
+            identity: identity, lifecycleEvent: event, session: draft,
+            captures: [], publication: nil, resumeContext: resume,
+            poseRequirement: GuidedSurveyPoseRequirementV1(release: nil),
+            priorFacts: [], favorite: false, recentOrdinal: nil
+        )
+        let accessible = try C20GuidedSurveyAccessibleDocumentProjectionV1(
+            flow: flow, frozenReport: nil
+        )
+        try accessible.validate()
+        XCTAssertEqual(accessible.sessionID, draft.sessionID)
+        XCTAssertFalse(accessible.passFailClaimed)
+        let accessibleBytes = try JSONEncoder().encode(accessible)
+        XCTAssertEqual(try JSONDecoder().decode(
+            C20GuidedSurveyAccessibleDocumentProjectionV1.self, from: accessibleBytes
+        ), accessible)
+        var invalidAccessible = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: accessibleBytes) as? [String: Any]
+        )
+        invalidAccessible["sessionID"] = "00000000-0000-0000-0000-000000000000"
+        let zeroSession = try JSONDecoder().decode(
+            C20GuidedSurveyAccessibleDocumentProjectionV1.self,
+            from: JSONSerialization.data(withJSONObject: invalidAccessible)
+        )
+        XCTAssertThrowsError(try zeroSession.validate()) {
+            XCTAssertEqual($0 as? AccessibleDocumentFailureV1, .invalidValue)
+        }
+
+        let capture = try C26SurveySessionTestSupport.capture(
+            session: draft, release: definition, slot: 180
+        )
+        let review = try C26SurveySessionTestSupport.session(
+            authority: authority, subject: draft.subject, state: .reviewRequired,
+            transition: .submitForReview, predecessor: draft, revision: 2, actorSlot: 602
+        )
+        let candidate = try C26SurveySessionTestSupport.session(
+            authority: authority, subject: draft.subject, state: .completed,
+            transition: .complete, predecessor: review, revision: 3, actorSlot: 603
+        )
+        let publication = try SurveyPublicationSnapshotV1(
+            snapshotID: C26SurveySessionTestSupport.id(182), session: candidate,
+            definition: definition, currentCaptures: [capture], promotionReceipts: [],
+            publishedBy: C26SurveySessionTestSupport.actor(
+                workspaceID: draft.workspaceID, slot: 1_801
+            ),
+            publishedAt: C26SurveySessionTestSupport.fixedDate.addingTimeInterval(300),
+            revision: 1, mutationID: C26SurveySessionTestSupport.mutation(2_604)
+        )
+        let report = try SurveyPublicationReportProjectionV1(publication: publication)
+        try report.validate()
+        XCTAssertEqual(report.publicationSHA256, publication.snapshotSHA256)
+        let reportBytes = try JSONEncoder().encode(report)
+        XCTAssertEqual(try JSONDecoder().decode(
+            SurveyPublicationReportProjectionV1.self, from: reportBytes
+        ), report)
+        let reportObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: reportBytes) as? [String: Any]
+        )
+        for key in ["snapshotID", "sessionID", "definitionReleaseID"] {
+            var invalid = reportObject
+            invalid[key] = "00000000-0000-0000-0000-000000000000"
+            let invalidReport = try JSONDecoder().decode(
+                SurveyPublicationReportProjectionV1.self,
+                from: JSONSerialization.data(withJSONObject: invalid)
+            )
+            XCTAssertThrowsError(try invalidReport.validate()) {
+                XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .invalidValue)
+            }
+        }
+    }
+
     func testC26SurveySessionTypedAnchor() throws {
         XCTAssertEqual(ActivityKindSemanticsV1(kind: .survey).completion, .typedFactCollection)
         XCTAssertFalse(ActivityKindSemanticsV1(kind: .survey).mayClaimInspectionResult)

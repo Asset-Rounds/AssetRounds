@@ -548,7 +548,9 @@ struct CanonicalReviewResponseBytesV1: Codable, Equatable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let bytes = try c.decode(Data.self, forKey: .canonicalBytes)
         try self.init(canonicalBytes: bytes)
-        guard byteCount == c.decode(Int.self, forKey: .byteCount), sha256 == c.decode(Data.self, forKey: .sha256) else {
+        let encodedByteCount = try c.decode(Int.self, forKey: .byteCount)
+        let encodedSHA256 = try c.decode(Data.self, forKey: .sha256)
+        guard byteCount == encodedByteCount, sha256 == encodedSHA256 else {
             throw PortableReviewFailureV1.invalidDigest
         }
     }

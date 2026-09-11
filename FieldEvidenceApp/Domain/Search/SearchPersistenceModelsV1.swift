@@ -140,7 +140,7 @@ enum SearchEvidenceAssurancePersistencePolicyV1 {
         }
         let allowedTokens = Set(allowed.flatMap {
             SearchContractValidationV1.normalizeSearchText($0)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         })
         guard Set(tokens).isSubset(of: allowedTokens),
@@ -218,7 +218,7 @@ enum SearchInspectionReviewPersistencePolicyV1 {
         }
         let allowedTokens = Set(allowed.flatMap {
             SearchContractValidationV1.normalizeSearchText($0)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         })
         return Set(tokens).isSubset(of: allowedTokens)
@@ -298,7 +298,7 @@ enum SearchWorkPacketPersistencePolicyV1 {
         }
         let allowedTokens = Set(allowed.flatMap {
             SearchContractValidationV1.normalizeSearchText($0)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         })
         return Set(tokens).isSubset(of: allowedTokens)

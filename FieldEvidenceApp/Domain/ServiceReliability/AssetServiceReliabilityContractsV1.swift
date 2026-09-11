@@ -17,13 +17,14 @@ protocol ServiceReliabilityCanonicalValidatingV1 {
 }
 
 enum ServiceReliabilityLimitsV1 {
+    private static let zeroUUID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
     static let maximumTextBytes = 2_048
     static let maximumEvidenceCount = 64
     static let maximumBundleEvents = 128
     static let maximumIntervals = 10_000
 
     static func id(_ value: UUID) throws {
-        guard value != UUID.zero else { throw ServiceReliabilityFailureV1.invalidValue }
+        guard value != zeroUUID else { throw ServiceReliabilityFailureV1.invalidValue }
     }
 
     static func digest(_ value: String) throws {
@@ -35,7 +36,7 @@ enum ServiceReliabilityLimitsV1 {
               value == value.precomposedStringWithCanonicalMapping,
               value == value.trimmingCharacters(in: .whitespacesAndNewlines),
               value.utf8.count <= maximumTextBytes,
-              value.unicodeScalars.allSatisfy({ !$0.properties.isControl }) else {
+              value.unicodeScalars.allSatisfy({ $0.properties.generalCategory != .control }) else {
             throw ServiceReliabilityFailureV1.invalidValue
         }
     }

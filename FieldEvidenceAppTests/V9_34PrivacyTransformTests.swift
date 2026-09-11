@@ -667,6 +667,36 @@ final class V9_34PrivacyTransformTests: XCTestCase {
         )
         XCTAssertTrue(decision.isAllowed)
         XCTAssertEqual(decision.derivative, fixture.derivative)
+        let report = try PrivacyTransformReportProjectionV1(
+            manifest: fixture.manifest, review: fixture.approvedReview,
+            policy: fixture.policy, requestedAudience: .customerReport,
+            currentSourceRevision: 1,
+            currentSourceSHA256: fixture.manifest.sourceSHA256,
+            redactionDeclared: true, now: fixture.capturedAt
+        )
+        try report.validate()
+        XCTAssertEqual(report.manifestID, fixture.manifest.manifestID)
+        XCTAssertEqual(report.reviewSHA256, fixture.approvedReview.receiptSHA256)
+        XCTAssertEqual(report.policySHA256, fixture.policy.policySHA256)
+        XCTAssertEqual(report.derivativeSHA256, fixture.manifest.derivativeSHA256)
+        XCTAssertTrue(report.isAudienceSafe)
+        let reportBytes = try JSONEncoder().encode(report)
+        let decodedReport = try JSONDecoder().decode(
+            PrivacyTransformReportProjectionV1.self, from: reportBytes
+        )
+        try decodedReport.validate()
+        XCTAssertEqual(decodedReport, report)
+        var invalidReport = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: reportBytes) as? [String: Any]
+        )
+        invalidReport["projectionSHA256"] = String(repeating: "0", count: 64)
+        let wrongDigestReport = try JSONDecoder().decode(
+            PrivacyTransformReportProjectionV1.self,
+            from: JSONSerialization.data(withJSONObject: invalidReport)
+        )
+        XCTAssertThrowsError(try wrongDigestReport.validate()) {
+            XCTAssertEqual($0 as? PrivacyTransformReportProjectionFailureV1, .invalidValue)
+        }
         try fixture.bundle.validate()
         let closure = PrivacyTransformLifecycleClosureV1(
             policy: fixture.policy, regions: fixture.regions,

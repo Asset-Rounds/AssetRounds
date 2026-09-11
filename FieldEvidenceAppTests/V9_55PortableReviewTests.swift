@@ -334,6 +334,52 @@ final class V9_55PortableReviewTests: XCTestCase {
         func now() -> Date { date }
     }
 
+    func testCanonicalReviewResponseWrapperRoundTripsAndRejectsTypedCountOrDigestTamper() throws {
+        struct Wire: Encodable {
+            let canonicalBytes: Data
+            let byteCount: Int
+            let sha256: Data
+        }
+
+        let vector = try ReviewCapabilityProofVectorV1.rv1001()
+        let response = try ReviewResponseEnvelopeV1(
+            responsePublicID: "review-response-wrapper-test",
+            requestPublicID: vector.input.requestPublicID,
+            body: try ReviewResponseBodyV1(
+                disposition: .approved,
+                author: try ResponseAuthorAssertionV1(displayName: "Reviewer")
+            ),
+            proof: vector.proof,
+            canonicalBodyDigest: vector.input.canonicalResponseBodyDigest
+        )
+        let wrapper = try CanonicalReviewResponseBytesV1(response: response)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let canonicalWire = try encoder.encode(wrapper)
+        XCTAssertEqual(
+            try decoder.decode(CanonicalReviewResponseBytesV1.self, from: canonicalWire),
+            wrapper
+        )
+
+        let wrongCount = try encoder.encode(Wire(
+            canonicalBytes: wrapper.canonicalBytes,
+            byteCount: wrapper.byteCount + 1,
+            sha256: wrapper.sha256
+        ))
+        XCTAssertThrowsError(try decoder.decode(CanonicalReviewResponseBytesV1.self, from: wrongCount)) { error in
+            XCTAssertEqual(error as? PortableReviewFailureV1, .invalidDigest)
+        }
+
+        let wrongDigest = try encoder.encode(Wire(
+            canonicalBytes: wrapper.canonicalBytes,
+            byteCount: wrapper.byteCount,
+            sha256: Data(repeating: 0, count: PortableReviewLimitsV1.digestByteCount)
+        ))
+        XCTAssertThrowsError(try decoder.decode(CanonicalReviewResponseBytesV1.self, from: wrongDigest)) { error in
+            XCTAssertEqual(error as? PortableReviewFailureV1, .invalidDigest)
+        }
+    }
+
     func testExchangeEnvelopeUpdatesPreserveGenerationHistoryAndRetryAcrossReopen() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V9_55-integration-envelope-\(UUID().uuidString)", isDirectory: true

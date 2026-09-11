@@ -911,7 +911,8 @@ struct SearchResultContextV1: Codable, Equatable, Sendable {
               snippet.map({ SearchContractValidationV1.validDisplayText($0, maximumBytes: SearchContractLimitsV1.maximumSnippetBytes) }) ?? true,
               dueAt.map(SearchContractValidationV1.validDate) ?? true,
               indexRevision <= sourceRevision else {
-            throw indexRevision > sourceRevision ? .indexAheadOfSource : .invalidContext
+            throw indexRevision > sourceRevision
+                ? SearchContractFailureV1.indexAheadOfSource : SearchContractFailureV1.invalidContext
         }
     }
 }
@@ -1257,7 +1258,7 @@ struct SearchIndexProjectionV1: Codable, Equatable, Sendable {
                   $0.workspaceID == source.workspaceID && $0.sourceRevision <= source.commitRevision
               }) else {
             throw index.indexedCommitRevision > source.commitRevision
-                ? .indexAheadOfSource : .staleIndex
+                ? SearchContractFailureV1.indexAheadOfSource : SearchContractFailureV1.staleIndex
         }
         try records.forEach { try $0.validate() }
     }
@@ -1646,7 +1647,7 @@ struct MeasurementIntegritySearchRecordV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
-              workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              workspaceID != SearchContractValidationV1.zeroUUID,
               captureID != SearchContractValidationV1.zeroUUID,
               boundedFieldValues.keys.allSatisfy(MeasurementIntegritySearchProjectionPolicyV1.accepts),
               boundedFieldValues.keys.contains(.captureIdentifier),
@@ -2089,7 +2090,7 @@ struct AccessibleDocumentSearchRecordV1: Codable, Equatable, Sendable {
               ),
               Set(alternateTextProvenances).count == alternateTextProvenances.count,
               Set(boundedFieldValues.keys) == required,
-              boundedFieldValues.values.allSatisfy(SearchContractValidationV1.validID),
+              boundedFieldValues.values.allSatisfy({ SearchContractValidationV1.validID($0) }),
               !AccessibleDocumentLocalizationPolicyV1.containsProhibitedClaim(
                   in: Array(boundedFieldValues.values)
               ),
@@ -2367,7 +2368,7 @@ struct SurveyDefinitionSearchRecordV1: Codable, Equatable, Sendable {
         ]
         let tokens = values.flatMap { value in
             SearchContractValidationV1.normalizeSearchText(value)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         }
         return Array(Set(tokens)).sorted()
@@ -2624,7 +2625,7 @@ struct SurveySessionSearchRecordV1: Codable, Equatable, Sendable {
         ]
         let tokens = values.flatMap { value in
             SearchContractValidationV1.normalizeSearchText(value)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         }
         return Array(Set(tokens)).sorted()
@@ -2765,7 +2766,7 @@ struct AssetLocatorSearchRecordV1: Codable, Equatable, Sendable {
               boundedFieldValues.count == AssetLocatorSearchFieldV1.allCases.count,
               boundedFieldValues.values.allSatisfy({ value in
                   let parts = SearchContractValidationV1.normalizeSearchText(value)
-                      .split { !CharacterSet.alphanumerics.contains($0) }
+                      .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                       .map(String.init)
                   return !parts.isEmpty
                       && parts.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
@@ -2819,7 +2820,7 @@ struct AssetLocatorSearchRecordV1: Codable, Equatable, Sendable {
         ]
         let tokens = values.flatMap { value in
             SearchContractValidationV1.normalizeSearchText(value)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         }
         return Array(Set(tokens)).sorted()
@@ -2991,7 +2992,7 @@ struct ScheduleOccurrenceSearchRecordV1: Codable, Equatable, Sendable {
               boundedFieldValues.count == ScheduleOccurrenceSearchFieldV1.allCases.count,
               boundedFieldValues.values.allSatisfy({ value in
                   let parts = SearchContractValidationV1.normalizeSearchText(value)
-                      .split { !CharacterSet.alphanumerics.contains($0) }
+                      .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                       .map(String.init)
                   return !parts.isEmpty
                       && parts.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
@@ -3024,7 +3025,7 @@ struct ScheduleOccurrenceSearchRecordV1: Codable, Equatable, Sendable {
         ]
         let tokens = values.flatMap { value in
             SearchContractValidationV1.normalizeSearchText(value)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         }
         return Array(Set(tokens)).sorted()
@@ -3157,7 +3158,7 @@ struct AdvancedScheduleOccurrenceSearchRecordV1: Codable, Equatable, Sendable {
 
     private static func tokens(_ values: String...) -> [String] {
         Array(Set(values.flatMap { SearchContractValidationV1.normalizeSearchText($0)
-            .split { !CharacterSet.alphanumerics.contains($0) }.map(String.init) })).sorted()
+            .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }.map(String.init) })).sorted()
     }
 }
 
@@ -3305,7 +3306,7 @@ struct PlanPlacementSearchRecordV1: Codable, Equatable, Sendable {
               boundedFieldValues.count == PlanPlacementSearchFieldV1.allCases.count,
               boundedFieldValues.values.allSatisfy({ value in
                   let parts = SearchContractValidationV1.normalizeSearchText(value)
-                      .split { !CharacterSet.alphanumerics.contains($0) }
+                      .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                       .map(String.init)
                   return !parts.isEmpty
                       && parts.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
@@ -3342,7 +3343,7 @@ struct PlanPlacementSearchRecordV1: Codable, Equatable, Sendable {
         ]
         let tokens = values.flatMap { value in
             SearchContractValidationV1.normalizeSearchText(value)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         }
         return Array(Set(tokens)).sorted()
@@ -3750,7 +3751,7 @@ struct PlanDocumentSearchRecordV1: Codable, Equatable, Sendable {
         var bounded: [String] = []
         for token in values.flatMap({ value in
             SearchContractValidationV1.normalizeSearchText(value)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         }) where seen.insert(token).inserted {
             guard bounded.count < SearchContractLimitsV1.maximumQueryTokens else { break }
@@ -3895,7 +3896,7 @@ struct C37PoseSearchRecordV1: Codable, Equatable, Sendable {
               SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
               boundedFieldValues.values.allSatisfy({ value in
                   let parts = SearchContractValidationV1.normalizeSearchText(value)
-                      .split { !CharacterSet.alphanumerics.contains($0) }
+                      .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                       .map(String.init)
                   return !parts.isEmpty
                       && parts.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
@@ -3926,7 +3927,7 @@ struct C37PoseSearchRecordV1: Codable, Equatable, Sendable {
         ]
         return Array(Set(values.flatMap { value in
             SearchContractValidationV1.normalizeSearchText(value)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         })).sorted()
     }
@@ -4032,7 +4033,7 @@ struct C30OperatingContextSearchRecordV1: Codable, Equatable, Sendable {
         values.append(contentsOf: projection.pairedObservation?.mismatchReasons.map(\.rawValue) ?? [])
         return Array(Set(values.flatMap { token in
             SearchContractValidationV1.normalizeSearchText(token)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
                 .filter(SearchContractValidationV1.isCanonicalSearchToken)
         })).sorted()
@@ -4040,7 +4041,7 @@ struct C30OperatingContextSearchRecordV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
-              workspaceID != SearchContractValidationV1.zeroUUID,
+              workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
               assetID != SearchContractValidationV1.zeroUUID,
               contextID != SearchContractValidationV1.zeroUUID,
               SearchContractValidationV1.validID(evidenceID),
@@ -4213,7 +4214,7 @@ struct TemporalEvidenceSearchRecordV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
-        guard schemaVersion == Self.schemaVersion, clipID != .zero, clipRevision > 0,
+        guard schemaVersion == Self.schemaVersion, clipID != SearchContractValidationV1.zeroUUID, clipRevision > 0,
               MutationEnvelopeV1.isSHA256(clipSHA256), durationMilliseconds > 0,
               accessibleDescription.utf8.count <= 4_096,
               anchorLabels == anchorLabels.sorted(),
@@ -4535,7 +4536,7 @@ struct C53ServiceReliabilitySearchProjectionV1: Codable, Equatable, Sendable {
     private static func tokens(_ values: String...) -> [String] {
         Array(Set(values.flatMap {
             SearchContractValidationV1.normalizeSearchText($0)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         })).sorted()
     }
@@ -4636,7 +4637,7 @@ struct C57MyDaySearchRecordV1: Codable, Equatable, Sendable {
     private static func tokens(_ values: String...) -> [String] {
         Array(Set(values.flatMap {
             SearchContractValidationV1.normalizeSearchText($0)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         })).sorted()
     }
@@ -4752,7 +4753,7 @@ struct C05RoundSessionSearchProjectionV1: Codable, Equatable, Sendable {
     private static func tokens(_ values: String...) -> [String] {
         Array(Set(values.flatMap {
             SearchContractValidationV1.normalizeSearchText($0)
-                .split { !CharacterSet.alphanumerics.contains($0) }
+                .unicodeScalars.split { !CharacterSet.alphanumerics.contains($0) }
                 .map(String.init)
         })).sorted()
     }

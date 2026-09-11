@@ -525,6 +525,43 @@ final class V9_16SnapshotProjectionTests: XCTestCase {
         XCTAssertFalse(preview.hasReportEffect)
         XCTAssertFalse(preview.hasMetricEffect)
         XCTAssertFalse(preview.hasShareEffect)
+        let previewBytes = try JSONEncoder().encode(preview)
+        XCTAssertEqual(try JSONDecoder().decode(
+            ReportPreviewProjectionV1.self, from: previewBytes
+        ), preview)
+        let previewObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: previewBytes) as? [String: Any]
+        )
+        for key in ["hasReportEffect", "hasMetricEffect", "hasShareEffect"] {
+            var missing = previewObject
+            missing.removeValue(forKey: key)
+            XCTAssertThrowsError(try JSONDecoder().decode(
+                ReportPreviewProjectionV1.self,
+                from: JSONSerialization.data(withJSONObject: missing)
+            )) { XCTAssertTrue($0 is DecodingError) }
+            var claimed = previewObject
+            claimed[key] = true
+            XCTAssertThrowsError(try JSONDecoder().decode(
+                ReportPreviewProjectionV1.self,
+                from: JSONSerialization.data(withJSONObject: claimed)
+            )) { XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .partialEffect) }
+        }
+        let privacyPolicy = try AudiencePrivacyPolicyV1(
+            policyID: "strict-report-policy", policyVersion: 1,
+            audience: .customerSafe, prohibitedCanaries: ["private-canary"]
+        )
+        XCTAssertEqual(try JSONDecoder().decode(
+            AudiencePrivacyPolicyV1.self, from: JSONEncoder().encode(privacyPolicy)
+        ), privacyPolicy)
+        for invalidText in [
+            "", "control\u{0001}",
+            String(repeating: "x", count: SnapshotProjectionLimitsV1.maximumTextBytes + 1)
+        ] {
+            XCTAssertThrowsError(try AudiencePrivacyPolicyV1(
+                policyID: "strict-report-policy", policyVersion: 1,
+                audience: .customerSafe, prohibitedCanaries: [invalidText]
+            )) { XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .invalidValue) }
+        }
     }
 
     func testV9_16R01AmendmentSupersedesWithoutRewritingHistoricalSnapshotBytes() throws {
@@ -825,6 +862,35 @@ extension V9_16SnapshotProjectionTests {
         )
         XCTAssertEqual(active.claims, [fixture.claim])
         XCTAssertEqual(active.leases, [fixture.lease])
+        let packetReport = try ReportWorkPacketProjectionV1(
+            snapshot: active, sourceSnapshotSHA256: fixture.item.itemSHA256
+        )
+        try packetReport.validate()
+        let packetReportBytes = try JSONEncoder().encode(packetReport)
+        XCTAssertEqual(try JSONDecoder().decode(
+            ReportWorkPacketProjectionV1.self, from: packetReportBytes
+        ), packetReport)
+        let packetReportObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: packetReportBytes) as? [String: Any]
+        )
+        for key in [
+            "sourceSnapshotSHA256", "packetID", "manifestSHA256", "itemCount",
+            "itemIDs", "itemStateLabels", "preservedResultCount", "collisionCount",
+            "historyEventCount", "bindingSHA256"
+        ] {
+            var missing = packetReportObject
+            missing.removeValue(forKey: key)
+            XCTAssertThrowsError(try JSONDecoder().decode(
+                ReportWorkPacketProjectionV1.self,
+                from: JSONSerialization.data(withJSONObject: missing)
+            )) { XCTAssertTrue($0 is DecodingError) }
+        }
+        var forgedPacketReport = packetReportObject
+        forgedPacketReport["bindingSHA256"] = String(repeating: "0", count: 64)
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            ReportWorkPacketProjectionV1.self,
+            from: JSONSerialization.data(withJSONObject: forgedPacketReport)
+        )) { XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .digestMismatch) }
         // Exercise the exact tuple boundary used by V9, without fabricating
         // an unrelated eight-layer completed-activity producer fixture.
         func associate(_ packet: CompletedWorkPacketSnapshotV1, _ id: String,

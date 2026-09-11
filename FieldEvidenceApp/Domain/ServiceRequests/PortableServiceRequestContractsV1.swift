@@ -113,7 +113,7 @@ enum ServiceRequestCanonicalCodecV1 {
         return try encoder.encode(value)
     }
 
-    static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+    static func decode<T: Codable>(_ type: T.Type, from data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .millisecondsSince1970
         let value = try decoder.decode(type, from: data)

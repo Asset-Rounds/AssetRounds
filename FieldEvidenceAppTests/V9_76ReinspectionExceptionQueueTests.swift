@@ -6,6 +6,50 @@ import XCTest
 
 @MainActor
 final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
+    func testExceptionQueueProjectionSelectsLatestAcknowledgementAndRejectsDuplicateRevisions() throws {
+        let fixture = try C12Fixture()
+        let source = try XCTUnwrap(fixture.authority.queueSources.first)
+        let first = try fixture.intent(
+            source: source,
+            acknowledgementID: UUID(uuidString: "8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A5761")!
+        ).acknowledgement(recordedAt: fixture.date)
+        let latest = try fixture.intent(
+            source: source,
+            predecessor: first,
+            disposition: .reopened,
+            acknowledgementID: UUID(uuidString: "8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A5762")!
+        ).acknowledgement(recordedAt: fixture.date.addingTimeInterval(1))
+
+        let projection = try ExceptionQueueProjectionV1(
+            workspaceID: fixture.workspaceID,
+            registry: try .init(),
+            sources: fixture.authority.queueSources,
+            acknowledgements: [latest, first],
+            evaluatedAt: fixture.date.addingTimeInterval(2),
+            resolver: fixture.authority
+        )
+        XCTAssertEqual(
+            projection.items.first(where: { $0.source == source })?.acknowledgement,
+            latest
+        )
+
+        let duplicateLatest = try fixture.intent(
+            source: source,
+            predecessor: first,
+            acknowledgementID: UUID(uuidString: "8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A5763")!
+        ).acknowledgement(recordedAt: fixture.date.addingTimeInterval(2))
+        XCTAssertThrowsError(try ExceptionQueueProjectionV1(
+            workspaceID: fixture.workspaceID,
+            registry: try .init(),
+            sources: fixture.authority.queueSources,
+            acknowledgements: [first, latest, duplicateLatest],
+            evaluatedAt: fixture.date.addingTimeInterval(3),
+            resolver: fixture.authority
+        )) { error in
+            XCTAssertEqual(error as? ReinspectionExceptionFailureV1, .duplicateIdentity)
+        }
+    }
+
     func testV23P04C12G01ChangedOpenExpiredItemsRequireFreshEvidenceAndQueueClearsOnlyOnResolution() throws {
         let f = try C12Fixture()
         let plan = try f.plan(matrix: true)

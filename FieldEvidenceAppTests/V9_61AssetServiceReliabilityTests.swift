@@ -378,6 +378,24 @@ private enum C53AssetServiceReliabilityTestSupport {
 
 @MainActor
 final class V9_61AssetServiceReliabilityTests: XCTestCase {
+    func testServiceReliabilityIdentityAndTextKeepExactZeroAndControlSemantics() throws {
+        let zero = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+        XCTAssertThrowsError(try ServiceReliabilityLimitsV1.id(zero)) { error in
+            XCTAssertEqual(error as? ServiceReliabilityFailureV1, .invalidValue)
+        }
+        XCTAssertNoThrow(try ServiceReliabilityLimitsV1.id(C53AssetServiceReliabilityTestSupport.assetID))
+
+        let controlScalar = try XCTUnwrap("\u{0001}".unicodeScalars.first)
+        XCTAssertEqual(controlScalar.properties.generalCategory, .control)
+        XCTAssertThrowsError(try ServiceReliabilityLimitsV1.text("before\u{0001}after")) { error in
+            XCTAssertEqual(error as? ServiceReliabilityFailureV1, .invalidValue)
+        }
+
+        let formatScalar = try XCTUnwrap("\u{200E}".unicodeScalars.first)
+        XCTAssertEqual(formatScalar.properties.generalCategory, .format)
+        XCTAssertNoThrow(try ServiceReliabilityLimitsV1.text("before\u{200E}after"))
+    }
+
     func testSevenServiceReliabilityRowsPersistDistinctUUIDBindingsAndCanonicalBytes() throws {
         typealias F = C53AssetServiceReliabilityTestSupport
         func id(_ value: Int) -> UUID {
