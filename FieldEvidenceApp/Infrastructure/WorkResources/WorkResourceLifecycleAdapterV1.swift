@@ -111,7 +111,7 @@ final class WorkResourceLifecycleAdapterV1 {
             snapshot,
             targetWorkspaceID: targetWorkspaceID
         )
-        try await restore(
+        return try await restore(
             snapshot,
             targetWorkspaceID: targetWorkspaceID,
             operationID: operationID,

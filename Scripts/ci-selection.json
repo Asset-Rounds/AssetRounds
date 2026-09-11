@@ -9,10 +9,9 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_23PartyAccountabilityTests/testCompilerRepairProjectionAndPreviewMutationIDBranchesUseRealCoordinator",
-    "FieldEvidenceAppTests/V9_28InspectionReviewCorrectiveActionTests/testCompilerRepairCoordinatorBoundaryUsesDomainProjectionValidation",
-    "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests/testV23P04C35H01HostileMismatchDivergenceStalePreviewAndClaimsFailWithoutEffect",
-    "FieldEvidenceAppTests/V9_19LocalSearchTests/testV9_19H01SortingFilteringUnicodeAndPrivacyBoundary"
+    "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV9_12I01StoreScratchAndSupportExportRecoverWithoutDuplicateEffects",
+    "FieldEvidenceAppTests/V9_56WorkResourceTests/testCloneOrForkForwardsExactSnapshotArgumentsAndReceipt",
+    "FieldEvidenceAppTests/V9_24AssetSemanticLifecycleTests/testActiveSchemaAssetSemanticCheckpointSurvivesJournalRecoveryAndRejectsDrift"
   ],
   "uiTestSelectors": []
 }

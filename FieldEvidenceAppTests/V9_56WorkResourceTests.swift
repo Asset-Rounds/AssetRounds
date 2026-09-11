@@ -1,10 +1,53 @@
 import XCTest
+import SwiftData
 @testable import FieldEvidenceApp
 
 final class V9_56WorkResourceTests: XCTestCase {
     private let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "49000000-0000-0000-0000-000000000001")!)
     private let instant = Date(timeIntervalSince1970: 1_800_000_000)
     private let digest = String(repeating: "a", count: 64)
+
+    @MainActor
+    func testCloneOrForkForwardsExactSnapshotArgumentsAndReceipt() async throws {
+        let container = try ModelContainer(for: ManualWorkResourceRecordRow.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let snapshot = try WorkResourceBackupSnapshotV1(workspaceID: workspaceID,
+            bundles: [WorkResourceAtomicBundleV1(entry: makeEntry())])
+        let target = WorkspaceID(rawValue: UUID())
+        let operationID = UUID()
+        let receipt = try WorkResourceRestoreReceiptV1(operationID: operationID,
+            sourceWorkspaceID: workspaceID, targetWorkspaceID: target,
+            snapshotSHA256: snapshot.snapshotSHA256, effectSHA256: String(repeating: "b", count: 64),
+            cloneOrFork: true, completedAt: instant)
+        let port = WorkResourceCloneProbe(receipt: receipt)
+        let adapter = WorkResourceLifecycleAdapterV1(modelContext: container.mainContext, port: port)
+        let result = try await adapter.cloneOrFork(snapshot, targetWorkspaceID: target, operationID: operationID)
+        XCTAssertEqual(result, receipt)
+        XCTAssertEqual(port.calls, [.init(snapshot: snapshot, target: target, operationID: operationID, cloneOrFork: true)])
+        XCTAssertFalse(container.mainContext.hasChanges)
+
+        port.shouldThrow = true
+        do {
+            _ = try await adapter.cloneOrFork(snapshot, targetWorkspaceID: target, operationID: operationID)
+            XCTFail("port failure must propagate")
+        } catch { XCTAssertEqual(error as? WorkResourceCloneProbe.Failure, .injected) }
+        XCTAssertEqual(port.calls.count, 2)
+        XCTAssertEqual(port.calls[0], port.calls[1])
+
+        let unavailable = WorkResourceLifecycleAdapterV1(modelContext: container.mainContext)
+        do {
+            _ = try await unavailable.cloneOrFork(snapshot, targetWorkspaceID: target, operationID: operationID)
+            XCTFail("missing lifecycle authority must fail")
+        } catch { XCTAssertEqual(error as? WorkResourcePersistenceFailureV1, .unavailable) }
+        let zero = WorkspaceID(rawValue: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
+        do {
+            _ = try await adapter.cloneOrFork(snapshot, targetWorkspaceID: zero, operationID: operationID)
+            XCTFail("invalid target must fail before invoking port")
+        } catch { XCTAssertEqual(error as? WorkResourcePersistenceFailureV1, .invalidValue) }
+        XCTAssertEqual(port.calls.count, 2)
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ManualWorkResourceRecordRow>()), 0)
+        XCTAssertFalse(container.mainContext.hasChanges)
+    }
 
     func testG01ExactManualValuesAndFrozenPartReferenceAreCanonical() throws {
         XCTAssertEqual(try ManualDurationV1(minutes: 1).minutes, 1)
@@ -491,6 +534,34 @@ final class V9_56WorkResourceTests: XCTestCase {
             mutationID: try MutationIDV1(rawValue: UUID())
         )
     }
+}
+
+@MainActor
+private final class WorkResourceCloneProbe: WorkResourceLifecyclePortV1 {
+    enum Failure: Error, Equatable { case injected, unexpectedCall }
+    struct Call: Equatable {
+        let snapshot: WorkResourceBackupSnapshotV1
+        let target: WorkspaceID
+        let operationID: UUID
+        let cloneOrFork: Bool
+    }
+    let receipt: WorkResourceRestoreReceiptV1
+    var shouldThrow = false
+    var calls: [Call] = []
+    init(receipt: WorkResourceRestoreReceiptV1) { self.receipt = receipt }
+    func restore(_ snapshot: WorkResourceBackupSnapshotV1, targetWorkspaceID: WorkspaceID,
+                 operationID: UUID, cloneOrFork: Bool) async throws -> WorkResourceRestoreReceiptV1 {
+        calls.append(.init(snapshot: snapshot, target: targetWorkspaceID, operationID: operationID, cloneOrFork: cloneOrFork))
+        if shouldThrow { throw Failure.injected }
+        return receipt
+    }
+    func append(_ entry: WorkResourceEntryV1) async throws -> WorkResourceMutationReceiptV1 { throw Failure.unexpectedCall }
+    func snapshotForBackup(workspaceID: WorkspaceID) async throws -> WorkResourceBackupSnapshotV1 { throw Failure.unexpectedCall }
+    func delete(workspaceID: WorkspaceID, subject: WorkResourceSubjectV1) async throws { throw Failure.unexpectedCall }
+    func erase(workspaceID: WorkspaceID) async throws { throw Failure.unexpectedCall }
+    func rebuildSearch(workspaceID: WorkspaceID) async throws { throw Failure.unexpectedCall }
+    func search(workspaceID: WorkspaceID, query: String) async throws -> [WorkResourceEntryV1] { throw Failure.unexpectedCall }
+    func report(workspaceID: WorkspaceID, profile: WorkResourceReportProfileV1) async throws -> WorkResourceTotalsProjectionV1 { throw Failure.unexpectedCall }
 }
 
 extension V9_56WorkResourceTests {

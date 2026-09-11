@@ -1844,15 +1844,16 @@ actor ScratchDataLeaseStoreV1: ScratchDataLeasePortV1 {
               pinned.st_size == expected.st_size else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
-        var result = Data(count: Int(pinned.st_size))
+        let byteCount = Int(pinned.st_size)
+        var result = Data(count: byteCount)
         var offset = 0
-        while offset < result.count {
+        while offset < byteCount {
             let count = result.withUnsafeMutableBytes { bytes -> Int in
                 guard let base = bytes.baseAddress else { return 0 }
                 return Darwin.read(
                     descriptor,
                     base.advanced(by: offset),
-                    result.count - offset
+                    byteCount - offset
                 )
             }
             guard count > 0 else {

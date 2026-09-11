@@ -2955,7 +2955,7 @@ final class MutationJournalStoreV1 {
                 createdAt: row.createdAt, updatedAt: row.updatedAt
             )
             let semantic = try AssetSemanticLifecycleAdapterV1.snapshot(
-                workspaceID: identity.workspaceID,
+                workspaceID: self.identity.workspaceID,
                 assetID: id,
                 in: modelContext
             )

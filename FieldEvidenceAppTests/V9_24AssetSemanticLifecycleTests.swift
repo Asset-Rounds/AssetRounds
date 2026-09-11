@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -37,6 +38,79 @@ private final class C30EvidenceContextAnchorV9_24AssetSemanticLifecycle: XCTestC
 
 @MainActor
 final class V9_24AssetSemanticLifecycleTests: XCTestCase {
+    func testActiveSchemaAssetSemanticCheckpointSurvivesJournalRecoveryAndRejectsDrift() throws {
+        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration(
+            "V9_24AssetSemanticCheckpoint", schema: schema, isStoredInMemoryOnly: true,
+            allowsSave: true, cloudKitDatabase: .none
+        )])
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let workspaceID = WorkspaceID(rawValue: UUID())
+        let replica = ReplicaID(rawValue: UUID())
+        let generationID = UUID()
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: replica)
+        let site = Site(label: "Checkpoint site", timeZoneID: "UTC")
+        let asset = Asset(siteID: site.id, packID: "com.field-evidence.c39", packSchemaVersion: 1,
+                          packContentVersion: 1, label: "Checkpoint asset")
+        let catalog = try makeCatalog(workspaceID: workspaceID, assetID: asset.id)
+        let binding = try makeKindBinding(workspaceID: workspaceID, assetID: asset.id,
+            mutationID: MutationIDV1(rawValue: UUID()), catalog: catalog)
+        context.insert(site)
+        context.insert(asset)
+        let bindingRow = try AssetKindBindingEventRow(binding)
+        context.insert(bindingRow)
+        try context.save()
+        let originalBindingBytes = bindingRow.canonicalData
+        let semantic = try AssetSemanticLifecycleAdapterV1.snapshot(workspaceID: workspaceID, assetID: asset.id, in: context)
+        XCTAssertEqual(semantic.workspaceID, workspaceID)
+        XCTAssertEqual(semantic.kindBindings, [binding])
+
+        // Bootstrap uses the real current-schema mutable checkpoint, whose asset
+        // post-image includes the workspace-scoped semantic binding above.
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generationID)
+        try journal.validateAll()
+        let state = try XCTUnwrap(try context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+        let checkpoint = try XCTUnwrap(state.mutableSemanticSHA256)
+        XCTAssertEqual(checkpoint.count, 64)
+        let reopened = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: generationID, allowStateBootstrap: false)
+        let recovery = MutationReceiptRecoveryServiceV1(store: reopened)
+        XCTAssertNoThrow(try recovery.recoverBeforeWriterActivation())
+        XCTAssertNoThrow(try recovery.recoverBeforeWriterActivation())
+        XCTAssertEqual(state.mutableSemanticSHA256, checkpoint)
+        XCTAssertEqual(bindingRow.canonicalData, originalBindingBytes)
+
+        let originalLabel = asset.label
+        asset.label = "Unjournaled asset drift"
+        try context.save()
+        XCTAssertThrowsError(try recovery.recoverBeforeWriterActivation()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(state.mutableSemanticSHA256, checkpoint)
+        asset.label = originalLabel
+        try context.save()
+        XCTAssertNoThrow(try recovery.recoverBeforeWriterActivation())
+
+        // The raw asset is unchanged: loss of only its semantic row must also
+        // invalidate the asset post-image instead of accepting an empty scope.
+        context.delete(bindingRow)
+        try context.save()
+        XCTAssertThrowsError(try recovery.recoverBeforeWriterActivation()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(state.mutableSemanticSHA256, checkpoint)
+        let restored = try AssetKindBindingEventRow(binding)
+        context.insert(restored)
+        try context.save()
+        XCTAssertNoThrow(try recovery.recoverBeforeWriterActivation())
+        XCTAssertEqual(restored.canonicalData, originalBindingBytes)
+        XCTAssertEqual(state.mutableSemanticSHA256, checkpoint)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Asset>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<AssetKindBindingEventRow>()), 1)
+        XCTAssertFalse(context.hasChanges)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
