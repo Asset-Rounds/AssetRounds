@@ -1,3 +1,4 @@
+import AVFoundation
 import CryptoKit
 import Foundation
 import XCTest
@@ -118,6 +119,34 @@ private enum C45 {
     }
 
     func testV23P04C45H01MalformedTranscriptAndHostileCallbacksFailClosed() async throws {
+        XCTAssertEqual(
+            OnDevicePushToTalkVoiceCaptureAdapterV1.interruptionType(from: [
+                AVAudioSessionInterruptionTypeKey:
+                    NSNumber(value: AVAudioSession.InterruptionType.began.rawValue),
+            ]),
+            .began
+        )
+        XCTAssertEqual(
+            OnDevicePushToTalkVoiceCaptureAdapterV1.interruptionType(from: [
+                AVAudioSessionInterruptionTypeKey:
+                    NSNumber(value: AVAudioSession.InterruptionType.ended.rawValue),
+            ]),
+            .ended
+        )
+        XCTAssertNil(OnDevicePushToTalkVoiceCaptureAdapterV1.interruptionType(from: [
+            AVAudioSessionInterruptionTypeKey: "began",
+        ]))
+        for malformedNumber in [
+            NSNumber(value: 0.5),
+            NSNumber(value: -1),
+            NSNumber(value: UInt(99)),
+        ] {
+            XCTAssertNil(OnDevicePushToTalkVoiceCaptureAdapterV1.interruptionType(from: [
+                AVAudioSessionInterruptionTypeKey: malformedNumber,
+            ]))
+        }
+        XCTAssertNil(OnDevicePushToTalkVoiceCaptureAdapterV1.interruptionType(from: nil))
+
         let context = try C45.context(); let text = "note: checked"; let span = try VoiceTranscriptUTF8SpanV1(start: 0, length: text.utf8.count)
         XCTAssertThrowsError(try VoiceTranscriptConfidenceSpanV1(sourceSpan: span, confidence: .nan))
         XCTAssertThrowsError(try StructuredVoiceCapturedTranscriptV1(sessionID: context.sessionID, lifecycleGeneration: context.lifecycleGeneration, contextSHA256: context.contextSHA256, callbackSequence: 1, transcript: text, source: try C45.source("wrong"), sourceSpans: [span], confidenceSpans: [], durationSeconds: 3, processedOnDevice: true, networkAccessUsed: false))

@@ -19,7 +19,7 @@ final class BundleFeaturePolicyDataProviderV1: BundledFeaturePolicyDataPortV1, @
 
     init(
         bundle: Bundle = .main,
-        expectedDigest: String = Self.releasedResourceDigest
+        expectedDigest: String = BundleFeaturePolicyDataProviderV1.releasedResourceDigest
     ) {
         self.bundle = bundle
         self.expectedDigest = expectedDigest

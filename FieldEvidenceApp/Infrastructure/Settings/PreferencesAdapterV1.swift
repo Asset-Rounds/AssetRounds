@@ -264,7 +264,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
         successor: RatingRequestAttemptLedgerStateV1
     ) async throws -> RatingLedgerPersistenceReceiptV1 {
         try withRatingEligibilityLock {
-            guard operationID != UUID.zero else {
+            guard operationID != SettingsValidationV1.zeroUUID else {
                 throw RatingEligibilityFailureV1.invalidValue
             }
             try validateRatingEligibilityState(successor)
@@ -337,7 +337,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
         persistentDomainName: String
     ) -> Bool {
         (try? withRatingEligibilityLock {
-            guard operationID != UUID.zero,
+            guard operationID != SettingsValidationV1.zeroUUID,
                   let domain = defaults.persistentDomain(forName: persistentDomainName),
                   Set(domain.keys) == Set([Self.ratingEligibilityStorageKey]),
                   case .current(let state) = ratingEligibilityLoadResultLocked(),
@@ -518,7 +518,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
                 return .corrupt
             }
             try validateRatingEligibilityState(envelope.state)
-            guard envelope.writeRecord.operationID != UUID.zero,
+            guard envelope.writeRecord.operationID != SettingsValidationV1.zeroUUID,
                   KernelCanonicalHashV1.validSHA256(
                     envelope.writeRecord.successorStateSHA256
                   ),

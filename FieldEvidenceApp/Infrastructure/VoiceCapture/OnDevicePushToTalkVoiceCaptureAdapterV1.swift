@@ -78,6 +78,15 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
         eventHandler = onEvent
     }
 
+    nonisolated static func interruptionType(
+        from userInfo: [AnyHashable: Any]?
+    ) -> AVAudioSession.InterruptionType? {
+        guard let rawType = userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt else {
+            return nil
+        }
+        return AVAudioSession.InterruptionType(rawValue: rawType)
+    }
+
     // MARK: - Independently observable speech permissions
 
     func permissionDisposition() async throws -> SpeechPermissionDispositionV1 {
@@ -388,8 +397,7 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
                 object: AVAudioSession.sharedInstance(),
                 queue: .main
             ) { [weak self] note in
-                let rawType = note.userInfo?[AVAudioSession.InterruptionTypeKey] as? UInt
-                guard rawType == AVAudioSession.InterruptionType.began.rawValue else {
+                guard Self.interruptionType(from: note.userInfo) == .began else {
                     return
                 }
                 Task { @MainActor [weak self] in

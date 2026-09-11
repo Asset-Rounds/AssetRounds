@@ -45,7 +45,7 @@ struct ProtectedIngressStageReceiptV1: Equatable, Sendable {
     let adoptedExistingEffect: Bool
 }
 
-struct ProtectedIngressStartupHygieneReceiptV1: Equatable, Sendable {
+struct ProtectedIngressStartupHygieneReceiptV1: Codable, Equatable, Sendable {
     static let maximumInspectedCount = 128
     let operationID: UUID
     let inspectedCount: Int
@@ -53,6 +53,15 @@ struct ProtectedIngressStartupHygieneReceiptV1: Equatable, Sendable {
     let retainedValidCount: Int
     let deferredAmbiguousCount: Int
     let contentRead: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case operationID
+        case inspectedCount
+        case removedKnownOwnedCount
+        case retainedValidCount
+        case deferredAmbiguousCount
+        case contentRead
+    }
 
     init(
         operationID: UUID,
@@ -82,6 +91,37 @@ struct ProtectedIngressStartupHygieneReceiptV1: Equatable, Sendable {
               !contentRead else {
             throw AppAccessContractFailureV1.invalidValue
         }
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            operationID: values.decode(UUID.self, forKey: .operationID),
+            inspectedCount: values.decode(Int.self, forKey: .inspectedCount),
+            removedKnownOwnedCount: values.decode(Int.self, forKey: .removedKnownOwnedCount),
+            retainedValidCount: values.decode(Int.self, forKey: .retainedValidCount),
+            deferredAmbiguousCount: values.decode(Int.self, forKey: .deferredAmbiguousCount),
+            contentRead: values.decode(Bool.self, forKey: .contentRead)
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        let validated = try Self(
+            operationID: operationID,
+            inspectedCount: inspectedCount,
+            removedKnownOwnedCount: removedKnownOwnedCount,
+            retainedValidCount: retainedValidCount,
+            deferredAmbiguousCount: deferredAmbiguousCount,
+            contentRead: contentRead
+        )
+        guard validated == self else { throw AppAccessContractFailureV1.invalidValue }
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(operationID, forKey: .operationID)
+        try values.encode(inspectedCount, forKey: .inspectedCount)
+        try values.encode(removedKnownOwnedCount, forKey: .removedKnownOwnedCount)
+        try values.encode(retainedValidCount, forKey: .retainedValidCount)
+        try values.encode(deferredAmbiguousCount, forKey: .deferredAmbiguousCount)
+        try values.encode(contentRead, forKey: .contentRead)
     }
 
     var requiresAuthenticatedRecovery: Bool { deferredAmbiguousCount > 0 }

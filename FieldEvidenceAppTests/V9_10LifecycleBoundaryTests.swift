@@ -816,6 +816,19 @@ final class V9_10LifecycleBoundaryTests: XCTestCase {
         XCTAssertEqual(restoredCapturedTuple, capturedBeforeTZDBDrift)
         XCTAssertNoThrow(try restoredCapturedTuple.validate())
 
+        for boundaryOffset in [
+            -DeviceWallTimeRecordV1.maximumAbsoluteUTCOffsetSeconds,
+            DeviceWallTimeRecordV1.maximumAbsoluteUTCOffsetSeconds,
+        ] {
+            let boundary = DeviceWallTimeRecordV1(
+                recordedAtUTC: driftInstant,
+                timeZoneIdentifier: "Etc/GMT",
+                utcOffsetSeconds: boundaryOffset,
+                isDaylightSavingTime: false
+            )
+            XCTAssertNoThrow(try boundary.validate())
+        }
+
         let malformedWallRecords = [
             DeviceWallTimeRecordV1(
                 recordedAtUTC: Date(timeIntervalSinceReferenceDate: .infinity),

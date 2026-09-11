@@ -37,8 +37,8 @@ struct DeviceWallTimeRecordV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         let scalars = timeZoneIdentifier.unicodeScalars
-        let validOffsetRange = -Self.maximumAbsoluteUTCOffsetSeconds...
-            Self.maximumAbsoluteUTCOffsetSeconds
+        let validOffsetRange: ClosedRange<Int> =
+            (-Self.maximumAbsoluteUTCOffsetSeconds)...Self.maximumAbsoluteUTCOffsetSeconds
         guard recordedAtUTC.timeIntervalSinceReferenceDate.isFinite,
               !timeZoneIdentifier.isEmpty,
               timeZoneIdentifier == timeZoneIdentifier.trimmingCharacters(

@@ -266,6 +266,84 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         }
     }
 
+    func testV9_14RatingLedgerRejectsZeroOperationAndReloadsExactReceipt() async throws {
+        let suiteName = "V9_14.RatingLedger.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let adapter = PreferencesAdapterV1(defaults: defaults)
+        let erasedAt = Date(timeIntervalSince1970: 1_788_480_000)
+        let successor = try RatingRequestAttemptLedgerStateV1(
+            revision: 1,
+            origin: .erasedCooldown(
+                erasedAt: erasedAt,
+                suppressUntil: erasedAt.addingTimeInterval(
+                    RatingEligibilityPolicyV1.eraseCooldownSeconds
+                )
+            ),
+            attempts: [],
+            clockHighWatermarkUTC: erasedAt
+        )
+
+        do {
+            _ = try await adapter.compareAndSwap(
+                operationID: SettingsValidationV1.zeroUUID,
+                expectedRevision: nil,
+                successor: successor
+            )
+            XCTFail("zero operation identity must fail before persistence")
+        } catch {
+            XCTAssertEqual(error as? RatingEligibilityFailureV1, .invalidValue)
+        }
+        XCTAssertNil(defaults.object(forKey: "rating-eligibility.v1"))
+        XCTAssertFalse(adapter.hasExactEraseCooldown(
+            operationID: SettingsValidationV1.zeroUUID,
+            persistentDomainName: suiteName
+        ))
+
+        let operationID = UUID()
+        let committed = try await adapter.compareAndSwap(
+            operationID: operationID,
+            expectedRevision: nil,
+            successor: successor
+        )
+        XCTAssertEqual(committed.operationID, operationID)
+        XCTAssertNil(committed.expectedRevision)
+        XCTAssertEqual(committed.resultingRevision, successor.revision)
+        XCTAssertEqual(committed.stateSHA256, successor.stateSHA256)
+        XCTAssertEqual(committed.disposition, .committed)
+        XCTAssertTrue(adapter.hasExactEraseCooldown(
+            operationID: operationID,
+            persistentDomainName: suiteName
+        ))
+        let persistedBytes = try XCTUnwrap(
+            defaults.data(forKey: "rating-eligibility.v1")
+        )
+
+        let reopenedDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let reopened = PreferencesAdapterV1(defaults: reopenedDefaults)
+        guard case .current(let reloadedState) = try await reopened.load() else {
+            return XCTFail("valid persisted rating ledger must reopen")
+        }
+        XCTAssertEqual(reloadedState, successor)
+        let replay = try await reopened.compareAndSwap(
+            operationID: operationID,
+            expectedRevision: nil,
+            successor: successor
+        )
+        XCTAssertEqual(replay.operationID, committed.operationID)
+        XCTAssertEqual(replay.expectedRevision, committed.expectedRevision)
+        XCTAssertEqual(replay.resultingRevision, committed.resultingRevision)
+        XCTAssertEqual(replay.stateSHA256, committed.stateSHA256)
+        XCTAssertEqual(replay.disposition, .idempotentReplay)
+        XCTAssertEqual(
+            reopenedDefaults.data(forKey: "rating-eligibility.v1"),
+            persistedBytes,
+            "idempotent receipt replay must preserve exact canonical storage bytes"
+        )
+    }
+
     func testV9_14A01AvailabilityReasonsPreserveHistoricEssentialOperations() throws {
         let corpus = try Self.loadCorpus()
         let policy = FeatureAvailabilityPolicyV1()
@@ -742,6 +820,10 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         let provider = BundleFeaturePolicyDataProviderV1(bundle: .main)
         let policyBytes = try provider.canonicalFeaturePolicyData()
         let policyDigest = try provider.buildArtifactDigest()
+        XCTAssertEqual(
+            policyDigest,
+            BundleFeaturePolicyDataProviderV1.releasedResourceDigest
+        )
         let featureRegistry = try FeaturePolicyLoaderV1(
             provider: BundleFeaturePolicyDataProviderV1(
                 bundle: .main,

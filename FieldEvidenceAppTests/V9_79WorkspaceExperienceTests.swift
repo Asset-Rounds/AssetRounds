@@ -306,6 +306,113 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         }
     }
 
+    func testV23P04C16H02HygieneReceiptPersistenceRejectsHostileBytes() throws {
+        let support = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "c16-hygiene-receipt-\(UUID().uuidString.lowercased())", isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: support) }
+        let ledger = try OwnedStorageLedgerV1(
+            applicationSupportURL: support, capacityProvider: { _ in 1_000_000 }
+        )
+        let operationID = UUID()
+        let receipt = try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: operationID,
+            inspectedCount: 3,
+            removedKnownOwnedCount: 1,
+            retainedValidCount: 1,
+            deferredAmbiguousCount: 1,
+            contentRead: false
+        )
+        try ledger.writeProtectedIngressHygieneReceipt(receipt)
+
+        let receiptDirectory = support
+            .appendingPathComponent(OwnedStorageRootKindV1.operations.rawValue, isDirectory: true)
+            .appendingPathComponent("ProtectedIngressReceiptsV1", isDirectory: true)
+        func receiptURL(_ id: UUID) -> URL {
+            receiptDirectory.appendingPathComponent(
+                "hygiene-\(id.uuidString.lowercased()).json", isDirectory: false
+            )
+        }
+        let canonicalBytes = try CompatibilityCanonicalV1.encode(receipt)
+        XCTAssertEqual(try Data(contentsOf: receiptURL(operationID)), canonicalBytes)
+
+        let reopened = try OwnedStorageLedgerV1(
+            applicationSupportURL: support, capacityProvider: { _ in 1_000_000 }
+        )
+        XCTAssertEqual(
+            try reopened.readProtectedIngressHygieneReceipt(operationID: operationID),
+            receipt
+        )
+        XCTAssertNoThrow(try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: UUID(),
+            inspectedCount: ProtectedIngressStartupHygieneReceiptV1.maximumInspectedCount,
+            removedKnownOwnedCount: ProtectedIngressStartupHygieneReceiptV1.maximumInspectedCount,
+            retainedValidCount: 0,
+            deferredAmbiguousCount: 0,
+            contentRead: false
+        ))
+        XCTAssertThrowsError(try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: UUID(), inspectedCount: 2, removedKnownOwnedCount: 1,
+            retainedValidCount: 0, deferredAmbiguousCount: 0, contentRead: false
+        ))
+        XCTAssertThrowsError(try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: UUID(), inspectedCount: 0, removedKnownOwnedCount: 0,
+            retainedValidCount: 0, deferredAmbiguousCount: 0, contentRead: true
+        ))
+        XCTAssertThrowsError(try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: SettingsValidationV1.zeroUUID, inspectedCount: 0,
+            removedKnownOwnedCount: 0, retainedValidCount: 0,
+            deferredAmbiguousCount: 0, contentRead: false
+        ))
+
+        var unknownObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: canonicalBytes) as? [String: Any]
+        )
+        let unknownID = UUID()
+        unknownObject["operationID"] = unknownID.uuidString
+        unknownObject["unexpected"] = true
+        try JSONSerialization.data(withJSONObject: unknownObject, options: [.sortedKeys])
+            .write(to: receiptURL(unknownID), options: .atomic)
+        XCTAssertThrowsError(
+            try reopened.readProtectedIngressHygieneReceipt(operationID: unknownID)
+        )
+
+        let invalidCountID = UUID()
+        var invalidCountObject = unknownObject
+        invalidCountObject.removeValue(forKey: "unexpected")
+        invalidCountObject["operationID"] = invalidCountID.uuidString
+        invalidCountObject["inspectedCount"] = 2
+        try JSONSerialization.data(withJSONObject: invalidCountObject, options: [.sortedKeys])
+            .write(to: receiptURL(invalidCountID), options: .atomic)
+        XCTAssertThrowsError(
+            try reopened.readProtectedIngressHygieneReceipt(operationID: invalidCountID)
+        )
+
+        let contentReadID = UUID()
+        var contentReadObject = invalidCountObject
+        contentReadObject["operationID"] = contentReadID.uuidString
+        contentReadObject["inspectedCount"] = 3
+        contentReadObject["contentRead"] = true
+        try JSONSerialization.data(withJSONObject: contentReadObject, options: [.sortedKeys])
+            .write(to: receiptURL(contentReadID), options: .atomic)
+        XCTAssertThrowsError(
+            try reopened.readProtectedIngressHygieneReceipt(operationID: contentReadID)
+        )
+
+        let mismatchedID = UUID()
+        try canonicalBytes.write(to: receiptURL(mismatchedID), options: .atomic)
+        XCTAssertThrowsError(
+            try reopened.readProtectedIngressHygieneReceipt(operationID: mismatchedID)
+        )
+
+        let oversizedID = UUID()
+        let oversized = canonicalBytes + Data(repeating: 0x20, count: 4_097)
+        try oversized.write(to: receiptURL(oversizedID), options: .atomic)
+        XCTAssertThrowsError(
+            try reopened.readProtectedIngressHygieneReceipt(operationID: oversizedID)
+        )
+    }
+
     func testV23P04C16R01BackupRestoreCloneAndReportRebuildPracticeState() throws {
         let fixture = try C16Fixture()
         let command = try fixture.command()

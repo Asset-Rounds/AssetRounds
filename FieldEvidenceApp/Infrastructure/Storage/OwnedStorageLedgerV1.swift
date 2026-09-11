@@ -238,7 +238,8 @@ final class OwnedStorageLedgerV1: WorkspaceStorageAdmissionPortV1, @unchecked Se
                 let url = try protectedIngressScratchDirectory().appendingPathComponent(
                     target.directoryName, isDirectory: true
                 )
-                guard url.deletingLastPathComponent() == try protectedIngressScratchDirectory() else {
+                guard url.deletingLastPathComponent()
+                        == (try protectedIngressScratchDirectory()) else {
                     throw AppAccessContractFailureV1.configurationUnknown
                 }
                 if !manager.fileExists(atPath: url.path) { continue }
@@ -579,7 +580,9 @@ final class OwnedStorageLedgerV1: WorkspaceStorageAdmissionPortV1, @unchecked Se
     }
 
     private func writeProtectedIngressCanonical(_ data: Data, to file: URL) throws {
-        guard data.count <= 16_384, file.deletingLastPathComponent() == try protectedIngressReceiptDirectory() else {
+        guard data.count <= 16_384,
+              file.deletingLastPathComponent()
+                == (try protectedIngressReceiptDirectory()) else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
         try data.write(to: file, options: .atomic)
