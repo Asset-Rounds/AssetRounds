@@ -9,11 +9,7 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests/testSummaryPresentationUsesExactMembershipEstimate",
-    "FieldEvidenceAppTests/V9_107PartsStockWorkflowTests/testMissingUseQuantityPresentationTargetsQuantityField",
-    "FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testHandoffPresentationRequiresExactSavedProfileAndRemainsDefaultOff",
-    "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests/testEncryptedPresentationDistinguishesCommandsNoEffectAndIncompleteResults",
-    "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests/testV23P04C35G01OfflineIsolatedDraftResponsePreviewAndExplicitAcceptAndApply"
+    "FieldEvidenceAppTests/V9_52AssetLabelTests/testEvidenceBundleExactPublicationRemovalPreservesSiblingJobs"
   ],
   "uiTestSelectors": []
 }

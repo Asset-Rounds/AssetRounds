@@ -629,6 +629,11 @@ final class V9_52AssetLabelTests: XCTestCase {
         try await C45AssetLabelTestSupport.verifyResumableRunnerRelaunch(slot: 950)
     }
 
+    @MainActor
+    func testEvidenceBundleExactPublicationRemovalPreservesSiblingJobs() async throws {
+        try await C45AssetLabelTestSupport.verifyEvidenceBundlePublicationRecovery(slot: 940)
+    }
+
     func testV23P03C45R01BackupRestoreReplayDeleteEraseReprintAndScratchCleanupRemainExact() async throws {
         let source = try C45AssetLabelTestSupport.fixture(itemCount: 1)
         let result = try DeterministicPDFRendererV1.renderAssetLabels(source.plan)
@@ -1186,7 +1191,7 @@ private enum C45AssetLabelTestSupport {
             disposition: .adopted,
             readBackAt: date(Double(slot + 30))
         )
-        let conflictingOutput = try output(
+        let conflictingOutput = try Self.output(
             plan: fixture.plan,
             result: projection,
             slot: slot + 30,
@@ -1585,7 +1590,7 @@ private enum C45AssetLabelTestSupport {
                 return try effect()
             }
         )
-        let fixture = try fixture(itemCount: 2, workspaceID: workspace(slot + 2))
+        let fixture = try Self.fixture(itemCount: 2, workspaceID: workspace(slot + 2))
         let projection = try DeterministicPDFRendererV1.renderAssetLabels(fixture.plan)
         let injection = EvidenceBundleStoreFailureInjection(
             failOnceAt: .assetLabelPublicationBeforeMarkerCommit
@@ -1668,7 +1673,21 @@ private enum C45AssetLabelTestSupport {
             XCTAssertEqual($0 as? EvidenceBundleStoreError, .bundleFactsMismatch)
         }
 
-        let unrelated = try fixture(itemCount: 1, workspaceID: workspace(slot + 20))
+        // A distinct real publication under the same workspace marker parent.
+        let sibling = try Self.fixture(itemCount: 1, workspaceID: fixture.plan.workspaceID)
+        let siblingProjection = try DeterministicPDFRendererV1.renderAssetLabels(sibling.plan)
+        let siblingJob = try await recoveredLifecycle.enqueueValidatedPlan(
+            sibling.plan, generationEpoch: epoch, createdAt: date(Double(slot + 19))
+        )
+        await recoveredRunner.waitUntilIdle()
+        let completedSiblingJob = try await recoveredRunner.job(id: siblingJob.id)
+        XCTAssertEqual(completedSiblingJob?.state, .succeeded)
+        XCTAssertNotEqual(siblingJob.id, job.id)
+        let siblingReadback = try XCTUnwrap(try contentStore.readAssetLabelArtifacts(jobID: siblingJob.id))
+        XCTAssertEqual(siblingReadback.plan, sibling.plan)
+        XCTAssertEqual(siblingReadback.projection, siblingProjection)
+
+        let unrelated = try Self.fixture(itemCount: 1, workspaceID: workspace(slot + 20))
         let unrelatedProjection = try DeterministicPDFRendererV1.renderAssetLabels(unrelated.plan)
         let unrelatedJob = try await recoveredLifecycle.enqueueValidatedPlan(
             unrelated.plan,
@@ -1694,15 +1713,28 @@ private enum C45AssetLabelTestSupport {
             publicationReceipt: publicationReceipt
         )
         try binding.validate(manifest: projection.manifest)
+        let targetMarker = generationRoot.appendingPathComponent(
+            "content/\(fixture.plan.workspaceID.rawValue.uuidString.lowercased())/.asset-label-publications/\(job.id.rawValue.uuidString.lowercased())/publication.json"
+        )
+        XCTAssertTrue(fileManager.fileExists(atPath: targetMarker.path))
         try contentStore.removeAssetLabelPublishedOutput(binding)
         XCTAssertNil(try contentStore.readAssetLabelArtifacts(jobID: job.id))
+        XCTAssertFalse(fileManager.fileExists(atPath: targetMarker.path))
+        for artifact in readback.publishedArtifacts {
+            let targetBytes = generationRoot.appendingPathComponent(
+                "content/\(artifact.reference.workspaceID)/\(artifact.reference.contentID)/original.bin"
+            )
+            XCTAssertFalse(fileManager.fileExists(atPath: targetBytes.path))
+        }
         try contentStore.removeAssetLabelPublishedOutput(binding)
+        // Readback verifies surviving markers and every immutable artifact's bytes/digest.
+        XCTAssertEqual(try contentStore.readAssetLabelArtifacts(jobID: siblingJob.id), siblingReadback)
         XCTAssertEqual(
             try contentStore.readAssetLabelArtifacts(jobID: unrelatedJob.id),
             unrelatedReadback
         )
 
-        let cancelledFixture = try fixture(
+        let cancelledFixture = try Self.fixture(
             itemCount: 1,
             workspaceID: workspace(slot + 40)
         )
@@ -2274,7 +2306,7 @@ private enum C45AssetLabelTestSupport {
             try contentStore.readAssetLabelArtifacts(jobID: publishedJob.id),
             publishedReadback
         )
-        let unrelatedFixture = try fixture(
+        let unrelatedFixture = try Self.fixture(
             itemCount: 1,
             workspaceID: workspace(slot + 100)
         )

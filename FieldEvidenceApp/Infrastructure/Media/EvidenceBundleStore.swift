@@ -455,8 +455,10 @@ private final class EvidenceBundleStoreAssetLabelPublicationV1: @unchecked Senda
     private func removeMarker(jobID: LocalJobIDV1, workspaceID: WorkspaceID) throws {
         let directory = markerURL(jobID: jobID, workspaceID: workspaceID).deletingLastPathComponent()
         if fileManager.fileExists(atPath: directory.path) {
+            var parentComponents = markerComponents(jobID: jobID, workspaceID: workspaceID)
+            parentComponents.removeLast()
             try removeSingleFileDirectory(
-                parentComponents: markerComponents(jobID: jobID, workspaceID: workspaceID).dropLast().map(String.init),
+                parentComponents: parentComponents,
                 directoryName: jobID.rawValue.uuidString.lowercased(),
                 fileName: "publication.json"
             )
