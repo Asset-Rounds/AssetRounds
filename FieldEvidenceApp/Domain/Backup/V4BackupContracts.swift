@@ -3548,17 +3548,34 @@ enum C55PartsStockBackupEnrollmentV1 {
               unique(snapshot.uses.map(\.receiptID)),
               unique(snapshot.reversals.map(\.receiptID)),
               unique(snapshot.returns.map(\.receiptID)),
-              unique(snapshot.abandonments.map(\.dispositionID)),
-              snapshot.parts.map(\.partID.uuidString) == snapshot.parts.map(\.partID.uuidString).sorted(),
-              snapshot.locations.map(\.locationID.uuidString) == snapshot.locations.map(\.locationID.uuidString).sorted(),
-              snapshot.movements.map({ ($0.recordedAt, $0.movementID.uuidString) }).elementsEqual(
-                  snapshot.movements.map({ ($0.recordedAt, $0.movementID.uuidString) }).sorted(by: { $0 < $1 }),
-                  by: { $0.0 == $1.0 && $0.1 == $1.1 }
-              ),
-              snapshot.uses.map(\.receiptID.uuidString) == snapshot.uses.map(\.receiptID.uuidString).sorted(),
-              snapshot.reversals.map(\.receiptID.uuidString) == snapshot.reversals.map(\.receiptID.uuidString).sorted(),
-              snapshot.returns.map(\.receiptID.uuidString) == snapshot.returns.map(\.receiptID.uuidString).sorted(),
-              snapshot.abandonments.map(\.dispositionID.uuidString) == snapshot.abandonments.map(\.dispositionID.uuidString).sorted() else {
+              unique(snapshot.abandonments.map(\.dispositionID)) else {
+            throw PartsStockFailureV1.duplicateMutation
+        }
+        guard snapshot.parts.map(\.partID.uuidString) == snapshot.parts.map(\.partID.uuidString).sorted() else {
+            throw PartsStockFailureV1.duplicateMutation
+        }
+        guard snapshot.locations.map(\.locationID.uuidString) == snapshot.locations.map(\.locationID.uuidString).sorted() else {
+            throw PartsStockFailureV1.duplicateMutation
+        }
+        let movementOrder: [(Date, String)] = snapshot.movements.map {
+            ($0.recordedAt, $0.movementID.uuidString)
+        }
+        let sortedMovementOrder: [(Date, String)] = movementOrder.sorted(by: { $0 < $1 })
+        guard movementOrder.elementsEqual(sortedMovementOrder, by: {
+            $0.0 == $1.0 && $0.1 == $1.1
+        }) else {
+            throw PartsStockFailureV1.duplicateMutation
+        }
+        guard snapshot.uses.map(\.receiptID.uuidString) == snapshot.uses.map(\.receiptID.uuidString).sorted() else {
+            throw PartsStockFailureV1.duplicateMutation
+        }
+        guard snapshot.reversals.map(\.receiptID.uuidString) == snapshot.reversals.map(\.receiptID.uuidString).sorted() else {
+            throw PartsStockFailureV1.duplicateMutation
+        }
+        guard snapshot.returns.map(\.receiptID.uuidString) == snapshot.returns.map(\.receiptID.uuidString).sorted() else {
+            throw PartsStockFailureV1.duplicateMutation
+        }
+        guard snapshot.abandonments.map(\.dispositionID.uuidString) == snapshot.abandonments.map(\.dispositionID.uuidString).sorted() else {
             throw PartsStockFailureV1.duplicateMutation
         }
         let partIDs = Set(snapshot.parts.map(\.partID))
