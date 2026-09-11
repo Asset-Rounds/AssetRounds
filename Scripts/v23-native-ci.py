@@ -29,6 +29,7 @@ PROTOCOL_PATHS = (
     ".github/workflows/ios-ci.yml", ".github/workflows/ios-ci-worker.yml",
     "Scripts/v23-native-ci.py", "Scripts/build-smoke.sh", "Scripts/test-smoke.sh",
     "Scripts/ui-smoke.sh", "Scripts/run-with-timeout.sh",
+    "Scripts/validate-required-evidence.sh",
 )
 
 

@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 
@@ -272,6 +273,42 @@ class CheckpointTests(unittest.TestCase):
 
 
 class WorkflowWiringTests(unittest.TestCase):
+    def test_required_evidence_extraction_retains_original_literal_body(self):
+        # Lossless extraction from the original 782cc047 startup-failure head.
+        # Keep this regression explicit if that original evidence protocol changes.
+        body = (ROOT / "Scripts/validate-required-evidence.sh").read_bytes()
+        self.assertEqual(CI.sha256(body),
+                         "76728F2ACA67ED1C77295F5FAF207E2CE3A8192CCE4F0D924B7C9991E6690FAE")
+        source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
+        self.assertEqual(step(source, "Validate required build and test evidence").strip(),
+                         "id: validate_required_evidence\n"
+                         "        if: ${{ always() && inputs.s10_4_pilot_mode == false && (inputs.runner_provider != 'bitrise' || inputs.s10_4_segment_id == 'none') }}\n"
+                         "        shell: bash\n"
+                         "        run: |\n"
+                         "          bash --noprofile --norc -e -o pipefail Scripts/validate-required-evidence.sh")
+
+    def test_extracted_required_evidence_is_bound_to_native_source_identity(self):
+        relative = "Scripts/validate-required-evidence.sh"
+        self.assertEqual(CI.PROTOCOL_PATHS.count(relative), 1)
+        original = CI.source_binding(ROOT)
+        self.assertEqual(original["protocolSources"][relative],
+                         CI.sha256((ROOT / relative).read_bytes()))
+        with tempfile.TemporaryDirectory(prefix="v23-native-source-binding-") as directory:
+            root = Path(directory)
+            for path in (*CI.PROTOCOL_PATHS, "Scripts/ci-selection.json"):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / path, target)
+            self.assertEqual(CI.source_binding(root), original)
+            helper = root / relative
+            helper.write_bytes(helper.read_bytes() + b"# source substitution fixture\n")
+            changed = CI.source_binding(root)
+            self.assertNotEqual(changed["protocolSources"][relative], original["protocolSources"][relative])
+            self.assertNotEqual(changed["protocolSHA256"], original["protocolSHA256"])
+            helper.unlink()
+            with self.assertRaises(ValueError):
+                CI.source_binding(root)
+
     def test_dispatcher_admits_both_providers_before_worker(self):
         source = (ROOT / ".github/workflows/ios-ci.yml").read_text()
         native = step(source, "Validate ordinary V23 native acceptance selection")
