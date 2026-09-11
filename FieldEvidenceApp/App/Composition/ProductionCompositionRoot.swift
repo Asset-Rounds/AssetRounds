@@ -37,6 +37,18 @@ final class ProductionCompositionRoot {
         return InjectedProtectedIngressStoreV1(effects: effects)
     }
 
+    /// Constructs the pre-authentication scratch effect lazily from the app's
+    /// Application Support root, without opening a workspace or eagerly
+    /// constructing the broader owned-storage ledger.
+    static func makePreAuthenticationIngressStore(
+        applicationSupportURL: URL
+    ) throws -> any ProtectedIngressStoreV1 {
+        let effects = try OwnedStorageLedgerProtectedIngressEffectV1(
+            applicationSupportURL: applicationSupportURL
+        )
+        return InjectedProtectedIngressStoreV1(effects: effects)
+    }
+
     /// C31 composes only foreground, nonpersistent handoff state. The caller
     /// supplies the system clipboard boundary; this root deliberately does not
     /// expose the workspace writer or create a durable handoff-intent row.

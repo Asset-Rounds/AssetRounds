@@ -1,4 +1,6 @@
 import Foundation
+import CryptoKit
+import Darwin
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -16,6 +18,705 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied, file: file, line: line)
         }
+    }
+
+    func testPhysicalIngressFactoryStreamsReopensAndRejectsChangedDuplicateBytes() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 3 * 1_048_576 + 37)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        let store = try ProductionCompositionRoot.makePreAuthenticationIngressStore(applicationSupportURL: fixture.support)
+        let first = try await store.stageContentBlind(request, source: fixture.source)
+        XCTAssertFalse(first.adoptedExistingEffect)
+        XCTAssertEqual(first.intent.sha256, fixture.digest)
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(request)), fixture.bytes)
+        let reopened = try ProductionCompositionRoot.makePreAuthenticationIngressStore(applicationSupportURL: fixture.support)
+        let pending = try await reopened.pendingIntents()
+        XCTAssertEqual(pending, [first.intent])
+        let replay = try await reopened.stageContentBlind(request, source: fixture.source)
+        XCTAssertTrue(replay.adoptedExistingEffect)
+        XCTAssertEqual(replay.intent, first.intent)
+        var altered = fixture.bytes
+        altered[0] ^= 0xff
+        try altered.write(to: fixture.source)
+        do {
+            _ = try await reopened.stageContentBlind(request, source: fixture.source)
+            XCTFail("same intent accepted different source bytes")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(request)), fixture.bytes)
+        try fixture.bytes.write(to: fixture.source)
+        let restored = try await reopened.stageContentBlind(request, source: fixture.source)
+        XCTAssertEqual(restored.intent, first.intent)
+    }
+
+    func testPhysicalIngressCASAndRepeatedReadyRequireExactOwnedPayload() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        let first = try fixture.effects()
+        let second = try fixture.effects()
+        let staged = try await first.stageContentBlindEffect(request, source: fixture.source)
+        let ready = try staged.advancing(to: .readyForAuthenticatedValidation)
+        try await first.replacePendingIntentEffect(expected: staged, replacement: ready)
+        do {
+            try await second.replacePendingIntentEffect(expected: staged, replacement: ready)
+            XCTFail("stale compare-and-swap accepted")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+        let wrapper = InjectedProtectedIngressStoreV1(effects: second)
+        let repeated = try await wrapper.markReadyForAuthenticatedValidation(intentID: request.intentID)
+        XCTAssertEqual(repeated, ready)
+        try fixture.tamperPayloadPreservingMetadata(request)
+        let metadataOnly = try await second.loadPendingIntentsEffect()
+        XCTAssertEqual(metadataOnly, [ready], "fixture must retain metadata identity so payload hashing is tested")
+        do {
+            _ = try await wrapper.markReadyForAuthenticatedValidation(intentID: request.intentID)
+            XCTFail("repeated ready skipped payload hash validation")
+        } catch {}
+    }
+
+    func testPhysicalIngressPublicationInterruptionsConvergeAfterReopen() async throws {
+        for boundary in [C16IngressMutationFailureInjectionV1.afterPrepare, .afterPublication, .afterPending] {
+            let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+            defer { fixture.remove() }
+            let request = fixture.request()
+            let interrupted = try fixture.effects(failure: boundary)
+            do {
+                _ = try await interrupted.stageContentBlindEffect(request, source: fixture.source)
+                XCTFail("publication interruption was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let reopened = try fixture.effects()
+            let settled = try await reopened.loadPendingIntentsEffect()
+            XCTAssertEqual(settled.count, boundary == .afterPrepare ? 0 : 1)
+            let recovered = try await reopened.stageContentBlindEffect(request, source: fixture.source)
+            let pending = try await reopened.loadPendingIntentsEffect()
+            XCTAssertEqual(pending, [recovered])
+            XCTAssertEqual(recovered.sha256, fixture.digest)
+            XCTAssertEqual(try Data(contentsOf: fixture.payload(request)), fixture.bytes)
+            let duplicate = try await reopened.stageContentBlindEffect(request, source: fixture.source)
+            XCTAssertEqual(duplicate, recovered)
+        }
+    }
+
+    func testPhysicalIngressRemovalInterruptionsRetainExactTerminalReplay() async throws {
+        for boundary in [C16IngressMutationFailureInjectionV1.afterRemovalPrepare, .afterRemovalEffect] {
+            let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+            defer { fixture.remove() }
+            let request = fixture.request()
+            let original = try fixture.effects()
+            let staged = try await original.stageContentBlindEffect(request, source: fixture.source)
+            let ready = try staged.advancing(to: .readyForAuthenticatedValidation)
+            try await original.replacePendingIntentEffect(expected: staged, replacement: ready)
+            let interrupted = try fixture.effects(failure: boundary)
+            do {
+                try await interrupted.removePendingIntentEffect(expected: ready, disposition: .consumed)
+                XCTFail("removal interruption was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let reopened = try fixture.effects()
+            let pending = try await reopened.loadPendingIntentsEffect()
+            XCTAssertTrue(pending.isEmpty)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(request).path))
+            try await reopened.removePendingIntentEffect(expected: ready, disposition: .consumed)
+            do {
+                try await reopened.removePendingIntentEffect(expected: ready, disposition: .erased)
+                XCTFail("terminal receipt accepted a different disposition")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+        }
+    }
+
+    func testPhysicalIngressPartialPreparedDeletionPreservesUnrelatedTombstoneFile() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        let initial = try await fixture.effects().stageContentBlindEffect(request, source: fixture.source)
+        do {
+            try await fixture.effects(failure: .afterPreparedDirectoryFileDeletion)
+                .removePendingIntentEffect(expected: initial, disposition: .erased)
+            XCTFail("prepared-file deletion interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let tombstone = fixture.scratchRoot.appendingPathComponent(".deleting-import-" + request.intentID.uuidString.lowercased())
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: tombstone.path), ["opaque-data"])
+        let unrelated = tombstone.appendingPathComponent("unrelated.bin")
+        let unrelatedBytes = Data("preserve this later file".utf8)
+        try unrelatedBytes.write(to: unrelated)
+        try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: unrelated)
+        let reopened = try fixture.effects()
+        do {
+            try await reopened.removePendingIntentEffect(expected: initial, disposition: .erased)
+            XCTFail("an unrelated tombstone child was accepted for deletion")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+        XCTAssertEqual(try Data(contentsOf: unrelated), unrelatedBytes)
+        XCTAssertEqual(try Data(contentsOf: tombstone.appendingPathComponent("opaque-data")), fixture.bytes)
+        try FileManager.default.removeItem(at: unrelated)
+        try await reopened.removePendingIntentEffect(expected: initial, disposition: .erased)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tombstone.path))
+        let pending = try await reopened.loadPendingIntentsEffect()
+        XCTAssertTrue(pending.isEmpty)
+        try await reopened.removePendingIntentEffect(expected: initial, disposition: .erased)
+    }
+
+    func testPhysicalIngressEraseRetryPreservesLaterIntentAndReportsNonemptyReadback() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let original = try fixture.effects()
+        let firstRequest = fixture.request()
+        _ = try await original.stageContentBlindEffect(firstRequest, source: fixture.source)
+        let operationID = UUID()
+        let interrupted = try fixture.effects(failure: .afterErasePrepare)
+        do {
+            try await interrupted.erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("erase snapshot interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let laterRequest = fixture.request()
+        let later = try await original.stageContentBlindEffect(laterRequest, source: fixture.source)
+        let reopened = try fixture.effects()
+        try await reopened.erasePendingIntentsEffect(operationID: operationID)
+        let pending = try await reopened.loadPendingIntentsEffect()
+        XCTAssertEqual(pending, [later])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(firstRequest).path))
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(laterRequest)), fixture.bytes)
+        let wrapper = InjectedProtectedIngressStoreV1(effects: reopened)
+        do {
+            try await wrapper.eraseAllProtectedIngress(operationID: operationID)
+            XCTFail("old erase snapshot falsely claimed later ingress was gone")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+        try await wrapper.eraseAllProtectedIngress(operationID: UUID())
+        let erased = try await wrapper.pendingIntents()
+        XCTAssertTrue(erased.isEmpty)
+    }
+
+    func testPhysicalIngressEraseIncludesOriginalUnpublishedCopiesAndPreservesLaterIntent() async throws {
+        for boundary in [C16IngressMutationFailureInjectionV1.afterPrepare, .afterClaim, .afterOpaqueCopy] {
+            let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+            defer { fixture.remove() }
+            let request = fixture.request()
+            let interruptedStage = try fixture.effects(failure: boundary)
+            do {
+                _ = try await interruptedStage.stageContentBlindEffect(request, source: fixture.source)
+                XCTFail("unpublished stage boundary was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let original = try fixture.effects()
+            let before = try await original.loadPendingIntentsEffect()
+            XCTAssertTrue(before.isEmpty)
+            XCTAssertEqual(FileManager.default.fileExists(atPath: fixture.payload(request).path), boundary == .afterOpaqueCopy)
+            let operationID = UUID()
+            let interruptedErase = try fixture.effects(failure: .afterErasePrepare)
+            do {
+                try await interruptedErase.erasePendingIntentsEffect(operationID: operationID)
+                XCTFail("unfinished target was not frozen before erase")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let laterRequest = fixture.request()
+            let later = try await original.stageContentBlindEffect(laterRequest, source: fixture.source)
+            let reopened = try fixture.effects()
+            try await reopened.erasePendingIntentsEffect(operationID: operationID)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(request).deletingLastPathComponent().path))
+            let after = try await reopened.loadPendingIntentsEffect()
+            XCTAssertEqual(after, [later])
+            XCTAssertEqual(try Data(contentsOf: fixture.payload(laterRequest)), fixture.bytes)
+            try await reopened.erasePendingIntentsEffect(operationID: operationID)
+            do {
+                _ = try await reopened.stageContentBlindEffect(request, source: fixture.source)
+                XCTFail("aborted intent identifier was reused")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .invalidTransition) }
+        }
+    }
+
+    func testPhysicalIngressUnpublishedEraseReopensAfterRemovalBeforeTerminalWrite() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        let interruptedStage = try fixture.effects(failure: .afterOpaqueCopy)
+        do {
+            _ = try await interruptedStage.stageContentBlindEffect(request, source: fixture.source)
+            XCTFail("copy interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let operationID = UUID()
+        let interruptedErase = try fixture.effects(failure: .afterUnpublishedRemoval)
+        do {
+            try await interruptedErase.erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("deletion-before-terminal interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(request).path))
+        let reopened = try fixture.effects()
+        do {
+            _ = try await reopened.loadPendingIntentsEffect()
+            XCTFail("missing unfinished directory was silently accepted before Erase recovery")
+        } catch {}
+        try await reopened.erasePendingIntentsEffect(operationID: operationID)
+        let pending = try await reopened.loadPendingIntentsEffect()
+        XCTAssertTrue(pending.isEmpty)
+        // A later unclaimed entry at the old name is never part of this receipt.
+        let laterDirectory = fixture.payload(request).deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: laterDirectory, withIntermediateDirectories: false)
+        let sentinel = laterDirectory.appendingPathComponent("later-owner")
+        try Data("preserve".utf8).write(to: sentinel)
+        try await reopened.erasePendingIntentsEffect(operationID: operationID)
+        XCTAssertEqual(try Data(contentsOf: sentinel), Data("preserve".utf8))
+    }
+
+    func testPhysicalIngressRecognizesOnlyCompletedHygieneForExpiredPublication() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        let original = try fixture.effects()
+        _ = try await original.stageContentBlindEffect(request, source: fixture.source)
+        let future = fixture.now.addingTimeInterval(25 * 3_600)
+        let reopened = try fixture.effects(at: future)
+        let receipt = try await reopened.performBlindStartupHygieneEffect(now: future, operationID: UUID())
+        XCTAssertFalse(receipt.contentRead)
+        XCTAssertEqual(receipt.removedKnownOwnedCount, 1)
+        let pending = try await reopened.loadPendingIntentsEffect()
+        XCTAssertTrue(pending.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(request).path))
+    }
+
+    func testPhysicalIngressScratchResetCompletesUnpublishedAndPublishedRemoval() async throws {
+        for boundary in [C16IngressMutationFailureInjectionV1.afterClaim, .afterOpaqueCopy] {
+            let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+            defer { fixture.remove() }
+            let unfinished = fixture.request()
+            do {
+                _ = try await fixture.effects(failure: boundary).stageContentBlindEffect(unfinished, source: fixture.source)
+                XCTFail("unfinished-copy interruption was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let request = fixture.request()
+            let effects = try fixture.effects()
+            let published = try await effects.stageContentBlindEffect(request, source: fixture.source)
+            do {
+                try await fixture.effects(failure: .afterRemovalPrepare).removePendingIntentEffect(expected: published, disposition: .erased)
+                XCTFail("removal preparation interruption was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let scratch = try fixture.scratch()
+            try await scratch.resetScratchData()
+            let pending = try await fixture.effects().loadPendingIntentsEffect()
+            XCTAssertTrue(pending.isEmpty)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.scratchRoot.path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(unfinished).deletingLastPathComponent().path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(request).deletingLastPathComponent().path))
+            try await effects.removePendingIntentEffect(expected: published, disposition: .erased)
+            do {
+                _ = try await fixture.effects().stageContentBlindEffect(unfinished, source: fixture.source)
+                XCTFail("reset forgot the original aborted intent")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .invalidTransition) }
+        }
+    }
+
+    func testPhysicalIngressScratchRecoveryRetainsLiveCopiesAndCountsExactExpiryBytes() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let published = fixture.request()
+        _ = try await fixture.effects().stageContentBlindEffect(published, source: fixture.source)
+        let unfinished = fixture.request()
+        do {
+            _ = try await fixture.effects(failure: .afterOpaqueCopy).stageContentBlindEffect(unfinished, source: fixture.source)
+            XCTFail("opaque-copy interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let scratch = try fixture.scratch()
+        let before = try await scratch.recoverScratchLeases()
+        XCTAssertEqual(before.recoveredExpiredLeaseCount, 0)
+        XCTAssertEqual(before.removedByteCount, 0)
+        let ordinaryRequest = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+            ownerOperationID: UUID(), requestedByteCount: 8, createdAt: fixture.now, expiresAt: fixture.now.addingTimeInterval(3 * 3_600))
+        let ordinary = try await scratch.acquireScratchLease(ordinaryRequest)
+        let ordinaryURL = try await scratch.writeScratchData(Data("ordinary".utf8), named: "source.bin", lease: ordinary)
+        let expectedBytes = try fixture.leaseByteCount(published) + fixture.leaseByteCount(unfinished)
+        let future = fixture.now.addingTimeInterval(2 * 3_600)
+        let recovered = try await fixture.scratch(at: future).recoverScratchLeases()
+        XCTAssertEqual(recovered.recoveredExpiredLeaseCount, 2)
+        XCTAssertEqual(recovered.removedByteCount, expectedBytes)
+        XCTAssertEqual(try Data(contentsOf: ordinaryURL), Data("ordinary".utf8))
+        let pending = try await fixture.effects(at: future).loadPendingIntentsEffect()
+        XCTAssertTrue(pending.isEmpty)
+        let repeated = try await fixture.scratch(at: future).recoverScratchLeases()
+        XCTAssertEqual(repeated.recoveredExpiredLeaseCount, 0)
+        XCTAssertEqual(repeated.removedByteCount, 0)
+    }
+
+    func testPhysicalIngressScratchResetResumesOriginalInterruptedUnpublishedErase() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        do {
+            _ = try await fixture.effects(failure: .afterOpaqueCopy).stageContentBlindEffect(request, source: fixture.source)
+            XCTFail("opaque-copy interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let operationID = UUID()
+        do {
+            try await fixture.effects(failure: .afterUnpublishedRemoval).erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("unpublished deletion interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        try await fixture.scratch().resetScratchData()
+        let effects = try fixture.effects()
+        let pending = try await effects.loadPendingIntentsEffect()
+        XCTAssertTrue(pending.isEmpty)
+        try await effects.erasePendingIntentsEffect(operationID: operationID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(request).deletingLastPathComponent().path))
+    }
+
+    func testPhysicalIngressScratchReleaseCompletesExactPendingTerminal() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        let effects = try fixture.effects()
+        let published = try await effects.stageContentBlindEffect(request, source: fixture.source)
+        let metadata = fixture.payload(request).deletingLastPathComponent().appendingPathComponent("lease.json")
+        let lease = try JSONDecoder().decode(ScratchDataLeaseV1.self, from: Data(contentsOf: metadata))
+        try await fixture.scratch().releaseScratchLease(lease, terminal: .cancelled)
+        let pending = try await fixture.effects().loadPendingIntentsEffect()
+        XCTAssertTrue(pending.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: metadata.deletingLastPathComponent().path))
+        try await effects.removePendingIntentEffect(expected: published, disposition: .erased)
+        try await fixture.scratch().releaseScratchLease(lease, terminal: .cancelled)
+    }
+
+    func testPhysicalIngressScratchEraseReopensAfterControlDeletionInterruptions() async throws {
+        for boundary in [C16IngressMutationFailureInjectionV1.none, .afterScratchControlErasePublication,
+                         .afterScratchControlErasePrepare, .afterScratchControlEraseFile] {
+            let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+            defer { fixture.remove() }
+            _ = try await fixture.effects().stageContentBlindEffect(fixture.request(), source: fixture.source)
+            _ = try await fixture.effects().stageContentBlindEffect(fixture.request(), source: fixture.source)
+            let scratch = try fixture.scratch(failure: boundary)
+            if boundary == .none {
+                try await scratch.eraseScratchData()
+            } else {
+                do {
+                    try await scratch.eraseScratchData()
+                    XCTFail("control cleanup interruption was not reached")
+                } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+                if boundary == .afterScratchControlErasePublication {
+                    let marker = fixture.controlRoot.appendingPathComponent("scratch-erase.json")
+                    var metadata = stat()
+                    XCTAssertEqual(Darwin.lstat(marker.path, &metadata), 0)
+                    XCTAssertEqual(metadata.st_nlink, 1)
+                    XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: fixture.controlRoot.path)
+                        .contains(where: { $0.hasPrefix(".partial-") }))
+                }
+                do {
+                    _ = try await fixture.effects().loadPendingIntentsEffect()
+                    XCTFail("active scratch Erase marker admitted ingress")
+                } catch {}
+                try await fixture.scratch().eraseScratchData()
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.scratchRoot.path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.controlRoot.path))
+            let reopened = try ProductionCompositionRoot.makePreAuthenticationIngressStore(applicationSupportURL: fixture.support)
+            let request = fixture.request()
+            let receipt = try await reopened.stageContentBlind(request, source: fixture.source)
+            let pending = try await reopened.pendingIntents()
+            XCTAssertEqual(pending, [receipt.intent])
+            XCTAssertEqual(try Data(contentsOf: fixture.payload(request)), fixture.bytes)
+        }
+    }
+
+    func testPhysicalIngressScratchErasePreservesSubstitutedControlAndUnrelatedFiles() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        _ = try await fixture.effects().stageContentBlindEffect(fixture.request(), source: fixture.source)
+        do {
+            try await fixture.scratch(failure: .afterScratchControlErasePrepare).eraseScratchData()
+            XCTFail("control cleanup interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let originalNames = try FileManager.default.contentsOfDirectory(atPath: fixture.controlRoot.path).sorted()
+        let targetName = try XCTUnwrap(originalNames.first { $0 != "scratch-erase.json" })
+        let target = fixture.controlRoot.appendingPathComponent(targetName)
+        let bytes = try Data(contentsOf: target)
+        try bytes.write(to: target, options: .atomic)
+        do {
+            try await fixture.scratch().eraseScratchData()
+            XCTFail("substituted original control file was removed")
+        } catch {}
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.controlRoot.path).sorted(), originalNames)
+        XCTAssertEqual(try Data(contentsOf: target), bytes)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.scratchRoot.path))
+    }
+
+    func testPhysicalIngressScratchErasePreservesLaterPartialPublicationFile() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        _ = try await fixture.effects().stageContentBlindEffect(fixture.request(), source: fixture.source)
+        do {
+            try await fixture.scratch(failure: .afterScratchControlErasePrepare).eraseScratchData()
+            XCTFail("control cleanup interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let later = fixture.controlRoot.appendingPathComponent(".partial-" + UUID().uuidString.lowercased())
+        try Data("later unrelated publication".utf8).write(to: later)
+        try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: later)
+        let before = try fixture.fileBytes(in: fixture.controlRoot)
+        do {
+            try await fixture.scratch().eraseScratchData()
+            XCTFail("cleanup deleted a later partial file outside its original snapshot")
+        } catch {}
+        XCTAssertEqual(try fixture.fileBytes(in: fixture.controlRoot), before)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.scratchRoot.path))
+        try FileManager.default.removeItem(at: later)
+        try await fixture.scratch().eraseScratchData()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.controlRoot.path))
+    }
+
+    func testPhysicalIngressScratchErasePreservesLaterMarkerHardLink() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        _ = try await fixture.effects().stageContentBlindEffect(fixture.request(), source: fixture.source)
+        do {
+            try await fixture.scratch(failure: .afterScratchControlErasePublication).eraseScratchData()
+            XCTFail("atomic marker publication interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let marker = fixture.controlRoot.appendingPathComponent("scratch-erase.json")
+        let later = fixture.controlRoot.appendingPathComponent(".partial-" + UUID().uuidString.lowercased())
+        try FileManager.default.linkItem(at: marker, to: later)
+        let before = try fixture.fileBytes(in: fixture.controlRoot)
+        do {
+            try await fixture.scratch().eraseScratchData()
+            XCTFail("later marker hard link was mistaken for an owned publication")
+        } catch {}
+        XCTAssertEqual(try fixture.fileBytes(in: fixture.controlRoot), before)
+        var metadata = stat()
+        XCTAssertEqual(Darwin.lstat(marker.path, &metadata), 0)
+        XCTAssertEqual(metadata.st_nlink, 2)
+        try FileManager.default.removeItem(at: later)
+        try await fixture.scratch().eraseScratchData()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.controlRoot.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.scratchRoot.path))
+    }
+
+    func testPhysicalIngressGenericRecoveryAndResetPreserveInterruptedHygieneSnapshot() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let old = fixture.now.addingTimeInterval(-3 * 86_400)
+        let scratch = try fixture.scratch(at: old)
+        let request = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+            ownerOperationID: UUID(), requestedByteCount: 8, createdAt: old, expiresAt: old.addingTimeInterval(3_600))
+        let lease = try await scratch.acquireScratchLease(request)
+        let payload = try await scratch.writeScratchData(Data("ordinary".utf8), named: "a.bin", lease: lease)
+        let directory = payload.deletingLastPathComponent()
+        try fixture.ageFiles(in: directory, to: old)
+        let operationID = UUID()
+        do {
+            _ = try fixture.scratch(failure: .afterPreparedDirectoryFileDeletion)
+                .reconcileProtectedIngressHygiene(now: fixture.now, operationID: operationID)
+            XCTFail("hygiene did not interrupt after its first actual file deletion")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let tombstone = fixture.scratchRoot.appendingPathComponent(".deleting-" + directory.lastPathComponent)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: tombstone.path), ["lease.json"])
+        let later = tombstone.appendingPathComponent("unrelated.bin")
+        try Data("preserve later tombstone child".utf8).write(to: later)
+        try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: later)
+        let before = try fixture.fileBytes(in: tombstone)
+        do {
+            _ = try await fixture.scratch().recoverScratchLeases()
+            XCTFail("generic recovery bypassed the original hygiene snapshot")
+        } catch {}
+        XCTAssertEqual(try fixture.fileBytes(in: tombstone), before)
+        do {
+            try await fixture.scratch().resetScratchData()
+            XCTFail("generic reset bypassed the original hygiene snapshot")
+        } catch {}
+        XCTAssertEqual(try fixture.fileBytes(in: tombstone), before)
+        try FileManager.default.removeItem(at: later)
+        let receipt = try fixture.scratch().reconcileProtectedIngressHygiene(now: fixture.now, operationID: operationID)
+        XCTAssertEqual(receipt.removedKnownOwnedCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tombstone.path))
+        XCTAssertEqual(try fixture.scratch().reconcileProtectedIngressHygiene(now: fixture.now, operationID: operationID), receipt)
+    }
+
+    func testPhysicalIngressFIFORejectsPromptlyWithoutHoldingScratchFence() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let fifo = fixture.root.appendingPathComponent("external.fifo")
+        XCTAssertEqual(Darwin.mkfifo(fifo.path, mode_t(0o600)), 0)
+        let effects = try fixture.effects()
+        let request = fixture.request()
+        let finished = expectation(description: "nonregular source rejects without waiting for a writer")
+        let staging = Task.detached {
+            defer { finished.fulfill() }
+            do {
+                _ = try await effects.stageContentBlindEffect(request, source: fifo)
+                return false
+            } catch { return true }
+        }
+        await fulfillment(of: [finished], timeout: 2)
+        // If blocking open regresses, release its reader after recording the
+        // timeout so this test cannot strand the process-wide scratch fence.
+        let writer = Darwin.open(fifo.path, O_RDWR | O_NONBLOCK | O_NOFOLLOW)
+        defer { if writer >= 0 { _ = Darwin.close(writer) } }
+        let rejected = await staging.value
+        XCTAssertTrue(rejected)
+        let pending = try await effects.loadPendingIntentsEffect()
+        XCTAssertTrue(pending.isEmpty)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: fixture.scratchRoot.path).isEmpty)
+        let ordinary = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+            ownerOperationID: UUID(), requestedByteCount: 8, createdAt: fixture.now, expiresAt: fixture.now.addingTimeInterval(3_600))
+        let scratch = try fixture.scratch()
+        let lease = try await scratch.acquireScratchLease(ordinary)
+        let payload = try await scratch.writeScratchData(Data("ordinary".utf8), named: "source.bin", lease: lease)
+        XCTAssertEqual(try Data(contentsOf: payload), Data("ordinary".utf8))
+        try await scratch.releaseScratchLease(lease, terminal: .cancelled)
+    }
+
+    func testPhysicalIngressStaleCachedLeaseCannotWriteOrReleaseLaterReusedIngressID() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let old = fixture.now.addingTimeInterval(-3 * 86_400)
+        let storeA = try fixture.scratch(at: old)
+        let oldRequest = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .importData, owner: .importData,
+            ownerOperationID: UUID(), requestedByteCount: 1_024, createdAt: old, expiresAt: old.addingTimeInterval(3_600))
+        let oldLease = try await storeA.acquireScratchLease(oldRequest)
+        let oldPayload = try await storeA.writeScratchData(Data("ordinary".utf8), named: "source.bin", lease: oldLease)
+        try fixture.ageFiles(in: oldPayload.deletingLastPathComponent(), to: old)
+        let hygiene = try fixture.scratch().reconcileProtectedIngressHygiene(now: fixture.now, operationID: UUID())
+        XCTAssertEqual(hygiene.removedKnownOwnedCount, 1)
+        let newRequest = ProtectedIngressStageRequestV1(intentID: oldRequest.leaseID, operationID: UUID(), kind: .document,
+            byteCount: UInt64(fixture.bytes.count), receivedAt: fixture.now, expiresAt: fixture.now.addingTimeInterval(3_600))
+        let effects = try fixture.effects()
+        let newIntent = try await effects.stageContentBlindEffect(newRequest, source: fixture.source)
+        let directory = fixture.payload(newRequest).deletingLastPathComponent()
+        let before = try fixture.fileBytes(in: directory)
+        do {
+            _ = try await storeA.writeScratchData(Data([0x01]), named: "later.bin", lease: oldLease)
+            XCTFail("stale active lease wrote into a later ingress owner's directory")
+        } catch {}
+        XCTAssertEqual(try fixture.fileBytes(in: directory), before)
+        do {
+            try await storeA.releaseScratchLease(oldLease, terminal: .cancelled)
+            XCTFail("stale active lease released a later ingress owner at the reused ID")
+        } catch {}
+        XCTAssertEqual(try fixture.fileBytes(in: directory), before)
+        let pending = try await effects.loadPendingIntentsEffect()
+        XCTAssertEqual(pending, [newIntent])
+        let newLease = try JSONDecoder().decode(ScratchDataLeaseV1.self,
+            from: Data(contentsOf: directory.appendingPathComponent("lease.json")))
+        try await fixture.scratch().releaseScratchLease(newLease, terminal: .cancelled)
+        let after = try await effects.loadPendingIntentsEffect()
+        XCTAssertTrue(after.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+    }
+
+    func testPhysicalIngressRejectsUnsupportedSizeAndCorruptControlWithoutLosingBytes() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let effects = try fixture.effects()
+        for (kind, byteCount) in [(LockedIngressKindV1.appIntent, UInt64(64)), (.document, 65)] {
+            let request = ProtectedIngressStageRequestV1(intentID: UUID(), operationID: UUID(), kind: kind,
+                byteCount: byteCount, receivedAt: fixture.now, expiresAt: fixture.now.addingTimeInterval(3_600))
+            do {
+                _ = try await effects.stageContentBlindEffect(request, source: fixture.source)
+                XCTFail("unsupported ingress or false byte count was admitted")
+            } catch {}
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(request).deletingLastPathComponent().path))
+        }
+        let request = fixture.request()
+        _ = try await effects.stageContentBlindEffect(request, source: fixture.source)
+        let unknown = fixture.controlRoot.appendingPathComponent("unknown.json")
+        try Data("preserve unknown".utf8).write(to: unknown)
+        do {
+            _ = try await fixture.effects().loadPendingIntentsEffect()
+            XCTFail("unknown control entry was silently ignored")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: unknown), Data("preserve unknown".utf8))
+        try FileManager.default.removeItem(at: unknown)
+        let prepare = fixture.controlRoot.appendingPathComponent("ingress-" + request.intentID.uuidString.lowercased() + ".prepare.json")
+        try Data("{".utf8).write(to: prepare)
+        do {
+            _ = try await fixture.effects().loadPendingIntentsEffect()
+            XCTFail("corrupt preparation was admitted")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(request)), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+    }
+
+    func testPhysicalIngressUnfinishedPreparationsEnforceThe128IntentLimit() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let effects = try fixture.effects(failure: .afterPrepare)
+        for _ in 0..<128 {
+            do {
+                _ = try await effects.stageContentBlindEffect(fixture.request(), source: fixture.source)
+                XCTFail("preparation interruption was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        }
+        let rejected = fixture.request()
+        do {
+            _ = try await effects.stageContentBlindEffect(rejected, source: fixture.source)
+            XCTFail("129th unfinished intent was admitted")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .ingressLimitExceeded) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(rejected).deletingLastPathComponent().path))
+        try await fixture.scratch().resetScratchData()
+        let fresh = try fixture.effects()
+        let admitted = try await fresh.stageContentBlindEffect(rejected, source: fixture.source)
+        let pending = try await fresh.loadPendingIntentsEffect()
+        XCTAssertEqual(pending, [admitted])
+    }
+
+    func testPhysicalIngressFullPublishedCapacityErasesThroughOriginalBoundedSnapshot() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 1)
+        defer { fixture.remove() }
+        let effects = try fixture.effects()
+        var requests: [ProtectedIngressStageRequestV1] = []
+        for index in 0..<128 {
+            let request = fixture.request()
+            let staged = try await effects.stageContentBlindEffect(request, source: fixture.source)
+            if index.isMultiple(of: 2) {
+                let ready = try staged.advancing(to: .readyForAuthenticatedValidation)
+                try await effects.replacePendingIntentEffect(expected: staged, replacement: ready)
+            }
+            requests.append(request)
+        }
+        let before = try await effects.loadPendingIntentsEffect()
+        XCTAssertEqual(before.count, 128)
+        do {
+            _ = try await effects.stageContentBlindEffect(fixture.request(), source: fixture.source)
+            XCTFail("129th published intent was admitted")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .ingressLimitExceeded) }
+        let operationID = UUID()
+        do {
+            try await fixture.effects(failure: .afterErasePrepare).erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("full-population Erase preparation interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let reopened = try fixture.effects()
+        let retained = try await reopened.loadPendingIntentsEffect()
+        XCTAssertEqual(retained, before)
+        for request in requests { XCTAssertEqual(try Data(contentsOf: fixture.payload(request)), fixture.bytes) }
+        try await reopened.erasePendingIntentsEffect(operationID: operationID)
+        let after = try await reopened.loadPendingIntentsEffect()
+        XCTAssertTrue(after.isEmpty)
+        for request in requests {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(request).deletingLastPathComponent().path))
+        }
+        let laterRequest = fixture.request()
+        let later = try await reopened.stageContentBlindEffect(laterRequest, source: fixture.source)
+        try await reopened.erasePendingIntentsEffect(operationID: operationID)
+        let final = try await reopened.loadPendingIntentsEffect()
+        XCTAssertEqual(final, [later])
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(laterRequest)), fixture.bytes)
+    }
+
+    func testPhysicalIngressAuthenticationResumeAndRelockUseRealPendingBytes() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let clock = C16PhysicalIngressClock(value: fixture.now)
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]), clock: clock,
+            identifiers: V915IDs(values: [UUID(), UUID(), UUID()]))
+        let store = try ProductionCompositionRoot.makePreAuthenticationIngressStore(applicationSupportURL: fixture.support)
+        let coordinator = ProtectedIngressCoordinatorV1(gate: gate, store: store, clock: clock)
+        let request = fixture.request()
+        let staged = try await coordinator.stageWhileLocked(request, source: fixture.source)
+        do {
+            _ = try await coordinator.resumeAfterAuthentication()
+            XCTFail("locked resume returned staged ingress")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        let outcome = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(outcome, .authenticated)
+        let ready = try await coordinator.resumeAfterAuthentication()
+        XCTAssertEqual(ready, [try staged.intent.advancing(to: .readyForAuthenticatedValidation)])
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(request)), fixture.bytes)
+        await gate.lock(reason: .returnedFromBackground)
+        do {
+            _ = try await coordinator.resumeAfterAuthentication()
+            XCTFail("relocked resume returned ready ingress")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        let reopened = try ProductionCompositionRoot.makePreAuthenticationIngressStore(applicationSupportURL: fixture.support)
+        let pending = try await reopened.pendingIntents()
+        XCTAssertEqual(pending, ready)
     }
 
     func testContentReadTokensBindOwnerSurfaceAndNeverAuthenticateOrConsumeIDs() async throws {
@@ -82,10 +783,11 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         await assertReadDenied(gate)
         let repair = await gate.authenticate(trigger: .repairConfiguration)
         XCTAssertEqual(repair, .authenticated)
+        await assertReadDenied(gate)
         await assertReadDenied(gate, token: beforeConfiguration)
-        let beforeSetting = try await gate.beginContentRead(for: .search)
-        try await gate.setEnabledAfterAuthenticated(false)
-        await assertReadDenied(gate, token: beforeSetting)
+        let configurationToken = try await gate.configurationAuthenticationToken()
+        try await gate.setEnabledAfterAuthenticated(false, configurationToken: configurationToken)
+        await assertReadDenied(gate, token: beforeConfiguration)
         let beforeRecovery = try await gate.beginContentRead(for: .search)
         try await gate.markRecoveryComplete(enabled: false)
         await assertReadDenied(gate, token: beforeRecovery)
@@ -96,6 +798,609 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         try await gate.validateContentRead(fresh, for: .search)
         let attempts = await auth.attempts
         XCTAssertEqual(attempts.count, 3)
+    }
+
+    func testConfigurationRepairProofKeepsContentClosedAndRejectsForeignAndConsumedAuthority() async throws {
+        let gate = AppAccessGateV1(
+            setting: .corruptOrAmbiguous,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+            clock: V915Clock(), identifiers: V915IDs(values: [Self.id(800), Self.id(801)])
+        )
+        do { _ = try await gate.configurationAuthenticationToken(); XCTFail("proof existed before authentication") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        let outcome = await gate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(outcome, .authenticated)
+        let proof = try await gate.configurationAuthenticationToken()
+        try await gate.validateConfigurationAuthentication(proof)
+        let state = await gate.currentState()
+        let covered = await gate.privacyCoverRequired()
+        XCTAssertEqual(state, .configurationUnknownLocked)
+        XCTAssertTrue(covered)
+        await assertReadDenied(gate)
+        do { _ = try await gate.requireContentAccess(for: .startupRecovery); XCTFail("repair proof opened startup content") }
+        catch { XCTAssertEqual(error as? AppAccessContentReadFailureV1, .denied(surface: .startupRecovery, state: .configurationUnknownLocked)) }
+        do { try await gate.setEnabledAfterAuthenticated(false); XCTFail("missing repair proof completed configuration") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        do { try await gate.markRecoveryComplete(enabled: true); XCTFail("public completion bypassed repair proof") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+
+        // Deliberately reuse the same UUIDs: owner identity must still distinguish gates.
+        let other = AppAccessGateV1(
+            setting: .corruptOrAmbiguous,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+            clock: V915Clock(), identifiers: V915IDs(values: [Self.id(800), Self.id(801)])
+        )
+        let otherOutcome = await other.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(otherOutcome, .authenticated)
+        do { try await other.validateConfigurationAuthentication(proof); XCTFail("foreign repair proof validated") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        do { try await other.setEnabledAfterAuthenticated(false, configurationToken: proof); XCTFail("foreign repair proof completed configuration") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        await assertReadDenied(other)
+
+        try await gate.setEnabledAfterAuthenticated(false, configurationToken: proof)
+        let completed = await gate.currentState()
+        let requiresRecovery = await gate.requiresConfigurationRecovery()
+        XCTAssertEqual(completed, .disabled)
+        XCTAssertFalse(requiresRecovery)
+        do { try await gate.validateConfigurationAuthentication(proof); XCTFail("consumed repair proof validated") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        do { try await gate.setEnabledAfterAuthenticated(true, configurationToken: proof); XCTFail("consumed proof changed the completed setting") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        _ = try await gate.beginContentRead(for: .search)
+    }
+
+    func testConfigurationRepairProofExpiresAcrossEveryRevocationBoundary() async throws {
+        for boundary in 0..<5 {
+            let gate = AppAccessGateV1(
+                setting: .corruptOrAmbiguous,
+                authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated]),
+                clock: V915Clock(), identifiers: V915IDs(values: (810...813).map(Self.id))
+            )
+            let outcome = await gate.authenticate(trigger: .repairConfiguration)
+            XCTAssertEqual(outcome, .authenticated)
+            let proof = try await gate.configurationAuthenticationToken()
+            switch boundary {
+            case 0: await gate.lock(reason: .lockNow)
+            case 1:
+                await gate.sceneBecameInactive()
+                await gate.sceneBecameActive()
+            case 2: await gate.markConfigurationUnknown()
+            case 3: await gate.eraseAccessState()
+            default:
+                let later = await gate.authenticate(trigger: .repairConfiguration)
+                XCTAssertEqual(later, .authenticated)
+                let current = try await gate.configurationAuthenticationToken()
+                try await gate.validateConfigurationAuthentication(current)
+            }
+            do { try await gate.validateConfigurationAuthentication(proof); XCTFail("revoked proof survived boundary \(boundary)") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            if boundary < 4 {
+                do { _ = try await gate.configurationAuthenticationToken(); XCTFail("getter revived a revoked proof") }
+                catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            }
+            do { try await gate.setEnabledAfterAuthenticated(false, configurationToken: proof); XCTFail("revoked proof completed after boundary \(boundary)") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            if boundary != 3 { await assertReadDenied(gate) }
+        }
+    }
+
+    func testCancelledAndFailedConfigurationRepairCannotBecomeOrdinaryUnlock() async throws {
+        for initial in [DeviceLocalAppLockSettingReadV1.corruptOrAmbiguous, .protectedDataUnavailable] {
+            for failure in [LocalAuthenticationOutcomeV1.userCancelled, .authenticationFailed] {
+                let auth = V915AuthenticationClient(outcomes: [failure, .authenticated])
+                let gate = AppAccessGateV1(
+                    setting: initial, authentication: auth,
+                    clock: V915Clock(), identifiers: V915IDs(values: (820...824).map(Self.id))
+                )
+                let outcome = await gate.authenticate(trigger: .repairConfiguration)
+                XCTAssertEqual(outcome, failure)
+                await gate.lock(reason: .returnedFromBackground)
+                let ordinary = await gate.authenticate(trigger: .unlock)
+                XCTAssertEqual(ordinary, .interrupted)
+                let attempts = await auth.attempts
+                let unresolved = await gate.requiresConfigurationRecovery()
+                XCTAssertEqual(attempts.count, 1)
+                XCTAssertTrue(unresolved)
+                await assertReadDenied(gate)
+                do { _ = try await gate.configurationAuthenticationToken(); XCTFail("failed repair minted proof") }
+                catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+                let repaired = await gate.authenticate(trigger: .repairConfiguration)
+                XCTAssertEqual(repaired, .authenticated)
+                let proof = try await gate.configurationAuthenticationToken()
+                try await gate.setEnabledAfterAuthenticated(true, configurationToken: proof)
+                try await gate.markRecoveryComplete(enabled: true)
+                let completed = await gate.currentState()
+                XCTAssertEqual(completed, .locked(reason: .coldLaunch))
+                await assertReadDenied(gate)
+            }
+        }
+    }
+
+    func testCompletedNotificationJournalsRelaunchWithoutRecoveryEffectsOrAuthentication() async throws {
+        let cases: [(Bool, AppLockNotificationPrivacyDispositionV1)] = [
+            (true, .genericProjectionApplied), (true, .genericProjectionAdopted),
+            (false, .priorPolicyRebuilt)
+        ]
+        for (enabled, disposition) in cases {
+            let journal = try recoveryJournal(enabled: enabled, disposition: disposition)
+            let effects = try recoveryEffects(journal: journal)
+            let notifications = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
+            let setting = V915SettingStore(value: .init(isEnabled: enabled))
+            let auth = V915AuthenticationClient(outcomes: [])
+            for _ in 0..<2 {
+                let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+                    setting: setting, authentication: auth, ingressStore: V915IngressStore(),
+                    notifications: notifications, clock: V915Clock(),
+                    identifiers: V915IDs(values: (830...834).map(Self.id))
+                )
+                let gate = await lifecycle.accessGate()
+                let state = await gate.currentState()
+                XCTAssertEqual(state, enabled ? .locked(reason: .coldLaunch) : .disabled)
+                let recovery = try await lifecycle.recoverAfterAuthentication()
+                XCTAssertEqual(recovery, .noRecoveryRequired)
+                let unchanged = await gate.currentState()
+                XCTAssertEqual(unchanged, state)
+            }
+            let attempts = await auth.attempts
+            let writes = await setting.writeEffectCount
+            let publishes = await effects.publishCount
+            let rebuilds = await effects.rebuildCount
+            let retained = try await notifications.loadJournal()
+            XCTAssertTrue(attempts.isEmpty)
+            XCTAssertEqual(writes, 0)
+            XCTAssertEqual(publishes, 0)
+            XCTAssertEqual(rebuilds, 0)
+            XCTAssertEqual(retained, journal)
+        }
+    }
+
+    func testIncompleteMismatchedAndAbsentNotificationConfigurationStaysUnknown() async throws {
+        let cases: [(DeviceLocalAppLockSettingReadV1, Bool, AppLockNotificationPrivacyDispositionV1)] = [
+            (.value(.init(isEnabled: false)), true, .genericProjectionApplied),
+            (.value(.init(isEnabled: true)), false, .priorPolicyRebuilt),
+            (.value(.init(isEnabled: true)), true, .enablingPrepared),
+            (.value(.init(isEnabled: false)), false, .disablingPrepared),
+            (.absentDisabled, false, .priorPolicyRebuilt),
+            (.corruptOrAmbiguous, false, .priorPolicyRebuilt),
+            (.protectedDataUnavailable, true, .genericProjectionApplied)
+        ]
+        for (read, enabled, disposition) in cases {
+            let journal = try recoveryJournal(enabled: enabled, disposition: disposition)
+            let effects = try recoveryEffects(journal: journal)
+            let auth = V915AuthenticationClient(outcomes: [])
+            let setting = V915SettingStore(value: nil, readOverride: read)
+            let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+                setting: setting, authentication: auth, ingressStore: V915IngressStore(),
+                notifications: AppLockNotificationPrivacyCoordinatorV1(effects: effects),
+                clock: V915Clock(), identifiers: V915IDs(values: [Self.id(840)])
+            )
+            let gate = await lifecycle.accessGate()
+            let state = await gate.currentState()
+            let unresolved = await gate.requiresConfigurationRecovery()
+            XCTAssertEqual(state, .configurationUnknownLocked)
+            XCTAssertTrue(unresolved)
+            await assertReadDenied(gate)
+            let attempts = await auth.attempts
+            let writes = await setting.writeEffectCount
+            XCTAssertTrue(attempts.isEmpty)
+            XCTAssertEqual(writes, 0)
+        }
+    }
+
+    func testUnresolvedStartupHygieneAndMissingJournalReturnHonestRecoveryHolds() async throws {
+        let completed = try recoveryJournal(enabled: false, disposition: .priorPolicyRebuilt)
+        let pending = try recoveryJournal(enabled: true, disposition: .enablingPrepared)
+        let cases: [(DeviceLocalAppLockSettingReadV1, AppLockNotificationJournalV1?, Int)] = [
+            (.value(.init(isEnabled: false)), nil, 1),
+            (.value(.init(isEnabled: false)), completed, 1),
+            (.value(.init(isEnabled: true)), pending, 1),
+            (.corruptOrAmbiguous, nil, 0),
+            (.protectedDataUnavailable, nil, 0)
+        ]
+        for (read, journal, deferred) in cases {
+            let effects = try recoveryEffects(journal: journal)
+            let auth = V915AuthenticationClient(outcomes: [])
+            let setting = V915SettingStore(value: nil, readOverride: read)
+            let ingressEffects = V915IngressEffects(deferredCount: deferred)
+            let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+                setting: setting, authentication: auth,
+                ingressStore: InjectedProtectedIngressStoreV1(effects: ingressEffects),
+                notifications: AppLockNotificationPrivacyCoordinatorV1(effects: effects),
+                clock: V915Clock(), identifiers: V915IDs(values: (850...854).map(Self.id))
+            )
+            let loadsBefore = await effects.loadCount
+            let recovery = try await lifecycle.recoverAfterAuthentication()
+            XCTAssertEqual(recovery, .ambiguousStateLocked)
+            let loadsAfter = await effects.loadCount
+            if deferred > 0 { XCTAssertEqual(loadsAfter, loadsBefore) }
+            if deferred > 0 {
+                do {
+                    try await lifecycle.erase(operationID: Self.id(855))
+                    XCTFail("Erase treated pending-intent deletion as scratch ownership recovery")
+                } catch {
+                    XCTAssertEqual(error as? AppAccessContractFailureV1, .configurationUnknown)
+                }
+                let stillHeld = try await lifecycle.recoverAfterAuthentication()
+                XCTAssertEqual(stillHeld, .ambiguousStateLocked)
+                let loadsAfterErase = await effects.loadCount
+                let erasedSetting = await setting.eraseCallCount
+                XCTAssertEqual(loadsAfterErase, loadsBefore)
+                XCTAssertEqual(erasedSetting, 0)
+            }
+            let gate = await lifecycle.accessGate()
+            let unresolved = await gate.requiresConfigurationRecovery()
+            XCTAssertTrue(unresolved)
+            await assertReadDenied(gate)
+            let attempts = await auth.attempts
+            let writes = await setting.writeEffectCount
+            let publishes = await effects.publishCount
+            let rebuilds = await effects.rebuildCount
+            let retained = await effects.loadJournalEffect()
+            let pendingIntents = await ingressEffects.loadPendingIntentsEffect()
+            let notificationErases = await effects.eraseCallCount
+            let ingressErases = await ingressEffects.eraseCallCount
+            XCTAssertTrue(attempts.isEmpty)
+            XCTAssertEqual(writes, 0)
+            XCTAssertEqual(publishes, 0)
+            XCTAssertEqual(rebuilds, 0)
+            XCTAssertEqual(notificationErases, 0)
+            XCTAssertEqual(ingressErases, 0)
+            XCTAssertEqual(retained, journal)
+            XCTAssertEqual(pendingIntents.count, deferred)
+            XCTAssertTrue(pendingIntents.allSatisfy { $0.disposition == .deferredAmbiguousOwnership })
+        }
+    }
+
+    func testSuspendedNotificationRecoveryDeniesContentAndBackgroundPreemptsSettingWrite() async throws {
+        for background in [false, true] {
+            let journal = try recoveryJournal(enabled: true, disposition: .enablingPrepared)
+            let effects = try recoveryEffects(journal: journal, pausesPublication: true)
+            let notifications = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
+            let setting = V915SettingStore(value: .init(isEnabled: false))
+            let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+                setting: setting, authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+                ingressStore: V915IngressStore(), notifications: notifications,
+                clock: V915Clock(), identifiers: V915IDs(values: (860...869).map(Self.id))
+            )
+            let recovering = Task { try await lifecycle.recoverAfterAuthentication() }
+            await effects.waitUntilPublicationStarted()
+            let gate = await lifecycle.accessGate()
+            let state = await gate.currentState()
+            let cover = await gate.privacyCoverRequired()
+            XCTAssertEqual(state, .configurationUnknownLocked)
+            XCTAssertTrue(cover)
+            await assertReadDenied(gate)
+            do { _ = try await lifecycle.requireContentAccess(for: .startupRecovery); XCTFail("pending recovery opened content") }
+            catch { XCTAssertEqual(error as? AppAccessContentReadFailureV1, .denied(surface: .startupRecovery, state: .configurationUnknownLocked)) }
+            let writesBefore = await setting.writeEffectCount
+            XCTAssertEqual(writesBefore, 0)
+            if background { _ = try await lifecycle.handle(.sceneBackground) }
+            await effects.releasePublication()
+            if background {
+                do { _ = try await recovering.value; XCTFail("backgrounded repair changed setting") }
+                catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            } else {
+                let result = try await recovering.value
+                XCTAssertEqual(result, .resumedToLocked)
+            }
+            let writes = await setting.writeEffectCount
+            let durableSetting = await setting.readAppLockSetting()
+            let retained = try await notifications.loadJournal()
+            let finalState = await gate.currentState()
+            let unresolved = await gate.requiresConfigurationRecovery()
+            XCTAssertEqual(writes, background ? 0 : 1)
+            XCTAssertEqual(durableSetting, .value(.init(isEnabled: !background)))
+            XCTAssertEqual(retained?.disposition, .genericProjectionApplied)
+            XCTAssertEqual(finalState, background ? .configurationUnknownLocked : .locked(reason: .coldLaunch))
+            XCTAssertEqual(unresolved, background)
+            await assertReadDenied(gate)
+        }
+    }
+
+    func testDisabledNotificationRecoveryCompletesWithRebuiltPolicyAndConsumesRepairProof() async throws {
+        let journal = try recoveryJournal(enabled: false, disposition: .disablingPrepared)
+        let effects = try recoveryEffects(journal: journal)
+        let notifications = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
+        let setting = V915SettingStore(value: .init(isEnabled: true))
+        let auth = V915AuthenticationClient(outcomes: [.authenticated])
+        let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+            setting: setting, authentication: auth, ingressStore: V915IngressStore(),
+            notifications: notifications, clock: V915Clock(),
+            identifiers: V915IDs(values: (900...909).map(Self.id))
+        )
+        let result = try await lifecycle.recoverAfterAuthentication()
+        XCTAssertEqual(result, .resumedToLocked)
+        let gate = await lifecycle.accessGate()
+        let state = await gate.currentState()
+        let unresolved = await gate.requiresConfigurationRecovery()
+        let retained = try await notifications.loadJournal()
+        let settingRead = await setting.readAppLockSetting()
+        let writes = await setting.writeEffectCount
+        let rebuilds = await effects.rebuildCount
+        XCTAssertEqual(state, .disabled)
+        XCTAssertFalse(unresolved)
+        XCTAssertEqual(retained?.operationID, journal.operationID)
+        XCTAssertEqual(retained?.priorPolicy, journal.priorPolicy)
+        XCTAssertEqual(retained?.disposition, .priorPolicyRebuilt)
+        XCTAssertEqual(settingRead, .value(.init(isEnabled: false)))
+        XCTAssertEqual(writes, 1)
+        XCTAssertEqual(rebuilds, 1)
+        do { _ = try await gate.configurationAuthenticationToken(); XCTFail("completed disable retained a repair proof") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        _ = try await gate.beginContentRead(for: .search)
+        let repeated = try await lifecycle.recoverAfterAuthentication()
+        let attempts = await auth.attempts
+        let writesAfterRetry = await setting.writeEffectCount
+        let rebuildsAfterRetry = await effects.rebuildCount
+        XCTAssertEqual(repeated, .noRecoveryRequired)
+        XCTAssertEqual(attempts.count, 1)
+        XCTAssertEqual(writesAfterRetry, 1)
+        XCTAssertEqual(rebuildsAfterRetry, 1)
+    }
+
+    func testNotificationJournalChangedDuringAuthenticationCannotWriteStaleDisabledSetting() async throws {
+        let original = try recoveryJournal(enabled: false, disposition: .disablingPrepared)
+        let replacement = try recoveryJournal(enabled: true, disposition: .genericProjectionApplied, slot: 891)
+        for current in [nil, replacement] as [AppLockNotificationJournalV1?] {
+            let effects = try recoveryEffects(journal: original)
+            let notifications = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
+            let auth = V915GatedAuthenticationClient()
+            let setting = V915SettingStore(value: .init(isEnabled: true))
+            let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+                setting: setting, authentication: auth, ingressStore: V915IngressStore(),
+                notifications: notifications, clock: V915Clock(),
+                identifiers: V915IDs(values: (880...887).map(Self.id))
+            )
+            let recovering = Task { try await lifecycle.recoverAfterAuthentication() }
+            await auth.waitUntilAttemptStarted()
+            await effects.replaceJournalForAuthenticationRace(current)
+            await auth.finish(.authenticated)
+            do { _ = try await recovering.value; XCTFail("stale disabled recovery survived journal replacement") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+            let writes = await setting.writeEffectCount
+            let settingRead = await setting.readAppLockSetting()
+            let retained = try await notifications.loadJournal()
+            let publishes = await effects.publishCount
+            let rebuilds = await effects.rebuildCount
+            XCTAssertEqual(writes, 0)
+            XCTAssertEqual(settingRead, .value(.init(isEnabled: true)))
+            XCTAssertEqual(retained, current)
+            XCTAssertEqual(publishes, 0)
+            XCTAssertEqual(rebuilds, 0)
+            let gate = await lifecycle.accessGate()
+            await assertReadDenied(gate)
+        }
+    }
+
+    func testUnavailableAuthenticationCanRetryOrdinaryUnlockAndFirstEnableWithoutJournalRepair() async throws {
+        for enabled in [false, true] {
+            for mode in 0..<3 {
+                let status: LocalAuthenticationAvailabilityStatusV1 = mode == 0
+                    ? .temporarilyUnavailable : (mode == 1 ? .unsupported : .available)
+                let outcomes: [LocalAuthenticationOutcomeV1] = mode == 2
+                    ? [.unavailable, .authenticated] : [.authenticated]
+                let auth = V915AuthenticationClient(outcomes: outcomes, availabilityStatus: status)
+                let effects = try recoveryEffects(journal: nil)
+                let notifications = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
+                let setting = V915SettingStore(value: .init(isEnabled: enabled))
+                let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+                    setting: setting, authentication: auth, ingressStore: V915IngressStore(),
+                    notifications: notifications, clock: V915Clock(),
+                    identifiers: V915IDs(values: (920...939).map(Self.id))
+                )
+                let gate = await lifecycle.accessGate()
+                if enabled {
+                    let unavailable = await gate.authenticate(trigger: .unlock)
+                    XCTAssertEqual(unavailable, .unavailable)
+                } else {
+                    do { _ = try await lifecycle.enable(operationID: Self.id(940)); XCTFail("unavailable authentication enabled App Lock") }
+                    catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+                }
+                let state = await gate.currentState()
+                let unresolved = await gate.requiresConfigurationRecovery()
+                let journal = try await notifications.loadJournal()
+                let writesBefore = await setting.writeEffectCount
+                XCTAssertEqual(state, .interruptedLocked)
+                XCTAssertFalse(unresolved)
+                XCTAssertNil(journal)
+                XCTAssertEqual(writesBefore, 0)
+                await assertReadDenied(gate)
+                await auth.setAvailability(.available)
+                let noRepair = try await lifecycle.recoverAfterAuthentication()
+                XCTAssertEqual(noRepair, .noRecoveryRequired)
+                if enabled {
+                    let retry = await gate.authenticate(trigger: .unlock)
+                    XCTAssertEqual(retry, .authenticated)
+                    _ = try await gate.beginContentRead(for: .search)
+                } else {
+                    let retry = try await lifecycle.enable(operationID: Self.id(941))
+                    XCTAssertTrue(retry.enabled)
+                    XCTAssertEqual(retry.authenticationOutcome, .authenticated)
+                    let retryState = await gate.currentState()
+                    XCTAssertEqual(retryState, .locked(reason: .coldLaunch))
+                }
+                let attempts = await auth.attempts
+                let writes = await setting.writeEffectCount
+                XCTAssertEqual(attempts.count, mode == 2 ? 2 : 1)
+                XCTAssertTrue(attempts.allSatisfy { $0.trigger == (enabled ? .unlock : .enableAppLock) })
+                XCTAssertEqual(writes, enabled ? 0 : 1)
+            }
+        }
+    }
+
+    func testSpecializedContentPermitsRejectRepairProofAndTransientInactivity() async throws {
+        let surfaces: [AppAccessContentReadSurfaceV1] = [
+            .ocrProposal, .dictationProposal, .oneShotLocationProposal,
+            .temporalAudioCapture, .temporalVideoCapture
+        ]
+        let repairGate = AppAccessGateV1(
+            setting: .corruptOrAmbiguous,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+            clock: V915Clock(), identifiers: V915IDs(values: [Self.id(950), Self.id(951)])
+        )
+        let repair = await repairGate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(repair, .authenticated)
+        _ = try await repairGate.configurationAuthenticationToken()
+        for surface in surfaces {
+            do { _ = try await specializedPermit(repairGate, surface: surface); XCTFail("repair proof opened \(surface)") }
+            catch { XCTAssertEqual(error as? AppAccessContentReadFailureV1, .denied(surface: surface, state: .configurationUnknownLocked)) }
+        }
+        let gate = AppAccessGateV1(
+            setting: .value(.init(isEnabled: true)),
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+            clock: V915Clock(), identifiers: V915IDs(values: [Self.id(952), Self.id(953)])
+        )
+        let unlocked = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(unlocked, .authenticated)
+        for surface in surfaces {
+            let permit = try await specializedPermit(gate, surface: surface)
+            XCTAssertEqual(permit.surface, surface)
+        }
+        let stateBefore = await gate.currentState()
+        await gate.sceneBecameInactive()
+        for surface in surfaces {
+            do { _ = try await specializedPermit(gate, surface: surface); XCTFail("inactive scene opened \(surface)") }
+            catch { XCTAssertEqual(error as? AppAccessContentReadFailureV1, .denied(surface: surface, state: stateBefore)) }
+        }
+        await gate.sceneBecameActive()
+        let stateAfter = await gate.currentState()
+        XCTAssertEqual(stateAfter, stateBefore)
+        for surface in surfaces {
+            let permit = try await specializedPermit(gate, surface: surface)
+            XCTAssertEqual(permit.surface, surface)
+        }
+    }
+
+    func testAppLockStoredPreferencesDistinguishAbsenceAndExplicitFalseAcrossReopen() async throws {
+        let suiteName = "V915.AppLock.Stored.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let registry = try SettingsRegistryV1.current()
+        let descriptor = try registry.descriptor(for: DeviceLocalAppLockSettingV1.key)
+        let key = PreferencesAdapterV1.storagePrefix + descriptor.key
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let setting = try DeviceLocalAppLockSettingAdapterV1(preferences: preferences, registry: registry)
+        XCTAssertNil(try preferences.readStoredCanonicalValue(for: descriptor))
+        XCTAssertEqual(try preferences.readCanonicalValue(for: descriptor), descriptor.defaultCanonicalValue)
+        let absent = await setting.readAppLockSetting()
+        XCTAssertEqual(absent, .absentDisabled)
+        XCTAssertNil(defaults.object(forKey: key))
+        _ = try await setting.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(960))
+        let bytes = try XCTUnwrap(defaults.data(forKey: key))
+        let reopenedPreferences = PreferencesAdapterV1(defaults: try XCTUnwrap(UserDefaults(suiteName: suiteName)))
+        let reopenedSetting = try DeviceLocalAppLockSettingAdapterV1(preferences: reopenedPreferences, registry: registry)
+        let explicit = await reopenedSetting.readAppLockSetting()
+        XCTAssertEqual(explicit, .value(.init(isEnabled: false)))
+        XCTAssertEqual(try reopenedPreferences.readStoredCanonicalValue(for: descriptor), descriptor.defaultCanonicalValue)
+        XCTAssertEqual(defaults.data(forKey: key), bytes)
+        defaults.removeObject(forKey: key)
+        let removed = await reopenedSetting.readAppLockSetting()
+        XCTAssertEqual(removed, .absentDisabled)
+        XCTAssertEqual(try reopenedPreferences.readCanonicalValue(for: descriptor), descriptor.defaultCanonicalValue)
+        XCTAssertNil(defaults.object(forKey: key))
+    }
+
+    func testAppLockStoredPreferencesRejectMalformedValuesWithoutRepairAcrossReopen() async throws {
+        let suiteName = "V915.AppLock.Malformed.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let registry = try SettingsRegistryV1.current()
+        let descriptor = try registry.descriptor(for: DeviceLocalAppLockSettingV1.key)
+        let key = PreferencesAdapterV1.storagePrefix + descriptor.key
+        let original = try DeviceLocalAppLockSettingAdapterV1(
+            preferences: PreferencesAdapterV1(defaults: defaults), registry: registry
+        )
+        _ = try await original.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(961))
+        var envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(defaults.data(forKey: key))) as? [String: Any])
+        let wrongType = Data("\"false\"".utf8)
+        envelope["canonicalValue"] = wrongType.base64EncodedString()
+        var writeRecord = try XCTUnwrap(envelope["writeRecord"] as? [String: Any])
+        writeRecord["canonicalValueDigest"] = CompatibilityCanonicalV1.sha256(wrongType)
+        envelope["writeRecord"] = writeRecord
+        let wrongTypeEnvelope = try JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys])
+        let hostileValues: [Any] = ["false", Data("false".utf8), wrongTypeEnvelope]
+        for hostile in hostileValues {
+            defaults.set(hostile, forKey: key)
+            let reopened = PreferencesAdapterV1(defaults: try XCTUnwrap(UserDefaults(suiteName: suiteName)))
+            let setting = try DeviceLocalAppLockSettingAdapterV1(preferences: reopened, registry: registry)
+            XCTAssertThrowsError(try reopened.readStoredCanonicalValue(for: descriptor))
+            let read = await setting.readAppLockSetting()
+            XCTAssertEqual(read, .corruptOrAmbiguous)
+            if let bytes = hostile as? Data { XCTAssertEqual(defaults.data(forKey: key), bytes) }
+            else { XCTAssertEqual(defaults.string(forKey: key), hostile as? String) }
+        }
+    }
+
+    func testRetainedDisabledJournalRequiresActuallyStoredFalseAtBootstrap() async throws {
+        let suiteName = "V915.AppLock.Bootstrap.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let registry = try SettingsRegistryV1.current()
+        let journal = try recoveryJournal(enabled: false, disposition: .priorPolicyRebuilt)
+        let notifications = AppLockNotificationPrivacyCoordinatorV1(effects: try recoveryEffects(journal: journal))
+        let auth = V915AuthenticationClient(outcomes: [])
+        for explicit in [false, true] {
+            let preferences = PreferencesAdapterV1(defaults: try XCTUnwrap(UserDefaults(suiteName: suiteName)))
+            let setting = try DeviceLocalAppLockSettingAdapterV1(preferences: preferences, registry: registry)
+            if explicit {
+                _ = try await setting.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(962))
+            }
+            let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+                setting: setting, authentication: auth, ingressStore: V915IngressStore(),
+                notifications: notifications, clock: V915Clock(),
+                identifiers: V915IDs(values: (963...969).map(Self.id))
+            )
+            let gate = await lifecycle.accessGate()
+            let state = await gate.currentState()
+            XCTAssertEqual(state, explicit ? .disabled : .configurationUnknownLocked)
+            if !explicit { await assertReadDenied(gate) }
+            else {
+                let recovery = try await lifecycle.recoverAfterAuthentication()
+                XCTAssertEqual(recovery, .noRecoveryRequired)
+            }
+        }
+        let attempts = await auth.attempts
+        XCTAssertTrue(attempts.isEmpty)
+    }
+
+    private func specializedPermit(
+        _ gate: AppAccessGateV1, surface: AppAccessContentReadSurfaceV1
+    ) async throws -> AppAccessContentPermitV1 {
+        switch surface {
+        case .ocrProposal: return try await gate.requireOCRProposalContentAccess()
+        case .dictationProposal: return try await gate.requireDictationProposalContentAccess()
+        case .oneShotLocationProposal: return try await gate.requireOneShotLocationProposalContentAccess()
+        case .temporalAudioCapture: return try await gate.requireTemporalAudioCaptureAccess()
+        case .temporalVideoCapture: return try await gate.requireTemporalVideoCaptureAccess()
+        default: throw AppAccessContractFailureV1.invalidValue
+        }
+    }
+
+    private func recoveryJournal(
+        enabled: Bool, disposition: AppLockNotificationPrivacyDispositionV1, slot: Int = 890
+    ) throws -> AppLockNotificationJournalV1 {
+        try .init(
+            operationID: Self.id(slot), targetEnabled: enabled,
+            priorPolicy: .init(policyID: "recovery-policy", revision: 1, canonicalDigest: Self.digest(890)),
+            projections: [], disposition: disposition
+        )
+    }
+
+    private func recoveryEffects(
+        journal: AppLockNotificationJournalV1?, pausesPublication: Bool = false
+    ) throws -> V915NotificationEffects {
+        let policy = AppLockNotificationCanonicalPolicyV1(
+            policyID: "recovery-policy", revision: 1, canonicalDigest: Self.digest(890)
+        )
+        let projection = AppLockGenericNotificationV1(
+            requestID: "recovery-generic", opaqueCorrelationToken: Self.digest(890),
+            title: AppLockCopyV1.genericNotificationTitle, body: AppLockCopyV1.genericNotificationBody
+        )
+        return V915NotificationEffects(
+            policy: policy, projection: projection, initialJournal: journal,
+            pausesPublication: pausesPublication
+        )
     }
 
     func testTransientInactiveRevokesReadsWithoutCancellingSystemAuthentication() async throws {
@@ -328,9 +1633,107 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         )
         do { _ = try await productionNotifications.applyGenericProjection(wrongSubject); XCTFail("terminal journal adopted the wrong subject") }
         catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+        let completedEnableReadback = try await productionNotifications.loadJournal()
+        let completedEnable = try XCTUnwrap(completedEnableReadback)
+        let enableRetry = try await productionNotifications.prepareEnable(operationID: Self.id(97))
+        XCTAssertEqual(enableRetry, completedEnable)
+        let disablePrepared = try await productionNotifications.prepareDisable(operationID: Self.id(100))
+        XCTAssertEqual(disablePrepared.priorPolicy, policy)
+        XCTAssertTrue(disablePrepared.projections.isEmpty)
+        let disableRetry = try await productionNotifications.prepareDisable(operationID: Self.id(100))
+        XCTAssertEqual(disableRetry, disablePrepared)
+        let rebuilt = try await productionNotifications.rebuildPriorPolicy(disablePrepared)
+        XCTAssertEqual(rebuilt, .priorPolicyRebuilt)
+        let completedDisable = try await productionNotifications.prepareDisable(operationID: Self.id(100))
+        XCTAssertEqual(completedDisable.disposition, .priorPolicyRebuilt)
+        XCTAssertEqual(completedDisable.priorPolicy, policy)
+        let updatedPolicy = AppLockNotificationCanonicalPolicyV1(
+            policyID: "new-canonical-policy", revision: policy.revision + 1,
+            canonicalDigest: Self.digest(101)
+        )
+        await notificationEffects.setCanonicalPolicy(updatedPolicy)
+        let nextEnable = try await productionNotifications.prepareEnable(operationID: Self.id(101))
+        XCTAssertEqual(nextEnable.priorPolicy, updatedPolicy)
+        let nextApplied = try await productionNotifications.applyGenericProjection(nextEnable)
+        XCTAssertEqual(nextApplied, .genericProjectionApplied)
+        let prepareCounts = await notificationEffects.prepareCounts
+        XCTAssertEqual(prepareCounts, [2, 1])
         try await productionNotifications.eraseNotificationsAndMappings(operationID: Self.id(99))
         let erasedProductionJournal = try await productionNotifications.loadJournal()
         XCTAssertNil(erasedProductionJournal)
+    }
+
+    func testNotificationPreparationPreservesUnfinishedOperationsAndExactRetries() async throws {
+        let policy = AppLockNotificationCanonicalPolicyV1(
+            policyID: "details-disabled", revision: 7, canonicalDigest: Self.digest(102)
+        )
+        let projection = AppLockGenericNotificationV1(
+            requestID: "generic-reminder", opaqueCorrelationToken: Self.digest(103)
+        )
+        let effects = V915NotificationEffects(policy: policy, projection: projection)
+        let coordinator = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
+        let enable = try await coordinator.prepareEnable(operationID: Self.id(104))
+        let enableRetry = try await coordinator.prepareEnable(operationID: Self.id(104))
+        XCTAssertEqual(enableRetry, enable)
+        for operation in [Self.id(104), Self.id(105)] {
+            do { _ = try await coordinator.prepareDisable(operationID: operation); XCTFail("replaced unfinished enable") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        }
+        do { _ = try await coordinator.prepareEnable(operationID: Self.id(105)); XCTFail("replaced original enable operation") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        let retainedEnable = try await coordinator.loadJournal()
+        let enableCounts = await effects.prepareCounts
+        XCTAssertEqual(retainedEnable, enable)
+        XCTAssertEqual(enableCounts, [1, 0])
+        _ = try await coordinator.applyGenericProjection(enable)
+        let disable = try await coordinator.prepareDisable(operationID: Self.id(105))
+        let disableRetry = try await coordinator.prepareDisable(operationID: Self.id(105))
+        XCTAssertEqual(disableRetry, disable)
+        for operation in [Self.id(105), Self.id(106)] {
+            do { _ = try await coordinator.prepareEnable(operationID: operation); XCTFail("replaced unfinished disable") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        }
+        do { _ = try await coordinator.prepareDisable(operationID: Self.id(106)); XCTFail("replaced original disable operation") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        let retainedDisable = try await coordinator.loadJournal()
+        let disableCounts = await effects.prepareCounts
+        XCTAssertEqual(retainedDisable, disable)
+        XCTAssertEqual(disableCounts, [1, 1])
+        _ = try await coordinator.rebuildPriorPolicy(disable)
+        let nextEnable = try await coordinator.prepareEnable(operationID: Self.id(106))
+        XCTAssertEqual(nextEnable.disposition, .enablingPrepared)
+    }
+
+    func testNotificationDisableRejectsSubstitutedPriorPolicyBeforeRebuild() async throws {
+        let policy = AppLockNotificationCanonicalPolicyV1(
+            policyID: "details-disabled", revision: 7, canonicalDigest: Self.digest(107)
+        )
+        let replacement = AppLockNotificationCanonicalPolicyV1(
+            policyID: "details-enabled", revision: 8, canonicalDigest: Self.digest(108)
+        )
+        let effects = V915NotificationEffects(
+            policy: policy,
+            projection: .init(requestID: "generic-reminder", opaqueCorrelationToken: Self.digest(109)),
+            disablePolicyOverride: replacement
+        )
+        let coordinator = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
+        let enable = try await coordinator.prepareEnable(operationID: Self.id(110))
+        _ = try await coordinator.applyGenericProjection(enable)
+        let original = try await coordinator.loadJournal()
+        do { _ = try await coordinator.prepareDisable(operationID: Self.id(111)); XCTFail("admitted substituted detail policy") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        let reopened = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
+        do { _ = try await reopened.prepareDisable(operationID: Self.id(111)); XCTFail("reopened retry admitted substituted detail policy") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        let retained = try await reopened.loadJournal()
+        XCTAssertEqual(retained, original)
+        let rebuildCount = await effects.rebuildCount
+        XCTAssertEqual(rebuildCount, 0)
+        await effects.setDisablePolicyOverride(nil)
+        let validRetry = try await reopened.prepareDisable(operationID: Self.id(111))
+        XCTAssertEqual(validRetry.priorPolicy, policy)
+        let rebuilt = try await reopened.rebuildPriorPolicy(validRetry)
+        XCTAssertEqual(rebuilt, .priorPolicyRebuilt)
     }
 
     func testV9_15H01CorruptSettingsAndAuthenticationFailuresFailLocked() async throws {
@@ -441,10 +1844,17 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         XCTAssertEqual(ambiguousState, .configurationUnknownLocked)
         let repairOutcome = await ambiguousGate.authenticate(trigger: .repairConfiguration)
         XCTAssertEqual(repairOutcome, .authenticated)
+        await assertReadDenied(ambiguousGate)
         let ambiguousIngress = await ambiguousLifecycle.protectedIngress()
-        let reconciled = try await ambiguousIngress.resumeAfterAuthentication()
-        XCTAssertEqual(reconciled.count, 1)
-        XCTAssertEqual(reconciled.first?.disposition, .readyForAuthenticatedValidation)
+        do {
+            _ = try await ambiguousIngress.resumeAfterAuthentication()
+            XCTFail("repair authentication bypassed unresolved scratch ownership")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        let retainedAmbiguous = try await ambiguousStore.pendingIntents()
+        XCTAssertEqual(retainedAmbiguous.count, 1)
+        XCTAssertEqual(retainedAmbiguous.first?.disposition, .deferredAmbiguousOwnership)
         let ambiguousCounters = await ambiguousStoreEffects.contentCounters
         XCTAssertEqual(ambiguousCounters, .zero)
 
@@ -715,7 +2125,7 @@ private final class V915IDs: ApplicationIDSource, @unchecked Sendable {
 
 private actor V915AuthenticationClient: LocalAuthenticationClient {
     private var outcomes: [LocalAuthenticationOutcomeV1]
-    private let availabilityValue: LocalAuthenticationAvailabilityV1
+    private var availabilityValue: LocalAuthenticationAvailabilityV1
     private(set) var attempts: [LocalAuthenticationAttemptV1] = []
     private var counts: [UUID: Int] = [:]
     private(set) var cancelledAttemptIDs: [UUID] = []
@@ -725,6 +2135,9 @@ private actor V915AuthenticationClient: LocalAuthenticationClient {
         availabilityValue = .systemValue(status: availabilityStatus, biometry: .faceID)
     }
     func availability() -> LocalAuthenticationAvailabilityV1 { availabilityValue }
+    func setAvailability(_ status: LocalAuthenticationAvailabilityStatusV1) {
+        availabilityValue = .systemValue(status: status, biometry: .faceID)
+    }
     func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
         attempts.append(attempt); counts[attempt.attemptID, default: 0] += 1
         guard !outcomes.isEmpty else { return .unavailable }
@@ -831,6 +2244,8 @@ private actor V915IngressEffects: ProtectedIngressDurableEffectPortV1 {
     private var hygieneReceipt: ProtectedIngressStartupHygieneReceiptV1?
     private let removedCount: Int
     private let deferredCount: Int
+    private(set) var eraseEffectCount = 0
+    private(set) var eraseCallCount = 0
     let contentCounters = V915ContentCounters.zero
     init(
         initialValues: [PendingLockedExternalIntentV1] = [],
@@ -890,7 +2305,7 @@ private actor V915IngressEffects: ProtectedIngressDurableEffectPortV1 {
         guard values[expected.intentID] == expected else { throw AppAccessContractFailureV1.effectMismatch }
         values.removeValue(forKey: expected.intentID)
     }
-    func erasePendingIntentsEffect(operationID: UUID) { values.removeAll() }
+    func erasePendingIntentsEffect(operationID: UUID) { eraseCallCount += 1; eraseEffectCount += 1; values.removeAll() }
 }
 
 private actor V915ResumeGatedIngressStore: ProtectedIngressStoreV1 {
@@ -958,20 +2373,60 @@ private actor V915NotificationStore: AppLockNotificationPrivacyPortV1 {
 
 private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
     private var journal: AppLockNotificationJournalV1?
-    private let policy: AppLockNotificationCanonicalPolicyV1
+    private var policy: AppLockNotificationCanonicalPolicyV1
     private let projection: AppLockGenericNotificationV1
-    init(policy: AppLockNotificationCanonicalPolicyV1, projection: AppLockGenericNotificationV1) {
+    private var disablePolicyOverride: AppLockNotificationCanonicalPolicyV1?
+    private var enablePrepareCount = 0
+    private var disablePrepareCount = 0
+    private(set) var rebuildCount = 0
+    private(set) var publishCount = 0
+    private(set) var loadCount = 0
+    private(set) var eraseEffectCount = 0
+    private(set) var eraseCallCount = 0
+    private let pausesPublication: Bool
+    private var publicationStarted = false
+    private var publicationWaiter: CheckedContinuation<Void, Never>?
+    private var publicationContinuation: CheckedContinuation<Void, Never>?
+    var prepareCounts: [Int] { [enablePrepareCount, disablePrepareCount] }
+    init(policy: AppLockNotificationCanonicalPolicyV1, projection: AppLockGenericNotificationV1,
+         disablePolicyOverride: AppLockNotificationCanonicalPolicyV1? = nil,
+         initialJournal: AppLockNotificationJournalV1? = nil, pausesPublication: Bool = false) {
         self.policy = policy; self.projection = projection
+        self.disablePolicyOverride = disablePolicyOverride
+        journal = initialJournal
+        self.pausesPublication = pausesPublication
     }
-    func loadJournalEffect() -> AppLockNotificationJournalV1? { journal }
-    func prepareEnableEffect(operationID: UUID) throws -> AppLockNotificationJournalV1 {
+    func setCanonicalPolicy(_ value: AppLockNotificationCanonicalPolicyV1) { policy = value }
+    func setDisablePolicyOverride(_ value: AppLockNotificationCanonicalPolicyV1?) {
+        disablePolicyOverride = value
+    }
+    func loadJournalEffect() -> AppLockNotificationJournalV1? { loadCount += 1; return journal }
+    func replaceJournalForAuthenticationRace(_ value: AppLockNotificationJournalV1?) { journal = value }
+    func waitUntilPublicationStarted() async {
+        if publicationStarted { return }
+        await withCheckedContinuation { publicationWaiter = $0 }
+    }
+    func releasePublication() { publicationContinuation?.resume(); publicationContinuation = nil }
+    func prepareEnableEffect(operationID: UUID,
+                             expectedPredecessor: AppLockNotificationJournalV1?) throws
+        -> AppLockNotificationJournalV1 {
+        enablePrepareCount += 1
+        guard journal == expectedPredecessor else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
         let value = try AppLockNotificationJournalV1(
             operationID: operationID, targetEnabled: true, priorPolicy: policy,
             projections: [projection], disposition: .enablingPrepared
         )
         journal = value; return value
     }
-    func publishGenericEffect(expected: AppLockNotificationJournalV1) throws -> AppLockNotificationJournalV1 {
+    func publishGenericEffect(expected: AppLockNotificationJournalV1) async throws -> AppLockNotificationJournalV1 {
+        publishCount += 1
+        if pausesPublication {
+            publicationStarted = true
+            publicationWaiter?.resume(); publicationWaiter = nil
+            await withCheckedContinuation { publicationContinuation = $0 }
+        }
         guard journal == expected else { throw AppAccessContractFailureV1.effectMismatch }
         let value = try AppLockNotificationJournalV1(
             operationID: expected.operationID, targetEnabled: true,
@@ -980,14 +2435,27 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
         )
         journal = value; return value
     }
-    func prepareDisableEffect(operationID: UUID) throws -> AppLockNotificationJournalV1 {
+    func prepareDisableEffect(operationID: UUID,
+                              expectedPredecessor: AppLockNotificationJournalV1?) throws
+        -> AppLockNotificationJournalV1 {
+        disablePrepareCount += 1
+        guard journal == expectedPredecessor else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        let priorPolicy = disablePolicyOverride ?? expectedPredecessor?.priorPolicy ?? policy
+        if let expectedPredecessor {
+            guard priorPolicy == expectedPredecessor.priorPolicy else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
         let value = try AppLockNotificationJournalV1(
-            operationID: operationID, targetEnabled: false, priorPolicy: policy,
+            operationID: operationID, targetEnabled: false, priorPolicy: priorPolicy,
             projections: [], disposition: .disablingPrepared
         )
         journal = value; return value
     }
     func rebuildPriorPolicyEffect(expected: AppLockNotificationJournalV1) throws -> AppLockNotificationJournalV1 {
+        rebuildCount += 1
         guard journal == expected else { throw AppAccessContractFailureV1.effectMismatch }
         let value = try AppLockNotificationJournalV1(
             operationID: expected.operationID, targetEnabled: false,
@@ -999,7 +2467,7 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
     func resolveOpaqueTokenEffect(_ token: String, now: Date) -> String? {
         token == projection.opaqueCorrelationToken ? "opaque-route" : nil
     }
-    func eraseNotificationsAndMappingsEffect(operationID: UUID) { journal = nil }
+    func eraseNotificationsAndMappingsEffect(operationID: UUID) { eraseCallCount += 1; eraseEffectCount += 1; journal = nil }
 }
 
 private actor V915GatedNotificationStore: AppLockNotificationPrivacyPortV1 {
@@ -1031,11 +2499,16 @@ private actor V915GatedNotificationStore: AppLockNotificationPrivacyPortV1 {
 
 private actor V915SettingStore: DeviceLocalAppLockSettingPortV1 {
     private var value: DeviceLocalAppLockSettingV1?
+    private let readOverride: DeviceLocalAppLockSettingReadV1?
     private(set) var eraseEffectCount = 0
-    init(value: DeviceLocalAppLockSettingV1?) { self.value = value }
-    func readAppLockSetting() -> DeviceLocalAppLockSettingReadV1 { value.map(DeviceLocalAppLockSettingReadV1.value) ?? .absentDisabled }
-    func writeAppLockSetting(_ value: DeviceLocalAppLockSettingV1, operationID: UUID) -> DeviceLocalAppLockSettingWriteReceiptV1 { self.value = value; return .init(operationID: operationID, value: value, adoptedExistingEffect: false) }
-    func eraseAppLockSetting(operationID: UUID) { if value != nil { eraseEffectCount += 1 }; value = nil }
+    private(set) var eraseCallCount = 0
+    private(set) var writeEffectCount = 0
+    init(value: DeviceLocalAppLockSettingV1?, readOverride: DeviceLocalAppLockSettingReadV1? = nil) {
+        self.value = value; self.readOverride = readOverride
+    }
+    func readAppLockSetting() -> DeviceLocalAppLockSettingReadV1 { readOverride ?? value.map(DeviceLocalAppLockSettingReadV1.value) ?? .absentDisabled }
+    func writeAppLockSetting(_ value: DeviceLocalAppLockSettingV1, operationID: UUID) -> DeviceLocalAppLockSettingWriteReceiptV1 { writeEffectCount += 1; self.value = value; return .init(operationID: operationID, value: value, adoptedExistingEffect: false) }
+    func eraseAppLockSetting(operationID: UUID) { eraseCallCount += 1; if value != nil { eraseEffectCount += 1 }; value = nil }
 }
 
 private struct V915Corpus {
@@ -1045,4 +2518,91 @@ private struct V915Corpus {
     func string(_ path: String) -> String? { value(path) as? String }
     func bool(_ path: String) -> Bool? { value(path) as? Bool }
     func strings(_ path: String) -> [String] { value(path) as? [String] ?? [] }
+}
+
+private struct C16PhysicalIngressClock: ApplicationClock {
+    let value: Date
+    func now() -> Date { value }
+}
+
+private struct C16PhysicalIngressFixture {
+    let root: URL
+    let support: URL
+    let source: URL
+    let now: Date
+    let bytes: Data
+    var digest: String { SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() }
+
+    init(byteCount: Int) throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        support = root.appendingPathComponent("support", isDirectory: true)
+        source = root.appendingPathComponent("external.bin")
+        now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        bytes = Data((0..<byteCount).map { UInt8($0 % 251) })
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        try bytes.write(to: source)
+    }
+
+    func request() -> ProtectedIngressStageRequestV1 {
+        .init(intentID: UUID(), operationID: UUID(), kind: .document,
+              byteCount: UInt64(bytes.count), receivedAt: now, expiresAt: now.addingTimeInterval(3_600))
+    }
+
+    func effects(at date: Date? = nil, failure: C16IngressMutationFailureInjectionV1 = .none) throws
+        -> OwnedStorageLedgerProtectedIngressEffectV1 {
+        let instant = date ?? now
+        return try .init(applicationSupportURL: support, clock: { instant }, failureInjection: failure)
+    }
+
+    func payload(_ request: ProtectedIngressStageRequestV1) -> URL {
+        support.appendingPathComponent("FieldEvidenceOperations/ScratchDataV1/import-" + request.intentID.uuidString.lowercased())
+            .appendingPathComponent("opaque-data")
+    }
+
+    var scratchRoot: URL { support.appendingPathComponent("FieldEvidenceOperations/ScratchDataV1") }
+    var controlRoot: URL { support.appendingPathComponent("FieldEvidenceOperations/ProtectedIngressReceiptsV1") }
+
+    func scratch(at date: Date? = nil, failure: C16IngressMutationFailureInjectionV1 = .none) throws -> ScratchDataLeaseStoreV1 {
+        let instant = date ?? now
+        return try .init(applicationSupportURL: support, clock: { instant }, capacityProvider: { _ in Int64.max },
+            ingressMutationFailureInjection: failure)
+    }
+
+    func leaseByteCount(_ request: ProtectedIngressStageRequestV1) throws -> UInt64 {
+        let directory = payload(request).deletingLastPathComponent()
+        return try FileManager.default.contentsOfDirectory(atPath: directory.path).reduce(UInt64(0)) { total, name in
+            let attributes = try FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent(name).path)
+            return total + (try XCTUnwrap(attributes[.size] as? NSNumber)).uint64Value
+        }
+    }
+
+    func tamperPayloadPreservingMetadata(_ request: ProtectedIngressStageRequestV1) throws {
+        let descriptor = Darwin.open(payload(request).path, O_RDWR | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        defer { _ = Darwin.close(descriptor) }
+        var information = stat()
+        guard Darwin.fstat(descriptor, &information) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        var byte: UInt8 = 0xff
+        guard Darwin.pwrite(descriptor, &byte, 1, 0) == 1,
+              Darwin.fsync(descriptor) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        let times = [information.st_atimespec, information.st_mtimespec]
+        guard times.withUnsafeBufferPointer({ Darwin.futimens(descriptor, $0.baseAddress) }) == 0 else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+    }
+
+    func fileBytes(in directory: URL) throws -> [String: Data] {
+        try Dictionary(uniqueKeysWithValues: FileManager.default.contentsOfDirectory(atPath: directory.path).map {
+            ($0, try Data(contentsOf: directory.appendingPathComponent($0)))
+        })
+    }
+
+    func ageFiles(in directory: URL, to date: Date) throws {
+        for name in try FileManager.default.contentsOfDirectory(atPath: directory.path) {
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: directory.appendingPathComponent(name).path)
+        }
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: directory.path)
+    }
+
+    func remove() { try? FileManager.default.removeItem(at: root) }
 }

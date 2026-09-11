@@ -8,6 +8,8 @@ extension SettingsRegistryV1: SettingsRegistryPortV1 {}
 
 protocol DevicePreferencesPortV1: Sendable {
     func readCanonicalValue(for descriptor: SettingDescriptorV1) throws -> Data
+    /// Unlike a defaulted read, nil proves that no envelope is stored.
+    func readStoredCanonicalValue(for descriptor: SettingDescriptorV1) throws -> Data?
     func writeCanonicalValue(
         _ value: Data,
         descriptor: SettingDescriptorV1,
@@ -20,6 +22,16 @@ protocol DevicePreferencesPortV1: Sendable {
     ) throws -> SettingsMigrationReceiptV1
     func reset(descriptors: [SettingDescriptorV1], operationID: UUID) throws
     func erase(descriptors: [SettingDescriptorV1], operationID: UUID) throws
+
+    /// Absence initializes off/generic once. Every mutation compares the full
+    /// expected policy, including its post-Erase instance identity.
+    func readReminderPolicy() throws -> DeviceLocalReminderPolicyV1
+    func updateReminderPolicy(expected: DeviceLocalReminderPolicyV1, isEnabled: Bool,
+                              detail: ReminderNotificationDetailV1, operationID: UUID) throws -> DeviceLocalReminderPolicyV1
+    func resetReminderPolicy(expected: DeviceLocalReminderPolicyV1,
+                             operationID: UUID) throws -> DeviceLocalReminderPolicyV1
+    func eraseReminderPolicy(expected: DeviceLocalReminderPolicyV1,
+                             operationID: UUID) throws -> DeviceLocalReminderPolicyV1
 }
 
 protocol PrivateSystemDiscoveryPreferencePortV1: Sendable {

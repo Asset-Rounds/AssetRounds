@@ -2,6 +2,15 @@ import Foundation
 
 actor AppAccessGateV1: AppAccessGatePortV1 {
     fileprivate final class ContentReadOwner: Sendable {}
+    fileprivate final class ConfigurationAuthenticationOwner: Sendable {}
+
+    /// A repair proof authorizes configuration completion only. It cannot be
+    /// serialized or used as a content permit, including after authentication.
+    struct ConfigurationAuthenticationToken: Sendable {
+        fileprivate let owner: ConfigurationAuthenticationOwner
+        fileprivate let generation: UInt64
+        fileprivate let sessionID: UUID
+    }
 
     /// An operation-scoped publication check, not a portable access permit.
     /// Only this file can construct one; neither it nor its owner is Codable.
@@ -23,6 +32,9 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     private var contentReadEpoch: UInt64 = 0
     private var contentReadEpochExhausted = false
     private var sceneIsActive = true
+    private var configurationRecoveryRequired = false
+    private let configurationAuthenticationOwner = ConfigurationAuthenticationOwner()
+    private var configurationAuthentication: ConfigurationAuthenticationToken?
 
     init(
         setting: DeviceLocalAppLockSettingReadV1,
@@ -45,15 +57,18 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
                 state = value.isEnabled ? .locked(reason: .coldLaunch) : .disabled
                 privacyCover = value.isEnabled
             } catch {
+                configurationRecoveryRequired = true
                 enabled = true
                 state = .configurationUnknownLocked
                 privacyCover = true
             }
         case .corruptOrAmbiguous:
+            configurationRecoveryRequired = true
             enabled = true
             state = .configurationUnknownLocked
             privacyCover = true
         case .protectedDataUnavailable:
+            configurationRecoveryRequired = true
             enabled = true
             state = .locked(reason: .protectedDataUnavailable)
             privacyCover = true
@@ -61,6 +76,8 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     func currentState() -> AppAccessStateV1 { state }
+
+    func requiresConfigurationRecovery() -> Bool { configurationRecoveryRequired }
 
     func privacyCoverRequired() -> Bool { privacyCover }
 
@@ -79,7 +96,8 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     private func requireCurrentContentReadAccess() throws {
-        guard !contentReadEpochExhausted, state.permitsContentAccess, !privacyCover,
+        guard !configurationRecoveryRequired,
+              !contentReadEpochExhausted, state.permitsContentAccess, !privacyCover,
               !enabled || sceneIsActive else {
             throw AppAccessContractFailureV1.accessDenied
         }
@@ -98,21 +116,24 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     func requireContentAccess() throws {
-        guard state.permitsContentAccess else {
-            throw AppAccessContractFailureV1.accessDenied
-        }
+        try requireCurrentContentReadAccess()
     }
 
     func requireContentAccess(
         for surface: AppAccessContentReadSurfaceV1
     ) throws -> AppAccessContentPermitV1 {
-        try AppAccessContentPermitV1(surface: surface, state: state)
+        do {
+            try requireCurrentContentReadAccess()
+        } catch {
+            throw AppAccessContentReadFailureV1.denied(surface: surface, state: state)
+        }
+        return try AppAccessContentPermitV1(surface: surface, state: state)
     }
 
     /// Concrete actor entry point for C23. State inspection and permit minting
     /// occur in this single actor turn before any OCR source can be resolved.
     func requireOCRProposalContentAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try AppAccessContentPermitV1(surface: .ocrProposal, state: state)
+        let permit = try requireContentAccess(for: .ocrProposal)
         try OCRProposalAppAccessBoundaryV1.validate(permit)
         return permit
     }
@@ -120,25 +141,25 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     /// Each C24 permit is minted from the same state snapshot in this actor
     /// turn. Neither OS capability's disposition is cached in AppAccess.
     func requireDictationProposalContentAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try AppAccessContentPermitV1(surface: .dictationProposal, state: state)
+        let permit = try requireContentAccess(for: .dictationProposal)
         try DictationLocationProposalAppAccessBoundaryV1.validateDictation(permit)
         return permit
     }
 
     func requireOneShotLocationProposalContentAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try AppAccessContentPermitV1(surface: .oneShotLocationProposal, state: state)
+        let permit = try requireContentAccess(for: .oneShotLocationProposal)
         try DictationLocationProposalAppAccessBoundaryV1.validateOneShotLocation(permit)
         return permit
     }
 
     func requireTemporalAudioCaptureAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try AppAccessContentPermitV1(surface: .temporalAudioCapture, state: state)
+        let permit = try requireContentAccess(for: .temporalAudioCapture)
         try TemporalEvidenceCaptureAppAccessBoundaryV1.validateAudio(permit)
         return permit
     }
 
     func requireTemporalVideoCaptureAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try AppAccessContentPermitV1(surface: .temporalVideoCapture, state: state)
+        let permit = try requireContentAccess(for: .temporalVideoCapture)
         try TemporalEvidenceCaptureAppAccessBoundaryV1.validateVideo(permit)
         return permit
     }
@@ -151,7 +172,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         let cancelled = activeAttemptID
         advanceGenerationOrFailClosed()
         activeAttemptID = nil
-        if enabled {
+        if enabled || configurationRecoveryRequired {
             state = .locked(reason: reason)
             privacyCover = true
         } else {
@@ -163,8 +184,9 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
 
     func sceneBecameInactive() {
         revokeContentReads()
+        configurationAuthentication = nil
         sceneIsActive = false
-        privacyCover = enabled
+        privacyCover = enabled || configurationRecoveryRequired
     }
 
     func sceneBecameActive() {
@@ -179,10 +201,39 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         }
     }
 
-    func setEnabledAfterAuthenticated(_ value: Bool) async throws {
-        guard case .unlockedForeground = state else {
+    func configurationAuthenticationToken() throws -> ConfigurationAuthenticationToken {
+        guard let token = configurationAuthentication else {
             throw AppAccessContractFailureV1.accessDenied
         }
+        try validateConfigurationAuthentication(token)
+        return token
+    }
+
+    func validateConfigurationAuthentication(_ token: ConfigurationAuthenticationToken) throws {
+        guard configurationRecoveryRequired, sceneIsActive,
+              token.owner === configurationAuthenticationOwner,
+              token.generation == generation,
+              let current = configurationAuthentication,
+              current.sessionID == token.sessionID,
+              current.generation == token.generation,
+              case .configurationUnknownLocked = state else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
+
+    func setEnabledAfterAuthenticated(
+        _ value: Bool, configurationToken: ConfigurationAuthenticationToken? = nil
+    ) async throws {
+        guard generation < UInt64.max else { throw AppAccessContractFailureV1.staleAttempt }
+        if configurationRecoveryRequired {
+            guard let configurationToken else { throw AppAccessContractFailureV1.accessDenied }
+            try validateConfigurationAuthentication(configurationToken)
+        } else {
+            guard configurationToken == nil, case .unlockedForeground = state else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+        }
+        configurationRecoveryRequired = false
         enabled = value
         advanceGenerationOrFailClosed()
         activeAttemptID = nil
@@ -191,6 +242,9 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     func markRecoveryComplete(enabled value: Bool) throws {
+        guard !configurationRecoveryRequired else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
         guard value == enabled else {
             throw AppAccessContractFailureV1.effectMismatch
         }
@@ -201,6 +255,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
 
     func markConfigurationUnknown() async {
         let cancelled = activeAttemptID
+        configurationRecoveryRequired = true
         enabled = true
         advanceGenerationOrFailClosed()
         activeAttemptID = nil
@@ -211,11 +266,12 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
 
     func eraseAccessState() async {
         let cancelled = activeAttemptID
+        configurationRecoveryRequired = false
         enabled = false
         advanceGenerationOrFailClosed()
         activeAttemptID = nil
-        state = .disabled
-        privacyCover = false
+        state = configurationRecoveryRequired ? .configurationUnknownLocked : .disabled
+        privacyCover = configurationRecoveryRequired
         if let cancelled { await authentication.cancel(attemptID: cancelled) }
     }
 
@@ -227,10 +283,12 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
             return .interrupted
         }
         revokeContentReads()
+        configurationAuthentication = nil
         generation += 1
         let capturedGeneration = generation
         let attemptID = identifiers.makeID()
         guard attemptID != SettingsValidationV1.zeroUUID else {
+            configurationRecoveryRequired = true
             state = .configurationUnknownLocked
             privacyCover = true
             return .unavailable
@@ -243,6 +301,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
                 requestedAt: clock.now()
             )
         } catch {
+            configurationRecoveryRequired = true
             state = .configurationUnknownLocked
             privacyCover = true
             return .unavailable
@@ -270,11 +329,21 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         case .authenticated:
             let sessionID = identifiers.makeID()
             guard sessionID != SettingsValidationV1.zeroUUID else {
+                configurationRecoveryRequired = true
                 state = .configurationUnknownLocked
                 return .unavailable
             }
-            state = .unlockedForeground(sessionID: sessionID)
-            privacyCover = false
+            if trigger == .repairConfiguration {
+                configurationAuthentication = ConfigurationAuthenticationToken(
+                    owner: configurationAuthenticationOwner,
+                    generation: capturedGeneration, sessionID: sessionID
+                )
+                state = .configurationUnknownLocked
+                privacyCover = true
+            } else {
+                state = .unlockedForeground(sessionID: sessionID)
+                privacyCover = false
+            }
         case .userCancelled, .appCancelled, .systemCancelled:
             state = .locked(reason: .authenticationCancelled)
         case .authenticationFailed:
@@ -288,7 +357,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         case .devicePasscodeNotSet:
             state = .locked(reason: .devicePasscodeRemoved)
         case .unavailable:
-            state = .configurationUnknownLocked
+            state = configurationRecoveryRequired ? .configurationUnknownLocked : .interruptedLocked
         case .interrupted:
             state = .interruptedLocked
         }
@@ -306,8 +375,10 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     private func permitsAuthentication(_ trigger: LocalAuthenticationTriggerV1) -> Bool {
+        if configurationRecoveryRequired { return trigger == .repairConfiguration }
         switch (state, trigger) {
         case (.disabled, .enableAppLock): return true
+        case (.locked, .enableAppLock), (.interruptedLocked, .enableAppLock): return !enabled
         case (.configurationUnknownLocked, .repairConfiguration): return true
         case (.locked, .unlock), (.interruptedLocked, .unlock): return enabled
         case (.unlockedForeground, .disableAppLock): return enabled
@@ -317,7 +388,9 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
 
     private func advanceGenerationOrFailClosed() {
         revokeContentReads()
+        configurationAuthentication = nil
         if generation == UInt64.max {
+            configurationRecoveryRequired = true
             state = .configurationUnknownLocked
             enabled = true
         } else {
@@ -326,14 +399,13 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     private func applyUnavailable(_ value: LocalAuthenticationAvailabilityStatusV1) {
-        enabled = true
         privacyCover = true
         switch value {
         case .devicePasscodeNotSet: state = .locked(reason: .devicePasscodeRemoved)
         case .biometryNotEnrolled: state = .locked(reason: .biometryNotEnrolled)
         case .biometryLockedOut: state = .locked(reason: .authenticationLockedOut)
         case .available, .unsupported, .temporarilyUnavailable:
-            state = .configurationUnknownLocked
+            state = configurationRecoveryRequired ? .configurationUnknownLocked : .interruptedLocked
         }
     }
 
@@ -350,5 +422,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
 }
 
 extension AppAccessGateV1 {
-    func permitsPrivateSystemDiscovery() -> Bool { state.permitsContentAccess }
+    func permitsPrivateSystemDiscovery() -> Bool {
+        !configurationRecoveryRequired && state.permitsContentAccess
+    }
 }

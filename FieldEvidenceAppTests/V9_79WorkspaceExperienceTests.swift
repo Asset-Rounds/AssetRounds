@@ -9,6 +9,194 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
     private let date = Date(timeIntervalSince1970: 1_777_593_600)
     private let digest = String(repeating: "a", count: 64)
 
+    func testPreAuthenticationFactoryDoesNotRequireWorkspaceReconciliation() async throws {
+        let manager = FileManager.default
+        let support = manager.temporaryDirectory.appendingPathComponent(
+            "c16-blind-factory-\(UUID().uuidString.lowercased())", isDirectory: true
+        )
+        try manager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: support) }
+        // Deliberately unavailable workspace storage must not prevent metadata-
+        // only scratch hygiene from reaching the authentication gate.
+        let dataRoot = support.appendingPathComponent(OwnedStorageRootKindV1.data.rawValue)
+        let inaccessibleWorkspace = Data("not-a-workspace-directory".utf8)
+        try inaccessibleWorkspace.write(to: dataRoot)
+        XCTAssertThrowsError(try OwnedStorageLedgerV1(
+            applicationSupportURL: support, capacityProvider: { _ in 1_000_000 }
+        ))
+        let store = try ProductionCompositionRoot.makePreAuthenticationIngressStore(
+            applicationSupportURL: support
+        )
+        let operationID = UUID()
+        let receipt = try await store.performBlindStartupHygiene(now: date, operationID: operationID)
+        XCTAssertEqual(receipt.operationID, operationID)
+        XCTAssertEqual(receipt.inspectedCount, 0)
+        XCTAssertFalse(receipt.contentRead)
+        XCTAssertEqual(try Data(contentsOf: dataRoot), inaccessibleWorkspace)
+    }
+
+    func testBlindHygieneDoesNotLoadPendingIntentContent() async throws {
+        let operationID = UUID()
+        let expected = try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: operationID, inspectedCount: 3,
+            removedKnownOwnedCount: 1, retainedValidCount: 1,
+            deferredAmbiguousCount: 1, contentRead: false
+        )
+        let effect = C16PendingLoadTrap(receipt: expected)
+        let store = InjectedProtectedIngressStoreV1(effects: effect)
+        let actual = try await store.performBlindStartupHygiene(now: date, operationID: operationID)
+        XCTAssertEqual(actual, expected)
+        XCTAssertTrue(actual.requiresAuthenticatedRecovery)
+        do {
+            _ = try await store.pendingIntents()
+            XCTFail("the trap must reject pending content reads when explicitly invoked")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+    }
+
+    func testScratchRecoveryRejectsReplacedOperationsDirectory() async throws {
+        let manager = FileManager.default
+        let support = manager.temporaryDirectory.appendingPathComponent(
+            "c16-replaced-operations-\(UUID().uuidString.lowercased())",
+            isDirectory: true
+        )
+        try manager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: support) }
+        let now = date
+        let store = try ScratchDataLeaseStoreV1(
+            applicationSupportURL: support,
+            clock: { now },
+            capacityProvider: { _ in 1_000_000 }
+        )
+        let operations = support.appendingPathComponent(
+            OwnedStorageRootKindV1.operations.rawValue, isDirectory: true
+        )
+        let retained = support.appendingPathComponent("retained-operations", isDirectory: true)
+        let originalBytes = Data("original-owned-root".utf8)
+        try originalBytes.write(to: operations.appendingPathComponent("sentinel"))
+        try manager.moveItem(at: operations, to: retained)
+        let replacementScratch = operations.appendingPathComponent("ScratchDataV1", isDirectory: true)
+        try manager.createDirectory(at: replacementScratch, withIntermediateDirectories: true)
+        let replacementBytes = Data("replacement-root".utf8)
+        try replacementBytes.write(to: operations.appendingPathComponent("sentinel"))
+
+        do {
+            _ = try await store.recoverScratchLeases()
+            XCTFail("a retained descriptor must not authorize a replaced operations root")
+        } catch {
+            XCTAssertEqual(error as? ScratchDataLeaseStoreFailureV1, .invalidRoot)
+        }
+        XCTAssertEqual(try Data(contentsOf: retained.appendingPathComponent("sentinel")), originalBytes)
+        XCTAssertEqual(try Data(contentsOf: operations.appendingPathComponent("sentinel")), replacementBytes)
+        XCTAssertTrue(manager.fileExists(atPath: replacementScratch.path))
+    }
+
+    func testBlindHygieneCountsMixedPurposesWithoutReadingLeaseBytes() throws {
+        let manager = FileManager.default
+        let support = manager.temporaryDirectory.appendingPathComponent("c16-mixed-\(UUID())", isDirectory: true)
+        try manager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: support) }
+        let now = date
+        let store = try ScratchDataLeaseStoreV1(applicationSupportURL: support, clock: { now })
+        let scratch = support.appendingPathComponent("FieldEvidenceOperations/ScratchDataV1", isDirectory: true)
+        let old = now.addingTimeInterval(-172_800)
+        func fixture(_ purpose: String, modified: Date, protected: Bool = true) throws -> URL {
+            let directory = scratch.appendingPathComponent("\(purpose)-\(UUID().uuidString.lowercased())", isDirectory: true)
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+            // Invalid lease JSON makes any content-decoding shortcut fail.
+            let lease = directory.appendingPathComponent("lease.json")
+            try Data("not-json-or-a-valid-lease".utf8).write(to: lease)
+            if protected {
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: directory)
+                try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: lease)
+            } else {
+                try manager.setAttributes([.protectionKey: FileProtectionType.none], ofItemAtPath: directory.path)
+                XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.stagingDirectory, at: directory))
+            }
+            try manager.setAttributes([.modificationDate: modified], ofItemAtPath: lease.path)
+            try manager.setAttributes([.modificationDate: modified], ofItemAtPath: directory.path)
+            return directory
+        }
+        let expired = try fixture("capture", modified: old)
+        let fresh = try fixture("import", modified: now.addingTimeInterval(-60))
+        let ambiguous = try fixture("capture", modified: old, protected: false)
+        let unknown = try fixture("unknown", modified: old)
+        let receipt = try store.reconcileProtectedIngressHygiene(now: now, operationID: UUID())
+        XCTAssertEqual(receipt.inspectedCount, 4)
+        XCTAssertEqual(receipt.removedKnownOwnedCount, 1)
+        XCTAssertEqual(receipt.retainedValidCount, 1)
+        XCTAssertEqual(receipt.deferredAmbiguousCount, 2)
+        XCTAssertFalse(receipt.contentRead)
+        XCTAssertFalse(manager.fileExists(atPath: expired.path))
+        for preserved in [fresh, ambiguous, unknown] {
+            XCTAssertEqual(try Data(contentsOf: preserved.appendingPathComponent("lease.json")),
+                           Data("not-json-or-a-valid-lease".utf8))
+        }
+        // A second operation must observe the retained descriptor from offset zero.
+        let second = try store.reconcileProtectedIngressHygiene(now: now, operationID: UUID())
+        XCTAssertEqual(second.inspectedCount, 3)
+        XCTAssertEqual(second.removedKnownOwnedCount, 0)
+        XCTAssertEqual(second.retainedValidCount, 1)
+        XCTAssertEqual(second.deferredAmbiguousCount, 2)
+    }
+
+    func testBlindHygieneRejectsPreparedTargetSubstitutionAndPreservesLaterEntry() throws {
+        let manager = FileManager.default
+        let support = manager.temporaryDirectory.appendingPathComponent("c16-target-\(UUID())", isDirectory: true)
+        try manager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: support) }
+        let now = date
+        let interrupted = try ScratchDataLeaseStoreV1(applicationSupportURL: support, clock: { now },
+            ingressHygieneFailureInjection: .afterPrepare)
+        let scratch = support.appendingPathComponent("FieldEvidenceOperations/ScratchDataV1", isDirectory: true)
+        let target = scratch.appendingPathComponent("capture-\(UUID().uuidString.lowercased())", isDirectory: true)
+        try manager.createDirectory(at: target, withIntermediateDirectories: true)
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: target)
+        let old = now.addingTimeInterval(-172_800)
+        try manager.setAttributes([.modificationDate: old], ofItemAtPath: target.path)
+        let operationID = UUID()
+        XCTAssertThrowsError(try interrupted.reconcileProtectedIngressHygiene(now: now, operationID: operationID)) {
+            XCTAssertEqual($0 as? OwnedStorageLedgerFailureV1, .attemptCollision)
+        }
+        let retained = support.appendingPathComponent("retained-target", isDirectory: true)
+        try manager.moveItem(at: target, to: retained)
+        try manager.createDirectory(at: target, withIntermediateDirectories: true)
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: target)
+        try manager.setAttributes([.modificationDate: old], ofItemAtPath: target.path)
+        let later = scratch.appendingPathComponent("import-\(UUID().uuidString.lowercased())", isDirectory: true)
+        try manager.createDirectory(at: later, withIntermediateDirectories: true)
+        let sentinel = Data("later ingress must survive the original operation".utf8)
+        try sentinel.write(to: later.appendingPathComponent("sentinel"))
+        let reopened = try ScratchDataLeaseStoreV1(applicationSupportURL: support, clock: { now })
+        XCTAssertThrowsError(try reopened.reconcileProtectedIngressHygiene(now: now, operationID: operationID))
+        XCTAssertTrue(manager.fileExists(atPath: retained.path))
+        XCTAssertTrue(manager.fileExists(atPath: target.path))
+        XCTAssertEqual(try Data(contentsOf: later.appendingPathComponent("sentinel")), sentinel)
+    }
+
+    func testBlindHygieneRejectsReplacedControlDirectory() throws {
+        let manager = FileManager.default
+        let support = manager.temporaryDirectory.appendingPathComponent("c16-control-\(UUID())", isDirectory: true)
+        try manager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: support) }
+        let now = date
+        let store = try ScratchDataLeaseStoreV1(applicationSupportURL: support, clock: { now })
+        let operationID = UUID()
+        let receipt = try store.reconcileProtectedIngressHygiene(now: now, operationID: operationID)
+        let control = support.appendingPathComponent("FieldEvidenceOperations/ProtectedIngressReceiptsV1", isDirectory: true)
+        let retained = support.appendingPathComponent("retained-control", isDirectory: true)
+        try manager.moveItem(at: control, to: retained)
+        try manager.createDirectory(at: control, withIntermediateDirectories: true)
+        let sentinel = Data("replacement control".utf8)
+        try sentinel.write(to: control.appendingPathComponent("sentinel"))
+        XCTAssertThrowsError(try store.readProtectedIngressHygieneReceipt(operationID: operationID))
+        XCTAssertEqual(try Data(contentsOf: control.appendingPathComponent("sentinel")), sentinel)
+        let original = retained.appendingPathComponent("hygiene-\(operationID.uuidString.lowercased()).json")
+        XCTAssertEqual(try JSONDecoder().decode(ProtectedIngressStartupHygieneReceiptV1.self,
+            from: Data(contentsOf: original)), receipt)
+    }
+
     func testV23P04C16G01TypedSettingsAndTaskFirstShell() async throws {
         let workspaceID = WorkspaceID(rawValue: UUID())
         let gate = C16AccessGate(state: .disabled)
@@ -251,6 +439,7 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
                 "capture-\(UUID().uuidString.lowercased())", isDirectory: true
             )
             try FileManager.default.createDirectory(at: lease, withIntermediateDirectories: true)
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: lease)
             let old = date.addingTimeInterval(-172_800)
             try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: lease.path)
             let operationID = UUID()
@@ -671,5 +860,33 @@ private final class C16Fixture {
             workspaceID: workspaceID, expectedRevision: try MutationPortableExpectedRevisionV1(expected),
             mutationID: mutationID, plan: plan, installReceipt: receipt, provenance: provenance
         )
+    }
+}
+
+private struct C16PendingLoadTrap: ProtectedIngressDurableEffectPortV1 {
+    let receipt: ProtectedIngressStartupHygieneReceiptV1
+
+    func performBlindStartupHygieneEffect(now: Date, operationID: UUID) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        guard operationID == receipt.operationID else { throw AppAccessContractFailureV1.effectMismatch }
+        return receipt
+    }
+    func readBlindStartupHygieneReceiptEffect(operationID: UUID) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        guard operationID == receipt.operationID else { throw AppAccessContractFailureV1.effectMismatch }
+        return receipt
+    }
+    func loadPendingIntentsEffect() throws -> [PendingLockedExternalIntentV1] {
+        throw AppAccessContractFailureV1.accessDenied
+    }
+    func stageContentBlindEffect(_ request: ProtectedIngressStageRequestV1, source: URL) throws -> PendingLockedExternalIntentV1 {
+        throw AppAccessContractFailureV1.accessDenied
+    }
+    func replacePendingIntentEffect(expected: PendingLockedExternalIntentV1, replacement: PendingLockedExternalIntentV1) throws {
+        throw AppAccessContractFailureV1.accessDenied
+    }
+    func removePendingIntentEffect(expected: PendingLockedExternalIntentV1, disposition: LockedIngressDispositionV1) throws {
+        throw AppAccessContractFailureV1.accessDenied
+    }
+    func erasePendingIntentsEffect(operationID: UUID) throws {
+        throw AppAccessContractFailureV1.accessDenied
     }
 }

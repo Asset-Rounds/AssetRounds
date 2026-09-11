@@ -48,6 +48,8 @@ struct ProtectedIngressStageReceiptV1: Equatable, Sendable {
 struct ProtectedIngressStartupHygieneReceiptV1: Codable, Equatable, Sendable {
     static let maximumInspectedCount = 128
     let operationID: UUID
+    /// Counts bounded scratch artifacts inspected by the metadata-only hygiene
+    /// effect. This domain is independent of the device-local pending intents.
     let inspectedCount: Int
     let removedKnownOwnedCount: Int
     let retainedValidCount: Int
@@ -129,7 +131,8 @@ struct ProtectedIngressStartupHygieneReceiptV1: Codable, Equatable, Sendable {
 
 protocol ProtectedIngressStoreV1: Sendable {
     /// Metadata-only startup hygiene. It may inspect bounded ownership,
-    /// protection, age, and identity metadata, but never payload bytes.
+    /// protection, age, and identity metadata, but never payload bytes. Receipt
+    /// counts describe inspected scratch artifacts, not `pendingIntents()`.
     func performBlindStartupHygiene(
         now: Date,
         operationID: UUID
@@ -153,7 +156,9 @@ protocol ProtectedIngressStoreV1: Sendable {
 protocol ProtectedIngressDurableEffectPortV1: Sendable {
     /// Atomically removes only proven-owned expired/interrupted staging and
     /// reports ambiguous metadata for authenticated recovery. Payload content
-    /// must not be opened, parsed, decrypted, previewed, or indexed.
+    /// must not be opened, parsed, decrypted, previewed, or indexed. Its receipt
+    /// count domain is the bounded scratch inventory and is independent of the
+    /// device-local pending-intent snapshot returned by `loadPendingIntentsEffect`.
     func performBlindStartupHygieneEffect(
         now: Date,
         operationID: UUID
@@ -347,13 +352,23 @@ protocol AppLockNotificationPrivacyPortV1: Sendable {
 /// Injected durable/system boundary used by the production privacy
 /// coordinator. Implementations atomically persist the journal before changing
 /// notification state, and every returned journal is an exact readback.
+/// Preparation must compare the current journal to expectedPredecessor inside
+/// the same durable transaction that validates and publishes its successor.
+/// A disable successor retains that predecessor's priorPolicy. Failed
+/// validation or comparison leaves the original journal untouched.
 protocol AppLockNotificationEffectPortV1: Sendable {
     func loadJournalEffect() async throws -> AppLockNotificationJournalV1?
-    func prepareEnableEffect(operationID: UUID) async throws -> AppLockNotificationJournalV1
+    func prepareEnableEffect(
+        operationID: UUID,
+        expectedPredecessor: AppLockNotificationJournalV1?
+    ) async throws -> AppLockNotificationJournalV1
     func publishGenericEffect(
         expected: AppLockNotificationJournalV1
     ) async throws -> AppLockNotificationJournalV1
-    func prepareDisableEffect(operationID: UUID) async throws -> AppLockNotificationJournalV1
+    func prepareDisableEffect(
+        operationID: UUID,
+        expectedPredecessor: AppLockNotificationJournalV1?
+    ) async throws -> AppLockNotificationJournalV1
     func rebuildPriorPolicyEffect(
         expected: AppLockNotificationJournalV1
     ) async throws -> AppLockNotificationJournalV1

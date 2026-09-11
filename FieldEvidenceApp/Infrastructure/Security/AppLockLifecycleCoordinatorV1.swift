@@ -22,18 +22,29 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
         try claim()
         defer { mutationInProgress = false }
         let existing = try await loadJournal()
-        let result = try await effects.prepareEnableEffect(operationID: operationID)
+        if let existing {
+            if existing.operationID == operationID {
+                guard existing.targetEnabled,
+                      existing.disposition == .enablingPrepared
+                        || existing.disposition == .genericProjectionApplied
+                        || existing.disposition == .genericProjectionAdopted else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                return existing
+            }
+            guard !existing.targetEnabled,
+                  existing.disposition == .priorPolicyRebuilt else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
+        let result = try await effects.prepareEnableEffect(
+            operationID: operationID, expectedPredecessor: existing
+        )
         guard result.operationID == operationID, result.targetEnabled,
               result.disposition == .enablingPrepared
                 || result.disposition == .genericProjectionApplied
                 || result.disposition == .genericProjectionAdopted else {
             throw AppAccessContractFailureV1.effectMismatch
-        }
-        if let existing {
-            guard Self.sameSubject(existing, result),
-                  existing.disposition == result.disposition else {
-                throw AppAccessContractFailureV1.notificationReconciliationRequired
-            }
         }
         guard try await loadJournal() == result else {
             throw AppAccessContractFailureV1.effectMismatch
@@ -71,15 +82,31 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
         try claim()
         defer { mutationInProgress = false }
         let existing = try await loadJournal()
-        let result = try await effects.prepareDisableEffect(operationID: operationID)
+        if let existing {
+            if existing.operationID == operationID {
+                guard !existing.targetEnabled,
+                      existing.disposition == .disablingPrepared
+                        || existing.disposition == .priorPolicyRebuilt else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                return existing
+            }
+            guard existing.targetEnabled,
+                  existing.disposition == .genericProjectionApplied
+                    || existing.disposition == .genericProjectionAdopted else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
+        let result = try await effects.prepareDisableEffect(
+            operationID: operationID, expectedPredecessor: existing
+        )
         guard result.operationID == operationID, !result.targetEnabled,
               result.disposition == .disablingPrepared
                 || result.disposition == .priorPolicyRebuilt else {
             throw AppAccessContractFailureV1.effectMismatch
         }
         if let existing {
-            guard Self.sameSubject(existing, result),
-                  existing.disposition == result.disposition else {
+            guard existing.priorPolicy == result.priorPolicy else {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
         }
@@ -168,7 +195,9 @@ actor DeviceLocalAppLockSettingAdapterV1: DeviceLocalAppLockSettingPortV1 {
 
     func readAppLockSetting() async -> DeviceLocalAppLockSettingReadV1 {
         do {
-            let data = try preferences.readCanonicalValue(for: descriptor)
+            guard let data = try preferences.readStoredCanonicalValue(for: descriptor) else {
+                return .absentDisabled
+            }
             let enabled = try CompatibilityCanonicalV1.decode(Bool.self, from: data)
             let value = DeviceLocalAppLockSettingV1(isEnabled: enabled)
             try value.validate()
@@ -224,19 +253,25 @@ actor AppLockLifecycleCoordinatorV1 {
     private let notifications: any AppLockNotificationPrivacyPortV1
     private let identifiers: any ApplicationIDSource
     private var activeOperationID: UUID?
+    private var startupSettingUnresolved: Bool
+    private let startupHygieneRequiresRecovery: Bool
 
     private init(
         gate: AppAccessGateV1,
         setting: any DeviceLocalAppLockSettingPortV1,
         ingress: ProtectedIngressCoordinatorV1,
         notifications: any AppLockNotificationPrivacyPortV1,
-        identifiers: any ApplicationIDSource
+        identifiers: any ApplicationIDSource,
+        startupSettingUnresolved: Bool,
+        startupHygieneRequiresRecovery: Bool
     ) {
         self.gate = gate
         self.setting = setting
         self.ingress = ingress
         self.notifications = notifications
         self.identifiers = identifiers
+        self.startupSettingUnresolved = startupSettingUnresolved
+        self.startupHygieneRequiresRecovery = startupHygieneRequiresRecovery
     }
 
     /// Bootstraps only declarations and injected authorities. It performs no
@@ -277,9 +312,12 @@ actor AppLockLifecycleCoordinatorV1 {
             setting: setting,
             ingress: ingress,
             notifications: notifications,
-            identifiers: identifiers
+            identifiers: identifiers,
+            startupSettingUnresolved: Self.settingIsUnresolved(settingRead),
+            startupHygieneRequiresRecovery: hygiene.requiresAuthenticatedRecovery
         )
-        if try await notifications.loadJournal() != nil {
+        if let journal = try await notifications.loadJournal(),
+           !Self.completedJournal(journal, matches: settingRead) {
             await gate.markConfigurationUnknown()
         }
         if hygiene.requiresAuthenticatedRecovery {
@@ -311,6 +349,28 @@ actor AppLockLifecycleCoordinatorV1 {
     }
 
     func accessGate() -> AppAccessGateV1 { gate }
+
+    private static func settingIsUnresolved(_ read: DeviceLocalAppLockSettingReadV1) -> Bool {
+        switch read {
+        case .absentDisabled: return false
+        case .value(let value): return (try? value.validate()) == nil
+        case .corruptOrAmbiguous, .protectedDataUnavailable: return true
+        }
+    }
+
+    private static func completedJournal(
+        _ journal: AppLockNotificationJournalV1,
+        matches read: DeviceLocalAppLockSettingReadV1
+    ) -> Bool {
+        guard case .value(let value) = read,
+              (try? value.validate()) != nil,
+              value.isEnabled == journal.targetEnabled else { return false }
+        if journal.targetEnabled {
+            return journal.disposition == .genericProjectionApplied
+                || journal.disposition == .genericProjectionAdopted
+        }
+        return journal.disposition == .priorPolicyRebuilt
+    }
 
     /// Returns a reason-bearing, nonpersistent permit for a C16 ingress. The
     /// coordinator never caches permits across lock/background transitions.
@@ -441,19 +501,43 @@ actor AppLockLifecycleCoordinatorV1 {
         try beginOperation(recoveryOperationID)
         try claim(recoveryOperationID, confirmingExisting: true)
         defer { release(recoveryOperationID); endOperation(recoveryOperationID) }
-        guard let journal = try await notifications.loadJournal() else {
-            return .noRecoveryRequired
-        }
-        let outcome = await gate.authenticate(trigger: .repairConfiguration)
-        guard outcome == .authenticated else {
+        // Authentication cannot resolve an unknown filesystem owner. Retain
+        // the bootstrap hold until a later validated ownership reconciliation.
+        if startupHygieneRequiresRecovery {
+            await gate.markConfigurationUnknown()
             return .ambiguousStateLocked
         }
-        let sessionID = try await unlockedSessionID()
         do {
+            guard let journal = try await notifications.loadJournal() else {
+                let gateRequiresRecovery = await gate.requiresConfigurationRecovery()
+                if startupSettingUnresolved || gateRequiresRecovery {
+                    await gate.markConfigurationUnknown()
+                    return .ambiguousStateLocked
+                }
+                return .noRecoveryRequired
+            }
+            let currentSetting = await setting.readAppLockSetting()
+            let gateRequiresRecovery = await gate.requiresConfigurationRecovery()
+            if !startupSettingUnresolved, !gateRequiresRecovery,
+               Self.completedJournal(journal, matches: currentSetting) {
+                return .noRecoveryRequired
+            }
+            await gate.markConfigurationUnknown()
+            let outcome = await gate.authenticate(trigger: .repairConfiguration)
+            guard outcome == .authenticated else { return .ambiguousStateLocked }
+            let proof = try await gate.configurationAuthenticationToken()
+            // This rejects a journal replaced during authentication before a
+            // preference write. The durable effect still needs its own shared
+            // journal/setting transaction fence for cross-instance publication.
+            let afterAuthentication = try await notifications.loadJournal()
+            try await gate.validateConfigurationAuthentication(proof)
+            guard afterAuthentication == journal else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
             let notification: AppLockNotificationPrivacyDispositionV1
             if journal.targetEnabled {
                 notification = try await notifications.applyGenericProjection(journal)
-                try await requireSameUnlockedSession(sessionID)
+                try await gate.validateConfigurationAuthentication(proof)
                 guard notification == .genericProjectionApplied
                         || notification == .genericProjectionAdopted else {
                     throw AppAccessContractFailureV1.notificationReconciliationRequired
@@ -463,16 +547,17 @@ actor AppLockLifecycleCoordinatorV1 {
                     DeviceLocalAppLockSettingV1(isEnabled: false),
                     operationID: journal.operationID
                 )
-                try await requireSameUnlockedSession(sessionID)
-                guard !write.value.isEnabled else {
+                try await gate.validateConfigurationAuthentication(proof)
+                guard write.operationID == journal.operationID, !write.value.isEnabled else {
                     throw AppAccessContractFailureV1.effectMismatch
                 }
                 notification = try await notifications.rebuildPriorPolicy(journal)
-                try await requireSameUnlockedSession(sessionID)
+                try await gate.validateConfigurationAuthentication(proof)
                 guard notification == .priorPolicyRebuilt else {
                     throw AppAccessContractFailureV1.notificationReconciliationRequired
                 }
-                try await gate.setEnabledAfterAuthenticated(false)
+                try await gate.setEnabledAfterAuthenticated(false, configurationToken: proof)
+                startupSettingUnresolved = false
                 return write.adoptedExistingEffect
                     ? .adoptedCompletedEffect : .resumedToLocked
             }
@@ -480,11 +565,13 @@ actor AppLockLifecycleCoordinatorV1 {
                 DeviceLocalAppLockSettingV1(isEnabled: journal.targetEnabled),
                 operationID: journal.operationID
             )
-            try await requireSameUnlockedSession(sessionID)
-            guard write.value.isEnabled == journal.targetEnabled else {
+            try await gate.validateConfigurationAuthentication(proof)
+            guard write.operationID == journal.operationID,
+                  write.value.isEnabled == journal.targetEnabled else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
-            try await gate.setEnabledAfterAuthenticated(journal.targetEnabled)
+            try await gate.setEnabledAfterAuthenticated(journal.targetEnabled, configurationToken: proof)
+            startupSettingUnresolved = false
             if journal.targetEnabled {
                 try await gate.markRecoveryComplete(enabled: true)
             }
@@ -542,6 +629,10 @@ actor AppLockLifecycleCoordinatorV1 {
     }
 
     private func performErase(operationID: UUID) async throws {
+        guard !startupHygieneRequiresRecovery else {
+            await gate.markConfigurationUnknown()
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
         await gate.lock(reason: .interrupted)
         do {
             try await notifications.eraseNotificationsAndMappings(operationID: operationID)
@@ -555,6 +646,7 @@ actor AppLockLifecycleCoordinatorV1 {
                   try await notifications.loadJournal() == nil else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
+            startupSettingUnresolved = false
         } catch {
             await gate.markConfigurationUnknown()
             throw error

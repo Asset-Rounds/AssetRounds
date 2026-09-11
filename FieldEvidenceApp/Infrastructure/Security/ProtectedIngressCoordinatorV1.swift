@@ -41,11 +41,6 @@ actor InjectedProtectedIngressStoreV1: ProtectedIngressStoreV1 {
         guard receiptReadback == receipt else {
             throw AppAccessContractFailureV1.effectMismatch
         }
-        let pendingReadback = try await validatedSnapshot()
-        guard pendingReadback.count == receipt.retainedValidCount
-                + receipt.deferredAmbiguousCount else {
-            throw AppAccessContractFailureV1.effectMismatch
-        }
         return receipt
     }
 
@@ -58,6 +53,13 @@ actor InjectedProtectedIngressStoreV1: ProtectedIngressStoreV1 {
         let before = try await validatedSnapshot()
         if let existing = before.first(where: { $0.intentID == request.intentID }) {
             guard Self.matches(existing, request) else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            let adopted = try await effects.stageContentBlindEffect(request, source: source)
+            guard adopted == existing,
+                  try await validatedSnapshot().first(where: {
+                      $0.intentID == request.intentID
+                  }) == existing else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
             return ProtectedIngressStageReceiptV1(
@@ -100,8 +102,8 @@ actor InjectedProtectedIngressStoreV1: ProtectedIngressStoreV1 {
               }) else {
             throw AppAccessContractFailureV1.invalidValue
         }
-        if existing.disposition == .readyForAuthenticatedValidation { return existing }
         guard existing.disposition == .stagedProtectedPendingAuthentication
+                || existing.disposition == .readyForAuthenticatedValidation
                 || existing.disposition == .deferredAmbiguousOwnership else {
             throw AppAccessContractFailureV1.invalidTransition
         }

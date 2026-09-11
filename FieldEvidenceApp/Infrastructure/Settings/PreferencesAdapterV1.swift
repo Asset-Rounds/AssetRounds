@@ -18,22 +18,48 @@ private struct PreferenceMigrationRecordV1: Codable, Equatable, Sendable {
     let receipt: SettingsMigrationReceiptV1
 }
 
+private enum ReminderPolicyOperationKindV1: String, Codable, Sendable {
+    case update, reset, erase
+}
+
+private struct ReminderPolicyOperationV1: Codable, Equatable, Sendable {
+    let operationID: UUID
+    let kind: ReminderPolicyOperationKindV1
+    let expected: DeviceLocalReminderPolicyV1
+    let successor: DeviceLocalReminderPolicyV1
+
+    func validate() throws {
+        try expected.validate()
+        try successor.validate()
+        guard operationID != SettingsValidationV1.zeroUUID,
+              expected.revision < UInt64.max,
+              successor.instanceID == expected.instanceID,
+              successor.revision == expected.revision + 1,
+              kind == .update || (!successor.isEnabled && successor.detail == .generic) else {
+            throw PreferencesAdapterFailureV1.invalidCanonicalValue
+        }
+    }
+}
+
 private struct PreferenceStorageEnvelopeV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int
     let canonicalValue: Data
     let writeRecord: PreferenceWriteRecordV1?
     let migrationRecord: PreferenceMigrationRecordV1?
+    let reminderOperation: ReminderPolicyOperationV1?
 
     init(
         canonicalValue: Data,
         writeRecord: PreferenceWriteRecordV1? = nil,
-        migrationRecord: PreferenceMigrationRecordV1? = nil
+        migrationRecord: PreferenceMigrationRecordV1? = nil,
+        reminderOperation: ReminderPolicyOperationV1? = nil
     ) {
         schemaVersion = Self.schemaVersion
         self.canonicalValue = canonicalValue
         self.writeRecord = writeRecord
         self.migrationRecord = migrationRecord
+        self.reminderOperation = reminderOperation
     }
 }
 
@@ -76,7 +102,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
     private static let ratingEligibilityStorageKey = "rating-eligibility.v1"
     private static let ratingEligibilityLock = NSLock()
     private let defaults: UserDefaults
-    private let lock = NSLock()
+    private static let lock = NSLock()
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -85,10 +111,26 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
     func readCanonicalValue(for descriptor: SettingDescriptorV1) throws -> Data {
         try withLock {
             try requireDeviceLocal(descriptor)
+            if descriptor.key == DeviceLocalReminderPolicyV1.key,
+               defaults.object(forKey: storageKey(descriptor.key)) != nil,
+               defaults.data(forKey: storageKey(descriptor.key)) == nil {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
             guard let stored = defaults.data(forKey: storageKey(descriptor.key)) else {
                 return descriptor.defaultCanonicalValue
             }
             return try decodeEnvelope(stored, descriptor: descriptor).canonicalValue
+        }
+    }
+
+    func readStoredCanonicalValue(for descriptor: SettingDescriptorV1) throws -> Data? {
+        try withLock {
+            try requireDeviceLocal(descriptor)
+            guard let stored = defaults.object(forKey: storageKey(descriptor.key)) else { return nil }
+            guard let data = stored as? Data else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            return try decodeEnvelope(data, descriptor: descriptor).canonicalValue
         }
     }
 
@@ -99,6 +141,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
     ) throws {
         try withLock {
             try requireDeviceLocal(descriptor)
+            try requireGenericMutation(descriptor)
             guard operationID != SettingsValidationV1.zeroUUID else {
                 throw PreferencesAdapterFailureV1.conflictingOperation
             }
@@ -131,6 +174,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
     ) throws -> SettingsMigrationReceiptV1 {
         try withLock {
             try requireDeviceLocal(descriptor)
+            try requireGenericMutation(descriptor)
             guard operationID != SettingsValidationV1.zeroUUID else {
                 throw PreferencesAdapterFailureV1.conflictingOperation
             }
@@ -252,6 +296,87 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
         )
     }
 
+    // MARK: - Device-local reminder policy
+
+    func readReminderPolicy() throws -> DeviceLocalReminderPolicyV1 {
+        try withLock {
+            let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalReminderPolicyV1.key)
+            if let envelope = try reminderEnvelope(descriptor: descriptor) {
+                return try CompatibilityCanonicalV1.decode(DeviceLocalReminderPolicyV1.self, from: envelope.canonicalValue)
+            }
+            let policy = try DeviceLocalReminderPolicyV1(instanceID: UUID(), revision: 1,
+                                                        isEnabled: false, detail: .generic)
+            let envelope = PreferenceStorageEnvelopeV1(canonicalValue: try CompatibilityCanonicalV1.encode(policy))
+            try storeReminderEnvelope(envelope, descriptor: descriptor)
+            return policy
+        }
+    }
+
+    func updateReminderPolicy(expected: DeviceLocalReminderPolicyV1, isEnabled: Bool,
+                              detail: ReminderNotificationDetailV1, operationID: UUID) throws -> DeviceLocalReminderPolicyV1 {
+        try changeReminderPolicy(expected: expected, isEnabled: isEnabled, detail: detail,
+                                 kind: .update, operationID: operationID)
+    }
+
+    func resetReminderPolicy(expected: DeviceLocalReminderPolicyV1,
+                             operationID: UUID) throws -> DeviceLocalReminderPolicyV1 {
+        try changeReminderPolicy(expected: expected, isEnabled: false, detail: .generic,
+                                 kind: .reset, operationID: operationID)
+    }
+
+    func eraseReminderPolicy(expected: DeviceLocalReminderPolicyV1,
+                             operationID: UUID) throws -> DeviceLocalReminderPolicyV1 {
+        try changeReminderPolicy(expected: expected, isEnabled: false, detail: .generic,
+                                 kind: .erase, operationID: operationID)
+    }
+
+    private func changeReminderPolicy(expected: DeviceLocalReminderPolicyV1, isEnabled: Bool,
+                                      detail: ReminderNotificationDetailV1, kind: ReminderPolicyOperationKindV1,
+                                      operationID: UUID) throws -> DeviceLocalReminderPolicyV1 {
+        try withLock {
+            try expected.validate()
+            guard operationID != SettingsValidationV1.zeroUUID, expected.revision < UInt64.max else {
+                throw SettingsContractFailureV1.invalidValue
+            }
+            let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalReminderPolicyV1.key)
+            guard let prior = try reminderEnvelope(descriptor: descriptor) else {
+                throw SettingsContractFailureV1.staleRevision
+            }
+            let successor = try DeviceLocalReminderPolicyV1(instanceID: expected.instanceID,
+                revision: expected.revision + 1, isEnabled: isEnabled, detail: detail)
+            let request = ReminderPolicyOperationV1(operationID: operationID, kind: kind,
+                                                    expected: expected, successor: successor)
+            try request.validate()
+            if let original = prior.reminderOperation, original.operationID == operationID {
+                guard original == request else { throw SettingsContractFailureV1.changedOperation }
+                return original.successor
+            }
+            let current = try CompatibilityCanonicalV1.decode(DeviceLocalReminderPolicyV1.self, from: prior.canonicalValue)
+            guard current == expected else { throw SettingsContractFailureV1.staleRevision }
+            try storeReminderEnvelope(PreferenceStorageEnvelopeV1(
+                canonicalValue: try CompatibilityCanonicalV1.encode(successor), reminderOperation: request
+            ), descriptor: descriptor)
+            return successor
+        }
+    }
+
+    private func reminderEnvelope(descriptor: SettingDescriptorV1) throws -> PreferenceStorageEnvelopeV1? {
+        guard let object = defaults.object(forKey: storageKey(descriptor.key)) else { return nil }
+        guard let data = object as? Data else { throw PreferencesAdapterFailureV1.invalidCanonicalValue }
+        return try decodeEnvelope(data, descriptor: descriptor)
+    }
+
+    private func storeReminderEnvelope(_ envelope: PreferenceStorageEnvelopeV1,
+                                       descriptor: SettingDescriptorV1) throws {
+        let bytes = try CompatibilityCanonicalV1.encode(envelope)
+        _ = try decodeEnvelope(bytes, descriptor: descriptor)
+        defaults.set(bytes, forKey: storageKey(descriptor.key))
+        guard defaults.data(forKey: storageKey(descriptor.key)) == bytes,
+              try reminderEnvelope(descriptor: descriptor) == envelope else {
+            throw PreferencesAdapterFailureV1.invalidCanonicalValue
+        }
+    }
+
     // MARK: - C39 device-local rating eligibility ledger
 
     func load() async throws -> RatingLedgerLoadResultV1 {
@@ -367,6 +492,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
                   Set(descriptors.map(\.key)).count == descriptors.count else {
                 throw PreferencesAdapterFailureV1.conflictingOperation
             }
+            try descriptors.forEach(requireGenericMutation)
             for descriptor in descriptors.sorted(by: { $0.key < $1.key }) {
                 try requireDeviceLocal(descriptor)
                 if preserveAcknowledgements,
@@ -402,6 +528,12 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
         guard descriptor.scope == .deviceLocal,
               descriptor.storage == .soleDevicePreferencesAdapter,
               !SurveySessionDevicePersistenceBoundaryV1.isCanonicalFactKey(descriptor.key) else {
+            throw PreferencesAdapterFailureV1.invalidScope
+        }
+    }
+
+    private func requireGenericMutation(_ descriptor: SettingDescriptorV1) throws {
+        guard descriptor.key != DeviceLocalReminderPolicyV1.key else {
             throw PreferencesAdapterFailureV1.invalidScope
         }
     }
@@ -446,6 +578,9 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
         descriptor: SettingDescriptorV1
     ) throws -> PreferenceStorageEnvelopeV1 {
         do {
+            if descriptor.key == DeviceLocalReminderPolicyV1.key, data.count > 4_096 {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
             let envelope = try CompatibilityCanonicalV1.decode(
                 PreferenceStorageEnvelopeV1.self,
                 from: data
@@ -470,6 +605,26 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
                 throw PreferencesAdapterFailureV1.invalidCanonicalValue
             }
             try validate(envelope.canonicalValue, descriptor: descriptor)
+            if descriptor.key == DeviceLocalReminderPolicyV1.key {
+                guard envelope.writeRecord == nil, envelope.migrationRecord == nil else {
+                    throw PreferencesAdapterFailureV1.invalidCanonicalValue
+                }
+                let policy = try CompatibilityCanonicalV1.decode(DeviceLocalReminderPolicyV1.self,
+                                                                  from: envelope.canonicalValue)
+                try policy.validate()
+                if let operation = envelope.reminderOperation {
+                    try operation.validate()
+                    guard operation.successor == policy else {
+                        throw PreferencesAdapterFailureV1.invalidCanonicalValue
+                    }
+                } else {
+                    guard policy.revision == 1, !policy.isEnabled, policy.detail == .generic else {
+                        throw PreferencesAdapterFailureV1.invalidCanonicalValue
+                    }
+                }
+            } else if envelope.reminderOperation != nil {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
             return envelope
         } catch let error as PreferencesAdapterFailureV1 {
             throw error
@@ -576,8 +731,8 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
     }
 
     private func withLock<T>(_ body: () throws -> T) throws -> T {
-        lock.lock()
-        defer { lock.unlock() }
+        Self.lock.lock()
+        defer { Self.lock.unlock() }
         return try body()
     }
 

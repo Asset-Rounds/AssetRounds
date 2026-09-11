@@ -23,6 +23,7 @@ enum SettingValueKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     /// C16 product-notice acknowledgement. It is a device-local display
     /// choice, excluded from backup, export, and canonical history.
     case workspaceExperienceNoticeAcknowledgement = "WORKSPACE_EXPERIENCE_NOTICE_ACKNOWLEDGEMENT"
+    case reminderPolicy = "REMINDER_POLICY"
 }
 
 enum SettingScopeV1: String, CaseIterable, Codable, Hashable, Sendable {
@@ -199,6 +200,12 @@ struct SettingDescriptorV1: Codable, Equatable, Sendable {
                     throw SettingsContractFailureV1.invalidValue
                 }
             }
+        case .reminderPolicy:
+            guard key == DeviceLocalReminderPolicyV1.key else {
+                throw SettingsContractFailureV1.invalidValue
+            }
+            let value = try CompatibilityCanonicalV1.decode(DeviceLocalReminderPolicyV1?.self, from: data)
+            try value?.validate()
         }
     }
 
@@ -404,6 +411,63 @@ struct SettingsLifecycleReceiptV1: Codable, Equatable, Sendable {
                 Bool.self,
                 forKey: .preservedWorkspaceCanonicalTruth
             )
+        )
+    }
+}
+
+enum ReminderNotificationDetailV1: String, Codable, CaseIterable, Sendable {
+    case generic = "GENERIC"
+    case details = "DETAILS"
+}
+
+/// Device-local consent and display preference. OS authorization and scheduled
+/// requests are observations, never the source of this policy.
+struct DeviceLocalReminderPolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let key = "device.reminderPolicy"
+    let schemaVersion: Int
+    let instanceID: UUID
+    let revision: UInt64
+    let isEnabled: Bool
+    let detail: ReminderNotificationDetailV1
+
+    init(instanceID: UUID, revision: UInt64, isEnabled: Bool,
+         detail: ReminderNotificationDetailV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.instanceID = instanceID
+        self.revision = revision
+        self.isEnabled = isEnabled
+        self.detail = detail
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              instanceID != SettingsValidationV1.zeroUUID, revision > 0 else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, instanceID, revision, isEnabled, detail
+    }
+
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        instanceID = try values.decode(UUID.self, forKey: .instanceID)
+        revision = try values.decode(UInt64.self, forKey: .revision)
+        isEnabled = try values.decode(Bool.self, forKey: .isEnabled)
+        detail = try values.decode(ReminderNotificationDetailV1.self, forKey: .detail)
+        try validate()
+    }
+
+    func appLockReference() throws -> AppLockNotificationCanonicalPolicyV1 {
+        try validate()
+        return AppLockNotificationCanonicalPolicyV1(
+            policyID: Self.key + "." + instanceID.uuidString.lowercased(),
+            revision: revision,
+            canonicalDigest: CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(self))
         )
     }
 }
@@ -717,6 +781,20 @@ struct SettingsRegistryV1: Sendable {
             Optional<NoticeAcknowledgementV1>.none
         )
         return try SettingsRegistryV1(descriptors: [
+            try SettingDescriptorV1(
+                key: DeviceLocalReminderPolicyV1.key,
+                valueKind: .reminderPolicy,
+                scope: .deviceLocal,
+                storage: .soleDevicePreferencesAdapter,
+                defaultCanonicalValue: Data("null".utf8),
+                maximumCanonicalBytes: 1_024,
+                migrationVersion: DeviceLocalReminderPolicyV1.schemaVersion,
+                backup: .excludedDeviceLocal,
+                reset: .restoreDefault,
+                erase: .restoreDefault,
+                privacy: .devicePreferenceNoCustomerData,
+                localizationKey: "settings.reminderPolicy"
+            ),
             try SettingDescriptorV1(
                 key: DeviceLocalAppLockSettingV1.key,
                 valueKind: .boolean,

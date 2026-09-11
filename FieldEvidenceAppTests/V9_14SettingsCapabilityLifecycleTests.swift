@@ -60,7 +60,20 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
     func testV9_14G01TypedSettingsScopesMigrationAndLifecycle() throws {
         let corpus = try Self.loadCorpus()
         let registry = try SettingsRegistryV1.current()
-        XCTAssertEqual(registry.descriptors.map(\.key), corpus.settingKeys)
+        XCTAssertEqual(corpus.settingKeys, ["device.hapticFeedback", "device.recentInputMemory"])
+        let existingKeys = (corpus.settingKeys + [
+            DeviceLocalAppLockSettingV1.key,
+            LastSelectedSmartViewPreferenceV1.key,
+            PrivateSystemDiscoveryOptInV1.settingKey,
+            WorkspaceExperienceDevicePreferenceV1.activeWorkspaceSelectionKey,
+            WorkspaceExperienceDevicePreferenceV1.noticeAcknowledgementKey,
+            SurveyDefinitionDeviceMemoryV1.favoriteKey,
+            SurveyDefinitionDeviceMemoryV1.recentsKey,
+        ]).sorted()
+        let expectedKeys = (existingKeys + [DeviceLocalReminderPolicyV1.key]).sorted()
+        XCTAssertEqual(registry.descriptors.map(\.key), expectedKeys)
+        let existingDescriptors = registry.descriptors.filter { $0.key != DeviceLocalReminderPolicyV1.key }
+        XCTAssertEqual(existingDescriptors.map(\.key), existingKeys)
         XCTAssertEqual(Set(SettingScopeV1.allCases.map(\.rawValue)), Set(corpus.settingScopes))
 
         let haptic = try registry.descriptor(for: HapticFeedbackPreferenceV1.key)
@@ -221,14 +234,14 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
             legacyKeys: ["legacy.haptics"],
             operationID: Self.uuid(32)
         )) { XCTAssertEqual($0 as? PreferencesAdapterFailureV1, .conflictingOperation) }
-        try adapter.reset(descriptors: registry.descriptors, operationID: Self.uuid(3))
+        try adapter.reset(descriptors: existingDescriptors, operationID: Self.uuid(3))
         XCTAssertEqual(try adapter.readCanonicalValue(for: haptic), haptic.defaultCanonicalValue)
         try adapter.writeCanonicalValue(
             disabledBytes,
             descriptor: haptic,
             operationID: Self.uuid(4)
         )
-        try adapter.erase(descriptors: registry.descriptors, operationID: Self.uuid(5))
+        try adapter.erase(descriptors: existingDescriptors, operationID: Self.uuid(5))
         XCTAssertEqual(try adapter.readCanonicalValue(for: haptic), haptic.defaultCanonicalValue)
         let persistedKeys = defaults.persistentDomain(forName: suiteName)
             .map { Array($0.keys) } ?? []
@@ -255,7 +268,7 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
                 affectedKeys: registry.descriptors.map(\.key),
                 preservedWorkspaceCanonicalTruth: ![.erase, .delete].contains(operation)
             )
-            XCTAssertEqual(receipt.affectedKeys, corpus.settingKeys)
+            XCTAssertEqual(receipt.affectedKeys, expectedKeys)
             XCTAssertEqual(
                 try CompatibilityCanonicalV1.decode(
                     SettingsLifecycleReceiptV1.self,
@@ -264,6 +277,259 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
                 receipt
             )
         }
+    }
+
+    func testReminderPolicyPersistsConservativeDefaultAndExactAppLockReference() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        defer { fixture.remove() }
+        let registry = try SettingsRegistryV1.current()
+        let descriptor = try registry.descriptor(for: DeviceLocalReminderPolicyV1.key)
+        XCTAssertEqual(descriptor.scope, .deviceLocal)
+        XCTAssertEqual(descriptor.storage, .soleDevicePreferencesAdapter)
+        XCTAssertEqual(descriptor.backup, .excludedDeviceLocal)
+        XCTAssertEqual(descriptor.privacy, .devicePreferenceNoCustomerData)
+        XCTAssertEqual(descriptor.defaultCanonicalValue, Data("null".utf8))
+        let adapter = fixture.adapter()
+        XCTAssertEqual(try adapter.readCanonicalValue(for: descriptor), descriptor.defaultCanonicalValue)
+        XCTAssertNil(fixture.defaults.object(forKey: fixture.storageKey))
+        let initial = try adapter.readReminderPolicy()
+        XCTAssertEqual(initial.schemaVersion, 1)
+        XCTAssertNotEqual(initial.instanceID, SettingsValidationV1.zeroUUID)
+        XCTAssertEqual(initial.revision, 1)
+        XCTAssertFalse(initial.isEnabled)
+        XCTAssertEqual(initial.detail, .generic)
+        let stored = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
+        let reopened = try fixture.reopenedAdapter()
+        XCTAssertEqual(try reopened.readReminderPolicy(), initial)
+        XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), stored)
+        XCTAssertEqual(try reopened.readCanonicalValue(for: descriptor), try CompatibilityCanonicalV1.encode(initial))
+        let reference = try initial.appLockReference()
+        XCTAssertEqual(reference.policyID, DeviceLocalReminderPolicyV1.key + "." + initial.instanceID.uuidString.lowercased())
+        XCTAssertEqual(reference.revision, initial.revision)
+        XCTAssertEqual(reference.canonicalDigest, CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(initial)))
+        try reference.validate()
+    }
+
+    func testReminderPolicyTwoInstancesRequireExactPredecessorAndOperationRequest() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        defer { fixture.remove() }
+        let first = fixture.adapter()
+        let second = try fixture.reopenedAdapter()
+        let initial = try first.readReminderPolicy()
+        XCTAssertEqual(try second.readReminderPolicy(), initial)
+        let operation = Self.uuid(201)
+        let updated = try first.updateReminderPolicy(expected: initial, isEnabled: true, detail: .details, operationID: operation)
+        XCTAssertEqual(updated.instanceID, initial.instanceID)
+        XCTAssertEqual(updated.revision, initial.revision + 1)
+        XCTAssertTrue(updated.isEnabled)
+        XCTAssertEqual(updated.detail, .details)
+        let stored = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
+        XCTAssertEqual(try second.updateReminderPolicy(expected: initial, isEnabled: true, detail: .details, operationID: operation), updated)
+        XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), stored)
+        for (expected, enabled, detail) in [
+            (initial, false, ReminderNotificationDetailV1.details),
+            (initial, true, .generic),
+            (updated, true, .details),
+        ] {
+            XCTAssertThrowsError(try second.updateReminderPolicy(expected: expected, isEnabled: enabled,
+                detail: detail, operationID: operation)) {
+                XCTAssertEqual($0 as? SettingsContractFailureV1, .changedOperation)
+            }
+        }
+        XCTAssertThrowsError(try second.resetReminderPolicy(expected: initial, operationID: operation)) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .changedOperation)
+        }
+        XCTAssertThrowsError(try second.updateReminderPolicy(expected: initial, isEnabled: false,
+            detail: .generic, operationID: Self.uuid(202))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
+        }
+        let foreign = try DeviceLocalReminderPolicyV1(instanceID: Self.uuid(203), revision: updated.revision,
+            isEnabled: updated.isEnabled, detail: updated.detail)
+        XCTAssertThrowsError(try second.updateReminderPolicy(expected: foreign, isEnabled: false,
+            detail: .generic, operationID: Self.uuid(204))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
+        }
+        XCTAssertThrowsError(try second.updateReminderPolicy(expected: updated, isEnabled: false,
+            detail: .generic, operationID: SettingsValidationV1.zeroUUID)) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .invalidValue)
+        }
+        XCTAssertEqual(try second.readReminderPolicy(), updated)
+        XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), stored)
+    }
+
+    func testReminderPolicyResetAndEraseRetryCannotReplaceLaterChoice() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        defer { fixture.remove() }
+        let adapter = fixture.adapter()
+        let initial = try adapter.readReminderPolicy()
+        let enabled = try adapter.updateReminderPolicy(expected: initial, isEnabled: true,
+            detail: .details, operationID: Self.uuid(210))
+        let reset = try adapter.resetReminderPolicy(expected: enabled, operationID: Self.uuid(211))
+        XCTAssertFalse(reset.isEnabled)
+        XCTAssertEqual(reset.detail, .generic)
+        XCTAssertEqual(reset.instanceID, enabled.instanceID)
+        XCTAssertEqual(reset.revision, enabled.revision + 1)
+        let reopened = try fixture.reopenedAdapter()
+        XCTAssertEqual(try reopened.resetReminderPolicy(expected: enabled, operationID: Self.uuid(211)), reset)
+        XCTAssertThrowsError(try reopened.eraseReminderPolicy(expected: enabled, operationID: Self.uuid(211))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .changedOperation)
+        }
+        let later = try reopened.updateReminderPolicy(expected: reset, isEnabled: true,
+            detail: .generic, operationID: Self.uuid(212))
+        let laterBytes = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
+        XCTAssertThrowsError(try adapter.resetReminderPolicy(expected: enabled, operationID: Self.uuid(211))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
+        }
+        XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), laterBytes)
+        let erased = try adapter.eraseReminderPolicy(expected: later, operationID: Self.uuid(213))
+        XCTAssertFalse(erased.isEnabled)
+        XCTAssertEqual(erased.detail, .generic)
+        XCTAssertEqual(erased.instanceID, later.instanceID)
+        XCTAssertEqual(erased.revision, later.revision + 1)
+        XCTAssertEqual(try reopened.eraseReminderPolicy(expected: later, operationID: Self.uuid(213)), erased)
+        let newest = try reopened.updateReminderPolicy(expected: erased, isEnabled: true,
+            detail: .details, operationID: Self.uuid(214))
+        let newestBytes = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
+        XCTAssertThrowsError(try adapter.eraseReminderPolicy(expected: later, operationID: Self.uuid(213))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
+        }
+        XCTAssertEqual(try adapter.readReminderPolicy(), newest)
+        XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), newestBytes)
+    }
+
+    func testReminderPolicyGenericMutationsRejectWholeRequestBeforeChangingAnyKey() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        defer { fixture.remove() }
+        let adapter = fixture.adapter()
+        let registry = try SettingsRegistryV1.current()
+        let reminder = try registry.descriptor(for: DeviceLocalReminderPolicyV1.key)
+        let haptic = try registry.descriptor(for: HapticFeedbackPreferenceV1.key)
+        let initial = try adapter.readReminderPolicy()
+        let enabled = try adapter.updateReminderPolicy(expected: initial, isEnabled: true,
+            detail: .details, operationID: Self.uuid(220))
+        try adapter.writeCanonicalValue(try CompatibilityCanonicalV1.encode(false), descriptor: haptic,
+            operationID: Self.uuid(221))
+        fixture.defaults.set(Data("false".utf8), forKey: "legacy.reminder")
+        let original = NSDictionary(dictionary: fixture.defaults.persistentDomain(forName: fixture.suiteName) ?? [:])
+        let attempts: [() throws -> Void] = [
+            { try adapter.writeCanonicalValue(reminder.defaultCanonicalValue, descriptor: reminder, operationID: Self.uuid(222)) },
+            { _ = try adapter.migrate(descriptor: reminder, legacyKeys: ["legacy.reminder"], operationID: Self.uuid(223)) },
+            { try adapter.reset(descriptors: registry.descriptors, operationID: Self.uuid(224)) },
+            { try adapter.erase(descriptors: registry.descriptors, operationID: Self.uuid(225)) },
+        ]
+        for attempt in attempts {
+            XCTAssertThrowsError(try attempt()) { XCTAssertEqual($0 as? PreferencesAdapterFailureV1, .invalidScope) }
+            XCTAssertEqual(NSDictionary(dictionary: fixture.defaults.persistentDomain(forName: fixture.suiteName) ?? [:]), original)
+        }
+        XCTAssertEqual(try adapter.readReminderPolicy(), enabled)
+        XCTAssertEqual(try adapter.readCanonicalValue(for: haptic), Data("false".utf8))
+    }
+
+    func testReminderPolicyMalformedStoredValuesFailWithoutRepairingBytes() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        defer { fixture.remove() }
+        let initial = try fixture.adapter().readReminderPolicy()
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalReminderPolicyV1.key)
+        var future = try XCTUnwrap(JSONSerialization.jsonObject(with: CompatibilityCanonicalV1.encode(initial)) as? [String: Any])
+        future["schemaVersion"] = 2
+        var zeroRevision = future
+        zeroRevision["schemaVersion"] = 1
+        zeroRevision["revision"] = 0
+        var unknownDetail = zeroRevision
+        unknownDetail["revision"] = 1
+        unknownDetail["detail"] = "OS_INFERRED"
+        var unknownPolicyField = try XCTUnwrap(JSONSerialization.jsonObject(with: CompatibilityCanonicalV1.encode(initial)) as? [String: Any])
+        unknownPolicyField["osAuthorizedMeansOptedIn"] = true
+        var zeroInstance = unknownPolicyField
+        zeroInstance.removeValue(forKey: "osAuthorizedMeansOptedIn")
+        zeroInstance["instanceID"] = SettingsValidationV1.zeroUUID.uuidString
+        _ = try fixture.adapter().updateReminderPolicy(expected: initial, isEnabled: true,
+            detail: .details, operationID: Self.uuid(231))
+        let acceptedBytes = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
+        let acceptedEnvelope = try XCTUnwrap(JSONSerialization.jsonObject(with: acceptedBytes) as? [String: Any])
+        var futureEnvelope = acceptedEnvelope
+        futureEnvelope["schemaVersion"] = 2
+        var unknownEnvelope = acceptedEnvelope
+        unknownEnvelope["secondPolicyOwner"] = true
+        var foreignEnvelope = acceptedEnvelope
+        var foreignOperation = try XCTUnwrap(foreignEnvelope["reminderOperation"] as? [String: Any])
+        var foreignExpected = try XCTUnwrap(foreignOperation["expected"] as? [String: Any])
+        foreignExpected["instanceID"] = Self.uuid(232).uuidString
+        foreignOperation["expected"] = foreignExpected
+        foreignEnvelope["reminderOperation"] = foreignOperation
+        let malformed: [Any] = [
+            "not-data", Data([0xff]), Data("null".utf8), Data(repeating: 0x20, count: 4_097),
+            try V914ReminderPreferencesFixture.envelope(policyBytes: Data("null".utf8)),
+            try V914ReminderPreferencesFixture.envelope(policyBytes: Data("{".utf8)),
+            try V914ReminderPreferencesFixture.envelope(policyBytes: JSONSerialization.data(withJSONObject: future, options: [.sortedKeys])),
+            try V914ReminderPreferencesFixture.envelope(policyBytes: JSONSerialization.data(withJSONObject: zeroRevision, options: [.sortedKeys])),
+            try V914ReminderPreferencesFixture.envelope(policyBytes: JSONSerialization.data(withJSONObject: unknownDetail, options: [.sortedKeys])),
+            try V914ReminderPreferencesFixture.envelope(policyBytes: JSONSerialization.data(withJSONObject: unknownPolicyField, options: [.sortedKeys])),
+            try V914ReminderPreferencesFixture.envelope(policyBytes: JSONSerialization.data(withJSONObject: zeroInstance, options: [.sortedKeys])),
+            try JSONSerialization.data(withJSONObject: futureEnvelope, options: [.sortedKeys]),
+            try JSONSerialization.data(withJSONObject: unknownEnvelope, options: [.sortedKeys]),
+            try JSONSerialization.data(withJSONObject: foreignEnvelope, options: [.sortedKeys]),
+        ]
+        for value in malformed {
+            fixture.defaults.set(value, forKey: fixture.storageKey)
+            let original = NSDictionary(dictionary: fixture.defaults.persistentDomain(forName: fixture.suiteName) ?? [:])
+            let reopened = try fixture.reopenedAdapter()
+            XCTAssertThrowsError(try reopened.readReminderPolicy())
+            XCTAssertThrowsError(try reopened.readCanonicalValue(for: descriptor))
+            XCTAssertThrowsError(try reopened.updateReminderPolicy(expected: initial, isEnabled: true,
+                detail: .details, operationID: Self.uuid(230)))
+            XCTAssertThrowsError(try reopened.resetReminderPolicy(expected: initial, operationID: Self.uuid(233)))
+            XCTAssertThrowsError(try reopened.eraseReminderPolicy(expected: initial, operationID: Self.uuid(234)))
+            XCTAssertEqual(NSDictionary(dictionary: fixture.defaults.persistentDomain(forName: fixture.suiteName) ?? [:]), original)
+        }
+        let haptic = try SettingsRegistryV1.current().descriptor(for: HapticFeedbackPreferenceV1.key)
+        var wrongOwner = acceptedEnvelope
+        wrongOwner["canonicalValue"] = Data("false".utf8).base64EncodedString()
+        let wrongOwnerBytes = try JSONSerialization.data(withJSONObject: wrongOwner, options: [.sortedKeys])
+        let hapticKey = PreferencesAdapterV1.storagePrefix + haptic.key
+        fixture.defaults.set(wrongOwnerBytes, forKey: hapticKey)
+        XCTAssertThrowsError(try fixture.reopenedAdapter().readCanonicalValue(for: haptic))
+        XCTAssertEqual(fixture.defaults.data(forKey: hapticKey), wrongOwnerBytes)
+    }
+
+    func testReminderPolicyRevisionOverflowAndFullDomainWipeRejectHeldAuthority() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        defer { fixture.remove() }
+        let adapter = fixture.adapter()
+        let initial = try adapter.readReminderPolicy()
+        let maximum = try DeviceLocalReminderPolicyV1(instanceID: initial.instanceID, revision: UInt64.max,
+            isEnabled: true, detail: .details)
+        let predecessor = try DeviceLocalReminderPolicyV1(instanceID: initial.instanceID, revision: UInt64.max - 1,
+            isEnabled: false, detail: .generic)
+        let maximumBytes = try V914ReminderPreferencesFixture.operationEnvelope(expected: predecessor,
+            successor: maximum, operationID: Self.uuid(239))
+        fixture.defaults.set(maximumBytes, forKey: fixture.storageKey)
+        XCTAssertEqual(try adapter.readReminderPolicy(), maximum)
+        XCTAssertThrowsError(try adapter.updateReminderPolicy(expected: maximum, isEnabled: false,
+            detail: .generic, operationID: Self.uuid(240))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .invalidValue)
+        }
+        XCTAssertThrowsError(try adapter.resetReminderPolicy(expected: maximum, operationID: Self.uuid(241))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .invalidValue)
+        }
+        XCTAssertThrowsError(try adapter.eraseReminderPolicy(expected: maximum, operationID: Self.uuid(242))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .invalidValue)
+        }
+        XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), maximumBytes)
+        // A completed sequential domain wipe is not a concurrent Erase test.
+        fixture.defaults.removePersistentDomain(forName: fixture.suiteName)
+        let fresh = try fixture.reopenedAdapter().readReminderPolicy()
+        XCTAssertNotEqual(fresh.instanceID, initial.instanceID)
+        XCTAssertEqual(fresh.revision, initial.revision)
+        XCTAssertFalse(fresh.isEnabled)
+        XCTAssertEqual(fresh.detail, .generic)
+        let freshBytes = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
+        XCTAssertThrowsError(try adapter.updateReminderPolicy(expected: initial, isEnabled: true,
+            detail: .details, operationID: Self.uuid(243))) {
+            XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
+        }
+        XCTAssertEqual(try adapter.readReminderPolicy(), fresh)
+        XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), freshBytes)
     }
 
     func testV9_14RatingLedgerRejectsZeroOperationAndReloadsExactReceipt() async throws {
@@ -1397,6 +1663,53 @@ private extension V9_14SettingsCapabilityLifecycleTests {
             .url(forResource: name, withExtension: "json"))
         return try JSONDecoder().decode(V914Corpus.self, from: Data(contentsOf: url))
     }
+}
+
+private struct V914ReminderPreferencesFixture {
+    let suiteName: String
+    let defaults: UserDefaults
+    var storageKey: String { PreferencesAdapterV1.storagePrefix + DeviceLocalReminderPolicyV1.key }
+
+    init() throws {
+        suiteName = "V9_14.ReminderPolicy." + UUID().uuidString
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func adapter() -> PreferencesAdapterV1 { PreferencesAdapterV1(defaults: defaults) }
+
+    func reopenedAdapter() throws -> PreferencesAdapterV1 {
+        PreferencesAdapterV1(defaults: try XCTUnwrap(UserDefaults(suiteName: suiteName)))
+    }
+
+    static func envelope(policyBytes: Data) throws -> Data {
+        struct StoredEnvelope: Encodable {
+            let schemaVersion = 1
+            let canonicalValue: Data
+        }
+        return try CompatibilityCanonicalV1.encode(StoredEnvelope(canonicalValue: policyBytes))
+    }
+
+    static func operationEnvelope(expected: DeviceLocalReminderPolicyV1,
+                                  successor: DeviceLocalReminderPolicyV1, operationID: UUID) throws -> Data {
+        struct Operation: Encodable {
+            let operationID: UUID
+            let kind = "update"
+            let expected: DeviceLocalReminderPolicyV1
+            let successor: DeviceLocalReminderPolicyV1
+        }
+        struct StoredEnvelope: Encodable {
+            let schemaVersion = 1
+            let canonicalValue: Data
+            let reminderOperation: Operation
+        }
+        return try CompatibilityCanonicalV1.encode(StoredEnvelope(
+            canonicalValue: CompatibilityCanonicalV1.encode(successor),
+            reminderOperation: Operation(operationID: operationID, expected: expected, successor: successor)
+        ))
+    }
+
+    func remove() { defaults.removePersistentDomain(forName: suiteName) }
 }
 
 private struct V914Corpus: Decodable {
