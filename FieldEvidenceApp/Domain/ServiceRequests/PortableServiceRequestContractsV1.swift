@@ -130,7 +130,7 @@ enum ServiceRequestCanonicalCodecV1 {
     }
 }
 
-struct ServiceRequestInvitationPublicIDV1: RawRepresentable, Codable, Equatable, Hashable, Sendable {
+struct ServiceRequestInvitationPublicIDV1: Codable, Equatable, Hashable, Sendable {
     let rawValue: String
     init(rawValue: String) throws { self.rawValue = rawValue; try validate() }
     init(_ rawValue: String) throws { try self.init(rawValue: rawValue) }
@@ -139,7 +139,7 @@ struct ServiceRequestInvitationPublicIDV1: RawRepresentable, Codable, Equatable,
     func encode(to encoder: Encoder) throws { try validate(); var c = encoder.singleValueContainer(); try c.encode(rawValue) }
 }
 
-struct ServiceRequestSubmissionPublicIDV1: RawRepresentable, Codable, Equatable, Hashable, Sendable {
+struct ServiceRequestSubmissionPublicIDV1: Codable, Equatable, Hashable, Sendable {
     let rawValue: String
     init(rawValue: String) throws { self.rawValue = rawValue; try validate() }
     init(_ rawValue: String) throws { try self.init(rawValue: rawValue) }

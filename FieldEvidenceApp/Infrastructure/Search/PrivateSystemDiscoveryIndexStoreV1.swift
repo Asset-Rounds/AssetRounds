@@ -134,7 +134,7 @@ protocol PrivateSystemDiscoveryGlobalJournalStoreV1: Sendable {
 
 final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryProtectedIndexClientV1, @unchecked Sendable {
     static let indexName = PrivateSystemDiscoveryLifecycleV1.namedIndex
-    private let index = CSSearchableIndex(name: Self.indexName, protectionClass: .complete)
+    private let index = CSSearchableIndex(name: PrivateSystemDiscoveryCoreSpotlightClientV1.indexName, protectionClass: .complete)
 
     func replaceItems(deleting identifiers: [String], with items: [PrivateSystemDiscoveryIndexItemV1]) async throws {
         try await deleteItems(withIdentifiers: identifiers)

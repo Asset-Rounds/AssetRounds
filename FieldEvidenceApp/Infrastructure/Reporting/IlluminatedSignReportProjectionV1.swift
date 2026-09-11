@@ -290,7 +290,11 @@ struct IlluminatedSignReportProjectionV1: Codable, Equatable, Sendable {
 
     func validateIntrinsic() throws {
         try captures.forEach { try $0.validate() }
-        try evidenceSequenceFrontier.validate()
+        _ = try EvidenceSequenceReferenceV1(
+            sequenceID: evidenceSequenceFrontier.sequenceID,
+            revision: evidenceSequenceFrontier.revision,
+            sequenceSHA256: evidenceSequenceFrontier.sequenceSHA256
+        )
         guard subject == (try EvidenceAssociationTargetV1(
             workspaceID: subject.workspaceID,
             kind: subject.kind,

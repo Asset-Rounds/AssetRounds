@@ -218,8 +218,8 @@ struct AdvancedScheduleCalendarResolverV1: ScheduleCalendarResolvingV1 {
         switch rule {
         case .daily(let interval): return try dayDistance(anchor, date) % interval == 0
         case .weekly(let interval, let weekdays):
-            return (try dayDistance(anchor, date) / 7) % interval == 0
-                && weekdays.contains(try date.weekday())
+            return try (dayDistance(anchor, date) / 7) % interval == 0
+                && weekdays.contains(date.weekday())
         case .monthlyDay(let interval, let day, let policy):
             let distance = monthDistance(anchor, date)
             guard distance >= 0, distance % interval == 0 else { return false }

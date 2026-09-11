@@ -518,7 +518,7 @@ struct SnapshotValidatorV1 {
         do {
             try assurance.validate()
             if case .live(let dependencies, _) = lifecycleRoute {
-                guard assurance.preview.workspaceID == WorkspaceID(rawValue: dependencies.workspaceID) else {
+                guard assurance.preview.workspaceID == dependencies.workspaceID else {
                     throw SnapshotValidationErrorV1.invalidAuthority
                 }
             }
@@ -543,7 +543,7 @@ struct SnapshotValidatorV1 {
         do {
             try authority.validate()
             if case .live(let dependencies, _) = lifecycleRoute,
-               authority.workspaceID.rawValue != dependencies.workspaceID {
+               authority.workspaceID != dependencies.workspaceID {
                 throw SnapshotValidationErrorV1.invalidAuthority
             }
         } catch {
@@ -556,7 +556,7 @@ struct SnapshotValidatorV1 {
         do {
             try relationships.validate()
             if case .live(let dependencies, _) = lifecycleRoute,
-               relationships.workspaceID.rawValue != dependencies.workspaceID {
+               relationships.workspaceID != dependencies.workspaceID {
                 throw SnapshotValidationErrorV1.invalidAuthority
             }
         } catch {
@@ -603,9 +603,9 @@ struct SnapshotValidatorV1 {
                 assurance: assurance
             )
             if case .live(let dependencies, _) = lifecycleRoute {
-                guard history.workspaceID == WorkspaceID(rawValue: dependencies.workspaceID),
+                guard history.workspaceID == dependencies.workspaceID,
                       assurance.preview.workspaceID
-                          == WorkspaceID(rawValue: dependencies.workspaceID) else {
+                          == dependencies.workspaceID else {
                     throw SnapshotValidationErrorV1.invalidAuthority
                 }
             }
@@ -652,7 +652,7 @@ struct SnapshotValidatorV1 {
             }
             if case .live(let dependencies, _) = lifecycleRoute {
                 guard lighting.projection.workspaceID
-                        == WorkspaceID(rawValue: dependencies.workspaceID) else {
+                        == dependencies.workspaceID else {
                     throw SnapshotValidationErrorV1.invalidAuthority
                 }
             }
@@ -666,7 +666,7 @@ struct SnapshotValidatorV1 {
         do{try value.validate();guard snapshot.snapshotSchemaVersion>=4,
               value.projection.limitationKey==C18LightingReportProjectionSupportV1.limitationKey,
               !value.projection.safetyOrComplianceConclusionAllowed else{throw SnapshotValidationErrorV1.invalidAuthority}
-            if case .live(let dependencies,_)=lifecycleRoute{guard value.projection.workspaceID==WorkspaceID(rawValue:dependencies.workspaceID) else{throw SnapshotValidationErrorV1.invalidAuthority}}
+            if case .live(let dependencies,_)=lifecycleRoute{guard value.projection.workspaceID==dependencies.workspaceID else{throw SnapshotValidationErrorV1.invalidAuthority}}
         }catch{throw SnapshotValidationErrorV1.invalidAuthority}
     }
 
@@ -704,7 +704,7 @@ struct SnapshotValidatorV1 {
                     currentDerivative: derivative
                 )
                 if case .live(let dependencies, _) = lifecycleRoute {
-                    guard link.workspaceID.rawValue == dependencies.workspaceID else {
+                    guard link.workspaceID == dependencies.workspaceID else {
                         throw SnapshotValidationErrorV1.invalidAuthority
                     }
                 }

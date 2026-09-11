@@ -56,6 +56,90 @@ private final class C30EvidenceContextAnchorV9_19LocalSearch: XCTestCase {
 }
 
 final class V9_19LocalSearchTests: XCTestCase {
+    @MainActor
+    func testActiveSearchProjectionPreservesPartySummaryAndUndatedActivityBytes() async throws {
+        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(
+            "integration-search", schema: schema, isStoredInMemoryOnly: true,
+            allowsSave: true, cloudKitDatabase: .none
+        )])
+        let context = container.mainContext
+        let revision = try source(revision: 1)
+        let workspace = WorkspaceID(rawValue: revision.workspaceID)
+        let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let finalizedAt = startedAt.addingTimeInterval(60)
+        let cases: [(ActivityStateV2, Date?, Date?, Date)] = [
+            (.draft, nil, nil, Date(timeIntervalSince1970: 0)),
+            (.paused, startedAt, nil, startedAt),
+            (.superseded, startedAt, finalizedAt, finalizedAt)
+        ]
+        var envelopes: [ActivitySessionEnvelopeV2] = []
+        var rows: [ActivitySessionEnvelopeRow] = []
+        for (index, item) in cases.enumerated() {
+            let envelope = try ActivitySessionEnvelopeV2(
+                activityID: scaleUUID(index), workspaceID: workspace,
+                kind: .installation, state: item.0,
+                reviewState: item.0 == .superseded ? .acceptedRecordedFacts : .notRequested,
+                subjectID: scaleUUID(100), title: "Integration activity \(index)",
+                readiness: [], startedAt: item.1, finalizedAt: item.2, revision: 1,
+                mutationID: MutationIDV1(rawValue: UUID())
+            )
+            let row = try ActivitySessionEnvelopeRow(envelope)
+            context.insert(row)
+            envelopes.append(envelope)
+            rows.append(row)
+        }
+        let party = try ServicePartyReferenceV1(
+            partyID: scaleUUID(200), workspaceID: workspace, kind: .person,
+            displayName: "Integration technician", profileDescriptor: "Recorded service provider",
+            provenance: .locallyRecorded, state: .effective, effectiveAt: startedAt,
+            revision: 1, mutationID: MutationIDV1(rawValue: UUID())
+        )
+        let partyRow = try ServicePartyRow(party)
+        let role = try SitePartyRoleEventV1(
+            eventID: scaleUUID(201), workspaceID: workspace, siteID: scaleUUID(202),
+            partyID: party.partyID, role: .serviceProvider, effectiveFrom: startedAt,
+            source: .locallyRecorded, revision: 1,
+            mutationID: MutationIDV1(rawValue: UUID()), recordedAt: startedAt
+        )
+        context.insert(partyRow)
+        context.insert(try SitePartyRoleEventRow(role))
+        try context.save()
+        let envelopeBytes = rows.map(\.canonicalData)
+        let partyBytes = partyRow.canonicalData
+        let projectionSource = try SwiftDataSearchCanonicalProjectionSourceV1(
+            modelContext: context, workspaceID: revision.workspaceID,
+            generationID: revision.generationID, revisionProvider: { revision },
+            includeAccountability: true
+        )
+        let page = try await projectionSource.searchProjectionPage(
+            at: revision, canonicalOffset: 0, limit: 250
+        )
+        XCTAssertTrue(page.isComplete)
+        XCTAssertEqual(page.nextCanonicalOffset, 4)
+        for (index, envelope) in envelopes.enumerated() {
+            let identity = try WorkspaceEntityIdentityV1(
+                kind: .activitySessionEnvelope, id: envelope.activityID
+            ).stableKey
+            let records = page.records.filter { $0.sourceStableID == identity }
+            XCTAssertFalse(records.isEmpty)
+            XCTAssertTrue(records.allSatisfy { $0.sourceTimestamp == cases[index].3 })
+            XCTAssertEqual(try rows[index].value(), envelope)
+            XCTAssertEqual(rows[index].canonicalData, envelopeBytes[index])
+            XCTAssertEqual(try rows[index].value().startedAt, cases[index].1)
+            XCTAssertEqual(try rows[index].value().finalizedAt, cases[index].2)
+        }
+        let partyIdentity = try WorkspaceEntityIdentityV1(kind: .serviceParty, id: party.partyID).stableKey
+        let roleProjection = try XCTUnwrap(page.records.first {
+            $0.sourceStableID == partyIdentity && $0.fieldID == "party_role"
+        })
+        XCTAssertEqual(roleProjection.permittedSnippet, role.role.rawValue)
+        XCTAssertEqual(roleProjection.displayIdentity, party.displayName)
+        XCTAssertEqual(try partyRow.value(), party)
+        XCTAssertEqual(partyRow.canonicalData, partyBytes)
+        XCTAssertFalse(context.hasChanges)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
@@ -821,7 +905,7 @@ private extension V9_19LocalSearchTests {
         let frozen = try XCTUnwrap(FrozenSearchableFieldV1(rawValue: id))
         let identity = frozen.isIdentifier
         let operational = frozen == .status
-        try SearchableFieldDescriptorV1(
+        return try SearchableFieldDescriptorV1(
             fieldID: id, sourceKind: kind,
             privacyClass: identity ? .userVisibleIdentifier
                 : (operational ? .approvedOperationalState : .approvedCustomerText),

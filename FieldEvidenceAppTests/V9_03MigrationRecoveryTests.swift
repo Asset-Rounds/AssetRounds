@@ -355,15 +355,128 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertEqual(v9FirstLaunch.phase, .firstLaunchValidated)
 
         var ninthLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
-        XCTAssertEqual(try XCTUnwrap(ninthLaunch).generationID, fixture.v9TargetID)
+        XCTAssertNotEqual(try XCTUnwrap(ninthLaunch).generationID, fixture.v9TargetID)
         XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<ServicePartyRow>()), 0)
         XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<SitePartyRoleEventRow>()), 0)
         XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<ActorSnapshotRow>()), 0)
         XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<QualificationSnapshotRow>()), 0)
         XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<SignoffSnapshotRow>()), 0)
         ninthLaunch = nil
-        XCTAssertNil(try store.loadJournal())
+        let v10FirstLaunch = try XCTUnwrap(try store.loadJournal())
+        XCTAssertEqual(v10FirstLaunch.sourceRelease, .v9)
+        XCTAssertEqual(v10FirstLaunch.targetRelease, .v10)
+        XCTAssertEqual(v10FirstLaunch.phase, .firstLaunchValidated)
         XCTAssertEqual(try pointerSchema(in: fixture.root), 3)
+    }
+
+    func testPopulatedLegacyMigrationTraversesLateReleasesAndReopensActiveStore() throws {
+        let fixture = try makeLegacyFixture(suffix: "ActiveChain")
+        defer { try? fileManager.removeItem(at: fixture.root) }
+        let factory = StoreGenerationFactory(
+            applicationSupportURL: fixture.root,
+            migrationIdentitySource: StoreMigrationIdentitySourceV1(
+                makeMigrationID: UUID.init,
+                makeGenerationID: UUID.init,
+                makeProcessID: UUID.init
+            )
+        )
+        let store = try StoreMigrationJournalStoreV1(applicationSupportURL: fixture.root)
+        var priorGenerationID = fixture.sourceID
+        var sourceManifest: StoreGenerationManifestV1?
+        var lateSourceVersions = Set<Int>()
+        // One populated lineage exercises adjacent upgrades, not a fresh-store matrix.
+        for targetVersion in 2...53 {
+            try autoreleasepool {
+                let session = try factory.openOrBootstrapCurrent()
+                try assertMigratedRows(in: session.modelContext, fixture: fixture)
+                let journal = try XCTUnwrap(try store.loadJournal())
+                XCTAssertEqual(journal.sourceGenerationID, priorGenerationID)
+                XCTAssertNotEqual(session.generationID, priorGenerationID)
+                XCTAssertEqual(journal.sourceRelease.versionIdentifier.major, targetVersion - 1)
+                XCTAssertEqual(journal.targetRelease.versionIdentifier.major, targetVersion)
+                XCTAssertEqual(journal.phase, .firstLaunchValidated)
+                let marker = try XCTUnwrap(session.modelContext.fetch(
+                    FetchDescriptor<PersistentSchemaReleaseMarker>()
+                ).first)
+                XCTAssertEqual(marker.schemaVersion, targetVersion)
+                XCTAssertEqual(marker.releaseID, journal.targetRelease.compatibilityID)
+                XCTAssertEqual(marker.predecessorReleaseID, journal.sourceRelease.compatibilityID)
+                if targetVersion == 2 {
+                    sourceManifest = try store.loadManifest(
+                        targetGenerationID: fixture.sourceID,
+                        expectedDigest: journal.sourceManifestDigest
+                    )
+                }
+                if [37, 50, 51, 52].contains(targetVersion - 1) {
+                    lateSourceVersions.insert(targetVersion - 1)
+                    let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: session.generationID)
+                    let manifest = try store.loadManifest(
+                        targetGenerationID: session.generationID,
+                        expectedDigest: pointer.generationManifestSHA256
+                    )
+                    XCTAssertEqual(pointer.storeSchemaVersion, targetVersion)
+                    XCTAssertEqual(manifest.storeSchemaRelease, journal.targetRelease)
+                    XCTAssertEqual(manifest.migrationID, marker.migrationID)
+                }
+                priorGenerationID = session.generationID
+            }
+#if DEBUG
+            if [37, 50, 51, 52].contains(targetVersion) {
+                // Model a cold launch after durable journal removal, before
+                // startup starts the next adjacent release. The next loop
+                // must use the ordinary no-journal current-pointer route.
+                let interrupted = StoreGenerationFactory(
+                    applicationSupportURL: fixture.root,
+                    migrationIdentitySource: StoreMigrationIdentitySourceV1(
+                        makeMigrationID: UUID.init,
+                        makeGenerationID: UUID.init,
+                        makeProcessID: UUID.init
+                    ),
+                    migrationFailureInjection: StoreMigrationFailureInjection(failOnceAt: .afterJournalRemoval)
+                )
+                XCTAssertThrowsError(try interrupted.openOrBootstrapCurrent()) { error in
+                    XCTAssertEqual(error as? StoreMigrationFailure, .injectedFault(.afterJournalRemoval))
+                }
+                XCTAssertNil(try store.loadJournal())
+                let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: priorGenerationID)
+                XCTAssertEqual(pointer.storeSchemaVersion, targetVersion)
+            }
+#endif
+        }
+        XCTAssertEqual(lateSourceVersions, [37, 50, 51, 52])
+        let reopened = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, priorGenerationID)
+        try assertMigratedRows(in: reopened.modelContext, fixture: fixture)
+        XCTAssertNil(try store.loadJournal())
+        let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: reopened.generationID)
+        XCTAssertEqual(pointer.storeSchemaVersion, 53)
+        XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<LightingNightWorkflowRowV1>()), 0)
+        let original = try XCTUnwrap(sourceManifest)
+        let snapshot = try factory.makeRestoreGenerationAuthority().snapshotInstalledGeneration(id: fixture.sourceID)
+        XCTAssertEqual(snapshot.files, original.files)
+        XCTAssertEqual(snapshot.frozenIdentityDigest, original.frozenIdentityDigest)
+    }
+
+    func testFreshBootstrapPersistsActiveMarkerManifestAndPointerAcrossReopen() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let first = try factory.openOrBootstrapCurrent()
+        let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: first.generationID)
+        let store = try StoreMigrationJournalStoreV1(applicationSupportURL: root)
+        let manifest = try store.loadManifest(targetGenerationID: first.generationID, expectedDigest: pointer.generationManifestSHA256)
+        let marker = try XCTUnwrap(first.modelContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>()).first)
+        XCTAssertEqual(pointer.storeSchemaVersion, 53)
+        XCTAssertEqual(manifest.storeSchemaRelease, .v53)
+        XCTAssertEqual(marker.schemaVersion, 53)
+        XCTAssertEqual(marker.releaseID, PersistentSchemaReleaseV1.v53.compatibilityID)
+        XCTAssertEqual(marker.predecessorReleaseID, PersistentSchemaReleaseV1.v52.compatibilityID)
+        XCTAssertEqual(marker.migrationID, manifest.migrationID)
+        let reopened = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, first.generationID)
+        XCTAssertEqual(reopened.workspaceIdentity, first.workspaceIdentity)
+        XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<LightingNightWorkflowRowV1>()), 0)
+        XCTAssertNil(try store.loadJournal())
     }
 
 #if DEBUG
@@ -500,32 +613,38 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 )
             }
 
-            var reachedCleanState = false
+            var reachedRecoveredV3Stage = false
             for _ in 0..<6 {
-                var session: StoreGenerationSession? =
-                    try factory.openOrBootstrapCurrent()
-                let hasJournal = try loadJournal(in: fixture.root) != nil
-                session = nil
-                if !hasJournal {
-                    reachedCleanState = true
+                let session = try factory.openOrBootstrapCurrent()
+                let recoveredJournal = try XCTUnwrap(try loadJournal(in: fixture.root), boundary.rawValue)
+                if recoveredJournal.targetRelease == .v3 {
+                    XCTAssertEqual(recoveredJournal.sourceRelease, .v2, boundary.rawValue)
+                    XCTAssertEqual(recoveredJournal.sourceGenerationID, fixture.targetID, boundary.rawValue)
+                    XCTAssertEqual(recoveredJournal.targetGenerationID, fixture.v3TargetID, boundary.rawValue)
+                    XCTAssertEqual(recoveredJournal.phase, .firstLaunchValidated, boundary.rawValue)
+                    XCTAssertEqual(session.generationID, fixture.v3TargetID, boundary.rawValue)
+                    try assertMigratedRows(in: session.modelContext, fixture: fixture)
+                    try assertMarker(
+                        at: session.generationRootURL.appendingPathComponent("model.sqlite"),
+                        migrationID: fixture.migrationID,
+                        release: .v3
+                    )
+                    let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: fixture.v3TargetID)
+                    XCTAssertEqual(pointer.storeSchemaVersion, 3, boundary.rawValue)
+                    XCTAssertEqual(try pointerSchema(in: fixture.root), 3, boundary.rawValue)
+                    reachedRecoveredV3Stage = true
+                    break
+                }
+                guard recoveredJournal.sourceRelease == .v1,
+                      recoveredJournal.targetRelease == .v2,
+                      recoveredJournal.targetGenerationID == fixture.targetID,
+                      recoveredJournal.phase == .firstLaunchValidated,
+                      session.generationID == fixture.targetID else {
+                    XCTFail("Unexpected recovery stage for \(boundary.rawValue): \(recoveredJournal.targetRelease)")
                     break
                 }
             }
-            XCTAssertTrue(reachedCleanState, boundary.rawValue)
-
-            var finalSession: StoreGenerationSession? =
-                try factory.openOrBootstrapCurrent()
-            let final = try XCTUnwrap(finalSession)
-            XCTAssertEqual(final.generationID, fixture.v3TargetID, boundary.rawValue)
-            try assertMigratedRows(in: final.modelContext, fixture: fixture)
-            finalSession = nil
-            try assertMarker(
-                at: final.generationRootURL.appendingPathComponent("model.sqlite"),
-                migrationID: fixture.migrationID,
-                release: .v3
-            )
-            XCTAssertNil(try loadJournal(in: fixture.root), boundary.rawValue)
-            XCTAssertEqual(try pointerSchema(in: fixture.root), 3, boundary.rawValue)
+            XCTAssertTrue(reachedRecoveredV3Stage, boundary.rawValue)
         }
 
         let markerRetry = try makeLegacyFixture(suffix: "V4MarkerRetry")
@@ -575,8 +694,24 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             1
         )
         recovered = nil
-        let secondRecovery = try retryFactory.openOrBootstrapCurrent()
+        let recoveredV4Journal = try XCTUnwrap(try loadJournal(in: markerRetry.root))
+        XCTAssertEqual(recoveredV4Journal.sourceRelease, .v3)
+        XCTAssertEqual(recoveredV4Journal.targetRelease, .v4)
+        XCTAssertEqual(recoveredV4Journal.phase, .firstLaunchValidated)
+        let recoveryProcessID = try XCTUnwrap(recoveredV4Journal.firstValidationProcessID)
+        // Reopening in the validating process tests the V4 marker retry;
+        // a distinct process would correctly begin the next V5 migration.
+        let sameProcessFactory = StoreGenerationFactory(
+            applicationSupportURL: markerRetry.root,
+            migrationIdentitySource: StoreMigrationIdentitySourceV1(
+                makeMigrationID: { markerRetry.migrationID },
+                makeGenerationID: UUID.init,
+                makeProcessID: { recoveryProcessID }
+            )
+        )
+        let secondRecovery = try sameProcessFactory.openOrBootstrapCurrent()
         XCTAssertEqual(secondRecovery.generationID, markerRetry.v4TargetID)
+        XCTAssertEqual(try loadJournal(in: markerRetry.root), recoveredV4Journal)
         XCTAssertEqual(
             try secondRecovery.modelContext.fetchCount(
                 FetchDescriptor<WorkspaceMutationStateRow>()
@@ -1231,6 +1366,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                     if pointer.storeSchemaVersion == 6 { return fixture.v7TargetID }
                     if pointer.storeSchemaVersion == 7 { return fixture.v8TargetID }
                     if pointer.storeSchemaVersion == 8 { return fixture.v9TargetID }
+                    return UUID()
                 }
                 return fixture.v3TargetID
             },
@@ -1286,45 +1422,10 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         migrationID: UUID,
         release: PersistentSchemaReleaseV1 = .v2
     ) throws {
-        let schema: Schema
-        switch release {
-        case .v1:
+        guard release != .v1 else {
             throw StoreMigrationFailure.invalidContract
-        case .v2:
-            schema = Schema(
-                PersistentSchemaV2.models,
-                version: PersistentSchemaV2.versionIdentifier
-            )
-        case .v3:
-            schema = Schema(
-                PersistentSchemaV3.models,
-                version: PersistentSchemaV3.versionIdentifier
-            )
-        case .v4:
-            schema = Schema(
-                PersistentSchemaV4.models,
-                version: PersistentSchemaV4.versionIdentifier
-            )
-        case .v5:
-            schema = Schema(
-                PersistentSchemaV5.models,
-                version: PersistentSchemaV5.versionIdentifier
-            )
-        case .v6:
-            schema = Schema(
-                PersistentSchemaV6.models,
-                version: PersistentSchemaV6.versionIdentifier
-            )
-        case .v7:
-            schema = Schema(PersistentSchemaV7.models, version: PersistentSchemaV7.versionIdentifier)
-        case .v8:
-            schema = Schema(
-                PersistentSchemaV8.models,
-                version: PersistentSchemaV8.versionIdentifier
-            )
-        case .v9:
-            schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
+        let schema = Schema(release.models, version: release.versionIdentifier)
         let configuration = ModelConfiguration(
             "V9_03MarkerInspection",
             schema: schema,
@@ -1343,45 +1444,13 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let marker = try XCTUnwrap(markers.first)
         XCTAssertEqual(markers.count, 1)
         XCTAssertEqual(marker.id, PersistentSchemaReleaseRegistryV1.v2MarkerID)
-        let expectedSchemaVersion: Int
-        let expectedReleaseID: String
-        let expectedPredecessorID: String
-        switch release {
-        case .v1:
+        guard let predecessorVersion = release.predecessorVersionIdentifier else {
             throw StoreMigrationFailure.invalidContract
-        case .v2:
-            expectedSchemaVersion = 2
-            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v2CompatibilityID
-            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v1CompatibilityID
-        case .v3:
-            expectedSchemaVersion = 3
-            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v3CompatibilityID
-            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v2CompatibilityID
-        case .v4:
-            expectedSchemaVersion = 4
-            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v4CompatibilityID
-            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v3CompatibilityID
-        case .v5:
-            expectedSchemaVersion = 5
-            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v5CompatibilityID
-            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v4CompatibilityID
-        case .v6:
-            expectedSchemaVersion = 6
-            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v6CompatibilityID
-            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v5CompatibilityID
-        case .v7:
-            expectedSchemaVersion = 7
-            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v7CompatibilityID
-            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v6CompatibilityID
-        case .v8:
-            expectedSchemaVersion = 8
-            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v8CompatibilityID
-            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v7CompatibilityID
-        case .v9:
-            expectedSchemaVersion = 9
-            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v9CompatibilityID
-            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v8CompatibilityID
         }
+        let predecessor = try PersistentSchemaReleaseRegistryV1.release(for: predecessorVersion)
+        let expectedSchemaVersion = release.versionIdentifier.major
+        let expectedReleaseID = release.compatibilityID
+        let expectedPredecessorID = predecessor.compatibilityID
         XCTAssertEqual(marker.schemaVersion, expectedSchemaVersion)
         XCTAssertEqual(
             marker.releaseID,
@@ -1399,45 +1468,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         root: URL,
         release: PersistentSchemaReleaseV1
     ) throws -> Data {
-        let schema: Schema
-        switch release {
-        case .v1:
-            schema = PersistentSchemaV1.makeSchema()
-        case .v2:
-            schema = Schema(
-                PersistentSchemaV2.models,
-                version: PersistentSchemaV2.versionIdentifier
-            )
-        case .v3:
-            schema = Schema(
-                PersistentSchemaV3.models,
-                version: PersistentSchemaV3.versionIdentifier
-            )
-        case .v4:
-            schema = Schema(
-                PersistentSchemaV4.models,
-                version: PersistentSchemaV4.versionIdentifier
-            )
-        case .v5:
-            schema = Schema(
-                PersistentSchemaV5.models,
-                version: PersistentSchemaV5.versionIdentifier
-            )
-        case .v6:
-            schema = Schema(
-                PersistentSchemaV6.models,
-                version: PersistentSchemaV6.versionIdentifier
-            )
-        case .v7:
-            schema = Schema(PersistentSchemaV7.models, version: PersistentSchemaV7.versionIdentifier)
-        case .v8:
-            schema = Schema(
-                PersistentSchemaV8.models,
-                version: PersistentSchemaV8.versionIdentifier
-            )
-        case .v9:
-            schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
-        }
+        let schema = Schema(release.models, version: release.versionIdentifier)
         let configuration = ModelConfiguration(
             "V9_03Semantic-\(release.rawValue)",
             schema: schema,
@@ -1649,7 +1680,11 @@ extension V9_03MigrationRecoveryTests {
     func testC25SurveyDefinitionTypedAnchor() throws {
         XCTAssertEqual(PersistentSchemaMigrationPlanV23.schemas.count, 2)
         XCTAssertEqual(PersistentSchemaMigrationPlanV23.stages.count, 1)
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v24)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV23.schemas.map { ObjectIdentifier($0) },
+            [ObjectIdentifier(PersistentSchemaV23.self), ObjectIdentifier(PersistentSchemaV24.self)]
+        )
+        XCTAssertEqual(PersistentSchemaReleaseV1.v24.predecessorVersionIdentifier, PersistentSchemaV23.versionIdentifier)
     }
 }
 extension V9_03MigrationRecoveryTests {

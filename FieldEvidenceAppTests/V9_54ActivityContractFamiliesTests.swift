@@ -522,6 +522,55 @@ private enum C47ActivityTestSupport {
 
 @MainActor
 final class V9_54ActivityContractFamiliesTests: XCTestCase {
+    func testEnvelopeDateOrderingPreservesOptionalDatesAndStateRequirements() throws {
+        let draft = try C47ActivityTestSupport.envelope(kind: .installation)
+        let start = C47ActivityTestSupport.fixedDate
+        func envelope(state: ActivityStateV2 = .superseded, startedAt: Date?, finalizedAt: Date?) throws -> ActivitySessionEnvelopeV2 {
+            try ActivitySessionEnvelopeV2(
+                activityID: draft.activityID,
+                workspaceID: draft.workspaceID,
+                kind: draft.kind,
+                state: state,
+                reviewState: state == .superseded ? .acceptedRecordedFacts : .notRequested,
+                subjectID: draft.subjectID,
+                title: draft.title,
+                readiness: draft.readiness,
+                startedAt: startedAt,
+                finalizedAt: finalizedAt,
+                revision: draft.revision,
+                mutationID: draft.mutationID
+            )
+        }
+        // Superseded unfinished work permits either date to be absent; it
+        // does not manufacture closeout evidence merely to test ordering.
+        let validDates: [(Date?, Date?)] = [
+            (nil, nil), (start, nil), (nil, start),
+            (start, start), (start, start.addingTimeInterval(60)),
+        ]
+        for (startedAt, finalizedAt) in validDates {
+            let value = try envelope(startedAt: startedAt, finalizedAt: finalizedAt)
+            try value.validateForRead()
+            XCTAssertEqual(value.startedAt, startedAt)
+            XCTAssertEqual(value.finalizedAt, finalizedAt)
+            XCTAssertNil(value.completedSnapshotReference)
+            XCTAssertFalse(try value.canonicalData().isEmpty)
+        }
+        XCTAssertThrowsError(try envelope(startedAt: start, finalizedAt: start.addingTimeInterval(-1))) { error in
+            XCTAssertEqual(error as? ActivityContractFailureV2, .invalidValue)
+        }
+        XCTAssertNoThrow(try envelope(state: .draft, startedAt: nil, finalizedAt: nil))
+        XCTAssertNoThrow(try envelope(state: .paused, startedAt: start, finalizedAt: nil))
+        XCTAssertThrowsError(try envelope(state: .paused, startedAt: nil, finalizedAt: nil)) { error in
+            XCTAssertEqual(error as? ActivityContractFailureV2, .invalidValue)
+        }
+        XCTAssertThrowsError(try envelope(state: .draft, startedAt: start, finalizedAt: nil)) { error in
+            XCTAssertEqual(error as? ActivityContractFailureV2, .invalidValue)
+        }
+        XCTAssertThrowsError(try envelope(state: .draft, startedAt: nil, finalizedAt: start)) { error in
+            XCTAssertEqual(error as? ActivityContractFailureV2, .invalidValue)
+        }
+    }
+
     func testV23P03C47G01SharedEnvelopeInstallationAndPunchAcceptAsThreeIsolatedReceipts() async throws {
         XCTAssertEqual(
             ActivityKindV2.knownCases.map(\.rawValue),

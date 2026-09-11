@@ -637,8 +637,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: locale,
@@ -728,9 +728,13 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(localized: key.rawValue, defaultValue: key.englishDefaultValue,
-               bundle: bundle, locale: locale,
-               comment: "C18 cautious night-lighting copy; unknown, inconclusive, reopen, and child closure states remain explicit.")
+        localizedRegistryText(
+            key: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: locale,
+            comment: "C18 cautious night-lighting copy; unknown, inconclusive, reopen, and child closure states remain explicit."
+        )
     }
 
     static func c18LightingNightRegistry() throws -> LocalizationKeyRegistryV1 {
@@ -780,6 +784,43 @@ enum BundledLocalizationCatalogV1 {
     static let runtimeLanguage = "en"
     static let appStorePrimaryMetadataLocale = "en-US"
     static let runtimeDownloadsAllowed = false
+
+    /// Dynamic registry keys cannot use the compile-time `String(localized:)`
+    /// overload. Resolve the caller's locale explicitly and retain the
+    /// registry's English value as the deterministic fallback.
+    static func localizedRegistryText(
+        key: String,
+        defaultValue: String,
+        bundle: Bundle,
+        locale: Locale,
+        comment: String
+    ) -> String {
+        let preferredLocalizations = Bundle.preferredLocalizations(
+            from: bundle.localizations,
+            forPreferences: [locale.identifier]
+        )
+        let candidates = preferredLocalizations + [
+            bundle.developmentLocalization,
+            runtimeLanguage,
+        ].compactMap { $0 }
+
+        var visited: Set<String> = []
+        for candidate in candidates {
+            guard visited.insert(candidate).inserted else { continue }
+            guard let path = bundle.path(forResource: candidate, ofType: "lproj"),
+                  let localizedBundle = Bundle(path: path) else { continue }
+            return NSLocalizedString(
+                key,
+                tableName: nil,
+                bundle: localizedBundle,
+                value: defaultValue,
+                comment: comment
+            )
+        }
+
+        return defaultValue
+    }
+
     static func registry() throws -> LocalizationKeyRegistryV1 {
         try LocalizationKeyRegistryV1(definitions: [
             try definition(.commonDone, "common.action.done", "Done", "Completes and closes the current task."),
@@ -2831,13 +2872,77 @@ enum BundledLocalizationCatalogV1 {
 
     static func localized(_ key: BundledLocalizationKeyV1, bundle: Bundle = .main) -> String {
         let locale = Locale(identifier: runtimeLanguage)
-        if let fieldDraftKey = FieldDraftLocalizationKeyV1(rawValue: key.rawValue) {
-            // C36 is English-only by policy.  Returning the typed default here
-            // keeps this path compatible with the dynamic bundled-key switch
-            // while preventing raw lifecycle values from becoming UI copy.
-            return fieldDraftKey.englishDefaultValue
-        }
         switch key {
+        case .fieldDraftScreen,
+             .fieldDraftHeading,
+             .fieldDraftDurability,
+             .fieldDraftDurabilityState,
+             .fieldDraftNextStep,
+             .fieldDraftMinimumNextRequirement,
+             .fieldDraftCheckpoint,
+             .fieldDraftCheckpointState,
+             .fieldDraftAttachment,
+             .fieldDraftAttachmentState,
+             .fieldDraftCommitSaga,
+             .fieldDraftCommitSagaState,
+             .fieldDraftRecovery,
+             .fieldDraftRecoveryState,
+             .fieldDraftRecoverySafeAction,
+             .fieldDraftRecoveryFallback,
+             .fieldDraftDurabilityUnsavedChanges,
+             .fieldDraftDurabilitySavingOnThisIPhone,
+             .fieldDraftDurabilitySavedOnThisIPhone,
+             .fieldDraftDurabilitySaveBlocked,
+             .fieldDraftDurabilityCommitting,
+             .fieldDraftDurabilityConflicted,
+             .fieldDraftDurabilityRecoveryRequired,
+             .fieldDraftDurabilityCommitted,
+             .fieldDraftDurabilityDiscarding,
+             .fieldDraftDurabilityDiscarded,
+             .fieldDraftCheckpointActive,
+             .fieldDraftCheckpointCommitting,
+             .fieldDraftCheckpointConflicted,
+             .fieldDraftCheckpointRecoveryRequired,
+             .fieldDraftCheckpointCommitted,
+             .fieldDraftCheckpointDiscardPending,
+             .fieldDraftCheckpointDiscarded,
+             .fieldDraftAttachmentSelected,
+             .fieldDraftAttachmentLoading,
+             .fieldDraftAttachmentStagedLocal,
+             .fieldDraftAttachmentProcessing,
+             .fieldDraftAttachmentReady,
+             .fieldDraftAttachmentRetryableFailure,
+             .fieldDraftAttachmentBlocked,
+             .fieldDraftAttachmentRemoved,
+             .fieldDraftAttachmentPromoted,
+             .fieldDraftAttachmentCapturing,
+             .fieldDraftAttachmentHashing,
+             .fieldDraftAttachmentReadyLocal,
+             .fieldDraftAttachmentFailedRetryable,
+             .fieldDraftAttachmentFailedFinal,
+             .fieldDraftAttachmentRemovePending,
+             .fieldDraftAttachmentCommitted,
+             .fieldDraftAttachmentOrphanQuarantined,
+             .fieldDraftSagaPrepared,
+             .fieldDraftSagaContentPromotedUnbound,
+             .fieldDraftSagaTargetCommitted,
+             .fieldDraftSagaDraftRetirePending,
+             .fieldDraftSagaDraftRetired,
+             .fieldDraftSagaConflicted,
+             .fieldDraftSagaRecoveryRequired,
+             .fieldDraftRecoveryResumeAvailable,
+             .fieldDraftRecoveryConflict,
+             .fieldDraftRecoveryMissingMedia,
+             .fieldDraftRecoveryLowStorage,
+             .fieldDraftRecoveryProtectedData,
+             .fieldDraftRecoveryUnsupportedCodec,
+             .fieldDraftRecoveryPartialStage,
+             .fieldDraftRecoveryStaleTarget,
+             .fieldDraftRecoveryRecoveryRequired:
+            guard let fieldDraftKey = FieldDraftLocalizationKeyV1(rawValue: key.rawValue) else {
+                preconditionFailure("Declared FieldDraft localization mapping is incomplete.")
+            }
+            return fieldDraftKey.englishDefaultValue
         case .feedbackSubject:
             return String(localized: "feedback.mail.subject", defaultValue: "App feedback", bundle: bundle, locale: locale, comment: "Subject of the support email.")
         case .feedbackBodyTemplate:
@@ -3306,7 +3411,12 @@ enum BundledLocalizationCatalogV1 {
              .privacyTransformDenialMetadataNotSanitized,
              .privacyTransformOriginalAccessSeparate,
              .privacyTransformNextStep:
-            return PrivacyTransformLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            guard let privacyTransformKey = PrivacyTransformLocalizationKeyV1(
+                rawValue: key.rawValue
+            ) else {
+                preconditionFailure("Declared privacy-transform localization mapping is incomplete.")
+            }
+            return privacyTransformKey.englishDefaultValue
         case .clientCapabilityHeading,
              .clientCapabilityAdmission,
              .clientCapabilityAdmissionReadWrite,
@@ -3347,7 +3457,12 @@ enum BundledLocalizationCatalogV1 {
              .packageLifecycleWithdrawal,
              .packageLifecycleBlocked,
              .clientCapabilityNextStep:
-            return ClientCapabilityLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            guard let clientCapabilityKey = ClientCapabilityLocalizationKeyV1(
+                rawValue: key.rawValue
+            ) else {
+                preconditionFailure("Declared client-capability localization mapping is incomplete.")
+            }
+            return clientCapabilityKey.englishDefaultValue
         case .fieldReferenceHeading,
              .fieldReferenceProvenance,
              .fieldReferencePack,
@@ -3386,7 +3501,12 @@ enum BundledLocalizationCatalogV1 {
              .fieldReferenceRequiredContent,
              .fieldReferenceMissingContent,
              .fieldReferenceNextStep:
-            return FieldReferenceLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            guard let fieldReferenceKey = FieldReferenceLocalizationKeyV1(
+                rawValue: key.rawValue
+            ) else {
+                preconditionFailure("Declared field-reference localization mapping is incomplete.")
+            }
+            return fieldReferenceKey.englishDefaultValue
         case .accessibleDocumentScreen,
              .accessibleDocumentHeading,
              .accessibleDocumentNode,
@@ -3420,7 +3540,12 @@ enum BundledLocalizationCatalogV1 {
              .accessibleDocumentEvidenceLimited,
              .accessibleDocumentClaimBoundary,
              .accessibleDocumentNextStep:
-            return AccessibleDocumentLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            guard let accessibleDocumentKey = AccessibleDocumentLocalizationKeyV1(
+                rawValue: key.rawValue
+            ) else {
+                preconditionFailure("Declared accessible-document localization mapping is incomplete.")
+            }
+            return accessibleDocumentKey.englishDefaultValue
         case .poseHeading,
              .poseAxis,
              .poseCurrent,
@@ -3457,7 +3582,10 @@ enum BundledLocalizationCatalogV1 {
              .poseClaimBoundary,
              .poseNextStep,
              .poseMissing:
-            return C37PoseLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            guard let poseKey = C37PoseLocalizationKeyV1(rawValue: key.rawValue) else {
+                preconditionFailure("Declared pose localization mapping is incomplete.")
+            }
+            return poseKey.englishDefaultValue
         }
     }
 
@@ -3807,8 +3935,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: locale,
@@ -3849,8 +3977,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: privateSystemDiscoveryEnglish(key),
             bundle: bundle,
             locale: locale,
@@ -3877,9 +4005,9 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
-extension BundledLocalizationCatalogV1 { static func fastSurveyInboxLocalized(_ key: FastSurveyInboxLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C11 contained local inbox presentation; no completion, truth, route, or acceptance claim.") } }
-extension BundledLocalizationCatalogV1 { static func c12Localized(_ key: C12LocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C12 contained local reinspection and exception-queue presentation; no source-resolution, evidence-freshness, adoption, acceptance, or release claim.") } }
-extension BundledLocalizationCatalogV1 { static func c13Localized(_ key: C13LocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C13 contained identity review; no automatic mutation, route, root, adoption, acceptance, or release claim.") } }
+extension BundledLocalizationCatalogV1 { static func fastSurveyInboxLocalized(_ key: FastSurveyInboxLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { localizedRegistryText(key: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C11 contained local inbox presentation; no completion, truth, route, or acceptance claim.") } }
+extension BundledLocalizationCatalogV1 { static func c12Localized(_ key: C12LocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { localizedRegistryText(key: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C12 contained local reinspection and exception-queue presentation; no source-resolution, evidence-freshness, adoption, acceptance, or release claim.") } }
+extension BundledLocalizationCatalogV1 { static func c13Localized(_ key: C13LocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { localizedRegistryText(key: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C13 contained identity review; no automatic mutation, route, root, adoption, acceptance, or release claim.") } }
 
 // MARK: - C10 evidence quality coach catalog
 
@@ -3893,8 +4021,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: evidenceQualityCoachEnglish(key),
             bundle: bundle,
             locale: locale,
@@ -3921,11 +4049,11 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
-extension BundledLocalizationCatalogV1 { static func importBulkPreviewLocalized(_ key: ImportBulkPreviewLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C08 preview-only presentation; no write claim.") } }
+extension BundledLocalizationCatalogV1 { static func importBulkPreviewLocalized(_ key: ImportBulkPreviewLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { localizedRegistryText(key: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C08 preview-only presentation; no write claim.") } }
 
 extension BundledLocalizationCatalogV1 {
     static func roundSessionLocalized(_ key: RoundSessionLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String {
-        String(localized: key.rawValue, defaultValue: RoundSessionLocalizationPolicyV1.english(key), bundle: bundle, locale: locale, comment: "C07 local RoundSession presentation; no sync, upload, account, or delivery claim.")
+        localizedRegistryText(key: key.rawValue, defaultValue: RoundSessionLocalizationPolicyV1.english(key), bundle: bundle, locale: locale, comment: "C07 local RoundSession presentation; no sync, upload, account, or delivery claim.")
     }
     static func roundSessionRegistry() throws -> LocalizationKeyRegistryV1 {
         let base = try registry(); let additions = try RoundSessionLocalizationKeyV1.allCases.map { key in LocalizationKeyDefinitionV1(key: key.localizationKey, meaningID: key.rawValue, translatorComment: "C07 local RoundSession presentation; no sync, upload, account, or delivery claim.", englishDefaultValue: RoundSessionLocalizationPolicyV1.english(key), arguments: [], requiredEnglishPluralCategories: [], state: .active, deprecatedFallbackKey: nil) }
@@ -3947,8 +4075,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: offlineReadinessPreflightEnglish(key),
             bundle: bundle,
             locale: locale,
@@ -3989,8 +4117,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: illuminatedSignPlaybookEnglish(key),
             bundle: bundle,
             locale: locale,
@@ -4031,8 +4159,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: shopReportProfileEnglish(key),
             bundle: bundle,
             locale: locale,
@@ -4158,8 +4286,8 @@ extension BundledLocalizationCatalogV1 {
         for key: C30OperatingContextLocalizationKeyV1,
         bundle: Bundle = .main
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: Locale(identifier: runtimeLanguage),
@@ -4215,8 +4343,8 @@ extension BundledLocalizationCatalogV1 {
         _ key: PlanLocalizationKeyV1,
         bundle: Bundle = .main
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: Locale(identifier: runtimeLanguage),
@@ -4347,8 +4475,8 @@ extension BundledLocalizationCatalogV1 {
         _ key: ScheduleLocalizationKeyV1,
         bundle: Bundle = .main
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: Locale(identifier: runtimeLanguage),
@@ -4439,8 +4567,8 @@ extension BundledLocalizationCatalogV1 {
         _ key: AssetLocatorLocalizationKeyV1,
         bundle: Bundle = .main
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: Locale(identifier: runtimeLanguage),
@@ -4519,8 +4647,8 @@ extension BundledLocalizationCatalogV1 {
         _ key: SurveySessionLocalizationKeyV1,
         bundle: Bundle = .main
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: Locale(identifier: runtimeLanguage),
@@ -4563,8 +4691,8 @@ extension BundledLocalizationCatalogV1 {
         _ key: SurveyDefinitionLocalizationKeyV1,
         bundle: Bundle = .main
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: Locale(identifier: runtimeLanguage),
@@ -5676,8 +5804,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: operationsDashboardEnglish(key),
             bundle: bundle,
             locale: locale,
@@ -5740,8 +5868,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: recoveryCenterEnglish(key),
             bundle: bundle,
             locale: locale,
@@ -5784,8 +5912,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: evidenceCurationEnglish(key),
             bundle: bundle,
             locale: locale,
@@ -5820,8 +5948,8 @@ extension BundledLocalizationCatalogV1 {
         bundle: Bundle = .main,
         locale: Locale = .current
     ) -> String {
-        String(
-            localized: key.rawValue,
+        localizedRegistryText(
+            key: key.rawValue,
             defaultValue: key.englishDefaultValue,
             bundle: bundle,
             locale: locale,

@@ -629,7 +629,7 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
               (revision == 1 && predecessorEnvelopeSHA256 == nil)
                 || (revision > 1 && predecessorEnvelopeSHA256 != nil),
               state.permits(startedAt: startedAt), state.permits(finalizedAt: finalizedAt),
-              startedAt.map({ finalizedAt.map { $0 >= $1 } ?? true }) ?? true,
+              startedAt.map({ start in finalizedAt.map { $0 >= start } ?? true }) ?? true,
               Self.reviewStateIsValid(reviewState, for: state),
               envelopeSHA256 == (try WorkspaceMutationCanonicalV1.sha256(basis)) else {
             throw ActivityContractFailureV2.invalidValue

@@ -97,6 +97,37 @@ final class V9_05RestoreIdentityTests: XCTestCase {
     private let fileManager = FileManager.default
 
     @MainActor
+    func testActiveReplacementRestorePreservesRowsAndIdentityAcrossReopen() async throws {
+        let scenario = try makeScenario("active-replace", targetIsNonempty: true)
+        defer { try? fileManager.removeItem(at: scenario.root) }
+        let identity = scenario.target.session.workspaceIdentity
+        let restored = try await restore(
+            scenario,
+            mode: .replaceExisting,
+            uuidValues: restoreUUIDs(mode: .replaceExisting, newGeneration: id(920), restoreID: id(921), workspace: id(922), replica: id(923))
+        )
+        let pointer = try scenario.target.factory.currentGenerationPointerV3(expectedGenerationID: restored.generationID)
+        let manifest = try StoreMigrationJournalStoreV1(applicationSupportURL: scenario.target.support)
+            .loadManifest(targetGenerationID: restored.generationID, expectedDigest: pointer.generationManifestSHA256)
+        let marker = try XCTUnwrap(restored.modelContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>()).first)
+        XCTAssertEqual(pointer.storeSchemaVersion, 53)
+        XCTAssertEqual(manifest.storeSchemaRelease, .v53)
+        XCTAssertEqual(marker.schemaVersion, 53)
+        XCTAssertEqual(marker.releaseID, PersistentSchemaReleaseV1.v53.compatibilityID)
+        XCTAssertEqual(marker.predecessorReleaseID, PersistentSchemaReleaseV1.v52.compatibilityID)
+        XCTAssertEqual(marker.migrationID, manifest.migrationID)
+        XCTAssertEqual(restored.workspaceIdentity, identity)
+        XCTAssertEqual(try recordIDs(in: restored), scenario.sourceRecordIDs)
+        let reopened = try scenario.target.factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, restored.generationID)
+        XCTAssertEqual(reopened.workspaceIdentity, identity)
+        XCTAssertEqual(try recordIDs(in: reopened), scenario.sourceRecordIDs)
+        let journal = try MutationJournalStoreV1(modelContext: reopened.modelContext, identity: reopened.workspaceIdentity, generationID: reopened.generationID)
+        XCTAssertEqual(try XCTUnwrap(journal.receipt(mutationID: scenario.sourceMutationID)).identity.replicaID.rawValue, scenario.sourceReplicaID)
+        XCTAssertEqual(try journal.exportSnapshot().quarantines, [scenario.sourceQuarantine])
+    }
+
+    @MainActor
     func testV9_05G01GoldenEmptyReplaceCloneForkMatrix() async throws {
         let corpus = try loadCorpus()
         XCTAssertEqual(corpus.schemaVersion, 1)

@@ -769,7 +769,7 @@ extension CanonicalJSONV1 {
     ) -> CanonicalJSONValueV1 {
         var object: [String: CanonicalJSONValueV1] = [
             "schemaVersion": .integer(value.schemaVersion),
-            "workspaceID": uuid(value.workspaceID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
             "clipID": uuid(value.clipID),
             "clipRevision": .integer(Int(value.clipRevision)),
             "clipSHA256": .string(value.clipSHA256),

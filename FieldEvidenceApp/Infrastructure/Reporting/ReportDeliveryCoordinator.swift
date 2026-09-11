@@ -2009,7 +2009,12 @@ private struct ReadyReportAuthorityValidator {
         _ correction: WorkflowRecord,
         revises prior: WorkflowRecord
     ) -> Bool {
-        correction.assetID == prior.assetID
+        guard let correctionCompanion = try? ObservationAndTimeRowStoreV1.requireRow(
+            recordID: correction.id, in: modelContext
+        ), let priorCompanion = try? ObservationAndTimeRowStoreV1.requireRow(
+            recordID: prior.id, in: modelContext
+        ) else { return false }
+        return correction.assetID == prior.assetID
             && correction.packetID == prior.packetID
             && correction.issueID == prior.issueID
             && correction.parentRecordID == prior.parentRecordID
@@ -2024,8 +2029,8 @@ private struct ReadyReportAuthorityValidator {
             && correction.utcOffsetMinutes == prior.utcOffsetMinutes
             && correction.localDate == prior.localDate
             && correction.localTime == prior.localTime
-            && correction.observationBasisV1Data == prior.observationBasisV1Data
-            && correction.temporalContextV1Data == prior.temporalContextV1Data
+            && correctionCompanion.observationBasisV1Data == priorCompanion.observationBasisV1Data
+            && correctionCompanion.temporalContextV1Data == priorCompanion.temporalContextV1Data
             && correction.afterDarkAcknowledgementKey
                 == prior.afterDarkAcknowledgementKey
             && correction.afterDarkAcknowledgementCopy
@@ -2733,7 +2738,7 @@ enum C49WorkResourceReportDeliveryBoundaryV1 {
     static let deliveryDoesNotClaimSendOrReceipt = true
     static let rawStockAndLiveInventoryClaimsDelivered = false
 
-    static func customerSafeCSV(
+    @MainActor static func customerSafeCSV(
         _ projection: C49WorkResourceReportProjectionV1
     ) throws -> Data {
         let safe = try C49WorkResourcePrivacyTransformBoundaryV1.customerSafe(projection)

@@ -999,7 +999,7 @@ enum C55PartsStockLocalSearchBoundaryV1 {
     static let canonicalRecordType = "LocalPartDefinitionV1"
     static let permittedFields = ["parts_stock.display_name", "parts_stock.product_identity"]
     static let prohibitedFields = ["parts_stock.balance", "parts_stock.storage_label", "parts_stock.movement_reason"]
-    static func validateField(_ fieldID: String) throws { guard permittedFields.contains(fieldID), !prohibitedFields.contains(fieldID) else { throw LocalSearchIndexStoreFailureV1.invalidQuery } }
+    static func validateField(_ fieldID: String) throws { guard permittedFields.contains(fieldID), !prohibitedFields.contains(fieldID) else { throw SearchContractFailureV1.forbiddenField } }
 }
 
 // MARK: - C30 operating-context search adapter
@@ -1152,7 +1152,7 @@ private extension LocalSearchIndexStoreV1 {
         }
     }
 
-    func persist(_ next: Envelope) throws {
+    private func persist(_ next: Envelope) throws {
         try next.validate()
         do {
             try persistWithoutLoading(next)
@@ -1166,7 +1166,7 @@ private extension LocalSearchIndexStoreV1 {
         }
     }
 
-    func persistWithoutLoading(_ next: Envelope) throws {
+    private func persistWithoutLoading(_ next: Envelope) throws {
         let data = try Self.encoder().encode(next)
         guard data.count <= Self.maximumStoreBytes else {
             throw SearchContractFailureV1.limitExceeded

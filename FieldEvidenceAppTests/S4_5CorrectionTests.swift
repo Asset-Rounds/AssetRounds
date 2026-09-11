@@ -206,6 +206,113 @@ final class S4_5CorrectionTests: XCTestCase {
     }
 
     @MainActor
+    func testHistoricalObservationCompanionFailuresRejectCorrectionDeliveryWithoutRewritingFrozenBytes() async throws {
+        let harness = try await makeHarness("historical-companion")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let originalSource = try harness.coordinator.correctionSource(reportID: harness.originalReport.id)
+        let firstIDs = ReportCorrectionIdentifiers(mutationID: UUID(), recordID: UUID(), reportID: UUID())
+        _ = try readyChain(await harness.coordinator.submitCorrection(
+            from: originalSource,
+            note: "First historical correction",
+            snapshotCreatedAt: Fixture.correctionDate,
+            sourceApp: Fixture.sourceApp,
+            identifiers: firstIDs
+        ))
+        let firstSource = try harness.coordinator.correctionSource(reportID: firstIDs.reportID)
+        let secondIDs = ReportCorrectionIdentifiers(mutationID: UUID(), recordID: UUID(), reportID: UUID())
+        let expectedChain = try readyChain(await harness.coordinator.submitCorrection(
+            from: firstSource,
+            note: "Second current correction",
+            snapshotCreatedAt: Fixture.correctionDate.addingTimeInterval(10),
+            sourceApp: Fixture.sourceApp,
+            identifiers: secondIDs
+        ))
+        let frozen = try preservedAuthority(
+            recordIDs: [harness.originalRecord.id, firstIDs.recordID, secondIDs.recordID],
+            reportIDs: [harness.originalReport.id, firstIDs.reportID, secondIDs.reportID],
+            in: harness
+        )
+        let historical = try ObservationAndTimeRowStoreV1.requireRow(recordID: firstIDs.recordID, in: harness.context)
+        let originalBasisBytes = historical.observationBasisV1Data
+        let originalTimeBytes = historical.temporalContextV1Data
+        let basis = try historical.observationBasisV1()
+        let time = try historical.temporalContextV1()
+        let changedBasis = try ObservationBasisV1(
+            kind: basis.kind, method: basis.method, source: basis.source,
+            limitations: ["Changed historical observation limitation"]
+        )
+        let changedTime = try TemporalContextV1(
+            occurredAtUTC: time.occurredAtUTC,
+            recordedAtUTC: time.recordedAtUTC.addingTimeInterval(1),
+            localDate: time.localDate, localTime: time.localTime,
+            utcOffsetSeconds: time.utcOffsetSeconds,
+            ianaTimeZoneIdentifier: time.ianaTimeZoneIdentifier,
+            localTimeDisposition: time.localTimeDisposition
+        )
+        let changedBasisBytes = try ObservationAndTimeCodecV1.encode(changedBasis)
+        let changedTimeBytes = try ObservationAndTimeCodecV1.encode(changedTime)
+        XCTAssertNotEqual(changedBasisBytes, originalBasisBytes)
+        XCTAssertNotEqual(changedTimeBytes, originalTimeBytes)
+
+        // Change only the intermediate revision: the current and original
+        // companions remain valid, so neither can stand in for its history.
+        let cases: [(String, Data?, Data?)] = [
+            ("missing", nil, nil),
+            ("malformed observation", Data("{".utf8), originalTimeBytes),
+            ("malformed time", originalBasisBytes, Data("{".utf8)),
+            ("changed observation", changedBasisBytes, originalTimeBytes),
+            ("changed time", originalBasisBytes, changedTimeBytes),
+        ]
+        for (label, basisBytes, timeBytes) in cases {
+            let row = try ObservationAndTimeRowStoreV1.requireRow(recordID: firstIDs.recordID, in: harness.context)
+            if let basisBytes, let timeBytes {
+                row.observationBasisV1Data = basisBytes
+                row.temporalContextV1Data = timeBytes
+                if label.hasPrefix("changed") { XCTAssertNoThrow(try row.validate()) }
+            } else {
+                harness.context.delete(row)
+            }
+            try harness.context.save()
+            XCTAssertFalse(harness.context.hasChanges)
+            let before = try domainSnapshot(in: harness)
+            let diagnostics = await harness.diagnostics.snapshot()
+            let coordinator = try makeCoordinator(in: harness)
+            XCTAssertThrowsError(try coordinator.correctionSource(reportID: secondIDs.reportID), label) {
+                XCTAssertEqual($0 as? ReportDeliveryCoordinatorError, .invalidAuthority)
+            }
+            XCTAssertThrowsError(try coordinator.readyDeliveryChain(currentReportID: secondIDs.reportID), label) {
+                XCTAssertEqual($0 as? ReportDeliveryCoordinatorError, .invalidAuthority)
+            }
+            XCTAssertEqual(try domainSnapshot(in: harness), before, label)
+            try assertPreserved(frozen, in: harness)
+            let afterDiagnostics = await harness.diagnostics.snapshot()
+            XCTAssertEqual(afterDiagnostics, diagnostics, label)
+            XCTAssertFalse(harness.context.hasChanges)
+            let remaining = try harness.context.fetch(FetchDescriptor<ObservationAndTimeRow>())
+                .filter { $0.recordID == firstIDs.recordID }
+            XCTAssertEqual(remaining.count, basisBytes == nil ? 0 : 1, label)
+            XCTAssertEqual(remaining.first?.observationBasisV1Data, basisBytes, label)
+            XCTAssertEqual(remaining.first?.temporalContextV1Data, timeBytes, label)
+
+            if let retained = remaining.first {
+                retained.observationBasisV1Data = originalBasisBytes
+                retained.temporalContextV1Data = originalTimeBytes
+            } else {
+                harness.context.insert(try ObservationAndTimeRow(
+                    recordID: firstIDs.recordID,
+                    observationBasisV1Data: originalBasisBytes,
+                    temporalContextV1Data: originalTimeBytes
+                ))
+            }
+            try harness.context.save()
+            let restored = try makeCoordinator(in: harness)
+            XCTAssertEqual(try restored.readyDeliveryChain(currentReportID: secondIDs.reportID), expectedChain, label)
+            XCTAssertEqual(try restored.correctionSource(reportID: secondIDs.reportID).chain, expectedChain, label)
+            try assertPreserved(frozen, in: harness)
+        }
+    }
+
+    @MainActor
     func testPureRuleRejectsNoopMalformedUnknownAndNoncurrentAuthority() async throws {
         let harness = try await makeHarness("pure-rule")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }

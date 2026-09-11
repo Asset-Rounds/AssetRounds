@@ -107,20 +107,20 @@ extension DeterministicPDFRendererV1 {
         ]
 
         for placement in projection.placements {
-            let disposition = labels.placementDispositions[placement.disposition]
+            let disposition = labels.placementDispositions[placement.disposition.rawValue]
                 ?? placement.disposition.rawValue
             lines.append(
                 "\(labels.placement) \(placement.placementID.uuidString.lowercased()): \(disposition) (\(labels.coordinate) \(placement.xMillionths),\(placement.yMillionths))"
             )
         }
 
-        if let preview = projection.preview {
+        if let preview = projection.rebasePreview {
             lines.append("\(labels.rebasePreview): \(preview.previewID.uuidString.lowercased())")
             lines.append("\(labels.expectedRevision): \(preview.expectedRevision)")
             lines.append("\(labels.rebaseWarning): \(preview.warningCodes.count)")
             lines.append(labels.previewNotApplied)
         }
-        if let receipt = projection.receipt {
+        if let receipt = projection.rebaseReceipt {
             let decision = labels.decisions[receipt.decision.rawValue]
                 ?? receipt.decision.rawValue
             lines.append("\(labels.rebaseReceipt): \(receipt.receiptID.uuidString.lowercased())")
@@ -1565,9 +1565,11 @@ extension DeterministicPDFRendererV1 {
         var identities = Set<AssetLabelNativeFontIdentityV1>()
         for run in runs {
             let attributes = CTRunGetAttributes(run) as NSDictionary
-            guard let font = attributes[kCTFontAttributeName as String] as? CTFont else {
+            guard let fontValue = attributes[kCTFontAttributeName as String],
+                  CFGetTypeID(fontValue as CFTypeRef) == CTFontGetTypeID() else {
                 throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
             }
+            let font = fontValue as! CTFont
             identities.insert(try assetLabelNativeFontIdentity(font))
         }
         return (line, identities)

@@ -164,47 +164,123 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         let timestamp: Date
         /// Role history is intentionally a bounded, non-contact summary.  It
         /// is only populated for the additive C38 party projection.
-        let roleSummary: String = ""
+        let roleSummary: String
         /// C39 fields contain stable semantic labels and recorded states only;
         /// raw product identifier values never enter the disposable index.
-        let semanticKindSummary: String = ""
-        let semanticCapabilitySummary: String = ""
-        let lifecycleEventSummary: String = ""
-        let productIdentityStateSummary: String = ""
-        let workSubjectScopeSummary: String = ""
-        let authoritySourceSummary: String = ""
-        let applicabilityDispositionSummary: String = ""
-        let criterionResultSummary: String = ""
-        let severityLevelSummary: String = ""
-        let measurementProtocolSummary: String = ""
+        let semanticKindSummary: String
+        let semanticCapabilitySummary: String
+        let lifecycleEventSummary: String
+        let productIdentityStateSummary: String
+        let workSubjectScopeSummary: String
+        let authoritySourceSummary: String
+        let applicabilityDispositionSummary: String
+        let criterionResultSummary: String
+        let severityLevelSummary: String
+        let measurementProtocolSummary: String
         /// C41 fields are restricted to descriptor and current-head facts.
         /// Relationship history, actors, locators, and topology internals
         /// never enter the disposable index.
-        let functionalRelationshipDescriptorSummary: String = ""
-        let functionalRelationshipDirectionSummary: String = ""
-        let functionalRelationshipStateSummary: String = ""
-        let functionalRelationshipEndpointSummary: String = ""
+        let functionalRelationshipDescriptorSummary: String
+        let functionalRelationshipDirectionSummary: String
+        let functionalRelationshipStateSummary: String
+        let functionalRelationshipEndpointSummary: String
         /// C13 search values are intentionally limited to audience,
         /// disposition, limitation, and projection-version metadata.
-        let assuranceAudienceSummary: String = ""
-        let assuranceDispositionSummary: String = ""
-        let assuranceLimitationSummary: String = ""
-        let assuranceProjectionVersionSummary: String = ""
+        let assuranceAudienceSummary: String
+        let assuranceDispositionSummary: String
+        let assuranceLimitationSummary: String
+        let assuranceProjectionVersionSummary: String
         /// C14 search values are current-head, typed review/change/action
         /// state only. Reasons, actor snapshots, evidence references, and
         /// historical revisions never become disposable index text.
-        let inspectionReviewStateSummary: String = ""
-        let inspectionReviewDispositionSummary: String = ""
-        let changeRequestStateSummary: String = ""
-        let correctiveActionStateSummary: String = ""
-        let inspectionReviewProjectionVersionSummary: String = ""
+        let inspectionReviewStateSummary: String
+        let inspectionReviewDispositionSummary: String
+        let changeRequestStateSummary: String
+        let correctiveActionStateSummary: String
+        let inspectionReviewProjectionVersionSummary: String
         /// C15 search values are packet/item current-head metadata only.
         /// Claims, leases, actors, result links, and review-exception digests
         /// remain in the canonical packet snapshot.
-        let workPacketManifestStateSummary: String = ""
-        let workPacketItemStateSummary: String = ""
-        let workPacketConflictStateSummary: String = ""
-        let workPacketProjectionVersionSummary: String = ""
+        let workPacketManifestStateSummary: String
+        let workPacketItemStateSummary: String
+        let workPacketConflictStateSummary: String
+        let workPacketProjectionVersionSummary: String
+
+        init(
+            kind: SearchSourceKindV1,
+            stableID: String,
+            display: String,
+            summary: String,
+            breadcrumb: [String],
+            status: String,
+            dueAt: Date?,
+            timestamp: Date,
+            roleSummary: String = "",
+            semanticKindSummary: String = "",
+            semanticCapabilitySummary: String = "",
+            lifecycleEventSummary: String = "",
+            productIdentityStateSummary: String = "",
+            workSubjectScopeSummary: String = "",
+            authoritySourceSummary: String = "",
+            applicabilityDispositionSummary: String = "",
+            criterionResultSummary: String = "",
+            severityLevelSummary: String = "",
+            measurementProtocolSummary: String = "",
+            functionalRelationshipDescriptorSummary: String = "",
+            functionalRelationshipDirectionSummary: String = "",
+            functionalRelationshipStateSummary: String = "",
+            functionalRelationshipEndpointSummary: String = "",
+            assuranceAudienceSummary: String = "",
+            assuranceDispositionSummary: String = "",
+            assuranceLimitationSummary: String = "",
+            assuranceProjectionVersionSummary: String = "",
+            inspectionReviewStateSummary: String = "",
+            inspectionReviewDispositionSummary: String = "",
+            changeRequestStateSummary: String = "",
+            correctiveActionStateSummary: String = "",
+            inspectionReviewProjectionVersionSummary: String = "",
+            workPacketManifestStateSummary: String = "",
+            workPacketItemStateSummary: String = "",
+            workPacketConflictStateSummary: String = "",
+            workPacketProjectionVersionSummary: String = ""
+        ) {
+            self.kind = kind
+            self.stableID = stableID
+            self.display = display
+            self.summary = summary
+            self.breadcrumb = breadcrumb
+            self.status = status
+            self.dueAt = dueAt
+            self.timestamp = timestamp
+            self.roleSummary = roleSummary
+            self.semanticKindSummary = semanticKindSummary
+            self.semanticCapabilitySummary = semanticCapabilitySummary
+            self.lifecycleEventSummary = lifecycleEventSummary
+            self.productIdentityStateSummary = productIdentityStateSummary
+            self.workSubjectScopeSummary = workSubjectScopeSummary
+            self.authoritySourceSummary = authoritySourceSummary
+            self.applicabilityDispositionSummary = applicabilityDispositionSummary
+            self.criterionResultSummary = criterionResultSummary
+            self.severityLevelSummary = severityLevelSummary
+            self.measurementProtocolSummary = measurementProtocolSummary
+            self.functionalRelationshipDescriptorSummary = functionalRelationshipDescriptorSummary
+            self.functionalRelationshipDirectionSummary = functionalRelationshipDirectionSummary
+            self.functionalRelationshipStateSummary = functionalRelationshipStateSummary
+            self.functionalRelationshipEndpointSummary = functionalRelationshipEndpointSummary
+            self.assuranceAudienceSummary = assuranceAudienceSummary
+            self.assuranceDispositionSummary = assuranceDispositionSummary
+            self.assuranceLimitationSummary = assuranceLimitationSummary
+            self.assuranceProjectionVersionSummary = assuranceProjectionVersionSummary
+            self.inspectionReviewStateSummary = inspectionReviewStateSummary
+            self.inspectionReviewDispositionSummary = inspectionReviewDispositionSummary
+            self.changeRequestStateSummary = changeRequestStateSummary
+            self.correctiveActionStateSummary = correctiveActionStateSummary
+            self.inspectionReviewProjectionVersionSummary = inspectionReviewProjectionVersionSummary
+            self.workPacketManifestStateSummary = workPacketManifestStateSummary
+            self.workPacketItemStateSummary = workPacketItemStateSummary
+            self.workPacketConflictStateSummary = workPacketConflictStateSummary
+            self.workPacketProjectionVersionSummary = workPacketProjectionVersionSummary
+        }
     }
 
     let registry: SearchableFieldRegistryV1
@@ -343,7 +419,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         return revision
     }
 
-    func canonicalValues(at source: SearchSourceRevisionV1) async throws -> [CanonicalValue] {
+    private func canonicalValues(at source: SearchSourceRevisionV1) async throws -> [CanonicalValue] {
         if snapshotRevision == source, let snapshotValues { return snapshotValues }
         var values: [CanonicalValue] = []
         let semanticByAsset = includeAssetSemantics
@@ -419,7 +495,10 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                     status: ([projection.state.rawValue, closeoutSummary]
                         .filter { !$0.isEmpty }
                         .joined(separator: " ")),
+                    // Undated drafts use the same deterministic ranking sentinel
+                    // as other undated index sources; canonical dates stay nil.
                     dueAt: nil, timestamp: envelope.finalizedAt ?? envelope.startedAt
+                        ?? Date(timeIntervalSince1970: 0)
                 )
             }
         values += try modelContext.fetch(FetchDescriptor<Issue>()).map {
@@ -481,7 +560,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         // limitation text, actor snapshots, and canonical media bytes remain
         // unindexed so a rebuild cannot disclose advisory-only details.
         let evidenceQualityRules = try modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>())
-            .map { try $0.value() }.filter { $0.workspaceID == workspaceID }
+            .map { try $0.value() }.filter { $0.workspaceID.rawValue == workspaceID }
         values += try evidenceQualityRules.map { ruleSet in
             CanonicalValue(kind: .report,
                            stableID: try stableKey(kind: .evidenceQualityRuleSet, id: ruleSet.ruleSetID),
@@ -495,7 +574,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                     if let value = try? row.value(ruleSet: ruleSet) { return value }
                 }
                 throw SearchContractFailureV1.invalidRevision
-            }.filter { $0.workspaceID == workspaceID }
+            }.filter { $0.workspaceID.rawValue == workspaceID }
         values += try evidenceQualityAssessments.map { assessment in
             CanonicalValue(kind: .report,
                            stableID: try stableKey(kind: .evidenceQualityAssessment, id: assessment.assessmentID),
@@ -509,7 +588,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                     if let value = try? row.value(assessment: assessment) { return value }
                 }
                 throw SearchContractFailureV1.invalidRevision
-            }.filter { $0.workspaceID == workspaceID }
+            }.filter { $0.workspaceID.rawValue == workspaceID }
         values += try evidenceQualityWaivers.map { waiver in
             CanonicalValue(kind: .report,
                            stableID: try stableKey(kind: .evidenceQualityWaiverEvent, id: waiver.waiverEventID),
@@ -520,7 +599,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         // C11 indexes bounded review metadata only. Inbox text, snippet body,
         // actor data, and original media references remain unindexed.
         let fastSurveyInbox = try FastSurveyInboxSwiftDataQuerySourceV1(
-            modelContext: modelContext, workspaceID: workspaceID
+            modelContext: modelContext, workspaceID: WorkspaceID(rawValue: workspaceID)
         ).snapshot()
         values += try fastSurveyInbox.inboxItems.map { item in
             CanonicalValue(kind: .report,
@@ -561,7 +640,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         // identifier resolves without rewriting evidence or relationship rows.
         values += try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>())
             .map { try $0.value() }
-            .filter { $0.workspaceID == workspaceID }
+            .filter { $0.workspaceID.rawValue == workspaceID }
             .map { link in
                 CanonicalValue(
                     kind: .report,
@@ -573,7 +652,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
             }
         values += try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>())
             .map { try $0.value() }
-            .filter { $0.workspaceID == workspaceID }
+            .filter { $0.workspaceID.rawValue == workspaceID }
             .map { receipt in
                 CanonicalValue(
                     kind: .report,
@@ -702,7 +781,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         var scope: String { scopes.sorted().joined(separator: " ") }
     }
 
-    func assetSemanticSearchValues() throws -> [UUID: AssetSemanticSearchValue] {
+    private func assetSemanticSearchValues() throws -> [UUID: AssetSemanticSearchValue] {
         var result: [UUID: AssetSemanticSearchValue] = [:]
         for row in try modelContext.fetch(FetchDescriptor<AssetKindBindingEventRow>())
             where row.workspaceID == workspaceID {
@@ -763,7 +842,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
     /// canonical C41 projection builder. Any orphan, fork, cycle, unknown
     /// descriptor, or invalid transition fails the rebuild rather than being
     /// silently indexed.
-    func functionalRelationshipSearchValues() throws -> [CanonicalValue] {
+    private func functionalRelationshipSearchValues() throws -> [CanonicalValue] {
         let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
         let descriptorRows = try modelContext.fetch(
             FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()
@@ -868,7 +947,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
     /// Reads only current assurance-manifest heads. The index contains typed
     /// audience/disposition/limitation/version metadata; it never contains
     /// claim text, evidence identifiers/digests, media/content, or actor data.
-    func assuranceSearchValues() throws -> [CanonicalValue] {
+    private func assuranceSearchValues() throws -> [CanonicalValue] {
         let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
         let manifests = try modelContext.fetch(FetchDescriptor<AssuranceManifestRow>())
             .filter { $0.workspaceID == workspaceID }
@@ -892,9 +971,9 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
             let limitationSummary = limitationValues.isEmpty
                 ? EvidenceLimitationV1.none.rawValue
                 : limitationValues.sorted().joined(separator: " ")
-            let dispositionValues = Set((manifest.includedLinks.map {
+            let dispositionValues = Set((manifest.includedLinks.map { _ in
                 EvidenceInclusionDispositionV1.included.rawValue
-            } + manifest.excludedLinks.map {
+            } + manifest.excludedLinks.map { _ in
                 EvidenceInclusionDispositionV1.excluded.rawValue
             }))
             return CanonicalValue(
@@ -930,7 +1009,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
     /// resulting records carry typed state/version metadata; reasons, actor
     /// snapshots, evidence references, and historical revisions stay in the
     /// canonical completed snapshot and are never copied into the index.
-    func inspectionReviewSearchValues() throws -> [CanonicalValue] {
+    private func inspectionReviewSearchValues() throws -> [CanonicalValue] {
         let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
         let transitions = try modelContext.fetch(
             FetchDescriptor<InspectionReviewTransitionRow>()
@@ -1112,7 +1191,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
     /// projection builder, but only typed state/count metadata is sent to the
     /// search index. Any orphan, fork, stale result, or cross-workspace row
     /// fails the rebuild closed.
-    func workPacketSearchValues() throws -> [CanonicalValue] {
+    private func workPacketSearchValues() throws -> [CanonicalValue] {
         let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
         let manifests = try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>())
             .filter { $0.workspaceID == workspaceID }
@@ -1220,7 +1299,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
     /// Builds only exact activity-bound summaries. Licensed content, clause/raw
     /// locators, external locator values, and derived facts without an explicit
     /// activity reference are intentionally excluded.
-    func authorityCriterionSearchValues() throws -> [UUID: AuthorityCriterionSearchValue] {
+    private func authorityCriterionSearchValues() throws -> [UUID: AuthorityCriterionSearchValue] {
         let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
         let releases = try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>())
             .filter { $0.workspaceID == workspaceID }.map { try $0.value() }
@@ -1327,7 +1406,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         try WorkspaceEntityIdentityV1(kind: kind, id: id).stableKey
     }
 
-    func project(
+    private func project(
         _ value: CanonicalValue,
         source: SearchSourceRevisionV1
     ) throws -> [SearchIndexProjectionRecordV1] {
@@ -2724,7 +2803,7 @@ extension SearchIndexRebuildCoordinatorV1 {
             "\(workspaceID.rawValue.uuidString)|\(packet.packetID.uuidString)|" +
                 "\(packet.packetVersion)|\(item.itemID)|\(item.itemSHA256)"
         }
-        let absentPlanItemKeys = Set(offlineReadiness.compactMap { readiness in
+        let absentPlanItemKeys: Set<String> = Set(offlineReadiness.compactMap { readiness -> String? in
             guard readiness.planRevision == nil || readiness.applicability == .notApplicable else {
                 return nil
             }

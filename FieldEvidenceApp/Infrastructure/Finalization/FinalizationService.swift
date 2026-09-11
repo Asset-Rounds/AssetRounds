@@ -2368,12 +2368,11 @@ final class FinalizationService {
                 .filter { $0.recordID == record.id }
                 .sorted(by: evidenceOrder)
                 .map(\.id)
-            let issueIDs = Set(
-                record.issueID.map { [$0] } ?? []
-                    + ([authority.issue].compactMap {
-                        $0.openedByRecordID == record.id ? $0.id : nil
-                    })
-            ).sorted {
+            let recordedIssueIDs: [UUID] = record.issueID.map { [$0] } ?? []
+            let openedIssueIDs: [UUID] = [authority.issue].compactMap {
+                $0.openedByRecordID == record.id ? $0.id : nil
+            }
+            let issueIDs = Set(recordedIssueIDs + openedIssueIDs).sorted {
                 $0.uuidString.lowercased() < $1.uuidString.lowercased()
             }
             return HistoryEntrySnapshotV1(

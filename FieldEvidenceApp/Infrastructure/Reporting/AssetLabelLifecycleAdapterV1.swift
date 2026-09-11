@@ -3,7 +3,7 @@ import Foundation
 extension AssetLabelOpaqueQRPayloadV1 {
     func scanToWorkDecodedInput(source: LocatorInputSourceV1 = .camera) throws -> LocatorResolutionInputV1 {
         guard source != .imported else { throw AssetLocatorFailureV1.invalidValue }
-        try .init(source: source, rawBytes: canonicalBytes,
+        return try .init(source: source, rawBytes: canonicalBytes,
                   decoded: .externalKey(scanToWorkExternalKey()))
     }
 }
@@ -375,7 +375,7 @@ private final class AssetLabelArtifactScratchStoreV1: @unchecked Sendable {
         }
         await jobs.registerAssetLabelRenderPublisher { context in
             guard context.job.kind == .render,
-                  context.pending.outputSHA256 == context.job.checkpoint.rollingOutputSHA256 else {
+                  context.pending.result.outputSHA256 == context.job.checkpoint.rollingOutputSHA256 else {
                 throw AssetLabelLifecycleFailureV1.publicationMismatch
             }
             switch context.mode {
@@ -383,13 +383,13 @@ private final class AssetLabelArtifactScratchStoreV1: @unchecked Sendable {
                 return try artifacts.publishOrAdopt(
                     context.job,
                     context.job.immutableInputSHA256,
-                    context.pending.outputSHA256
+                    context.pending.result.outputSHA256
                 )
             case .adoptOnly:
                 return try artifacts.adoptOnly(
                     context.job,
                     context.job.immutableInputSHA256,
-                    context.pending.outputSHA256
+                    context.pending.result.outputSHA256
                 )
             }
         }

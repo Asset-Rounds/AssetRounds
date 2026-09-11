@@ -287,6 +287,18 @@ final class S6_6EraseRecoveryTests: XCTestCase {
 
         let reopened = try harness.factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, newID)
+        let pointer = try harness.factory.currentGenerationPointerV3(expectedGenerationID: newID)
+        let manifest = try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support)
+            .loadManifest(targetGenerationID: newID, expectedDigest: pointer.generationManifestSHA256)
+        let marker = try XCTUnwrap(reopened.modelContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>()).first)
+        XCTAssertEqual(pointer.storeSchemaVersion, 53)
+        XCTAssertEqual(manifest.storeSchemaRelease, .v53)
+        XCTAssertEqual(marker.schemaVersion, 53)
+        XCTAssertEqual(marker.releaseID, PersistentSchemaReleaseV1.v53.compatibilityID)
+        XCTAssertEqual(marker.predecessorReleaseID, PersistentSchemaReleaseV1.v52.compatibilityID)
+        XCTAssertEqual(marker.migrationID, manifest.migrationID)
+        XCTAssertEqual(reopened.workspaceIdentity, erased.session.workspaceIdentity)
+        XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<LightingNightWorkflowRowV1>()), 0)
         XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0])
         XCTAssertEqual(
             try reopened.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),

@@ -45,7 +45,8 @@ private extension StoreGenerationFactory {
         processID: UUID
     ) throws -> StoreGenerationSession {
         try sourcePointer.validate()
-        guard (2...36).contains(sourcePointer.storeSchemaVersion),
+        guard (2..<PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+                .contains(sourcePointer.storeSchemaVersion),
               let sourceID = canonicalUUID(from: sourcePointer.generationID),
               !retired.generationIDs.contains(sourcePointer.generationID) else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
@@ -54,157 +55,12 @@ private extension StoreGenerationFactory {
             targetGenerationID: sourceID,
             expectedDigest: sourcePointer.generationManifestSHA256
         )
-        let sourceRelease: PersistentSchemaReleaseV1
-        let targetRelease: PersistentSchemaReleaseV1
-        switch sourcePointer.storeSchemaVersion {
-        case 2:
-            sourceRelease = .v2
-            targetRelease = .v3
-        case 3:
-            sourceRelease = .v3
-            targetRelease = .v4
-        case 4:
-            sourceRelease = .v4
-            targetRelease = .v5
-        case 5:
-            sourceRelease = .v5
-            targetRelease = .v6
-        case 6:
-            sourceRelease = .v6
-            targetRelease = .v7
-        case 7:
-            sourceRelease = .v7
-            targetRelease = .v8
-        case 8:
-            sourceRelease = .v8
-            targetRelease = .v9
-        case 9:
-            sourceRelease = .v9
-            targetRelease = .v10
-        case 10:
-            sourceRelease = .v10
-            targetRelease = .v11
-        case 11:
-            sourceRelease = .v11
-            targetRelease = .v12
-        case 12:
-            sourceRelease = .v12
-            targetRelease = .v13
-        case 13:
-            sourceRelease = .v13
-            targetRelease = .v14
-        case 14:
-            sourceRelease = .v14
-            targetRelease = .v15
-        case 15:
-            sourceRelease = .v15
-            targetRelease = .v16
-        case 16:
-            sourceRelease = .v16
-            targetRelease = .v17
-        case 17:
-            sourceRelease = .v17
-            targetRelease = .v18
-        case 18:
-            sourceRelease = .v18
-            targetRelease = .v19
-        case 19:
-            sourceRelease = .v19
-            targetRelease = .v20
-        case 20:
-            sourceRelease = .v20
-            targetRelease = .v21
-        case 21:
-            sourceRelease = .v21
-            targetRelease = .v22
-        case 22:
-            sourceRelease = .v22
-            targetRelease = .v23
-        case 23:
-            sourceRelease = .v23
-            targetRelease = .v24
-        case 24:
-            sourceRelease = .v24
-            targetRelease = .v25
-        case 25:
-            sourceRelease = .v25
-            targetRelease = .v26
-        case 26:
-            sourceRelease = .v26
-            targetRelease = .v27
-        case 27:
-            sourceRelease = .v27
-            targetRelease = .v28
-        case 28:
-            sourceRelease = .v28
-            targetRelease = .v29
-        case 29:
-            sourceRelease = .v29
-            targetRelease = .v30
-        case 30:
-            sourceRelease = .v30
-            targetRelease = .v31
-        case 31:
-            sourceRelease = .v31
-            targetRelease = .v32
-        case 32:
-            sourceRelease = .v32
-            targetRelease = .v33
-        case 33:
-            sourceRelease = .v33
-            targetRelease = .v34
-        case 34:
-            sourceRelease = .v34
-            targetRelease = .v35
-        case 35:
-            sourceRelease = .v35
-            targetRelease = .v36
-        case 36:
-            sourceRelease = .v36
-            targetRelease = .v37
-        case 37:
-            sourceRelease = .v37
-            targetRelease = .v38
-        case 38:
-            sourceRelease = .v38
-            targetRelease = .v39
-        case 39:
-            sourceRelease = .v39
-            targetRelease = .v40
-        case 40:
-            sourceRelease = .v40
-            targetRelease = .v41
-        case 41:
-            sourceRelease = .v41
-            targetRelease = .v42
-        case 42:
-            sourceRelease = .v42
-            targetRelease = .v43
-        case 43:
-            sourceRelease = .v43
-            targetRelease = .v44
-        case 44:
-            sourceRelease = .v44
-            targetRelease = .v45
-        case 45:
-            sourceRelease = .v45
-            targetRelease = .v46
-        case 46:
-            sourceRelease = .v46
-            targetRelease = .v47
-        case 47:
-            sourceRelease = .v47
-            targetRelease = .v48
-        case 48:
-            sourceRelease = .v48
-            targetRelease = .v49
-        case 49:
-            sourceRelease = .v49
-            targetRelease = .v50
-        case 50:
-            sourceRelease = .v50
-            targetRelease = .v53
-        default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        guard let sourceRelease = PersistentSchemaReleaseV1(
+            rawValue: "V\(sourcePointer.storeSchemaVersion)"
+        ), let targetRelease = PersistentSchemaReleaseV1(
+            rawValue: "V\(sourcePointer.storeSchemaVersion + 1)"
+        ), targetRelease.predecessorVersionIdentifier == sourceRelease.versionIdentifier else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
         guard sourceManifest.storeSchemaRelease == sourceRelease,
               sourceManifest.semanticSHA256 != nil else {
@@ -1554,7 +1410,8 @@ private extension StoreGenerationFactory {
                 expectedPointerData: try pointer.canonicalData()
             )
         }
-        guard (3...37).contains(pointer.storeSchemaVersion),
+        guard (3...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+                .contains(pointer.storeSchemaVersion),
               let generationID = canonicalUUID(from: pointer.generationID) else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
@@ -1562,53 +1419,8 @@ private extension StoreGenerationFactory {
             targetGenerationID: generationID,
             expectedDigest: pointer.generationManifestSHA256
         )
-        let release: PersistentSchemaReleaseV1
-        switch pointer.storeSchemaVersion {
-        case 3: release = .v3
-        case 4: release = .v4
-        case 5: release = .v5
-        case 6: release = .v6
-        case 7: release = .v7
-        case 8: release = .v8
-        case 9: release = .v9
-        case 10: release = .v10
-        case 11: release = .v11
-        case 12: release = .v12
-        case 13: release = .v13
-        case 14: release = .v14
-        case 15: release = .v15
-        case 16: release = .v16
-        case 17: release = .v17
-        case 18: release = .v18
-        case 19: release = .v19
-        case 20: release = .v20
-        case 21: release = .v21
-        case 22: release = .v22
-        case 23: release = .v23
-        case 24: release = .v24
-        case 25: release = .v25
-        case 26: release = .v26
-        case 27: release = .v27
-        case 28: release = .v28
-        case 29: release = .v29
-        case 30: release = .v30
-        case 31: release = .v31
-        case 32: release = .v32
-        case 33: release = .v33
-        case 34: release = .v34
-        case 35: release = .v35
-        case 36: release = .v36
-        case 37: release = .v37
-        case 38: release = .v38
-        case 39: release = .v39
-        case 40: release = .v40
-        case 41: release = .v41
-        case 42: release = .v42
-        case 43: release = .v43
-        case 44: release = .v44
-        case 45: release = .v45
-        case 46: release = .v46
-        default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        guard let release = PersistentSchemaReleaseV1(rawValue: "V\(pointer.storeSchemaVersion)") else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
         guard manifest.storeSchemaRelease == release else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
@@ -5108,7 +4920,7 @@ private extension StoreGenerationFactory {
         if let existing = try store.loadManifestIfPresent(
             targetGenerationID: newID
         ) {
-            guard existing.manifest.storeSchemaRelease == .v53,
+            guard existing.manifest.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
                   existing.manifest.migrationID == markerMigrationID else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
@@ -5126,7 +4938,7 @@ private extension StoreGenerationFactory {
         }
         let semantic = try semanticExport(
             at: modelStoreURL,
-            release: .v46,
+            release: PersistentSchemaReleaseRegistryV1.activeRelease,
             markerMigrationID: markerMigrationID
         )
         try protectGeneration(at: root, staging: false, requireModel: true)
@@ -5134,7 +4946,7 @@ private extension StoreGenerationFactory {
             generationID: newID,
             predecessorGenerationID: expectedOldID,
             migrationID: markerMigrationID,
-            storeSchemaRelease: .v46,
+            storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
             semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(semantic),
             frozenIdentityDigest: try frozenIdentityDigest(for: root),
             files: try generationFileDigests(at: root, durable: true)
@@ -5170,7 +4982,7 @@ private extension StoreGenerationFactory {
             workspaceID: identity.workspaceID,
             replicaID: identity.replicaID,
             knownReplicaIDs: history,
-            storeSchemaVersion: 46
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
         )
     }
 
@@ -5192,7 +5004,7 @@ private extension StoreGenerationFactory {
             targetGenerationID: newID,
             expectedDigest: preparedGenerationManifestSHA256
         )
-        guard manifest.storeSchemaRelease == .v46 else {
+        guard manifest.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         try requireRestoreManifestSnapshot(
@@ -5208,7 +5020,7 @@ private extension StoreGenerationFactory {
             workspaceID: identity.workspaceID,
             replicaID: identity.replicaID,
             knownReplicaIDs: knownReplicaIDs,
-            storeSchemaVersion: 46
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
         )
     }
 
@@ -8388,7 +8200,7 @@ struct StoreGenerationFactory {
             workspaceID: identity.workspaceID,
             replicaID: identity.replicaID,
             knownReplicaIDs: [identity.replicaID],
-            storeSchemaVersion: 46
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
         )
         let proof = try deletionLedgerProof(in: session.modelContext)
         guard proof.entryCount == 0 else {
@@ -8616,7 +8428,7 @@ struct StoreGenerationFactory {
             workspaceID: WorkspaceID(rawValue: identity.workspaceID),
             replicaID: ReplicaID(rawValue: identity.replicaID),
             knownReplicaIDs: Set(identity.knownReplicaIDs.map { ReplicaID(rawValue: $0) }),
-            storeSchemaVersion: 46
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
         )
     }
 
@@ -8672,8 +8484,8 @@ struct StoreGenerationFactory {
         let root = restoreStagingGenerationURL(id: newID)
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
-            let container = try makeV48Container(at: modelStoreURL, migrate: false)
-            let marker = try requireV48Marker(
+            let container = try makeV53Container(at: modelStoreURL, migrate: false)
+            let marker = try requireV53Marker(
                 in: container.mainContext,
                 expectedMigrationID: nil
             )
@@ -8700,10 +8512,10 @@ struct StoreGenerationFactory {
                 generationID: newID,
                 predecessorGenerationID: expectedOldID,
                 migrationID: markerMigrationID,
-                storeSchemaRelease: .v46,
+                storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
                 semanticSHA256: try semanticDigest(
                     at: modelStoreURL,
-                    release: .v46
+                    release: PersistentSchemaReleaseRegistryV1.activeRelease
                 ),
                 frozenIdentityDigest: try frozenIdentityDigest(for: root),
                 files: try generationFileDigests(at: root, durable: true)
@@ -9025,7 +8837,7 @@ struct StoreGenerationFactory {
                 }
             }
             let firstTargetPersistentSchemaVersion = max(recordsSchemaVersion + 2, 10)
-            let currentPersistentSchemaVersion = 48
+            let currentPersistentSchemaVersion = PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
             if firstTargetPersistentSchemaVersion <= currentPersistentSchemaVersion {
                 for targetPersistentSchemaVersion in
                     firstTargetPersistentSchemaVersion...currentPersistentSchemaVersion {
@@ -9039,8 +8851,8 @@ struct StoreGenerationFactory {
                 }
             } else {
                 _ = try autoreleasepool {
-                    let container = try makeV48Container(at: modelURL, migrate: false)
-                    return try requireV48Marker(
+                    let container = try makeV53Container(at: modelURL, migrate: false)
+                    return try requireV53Marker(
                         in: container.mainContext,
                         expectedMigrationID: id
                     )
@@ -11534,7 +11346,7 @@ struct StoreGenerationFactory {
             markerMigrationID: Self.bootstrapManifestMigrationID
         )
         try autoreleasepool {
-            let container = try makeV48Container(at: modelStoreURL, migrate: false)
+            let container = try makeV53Container(at: modelStoreURL, migrate: false)
             _ = try MutationJournalStoreV1(
                 modelContext: container.mainContext,
                 identity: pointerEnrichmentIdentity,
@@ -11553,10 +11365,10 @@ struct StoreGenerationFactory {
                 excluding: generationID
             ),
             migrationID: Self.bootstrapManifestMigrationID,
-            storeSchemaRelease: .v46,
+            storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
             semanticSHA256: try semanticDigest(
                 at: modelStoreURL,
-                release: .v46
+                release: PersistentSchemaReleaseRegistryV1.activeRelease
             ),
             frozenIdentityDigest: try frozenIdentityDigest(
                 for: generationRootURL
@@ -11575,7 +11387,7 @@ struct StoreGenerationFactory {
             generationManifestSHA256: manifestDigest,
             workspaceID: pointerEnrichmentIdentity.workspaceID,
             replicaID: pointerEnrichmentIdentity.replicaID,
-            storeSchemaVersion: 46
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
         )
         let retiredPointer = RetiredPointerV1(
             generationIDs: [],
@@ -11766,7 +11578,7 @@ struct StoreGenerationFactory {
                 )
             }
         case .v3(let pointer, let data):
-            if pointer.storeSchemaVersion < 11 {
+            if pointer.storeSchemaVersion < PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major {
                 let sourceLease = try acquireCurrentReaderLease(
                     epoch: GenerationEpochV1(
                         generationID: currentID,
@@ -11796,7 +11608,7 @@ struct StoreGenerationFactory {
         markerMigrationID: UUID
     ) throws {
         try autoreleasepool {
-            let container = try makeV48Container(
+            let container = try makeV53Container(
                 at: modelStoreURL,
                 migrate: false
             )
@@ -11804,13 +11616,13 @@ struct StoreGenerationFactory {
                 let context = container.mainContext
                 context.insert(PersistentSchemaReleaseMarker(
                     id: PersistentSchemaReleaseRegistryV1.v2MarkerID,
-                    schemaVersion: 48,
-                    releaseID: PersistentSchemaReleaseV1.v48.compatibilityID,
-                    predecessorReleaseID: PersistentSchemaReleaseV1.v47.compatibilityID,
+                    schemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major,
+                    releaseID: PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
+                    predecessorReleaseID: PersistentSchemaReleaseV1.v52.compatibilityID,
                     migrationID: markerMigrationID
                 ))
                 try context.save()
-                _ = try requireV48Marker(in: context, expectedMigrationID: markerMigrationID)
+                _ = try requireV53Marker(in: context, expectedMigrationID: markerMigrationID)
             }
         }
     }
@@ -11866,8 +11678,8 @@ struct StoreGenerationFactory {
         }
         let container: ModelContainer
         do {
-            container = try makeV48Container(at: modelStoreURL, migrate: false)
-            _ = try requireV48Marker(in: container.mainContext, expectedMigrationID: nil)
+            container = try makeV53Container(at: modelStoreURL, migrate: false)
+            _ = try requireV53Marker(in: container.mainContext, expectedMigrationID: nil)
         }
         catch { throw StoreGenerationFailure.dataPointerInvalid }
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)

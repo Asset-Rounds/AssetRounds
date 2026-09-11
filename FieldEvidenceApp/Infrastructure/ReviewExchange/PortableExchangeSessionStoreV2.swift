@@ -1111,7 +1111,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         let data = try staticRead(
             envelopeURL,
             kind: .portableExchangeSessionFile,
-            maximumByteCount: C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+            maximumByteCount: UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
         )
         let version = try staticStoreVersion(in: data)
         let current: PortableExchangeSessionEnvelopeV2
@@ -1164,7 +1164,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 let bytes = try staticRead(
                     try staticSafeURL(artifact.relativePath, rootURL: rootURL),
                     kind: .portableExchangeSessionFile,
-                    maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                    maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
                 )
                 guard bytes.count == PortableReviewLimitsV1.capabilityByteCount,
                       StoreMigrationCanonicalJSONV1.sha256(bytes) == artifact.sha256 else {
@@ -1214,7 +1214,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         let data = try staticRead(
             envelopeURL,
             kind: .portableExchangeSessionFile,
-            maximumByteCount: C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+            maximumByteCount: UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
         )
         _ = try staticDecodeEnvelope(data)
         return StoreMigrationCanonicalJSONV1.sha256(data)
@@ -1308,7 +1308,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             ? try staticRead(
                 envelopeURL,
                 kind: .portableExchangeSessionFile,
-                maximumByteCount: C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+                maximumByteCount: UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
             )
             : nil
         let existingEnvelope = try existingData.map {
@@ -1436,7 +1436,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         }) {
             let source = sourceSessionsByID[sessionID]
             let sourceArtifact = source?.protectedCapability
-            let backup = sourceArtifact.flatMap { capabilityBySession[sessionID] }
+            let backup = sourceArtifact.flatMap { _ in capabilityBySession[sessionID] }
             if let sourceArtifact {
                 guard let source,
                       let backup,
@@ -1483,7 +1483,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 let stagedOldBytes = try staticRead(
                     recoveryStageURL,
                     kind: .portableExchangeSessionFile,
-                    maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                    maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
                 )
                 guard stageName.hasPrefix(stagePrefix),
                       stageName.hasSuffix(".bin"),
@@ -1500,7 +1500,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                     let current = try staticRead(
                         candidateOldURL,
                         kind: .portableExchangeSessionFile,
-                        maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                        maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
                     )
                     if current == stagedOldBytes {
                         oldURL = candidateOldURL
@@ -1540,7 +1540,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                     let bytes = try staticRead(
                         candidateOldURL,
                         kind: .portableExchangeSessionFile,
-                        maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                        maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
                     )
                     if bytes.count == PortableReviewLimitsV1.capabilityByteCount,
                        StoreMigrationCanonicalJSONV1.sha256(bytes) == oldArtifact.sha256 {
@@ -1597,7 +1597,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                     let current = try staticRead(
                         targetURL,
                         kind: .portableExchangeSessionFile,
-                        maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                        maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
                     )
                     guard current == backup.bytes else {
                         throw PortableExchangePersistenceFailureV2.corruptStore
@@ -1650,7 +1650,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 let bytes = try staticRead(
                     targetStageURL,
                     kind: .portableExchangeSessionFile,
-                    maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                    maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
                 )
                 guard bytes == backup.bytes else {
                     throw PortableExchangePersistenceFailureV2.corruptStore
@@ -1668,7 +1668,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                         let current = try staticRead(
                             targetURL,
                             kind: .portableExchangeSessionFile,
-                            maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                            maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
                         )
                         if current != stagedTargetBytes {
                             guard current == oldBytes else {
@@ -1705,7 +1705,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                       try staticRead(
                           targetURL,
                           kind: .portableExchangeSessionFile,
-                          maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                          maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
                       ) == stagedTargetBytes else {
                     throw PortableExchangePersistenceFailureV2.corruptStore
                 }
@@ -1999,7 +1999,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             changed += 1
         }
         guard changed > 0 else { return 0 }
-        next.updatedAt = clock.now()
+        next = try envelopeByUpdatingTimestamp(next, at: clock.now())
         next = try next.canonicalSorted()
         try publishEnvelope(
             next,
@@ -2115,7 +2115,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         next.sessions.removeAll { record in discardable.contains(where: { $0.sessionID == record.sessionID }) }
         next.quarantine.removeAll { entry in oldQuarantine.contains(where: { $0.quarantineID == entry.quarantineID }) }
         guard !discardable.isEmpty || !oldQuarantine.isEmpty else { return 0 }
-        next.updatedAt = clock.now()
+        next = try envelopeByUpdatingTimestamp(next, at: clock.now())
         try publishEnvelope(
             try next.canonicalSorted(),
             operation: .purge,
@@ -2232,7 +2232,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             sourceData = try readFile(
                 envelopeURL,
                 kind: .portableExchangeSessionFile,
-                maximumByteCount: C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+                maximumByteCount: UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
             )
         } catch {
             throw Self.map(error)
@@ -2298,6 +2298,19 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         }
     }
 
+    private func envelopeByUpdatingTimestamp(
+        _ value: PortableExchangeSessionEnvelopeV2,
+        at updatedAt: Date
+    ) throws -> PortableExchangeSessionEnvelopeV2 {
+        let validated = try value.validated()
+        return try PortableExchangeSessionEnvelopeV2(
+            generationID: validated.generationID,
+            updatedAt: updatedAt,
+            sessions: validated.sessions,
+            quarantine: validated.quarantine
+        )
+    }
+
     private func emptyEnvelope() throws -> PortableExchangeSessionEnvelopeV2 {
         try PortableExchangeSessionEnvelopeV2(
             generationID: idSource.makeID(),
@@ -2327,7 +2340,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             ? (try? readFile(
                 envelopeURL,
                 kind: .portableExchangeSessionFile,
-                maximumByteCount: C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+                maximumByteCount: UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
             ))
             : nil
         let currentDigest = StoreMigrationCanonicalJSONV1.sha256(currentData ?? Data())
@@ -2348,7 +2361,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
     ) throws {
         var next = try envelope ?? emptyEnvelope()
         next.sessions.append(record)
-        next.updatedAt = clock.now()
+        next = try envelopeByUpdatingTimestamp(next, at: clock.now())
         next = try next.canonicalSorted()
         try publishEnvelope(
             next,
@@ -2369,7 +2382,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             throw PortableExchangePersistenceFailureV2.sessionNotFound
         }
         next.sessions[index] = try record.validated()
-        next.updatedAt = clock.now()
+        next = try envelopeByUpdatingTimestamp(next, at: clock.now())
         next = try next.canonicalSorted()
         try publishEnvelope(
             next,
@@ -2397,7 +2410,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             ? (try readFile(
                 envelopeURL,
                 kind: .portableExchangeSessionFile,
-                maximumByteCount: C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+                maximumByteCount: UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
             ))
             : Data()
         let journal = try PortableExchangeJournalEntryV2(
@@ -2527,7 +2540,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         )
         var next = try envelope ?? emptyEnvelope()
         next.quarantine.append(entry)
-        next.updatedAt = clock.now()
+        next = try envelopeByUpdatingTimestamp(next, at: clock.now())
         try publishEnvelope(
             try next.canonicalSorted(),
             operation: .stage,
@@ -2558,7 +2571,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         let data = try readFile(
             url,
             kind: .portableExchangeSessionFile,
-            maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+            maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
         )
         guard data.count == PortableReviewLimitsV1.capabilityByteCount else {
             throw PortableExchangePersistenceFailureV2.invalidCapabilityArtifact
@@ -2928,7 +2941,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             let actual = try staticRead(
                 candidate,
                 kind: .portableExchangeSessionFile,
-                maximumByteCount: PortableReviewLimitsV1.capabilityByteCount
+                maximumByteCount: UInt64(PortableReviewLimitsV1.capabilityByteCount)
             )
             guard actual == expected,
                   actualPaths.insert(path).inserted else {
@@ -3078,7 +3091,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                     kind: kind,
                     maximumByteCount: max(
                         UInt64(data.count),
-                        C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+                        UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
                     )
                 )
                 guard existing == data else {
@@ -3158,7 +3171,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 kind: kind,
                 maximumByteCount: max(
                     UInt64(expectedCurrentData.count),
-                    C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+                    UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
                 )
             )
             guard current == expectedCurrentData else {
@@ -3205,7 +3218,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 kind: kind,
                 maximumByteCount: max(
                     UInt64(data.count),
-                    C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+                    UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
                 )
             )
             guard replaced == data else {
@@ -3689,7 +3702,7 @@ extension PortableExchangeSessionStoreV2: PortableReviewSessionReconciliationV1 
         guard canonicalReceipt.mutationReceipt.mutationID == mutationID,
               canonicalReceipt.importReceipt.mutationID == mutationID,
               current.pendingEffectSHA256 == Self.hexString(canonicalReceipt.importReceipt.effectDigest),
-              current.pendingImportReceiptSHA256 == try receiptDigest(canonicalReceipt.importReceipt) else {
+              try current.pendingImportReceiptSHA256 == receiptDigest(canonicalReceipt.importReceipt) else {
             throw PortableExchangePersistenceFailureV2.invalidTransition
         }
         if try !hasStoredReconciliationReceipt(canonicalReceipt, in: current) {
@@ -3886,7 +3899,7 @@ extension PortableExchangeSessionStoreV2 {
         )
         var next = try envelope ?? emptyEnvelope()
         next.sessions.append(record)
-        next.updatedAt = now
+        next = try envelopeByUpdatingTimestamp(next, at: now)
         next = try next.canonicalSorted()
         try publishEnvelope(
             next,
@@ -4315,7 +4328,7 @@ extension PortableExchangeSessionStoreV2 {
         )
         switch disposition {
         case .discardUnimported:
-            return PortableExchangeServiceRequestImportReceiptV2(
+            return try PortableExchangeServiceRequestImportReceiptV2(
                 operationID: operationID,
                 invitationPublicID: submission.invitationPublicID,
                 submissionPublicID: submission.submissionPublicID,
@@ -4329,7 +4342,7 @@ extension PortableExchangeSessionStoreV2 {
                 sourceBytes,
                 reason: disposition.rawValue
             )
-            return PortableExchangeServiceRequestImportReceiptV2(
+            return try PortableExchangeServiceRequestImportReceiptV2(
                 operationID: operationID,
                 invitationPublicID: submission.invitationPublicID,
                 submissionPublicID: submission.submissionPublicID,
@@ -4347,7 +4360,7 @@ extension PortableExchangeSessionStoreV2 {
                 submission: submission,
                 sourceBytes: sourceBytes
             )
-            return PortableExchangeServiceRequestImportReceiptV2(
+            return try PortableExchangeServiceRequestImportReceiptV2(
                 operationID: operationID,
                 invitationPublicID: submission.invitationPublicID,
                 submissionPublicID: submission.submissionPublicID,
@@ -4889,7 +4902,7 @@ extension PortableExchangeSessionStoreV2 {
         if let canonicalMutationReceiptSHA256 {
             try ServiceRequestLimitsV1.digest(canonicalMutationReceiptSHA256)
         }
-        return PortableExchangeServiceRequestReconciliationReceiptV2(
+        return try PortableExchangeServiceRequestReconciliationReceiptV2(
             operationID: operationID,
             invitationPublicID: invitationPublicID,
             submissionPublicID: submissionPublicID,

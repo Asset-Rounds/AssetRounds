@@ -329,6 +329,129 @@ private enum C48PortableReviewTestSupport {
 }
 
 final class V9_55PortableReviewTests: XCTestCase {
+    private struct IntegrationExchangeClock: ApplicationClock {
+        let date: Date
+        func now() -> Date { date }
+    }
+
+    func testExchangeEnvelopeUpdatesPreserveGenerationHistoryAndRetryAcrossReopen() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V9_55-integration-envelope-\(UUID().uuidString)", isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storeRoot = root.appendingPathComponent(
+            PortableExchangeSessionStoreLayoutV2.directoryName, isDirectory: true
+        )
+        let envelopeURL = storeRoot.appendingPathComponent(
+            PortableExchangeSessionStoreLayoutV2.envelopeFileName
+        )
+        let baseline = Date(timeIntervalSince1970: 1_700_000_000)
+        func open(at offset: TimeInterval) throws -> PortableExchangeSessionStoreV2 {
+            try PortableExchangeSessionStoreV2(
+                applicationSupportURL: root,
+                clock: IntegrationExchangeClock(date: baseline.addingTimeInterval(offset))
+            )
+        }
+        func readEnvelope() throws -> PortableExchangeSessionEnvelopeV2 {
+            try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self,
+                from: Data(contentsOf: envelopeURL)
+            ).validated()
+        }
+        let vector = try ReviewCapabilityProofVectorV1.rv1001()
+        let workspaceID = WorkspaceID(rawValue: UUID())
+        let primaryID = UUID()
+        let siblingID = UUID()
+        let primaryInput = PortableExchangeSessionStageInputV2(
+            sessionID: primaryID,
+            publicRequestID: "integration-request-primary",
+            workspaceID: workspaceID.rawValue,
+            canonicalSubjectIdentity: "integration-subject-primary",
+            protocolReleaseDigest: vector.input.protocolReleaseDigest,
+            requestManifestBytes: Data("immutable-primary-manifest".utf8),
+            requestPackageBytes: Data("immutable-primary-package".utf8),
+            capability: vector.capability
+        )
+        let firstStore = try open(at: 0)
+        let primary = try await firstStore.stage(primaryInput)
+        let first = try readEnvelope()
+        XCTAssertEqual(first.updatedAt, baseline)
+        XCTAssertEqual(first.sessions, [primary])
+
+        let appendStore = try open(at: 10)
+        let sibling = try await appendStore.stage(PortableExchangeSessionStageInputV2(
+            sessionID: siblingID,
+            publicRequestID: "integration-request-sibling",
+            workspaceID: workspaceID.rawValue,
+            canonicalSubjectIdentity: "integration-subject-sibling",
+            protocolReleaseDigest: vector.input.protocolReleaseDigest,
+            requestManifestBytes: Data("immutable-sibling-manifest".utf8),
+            capability: vector.capability
+        ))
+        let appended = try readEnvelope()
+        XCTAssertEqual(appended.generationID, first.generationID)
+        XCTAssertEqual(appended.updatedAt, baseline.addingTimeInterval(10))
+        XCTAssertEqual(appended.sessions.count, 2)
+        XCTAssertEqual(appended.sessions.first { $0.sessionID == primaryID }, primary)
+
+        let exportStore = try open(at: 20)
+        let exported = try await exportStore.markExported(id: primaryID)
+        let replaced = try readEnvelope()
+        XCTAssertEqual(replaced.generationID, first.generationID)
+        XCTAssertEqual(replaced.updatedAt, baseline.addingTimeInterval(20))
+        XCTAssertEqual(exported.state, .exportedAwaitingResponse)
+        XCTAssertEqual(exported.immutableBytes, primary.immutableBytes)
+        XCTAssertEqual(replaced.sessions.first { $0.sessionID == siblingID }, sibling)
+
+        let quarantineStore = try open(at: 30)
+        let quarantineBytes = Data("untrusted-service-request".utf8)
+        try await quarantineStore.quarantineServiceRequest(quarantineBytes)
+        let quarantined = try readEnvelope()
+        XCTAssertEqual(quarantined.generationID, first.generationID)
+        XCTAssertEqual(quarantined.updatedAt, baseline.addingTimeInterval(30))
+        XCTAssertEqual(quarantined.sessions, replaced.sessions)
+        XCTAssertEqual(quarantined.quarantine.count, 1)
+
+        let invalidationStore = try open(at: 40)
+        let invalidatedCount = try await invalidationStore.invalidateSessionsForDeletedSubject(
+            workspaceID: workspaceID, subjectID: "integration-subject-primary"
+        )
+        let invalidated = try readEnvelope()
+        XCTAssertEqual(invalidatedCount, 1)
+        XCTAssertEqual(invalidated.generationID, first.generationID)
+        XCTAssertEqual(invalidated.updatedAt, baseline.addingTimeInterval(40))
+        XCTAssertEqual(invalidated.quarantine, quarantined.quarantine)
+        XCTAssertEqual(invalidated.sessions.first { $0.sessionID == siblingID }, sibling)
+        let history = try XCTUnwrap(invalidated.sessions.first { $0.sessionID == primaryID })
+        XCTAssertEqual(history.state, .historyOnlySuperseded)
+        XCTAssertNil(history.protectedCapability)
+        XCTAssertEqual(history.immutableBytes, primary.immutableBytes)
+        for reference in primary.immutableBytes {
+            let bytes = try Data(contentsOf: storeRoot.appendingPathComponent(reference.relativePath))
+            XCTAssertEqual(UInt64(bytes.count), reference.byteCount)
+            XCTAssertEqual(StoreMigrationCanonicalJSONV1.sha256(bytes), reference.sha256)
+        }
+        let quarantine = try XCTUnwrap(invalidated.quarantine.first)
+        XCTAssertEqual(
+            try Data(contentsOf: storeRoot.appendingPathComponent(quarantine.relativePath)),
+            quarantineBytes
+        )
+
+        let beforeRetry = try Data(contentsOf: envelopeURL)
+        let retryStore = try open(at: 50)
+        let retry = try await retryStore.stage(primaryInput)
+        let retryCount = try await retryStore.invalidateSessionsForDeletedSubject(
+            workspaceID: workspaceID, subjectID: "integration-subject-primary"
+        )
+        XCTAssertEqual(retry, history)
+        XCTAssertEqual(retryCount, 0)
+        XCTAssertEqual(try Data(contentsOf: envelopeURL), beforeRetry)
+        let reopenedStore = try open(at: 60)
+        let reopenedHistory = try await reopenedStore.session(id: primaryID)
+        XCTAssertEqual(reopenedHistory, history)
+        XCTAssertEqual(try readEnvelope(), invalidated)
+    }
+
     func testV23P03C48G01GoldenRequestResponseAndNormativeVectorUseTypedContracts() throws {
         let corpus = try C48PortableReviewTestSupport.fixture()
         XCTAssertEqual(corpus.schema, "V22P03C48PortableReviewCorpusV1")

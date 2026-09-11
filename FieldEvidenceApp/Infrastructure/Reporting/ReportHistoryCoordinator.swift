@@ -706,7 +706,7 @@ struct AssetLocatorReportHistoryBindingV1: Codable, Equatable, Sendable {
               KernelCanonicalHashV1.validSHA256(bindingReceiptSHA256),
               resolutionOutcome == .matched,
               historicInterpretationFrozen else {
-            throw SnapshotProjectionFailureV1.staleBinding
+            throw AssetLocatorReportProjectionFailureV1.staleBinding
         }
     }
 }
@@ -724,7 +724,7 @@ enum AssetLocatorReportHistoryPolicyV1 {
               laterBindingIsAmendOnly,
               currentPointerCannotRewriteHistory,
               resolutionPreviewIsNotHistory else {
-            throw SnapshotProjectionFailureV1.staleBinding
+            throw AssetLocatorReportProjectionFailureV1.staleBinding
         }
         return try AssetLocatorReportHistoryBindingV1(interpretation: interpretation)
     }

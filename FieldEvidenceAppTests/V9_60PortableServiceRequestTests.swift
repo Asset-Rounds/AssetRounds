@@ -333,6 +333,42 @@ private enum C52PortableServiceRequestTestSupport {
 
 @MainActor
 final class V9_60PortableServiceRequestTests: XCTestCase {
+    func testPublicIDsPreserveValidatedConstructorsAndExactStringWireEncoding() throws {
+        let invitationRaw = "INV-INTEGRATION-001"
+        let submissionRaw = "SUB-INTEGRATION-001"
+        let invitation = try ServiceRequestInvitationPublicIDV1(rawValue: invitationRaw)
+        let submission = try ServiceRequestSubmissionPublicIDV1(rawValue: submissionRaw)
+        XCTAssertEqual(invitation, try ServiceRequestInvitationPublicIDV1(invitationRaw))
+        XCTAssertEqual(submission, try ServiceRequestSubmissionPublicIDV1(submissionRaw))
+        XCTAssertEqual(invitation.rawValue, invitationRaw)
+        XCTAssertEqual(submission.rawValue, submissionRaw)
+
+        let invitationBytes = Data("\"INV-INTEGRATION-001\"".utf8)
+        let submissionBytes = Data("\"SUB-INTEGRATION-001\"".utf8)
+        XCTAssertEqual(try ServiceRequestCanonicalCodecV1.data(invitation), invitationBytes)
+        XCTAssertEqual(try ServiceRequestCanonicalCodecV1.data(submission), submissionBytes)
+        XCTAssertEqual(try ServiceRequestCanonicalCodecV1.decode(
+            ServiceRequestInvitationPublicIDV1.self, from: invitationBytes
+        ), invitation)
+        XCTAssertEqual(try ServiceRequestCanonicalCodecV1.decode(
+            ServiceRequestSubmissionPublicIDV1.self, from: submissionBytes
+        ), submission)
+
+        for invalid in ["", " leading-space", "INV-\u{00E9}", "bad\u{0000}id"] {
+            XCTAssertThrowsError(try ServiceRequestInvitationPublicIDV1(rawValue: invalid))
+            XCTAssertThrowsError(try ServiceRequestInvitationPublicIDV1(invalid))
+            XCTAssertThrowsError(try ServiceRequestSubmissionPublicIDV1(rawValue: invalid))
+            XCTAssertThrowsError(try ServiceRequestSubmissionPublicIDV1(invalid))
+            let bytes = try ServiceRequestCanonicalCodecV1.data(invalid)
+            XCTAssertThrowsError(try ServiceRequestCanonicalCodecV1.decode(
+                ServiceRequestInvitationPublicIDV1.self, from: bytes
+            ))
+            XCTAssertThrowsError(try ServiceRequestCanonicalCodecV1.decode(
+                ServiceRequestSubmissionPublicIDV1.self, from: bytes
+            ))
+        }
+    }
+
     func testV23P03C52G01GoldenServiceRequestInvitationSubmissionAndCapabilityProofUseTypedContracts() throws {
         let corpus = try C52PortableServiceRequestTestSupport.fixture()
         let vector = corpus.proofVector

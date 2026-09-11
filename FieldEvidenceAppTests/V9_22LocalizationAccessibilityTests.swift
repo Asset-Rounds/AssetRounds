@@ -1725,6 +1725,185 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         XCTAssertEqual(recoveredReceipt, receipt)
     }
 
+    func testIntegrationDynamicRegistryLookupHonorsLocaleAndTypedFallbacks() throws {
+        let fixture = try temporaryDynamicLocalizationBundle()
+        defer { try? FileManager.default.removeItem(at: fixture.url) }
+
+        let english = BundledLocalizationCatalogV1.localizedRegistryText(
+            key: "integration.localization.greeting",
+            defaultValue: "Typed greeting fallback",
+            bundle: fixture.bundle,
+            locale: Locale(identifier: "en-US"),
+            comment: "Integration greeting used to verify dynamic locale selection."
+        )
+        let french = BundledLocalizationCatalogV1.localizedRegistryText(
+            key: "integration.localization.greeting",
+            defaultValue: "Typed greeting fallback",
+            bundle: fixture.bundle,
+            locale: Locale(identifier: "fr-FR"),
+            comment: "Integration greeting used to verify dynamic locale selection."
+        )
+        XCTAssertEqual(english, "English locale value")
+        XCTAssertEqual(french, "Valeur française")
+        XCTAssertNotEqual(english, french)
+
+        let unavailableLocale = BundledLocalizationCatalogV1.localizedRegistryText(
+            key: "integration.localization.greeting",
+            defaultValue: "Typed greeting fallback",
+            bundle: fixture.bundle,
+            locale: Locale(identifier: "de-DE"),
+            comment: "An unavailable locale must resolve through the English development locale."
+        )
+        XCTAssertEqual(unavailableLocale, "English locale value")
+
+        let missingKeyFallback = BundledLocalizationCatalogV1.localizedRegistryText(
+            key: "integration.localization.missing",
+            defaultValue: "Typed missing-key fallback %@ / %lld",
+            bundle: fixture.bundle,
+            locale: Locale(identifier: "fr-FR"),
+            comment: "A missing dynamic key must retain its typed English fallback."
+        )
+        XCTAssertEqual(missingKeyFallback, "Typed missing-key fallback %@ / %lld")
+
+        let formatTemplate = BundledLocalizationCatalogV1.localizedRegistryText(
+            key: "integration.localization.format",
+            defaultValue: "Asset %@ has %lld findings",
+            bundle: fixture.bundle,
+            locale: Locale(identifier: "fr-FR"),
+            comment: "Arguments are the asset label and recorded finding count."
+        )
+        XCTAssertEqual(formatTemplate, "L’actif %@ a %lld observations")
+        XCTAssertTrue(formatTemplate.contains("%@"))
+        XCTAssertTrue(formatTemplate.contains("%lld"))
+        let arguments: [CVarArg] = ["A-42", Int64(3)]
+        XCTAssertEqual(
+            String(
+                format: formatTemplate,
+                locale: Locale(identifier: "fr-FR"),
+                arguments: arguments
+            ),
+            "L’actif A-42 a 3 observations"
+        )
+    }
+
+    func testIntegrationBundledLocalizationTypedMappingsAreExhaustive() throws {
+        try assertBundledMappings(
+            FieldDraftLocalizationKeyV1.self,
+            english: { $0.englishDefaultValue }
+        )
+        try assertBundledMappings(
+            PrivacyTransformLocalizationKeyV1.self,
+            english: { $0.englishDefaultValue }
+        )
+        try assertBundledMappings(
+            ClientCapabilityLocalizationKeyV1.self,
+            english: { $0.englishDefaultValue }
+        )
+        try assertBundledMappings(
+            FieldReferenceLocalizationKeyV1.self,
+            english: { $0.englishDefaultValue }
+        )
+        try assertBundledMappings(
+            AccessibleDocumentLocalizationKeyV1.self,
+            english: { $0.englishDefaultValue }
+        )
+        try assertBundledMappings(
+            C37PoseLocalizationKeyV1.self,
+            english: { $0.englishDefaultValue }
+        )
+
+        XCTAssertEqual(FieldDraftLocalizationKeyV1.allCases.count, 66)
+        XCTAssertEqual(PrivacyTransformLocalizationKeyV1.allCases.count, 22)
+        XCTAssertEqual(ClientCapabilityLocalizationKeyV1.allCases.count, 40)
+        XCTAssertEqual(FieldReferenceLocalizationKeyV1.allCases.count, 38)
+        XCTAssertEqual(AccessibleDocumentLocalizationKeyV1.allCases.count, 33)
+        XCTAssertEqual(C37PoseLocalizationKeyV1.allCases.count, 36)
+    }
+
+    private func temporaryDynamicLocalizationBundle() throws -> (bundle: Bundle, url: URL) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DynamicLocalization-\(UUID().uuidString).bundle", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: true
+        )
+
+        let info: [String: Any] = [
+            "CFBundleDevelopmentRegion": "en",
+            "CFBundleIdentifier": "com.assetrounds.tests.dynamic-localization.\(UUID().uuidString)",
+            "CFBundleName": "DynamicLocalization",
+            "CFBundlePackageType": "BNDL",
+        ]
+        let infoData = try PropertyListSerialization.data(
+            fromPropertyList: info,
+            format: .binary,
+            options: 0
+        )
+        try infoData.write(to: root.appendingPathComponent("Info.plist"), options: .atomic)
+
+        try writeLocalization(
+            [
+                "integration.localization.greeting": "English locale value",
+                "integration.localization.format": "Asset %@ has %lld findings",
+            ],
+            locale: "en",
+            bundleURL: root
+        )
+        try writeLocalization(
+            [
+                "integration.localization.greeting": "Valeur française",
+                "integration.localization.format": "L’actif %@ a %lld observations",
+            ],
+            locale: "fr",
+            bundleURL: root
+        )
+
+        return (try XCTUnwrap(Bundle(url: root)), root)
+    }
+
+    private func writeLocalization(
+        _ values: [String: String],
+        locale: String,
+        bundleURL: URL
+    ) throws {
+        let localizationURL = bundleURL.appendingPathComponent(
+            "\(locale).lproj",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: localizationURL,
+            withIntermediateDirectories: true
+        )
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: values,
+            format: .binary,
+            options: 0
+        )
+        try data.write(
+            to: localizationURL.appendingPathComponent("Localizable.strings"),
+            options: .atomic
+        )
+    }
+
+    private func assertBundledMappings<Key: CaseIterable & RawRepresentable>(
+        _ type: Key.Type,
+        english: (Key) -> String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws where Key.RawValue == String {
+        for key in type.allCases {
+            let bundledKey = try XCTUnwrap(
+                BundledLocalizationKeyV1(rawValue: key.rawValue),
+                "Missing bundled mapping for \(key.rawValue)",
+                file: file,
+                line: line
+            )
+            let value = BundledLocalizationCatalogV1.localized(bundledKey)
+            XCTAssertEqual(value, english(key), file: file, line: line)
+            XCTAssertNotEqual(value, key.rawValue, file: file, line: line)
+        }
+    }
+
     private func corpus() throws -> Corpus {
         try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: try fixtureURL()))
     }

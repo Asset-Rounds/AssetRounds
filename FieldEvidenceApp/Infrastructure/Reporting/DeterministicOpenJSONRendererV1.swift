@@ -649,8 +649,8 @@ enum ReportSemanticProjectorV1 {
             snapshotSHA256: snapshot.snapshotSHA256,
             locationComposition: v6.payload.activity.activity.activity.activity.locationComposition,
             accountability: v6.payload.activity.activity.activity.accountability,
-            assetSemantics: v6.payload.activity.assetSemantics,
-            authorityCriterion: v6.payload.authorityCriterion,
+            assetSemantics: v6.payload.activity.activity.assetSemantics,
+            authorityCriterion: v6.payload.activity.authorityCriterion,
             functionalRelationships: v6.payload.functionalRelationships,
             assurance: v7.payload.assurance,
             assuranceSnapshotSHA256: v6.snapshotSHA256,
@@ -678,8 +678,8 @@ enum ReportSemanticProjectorV1 {
             snapshotSHA256: snapshot.snapshotSHA256,
             locationComposition: v6.payload.activity.activity.activity.activity.locationComposition,
             accountability: v6.payload.activity.activity.activity.accountability,
-            assetSemantics: v6.payload.activity.assetSemantics,
-            authorityCriterion: v6.payload.authorityCriterion,
+            assetSemantics: v6.payload.activity.activity.assetSemantics,
+            authorityCriterion: v6.payload.activity.authorityCriterion,
             functionalRelationships: v6.payload.functionalRelationships,
             assurance: v7.payload.assurance,
             assuranceSnapshotSHA256: v6.snapshotSHA256,
@@ -1360,7 +1360,8 @@ enum ReportSemanticProjectorV1 {
             sectionID,
             "heading",
             BundledLocalizationCatalogV1.localized(.assetSemanticHeading),
-            BundledLocalizationCatalogV1.localized(.assetSemanticHeading)
+            BundledLocalizationCatalogV1.localized(.assetSemanticHeading),
+            nil
         )
         for bindingValue in semantics.kindBindings {
             try append(
@@ -1446,7 +1447,8 @@ enum ReportSemanticProjectorV1 {
                     sectionID,
                     "fact",
                     BundledLocalizationCatalogV1.localized(.assetSemanticWorkSubjectScope),
-                    "\(subject.kind.rawValue): \(visibleID("subject", subject.subjectID.uuidString.lowercased()))"
+                    "\(subject.kind.rawValue): \(visibleID("subject", subject.subjectID.uuidString.lowercased()))",
+                    nil
                 )
             }
             for semanticBinding in scope.semanticBindings {
@@ -1478,17 +1480,18 @@ enum ReportSemanticProjectorV1 {
             sectionID,
             "heading",
             BundledLocalizationCatalogV1.localized(.accountabilityHeading),
-            BundledLocalizationCatalogV1.localized(.accountabilityHeading)
+            BundledLocalizationCatalogV1.localized(.accountabilityHeading),
+            nil
         )
         for party in accountability.parties {
             let partyID = visibleID("party", party.partyID.uuidString.lowercased())
             try append(sectionID, "heading", BundledLocalizationCatalogV1.localized(.accountabilityParty),
                        "\(partyID): \(party.displayName)", partyID)
-            try append(sectionID, "fact", "Party kind", party.kind.rawValue)
-            try append(sectionID, "fact", "Party provenance", party.provenance.rawValue)
-            try append(sectionID, "status", "Party state", party.state.rawValue)
+            try append(sectionID, "fact", "Party kind", party.kind.rawValue, nil)
+            try append(sectionID, "fact", "Party provenance", party.provenance.rawValue, nil)
+            try append(sectionID, "status", "Party state", party.state.rawValue, nil)
             if binding.audience == .internalUse, let descriptor = party.profileDescriptor {
-                try append(sectionID, "fact", "Party context", descriptor)
+                try append(sectionID, "fact", "Party context", descriptor, nil)
             }
         }
         for event in accountability.roleEvents {
@@ -1496,41 +1499,41 @@ enum ReportSemanticProjectorV1 {
             let siteID = visibleID("site", event.siteID.uuidString.lowercased())
             try append(
                 sectionID, "fact", BundledLocalizationCatalogV1.localized(.accountabilityRole),
-                "\(partyID) \(event.role.rawValue) at \(siteID)"
+                "\(partyID) \(event.role.rawValue) at \(siteID)", nil
             )
-            try append(sectionID, "fact", "Role source", event.source.rawValue)
+            try append(sectionID, "fact", "Role source", event.source.rawValue, nil)
         }
         for actor in accountability.actors {
             let actorID = visibleID("actor", actor.snapshotID.uuidString.lowercased())
             try append(sectionID, "fact", BundledLocalizationCatalogV1.localized(.accountabilityActor),
                        actor.displayNameAtTime, actorID)
-            try append(sectionID, "fact", "Responsibility", actor.responsibility.rawValue)
+            try append(sectionID, "fact", "Responsibility", actor.responsibility.rawValue, nil)
         }
         for qualification in accountability.qualifications {
             try append(sectionID, "fact", BundledLocalizationCatalogV1.localized(.accountabilityQualification),
-                       qualification.declaredScope)
-            try append(sectionID, "fact", "Qualification provenance", qualification.provenance.rawValue)
+                       qualification.declaredScope, nil)
+            try append(sectionID, "fact", "Qualification provenance", qualification.provenance.rawValue, nil)
             if let issuer = qualification.issuerDisplay {
-                try append(sectionID, "fact", "Qualification issuer", issuer)
+                try append(sectionID, "fact", "Qualification issuer", issuer, nil)
             }
             if binding.audience == .internalUse, let locator = qualification.credentialLocator {
-                try append(sectionID, "fact", "Credential reference", locator)
+                try append(sectionID, "fact", "Credential reference", locator, nil)
             }
         }
         for signoff in accountability.signoffs {
             let signoffID = visibleID("signoff", signoff.snapshotID.uuidString.lowercased())
             try append(sectionID, "heading", BundledLocalizationCatalogV1.localized(.accountabilitySignoff),
                        signoff.purpose, signoffID)
-            try append(sectionID, "fact", "Response disposition", signoff.disposition.rawValue)
-            try append(sectionID, "fact", "Response method", signoff.method.rawValue)
+            try append(sectionID, "fact", "Response disposition", signoff.disposition.rawValue, nil)
+            try append(sectionID, "fact", "Response method", signoff.method.rawValue, nil)
             if let role = signoff.roleAssertion {
-                try append(sectionID, "fact", "Claimed role", role.claimedRole)
+                try append(sectionID, "fact", "Claimed role", role.claimedRole, nil)
                 if let relationship = role.claimedRelationship {
-                    try append(sectionID, "fact", "Claimed relationship", relationship.rawValue)
+                    try append(sectionID, "fact", "Claimed relationship", relationship.rawValue, nil)
                 }
                 try append(
                     sectionID, "annotation",
-                    "Disclosure", role.disclosureRelease.disclosureText
+                    "Disclosure", role.disclosureRelease.disclosureText, nil
                 )
             }
         }
@@ -2286,7 +2289,7 @@ struct PrivacyTransformOpenJSONLabelsV1: Codable, Equatable, Sendable {
         review = BundledLocalizationCatalogV1.localized(.privacyTransformReview)
         reviewState = BundledLocalizationCatalogV1.localized(.privacyTransformReviewApproved)
         freshness = BundledLocalizationCatalogV1.localized(.privacyTransformFreshnessCurrent)
-        projection = BundledLocalizationCatalogV1.localized(.privacyTransformProjection)
+        self.projection = BundledLocalizationCatalogV1.localized(.privacyTransformProjection)
         projectionState = BundledLocalizationCatalogV1.localized(.privacyTransformProjectionAllowed)
         originalAccess = BundledLocalizationCatalogV1.localized(.privacyTransformOriginalAccessSeparate)
         nextStep = BundledLocalizationCatalogV1.localized(.privacyTransformNextStep)
