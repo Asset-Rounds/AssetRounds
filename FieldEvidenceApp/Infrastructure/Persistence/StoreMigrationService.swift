@@ -2487,7 +2487,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         defer { Self.processMutationLock.unlock() }
         if generationMutationLockDepth == 0 {
             guard flock(mutationLockDescriptor, LOCK_EX) == 0 else {
-                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+                throw Self.identityFailure(errorNumber: errno)
             }
         }
         generationMutationLockDepth += 1
@@ -2745,9 +2745,11 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                 ownersDescriptor,
                 Self.ownerLockName(ownerID),
                 0
-            ) == 0,
-                  Darwin.fsync(ownersDescriptor) == 0 else {
-                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            ) == 0 else {
+                throw Self.identityFailure(errorNumber: errno)
+            }
+            guard Darwin.fsync(ownersDescriptor) == 0 else {
+                throw Self.identityFailure(errorNumber: errno)
             }
         }
     }
@@ -2806,7 +2808,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         try Self.requireSafeName(name)
         guard data.count <= Self.maximumControlFileBytes,
               try !itemExistsLocked(name) else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
         let descriptor = Darwin.openat(
             leaseDescriptor,
@@ -2858,7 +2860,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             throw Self.mappedFailure()
         }
         guard try readControlLocked(name: name).data == data else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
         completed = true
     }
@@ -2875,7 +2877,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         try Self.requireSafeName(temporaryName)
         guard data.count <= Self.maximumControlFileBytes,
               name != temporaryName else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
 
         if try itemExistsLocked(name) {
@@ -2949,7 +2951,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         guard data.count <= Self.maximumControlFileBytes,
               name != temporaryName,
               try itemExistsLocked(name) else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
         let expected = try readControlLocked(name: name)
         if expected.data == data {
@@ -3059,7 +3061,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         let after = try Self.regularFileSnapshot(descriptor)
         guard before == after,
               data.count == Int(before.byteCount) else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
         try requireNamedIdentity(
             parent: leaseDescriptor,
@@ -3134,7 +3136,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard reopenedRoot >= 0 else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure(errorNumber: errno)
         }
         defer { _ = Darwin.close(reopenedRoot) }
         guard try Self.directoryIdentity(rootDescriptor) == rootIdentity,
@@ -3147,7 +3149,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                 == mutationLockIdentity,
               try Self.regularFileIdentity(ownerLockDescriptor)
                 == ownerLockIdentity else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
         try requireNamedDirectoryIdentity(
             parent: rootDescriptor,
@@ -3195,11 +3197,11 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     ) throws {
         let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
         guard descriptor >= 0 else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure(errorNumber: errno)
         }
         defer { _ = Darwin.close(descriptor) }
         guard try regularFileIdentity(descriptor) == expected else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
     }
 
@@ -3214,11 +3216,11 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard descriptor >= 0 else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure(errorNumber: errno)
         }
         defer { _ = Darwin.close(descriptor) }
         guard try Self.directoryIdentity(descriptor) == expected else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
     }
 
@@ -3273,8 +3275,9 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                 )
             }
             guard descriptor >= 0, Darwin.fsync(parent) == 0 else {
+                let failureErrno = errno
                 if descriptor >= 0 { _ = Darwin.close(descriptor) }
-                throw mappedFailure()
+                throw mappedFailure(errorNumber: failureErrno)
             }
         }
         guard descriptor >= 0 else { throw mappedFailure() }
@@ -3288,10 +3291,12 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
 
     private static func directoryIdentity(_ descriptor: Int32) throws -> Identity {
         var information = stat()
-        guard Darwin.fstat(descriptor, &information) == 0,
-              (information.st_mode & S_IFMT) == S_IFDIR,
+        guard Darwin.fstat(descriptor, &information) == 0 else {
+            throw Self.identityFailure(errorNumber: errno)
+        }
+        guard (information.st_mode & S_IFMT) == S_IFDIR,
               information.st_nlink >= 1 else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
         return Identity(information)
     }
@@ -3304,12 +3309,14 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         _ descriptor: Int32
     ) throws -> FileSnapshot {
         var information = stat()
-        guard Darwin.fstat(descriptor, &information) == 0,
-              (information.st_mode & S_IFMT) == S_IFREG,
+        guard Darwin.fstat(descriptor, &information) == 0 else {
+            throw Self.identityFailure(errorNumber: errno)
+        }
+        guard (information.st_mode & S_IFMT) == S_IFREG,
               information.st_nlink == 1,
               information.st_size >= 0,
               information.st_size <= off_t(maximumControlFileBytes) else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
         return FileSnapshot(information)
     }
@@ -3355,14 +3362,14 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             throw mappedFailure()
         }
         guard (information.st_mode & S_IFMT) != S_IFLNK else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure()
         }
         return true
     }
 
     private static func readAll(from descriptor: Int32) throws -> Data {
         guard Darwin.lseek(descriptor, 0, SEEK_SET) >= 0 else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw Self.identityFailure(errorNumber: errno)
         }
         var data = Data()
         var buffer = [UInt8](repeating: 0, count: 64 * 1024)
@@ -3421,11 +3428,38 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         lhs.uuidString.lowercased() < rhs.uuidString.lowercased()
     }
 
-    private static func mappedFailure() -> GenerationLeaseRegistryFailureV1 {
-        if errno == EACCES || errno == EPERM {
+    private static func mappedFailure(
+        errorNumber: Int32 = errno,
+        operation: StaticString = #function,
+        line: UInt = #line
+    ) -> GenerationLeaseRegistryFailureV1 {
+        reportFailure(operation: operation, line: line, errorNumber: errorNumber)
+        if errorNumber == EACCES || errorNumber == EPERM {
             return .protectedDataUnavailable
         }
         return .invalidIdentity
+    }
+
+    private static func identityFailure(
+        errorNumber: Int32? = nil,
+        operation: StaticString = #function,
+        line: UInt = #line
+    ) -> GenerationLeaseRegistryFailureV1 {
+        // This may be a failed predicate after a successful syscall. Report
+        // no errno rather than attributing an unrelated earlier value to it.
+        reportFailure(operation: operation, line: line, errorNumber: errorNumber)
+        return .invalidIdentity
+    }
+
+    private static func reportFailure(
+        operation: StaticString,
+        line: UInt,
+        errorNumber: Int32?
+    ) {
+        #if DEBUG
+        let code = errorNumber.map { String($0) } ?? "not-captured"
+        print("GenerationLeaseRegistryV1.failure operation=\(operation) line=\(line) errno=\(code)")
+        #endif
     }
 }
 

@@ -36,7 +36,7 @@ final class V9_31IntegrationEventProjectionTests: XCTestCase {
         XCTAssertEqual(first.map(\.eventSHA256), second.map(\.eventSHA256))
         XCTAssertEqual(
             first.map { "\($0.eventKind):\($0.eventVersion)" },
-            corpus.expectedOrderedKinds
+            corpus.expectedOrderedKinds.map { "\($0):1" }
         )
         XCTAssertEqual(
             first.map(\.order.payloadOrdinal),

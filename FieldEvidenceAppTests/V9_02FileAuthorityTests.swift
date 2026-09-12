@@ -33,6 +33,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
             .generationLeaseOwnerLock,
             .journal,
             .journalTemporary,
+            .sceneNavigation,
             .portableExchangeSessionFile,
             .portableExchangeJournalFile,
             .portableExchangeQuarantineFile,
@@ -44,7 +45,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
             .searchIndex,
         ]
 
-        XCTAssertEqual(OwnedFileKindV1.allCases.count, 30)
+        XCTAssertEqual(OwnedFileKindV1.allCases.count, 31)
         XCTAssertEqual(
             Set(OwnedFileKindV1.allCases),
             directoryKinds.union(excludedKinds).union(Set([
@@ -123,13 +124,16 @@ final class V9_02FileAuthorityTests: XCTestCase {
         var file = root.appendingPathComponent("model.sqlite")
         XCTAssertTrue(fileManager.createFile(atPath: file.path, contents: Data("old".utf8)))
 
-        try fileManager.setAttributes(
-            [.protectionKey: FileProtectionType.none],
-            ofItemAtPath: file.path
-        )
+        try setFileProtection(.none, at: file)
         var wrongValues = URLResourceValues()
         wrongValues.isExcludedFromBackup = true
         try file.setResourceValues(wrongValues)
+        try assertResourceValues(
+            .database,
+            at: file,
+            protection: .none,
+            isExcludedFromBackup: true
+        )
 
         XCTAssertThrowsError(
             try ProtectedFilePolicyV1.verify(.database, at: file)
@@ -151,16 +155,29 @@ final class V9_02FileAuthorityTests: XCTestCase {
         XCTAssertTrue(fileManager.createFile(atPath: file.path, contents: Data("protected".utf8)))
         try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
         _ = try file.resourceValues(forKeys: [.fileProtectionKey, .isExcludedFromBackupKey])
-        try fileManager.setAttributes([.protectionKey: FileProtectionType.none], ofItemAtPath: file.path)
+        try setFileProtection(.none, at: file)
+        try assertResourceValues(
+            .database,
+            at: file,
+            protection: .none,
+            isExcludedFromBackup: false
+        )
         XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.database, at: file)) { error in
             XCTAssertEqual(error as? ProtectedFilePolicyError, .resourceValueMismatch)
         }
         try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
+        try assertResourceValues(.database, at: file)
         _ = try file.resourceValues(forKeys: [.fileProtectionKey, .isExcludedFromBackupKey])
         var anotherURL = URL(fileURLWithPath: file.path)
         var wrongValues = URLResourceValues()
         wrongValues.isExcludedFromBackup = true
         try anotherURL.setResourceValues(wrongValues)
+        try assertResourceValues(
+            .database,
+            at: file,
+            protection: .complete,
+            isExcludedFromBackup: true
+        )
         XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.database, at: file)) { error in
             XCTAssertEqual(error as? ProtectedFilePolicyError, .resourceValueMismatch)
         }
@@ -471,6 +488,14 @@ final class V9_02FileAuthorityTests: XCTestCase {
 }
 
 private extension V9_02FileAuthorityTests {
+    func setFileProtection(
+        _ protection: URLFileProtection,
+        at url: URL
+    ) throws {
+        let mutationURL = NSURL(fileURLWithPath: url.path)
+        try mutationURL.setResourceValue(protection, forKey: .fileProtectionKey)
+    }
+
     func makeTemporaryRoot(_ label: String) throws -> URL {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "V9_02-\(label)-\(UUID().uuidString)",
@@ -486,17 +511,28 @@ private extension V9_02FileAuthorityTests {
     func assertResourceValues(
         _ kind: OwnedFileKindV1,
         at url: URL,
+        protection expectedProtection: URLFileProtection = .complete,
+        isExcludedFromBackup expectedBackupDisposition: Bool? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
-        let values = try url.resourceValues(forKeys: [
+        var freshURL = URL(fileURLWithPath: url.path)
+        freshURL.removeAllCachedResourceValues()
+        let values = try freshURL.resourceValues(forKeys: [
             .fileProtectionKey,
             .isExcludedFromBackupKey,
         ])
-        XCTAssertEqual(values.fileProtection, .complete, kind.rawValue, file: file, line: line)
+        XCTAssertEqual(
+            values.fileProtection,
+            expectedProtection,
+            kind.rawValue,
+            file: file,
+            line: line
+        )
         XCTAssertEqual(
             values.isExcludedFromBackup,
-            ProtectedFilePolicyV1.isExcludedFromBackup(for: kind),
+            expectedBackupDisposition
+                ?? ProtectedFilePolicyV1.isExcludedFromBackup(for: kind),
             kind.rawValue,
             file: file,
             line: line

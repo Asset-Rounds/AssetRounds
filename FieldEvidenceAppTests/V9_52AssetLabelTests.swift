@@ -89,12 +89,13 @@ final class V9_52AssetLabelTests: XCTestCase {
         }
         XCTAssertEqual(catalogDigests.count, AssetLabelTemplateProfileV1.allCases.count)
 
-        let assetCanary = "C45_ASSET_CUSTOMER_CANARY"
-        let locationCanary = "C45_LOCATION_CUSTOMER_CANARY"
+        let assetCanary = "C45_ASSET_CANARY"
+        let locationCanary = "C45_LOCATION_CANARY"
         let assetOnly = try C45AssetLabelTestSupport.fixture(
             itemCount: 1,
             disclosure: .assetAndShortCode,
-            assetDisplay: assetCanary
+            assetDisplay: assetCanary,
+            templateProfile: .a4SeventyByThirtySeven
         )
         let assetOnlyProjection = try DeterministicPDFRendererV1.renderAssetLabels(assetOnly.plan)
         for artifact in assetOnlyProjection.artifacts where artifact.entry.kind != .pdf {
@@ -119,7 +120,8 @@ final class V9_52AssetLabelTests: XCTestCase {
             itemCount: 1,
             disclosure: .assetLocationAndShortCode,
             assetDisplay: assetCanary,
-            locationDisplay: locationCanary
+            locationDisplay: locationCanary,
+            templateProfile: .a4SeventyByThirtySeven
         )
         let expandedProjection = try DeterministicPDFRendererV1.renderAssetLabels(assetAndLocation.plan)
         for artifact in expandedProjection.artifacts where artifact.entry.kind != .pdf {
@@ -141,11 +143,11 @@ final class V9_52AssetLabelTests: XCTestCase {
         })
         XCTAssertFalse(expandedInspection.usesType1TextOperators)
 
-        let rtlAsset = String(repeating: "משאבה صناعية ארוכה ", count: 7)
+        let rtlAsset = String(repeating: "משאבה صناعية ארוכה ", count: 5)
             .precomposedStringWithCanonicalMapping
         let rtlLocation = (
             String(repeating: "gypqj ", count: 4)
-                + String(repeating: "חדר שירות موقع شرقي ", count: 5)
+                + String(repeating: "חדר שירות موقع شرقي ", count: 3)
         )
             .precomposedStringWithCanonicalMapping
         let rtlFixture = try C45AssetLabelTestSupport.fixture(

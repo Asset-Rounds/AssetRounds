@@ -7,10 +7,13 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
     func testV23P04C33G01ReadinessStartOrderedExecutionAsBuiltVariationCloseoutAndReport() async throws {
         let corpus = try loadCorpus(); assertScenario(corpus, "G01", "GOLDEN")
         let fixture = try C33GoldenHarness()
+        let orderedTasks = fixture.release.tasks.sorted()
+        let orderedTaskIDs = orderedTasks.map(\.taskID)
+        XCTAssertEqual(orderedTaskIDs, ["identify-subject", "record-placement", "record-as-built"])
         var projection = try fixture.projection()
         XCTAssertTrue(projection.canStart)
-        XCTAssertEqual(projection.nextTaskID, "install")
-        XCTAssertEqual(projection.tasks.map(\.definition.taskID), ["install", "verify"])
+        XCTAssertEqual(projection.nextTaskID, orderedTaskIDs.first)
+        XCTAssertEqual(projection.tasks.map(\.definition.taskID), orderedTaskIDs)
         XCTAssertNil(projection.nextCloseoutAction)
         XCTAssertEqual(projection.reportReadiness, .fieldWorkIncomplete)
         XCTAssertFalse(projection.reportReady)
@@ -18,14 +21,15 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
         try await fixture.accept(.start(try fixture.lifecycleMutation(to: .inProgress, slot: 501)))
         projection = try fixture.projection()
         XCTAssertEqual(projection.envelope.state, .inProgress)
-        XCTAssertEqual(projection.nextTaskID, "install")
+        XCTAssertEqual(projection.nextTaskID, orderedTaskIDs.first)
         XCTAssertNil(projection.nextCloseoutAction)
         XCTAssertFalse(projection.reportReady)
 
-        for (offset, task) in fixture.release.tasks.sorted().enumerated() {
+        for (offset, task) in orderedTasks.enumerated() {
             try await fixture.accept(.recordTaskResult(try fixture.taskMutation(taskID: task.taskID, slot: 510 + offset)))
             projection = try fixture.projection()
-            XCTAssertEqual(projection.nextTaskID, offset == 0 ? "verify" : nil)
+            let followingTaskID = orderedTaskIDs.indices.contains(offset + 1) ? orderedTaskIDs[offset + 1] : nil
+            XCTAssertEqual(projection.nextTaskID, followingTaskID)
             XCTAssertNil(projection.nextCloseoutAction)
             XCTAssertFalse(projection.reportReady)
         }
@@ -70,9 +74,9 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
         XCTAssertTrue(projection.reportReady)
         XCTAssertTrue(projection.closeoutRecorded)
         XCTAssertNil(projection.nextCloseoutAction)
-        XCTAssertEqual(fixture.memory.effectCounts.count, 7)
+        XCTAssertEqual(fixture.memory.effectCounts.count, orderedTasks.count + 5)
         XCTAssertTrue(fixture.memory.effectCounts.values.allSatisfy { $0 == 1 })
-        XCTAssertEqual(fixture.memory.receiptCount, 7)
+        XCTAssertEqual(fixture.memory.receiptCount, orderedTasks.count + 5)
         XCTAssertFalse(projection.report.claimsSafe)
         XCTAssertFalse(projection.report.claimsCompliant)
         XCTAssertFalse(projection.report.claimsPermitted)
@@ -95,9 +99,14 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
             disposition: .manualFallback,
             manualFallback: try C33Fixture.manualFallback(workspaceID: fixture.workspaceID)
         )
-        let blocked = try fixture.envelope(readiness: [
+        let readiness = try fixture.release.readinessPolicy.requiredFacets.map {
+            try ActivityReadinessFacetV1(
+                facetID: "ready-\($0.rawValue.lowercased())", kind: $0, disposition: .ready
+            )
+        } + [
             try .init(facetID: "access", kind: .access, disposition: .blocked, reason: "Access is not recorded.")
-        ])
+        ]
+        let blocked = try fixture.envelope(state: .draft, readiness: readiness)
         let context = try InstallationWorkflowContextV1(
             envelope: blocked, release: fixture.release, basis: fixture.basis, planCapability: plan, scanCapability: scan
         )
@@ -109,11 +118,15 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
         XCTAssertTrue(fallback.manualSubjectSelectionRequired)
         XCTAssertFalse(fallback.planRequired)
         XCTAssertFalse(fallback.scanRequired)
+        XCTAssertThrowsError(try fixture.envelope(state: .ready, readiness: readiness)) {
+            XCTAssertEqual($0 as? ActivityContractFailureV2, .invalidTransition)
+        }
     }
 
     func testV23P04C33H01WrongStaleDuplicateOrderMalformedBoundsUnicodeAndIdentityFailClosed() async throws {
         let corpus = try loadCorpus(); assertScenario(corpus, "H01", "HOSTILE")
         let fixture = try C33Fixture()
+        let firstTaskID = try XCTUnwrap(fixture.release.tasks.sorted().first?.taskID)
         XCTAssertThrowsError(try NoPlanFallbackV1(limitation: "unsafe\u{202e}"))
         XCTAssertThrowsError(try InstallationPlanCapabilityV1(disposition: .available, noPlanFallback: fixture.fallback))
         XCTAssertThrowsError(try InstallationWorkflowContextV1(
@@ -122,7 +135,7 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
         ))
         let duplicate = try InstallationTaskResultV1(
             resultID: C33Fixture.id(81), workspaceID: fixture.workspaceID, activityID: fixture.activityID,
-            taskID: "install", outcome: .completed, revision: 1, mutationID: try C33Fixture.mutation(81)
+            taskID: firstTaskID, outcome: .completed, revision: 1, mutationID: try C33Fixture.mutation(81)
         )
         XCTAssertThrowsError(try InstallationWorkflowContextV1(
             envelope: fixture.envelope, release: fixture.release, basis: fixture.basis,
@@ -140,11 +153,24 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
 
         let ordered = try C33GoldenHarness()
         try await ordered.accept(.start(try ordered.lifecycleMutation(to: .inProgress, slot: 801)))
+        let effectsBeforeUnknownTask = ordered.memory.effectCounts
+        do {
+            _ = try await ordered.workflow.execute(
+                .recordTaskResult(try ordered.taskMutation(taskID: "unknown-task", slot: 802)),
+                context: ordered.context
+            )
+            XCTFail("An unknown released task must fail closed")
+        } catch {
+            XCTAssertEqual(error as? InstallationWorkflowFailureV1, .unknownTask)
+        }
+        XCTAssertEqual(ordered.memory.effectCounts, effectsBeforeUnknownTask)
+        XCTAssertEqual(ordered.memory.receiptCount, 1)
+
         let effectsBeforeRejectedOrder = ordered.memory.effectCounts
         let laterTaskID = try XCTUnwrap(ordered.release.tasks.sorted().dropFirst().first?.taskID)
         do {
             _ = try await ordered.workflow.execute(
-                .recordTaskResult(try ordered.taskMutation(taskID: laterTaskID, slot: 802)),
+                .recordTaskResult(try ordered.taskMutation(taskID: laterTaskID, slot: 803)),
                 context: ordered.context
             )
             XCTFail("A known later task must not execute before the current next task")
@@ -153,7 +179,7 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
         }
         XCTAssertEqual(ordered.memory.effectCounts, effectsBeforeRejectedOrder)
         XCTAssertEqual(ordered.memory.receiptCount, 1)
-        XCTAssertEqual(try ordered.projection().nextTaskID, "install")
+        XCTAssertEqual(try ordered.projection().nextTaskID, firstTaskID)
         XCTAssertFalse(InstallationWorkflowProjectionBoundaryV1.parallelKernelAdded)
     }
 
@@ -234,7 +260,7 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
         XCTAssertEqual(firstRebuild.report.projectionSHA256, secondRebuild.report.projectionSHA256)
         XCTAssertEqual(finalized.taskHistory, immutableHistory)
         XCTAssertEqual(finalized.memory.effectCounts, effectsAfterFinalization)
-        XCTAssertEqual(finalized.memory.effectCounts.count, 7)
+        XCTAssertEqual(finalized.memory.effectCounts.count, finalized.release.tasks.count + 5)
         XCTAssertTrue(finalized.memory.effectCounts.values.allSatisfy { $0 == 1 })
         XCTAssertTrue(firstRebuild.reportReady)
         XCTAssertEqual(firstRebuild.envelope.completedSnapshotReference, completedReference)
@@ -311,17 +337,19 @@ private final class C33Fixture {
         try .init(envelope: envelope, release: release, basis: basis, planCapability: plan, scanCapability: scan)
     }
 
-    func envelope(workspaceID: WorkspaceID? = nil, readiness: [ActivityReadinessFacetV1]? = nil) throws -> ActivitySessionEnvelopeV2 {
-        try Self.makeEnvelope(workspaceID: workspaceID ?? self.workspaceID, activityID: activityID, readiness: readiness,
+    func envelope(workspaceID: WorkspaceID? = nil, state: ActivityStateV2 = .ready,
+                  readiness: [ActivityReadinessFacetV1]? = nil) throws -> ActivitySessionEnvelopeV2 {
+        try Self.makeEnvelope(workspaceID: workspaceID ?? self.workspaceID, activityID: activityID, state: state, readiness: readiness,
                               basis: workspaceID == nil ? basis : nil, policy: release.readinessPolicy)
     }
 
     private static func makeEnvelope(workspaceID: WorkspaceID, activityID: UUID,
+                                     state: ActivityStateV2 = .ready,
                                      readiness: [ActivityReadinessFacetV1]? = nil,
                                      basis: InstallationBasisSnapshotV1? = nil,
                                      policy: InstallationReadinessPolicyV1? = nil) throws -> ActivitySessionEnvelopeV2 {
         try .init(activityID: activityID, workspaceID: workspaceID, kind: .installation,
-                  state: .ready, reviewState: .notRequested, subjectID: Self.id(4), title: "Recorded installation",
+                  state: state, reviewState: .notRequested, subjectID: Self.id(4), title: "Recorded installation",
                   readiness: readiness ?? [try .init(facetID: "access", kind: .access, disposition: .ready)],
                   readinessPolicy: try .installation(policy ?? .init(requiredFacets: [.access])),
                   currentBasisReference: try basis.map { .installation(try .init($0)) }, revision: 1, mutationID: try Self.mutation(4))
@@ -825,14 +853,17 @@ private final class C33MemoryState: ActivityContractCurrentStateQueryingV2, Acti
     private static func receipt(for mutation: ActivityContractMutationV2) throws -> MutationReceiptV1 {
         let replica = ReplicaID(rawValue: C33Fixture.id(313))
         let identity = try WorkspaceReplicaIdentityV1(workspaceID: mutation.workspaceID, replicaID: replica)
+        let postImages = try mutation.mutationPostImages
         let envelope = try MutationEnvelopeV1(request: .init(mutationID: mutation.mutationID, expectedRevision: mutation.expectedRevision,
                                                               command: .applyActivityContract(mutation)), identity: identity)
         let result = try WorkspaceExpectedRevisionV1(workspaceID: mutation.workspaceID, generationID: mutation.expectedRevision.generationID,
                                                       writerInstanceID: mutation.expectedRevision.writerInstanceID,
                                                       workspaceRevision: mutation.expectedRevision.workspaceRevision + 1,
-                                                      entityRevisions: [try .init(identity: .init(kind: .activitySessionEnvelope, id: mutation.successorEnvelope.activityID), revision: mutation.successorEnvelope.revision)])
+                                                      entityRevisions: try postImages.map {
+                                                          try .init(identity: $0.identity, revision: $0.revision)
+                                                      })
         return try .init(identity: .init(workspaceID: mutation.workspaceID, replicaID: replica, localSequence: 1), envelope: envelope,
-                         resultingRevision: .init(result), postImages: try mutation.mutationPostImages,
+                         resultingRevision: .init(result), postImages: postImages,
                          committedAt: Date(timeIntervalSince1970: 2_300_000_000))
     }
 }

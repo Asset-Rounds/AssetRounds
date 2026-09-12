@@ -325,6 +325,15 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c92=TemporalOriginV1(card:"V23_P04_C04",ordinal:92)
         let c93=TemporalOriginV1(card:"V23_P04_C05",ordinal:93)
         let groups: [(TemporalOriginV1, [String])] = [
+            (c53, ["OWNED_FILE_CLASS:fieldDraftStagingFile"]),
+            (TemporalOriginV1(card: "V23_P03_C48", ordinal: 78), [
+                "OWNED_FILE_CLASS:portableExchangeDirectory",
+                "OWNED_FILE_CLASS:portableExchangeJournalFile",
+                "OWNED_FILE_CLASS:portableExchangeQuarantineFile",
+                "OWNED_FILE_CLASS:portableExchangeSessionFile",
+            ]),
+            (TemporalOriginV1(card: "V23_P03_C34", ordinal: 82),
+                ["OWNED_FILE_CLASS:sceneNavigation"]),
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
                 "JOURNAL:PreparedMigrationEnvelopeV1",
@@ -623,9 +632,13 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:IntegrationProjectionCheckpointStoreV1",
             "PROJECTION:ProjectionCheckpointV1",
         ])
-        guard kindIDs.count == 453,
+        let currentOperationalAdditions: Set<String> = [
+            "OWNED_FILE_CLASS:fieldDraftStagingFile", "OWNED_FILE_CLASS:sceneNavigation",
+        ]
+        guard kindIDs.count == 455,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 372,
+              currentOperationalAdditions.isSubset(of: Set(kindIDs)),
+              laterTemporalOrigins.count == 378,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
@@ -673,12 +686,17 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 227 else {
+        guard durableKindIDs.count == 229 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
-        // Full, sorted current universe: no later durable family is omitted
-        // from this tamper-evident compatibility boundary.
-        let universeBytes = try CompatibilityCanonicalV1.encode(kindIDs)
+        // Preserve the original 453-kind source pin. The two current additions
+        // above have exact membership, count and independently bound origins;
+        // they do not replace the historical universe with a new acceptance pin.
+        let historicalKindIDs = kindIDs.filter { !currentOperationalAdditions.contains($0) }
+        guard historicalKindIDs.count == 453 else {
+            throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
+        }
+        let universeBytes = try CompatibilityCanonicalV1.encode(historicalKindIDs)
         guard CompatibilityCanonicalV1.sha256(universeBytes)
                 == acceptedTemporalUniverseDigest else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
@@ -839,7 +857,10 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 return .immutable
             case .stagingDirectory, .restoreStaging, .stagingFile, .temporaryFile,
                     .generationPointerTemporary, .generationLeaseControlTemporary,
-                    .generationLeaseOwnerLock, .journalTemporary, .cache, .scratch:
+                    .generationLeaseOwnerLock, .journalTemporary, .cache, .scratch,
+                    .fieldDraftStagingFile, .sceneNavigation, .portableExchangeDirectory,
+                    .portableExchangeJournalFile, .portableExchangeQuarantineFile,
+                    .portableExchangeSessionFile:
                 return .nonpersistent
             default:
                 break

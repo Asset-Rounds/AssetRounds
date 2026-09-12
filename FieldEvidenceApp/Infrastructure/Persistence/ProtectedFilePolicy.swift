@@ -217,9 +217,9 @@ enum ProtectedFilePolicyV1 {
         let before = try pin(kind, at: url, disposition: disposition)
 
         do {
-            try FileManager.default.setAttributes(
-                [.protectionKey: requiredFileProtection],
-                ofItemAtPath: url.path
+            try (url as NSURL).setResourceValue(
+                URLFileProtection.complete,
+                forKey: .fileProtectionKey
             )
 
             var resourceValues = URLResourceValues()

@@ -32,6 +32,159 @@ private final class C30EvidenceContextAnchorV9_13PersistentKindLifecycleCoverage
 
 @MainActor
 final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
+    func testCurrentOwnedFileInventoryPreservesBaselineAndExcludesOperationalState() throws {
+        let current = try CurrentSyncClassificationCatalogV1.current
+        let baseline = try SyncClassificationRegistryV1.registrations
+        for registration in baseline {
+            XCTAssertEqual(try current.registration(for: registration.subject), registration)
+        }
+        XCTAssertEqual(current.ownedFileClassSubjects.map(\.stableName).sorted(),
+                       OwnedFileKindV1.allCases.map(\.rawValue).sorted())
+        let additions = ["fieldDraftStagingFile", "portableExchangeDirectory",
+                         "portableExchangeJournalFile", "portableExchangeQuarantineFile",
+                         "portableExchangeSessionFile", "sceneNavigation"]
+        XCTAssertEqual(Set(current.ownedFileClassSubjects.map(\.stableName))
+            .subtracting(SyncClassificationRegistryV1.ownedFileClassNames), Set(additions))
+        for name in additions {
+            let subject = try SyncSubjectIdentityV1(category: .ownedFileClass, stableName: name)
+            let registration = try current.registration(for: subject)
+            let route = try current.lifecycleRoute(for: subject)
+            XCTAssertEqual(registration.replicationPolicy.authority, .localDevice, name)
+            XCTAssertEqual(registration.replicationPolicy.persistence, .ownedFile, name)
+            XCTAssertEqual(registration.replicationPolicy.transport, .excluded, name)
+            XCTAssertEqual(registration.replicationPolicy.bootstrap, .destinationLocal, name)
+            XCTAssertEqual(route.filesystemBackup, .excluded, name)
+            XCTAssertEqual(route.semanticBackup, .exclude, name)
+            XCTAssertEqual(route.portableExport, .exclude, name)
+            XCTAssertEqual(route.erase, .clearWithWorkspace, name)
+            XCTAssertEqual(route.replay, .notApplicable, name)
+            XCTAssertEqual(registration.conflictPolicy.rule, .localOnly, name)
+            let navigation = name == "sceneNavigation"
+            XCTAssertEqual(registration.classification, navigation ? .privateDeviceOnly : .localOnly, name)
+            XCTAssertEqual(registration.replicationPolicy.privacy, navigation ? .privateDeviceData : .workspaceData, name)
+            XCTAssertEqual(registration.replicationPolicy.retention, navigation ? .localDeviceRetained : .operationScoped, name)
+            XCTAssertEqual(registration.replicationPolicy.deletion, navigation ? .localAuthority : .operationCleanup, name)
+            XCTAssertEqual(route.deletion, navigation ? .localAuthority : .operationCleanup, name)
+            XCTAssertEqual(registration.replicationPolicy.sizeLimit,
+                           .boundedBytes(navigation ? Int64(SceneNavigationSnapshotV1.maximumEncodedByteCount) : 16_777_216), name)
+        }
+    }
+
+    func testMissingDuplicateOrUnknownCurrentOwnedFileRegistrationFailsClosed() throws {
+        let current = try CurrentSyncClassificationCatalogV1.current
+        let subject = try SyncSubjectIdentityV1(category: .ownedFileClass, stableName: "sceneNavigation")
+        let registration = try current.registration(for: subject)
+        let unknown = try SyncClassificationRegistrationV1(
+            subject: SyncSubjectIdentityV1(category: .ownedFileClass, stableName: "unknownCurrentOwnedFile"),
+            classification: registration.classification,
+            replicationPolicy: registration.replicationPolicy,
+            conflictPolicy: registration.conflictPolicy)
+        XCTAssertNoThrow(try unknown.validate())
+        for entries in [current.registrations.filter { $0.subject != subject },
+                        current.registrations + [registration],
+                        current.registrations + [unknown]] {
+            XCTAssertThrowsError(try CurrentSyncClassificationCatalogV1(
+                registrations: entries,
+                lifecycleRoutes: current.lifecycleRoutes,
+                persistentModelSubjects: current.persistentModelSubjects,
+                ownedFileClassSubjects: current.ownedFileClassSubjects,
+                portableContentProjectionSubjects: current.portableContentProjectionSubjects,
+                derivedIndexProjectionSubjects: current.derivedIndexProjectionSubjects,
+                journalRecoverySubjects: current.journalRecoverySubjects,
+                diagnosticSubjects: current.diagnosticSubjects,
+                secretSubjects: current.secretSubjects,
+                searchImplementationPresent: current.searchImplementationPresent,
+                keychainUsageDeclared: current.keychainUsageDeclared)) { error in
+                XCTAssertEqual(error as? CurrentSyncClassificationCatalogFailureV1, .invalidInventory)
+            }
+        }
+    }
+
+    func testHistoricalEnvelopeDependenciesExcludeLaterCanonicalFamilies() throws {
+        let current = try CurrentSyncClassificationCatalogV1.current
+        func dependencies(_ name: String) throws -> Set<String> {
+            let subject = try SyncSubjectIdentityV1(category: .projection, stableName: name)
+            return Set(try current.registration(for: subject)
+                .replicationPolicy.dependencies.map(\.stableName))
+        }
+        XCTAssertFalse(try dependencies("StoreSemanticEnvelopeV3").contains("MutationReceiptRow"))
+        XCTAssertTrue(try dependencies("StoreSemanticEnvelopeV4").contains("MutationReceiptRow"))
+        XCTAssertFalse(try dependencies("StoreSemanticEnvelopeV4").contains("ObservationAndTimeRow"))
+        XCTAssertTrue(try dependencies("StoreSemanticEnvelopeV5").contains("ObservationAndTimeRow"))
+        let lighting = try dependencies("StoreSemanticEnvelopeV31")
+        XCTAssertTrue(lighting.contains("LightingObservationRow"))
+        for later in ["TemporalEvidenceClipRow", "MyDayPlanRowV1", "CaptureInboxItemRowV1",
+                      "RoundSessionRevisionRowV1", "LightingNightWorkflowRowV1"] {
+            XCTAssertFalse(lighting.contains(later), later)
+        }
+        let schedule = try dependencies("StoreSemanticEnvelopeV38")
+        XCTAssertTrue(schedule.contains("ScheduleOverrideEventRow"))
+        XCTAssertFalse(schedule.contains("ServiceRequestRecordRow"))
+        let rounds = try dependencies("StoreSemanticEnvelopeV45")
+        XCTAssertTrue(rounds.contains("RoundSessionRevisionRowV1"))
+        XCTAssertFalse(rounds.contains("BulkSessionRowV1"))
+        let workspace = try dependencies("StoreSemanticEnvelopeV51")
+        XCTAssertTrue(workspace.contains("PracticeWorkspaceProvenanceRowV1"))
+        XCTAssertFalse(workspace.contains("LightingDayInventoryWorkflowRowV1"))
+        XCTAssertFalse(workspace.contains("LightingNightWorkflowRowV1"))
+        let day = try dependencies("StoreSemanticEnvelopeV52")
+        XCTAssertTrue(day.contains("LightingDayInventoryWorkflowRowV1"))
+        XCTAssertFalse(day.contains("LightingNightWorkflowRowV1"))
+        XCTAssertEqual(try dependencies("StoreSemanticEnvelopeV53"),
+                       Set(CurrentSyncClassificationCatalogV1.activePersistentModelNames))
+    }
+
+    func testTemporalAndScheduleProjectionsBindExistingCanonicalOwners() throws {
+        let current = try CurrentSyncClassificationCatalogV1.current
+        let expected: [String: Set<String>] = [
+            "TemporalEvidenceClipV1": ["TemporalEvidenceClipRow"],
+            "TimecodedEvidenceAnchorV1": ["TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow"],
+            "ExceptionCalendarReleaseV1": ["ExceptionCalendarReleaseRow"],
+            "ScheduleOverrideEventV1": ["ScheduleOverrideEventRow"],
+            "OccurrenceGenerationPlanV1": ["ScheduleDefinitionReleaseRow", "OccurrenceHistoryEventRow",
+                "ExceptionCalendarReleaseRow", "ScheduleOverrideEventRow"],
+            "DueQueueProjectionV1": ["ScheduleDefinitionReleaseRow", "OccurrenceHistoryEventRow",
+                "ExceptionCalendarReleaseRow", "ScheduleOverrideEventRow"],
+            "ReminderProjectionV1": ["ScheduleDefinitionReleaseRow", "OccurrenceHistoryEventRow",
+                "ExceptionCalendarReleaseRow", "ScheduleOverrideEventRow"],
+        ]
+        for (name, owners) in expected {
+            let subject = try SyncSubjectIdentityV1(category: .projection, stableName: name)
+            let registration = try current.registration(for: subject)
+            XCTAssertEqual(Set(registration.replicationPolicy.dependencies.map(\.stableName)), owners, name)
+            XCTAssertTrue(registration.replicationPolicy.dependencies.allSatisfy {
+                $0.category == .persistentModel
+            }, name)
+            XCTAssertEqual(registration.replicationPolicy.persistence, .nonpersistent, name)
+        }
+        let night = try SyncSubjectIdentityV1(category: .persistentModel, stableName: "LightingNightWorkflowRowV1")
+        XCTAssertEqual(try current.registration(for: night).replicationPolicy.persistence, .swiftDataRecord)
+    }
+
+    func testCurrentOperationalFilesKeepSourceOriginsAndCanonicalWriteExclusions() throws {
+        let catalog = try CurrentPersistentKindLifecycleCatalogV1.compile(candidateHead: candidateHead)
+        let expected: [(String, String, Int)] = [
+            ("fieldDraftStagingFile", "V23_P03_C36", 53),
+            ("portableExchangeDirectory", "V23_P03_C48", 78),
+            ("portableExchangeJournalFile", "V23_P03_C48", 78),
+            ("portableExchangeQuarantineFile", "V23_P03_C48", 78),
+            ("portableExchangeSessionFile", "V23_P03_C48", 78),
+            ("sceneNavigation", "V23_P03_C34", 82),
+        ]
+        for (name, card, ordinal) in expected {
+            let subject = try SyncSubjectIdentityV1(category: .ownedFileClass, stableName: name)
+            let descriptor = try catalog.descriptor(for: subject)
+            let lifecycle = try catalog.lifecyclePolicy(for: subject)
+            let handling = try catalog.dataHandlingPolicy(for: subject)
+            XCTAssertEqual(descriptor.kindClassification, .nonpersistent, name)
+            XCTAssertEqual(descriptor.temporalEvidence.representationSourceCard, card, name)
+            XCTAssertEqual(descriptor.temporalEvidence.representationSourceOrdinal, ordinal, name)
+            XCTAssertEqual(descriptor.temporalEvidence.firstWriteOrdinal, ordinal, name)
+            XCTAssertEqual(try lifecycle.migration, .notApplicable, name)
+            XCTAssertEqual(handling.fileProtection, .complete, name)
+        }
+    }
+
     func testHistoricalDayInventoryBoundarySurvivesCurrentNightEnrollment() throws {
         XCTAssertEqual(PersistentSchemaV52.models.count, 167)
         XCTAssertEqual(PersistentSchemaV53.models.count, 168)
@@ -262,9 +415,7 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertEqual(corpus.declaredKindIDs, corpus.declaredKindIDs.sorted())
         XCTAssertEqual(Set(corpus.declaredKindIDs).count, corpus.declaredKindIDs.count)
         XCTAssertTrue(Set(corpus.declaredKindIDs).isSubset(of: Set(derivedUniverse)))
-        XCTAssertEqual(
-            Set(derivedUniverse).subtracting(corpus.declaredKindIDs),
-            Set([
+        let historicalAddedKindIDs: Set<String> = [
                 "PERSISTENT_MODEL:AssetCompositionEdgeRow",
                 "PERSISTENT_MODEL:AssetCompositionEventRow",
                 "PERSISTENT_MODEL:AssetPlacementEventRow",
@@ -295,8 +446,19 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
                 "PROJECTION:SitePartyRoleEventV1",
                 "PROJECTION:StoreSemanticEnvelopeV9",
                 "PROJECTION:V5BackupLocationRecordV1",
-            ])
-        )
+        ]
+        let historicalKindIDs = Set(corpus.declaredKindIDs).union(historicalAddedKindIDs)
+        XCTAssertEqual(historicalKindIDs.count, 130)
+        XCTAssertTrue(historicalKindIDs.isSubset(of: Set(derivedUniverse)))
+        let currentAdditions: Set<String> = [
+            "OWNED_FILE_CLASS:fieldDraftStagingFile", "OWNED_FILE_CLASS:sceneNavigation",
+        ]
+        XCTAssertEqual(derivedUniverse.count, 455)
+        XCTAssertTrue(currentAdditions.isSubset(of: Set(derivedUniverse)))
+        let preservedUniverse = derivedUniverse.filter { !currentAdditions.contains($0) }
+        XCTAssertEqual(preservedUniverse.count, 453)
+        XCTAssertEqual(CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(preservedUniverse)),
+                       "9c6bb0a73e59bcd49485940ffd33ad489d96514761a39e4706872f0fa306df0a")
         XCTAssertEqual(corpus.temporalProvenance.map(\.kindID), corpus.declaredKindIDs)
         XCTAssertEqual(
             Set(corpus.temporalProvenance.map(\.kindID)).count,
@@ -366,17 +528,23 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
                     descriptor.temporalEvidence.representationSourceOrdinal,
                     expectedProvenance.representationSourceOrdinal
                 )
-            } else {
+            } else if historicalKindIDs.contains(descriptor.stableKindID) {
+                let isC38 = Set(CurrentSyncClassificationCatalogV1.v9PersistentModelNames.map {
+                    "PERSISTENT_MODEL:" + $0
+                } + ["ActorSnapshotV1", "QualificationSnapshotV1", "ServicePartyReferenceV1",
+                     "SignoffSnapshotV1", "SitePartyRoleEventV1", "StoreSemanticEnvelopeV9"].map {
+                    "PROJECTION:" + $0
+                }).contains(descriptor.stableKindID)
                 let isC35Persistent = c35PersistentKindIDs.contains(descriptor.stableKindID)
                 let isC09 = c09KindIDs.contains(descriptor.stableKindID)
                 let isC12 = c12KindIDs.contains(descriptor.stableKindID)
                 XCTAssertEqual(
                     descriptor.temporalEvidence.representationSourceCard,
-                    isC12 ? "V23_P03_C12" : (isC09 ? "V23_P03_C09" : (isC35Persistent ? "V23_P03_C35" : "PRE_V23_BASELINE"))
+                    isC38 ? "V23_P03_C38" : (isC12 ? "V23_P03_C12" : (isC09 ? "V23_P03_C09" : (isC35Persistent ? "V23_P03_C35" : "PRE_V23_BASELINE")))
                 )
                 XCTAssertEqual(
                     descriptor.temporalEvidence.representationSourceOrdinal,
-                    isC12 ? 44 : (isC09 ? 42 : (isC35Persistent ? 41 : 0))
+                    isC38 ? 46 : (isC12 ? 44 : (isC09 ? 42 : (isC35Persistent ? 41 : 0)))
                 )
             }
             if descriptor.temporalEvidence.firstWriteVersion
@@ -398,7 +566,8 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             }
         }
 
-        let provenancePartition = Dictionary(grouping: catalog.descriptors) {
+        let historicalDescriptors = catalog.descriptors.filter { historicalKindIDs.contains($0.stableKindID) }
+        let provenancePartition = Dictionary(grouping: historicalDescriptors) {
             $0.temporalEvidence.representationSourceOrdinal
         }.mapValues(\.count)
         XCTAssertEqual(provenancePartition, [
@@ -410,8 +579,10 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             $0.temporalEvidence.firstWriteVersion != PersistentKindTemporalEvidenceV1.notApplicable
         }.map(\.stableKindID).sorted()
         XCTAssertTrue(Set(corpus.durableFirstWriteKindIDs).isSubset(of: Set(durableFirstWrites)))
-        XCTAssertEqual(durableFirstWrites.count, 84)
-        XCTAssertEqual(catalog.descriptors.count - durableFirstWrites.count, 46)
+        XCTAssertEqual(durableFirstWrites.count, 229)
+        let historicalFirstWrites = Set(durableFirstWrites).intersection(historicalKindIDs)
+        XCTAssertEqual(historicalFirstWrites.count, 84)
+        XCTAssertEqual(historicalDescriptors.count - historicalFirstWrites.count, 46)
         XCTAssertTrue(Set([
             "PROJECTION:ReportSnapshotV1",
             "PROJECTION:entityMutationRevision",

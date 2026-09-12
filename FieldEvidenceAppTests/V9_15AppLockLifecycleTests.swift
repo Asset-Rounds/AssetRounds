@@ -2035,7 +2035,16 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         XCTAssertTrue(coldCover)
         XCTAssertEqual(AppLockShippingAdoptionV1.deferredUntilAcceptedS10_6Composition.rawValue,
                        "DEFERRED_UNTIL_ACCEPTED_S10_6_COMPOSITION")
-        XCTAssertEqual(Set(AppLockReasonV1.allCases.map(\.rawValue)), Set(corpus.strings("lockReasons")))
+        let fixtureReasonLabels = AppLockReasonV1.allCases.map { reason in
+            switch reason {
+            case .lockNow: return "LOCK_NOW"
+            case .devicePasscodeRemoved: return "DEVICE_PASSCODE_REMOVED"
+            default: return reason.rawValue
+            }
+        }
+        XCTAssertEqual(Set(fixtureReasonLabels), Set(corpus.strings("lockReasons")))
+        XCTAssertEqual(AppLockReasonV1.lockNow.rawValue, "MANUAL_LOCK")
+        XCTAssertEqual(AppLockReasonV1.devicePasscodeRemoved.rawValue, "PASSCODE_REMOVED")
         XCTAssertEqual(Set(AppLockLifecycleEventV1.allCases.map(\.rawValue)), Set(corpus.strings("lifecycleEvents")))
         XCTAssertEqual(Set(LocalAuthenticationAvailabilityStatusV1.allCases.map(\.rawValue)), Set(corpus.strings("authentication.availabilityCases")))
         XCTAssertEqual(Set(LocalAuthenticationOutcomeV1.allCases.map(\.rawValue)), Set(corpus.strings("authentication.outcomeCases")))
@@ -2108,7 +2117,7 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
             opaqueStagingID: "opaque-90", byteCount: PendingLockedExternalIntentV1.maximumByteCount + 1,
             sha256: Self.digest(90), receivedAt: now, expiresAt: now.addingTimeInterval(60),
             disposition: .stagedProtectedPendingAuthentication
-        )) { XCTAssertEqual($0 as? AppAccessContractFailureV1, .configurationUnknown) }
+        )) { XCTAssertEqual($0 as? AppAccessContractFailureV1, .invalidValue) }
 
         let policy = AppLockNotificationCanonicalPolicyV1(
             policyID: "notification-detail-policy", revision: 7, canonicalDigest: Self.digest(7)
@@ -2332,7 +2341,7 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(
             DeviceLocalAppLockSettingV1.self,
             from: Data("{\"schemaVersion\":2,\"isEnabled\":false}".utf8)
-        )) { XCTAssertEqual($0 as? AppAccessContractFailureV1, .invalidValue) }
+        )) { XCTAssertEqual($0 as? AppAccessContractFailureV1, .configurationUnknown) }
         XCTAssertThrowsError(try JSONDecoder().decode(
             AppLockLifecycleEventV1.self,
             from: Data("\"FUTURE_EVENT\"".utf8)

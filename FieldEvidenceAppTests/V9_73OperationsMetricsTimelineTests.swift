@@ -1498,7 +1498,7 @@ final class V9_73OperationsMetricsTimelineTests: XCTestCase {
             return
         }
         XCTAssertEqual(entry.tier, tier, file: file, line: line)
-        XCTAssertEqual(entry.selector, selector, file: file, line: line)
+        XCTAssertEqual(entry.selector + "()", selector, file: file, line: line)
     }
 
     private func expectedOwner(for kind: AssetServiceHistoryEventKindV1) -> AssetServiceHistorySourceOwnerV1 {

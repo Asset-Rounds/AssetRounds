@@ -379,6 +379,7 @@ final class V9_60PortableServiceRequestTests: XCTestCase {
             ruleReleaseSHA256: C52PortableServiceRequestTestSupport.digest("a"), candidates: [])
         let supportURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("c52-disposition-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: supportURL, withIntermediateDirectories: false)
         let store = try PortableExchangeSessionStoreV2(applicationSupportURL: supportURL)
         addTeardownBlock {
             if FileManager.default.fileExists(atPath: supportURL.path) {
@@ -897,6 +898,7 @@ final class V9_60PortableServiceRequestTests: XCTestCase {
 
         let supportURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("c52-service-request-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: supportURL, withIntermediateDirectories: false)
         defer {
             if FileManager.default.fileExists(atPath: supportURL.path) {
                 try? FileManager.default.removeItem(at: supportURL)

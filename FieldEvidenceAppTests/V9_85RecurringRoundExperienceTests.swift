@@ -205,10 +205,10 @@ private enum C22RecurringRoundTestSupport {
         )
     }
 
-    static func basis(_ release: ScheduleDefinitionReleaseV1) throws -> ResolvedOccurrenceBasisV1 {
+    static func basis(_ release: ScheduleDefinitionReleaseV1, resolvedAt: Date? = nil) throws -> ResolvedOccurrenceBasisV1 {
         let value = ResolvedOccurrenceBasisV1(
             nominalLocalDate: "2027-03-14", nominalLocalTime: "02:30:00",
-            resolvedAtUTC: now, utcOffsetSeconds: -14_400, disposition: .nonexistentGap,
+            resolvedAtUTC: resolvedAt ?? now, utcOffsetSeconds: -14_400, disposition: .nonexistentGap,
             timeBasisSHA256: try release.timeBasis.canonicalSHA256(),
             adjustmentProvenanceSHA256: digest("e")
         )
@@ -618,7 +618,8 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
         XCTAssertTrue(fixedEditor.requiresExplicitSave)
         XCTAssertEqual(corpus.recurrenceModes, ScheduleEditorRecurrenceKindV1.allCases.map(\.rawValue))
 
-        let basis = try C22RecurringRoundTestSupport.basis(fixed)
+        let dueAt = C22RecurringRoundTestSupport.now.addingTimeInterval(1_800)
+        let basis = try C22RecurringRoundTestSupport.basis(fixed, resolvedAt: dueAt)
         let occurrenceID = try OccurrenceIDV1(
             scheduleDefinitionID: fixed.scheduleDefinitionID,
             identityNamespaceID: fixed.occurrenceIdentityNamespaceID,
@@ -634,6 +635,13 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
         )
         let queue = try OccurrenceDueQueueStateV1(projection: queueProjection)
         XCTAssertEqual(queue.items.map(\.reason), [.readyWindowOpen])
+        for (time, reason) in [(dueAt, OccurrenceDueReasonV1.dueWithinGrace),
+                               (dueAt.addingTimeInterval(7_200), .dueWithinGrace),
+                               (dueAt.addingTimeInterval(7_201), .overdueAfterGrace)] {
+            let boundary = try DueQueueProjectionV1(workspaceID: fixed.workspaceID,
+                evaluatedAt: time, definitions: [fixed], history: [generated])
+            XCTAssertEqual(try OccurrenceDueQueueStateV1(projection: boundary).items.map(\.reason), [reason])
+        }
 
         let sessions = try C22RecurringRoundTestSupport.roundSessions()
         let work = ScheduledWorkInstanceReferenceV1.roundSession(

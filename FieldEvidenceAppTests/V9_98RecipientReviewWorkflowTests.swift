@@ -550,6 +550,7 @@ private final class C35Harness {
 
     init(failAfterEffectBeforeReceipt: Bool = false) async throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("V9_98-C35-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         store = try PortableExchangeSessionStoreV2(applicationSupportURL: root, clock: C35Support.Clock(), idSource: C35Support.IDs(value: C35Support.id(1)))
         fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 350_000)
         requestID = try .init("review-request-c35-0001")

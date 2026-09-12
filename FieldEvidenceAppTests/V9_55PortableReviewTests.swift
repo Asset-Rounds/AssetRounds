@@ -1443,6 +1443,7 @@ final class V9_55PortableReviewTests: XCTestCase {
             "V9_55-C48-store-\(UUID().uuidString)",
             isDirectory: true
         )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let store = try PortableExchangeSessionStoreV2(applicationSupportURL: root)

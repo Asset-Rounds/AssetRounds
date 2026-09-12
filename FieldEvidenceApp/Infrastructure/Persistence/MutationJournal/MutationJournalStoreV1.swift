@@ -898,6 +898,9 @@ final class MutationJournalStoreV1 {
         do {
             _ = try ObservationAndTimeRowStoreV1.validatedIndex(in: modelContext)
         } catch {
+            #if DEBUG
+            print("MutationJournalStoreV1.commit observationValidation failureType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+            #endif
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
         guard semanticReversal == nil || semanticReversalExecution == nil else {
@@ -1429,6 +1432,9 @@ final class MutationJournalStoreV1 {
             throw failure
         } catch {
             modelContext.rollback()
+            #if DEBUG
+            print("MutationJournalStoreV1.commit save failureType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+            #endif
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
     }

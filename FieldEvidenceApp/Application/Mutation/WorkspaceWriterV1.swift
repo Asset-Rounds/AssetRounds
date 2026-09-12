@@ -1940,6 +1940,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 temporaryRelativePath: temporaryRelativePath
             )
             guard applied == effect else {
+                #if DEBUG
+                print("WorkspaceWriterV1.execute failure=effectMismatch")
+                #endif
                 throw WorkspaceMutationFailureV1.persistenceFailed
             }
             if case let .applyActivityContract(mutation) = request.command {
@@ -2014,6 +2017,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             throw error
         } catch {
             rollbackUncommittedEffect()
+            #if DEBUG
+            print("WorkspaceWriterV1.execute failureType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+            #endif
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
 

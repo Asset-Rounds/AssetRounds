@@ -1189,6 +1189,9 @@ private extension LocalSearchIndexStoreV1 {
     }
 
     static func map(_ error: Error) -> Error {
+        #if DEBUG
+        print("LocalSearchIndexStoreV1.map failureType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+        #endif
         if error is SearchContractFailureV1 || error is LocalSearchIndexStoreFailureV1 {
             return error
         }
