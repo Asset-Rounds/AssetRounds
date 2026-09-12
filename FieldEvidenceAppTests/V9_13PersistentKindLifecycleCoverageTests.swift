@@ -60,9 +60,61 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
     func testCurrentOwnedFileInventoryPreservesBaselineAndExcludesOperationalState() throws {
         let current = try CurrentSyncClassificationCatalogV1.current
         let baseline = try SyncClassificationRegistryV1.registrations
+        let counter = try SyncSubjectIdentityV1(category: .diagnostic, stableName: "diagnosticCounters")
         for registration in baseline {
-            XCTAssertEqual(try current.registration(for: registration.subject), registration)
+            let actual = try current.registration(for: registration.subject)
+            if registration.subject == counter {
+                XCTAssertEqual(registration.replicationPolicy.persistence, .ownedFile)
+                XCTAssertEqual(actual.replicationPolicy.persistence, .nonpersistent)
+                XCTAssertEqual(current.registrations.filter { $0.subject == counter }.count, 1)
+                // Compare every encoded field after undoing exactly the one
+                // current-layer persistence binding; no other policy drifts.
+                let encoder = JSONEncoder()
+                var currentFields = try XCTUnwrap(JSONSerialization.jsonObject(with:
+                    encoder.encode(actual)) as? [String: Any])
+                var policyFields = try XCTUnwrap(currentFields["replicationPolicy"] as? [String: Any])
+                policyFields["persistence"] = registration.replicationPolicy.persistence.rawValue
+                currentFields["replicationPolicy"] = policyFields
+                let historicalFields = try JSONSerialization.jsonObject(with: encoder.encode(registration))
+                XCTAssertEqual(try JSONSerialization.data(withJSONObject: currentFields, options: [.sortedKeys]),
+                               try JSONSerialization.data(withJSONObject: historicalFields, options: [.sortedKeys]))
+                XCTAssertThrowsError(try CurrentSyncClassificationCatalogV1(
+                    registrations: current.registrations.map { $0.subject == counter ? registration : $0 },
+                    lifecycleRoutes: current.lifecycleRoutes, persistentModelSubjects: current.persistentModelSubjects,
+                    ownedFileClassSubjects: current.ownedFileClassSubjects,
+                    portableContentProjectionSubjects: current.portableContentProjectionSubjects,
+                    derivedIndexProjectionSubjects: current.derivedIndexProjectionSubjects,
+                    journalRecoverySubjects: current.journalRecoverySubjects, diagnosticSubjects: current.diagnosticSubjects,
+                    secretSubjects: current.secretSubjects, searchImplementationPresent: current.searchImplementationPresent,
+                    keychainUsageDeclared: current.keychainUsageDeclared)) { error in
+                    XCTAssertEqual(error as? CurrentSyncClassificationCatalogFailureV1, .invalidBaseline)
+                }
+            } else {
+                XCTAssertEqual(actual, registration)
+            }
         }
+        let database = try SyncSubjectIdentityV1(category: .ownedFileClass, stableName: "database")
+        let originalDatabase = try current.registration(for: database)
+        var hostileFields = try XCTUnwrap(JSONSerialization.jsonObject(with:
+            JSONEncoder().encode(originalDatabase)) as? [String: Any])
+        var hostilePolicy = try XCTUnwrap(hostileFields["replicationPolicy"] as? [String: Any])
+        hostilePolicy["policyID"] = "hostile.baseline.database"
+        hostileFields["replicationPolicy"] = hostilePolicy
+        let changedDatabase = try JSONDecoder().decode(SyncClassificationRegistrationV1.self,
+            from: JSONSerialization.data(withJSONObject: hostileFields, options: [.sortedKeys]))
+        XCTAssertNoThrow(try changedDatabase.validate())
+        XCTAssertThrowsError(try CurrentSyncClassificationCatalogV1(
+            registrations: current.registrations.map { $0.subject == database ? changedDatabase : $0 },
+            lifecycleRoutes: current.lifecycleRoutes, persistentModelSubjects: current.persistentModelSubjects,
+            ownedFileClassSubjects: current.ownedFileClassSubjects,
+            portableContentProjectionSubjects: current.portableContentProjectionSubjects,
+            derivedIndexProjectionSubjects: current.derivedIndexProjectionSubjects,
+            journalRecoverySubjects: current.journalRecoverySubjects, diagnosticSubjects: current.diagnosticSubjects,
+            secretSubjects: current.secretSubjects, searchImplementationPresent: current.searchImplementationPresent,
+            keychainUsageDeclared: current.keychainUsageDeclared)) { error in
+            XCTAssertEqual(error as? CurrentSyncClassificationCatalogFailureV1, .invalidBaseline)
+        }
+        XCTAssertEqual(try SyncClassificationRegistryV1.registration(for: database), originalDatabase)
         XCTAssertEqual(current.ownedFileClassSubjects.map(\.stableName).sorted(),
                        OwnedFileKindV1.allCases.map(\.rawValue).sorted())
         let additions = ["fieldDraftStagingFile", "portableExchangeDirectory",

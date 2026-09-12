@@ -419,7 +419,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
                   C18LightingNightWorkflowSyncClassificationBoundaryV1.validate() else {
                 throw Self.invalidInventoryFailure()
             }
-            let baseline = try SyncClassificationRegistryV1.registrations
+            let baseline = try SyncClassificationRegistryV1.registrations.map(Self.currentBaselineRegistration)
             let additions = try makeAdditionalRegistrations()
             let registrations = (baseline + additions).sorted {
                 $0.subject.canonicalKey < $1.subject.canonicalKey
@@ -555,7 +555,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
             uniqueKeysWithValues: registrations.map { ($0.subject, $0) }
         )
         for baseline in try SyncClassificationRegistryV1.registrations {
-            guard bySubject[baseline.subject] == baseline else {
+            guard bySubject[baseline.subject] == (try Self.currentBaselineRegistration(baseline)) else {
                 throw CurrentSyncClassificationCatalogFailureV1.invalidBaseline
             }
         }
@@ -996,6 +996,22 @@ private extension CurrentSyncClassificationCatalogV1 {
                 dependencies: spec.dependencies
             )
         }.sorted { $0.subject.canonicalKey < $1.subject.canonicalKey }
+    }
+
+    /// Preserve the historical registry while binding its counter alias to
+    /// the current store-backed, nonpersistent diagnostic representation.
+    static func currentBaselineRegistration(_ baseline: SyncClassificationRegistrationV1) throws -> SyncClassificationRegistrationV1 {
+        guard baseline.subject == (try subject(category: .diagnostic, name: "diagnosticCounters")) else {
+            return baseline
+        }
+        let policy = baseline.replicationPolicy
+        let current = try ReplicationPolicyV1(policyID: policy.policyID, policyVersion: policy.policyVersion,
+            authority: policy.authority, persistence: .nonpersistent, transport: policy.transport,
+            bootstrap: policy.bootstrap, privacy: policy.privacy, retention: policy.retention,
+            codec: policy.codec, sizeLimit: policy.sizeLimit, dependencies: policy.dependencies,
+            backup: policy.backup, export: policy.export, deletion: policy.deletion, erase: policy.erase)
+        return try SyncClassificationRegistrationV1(subject: baseline.subject,
+            classification: baseline.classification, replicationPolicy: current, conflictPolicy: baseline.conflictPolicy)
     }
 
     static func registration(
