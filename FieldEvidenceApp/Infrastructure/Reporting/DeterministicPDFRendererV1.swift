@@ -1486,11 +1486,8 @@ extension DeterministicPDFRendererV1 {
                 throw AssetLabelRenderFailureV1.contentDoesNotFit
             }
             let lineBoxBottom = CGFloat(pixelHeight - (index + 1) * 10)
-            let baseline = lineBoxBottom + descent + 1
-            guard baseline - descent >= lineBoxBottom + 1,
-                  baseline + ascent <= lineBoxBottom + 9 else {
-                throw AssetLabelRenderFailureV1.contentDoesNotFit
-            }
+            let baseline = try assetLabelTextBaseline(
+                ascent: ascent, descent: descent, lineBoxBottom: lineBoxBottom)
             context.textPosition = CGPoint(
                 x: 4,
                 y: baseline
@@ -1507,6 +1504,19 @@ extension DeterministicPDFRendererV1 {
         #else
         throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
         #endif
+    }
+
+    static func assetLabelTextBaseline(
+        ascent: CGFloat, descent: CGFloat, lineBoxBottom: CGFloat
+    ) throws -> CGFloat {
+        let lineHeight = ascent + descent
+        guard ascent.isFinite, descent.isFinite, lineBoxBottom.isFinite,
+              ascent >= 0, descent >= 0, lineBoxBottom >= 0,
+              lineHeight <= 10 else {
+            throw AssetLabelRenderFailureV1.contentDoesNotFit
+        }
+        let verticalInset = min(CGFloat(1), (CGFloat(10) - lineHeight) / 2)
+        return lineBoxBottom + descent + verticalInset
     }
 
     static func assetLabelNativeTextEnvironment(

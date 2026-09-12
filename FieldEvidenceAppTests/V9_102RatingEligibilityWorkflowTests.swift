@@ -68,12 +68,15 @@ private enum C39 {
         let rootID = activitySeriesID ?? id(1_500 + slot), snapshotID = "c39-snapshot-\(slot)"
         let workspaceToken = workspace.rawValue.uuidString.lowercased()
         let formats: [ReportProjectionFormatV1] = [.openJSON, .pdf, .structuredText]
-        let section = try ReportSectionDefinitionV1(
-            sectionID: "identity", version: 1, required: true, supportedFormats: formats,
-            privacyClass: .mandatoryPublicTruth, requiresHeading: true,
-            requiresTextAlternative: true, order: 0)
+        let sections = try ["identity", "limitations", "provenance", "supersession", "manifest"]
+            .enumerated().map { order, sectionID in
+                try ReportSectionDefinitionV1(
+                    sectionID: sectionID, version: 1, required: true, supportedFormats: formats,
+                    privacyClass: .mandatoryPublicTruth, requiresHeading: true,
+                    requiresTextAlternative: true, order: order)
+            }
         let registry = try ReportSectionRegistryV1(
-            registryID: "c39-registry", registryVersion: 1, sections: [section])
+            registryID: "c39-registry", registryVersion: 1, sections: sections)
         let manifest = try ContractManifestV1(
             manifestID: "c39-manifest", manifestVersion: 1,
             codec: .init(codecVersion: 1),
@@ -87,7 +90,7 @@ private enum C39 {
             enums: [], reportSectionRegistry: registry)
         let layout = try ReportLayoutProfileV1(
             profileID: "c39-layout", profileRelease: 1, audience: .customerSafe,
-            detail: .complete, sectionIDs: [section.sectionID], mediaLayout: .standardGrid,
+            detail: .complete, sectionIDs: sections.map(\.sectionID), mediaLayout: .standardGrid,
             orientation: .portrait, localeIdentifier: "en_US", unitsProfileID: "units-si-v1",
             displayProfileID: "display-v1", registry: registry)
         let export = try ExportProfileV1(

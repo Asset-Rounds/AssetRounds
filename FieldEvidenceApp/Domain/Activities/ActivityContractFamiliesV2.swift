@@ -1386,7 +1386,8 @@ struct InstallationWorkflowDefinitionReleaseV1:Codable,Equatable,Sendable{
               Set(task.evidencePurposes).count==task.evidencePurposes.count else{throw ActivityContractFailureV2.invalidValue}}
         guard schemaVersion==Self.schemaVersion,releaseID != ActivityContractValidationV2.zeroUUID,revision>0,
         bundledRelease == .installationV1,
-        !tasks.isEmpty,tasks.count<=ActivityContractValidationV2.maximumTasks,ActivityContractValidationV2.sortedUnique(tasks.map(\.taskID)),
+        !tasks.isEmpty,tasks.count<=ActivityContractValidationV2.maximumTasks,tasks==tasks.sorted(),
+        Set(tasks.map(\.taskID)).count==tasks.count,Set(tasks.map(\.ordinal)).count==tasks.count,
         releaseSHA256==(try WorkspaceMutationCanonicalV1.sha256(basis))else{throw ActivityContractFailureV2.invalidValue}}
     private var basis:Basis{.init(schemaVersion:schemaVersion,releaseID:releaseID,workspaceID:workspaceID,tasks:tasks,
         bundledRelease:bundledRelease,readinessPolicy:readinessPolicy,revision:revision,mutationID:mutationID)}
@@ -1644,7 +1645,8 @@ struct PunchReviewWorkflowDefinitionReleaseV1:Codable,Equatable,Sendable{
         self.revision=revision;self.mutationID=mutationID;releaseSHA256=try WorkspaceMutationCanonicalV1.sha256(basis);try validate()}
     func validate()throws{try readinessPolicy.validate();guard schemaVersion==Self.schemaVersion,releaseID != ActivityContractValidationV2.zeroUUID,revision>0,!scope.isEmpty,
         bundledRelease == .punchReviewV1,
-        scope.count<=ActivityContractValidationV2.maximumScopeItems,ActivityContractValidationV2.sortedUnique(scope.map(\.scopeItemID)),
+        scope.count<=ActivityContractValidationV2.maximumScopeItems,scope==scope.sorted(),
+        Set(scope.map(\.scopeItemID)).count==scope.count,Set(scope.map(\.ordinal)).count==scope.count,
         releaseSHA256==(try WorkspaceMutationCanonicalV1.sha256(basis))else{throw ActivityContractFailureV2.invalidValue}}
     private var basis:Basis{.init(schemaVersion:schemaVersion,releaseID:releaseID,workspaceID:workspaceID,scope:scope,
         bundledRelease:bundledRelease,readinessPolicy:readinessPolicy,revision:revision,mutationID:mutationID)}

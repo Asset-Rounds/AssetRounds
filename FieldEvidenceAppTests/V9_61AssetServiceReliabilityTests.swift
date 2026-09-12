@@ -118,7 +118,7 @@ private enum C53AssetServiceReliabilityTestSupport {
     static func observation() throws -> ObservationBasisV1 {
         try ObservationBasisV1(
             kind: .directlyObserved,
-            method: try ObservationMethodV1(key: "C53_TYPED_TEST"),
+            method: try ObservationMethodV1(key: "c53_typed_test"),
             source: try ObservationSourceReferenceV1(kind: .observer)
         )
     }

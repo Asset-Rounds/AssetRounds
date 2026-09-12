@@ -976,13 +976,6 @@ final class V9_10LifecycleBoundaryTests: XCTestCase {
             stagingRootURL: stagingRoot,
             maximumConcurrency: 1
         )
-        await relaunched.registerPublisher(.mediaProcessing) { context in
-            XCTAssertEqual(context.mode, .adoptOnly)
-            guard try Data(contentsOf: canonicalURL) == Data("retained-canonical".utf8) else {
-                return .absent
-            }
-            return .completed(Self.receipt(context, disposition: .adopted))
-        }
         let activeGate = V910Gate()
         let rejectedCanonicalEffects = V910IntBox(0)
         await relaunched.register(.hash) { context in
@@ -1006,6 +999,18 @@ final class V9_10LifecycleBoundaryTests: XCTestCase {
         )
         _ = try await relaunched.enqueue(blocker)
         await activeGate.waitUntilArrived()
+        // Ordinary recovery can be scheduled by enqueue. Keep its publisher
+        // absent until the blocker owns the sole slot so this assertion tests
+        // the subsequent destructive reconciliation, not ordinary recovery.
+        let stillAwaiting = try await relaunched.job(id: job.id)
+        XCTAssertEqual(stillAwaiting?.state, .awaitingPublication)
+        await relaunched.registerPublisher(.mediaProcessing) { context in
+            XCTAssertEqual(context.mode, .adoptOnly)
+            guard try Data(contentsOf: canonicalURL) == Data("retained-canonical".utf8) else {
+                return .absent
+            }
+            return .completed(Self.receipt(context, disposition: .adopted))
+        }
         let lateJob = try makeJob(
             workspaceID: eraseAll ? uuid(95) : job.workspaceID,
             rootLabel: eraseAll ? "eraseAll-late" : "removeJobs-late",

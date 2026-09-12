@@ -408,8 +408,10 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         do { _ = try await diagnostics.prepare(accessGate: diagnosticsGate); XCTFail("diagnostic read bypassed gate") }
         catch { XCTAssertEqual(diagnosticReads.value, 0) }
 
+        let bulkFixture = try C16Fixture()
+        defer { withExtendedLifetime(bulkFixture) {} }
         let bulk = try ImportBulkLifecycleAdapterV1(
-            registrations: [try C16ImportRegistration.make()], modelContext: try C16Fixture().context
+            registrations: [try C16ImportRegistration.make()], modelContext: bulkFixture.context
         )
         let bulkGate = C16AccessGate(state: .locked(reason: .lockNow))
         do { _ = try await bulk.durableSession(sessionID: UUID(), accessGate: bulkGate); XCTFail("bulk read bypassed gate") }
@@ -816,6 +818,7 @@ private enum C16ImportRegistration {
 
 @MainActor
 private final class C16Fixture {
+    let container: ModelContainer
     let workspaceID = WorkspaceID(rawValue: UUID())
     let generationID = UUID()
     let context: ModelContext
@@ -830,6 +833,7 @@ private final class C16Fixture {
             allowsSave: true, cloudKitDatabase: .none
         )
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [configuration])
+        self.container = container
         context = container.mainContext; context.autosaveEnabled = false
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: workspaceID, replicaID: ReplicaID(rawValue: UUID())

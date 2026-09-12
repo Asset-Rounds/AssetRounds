@@ -601,6 +601,7 @@ private final class C12ExactAuthority: ReinspectionCanonicalSourceResolvingV1, E
 
 @MainActor
 private final class C12Fixture {
+    let container: ModelContainer
     let workspaceID: WorkspaceID, date = Date(timeIntervalSince1970: 1_700_200_000)
     let identity: WorkspaceReplicaIdentityV1, generationID: UUID
     let context: ModelContext, journal: MutationJournalStoreV1, writer: WorkspaceWriterV1
@@ -612,6 +613,7 @@ private final class C12Fixture {
          failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil) throws {
         let workspace = requestedWorkspaceID ?? WorkspaceID(), schema = Schema(PersistentSchemaV49.models, version: PersistentSchemaV49.versionIdentifier)
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C12Production", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
+        self.container = container
         let modelContext = container.mainContext; modelContext.autosaveEnabled = false
         var reinspection: [ReinspectionSourceSnapshotV1] = []
         for offset in 0..<ReinspectionSelectionReasonV1.allCases.count {

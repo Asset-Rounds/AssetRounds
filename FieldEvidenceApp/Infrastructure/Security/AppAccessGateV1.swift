@@ -134,6 +134,12 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
 
     func requireContentAccess(
         for surface: AppAccessContentReadSurfaceV1
+    ) async throws -> AppAccessContentPermitV1 {
+        try currentContentPermit(for: surface)
+    }
+
+    private func currentContentPermit(
+        for surface: AppAccessContentReadSurfaceV1
     ) throws -> AppAccessContentPermitV1 {
         do {
             try requireCurrentContentReadAccess()
@@ -146,7 +152,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     /// Concrete actor entry point for C23. State inspection and permit minting
     /// occur in this single actor turn before any OCR source can be resolved.
     func requireOCRProposalContentAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try requireContentAccess(for: .ocrProposal)
+        let permit = try currentContentPermit(for: .ocrProposal)
         try OCRProposalAppAccessBoundaryV1.validate(permit)
         return permit
     }
@@ -154,25 +160,25 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     /// Each C24 permit is minted from the same state snapshot in this actor
     /// turn. Neither OS capability's disposition is cached in AppAccess.
     func requireDictationProposalContentAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try requireContentAccess(for: .dictationProposal)
+        let permit = try currentContentPermit(for: .dictationProposal)
         try DictationLocationProposalAppAccessBoundaryV1.validateDictation(permit)
         return permit
     }
 
     func requireOneShotLocationProposalContentAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try requireContentAccess(for: .oneShotLocationProposal)
+        let permit = try currentContentPermit(for: .oneShotLocationProposal)
         try DictationLocationProposalAppAccessBoundaryV1.validateOneShotLocation(permit)
         return permit
     }
 
     func requireTemporalAudioCaptureAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try requireContentAccess(for: .temporalAudioCapture)
+        let permit = try currentContentPermit(for: .temporalAudioCapture)
         try TemporalEvidenceCaptureAppAccessBoundaryV1.validateAudio(permit)
         return permit
     }
 
     func requireTemporalVideoCaptureAccess() throws -> AppAccessContentPermitV1 {
-        let permit = try requireContentAccess(for: .temporalVideoCapture)
+        let permit = try currentContentPermit(for: .temporalVideoCapture)
         try TemporalEvidenceCaptureAppAccessBoundaryV1.validateVideo(permit)
         return permit
     }

@@ -528,7 +528,7 @@ enum IncumbentDelimitedTextSafetyV1 {
                character.unicodeScalars.first == delimiter {
                 finishField(); index = text.index(after: index); continue
             }
-            if !quoted, character == "\n" {
+            if !quoted, character == "\n" || character == "\r\n" {
                 finishRow(); index = text.index(after: index); continue
             }
             if !quoted, character == "\r" {

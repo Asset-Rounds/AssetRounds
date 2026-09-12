@@ -1743,11 +1743,17 @@ final class V9_37FieldReferencePackTests: XCTestCase {
             revision: binding.revision,
             canonicalData: bindingData
         )
+        let emptyHistory = MutationHistorySnapshotV1(
+            workspaceRevision: 0, lastLocalSequence: 0,
+            receipts: [], quarantines: [], entityRevisions: []
+        )
         let records = V4BackupRecordsV1(
             fieldReferences: [bindingRecord, releaseRecord],
             assets: [],
+            deletionLedger: .empty,
             evidenceFiles: [],
             issues: [],
+            mutationHistory: emptyHistory,
             packets: [],
             recordsSchemaVersion: 21,
             reports: [],
@@ -1757,12 +1763,16 @@ final class V9_37FieldReferencePackTests: XCTestCase {
         let encoded = try BackupCanonicalEncoderV1().encodeRecords(records)
         let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded.data)
         XCTAssertEqual(decoded.fieldReferences, [bindingRecord, releaseRecord])
+        XCTAssertEqual(decoded.deletionLedger, .empty)
+        XCTAssertEqual(decoded.mutationHistory, emptyHistory)
         XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(
             V4BackupRecordsV1(
                 fieldReferences: [releaseRecord, releaseRecord],
                 assets: [],
+                deletionLedger: .empty,
                 evidenceFiles: [],
                 issues: [],
+                mutationHistory: emptyHistory,
                 packets: [],
                 recordsSchemaVersion: 21,
                 reports: [],

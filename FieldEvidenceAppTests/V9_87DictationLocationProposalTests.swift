@@ -533,12 +533,12 @@ private enum C24Support {
             localeIdentifier: locale,
             recognitionRequestRevision: 3,
             explicitUserAction: true,
-            requestedAt: C32AssistanceTestSupport.fixedDate
+            requestedAt: acceptance.proposal.createdAt
         )
         let permission = try SpeechPermissionDispositionV1(
             microphone: .authorized,
             speechRecognition: .authorized,
-            observedAt: permissionDate
+            observedAt: request.requestedAt
         )
         func proposal(_ text: String, revision: UInt64) throws -> OnDeviceDictationProposalV1 {
             let assistance = try AssistanceProposalV1(
@@ -598,7 +598,7 @@ private enum C24Support {
             source: source,
             foreground: true,
             explicitUserAction: true,
-            requestedAt: C32AssistanceTestSupport.fixedDate
+            requestedAt: acceptance.proposal.createdAt
         )
         let observation = try OneShotLocationObservationV1(
             latitudeMicrodegrees: 40_712_800,

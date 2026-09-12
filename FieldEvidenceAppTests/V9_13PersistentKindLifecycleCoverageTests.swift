@@ -32,6 +32,18 @@ private final class C30EvidenceContextAnchorV9_13PersistentKindLifecycleCoverage
 
 @MainActor
 final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
+    func testHistoricalDayInventoryBoundarySurvivesCurrentNightEnrollment() throws {
+        XCTAssertEqual(PersistentSchemaV52.models.count, 167)
+        XCTAssertEqual(PersistentSchemaV53.models.count, 168)
+        XCTAssertTrue(C17LightingDayInventorySyncClassificationBoundaryV1.validate())
+        XCTAssertTrue(C18LightingNightWorkflowSyncClassificationBoundaryV1.validate())
+        let catalog = try CurrentSyncClassificationCatalogV1.current
+        XCTAssertNoThrow(try catalog.validate())
+        for name in ["LightingDayInventoryWorkflowRowV1", "LightingNightWorkflowRowV1"] {
+            XCTAssertTrue(CurrentSyncClassificationCatalogV1.activePersistentModelNames.contains(name))
+        }
+    }
+
     func testC57MyDayLifecycleInventoryIsCompleteAndReadinessIsDerived() throws {
         XCTAssertEqual(CurrentSyncClassificationCatalogV1.v42PersistentModelNames,
                        ["MyDayCarryoverReceiptRowV1", "MyDayPlanRowV1"])

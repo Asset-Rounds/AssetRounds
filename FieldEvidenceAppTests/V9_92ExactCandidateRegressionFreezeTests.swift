@@ -160,7 +160,7 @@ final class V9_92ExactCandidateRegressionFreezeTests: XCTestCase {
     private func canonicalObservedBytes(_ observed: [String: Any]) throws -> Data {
         var basis = observed
         basis.removeValue(forKey: "canonicalResultSHA256")
-        return try JSONSerialization.data(withJSONObject: basis, options: [.sortedKeys])
+        return try JSONSerialization.data(withJSONObject: basis, options: [.sortedKeys, .withoutEscapingSlashes])
     }
 
     private func canonicalData(_ value: [String: Any]) throws -> Data {
@@ -173,7 +173,8 @@ final class V9_92ExactCandidateRegressionFreezeTests: XCTestCase {
             let closedShape = try dictionary(root, "closedShape")
             let allowed = try dictionary(closedShape, "objectKeys")
             let shapes = try Dictionary(uniqueKeysWithValues: allowed.map { key, value in
-                (key, Set(try XCTUnwrap(value as? [String])))
+                guard let keys = value as? [String] else { throw ValidationError.shape }
+                return (key, Set(keys))
             })
             guard Set(root.keys) == Self.rootKeys, shapes["root"] == Self.rootKeys else { return false }
             guard Set(closedShape.keys) == Set(["objectKeys", "arrays"]),
@@ -191,13 +192,17 @@ final class V9_92ExactCandidateRegressionFreezeTests: XCTestCase {
         } catch { return false }
     }
 
-    private func validate(value: Any, shapes: [String: Set<String>]) throws {
+    private func validate(value: Any, shapes: [String: Set<String>], path: [String] = []) throws {
         if let object = value as? [String: Any] {
             if object.keys.contains("objectKeys") { return }
-            guard shapes.values.contains(Set(object.keys)) else { throw ValidationError.shape }
-            for child in object.values { try validate(value: child, shapes: shapes) }
+            if path == ["blockedEvidence"] {
+                guard Set(object.keys) == Set(["acceptedS10_6", "accessibility", "coverage", "journeys", "localization", "nativeCandidate", "releaseState"]) else { throw ValidationError.shape }
+            } else {
+                guard shapes.values.contains(Set(object.keys)) else { throw ValidationError.shape }
+            }
+            for (key, child) in object { try validate(value: child, shapes: shapes, path: path + [key]) }
         } else if let array = value as? [Any] {
-            for child in array { try validate(value: child, shapes: shapes) }
+            for (index, child) in array.enumerated() { try validate(value: child, shapes: shapes, path: path + ["#\(index)"]) }
         }
     }
 
@@ -244,8 +249,17 @@ final class V9_92ExactCandidateRegressionFreezeTests: XCTestCase {
     private var rootURL: URL { URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent() }
     private func data(_ path: String) throws -> Data { try Data(contentsOf: rootURL.appendingPathComponent(path)) }
     private func object(_ path: String) throws -> [String: Any] { try XCTUnwrap(JSONSerialization.jsonObject(with: data(path)) as? [String: Any]) }
-    private func dictionary(_ root: [String: Any], _ key: String) throws -> [String: Any] { try XCTUnwrap(root[key] as? [String: Any]) }
-    private func objects(_ root: [String: Any], _ key: String) throws -> [[String: Any]] { try XCTUnwrap(root[key] as? [[String: Any]]) }
-    private func strings(_ root: [String: Any], _ key: String) throws -> [String] { try XCTUnwrap(root[key] as? [String]) }
+    private func dictionary(_ root: [String: Any], _ key: String) throws -> [String: Any] {
+        guard let value = root[key] as? [String: Any] else { throw ValidationError.shape }
+        return value
+    }
+    private func objects(_ root: [String: Any], _ key: String) throws -> [[String: Any]] {
+        guard let value = root[key] as? [[String: Any]] else { throw ValidationError.shape }
+        return value
+    }
+    private func strings(_ root: [String: Any], _ key: String) throws -> [String] {
+        guard let value = root[key] as? [String] else { throw ValidationError.shape }
+        return value
+    }
     private func sha(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
 }

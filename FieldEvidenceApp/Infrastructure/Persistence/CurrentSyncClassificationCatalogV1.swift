@@ -1806,7 +1806,9 @@ enum C17LightingDayInventorySyncClassificationBoundaryV1 {
     static func validate() -> Bool {
         CurrentSyncClassificationCatalogV1.v52PersistentModelNames
             == ["LightingDayInventoryWorkflowRowV1"]
-            && CurrentSyncClassificationCatalogV1.activePersistentModelNames.count == 167
+            && PersistentSchemaV52.models.count == 167
+            && Set(CurrentSyncClassificationCatalogV1.v52PersistentModelNames)
+                .isSubset(of: Set(CurrentSyncClassificationCatalogV1.activePersistentModelNames))
             && LightingDayInventoryPersistenceEnrollmentV1.usesGenericMutationReceiptOnly
             && !LightingDayInventoryPersistenceEnrollmentV1.offlineReadinessManifestIsPersistent
     }

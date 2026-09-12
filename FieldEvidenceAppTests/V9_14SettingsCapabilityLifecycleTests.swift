@@ -881,7 +881,15 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         let corpus = try Self.loadCorpus()
         let matrix = try CapabilityPermissionMatrixV1.current()
         let fallback = PermissionFallbackRegistryV1(matrix: matrix)
-        XCTAssertEqual(matrix.descriptors.map(\.capabilityID.rawValue), corpus.capabilityIDs)
+        XCTAssertFalse(corpus.capabilityIDs.contains(CapabilityIDV1.encryptedBackup.rawValue))
+        XCTAssertEqual(matrix.descriptors.map(\.capabilityID.rawValue),
+            (corpus.capabilityIDs + [CapabilityIDV1.encryptedBackup.rawValue]).sorted())
+        let encrypted = try XCTUnwrap(matrix.descriptors.first { $0.capabilityID == .encryptedBackup })
+        XCTAssertEqual(encrypted.platformAPI, "AssetRounds.encryptedPortableEnvelope")
+        XCTAssertEqual(encrypted.requestTiming, .neverRequested)
+        XCTAssertNil(encrypted.purposeStringKey)
+        XCTAssertEqual(encrypted.manualFallback, .saveLocally)
+        XCTAssertEqual(encrypted.scratchPurpose, .none)
         XCTAssertEqual(
             CapabilityPermissionStateV1.allCases.map(\.rawValue).sorted(),
             corpus.permissionStates
@@ -1204,7 +1212,9 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
                 expectedDigest: policyDigest
             )
         ).load()
-        XCTAssertEqual(featureRegistry.features.map(\.featureID), corpus.featureIDs)
+        XCTAssertFalse(corpus.featureIDs.contains("privateSystemDiscovery"))
+        XCTAssertEqual(featureRegistry.features.map(\.featureID),
+            (corpus.featureIDs + ["privateSystemDiscovery"]).sorted())
         let loader = FeaturePolicyLoaderV1(provider: provider)
         for feature in featureRegistry.features {
             let resolution = try loader.resolve(featureID: feature.featureID)
@@ -1234,8 +1244,8 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
             XCTAssertEqual($0 as? CapabilityContractFailureV1, .unknownFeature)
         }
         XCTAssertEqual(
-            featureRegistry.features.filter { $0.state == .preparedDisabled }.count,
-            3
+            featureRegistry.features.filter { $0.state == .preparedDisabled }.map(\.featureID),
+            ["locationCapture", "privateSystemDiscovery", "scanOCR", "speechDictation"]
         )
         XCTAssertEqual(
             Set(corpus.scratchExcludedConsumers),

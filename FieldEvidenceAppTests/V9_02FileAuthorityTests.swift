@@ -144,6 +144,31 @@ final class V9_02FileAuthorityTests: XCTestCase {
         try assertResourceValues(.database, at: file)
     }
 
+    func testCachedValidResourceValuesCannotHideLaterPhysicalAttributeChanges() throws {
+        let root = try makeTemporaryRoot("cached-resource-values")
+        defer { try? fileManager.removeItem(at: root) }
+        let file = root.appendingPathComponent("model.sqlite")
+        XCTAssertTrue(fileManager.createFile(atPath: file.path, contents: Data("protected".utf8)))
+        try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
+        _ = try file.resourceValues(forKeys: [.fileProtectionKey, .isExcludedFromBackupKey])
+        try fileManager.setAttributes([.protectionKey: FileProtectionType.none], ofItemAtPath: file.path)
+        XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.database, at: file)) { error in
+            XCTAssertEqual(error as? ProtectedFilePolicyError, .resourceValueMismatch)
+        }
+        try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
+        _ = try file.resourceValues(forKeys: [.fileProtectionKey, .isExcludedFromBackupKey])
+        var anotherURL = URL(fileURLWithPath: file.path)
+        var wrongValues = URLResourceValues()
+        wrongValues.isExcludedFromBackup = true
+        try anotherURL.setResourceValues(wrongValues)
+        XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.database, at: file)) { error in
+            XCTAssertEqual(error as? ProtectedFilePolicyError, .resourceValueMismatch)
+        }
+        try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
+        try assertResourceValues(.database, at: file)
+        XCTAssertEqual(try Data(contentsOf: file), Data("protected".utf8))
+    }
+
     func testRelativePathTraversalAndLinkEscapesFailClosed() throws {
         let root = try makeTemporaryRoot("confinement")
         defer { try? fileManager.removeItem(at: root) }

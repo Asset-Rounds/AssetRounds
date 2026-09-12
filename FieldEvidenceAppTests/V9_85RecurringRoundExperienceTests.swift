@@ -347,7 +347,7 @@ private struct C22Corpus: Decodable {
         let kind: String
         let derivedQueueArchived: Bool?
         let derivedQueueRebuilt: Bool?
-        let historyImmutable: Bool
+        let historyImmutable: Bool?
         let sourceScheduleAutomaticallyActive: Bool?
     }
     struct Accessibility: Decodable {
@@ -916,7 +916,22 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
         let corpus = try C22RecurringRoundTestSupport.corpus()
         XCTAssertEqual(corpus.transformations.map(\.kind),
                        ["BACKUP", "REPLACE_RESTORE", "CLONE", "FORK"])
-        XCTAssertTrue(corpus.transformations.allSatisfy(\.historyImmutable))
+        for transformation in corpus.transformations {
+            switch transformation.kind {
+            case "BACKUP":
+                XCTAssertEqual(transformation.historyImmutable, true)
+                XCTAssertEqual(transformation.derivedQueueArchived, false)
+            case "REPLACE_RESTORE":
+                XCTAssertEqual(transformation.historyImmutable, true)
+                XCTAssertEqual(transformation.derivedQueueRebuilt, true)
+            case "CLONE", "FORK":
+                XCTAssertNil(transformation.historyImmutable)
+                XCTAssertEqual(transformation.derivedQueueRebuilt, true)
+                XCTAssertEqual(transformation.sourceScheduleAutomaticallyActive, false)
+            default:
+                XCTFail("Unexpected frozen transformation kind")
+            }
+        }
         XCTAssertFalse(try XCTUnwrap(corpus.transformations.first).derivedQueueArchived ?? true)
         XCTAssertTrue(corpus.accessibility.voiceOverOrderIsSourceOrder)
         XCTAssertTrue(corpus.accessibility.voiceControlUsesVisibleNames)

@@ -563,7 +563,11 @@ enum ProtectedFilePolicyV1 {
         disposition: OwnedFileProtectionDispositionV1
     ) throws {
         do {
-            let values = try url.resourceValues(forKeys: [
+            // FileManager and other URL instances may have changed the file
+            // during this run-loop pass. Cached metadata is not a read-back.
+            var currentURL = url
+            currentURL.removeAllCachedResourceValues()
+            let values = try currentURL.resourceValues(forKeys: [
                 .fileProtectionKey,
                 .isExcludedFromBackupKey
             ])

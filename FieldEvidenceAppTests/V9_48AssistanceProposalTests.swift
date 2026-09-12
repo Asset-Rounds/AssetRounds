@@ -741,12 +741,19 @@ private struct C32PersistentFileAuthority: ApplicationFileAuthorityV1 {
     }
 }
 
+private struct C32PersistentExternalBaseline: Equatable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let sha256: String
+}
+
 @MainActor
 private final class C32PersistentAcceptanceHarness {
     let fixture: C32AssistanceTestSupport.AcceptanceFixture
     let container: ModelContainer
     let context: ModelContext
     let identity: WorkspaceReplicaIdentityV1
+    let seededExternalBaselines: [C32PersistentExternalBaseline]
     let store: MutationJournalStoreV1
     let writer: WorkspaceWriterV1
 
@@ -790,12 +797,44 @@ private final class C32PersistentAcceptanceHarness {
             packageRelease: try C26SurveySessionTestSupport.packageRelease(),
             packageSlot: 9_000 + slot
         )
+        let promotedRows = try context.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+        guard promotedRows.count == 1, let promotedRow = promotedRows.first else {
+            throw AssistanceContractFailureV1.invalidValue
+        }
+        let promoted = try promotedRow.value()
+        let promotedIdentity = try WorkspaceEntityIdentityV1(
+            kind: .promotedPackageRelease,
+            id: promoted.releaseRecordID
+        )
+        context.insert(EntityMutationRevisionRow(
+            identity: promotedIdentity,
+            revision: promoted.revision,
+            externalProjectionSHA256: promoted.releaseRecordSHA256
+        ))
         context.insert(EntityMutationRevisionRow(
             identity: fixture.proposal.target.entity,
             revision: fixture.proposal.target.revision,
-            externalProjectionSHA256: useActiveSchema ? session.sessionSHA256 : nil
+            externalProjectionSHA256: session.sessionSHA256
         ))
         try context.save()
+        let seededExternalBaselines = [
+            C32PersistentExternalBaseline(
+                identity: promotedIdentity,
+                revision: promoted.revision,
+                sha256: promoted.releaseRecordSHA256
+            ),
+            C32PersistentExternalBaseline(
+                identity: fixture.proposal.target.entity,
+                revision: fixture.proposal.target.revision,
+                sha256: session.sessionSHA256
+            )
+        ].sorted { $0.identity.stableKey < $1.identity.stableKey }
+        guard try Self.externalBaselines(
+            in: context,
+            identities: Set(seededExternalBaselines.map(\.identity))
+        ) == seededExternalBaselines else {
+            throw AssistanceContractFailureV1.invalidValue
+        }
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: fixture.proposal.target.workspaceID,
             replicaID: ReplicaID(rawValue: C32AssistanceTestSupport.id(9_500 + slot))
@@ -824,8 +863,37 @@ private final class C32PersistentAcceptanceHarness {
         self.container = container
         self.context = context
         self.identity = identity
+        self.seededExternalBaselines = seededExternalBaselines
         self.store = store
         self.writer = writer
+    }
+
+    func externalBaselines(in context: ModelContext? = nil) throws -> [C32PersistentExternalBaseline] {
+        try Self.externalBaselines(
+            in: context ?? self.context,
+            identities: Set(seededExternalBaselines.map(\.identity))
+        )
+    }
+
+    private static func externalBaselines(
+        in context: ModelContext,
+        identities: Set<WorkspaceEntityIdentityV1>
+    ) throws -> [C32PersistentExternalBaseline] {
+        try context.fetch(FetchDescriptor<EntityMutationRevisionRow>()).compactMap { row in
+            guard let kind = WorkspaceEntityKindV1(rawValue: row.kind) else {
+                throw AssistanceContractFailureV1.invalidValue
+            }
+            let identity = try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
+            guard identities.contains(identity) else { return nil }
+            guard row.revision > 0, let sha256 = row.externalProjectionSHA256 else {
+                throw AssistanceContractFailureV1.invalidValue
+            }
+            return C32PersistentExternalBaseline(
+                identity: identity,
+                revision: UInt64(row.revision),
+                sha256: sha256
+            )
+        }.sorted { $0.identity.stableKey < $1.identity.stableKey }
     }
 
     func request() throws -> AssistanceAcceptanceRequestV1 {
@@ -894,6 +962,7 @@ final class V9_48AssistanceProposalTests: XCTestCase {
     func testActualAcceptanceReceiptBindsPostImageIdentityAndRejectsForeignOrCorruptEvidence() throws {
         let harness = try C32PersistentAcceptanceHarness(slot: 811, useActiveSchema: true)
         let request = try harness.request()
+        XCTAssertEqual(try harness.externalBaselines(), harness.seededExternalBaselines)
         let originalSessions = try harness.context.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }
         try harness.store.validateAll()
         let accepted = try harness.writer.commitAssistanceAcceptance(request)
@@ -958,6 +1027,7 @@ final class V9_48AssistanceProposalTests: XCTestCase {
         XCTAssertEqual(try harness.context.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }, originalSessions)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<AssistanceAcceptanceReceiptRow>()), 1)
+        XCTAssertEqual(try harness.externalBaselines(), harness.seededExternalBaselines)
         try harness.store.validateAll()
     }
 
@@ -1721,6 +1791,10 @@ final class V9_48AssistanceProposalTests: XCTestCase {
         XCTAssertEqual(
             try persistentRelaunch.context.fetchCount(FetchDescriptor<AssistanceAcceptanceReceiptRow>()),
             1
+        )
+        XCTAssertEqual(
+            try persistent.externalBaselines(in: persistentRelaunch.context),
+            persistent.seededExternalBaselines
         )
     }
 

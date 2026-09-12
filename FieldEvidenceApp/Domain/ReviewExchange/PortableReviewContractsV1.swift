@@ -73,6 +73,12 @@ struct ReviewRequestPublicIDV1: Codable, Equatable, Hashable, Sendable {
         let container = try decoder.singleValueContainer()
         try self.init(try container.decode(String.self))
     }
+
+    func encode(to encoder: Encoder) throws {
+        try validate()
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 struct BearerResponseCapabilityV1: Equatable, Hashable, Sendable {
@@ -105,6 +111,12 @@ struct ReviewCapabilityProofV1: Codable, Equatable, Hashable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         try self.init(rawBytes: container.decode(Data.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try PortableReviewLimitsV1.proof(rawBytes)
+        var container = encoder.singleValueContainer()
+        try container.encode(rawBytes)
     }
 }
 

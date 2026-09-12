@@ -4,6 +4,86 @@ import XCTest
 
 @MainActor
 final class V9_86OCRProposalTests: XCTestCase {
+    func testOCRRequestAndEvidenceConstructValidateAndRoundTripWithoutRecursion() throws {
+        let bundle = try C23OCRSupport.bundle(languages: ["fr-FR", "en-US"])
+        XCTAssertEqual(bundle.request.requestedLanguageIdentifiers, ["en-US", "fr-FR"])
+        XCTAssertEqual(bundle.request.packageCustomWords, ["Emergency", "Luminaire"])
+        XCTAssertEqual(bundle.evidence.configuredLanguageIdentifiers, ["en-US", "fr-FR"])
+        try bundle.request.validate()
+        try bundle.evidence.validate()
+
+        let requestBytes = try AssistanceCanonicalCodecV1.encode(bundle.request)
+        let restoredRequest = try AssistanceCanonicalCodecV1.decode(
+            OCRExtractionRequestV1.self,
+            from: requestBytes
+        )
+        try restoredRequest.validate()
+        XCTAssertEqual(restoredRequest, bundle.request)
+
+        let evidenceBytes = try AssistanceCanonicalCodecV1.encode(bundle.evidence)
+        let restoredEvidence = try AssistanceCanonicalCodecV1.decode(
+            OCRProposalEvidenceV1.self,
+            from: evidenceBytes
+        )
+        try restoredEvidence.validate()
+        XCTAssertEqual(restoredEvidence, bundle.evidence)
+
+        XCTAssertThrowsError(try C23OCRSupport.bundle(languages: [])) { error in
+            XCTAssertEqual(error as? OCRProposalFailureV1, .explicitActionRequired)
+        }
+    }
+
+    func testDecodedOCRRequestAndEvidenceTamperingFailsValidation() throws {
+        let bundle = try C23OCRSupport.bundle(languages: ["fr-FR", "en-US"])
+        let invalidDigest = String(repeating: "0", count: 64)
+
+        for request in [
+            try decodedTampered(bundle.request) {
+                $0["requestedLanguageIdentifiers"] = ["fr-FR", "en-US"]
+            },
+            try decodedTampered(bundle.request) {
+                $0["packageCustomWords"] = ["Luminaire", "Emergency"]
+            },
+            try decodedTampered(bundle.request) {
+                $0["packageCustomWordsSHA256"] = invalidDigest
+            },
+            try decodedTampered(bundle.request) {
+                $0["requestSHA256"] = invalidDigest
+            },
+        ] {
+            XCTAssertThrowsError(try request.validate()) { error in
+                XCTAssertEqual(error as? OCRProposalFailureV1, .invalidDigest)
+            }
+        }
+
+        for evidence in [
+            try decodedTampered(bundle.evidence) {
+                $0["configuredLanguageIdentifiers"] = ["fr-FR", "en-US"]
+            },
+            try decodedTampered(bundle.evidence) {
+                $0["evidenceSHA256"] = invalidDigest
+            },
+            try decodedTampered(bundle.evidence) {
+                $0["customWordsAreHintsOnly"] = false
+            },
+            try decodedTampered(bundle.evidence) {
+                $0["processedOnDevice"] = false
+            },
+            try decodedTampered(bundle.evidence) {
+                $0["networkAccessUsed"] = true
+            },
+            try decodedTampered(bundle.evidence) {
+                var request = try XCTUnwrap($0["request"] as? [String: Any])
+                request["requestSHA256"] = invalidDigest
+                $0["request"] = request
+            },
+        ] {
+            XCTAssertThrowsError(try evidence.validate()) { error in
+                XCTAssertEqual(error as? OCRProposalFailureV1, .invalidDigest)
+            }
+        }
+    }
+
     func testV23P04C23G01SupportedExplicitOCRReviewAcceptAndNoAutomaticWrite() async throws {
         let bundle = try C23OCRSupport.bundle()
         try bundle.evidence.validate()
@@ -255,6 +335,25 @@ final class V9_86OCRProposalTests: XCTestCase {
         XCTAssertTrue(C32AssistanceAccessibilityPolicyV1.errorFocusRequired)
         XCTAssertFalse(C32AssistanceAccessibilityPolicyV1.uiAdoptionClaimed)
     }
+
+    private func decodedTampered<Value: Codable>(
+        _ value: Value,
+        mutate: (inout [String: Any]) throws -> Void
+    ) throws -> Value {
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: AssistanceCanonicalCodecV1.encode(value)
+            ) as? [String: Any]
+        )
+        try mutate(&object)
+        let bytes = try JSONSerialization.data(
+            withJSONObject: object,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        return try decoder.decode(Value.self, from: bytes)
+    }
 }
 
 private enum C23TestFailure: Error, Equatable { case unavailable, memoryPressure }
@@ -430,6 +529,8 @@ private enum C23OCRSupport {
             forResource: "V23P04C23OCRProposalCorpusV1",
             withExtension: "json",
             subdirectory: "Fixtures/V23/Assistance"
+        ) ?? Foundation.Bundle(for: V9_86OCRProposalTests.self).url(
+            forResource: "V23P04C23OCRProposalCorpusV1", withExtension: "json"
         ))
         return try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]

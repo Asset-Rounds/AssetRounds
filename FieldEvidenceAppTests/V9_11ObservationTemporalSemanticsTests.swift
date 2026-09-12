@@ -369,7 +369,11 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             let companionsBeforeRetry = try relaunched.context.fetch(
                 FetchDescriptor<ObservationAndTimeRow>()
             )
+            let assurancesBeforeRetry = try relaunched.context.fetch(
+                FetchDescriptor<RequirementAssuranceRow>()
+            )
             XCTAssertEqual(recordsBeforeRetry.count, companionsBeforeRetry.count)
+            XCTAssertEqual(recordsBeforeRetry.count, assurancesBeforeRetry.count)
             try MutationReceiptRecoveryServiceV1(store: relaunched.store)
                 .recoverBeforeWriterActivation()
             let outcome = try relaunched.writer.execute(request)
@@ -389,6 +393,10 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             )
             XCTAssertEqual(
                 try relaunched.context.fetchCount(FetchDescriptor<ObservationAndTimeRow>()),
+                1
+            )
+            XCTAssertEqual(
+                try relaunched.context.fetchCount(FetchDescriptor<RequirementAssuranceRow>()),
                 1
             )
             XCTAssertEqual(
@@ -1075,8 +1083,8 @@ private final class V911WriterHarness {
 
     init(failureBoundary: MutationJournalFaultBoundaryV1, suffix: String) throws {
         let schema = Schema(
-            PersistentSchemaV5.models,
-            version: PersistentSchemaV5.versionIdentifier
+            PersistentSchemaV8.models,
+            version: PersistentSchemaV8.versionIdentifier
         )
         container = try ModelContainer(
             for: schema,
@@ -1139,13 +1147,33 @@ private final class V911WriterHarness {
         guard let occurredAtUTC = temporal.occurredAtUTC else {
             throw V911TestFailure.unknownFixtureValue("missing occurredAtUTC")
         }
+        let recordID = Self.id(recordByte)
+        let expectedRevision: WorkspaceExpectedRevisionV1
+        if let expected {
+            expectedRevision = expected
+        } else {
+            let current = try writer.currentRevision()
+            expectedRevision = try WorkspaceExpectedRevisionV1(
+                workspaceID: current.workspaceID,
+                generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision,
+                entityRevisions: current.entityRevisions + [
+                    .init(
+                        identity: try WorkspaceEntityIdentityV1(
+                            kind: .workflowRecord,
+                            id: recordID
+                        ),
+                        revision: 0
+                    )
+                ]
+            )
+        }
         return WorkspaceMutationRequestV1(
             mutationID: try MutationIDV1(rawValue: Self.id(mutationByte)),
-            expectedRevision: try expected ?? WorkspaceExpectedRevisionV1(
-                snapshot: try writer.currentRevision()
-            ),
+            expectedRevision: expectedRevision,
             command: .createCheckDraft(CheckDraftMutationV1(
-                recordID: Self.id(recordByte),
+                recordID: recordID,
                 assetID: assetID,
                 issueID: nil,
                 parentRecordID: nil,

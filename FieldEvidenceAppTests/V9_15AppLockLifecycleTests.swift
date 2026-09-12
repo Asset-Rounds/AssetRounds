@@ -1624,7 +1624,9 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
                 let outcomes: [LocalAuthenticationOutcomeV1] = mode == 2
                     ? [.unavailable, .authenticated] : [.authenticated]
                 let auth = V915AuthenticationClient(outcomes: outcomes, availabilityStatus: status)
-                let effects = try recoveryEffects(journal: nil)
+                let initialJournal = try enabled
+                    ? recoveryJournal(enabled: true, disposition: .genericProjectionApplied) : nil
+                let effects = try recoveryEffects(journal: initialJournal)
                 let notifications = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
                 let setting = V915SettingStore(value: .init(isEnabled: enabled))
                 let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
@@ -1646,7 +1648,7 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
                 let writesBefore = await setting.writeEffectCount
                 XCTAssertEqual(state, .interruptedLocked)
                 XCTAssertFalse(unresolved)
-                XCTAssertNil(journal)
+                XCTAssertEqual(journal, initialJournal)
                 XCTAssertEqual(writesBefore, 0)
                 await assertReadDenied(gate)
                 await auth.setAvailability(.available)
@@ -2549,6 +2551,44 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         XCTAssertEqual(secondEnableOutcome, .authenticated)
     }
 
+    func testDisabledConfigurationEraseCoversPausedEffectsAndRevokesOriginalReadToken() async throws {
+        let paused = expectation(description: "notification erase is paused")
+        let effects = V915NotificationEffects(
+            policy: .init(policyID: "disabled-erase", revision: 1, canonicalDigest: Self.digest(3)),
+            projection: .init(requestID: "disabled-erase", opaqueCorrelationToken: Self.digest(4)),
+            eraseDidPause: { paused.fulfill() }
+        )
+        let setting = V915SettingStore(value: .init(isEnabled: false))
+        let ingress = V915IngressStore()
+        let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+            setting: setting, authentication: V915AuthenticationClient(outcomes: []),
+            ingressStore: ingress,
+            notifications: AppLockNotificationPrivacyCoordinatorV1(effects: effects),
+            clock: V915Clock(), identifiers: V915IDs(values: (1200...1210).map(Self.id))
+        )
+        let gate = await lifecycle.accessGate()
+        let original = try await gate.beginContentRead(for: .search)
+        let erasing = Task { try await lifecycle.erase(operationID: Self.id(1211)) }
+        await fulfillment(of: [paused], timeout: 10)
+        await assertReadDenied(gate, token: original)
+        _ = try await lifecycle.handle(.sceneActive)
+        await assertReadDenied(gate)
+        let settingsBefore = await setting.eraseEffectCount
+        let ingressBefore = await ingress.eraseEffectCount
+        XCTAssertEqual(settingsBefore, 0)
+        XCTAssertEqual(ingressBefore, 0)
+        await effects.releaseErase()
+        try await erasing.value
+        let state = await gate.currentState()
+        let erasedSetting = await setting.readAppLockSetting()
+        let settingsAfter = await setting.eraseEffectCount
+        XCTAssertEqual(state, .disabled)
+        XCTAssertEqual(erasedSetting, .absentDisabled)
+        XCTAssertEqual(settingsAfter, 1)
+        await assertReadDenied(gate, token: original)
+        _ = try await gate.beginContentRead(for: .search)
+    }
+
     func testV9_15R01EraseClearsDeviceLocalLockAndProtectedIngress() async throws {
         let settings = V915SettingStore(value: DeviceLocalAppLockSettingV1(isEnabled: true))
         let ingress = V915IngressStore()
@@ -2627,6 +2667,8 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(
             forResource: "V23P02C11AppLockLifecycleCorpusV1", withExtension: "json",
             subdirectory: "Fixtures/V23/AppLock"
+        ) ?? Bundle(for: Self.self).url(
+            forResource: "V23P02C11AppLockLifecycleCorpusV1", withExtension: "json"
         ))
         return try V915Corpus(data: Data(contentsOf: url))
     }
@@ -2917,8 +2959,13 @@ nonisolated private func v915LocalConfiguration(_ journal: AppLockNotificationJo
 @MainActor private func v915Authorization(operationID: UUID, targetEnabled: Bool,
                                         subject: NotificationOperationSubjectV1? = nil) async throws -> NotificationOperationAuthorizationV1 {
     let gate = AppAccessGateV1(setting: .value(.init(isEnabled: !targetEnabled)),
-        authentication: V915AuthenticationClient(outcomes: [.authenticated]), clock: V915Clock(),
-        identifiers: V915IDs(values: [UUID(), UUID()]))
+        authentication: V915AuthenticationClient(outcomes: targetEnabled ? [.authenticated] : [.authenticated, .authenticated]), clock: V915Clock(),
+        identifiers: V915IDs(values: [UUID(), UUID(), UUID(), UUID()]))
+    if !targetEnabled {
+        guard await gate.authenticate(trigger: .unlock) == .authenticated else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
     guard await gate.authenticate(trigger: targetEnabled ? .enableAppLock : .disableAppLock) == .authenticated else {
         throw AppAccessContractFailureV1.accessDenied
     }
@@ -2969,17 +3016,21 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
     private(set) var eraseEffectCount = 0
     private(set) var eraseCallCount = 0
     private let pausesPublication: Bool
+    private let eraseDidPause: (@Sendable () -> Void)?
+    private var eraseContinuation: CheckedContinuation<Void, Never>?
     private var publicationStarted = false
     private var publicationWaiter: CheckedContinuation<Void, Never>?
     private var publicationContinuation: CheckedContinuation<Void, Never>?
     var prepareCounts: [Int] { [enablePrepareCount, disablePrepareCount] }
     init(policy: AppLockNotificationCanonicalPolicyV1, projection: AppLockGenericNotificationV1,
          disablePolicyOverride: AppLockNotificationCanonicalPolicyV1? = nil,
-         initialJournal: AppLockNotificationJournalV1? = nil, pausesPublication: Bool = false) {
+         initialJournal: AppLockNotificationJournalV1? = nil, pausesPublication: Bool = false,
+         eraseDidPause: (@Sendable () -> Void)? = nil) {
         self.policy = policy; self.projection = projection
         self.disablePolicyOverride = disablePolicyOverride
         journal = initialJournal
         self.pausesPublication = pausesPublication
+        self.eraseDidPause = eraseDidPause
     }
     func setCanonicalPolicy(_ value: AppLockNotificationCanonicalPolicyV1) { policy = value }
     func setDisablePolicyOverride(_ value: AppLockNotificationCanonicalPolicyV1?) {
@@ -3057,7 +3108,18 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
     func resolveOpaqueTokenEffect(_ token: String, now: Date, authorization: NotificationOperationAuthorizationV1) -> String? {
         token == projection.opaqueCorrelationToken ? "opaque-route" : nil
     }
-    func eraseNotificationsAndMappingsEffect(operationID: UUID) { eraseCallCount += 1; eraseEffectCount += 1; journal = nil }
+    func eraseNotificationsAndMappingsEffect(operationID: UUID) async {
+        eraseCallCount += 1
+        if let eraseDidPause {
+            await withCheckedContinuation { continuation in
+                eraseContinuation = continuation
+                eraseDidPause()
+            }
+        }
+        eraseEffectCount += 1
+        journal = nil
+    }
+    func releaseErase() { eraseContinuation?.resume(); eraseContinuation = nil }
 }
 
 private actor V915GatedNotificationStore: AppLockNotificationPrivacyPortV1 {

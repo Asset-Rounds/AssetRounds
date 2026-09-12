@@ -120,6 +120,59 @@ final class V9_08GenerationLeaseTests: XCTestCase {
 
     private let fileManager = FileManager.default
 
+    func testDirectoryMembershipChangesPreserveOriginalLeaseAndMigrationOwners() throws {
+        let root = try makeApplicationSupport(label: "directory-membership")
+        defer { try? fileManager.removeItem(at: root) }
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
+        let epoch = try makeEpoch(9_801)
+        let lease = try registry.acquire(epoch: epoch, role: .reader)
+        let journal = try StoreMigrationJournalStoreV1(applicationSupportURL: root)
+        let registryFile = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")
+        let original = try Data(contentsOf: registryFile)
+        try fileManager.createDirectory(at: root.appendingPathComponent("FieldEvidenceData/generations"),
+            withIntermediateDirectories: true)
+        try registry.validateActive(lease, requiredRole: .reader)
+        XCTAssertNil(try journal.loadJournal())
+        let secondOwner = try GenerationLeaseRegistryV1(applicationSupportURL: root)
+        let secondLease = try secondOwner.acquire(epoch: epoch, role: .reader)
+        try registry.validateActive(lease, requiredRole: .reader)
+        XCTAssertNil(try journal.loadJournal())
+        try secondOwner.release(secondLease)
+        XCTAssertEqual(try Data(contentsOf: registryFile), original)
+        try registry.release(lease)
+    }
+
+    func testDirectoryReplacementAndControlHardLinksStillRejectOriginalOwners() throws {
+        for replaceDirectory in [true, false] {
+            let root = try makeApplicationSupport(label: "hostile-directory-\(replaceDirectory)")
+            defer { try? fileManager.removeItem(at: root) }
+            let registry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
+            let journal = try StoreMigrationJournalStoreV1(applicationSupportURL: root)
+            let lease = try registry.acquire(epoch: makeEpoch(9_802), role: .reader)
+            let operations = root.appendingPathComponent("FieldEvidenceOperations")
+            let control = operations.appendingPathComponent("generation-leases/registry.json")
+            let original = try Data(contentsOf: control)
+            if replaceDirectory {
+                let retained = root.appendingPathComponent("retained-original-operations")
+                try fileManager.moveItem(at: operations, to: retained)
+                try fileManager.createDirectory(at: operations, withIntermediateDirectories: false)
+                XCTAssertThrowsError(try registry.validateActive(lease, requiredRole: .reader))
+                XCTAssertThrowsError(try journal.loadJournal())
+                XCTAssertEqual(try Data(contentsOf: retained.appendingPathComponent("generation-leases/registry.json")), original)
+                XCTAssertTrue(try fileManager.contentsOfDirectory(atPath: operations.path).isEmpty)
+            } else {
+                let lock = operations.appendingPathComponent("generation-leases/mutation.lock")
+                let alias = root.appendingPathComponent("unexpected-lock-alias")
+                XCTAssertEqual(Darwin.link(lock.path, alias.path), 0)
+                XCTAssertThrowsError(try registry.validateActive(lease, requiredRole: .reader))
+                XCTAssertEqual(try Data(contentsOf: control), original)
+                try fileManager.removeItem(at: alias)
+                try registry.validateActive(lease, requiredRole: .reader)
+                try registry.release(lease)
+            }
+        }
+    }
+
     func testV9_08G01DurableLeaseIdentityAndBoundedRegistry() throws {
         let root = try makeApplicationSupport(label: "g01")
         defer { try? fileManager.removeItem(at: root) }

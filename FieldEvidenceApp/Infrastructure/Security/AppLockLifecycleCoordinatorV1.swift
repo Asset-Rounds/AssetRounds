@@ -686,7 +686,9 @@ actor AppLockLifecycleCoordinatorV1 {
             await gate.markConfigurationUnknown()
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        await gate.lock(reason: .interrupted)
+        // Until all configuration effects complete, disabled settings must
+        // remain covered too; an ordinary lock intentionally preserves them.
+        await gate.markConfigurationUnknown()
         do {
             try await notifications.eraseNotificationsAndMappings(operationID: operationID)
             try await requireNoContentAccess()

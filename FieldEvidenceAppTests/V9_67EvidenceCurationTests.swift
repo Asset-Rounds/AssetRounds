@@ -511,11 +511,30 @@ final class V9_67EvidenceCurationTests: XCTestCase {
             references: fixture.references,
             originalProvenance: fixture.originalProvenance
         )
+        do {
+            _ = try await coordinator.previews(
+                for: selection,
+                missingFallbackText: "Original evidence is unavailable on this device."
+            )
+            XCTFail("Available evidence must require its exact detail bundle")
+        } catch {
+            XCTAssertEqual(error as? EvidenceCurationFailureV1, .invalidValue)
+        }
+        let derivative = try makeSource(index: 20, workspace: fixture.workspace, role: .derivative)
+        let presentation = try makePresentation(
+            evidenceID: selection.orderedCandidates[0].evidenceID,
+            workspace: fixture.workspace,
+            derivative: derivative.reference
+        )
         let previews = try await coordinator.previews(
             for: selection,
+            detailBundles: [selection.orderedCandidates[0].evidenceID: presentation.bundle],
             missingFallbackText: "Original evidence is unavailable on this device."
         )
         XCTAssertEqual(previews.map(\.availability), [.available, .missing])
+        XCTAssertEqual(previews[0].availableBundle, presentation.bundle)
+        XCTAssertEqual(previews[0].detailCard, presentation.card)
+        XCTAssertNil(previews[1].availableBundle)
         let originalPreviews = try EvidenceCurationCanonicalCodecV1.encode(previews)
         let originalSequence = fixture.currentSequence
         let originalBytes = fixture.sources.map(\.bytes)

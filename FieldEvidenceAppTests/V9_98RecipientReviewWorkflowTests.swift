@@ -530,6 +530,7 @@ private struct C35LegacyReader: EncryptedPortableEnvelopeLegacyClearReaderV1 {
 
 @MainActor
 private final class C35Harness {
+    private let container: ModelContainer
     let root: URL
     let store: PortableExchangeSessionStoreV2
     let canonical: PortableReviewCoordinatorV1
@@ -578,6 +579,7 @@ private final class C35Harness {
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
             ModelConfiguration("C35Writer", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)
         ])
+        self.container = container
         modelContext = container.mainContext; modelContext.autosaveEnabled = false
         modelContext.insert(try ActorSnapshotRow(fixture.recorder)); modelContext.insert(try ActorSnapshotRow(fixture.reviewer))
         try modelContext.save()

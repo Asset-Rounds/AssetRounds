@@ -524,6 +524,14 @@ final class StoreMigrationJournalStoreV1 {
             linkCount = information.st_nlink
             type = information.st_mode & S_IFMT
         }
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            // Creating an owned child changes directory membership, not the
+            // identity of the directory. Every directory read still verifies
+            // its type and positive link count; regular files remain single-link.
+            lhs.device == rhs.device && lhs.inode == rhs.inode && lhs.type == rhs.type
+                && (lhs.type == S_IFDIR || lhs.linkCount == rhs.linkCount)
+        }
     }
 
     private struct FileSnapshot: Equatable {
@@ -1992,11 +2000,21 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         let device: dev_t
         let inode: ino_t
         let linkCount: nlink_t
+        let type: mode_t
 
         init(_ information: stat) {
             device = information.st_dev
             inode = information.st_ino
             linkCount = information.st_nlink
+            type = information.st_mode & S_IFMT
+        }
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            // Directory link counts may change when this or another canonical
+            // owner creates a child. Named-object and file hard-link proofs
+            // remain independent checks on every use.
+            lhs.device == rhs.device && lhs.inode == rhs.inode && lhs.type == rhs.type
+                && (lhs.type == S_IFDIR || lhs.linkCount == rhs.linkCount)
         }
     }
 

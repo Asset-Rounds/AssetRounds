@@ -118,7 +118,6 @@ struct OCRExtractionRequestV1: Codable, Equatable, Sendable {
         packageCustomWordsSHA256=try AssistanceCanonicalCodecV1.sha256(words)
         self.explicitUserAction=explicitUserAction;self.requestedAt=requestedAt
         requestSHA256=try AssistanceCanonicalCodecV1.sha256(Basis(requestID:requestID,workspaceID:workspaceID,target:target,source:source,sourceCrop:sourceCrop,requestedLanguageIdentifiers:languages,packageCustomWords:words,packageCustomWordsSHA256:packageCustomWordsSHA256,explicitUserAction:explicitUserAction,requestedAt:requestedAt))
-        try validate()
     }
     func validate() throws {
         guard self == (try Self(requestID:requestID,workspaceID:workspaceID,target:target,source:source,sourceCrop:sourceCrop,requestedLanguageIdentifiers:requestedLanguageIdentifiers,packageCustomWords:packageCustomWords,explicitUserAction:explicitUserAction,requestedAt:requestedAt)) else { throw OCRProposalFailureV1.invalidDigest }
@@ -168,7 +167,6 @@ struct OCRProposalEvidenceV1: Codable, Equatable, Sendable {
         self.observation=observation;self.proposal=proposal;customWordsAreHintsOnly=true
         processedOnDevice=true;networkAccessUsed=false
         evidenceSHA256=try AssistanceCanonicalCodecV1.sha256(Basis(request:request,frameworkIdentifier:frameworkIdentifier,frameworkRevision:frameworkRevision,recognitionRequestRevision:recognitionRequestRevision,configuredLanguageIdentifiers:languages,maximumRecognizedTextBytes:maximumRecognizedTextBytes,observation:observation,proposal:proposal,customWordsAreHintsOnly:true,processedOnDevice:true,networkAccessUsed:false))
-        try validate()
     }
     func validate() throws {
         guard self == (try Self(request:request,frameworkIdentifier:frameworkIdentifier,

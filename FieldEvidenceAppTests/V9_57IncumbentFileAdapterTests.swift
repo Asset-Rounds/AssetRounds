@@ -779,6 +779,32 @@ enum C50IncumbentFileAdapterTestSupport {
 }
 
 final class V9_57IncumbentFileAdapterTests: XCTestCase {
+    func testDelimitedTextRecognizesCRLFGraphemesAndPreservesQuotedMultilineUnicode() throws {
+        let release = try C50IncumbentFileAdapterTestSupport.profile()
+        func decode(_ text: String) throws -> [IncumbentFileRowV1] {
+            try IncumbentDelimitedTextCodecV1.decode(
+                input: C50IncumbentFileAdapterTestSupport.input(bytes: Data(text.utf8)),
+                release: release).rows
+        }
+        let lf = try decode("Version,Asset ID,Note\nc50-v1,1,Café\n")
+        let crlf = try decode("Version,Asset ID,Note\r\nc50-v1,1,Café\r\n")
+        XCTAssertEqual(lf, crlf)
+        let multiline = try IncumbentDelimitedTextCodecV1.decode(
+            input: C50IncumbentFileAdapterTestSupport.input(), release: release).rows
+        XCTAssertEqual(multiline.count, 1)
+        let note = try XCTUnwrap(multiline.first?.cells.first { $0.field == .workMaterialTotals })
+        XCTAssertEqual(note.value, "Café\r\n\"quoted\"")
+        for malformed in [
+            "Version,Asset ID,Note\rc50-v1,1,note\r",
+            "Version,Asset ID,Note\nc50-v1,1,\"unterminated\n",
+            "Version,Asset ID,Note\nc50-v1,1,\"closed\"garbage\n"
+        ] {
+            XCTAssertThrowsError(try decode(malformed)) { error in
+                XCTAssertEqual(error as? IncumbentFileContractFailureV1, .headerMismatch)
+            }
+        }
+    }
+
     func testV23P03C50G01GoldenProfileRegistryAndDeterministicPreviewRender() throws {
         let corpus = try C50IncumbentFileAdapterTestSupport.corpus()
         XCTAssertEqual(corpus.schema, "V22P03C50IncumbentFileAdapterCorpusV1")

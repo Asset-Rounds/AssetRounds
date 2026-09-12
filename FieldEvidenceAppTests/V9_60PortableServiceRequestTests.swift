@@ -897,7 +897,11 @@ final class V9_60PortableServiceRequestTests: XCTestCase {
 
         let supportURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("c52-service-request-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: supportURL) }
+        defer {
+            if FileManager.default.fileExists(atPath: supportURL.path) {
+                try? FileManager.default.removeItem(at: supportURL)
+            }
+        }
         let store = try PortableExchangeSessionStoreV2(applicationSupportURL: supportURL)
         let lifecycle = ServiceRequestLifecycleAdapterV1(store: store)
         let staged = try await lifecycle.stageInvitation(

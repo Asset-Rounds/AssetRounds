@@ -596,24 +596,31 @@ final class V9_90BrandHIGStateInventoryTests: XCTestCase {
         try XCTUnwrap(JSONSerialization.jsonObject(with: data(relativePath)) as? [String: Any])
     }
 
+    private enum InventoryDecodeFailure: Error { case invalidField(String) }
+
     private func dictionary(_ root: [String: Any], _ key: String) throws -> [String: Any] {
-        try XCTUnwrap(root[key] as? [String: Any], "missing object \(key)")
+        guard let value = root[key] as? [String: Any] else { throw InventoryDecodeFailure.invalidField(key) }
+        return value
     }
 
     private func arrayOfDictionaries(_ root: [String: Any], _ key: String) throws -> [[String: Any]] {
-        try XCTUnwrap(root[key] as? [[String: Any]], "missing object array \(key)")
+        guard let value = root[key] as? [[String: Any]] else { throw InventoryDecodeFailure.invalidField(key) }
+        return value
     }
 
     private func strings(_ root: [String: Any], _ key: String) throws -> [String] {
-        try XCTUnwrap(root[key] as? [String], "missing string array \(key)")
+        guard let value = root[key] as? [String] else { throw InventoryDecodeFailure.invalidField(key) }
+        return value
     }
 
     private func string(_ root: [String: Any], _ key: String) throws -> String {
-        try XCTUnwrap(root[key] as? String, "missing string \(key)")
+        guard let value = root[key] as? String else { throw InventoryDecodeFailure.invalidField(key) }
+        return value
     }
 
     private func integer(_ root: [String: Any], _ key: String) throws -> Int {
-        try XCTUnwrap(root[key] as? Int, "missing integer \(key)")
+        guard let value = root[key] as? Int else { throw InventoryDecodeFailure.invalidField(key) }
+        return value
     }
 
     private func sha256(_ bytes: Data) -> String {
