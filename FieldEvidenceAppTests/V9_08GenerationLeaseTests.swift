@@ -120,6 +120,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
 
     private let fileManager = FileManager.default
 
+    @MainActor
     func testDirectoryMembershipChangesPreserveOriginalLeaseAndMigrationOwners() throws {
         let root = try makeApplicationSupport(label: "directory-membership")
         defer { try? fileManager.removeItem(at: root) }
@@ -142,6 +143,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         try registry.release(lease)
     }
 
+    @MainActor
     func testDirectoryReplacementAndControlHardLinksStillRejectOriginalOwners() throws {
         for replaceDirectory in [true, false] {
             let root = try makeApplicationSupport(label: "hostile-directory-\(replaceDirectory)")
