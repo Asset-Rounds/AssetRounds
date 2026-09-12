@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 24 of 55 - Forms, required-state, validation, and conditional semantics
+Card 25 of 55 - Unicode PDF and accessible-document renderer
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Localize existing field labels, instructions, required/optional/error states, choice order, validation, units, numerals, and condition meaning without weakening or reordering canonical rules.",
+    "required": "Remove question-mark substitution, qualify and embed fonts, shape CJK/RTL, support Letter/A4, preserve photo/comment/status association, extraction, semantic order, provenance, and historical deterministic replay.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "de11273e4944974d644b6f5533f6137be7af9374",
-    "tree": "13e88b512a214a551648f8a3576dbf0597bfd790"
+    "head": "45eb5bb4dca6b32f3434d57ccada1059bf8fb0e6",
+    "tree": "2bd1a2364e17c9185812e43439c95870eb21e29e"
   },
-  "cardID": "V30-P03-C03",
+  "cardID": "V30-P03-C04",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -76,218 +76,146 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Domain/Globalization/LocalizedFormSemanticsContractsV1.swift",
-        "purpose": "Localized form label/required/optional/error/condition contracts preserving canonical rules.",
+        "path": "FieldEvidenceApp/Domain/Reporting/GlobalizedAccessibleDocumentContractsV1.swift",
+        "purpose": "Unicode/PDF/document language/font/paper/provenance contracts.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Application/Globalization/LocalizedFormSemanticsCoordinatorV1.swift",
-        "purpose": "Form semantic resolution coordinator.",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/GlobalizedAccessibleDocumentRendererV1.swift",
+        "purpose": "Unicode shaping, font, Letter/A4, semantic-order, and replay renderer.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P03_C03LocalizedFormSemanticsTests.swift",
-        "purpose": "Required-state, choice-order, unit, numeral, and conditional-rule tests.",
+        "path": "FieldEvidenceAppTests/V30_P03_C04GlobalizedAccessibleDocumentTests.swift",
+        "purpose": "CJK/RTL extraction, font, paper, association, and replay tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/Forms/localized-form-semantics-cases-v1.json",
-        "purpose": "Localized form semantic fixtures.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/Reports/globalized-accessible-document-cases-v1.json",
+        "purpose": "Report rendering/extraction fixtures.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "efa0d8d30548c9dcbbf724e9b5057f2ce5a7dced",
-        "expectedBSHA256": "416e124c574a982c4ae8ebea4760065a09f79b18ddb61d516231afca34784edc",
-        "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerContracts.swift",
-        "purpose": "Version-forward existing required/optional/error semantics without changing canonical rules.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c7d11749e5e30978a538fad5480fec87a19b9fbb",
-        "expectedBSHA256": "29a7de7e0efdf546ba87674f5730b62e07f8d5a6329fc93852fc675da0a613cd",
-        "path": "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift",
-        "purpose": "Preserve canonical conditional form rules while allowing localized presentation.",
+        "expectedBBlobOID": "19f52a71cb2ded5ac20912bb8634263e7ace1ed6",
+        "expectedBSHA256": "a0065b15ef7059867bb00377bd5b97cbcd2e9ac98c74ea0e154297410773f8bb",
+        "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+        "purpose": "Version-forward existing accessible-document contracts for Unicode/font/paper/provenance.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "66b140364dbe91ac14a57aa49a9ace8cb9a51140",
-        "expectedBSHA256": "c52cfb7a59f8a016c0a5b4dfb9e2b55a09ec73a94411eb3f09e1039c05ca5788",
-        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
-        "purpose": "Resolve field labels/instructions/errors through existing typed catalog keys.",
+        "expectedBBlobOID": "fc88143bf623ba193458ef3eabcf6f56872df93f",
+        "expectedBSHA256": "b47b36127800c20edba871c80f7b32614f674c8f99d22de1d3ddc3a2450efa05",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+        "purpose": "Implement Unicode shaping/font embedding and Letter/A4 behavior in the actual PDF renderer.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
-        "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
-        "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-        "purpose": "Localize existing field labels/required/error presentation without changing capture semantics.",
+        "expectedBBlobOID": "c8d7b6f4eebff67d288c26d3bf3b6a3449ceb27d",
+        "expectedBSHA256": "e2bffbc3c9a6069c935d3e6b6c92db808435203a51f7dbe441d4013bcf7d4cad",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift",
+        "purpose": "Remove existing ASCII question-mark substitution in the deterministic PDF path.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
-        "expectedBSHA256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955",
-        "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-        "purpose": "Localize existing required/preflight presentation without changing workflow semantics.",
+        "expectedBBlobOID": "0a1849d7f3957676e55a017661a73c3d5a1c81f5",
+        "expectedBSHA256": "f9c9b25e7b682586a22591fe2c3905055262a139a1c1506f5bcab0d0def82f75",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+        "purpose": "Use globalized renderer through the existing report render seam.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "d5bf77dd1d6ce8c7123653c2cd3070c65ca73123",
-        "expectedBSHA256": "b98b9730a65b87baa64b36696d117eed02ff820deeebb14fbc03612ca1c69e24",
-        "path": "FieldEvidenceApp/Domain/InspectionKernel/ResponseFieldDefinitionV1.swift",
-        "purpose": "Preserve canonical response field definition semantics while adding localized presentation.",
+        "expectedBBlobOID": "9294d71d5ed0168e4b6c7b3be2e0cad7154c21bf",
+        "expectedBSHA256": "d0f78088ec989738be1d752d8668f28cfd191d7b6503ffba85ca523deb2b46f7",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/AccessibleDocumentLifecycleAdapterV1.swift",
+        "purpose": "Preserve existing document lifecycle/provenance on globalized output.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "608289c8c58b80bb5c2f2f985cdee0d7a65f7d15",
-        "expectedBSHA256": "a133a918665a2e8eaaf0241ca9e021ae1ce63478f1bc95d91c52a1d26d3074ac",
-        "path": "FieldEvidenceApp/Domain/InspectionKernel/ResponseValueV1.swift",
-        "purpose": "Preserve canonical response values across localized labels/units/numerals.",
+        "expectedBBlobOID": "7ba2628cc8e12c56597dce13dfa0fc9de78c1e27",
+        "expectedBSHA256": "43f18e8713db41db6d1555b5b0a024cd82463e2ee06afffd14109bd2b2a20785",
+        "path": "FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift",
+        "purpose": "Extend accessible document renderer regression coverage.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c14e3bd81b7c53ee5aefcf18fd3325c6405772a5",
-        "expectedBSHA256": "692266ae13a9e9731504c8e30d82ebc6fef1aae6a4629881ffebfa2ea9e177c2",
-        "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
-        "purpose": "Preserve canonical grammar/condition semantics under localized presentation.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "a47729b0606d13aa25fa22eee1790e89bf9b23bc",
-        "expectedBSHA256": "28fadd2c0bac751b75e1932020ecc697b63ef84337067f56b20b220a0aa1e35c",
-        "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
-        "purpose": "Validate localized presentation cannot change canonical workflow graph rules.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "b2bb1d99bab55b12df661417b613d99570224502",
-        "expectedBSHA256": "4d081d00c3c9b4dec0849594faf08a40ed86cf3d4966986f8c889e939ba87f59",
-        "path": "FieldEvidenceApp/Application/Packs/SurveyDefinitionCoordinatorV1.swift",
-        "purpose": "Coordinate existing survey definitions with localized presentation.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "6125862fe5b0ba0551b336fb05228b0766b1c618",
-        "expectedBSHA256": "f27aad32f9645e242cfbe5592c7f15a0f65141e62d0b6df9adacc09955593501",
-        "path": "FieldEvidenceApp/Application/Workflow/GuidedSurveyFlowCoordinatorV1.swift",
-        "purpose": "Coordinate required/error/conditional display through existing guided-survey flow.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "378d620a586e14076f6f3f2ffa4bae7476b439a0",
-        "expectedBSHA256": "b5a7892156cb4fae3b2ae47b98af78c353e63033bb5d6ad6dbdc4bb022462756",
-        "path": "FieldEvidenceApp/Infrastructure/Packs/SurveyDefinitionLifecycleAdapterV1.swift",
-        "purpose": "Preserve lifecycle/snapshot behavior while adding localizable form presentation.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "ab0cd81f65c9822d53505491697f91d0de9d15b1",
-        "expectedBSHA256": "62b1fd6dfefae68ec6beed96e5f743b132adfddc74d7bafdbd350e1a01bf4eb9",
-        "path": "FieldEvidenceApp/Infrastructure/Packs/PackageSandboxRunnerV1.swift",
-        "purpose": "Preserve packaged form rule execution while localizing labels/instructions.",
+        "expectedBBlobOID": "783f2db48da3032b9ce3217bfaf45900ae1e4cc4",
+        "expectedBSHA256": "376a46bed52cccd33fe686f09f60f8f2948afb297f2dbc42305e0fa6e4a475fd",
+        "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+        "purpose": "Preserve canonical projection identity while adding Unicode/display provenance.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
-        "expectedBSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
-        "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-        "purpose": "Localize existing outcome/error presentation only; preserve Phase10 visual styling and workflow semantics.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0b107dd4303f35eb4a4947c506de315edb10e551",
-        "expectedBSHA256": "ac2dd39c003959211c0f310b519f8de3bda1459d6c74c6380a2fed29e00c77e6",
-        "path": "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift",
-        "purpose": "Regression-test localized survey definition semantics.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "5ee7b099132d21ec001cce0a6af77d28e9262d1c",
-        "expectedBSHA256": "1bae0d73ac2af2534eaaf68d25124e6e03e53f1dc8e3d19f4bb99140a1f8908b",
-        "path": "FieldEvidenceAppTests/V9_83GuidedSurveyFlowTests.swift",
-        "purpose": "Regression-test guided-survey required/error/condition semantics.",
+        "expectedBBlobOID": "5ce1e8b1e1de3137b596b314eb6902ffbeafff33",
+        "expectedBSHA256": "77b43f39aff3189791f9c33b7b5c02456fa9a3357e85b58758a32f19ae4f2cf9",
+        "path": "FieldEvidenceApp/Application/Reporting/AccessibleDocumentCoordinatorV1.swift",
+        "purpose": "Route globalized documents through the existing accessible-document coordinator.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "7efcd069543e34ed5c97ce19b8a9597e24d79e69",
-        "expectedBSHA256": "325c7a5978713ff234146b5ba747bc9b2c2ed89ac58d08ff75e1f6ed3a8f1c80",
-        "path": "FieldEvidenceAppTests/V9_13TypedResponseTests.swift",
-        "purpose": "Regression-test typed response values across locale presentation.",
+        "expectedBBlobOID": "fe2466b4df4800d217767dd392c885b08cfb0f51",
+        "expectedBSHA256": "1f8e0cc7a9eaa8ddddfff5383ae6b0ecc94bbc4c73252f9466889c6ffe466b5d",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
+        "purpose": "Preserve historical deterministic replay and provenance through the existing history seam.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "a491e4dbd6152574f518f25fbac5f9847eba953b",
+        "expectedBSHA256": "e79601a65510f115a2aaf0e6c537532d96ec277ddac08fff939880c62f9cd35e",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+        "purpose": "Validate Unicode/globalized render inputs before output generation.",
         "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "ea98ec9c1c6c5ff43df541e687df886a772b2f01",
+        "expectedBSHA256": "a7cbc5e4090a05d465d2c93d47ac17ab0dd8548a43c1d12b6f6ab95fcb90c5aa",
+        "path": "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift",
+        "purpose": "Regression-test deterministic renderer identity after Unicode support.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "862a87c6d5fb3370c535c1a55a8ca077a6d94691",
+        "expectedBSHA256": "29bf9d1baf9377b8f88440a5fdb65cb38aeed765b3d8d5f2b3c1980da15736b5",
+        "path": "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
+        "purpose": "Regression-test Unicode PDF recovery.",
+        "serializedSharedPath": true
       }
     ],
-    "cardID": "V30-P03-C03",
+    "cardID": "V30-P03-C04",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
       "V30-P01-C07",
       "V30-P02-C04",
       "V30-P03-C01"
     ],
-    "ordinal": 24,
-    "preAuthorizedOverlapTuples": [
-      {
-        "boundedPurpose": "localize only existing field label/required/error presentation in FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift; preserve Phase10 visual styling and canonical workflow semantics",
-        "cardID": "V30-P03-C03",
-        "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
-        "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
-        "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P03-C03-FORM-SEMANTICS-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "localize only existing field label/required/error presentation in FieldEvidenceApp/Features/CheckRunner/PreflightView.swift; preserve Phase10 visual styling and canonical workflow semantics",
-        "cardID": "V30-P03-C03",
-        "expectedBBlobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
-        "expectedBSHA256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955",
-        "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P03-C03-FORM-SEMANTICS-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "localize only existing field label/required/error presentation in FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift; preserve Phase10 visual styling and canonical workflow semantics",
-        "cardID": "V30-P03-C03",
-        "expectedBBlobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
-        "expectedBSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
-        "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P03-C03-FORM-SEMANTICS-INTEGRATOR"
-      }
-    ],
-    "s10SharedPaths": [
-      "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-      "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-      "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift"
-    ],
+    "ordinal": 25,
+    "preAuthorizedOverlapTuples": [],
+    "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Forms, required-state, validation, and conditional semantics"
+    "title": "Unicode PDF and accessible-document renderer"
   },
   "fenceSource": {
-    "cardID": "V30-P03-C03",
+    "cardID": "V30-P03-C04",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -298,15 +226,15 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P03-C04",
+  "next": "V30-P03-C05",
   "observedCoordination": {
-    "head": "dd40d3793fdb903016ad8739425dca55f6d08ff1",
-    "ledgerDigest": "85d0cef8c563002f8fba6ba8187dffa2dae116f2f3f9ca6a85360e827c607855",
-    "sequence": 49
+    "head": "3a7901ab7c280e23cbc5e914e621ddd03e6a0a28",
+    "ledgerDigest": "f4598503b1db9dbd0bcf81fe87220949c4194bf7d85fa6d57d34cc3b09bf31a9",
+    "sequence": 51
   },
-  "ordinal": 24,
-  "outcome": "Localize existing field labels, instructions, required/optional/error states, choice order, validation, units, numerals, and condition meaning without weakening or reordering canonical rules.",
-  "payloadDigest": "ef20ebc4a2a9c06df5e4776679e548b32170780519c90673579a7e8809aa2612",
+  "ordinal": 25,
+  "outcome": "Remove question-mark substitution, qualify and embed fonts, shape CJK/RTL, support Letter/A4, preserve photo/comment/status association, extraction, semantic order, provenance, and historical deterministic replay.",
+  "payloadDigest": "31ed1000be591ddfc1ea6dbeb55cd16ea3eebf0c2c7fa4be55119a4eea1e8850",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
@@ -392,8 +320,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1008,
-  "sourceStartLine": 1008,
-  "title": "Forms, required-state, validation, and conditional semantics"
+  "sourceEndLine": 1009,
+  "sourceStartLine": 1009,
+  "title": "Unicode PDF and accessible-document renderer"
 }
 ```
