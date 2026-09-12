@@ -1,8 +1,8 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
   "branchRef": "refs/heads/phase/v30-globalization",
-  "cardID": "V30-P03-C04",
-  "cardTitle": "Unicode PDF and accessible-document renderer",
+  "cardID": "V30-P03-C05",
+  "cardTitle": "Stable JSON, CSV, export, and import contracts",
   "developmentRouteSHA256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690",
   "hostedDispatchAllowed": false,
   "hostedDispatchUnlockCard": "V30-P00-C05",
@@ -14,7 +14,7 @@
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "7179db034f95c9f54f47fbe84aaa9264ccae44121137d3b1b08bb0eeb8d26275",
+  "payloadDigest": "eb92533a3ea7466495a295934b71596dfb4cd179c3c2fb8ceb17455a98fd1faf",
   "preS10FinalCredit": false,
   "reason": "Windows-static provisional card; no native dispatch is selected.",
   "schemaVersion": "V30BootstrapPayloadV1",
