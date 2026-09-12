@@ -322,6 +322,64 @@ extension AccessibleDocumentPublicationBindingV1 {
     }
 }
 
+/// Explicit, transient input for a source-bound globalized render. Image bytes
+/// are supplied by evidence ID only for this derived operation; neither the
+/// semantic tree nor the assessment receipt persists them.
+struct AccessibleDocumentGlobalizedRenderRequestV1: Sendable {
+    let sourceCreatedAt: Date
+    let documentRequest: GlobalizedDocumentRenderRequestV1
+    let expectedReplay: GlobalizedDocumentRenderReceiptV1?
+    let imageDataByEvidenceID: [String: Data]
+
+    init(
+        sourceCreatedAt: Date,
+        documentRequest: GlobalizedDocumentRenderRequestV1,
+        expectedReplay: GlobalizedDocumentRenderReceiptV1? = nil,
+        imageDataByEvidenceID: [String: Data]
+    ) throws {
+        guard sourceCreatedAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw AccessibleDocumentFailureV1.invalidValue
+        }
+        for (evidenceID, data) in imageDataByEvidenceID {
+            try AccessibleDocumentValidationV1.id(evidenceID)
+            guard !data.isEmpty, data.count <= 256 * 1_024 * 1_024 else {
+                throw AccessibleDocumentFailureV1.invalidValue
+            }
+        }
+        try documentRequest.validate()
+        try expectedReplay?.validate()
+        self.sourceCreatedAt = sourceCreatedAt
+        self.documentRequest = documentRequest
+        self.expectedReplay = expectedReplay
+        self.imageDataByEvidenceID = imageDataByEvidenceID
+    }
+}
+
+struct AccessibleDocumentGlobalizedRenderOutputV1: Sendable {
+    let output: AccessibleDocumentRenderOutputV1
+    let documentReceipt: GlobalizedDocumentRenderReceiptV1
+
+    init(output: AccessibleDocumentRenderOutputV1, documentReceipt: GlobalizedDocumentRenderReceiptV1) throws {
+        try documentReceipt.validate()
+        guard output.mediaType == "application/pdf",
+              output.rendererID == documentReceipt.rendererID,
+              output.rendererVersion == documentReceipt.rendererVersion,
+              output.sha256 == documentReceipt.outputSHA256,
+              Int64(output.bytes.count) == documentReceipt.outputByteCount else {
+            throw AccessibleDocumentFailureV1.digestMismatch
+        }
+        self.output = output
+        self.documentReceipt = documentReceipt
+    }
+}
+
+protocol AccessibleDocumentGlobalizedRenderingV1: Sendable {
+    func renderGlobalized(
+        tree: AccessibleDocumentSemanticTreeV1,
+        request: AccessibleDocumentGlobalizedRenderRequestV1
+    ) async throws -> AccessibleDocumentGlobalizedRenderOutputV1
+}
+
 struct AccessibleDocumentSemanticTreeV1: Codable, Equatable, Sendable {
     static let schemaVersion=1
     let schemaVersion:Int;let treeID:UUID;let workspaceID:WorkspaceID;let audience:ReportAudienceV1
@@ -353,6 +411,31 @@ struct AccessibleDocumentSemanticTreeV1: Codable, Equatable, Sendable {
     }
     private var basis:Basis{.init(schemaVersion:schemaVersion,treeID:treeID,workspaceID:workspaceID,audience:audience,publication:publication,nodes:nodes,projectionVersion:projectionVersion,pdfUAClaimed:pdfUAClaimed,wcagClaimed:wcagClaimed,legalCertificationClaimed:legalCertificationClaimed,s10BrandReconciled:s10BrandReconciled)}
     private struct Basis:Codable{let schemaVersion:Int;let treeID:UUID;let workspaceID:WorkspaceID;let audience:ReportAudienceV1;let publication:AccessibleDocumentPublicationBindingV1;let nodes:[AccessibleDocumentNodeV1];let projectionVersion:String;let pdfUAClaimed:Bool;let wcagClaimed:Bool;let legalCertificationClaimed:Bool;let s10BrandReconciled:Bool}
+}
+
+extension AccessibleDocumentSemanticTreeV1 {
+    /// Canonical serialization groups nodes by parent ID. Rendering must use
+    /// document reading order instead: each parent is emitted before its
+    /// children, with sibling order taken from the validated source tree.
+    func depthFirstReadingOrder() throws -> [AccessibleDocumentNodeV1] {
+        try validate()
+        let byParent = Dictionary(grouping: nodes, by: \.parentNodeID)
+        guard let root = byParent[nil]?.first else {
+            throw AccessibleDocumentFailureV1.missingParent
+        }
+        var result: [AccessibleDocumentNodeV1] = []
+        var pending: [AccessibleDocumentNodeV1] = [root]
+        while let node = pending.popLast() {
+            result.append(node)
+            // LIFO traversal needs reverse insertion to preserve the source
+            // sibling order established by tree validation.
+            pending.append(contentsOf: (byParent[node.nodeID] ?? []).reversed())
+        }
+        guard result.count == nodes.count else {
+            throw AccessibleDocumentFailureV1.missingParent
+        }
+        return result
+    }
 }
 
 struct AccessibleDocumentTreeBuildInputV1: Sendable {

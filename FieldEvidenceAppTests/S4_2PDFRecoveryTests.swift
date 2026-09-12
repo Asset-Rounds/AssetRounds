@@ -358,6 +358,29 @@ final class S4_2PDFRecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testRecoveredReadyReportRetainsGlobalizedReceiptMetadataAndImmutableBytes() async throws {
+        let harness = try await makeHarness("globalized-recovery")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let service = try ReportRenderService(modelContext: harness.context, generationRootURL: harness.session.generationRootURL)
+        let ready = try service.renderPendingReport(id: Fixture.reportID)
+        let receipt = try XCTUnwrap(ready.documentReceipt)
+        try receipt.validate()
+        let bytes = try Data(contentsOf: finalURL(in: harness))
+        XCTAssertEqual(receipt.outputSHA256, ready.pdfSHA256)
+        XCTAssertEqual(receipt.outputByteCount, Int64(bytes.count))
+        let metadata = try GlobalizedAccessibleDocumentRendererV1.readEmbeddedMetadata(from: bytes)
+        XCTAssertEqual(metadata.sourceSHA256, receipt.sourceSHA256)
+        XCTAssertEqual(metadata.sourceContentSHA256, receipt.sourceContentSHA256)
+        XCTAssertEqual(metadata.orderedSemanticIDs, receipt.orderedSemanticIDs)
+        let before = try immutableAuthority(in: harness)
+        let recovery = try ReportRecoveryService(modelContext: harness.context, generationRootURL: harness.session.generationRootURL, failNextRenderAttempt: true)
+        try recovery.reconcileAtStartup()
+        XCTAssertEqual(try Data(contentsOf: finalURL(in: harness)), bytes)
+        XCTAssertEqual(try immutableAuthority(in: harness), before)
+        XCTAssertEqual(try GlobalizedAccessibleDocumentRendererV1.readEmbeddedMetadata(from: bytes), metadata)
+        XCTAssertTrue(recovery.failedReportIDs.isEmpty)
+    }
+    @MainActor
     func testUnsafeMalformedAndMismatchedAuthorityFailClosedWithoutCleanup() async throws {
         let cases: [UnsafeCase] = [
             .simultaneous,

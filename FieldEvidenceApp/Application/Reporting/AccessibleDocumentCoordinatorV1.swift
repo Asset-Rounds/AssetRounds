@@ -35,15 +35,98 @@ actor AccessibleDocumentCoordinatorV1{
     private let renderer:any AccessibleDocumentExistingRendererV1
     private let writer:any AccessibleDocumentAssessmentWritingV1
     private let evidenceResolver:(any AccessibleDocumentEvidenceResolvingV1)?
-    init(treeBuilder:any AccessibleDocumentSemanticTreeBuildingV1,renderer:any AccessibleDocumentExistingRendererV1,writer:any AccessibleDocumentAssessmentWritingV1,evidenceResolver:(any AccessibleDocumentEvidenceResolvingV1)?=nil){self.treeBuilder=treeBuilder;self.renderer=renderer;self.writer=writer;self.evidenceResolver=evidenceResolver}
+    private let globalizedRenderer:(any AccessibleDocumentGlobalizedRenderingV1)?
+    init(treeBuilder:any AccessibleDocumentSemanticTreeBuildingV1,renderer:any AccessibleDocumentExistingRendererV1,writer:any AccessibleDocumentAssessmentWritingV1,evidenceResolver:(any AccessibleDocumentEvidenceResolvingV1)?=nil,globalizedRenderer:(any AccessibleDocumentGlobalizedRenderingV1)?=nil){self.treeBuilder=treeBuilder;self.renderer=renderer;self.writer=writer;self.evidenceResolver=evidenceResolver;self.globalizedRenderer=globalizedRenderer}
 
     func deriveAndRender()async throws->(AccessibleDocumentSemanticTreeV1,AccessibleDocumentRenderOutputV1){let tree=try await treeBuilder.deriveTree();try tree.validate();let output=try await renderer.render(tree:tree);guard output.sha256==KernelCanonicalHashV1.sha256(output.bytes)else{throw AccessibleDocumentFailureV1.digestMismatch};return(tree,output)}
 
+    /// Uses the established tree derivation and lifecycle bridge while adding
+    /// a source-bound Unicode/PDF output. This route never relabels the tree,
+    /// infers translated source, or upgrades any accessibility claim.
+    func deriveAndRenderGlobalized(
+        _ request: AccessibleDocumentGlobalizedRenderRequestV1
+    ) async throws -> (AccessibleDocumentSemanticTreeV1, AccessibleDocumentGlobalizedRenderOutputV1) {
+        try request.documentRequest.validate()
+        try request.expectedReplay?.validate()
+        let sourceMilliseconds = try globalizedSourceMilliseconds(request.sourceCreatedAt)
+        let expectedPaper = try LocaleFormattingServiceV1(profile: request.documentRequest.formatting)
+            .paperLayout(request.documentRequest.paperSize)
+        let tree = try await treeBuilder.deriveTree()
+        try tree.validate()
+        guard let globalizedRenderer else { throw AccessibleDocumentFailureV1.invalidValue }
+        let rendered = try await globalizedRenderer.renderGlobalized(tree: tree, request: request)
+        try rendered.documentReceipt.validate()
+        guard rendered.documentReceipt.sourceSHA256 == tree.treeSHA256,
+              rendered.documentReceipt.sourceCreatedAtMilliseconds == sourceMilliseconds,
+              rendered.documentReceipt.language == request.documentRequest.language,
+              rendered.documentReceipt.formatting == request.documentRequest.formatting,
+              rendered.documentReceipt.paper == expectedPaper,
+              request.expectedReplay.map({ $0 == rendered.documentReceipt }) ?? true,
+              rendered.output.sha256 == KernelCanonicalHashV1.sha256(rendered.output.bytes),
+              !tree.pdfUAClaimed, !tree.wcagClaimed, !tree.legalCertificationClaimed else {
+            throw AccessibleDocumentFailureV1.digestMismatch
+        }
+        return (tree, rendered)
+    }
+
+    /// Applies the same receipt-only writer and idempotency checks as the
+    /// incumbent assessment path. The globalized PDF remains derived output;
+    /// only the established assessment receipt can be persisted.
+    func assessGlobalized(
+        _ request: AccessibleDocumentAssessmentRequestV1,
+        renderRequest: AccessibleDocumentGlobalizedRenderRequestV1
+    ) async throws -> AccessibleDocumentAssessmentReceiptV1 {
+        let (tree, rendered) = try await deriveAndRenderGlobalized(renderRequest)
+        let value = try AccessibleDocumentAssessmentReceiptV1(
+            receiptID: request.receiptID,
+            workspaceID: request.workspaceID,
+            tree: tree,
+            outputSHA256: rendered.output.sha256,
+            outputByteCount: Int64(rendered.output.bytes.count),
+            outputMediaType: rendered.output.mediaType,
+            rendererID: rendered.output.rendererID,
+            rendererVersion: rendered.output.rendererVersion,
+            assessmentToolID: request.assessmentToolID,
+            assessmentToolVersion: request.assessmentToolVersion,
+            assessor: request.assessor,
+            state: request.state,
+            externalProof: request.externalProof,
+            limitations: request.limitations,
+            assessedAt: request.assessedAt,
+            supersedesReceiptID: request.supersedesReceiptID,
+            revision: request.revision,
+            mutationID: request.mutationID
+        )
+        try value.validateOutput(rendered.output.bytes)
+        try await validateExternalProof(request.externalProof)
+        if let accepted = try await writer.acceptedReceipt(for: value, tree: tree) {
+            guard accepted == value else { throw AccessibleDocumentFailureV1.staleAssessment }
+            return accepted
+        }
+        let receipt = try await writer.append(value, tree: tree)
+        guard receipt == value else { throw AccessibleDocumentFailureV1.staleAssessment }
+        return receipt
+    }
+
     func assess(_ request:AccessibleDocumentAssessmentRequestV1)async throws->AccessibleDocumentAssessmentReceiptV1{
         let(tree,output)=try await deriveAndRender();let value=try AccessibleDocumentAssessmentReceiptV1(receiptID:request.receiptID,workspaceID:request.workspaceID,tree:tree,outputSHA256:output.sha256,outputByteCount:Int64(output.bytes.count),outputMediaType:output.mediaType,rendererID:output.rendererID,rendererVersion:output.rendererVersion,assessmentToolID:request.assessmentToolID,assessmentToolVersion:request.assessmentToolVersion,assessor:request.assessor,state:request.state,externalProof:request.externalProof,limitations:request.limitations,assessedAt:request.assessedAt,supersedesReceiptID:request.supersedesReceiptID,revision:request.revision,mutationID:request.mutationID);try value.validateOutput(output.bytes)
-        if !request.externalProof.isEmpty{guard let evidenceResolver else{throw AccessibleDocumentFailureV1.missingEvidence};let proof=request.externalProof.sorted{$0.evidenceID<$1.evidenceID};guard Set(proof.map(\.evidenceID)).count==proof.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let resolved=try await evidenceResolver.resolve(evidenceIDs:proof.map(\.evidenceID));try resolved.forEach{$0.validate()};guard resolved.count==proof.count,Set(resolved.map(\.outputReferenceID)).count==resolved.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let links=try resolved.map{try AccessibleEvidenceLinkV1(outputReference:$0)}.sorted{$0.evidenceID<$1.evidenceID};guard links==proof else{throw AccessibleDocumentFailureV1.missingEvidence}}
+        try await validateExternalProof(request.externalProof)
         if let accepted=try await writer.acceptedReceipt(for:value,tree:tree){guard accepted==value else{throw AccessibleDocumentFailureV1.staleAssessment};return accepted}
         let receipt=try await writer.append(value,tree:tree);guard receipt==value else{throw AccessibleDocumentFailureV1.staleAssessment};return receipt
+    }
+
+    private func validateExternalProof(_ externalProof: [AccessibleEvidenceLinkV1]) async throws {
+        if !externalProof.isEmpty{guard let evidenceResolver else{throw AccessibleDocumentFailureV1.missingEvidence};let proof=externalProof.sorted{$0.evidenceID<$1.evidenceID};guard Set(proof.map(\.evidenceID)).count==proof.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let resolved=try await evidenceResolver.resolve(evidenceIDs:proof.map(\.evidenceID));try resolved.forEach{$0.validate()};guard resolved.count==proof.count,Set(resolved.map(\.outputReferenceID)).count==resolved.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let links=try resolved.map{try AccessibleEvidenceLinkV1(outputReference:$0)}.sorted{$0.evidenceID<$1.evidenceID};guard links==proof else{throw AccessibleDocumentFailureV1.missingEvidence}}
+    }
+
+    private func globalizedSourceMilliseconds(_ value: Date) throws -> Int64 {
+        let milliseconds = value.timeIntervalSince1970 * 1_000
+        guard milliseconds.isFinite,
+              milliseconds >= Double(Int64.min),
+              milliseconds <= Double(Int64.max) else {
+            throw AccessibleDocumentFailureV1.invalidValue
+        }
+        return Int64(milliseconds.rounded())
     }
 }
 

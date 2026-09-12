@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "cardID": "V30-P03-C04",
+  "reportLanguages": [
+    "en",
+    "es",
+    "zh-Hans",
+    "zh-Hant",
+    "vi",
+    "ko"
+  ],
+  "formattingLocales": [
+    "en-US",
+    "es-ES"
+  ],
+  "paperSizes": [
+    "US_LETTER",
+    "A4"
+  ],
+  "cases": [
+    {
+      "id": "english",
+      "language": "en",
+      "text": "Inspection report — status: passed",
+      "utf8ByteCount": 36
+    },
+    {
+      "id": "spanish",
+      "language": "es",
+      "text": "Informe de inspección — estado: aprobado",
+      "utf8ByteCount": 43
+    },
+    {
+      "id": "simplified-chinese",
+      "language": "zh-Hans",
+      "text": "检查报告：状态通过。",
+      "utf8ByteCount": 30
+    },
+    {
+      "id": "traditional-chinese",
+      "language": "zh-Hant",
+      "text": "檢查報告：狀態通過。",
+      "utf8ByteCount": 30
+    },
+    {
+      "id": "vietnamese",
+      "language": "vi",
+      "text": "Báo cáo kiểm tra — trạng thái: đạt",
+      "utf8ByteCount": 46
+    },
+    {
+      "id": "korean",
+      "language": "ko",
+      "text": "점검 보고서: 상태 통과",
+      "utf8ByteCount": 31
+    },
+    {
+      "id": "arabic-mixed-bidi",
+      "language": "ar",
+      "text": "تقرير الموقع AR-42 — الحالة: ناجح 👩‍🔧",
+      "utf8ByteCount": 68
+    },
+    {
+      "id": "nfc-accent",
+      "language": "en",
+      "text": "Café",
+      "utf8ByteCount": 5
+    },
+    {
+      "id": "nfd-accent",
+      "language": "en",
+      "text": "Café",
+      "utf8ByteCount": 6
+    }
+  ],
+  "photo": {
+    "semanticID": "evidence.photo.001",
+    "caption": "Visible evidence photo — status passed",
+    "alternateText": "Photo of the inspected worklight with a green passed status label.",
+    "evidenceID": "evidence-photo-001"
+  }
+}

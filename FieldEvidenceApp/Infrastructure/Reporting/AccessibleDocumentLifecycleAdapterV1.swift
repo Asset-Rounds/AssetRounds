@@ -11,11 +11,159 @@ struct AccessibleDocumentLifecycleOperationsV1:Sendable{
 }
 actor AccessibleDocumentLifecycleAdapterV1:AccessibleDocumentSemanticTreeBuildingV1,AccessibleDocumentExistingRendererV1,AccessibleDocumentAssessmentWritingV1{
     private let operations:AccessibleDocumentLifecycleOperationsV1
-    init(operations:AccessibleDocumentLifecycleOperationsV1){self.operations=operations}
+    private let globalizedRenderer:(any AccessibleDocumentGlobalizedRenderingV1)?
+    init(operations:AccessibleDocumentLifecycleOperationsV1,globalizedRenderer:(any AccessibleDocumentGlobalizedRenderingV1)?=nil){self.operations=operations;self.globalizedRenderer=globalizedRenderer}
     func deriveTree()async throws->AccessibleDocumentSemanticTreeV1{let value=try await operations.derive();try value.validate();try await operations.interrupt(.afterTreeBeforeRender);return value}
     func render(tree:AccessibleDocumentSemanticTreeV1)async throws->AccessibleDocumentRenderOutputV1{try tree.validate();let value=try await operations.render(tree);try await operations.interrupt(.afterRenderBeforeAssessment);return value}
     func acceptedReceipt(for assessment:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1)async throws->AccessibleDocumentAssessmentReceiptV1?{guard let value=try await operations.accepted(assessment,tree)else{return nil};try value.validate(tree:tree);guard value==assessment else{throw AccessibleDocumentFailureV1.staleAssessment};return value}
     func append(_ assessment:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1)async throws->AccessibleDocumentAssessmentReceiptV1{try assessment.validate(tree:tree);let value=try await operations.append(assessment,tree);try value.validate(tree:tree);try await operations.interrupt(.afterAssessmentBeforeReturn);return value}
+
+    func renderGlobalized(tree: AccessibleDocumentSemanticTreeV1, request: AccessibleDocumentGlobalizedRenderRequestV1) async throws -> AccessibleDocumentGlobalizedRenderOutputV1 {
+        try tree.validate()
+        guard let globalizedRenderer else { throw AccessibleDocumentFailureV1.invalidValue }
+        let value = try await globalizedRenderer.renderGlobalized(tree: tree, request: request)
+        try await operations.interrupt(.afterRenderBeforeAssessment)
+        return value
+    }
+}
+
+extension AccessibleDocumentLifecycleAdapterV1: AccessibleDocumentGlobalizedRenderingV1 {}
+
+/// Projects an already validated semantic tree into the V30 renderer's
+/// source-bound element sequence. Asset bytes are accepted only when their
+/// exact evidence link verifies them; a missing figure asset aborts output.
+struct GlobalizedAccessibleDocumentTreeRendererV1: AccessibleDocumentGlobalizedRenderingV1 {
+    private let renderer: GlobalizedAccessibleDocumentRendererV1
+
+    init(renderer: GlobalizedAccessibleDocumentRendererV1 = .init()) {
+        self.renderer = renderer
+    }
+
+    func renderGlobalized(
+        tree: AccessibleDocumentSemanticTreeV1,
+        request: AccessibleDocumentGlobalizedRenderRequestV1
+    ) async throws -> AccessibleDocumentGlobalizedRenderOutputV1 {
+        try tree.validate()
+        let result = try renderer.render(
+            elements: try GlobalizedAccessibleDocumentTreeProjectionV1.elements(tree: tree, imageDataByEvidenceID: request.imageDataByEvidenceID),
+            sourceSHA256: tree.treeSHA256,
+            sourceCreatedAt: request.sourceCreatedAt,
+            request: request.documentRequest,
+            expectedReplay: request.expectedReplay
+        )
+        return try AccessibleDocumentGlobalizedRenderOutputV1(
+            output: AccessibleDocumentRenderOutputV1(
+                bytes: result.pdf.data,
+                mediaType: "application/pdf",
+                rendererID: result.receipt.rendererID,
+                rendererVersion: result.receipt.rendererVersion
+            ),
+            documentReceipt: result.receipt
+        )
+    }
+}
+
+enum GlobalizedAccessibleDocumentTreeProjectionV1 {
+    static func elements(
+        tree: AccessibleDocumentSemanticTreeV1,
+        imageDataByEvidenceID: [String: Data]
+    ) throws -> [GlobalizedDocumentElementV1] {
+        try tree.validate()
+        var elements: [GlobalizedDocumentElementV1] = []
+        for node in try tree.depthFirstReadingOrder() {
+            if node.role == .figure, node.evidenceLinks.count > 1 {
+                // The source node remains the sole carrier of source text and
+                // alt provenance. Each linked source asset is a concrete child
+                // figure, so no image is silently selected or re-captioned.
+                elements.append(try GlobalizedDocumentElementV1(
+                    semanticID: node.nodeID,
+                    role: node.role,
+                    text: node.localizedText,
+                    headingLevel: node.headingLevel,
+                    alternateText: node.alternateText,
+                    alternateTextProvenance: node.alternateTextProvenance,
+                    keepWithNext: node.role == .heading,
+                    parentSemanticID: node.parentNodeID,
+                    tableHeaderScope: node.tableHeaderScope,
+                    tableHeaderSemanticIDs: node.tableHeaderNodeIDs,
+                    decorative: node.decorative
+                ))
+                for evidence in node.evidenceLinks {
+                    guard let bytes = imageDataByEvidenceID[evidence.evidenceID],
+                          KernelCanonicalHashV1.sha256(bytes) == evidence.evidenceSHA256 else {
+                        throw GlobalizedAccessibleDocumentFailureV1.missingResource
+                    }
+                    elements.append(try GlobalizedDocumentElementV1(
+                        semanticID: derivedImageSemanticID(parentSemanticID: node.nodeID, evidenceID: evidence.evidenceID),
+                        role: .figure,
+                        evidenceID: evidence.evidenceID,
+                        evidenceSHA256: evidence.evidenceSHA256,
+                        imageData: bytes,
+                        alternateTextProvenance: node.decorative ? nil : .notProvided,
+                        parentSemanticID: node.nodeID,
+                        decorative: node.decorative
+                    ))
+                }
+                continue
+            }
+            let figureEvidence: AccessibleEvidenceLinkV1?
+            let imageData: Data?
+            if node.role == .figure {
+                guard node.evidenceLinks.count == 1,
+                      let evidence = node.evidenceLinks.first,
+                      let bytes = imageDataByEvidenceID[evidence.evidenceID],
+                      KernelCanonicalHashV1.sha256(bytes) == evidence.evidenceSHA256 else {
+                    throw GlobalizedAccessibleDocumentFailureV1.missingResource
+                }
+                figureEvidence = evidence
+                imageData = bytes
+            } else {
+                figureEvidence = nil
+                imageData = nil
+            }
+            elements.append(try GlobalizedDocumentElementV1(
+                semanticID: node.nodeID,
+                role: node.role,
+                text: node.localizedText,
+                headingLevel: node.headingLevel,
+                evidenceID: figureEvidence?.evidenceID,
+                evidenceSHA256: figureEvidence?.evidenceSHA256,
+                imageData: imageData,
+                alternateText: node.alternateText,
+                alternateTextProvenance: node.alternateTextProvenance,
+                keepWithNext: node.role == .heading,
+                parentSemanticID: node.parentNodeID,
+                tableHeaderScope: node.tableHeaderScope,
+                tableHeaderSemanticIDs: node.tableHeaderNodeIDs,
+                decorative: node.decorative
+            ))
+            if node.role != .figure {
+                for evidence in node.evidenceLinks {
+                    elements.append(try GlobalizedDocumentElementV1(
+                        semanticID: derivedEvidenceSemanticID(parentSemanticID: node.nodeID, evidenceID: evidence.evidenceID),
+                        role: .evidenceLink,
+                        evidenceID: evidence.evidenceID,
+                        evidenceSHA256: evidence.evidenceSHA256,
+                        parentSemanticID: node.nodeID
+                    ))
+                }
+            }
+        }
+        return elements
+    }
+
+    private static func derivedImageSemanticID(parentSemanticID: String, evidenceID: String) -> String {
+        derivedSemanticID(prefix: "image", parentSemanticID: parentSemanticID, evidenceID: evidenceID)
+    }
+
+    private static func derivedEvidenceSemanticID(parentSemanticID: String, evidenceID: String) -> String {
+        derivedSemanticID(prefix: "link", parentSemanticID: parentSemanticID, evidenceID: evidenceID)
+    }
+
+    private static func derivedSemanticID(prefix: String, parentSemanticID: String, evidenceID: String) -> String {
+        let material = Data((parentSemanticID + "\u{0}" + evidenceID).utf8)
+        return prefix + "." + String(KernelCanonicalHashV1.sha256(material).prefix(48))
+    }
 }
 
 enum AccessibleDocumentRecoveryV1{static func disposition(hasAcceptedAssessment:Bool,hasDerivedTree:Bool)->String{hasAcceptedAssessment ? "REBUILD_DERIVED_TREE_FROM_SNAPSHOT_AND_ACCEPTED_RECEIPT":(hasDerivedTree ? "DROP_UNACCEPTED_DERIVED_TREE":"NO_EFFECT")}}

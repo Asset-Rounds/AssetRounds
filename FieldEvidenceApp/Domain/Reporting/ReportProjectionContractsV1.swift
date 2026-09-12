@@ -6216,6 +6216,41 @@ enum C49WorkResourceProjectionSupportV1 {
     }
 }
 
+/// A source-bound document view for the globalized renderer. The canonical
+/// C49 projection remains the source of semantic identity; these ordered
+/// strings are display-only and cannot introduce live inventory state.
+struct C49WorkResourceDocumentProjectionV1: Equatable, Sendable {
+    static let projectionVersion = "C49_WORK_RESOURCE_DOCUMENT_V1"
+
+    let projectionVersion: String
+    let sourceProjectionSHA256: String
+    let orderedSemanticIDs: [String]
+    let lines: [String]
+
+    init(projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        let accessible = try C49WorkResourceAccessibleDocumentProjectionV1(projection: projection)
+        try accessible.validate()
+        projectionVersion = Self.projectionVersion
+        sourceProjectionSHA256 = projection.projectionSHA256
+        lines = accessible.lines
+        orderedSemanticIDs = ["c49.work-resource.title"]
+            + accessible.lines.indices.map { "c49.work-resource.line.\($0 + 1)" }
+        try validate()
+    }
+
+    func validate() throws {
+        guard projectionVersion == Self.projectionVersion,
+              KernelCanonicalHashV1.validSHA256(sourceProjectionSHA256),
+              !lines.isEmpty,
+              orderedSemanticIDs.count == lines.count + 1,
+              Set(orderedSemanticIDs).count == orderedSemanticIDs.count,
+              orderedSemanticIDs.allSatisfy(SnapshotProjectionValidationV1.validID) else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}
+
 // MARK: - C34 route snapshot reporting lifecycle
 
 /// C34 deliberately defines no report projection for device-operational

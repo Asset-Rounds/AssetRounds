@@ -1004,6 +1004,294 @@ extension V9_38AccessibleDocumentTests {
     }
 }
 
+private actor V30GlobalizedAccessibleDocumentProbe: AccessibleDocumentGlobalizedRenderingV1 {
+    private var receivedTree: AccessibleDocumentSemanticTreeV1?
+    private var receivedRequest: AccessibleDocumentGlobalizedRenderRequestV1?
+    private let returnsMismatchedLanguage: Bool
+
+    init(returnsMismatchedLanguage: Bool = false) {
+        self.returnsMismatchedLanguage = returnsMismatchedLanguage
+    }
+
+    func renderGlobalized(
+        tree: AccessibleDocumentSemanticTreeV1,
+        request: AccessibleDocumentGlobalizedRenderRequestV1
+    ) async throws -> AccessibleDocumentGlobalizedRenderOutputV1 {
+        receivedTree = tree
+        receivedRequest = request
+        let bytes = Data("V30 globalized accessible document".utf8)
+        let output = try AccessibleDocumentRenderOutputV1(
+            bytes: bytes,
+            mediaType: "application/pdf",
+            rendererID: GlobalizedDocumentRenderReceiptV1.rendererID,
+            rendererVersion: GlobalizedDocumentRenderReceiptV1.rendererVersion
+        )
+        let receiptLanguage: ReportLanguageSelectionV1
+        if returnsMismatchedLanguage {
+            receiptLanguage = try ReportLanguageSelectionV1(
+                requestedLanguage: try AppLanguageTagV1("es"),
+                effectiveLanguage: try AppLanguageTagV1("es"),
+                fallback: .exact
+            )
+        } else {
+            receiptLanguage = request.documentRequest.language
+        }
+        let receipt = GlobalizedDocumentRenderReceiptV1(
+            rendererID: GlobalizedDocumentRenderReceiptV1.rendererID,
+            rendererVersion: GlobalizedDocumentRenderReceiptV1.rendererVersion,
+            sourceSHA256: tree.treeSHA256,
+            sourceCreatedAtMilliseconds: Int64((request.sourceCreatedAt.timeIntervalSince1970 * 1_000).rounded()),
+            sourceContentSHA256: String(repeating: "f", count: 64),
+            paper: LocalePaperLayoutV1(paperSize: request.documentRequest.paperSize, widthPoints: 612, heightPoints: 792),
+            language: receiptLanguage,
+            formatting: request.documentRequest.formatting,
+            orderedSemanticIDs: try tree.depthFirstReadingOrder().map(\.nodeID),
+            fonts: [GlobalizedDocumentFontProvenanceV1(postScriptName: "TestFont", versionName: "1", fontFileSHA256: String(repeating: "e", count: 64), os2FsType: 0, fileByteCount: 1, embedding: .outlineSubset)],
+            operatingSystemBuild: "test-os-build",
+            outputSHA256: output.sha256,
+            outputByteCount: Int64(bytes.count),
+            nativeFontEmbeddingObserved: true,
+            nativeToUnicodeObserved: true,
+            nativeColorGlyphImagesObserved: false,
+            pendingExternalQualification: true
+        )
+        return try AccessibleDocumentGlobalizedRenderOutputV1(output: output, documentReceipt: receipt)
+    }
+
+    func snapshot() -> (AccessibleDocumentSemanticTreeV1?, AccessibleDocumentGlobalizedRenderRequestV1?) {
+        (receivedTree, receivedRequest)
+    }
+}
+
+private actor V30GlobalizedAssessmentStore {
+    private var acceptedReceipt: AccessibleDocumentAssessmentReceiptV1?
+    private var appendCount = 0
+
+    func accepted(_ value: AccessibleDocumentAssessmentReceiptV1) -> AccessibleDocumentAssessmentReceiptV1? {
+        acceptedReceipt == value ? acceptedReceipt : nil
+    }
+
+    func append(_ value: AccessibleDocumentAssessmentReceiptV1) -> AccessibleDocumentAssessmentReceiptV1 {
+        appendCount += 1
+        acceptedReceipt = value
+        return value
+    }
+
+    func snapshot() -> Int { appendCount }
+}
+
+extension V9_38AccessibleDocumentTests {
+    func testV30P03C04GlobalizedLifecycleUsesDepthFirstTreeAndExplicitProvenance() async throws {
+        let evidenceBytes = Data("exact source image bytes".utf8)
+        let evidence = try AccessibleEvidenceLinkV1(
+            evidenceID: "v30.image.evidence",
+            evidenceSHA256: KernelCanonicalHashV1.sha256(evidenceBytes),
+            mediaType: "image/jpeg"
+        )
+        let tree = try AccessibleDocumentSemanticTreeV1(
+            treeID: C24AccessibleDocumentTestSupport.id(401),
+            workspaceID: C24AccessibleDocumentTestSupport.workspace(401),
+            audience: .internalUse,
+            publication: try C24AccessibleDocumentTestSupport.publication(),
+            nodes: [
+                try C24AccessibleDocumentTestSupport.node(nodeID: "cell", role: .tableCell, parentNodeID: "row", order: 1, tableHeaderNodeIDs: ["header"], localizedText: "Value"),
+                try C24AccessibleDocumentTestSupport.node(nodeID: "document", role: .document, parentNodeID: nil, order: 0, localizedText: "Document"),
+                try C24AccessibleDocumentTestSupport.node(nodeID: "figure", role: .figure, parentNodeID: "section", order: 2, localizedText: "Source figure text", alternateText: "Authored image description", alternateTextProvenance: .authoredForSource, evidenceLinks: [evidence]),
+                try C24AccessibleDocumentTestSupport.node(nodeID: "header", role: .tableHeader, parentNodeID: "row", order: 0, tableHeaderScope: .column, localizedText: "Name"),
+                try C24AccessibleDocumentTestSupport.node(nodeID: "heading", role: .heading, parentNodeID: "document", order: 0, headingLevel: 1, localizedText: "Heading"),
+                try C24AccessibleDocumentTestSupport.node(nodeID: "paragraph", role: .paragraph, parentNodeID: "section", order: 0, localizedText: "Comment", evidenceLinks: [evidence]),
+                try C24AccessibleDocumentTestSupport.node(nodeID: "row", role: .tableRow, parentNodeID: "table", order: 0),
+                try C24AccessibleDocumentTestSupport.node(nodeID: "section", role: .section, parentNodeID: "document", order: 1, localizedText: "Status"),
+                try C24AccessibleDocumentTestSupport.node(nodeID: "table", role: .table, parentNodeID: "section", order: 1, localizedText: "Table")
+            ],
+            projectionVersion: "v30.globalized.accessible.v1"
+        )
+        let depthFirst = try tree.depthFirstReadingOrder().map(\.nodeID)
+        XCTAssertEqual(depthFirst, ["document", "heading", "section", "paragraph", "table", "row", "header", "cell", "figure"])
+        XCTAssertNotEqual(depthFirst, tree.nodes.map(\.nodeID))
+
+        let elements = try GlobalizedAccessibleDocumentTreeProjectionV1.elements(
+            tree: tree,
+            imageDataByEvidenceID: [evidence.evidenceID: evidenceBytes]
+        )
+        XCTAssertEqual(Array(elements.map(\.semanticID).prefix(4)), ["document", "heading", "section", "paragraph"])
+        let evidenceLink = try XCTUnwrap(elements.first { $0.role == .evidenceLink })
+        XCTAssertEqual(evidenceLink.parentSemanticID, "paragraph")
+        XCTAssertEqual(evidenceLink.evidenceID, evidence.evidenceID)
+        XCTAssertEqual(evidenceLink.evidenceSHA256, evidence.evidenceSHA256)
+        XCTAssertTrue(evidenceLink.semanticID.hasPrefix("link.") && evidenceLink.semanticID.utf8.count <= 128)
+        let header = try XCTUnwrap(elements.first { $0.semanticID == "header" })
+        XCTAssertEqual(header.parentSemanticID, "row")
+        XCTAssertEqual(header.tableHeaderScope, .column)
+        let cell = try XCTUnwrap(elements.first { $0.semanticID == "cell" })
+        XCTAssertEqual(cell.tableHeaderSemanticIDs, ["header"])
+        let figure = try XCTUnwrap(elements.first { $0.semanticID == "figure" })
+        XCTAssertEqual(figure.imageData, evidenceBytes)
+        XCTAssertEqual(figure.evidenceSHA256, evidence.evidenceSHA256)
+        XCTAssertEqual(figure.alternateText, "Authored image description")
+        XCTAssertEqual(figure.alternateTextProvenance, .authoredForSource)
+        XCTAssertThrowsError(try GlobalizedAccessibleDocumentTreeProjectionV1.elements(tree: tree, imageDataByEvidenceID: [:]))
+        XCTAssertThrowsError(try GlobalizedAccessibleDocumentTreeProjectionV1.elements(tree: tree, imageDataByEvidenceID: [evidence.evidenceID: Data("wrong".utf8)]))
+
+        let secondEvidenceBytes = Data("second exact source image bytes".utf8)
+        let secondEvidence = try AccessibleEvidenceLinkV1(
+            evidenceID: "v30.image.additional",
+            evidenceSHA256: KernelCanonicalHashV1.sha256(secondEvidenceBytes),
+            mediaType: "image/jpeg"
+        )
+        let multiFigure = try C24AccessibleDocumentTestSupport.node(
+            nodeID: "figure", role: .figure, parentNodeID: "section", order: 2,
+            localizedText: "Source figure text",
+            alternateText: "Authored image description",
+            alternateTextProvenance: .authoredForSource,
+            evidenceLinks: [evidence, secondEvidence]
+        )
+        let multiEvidenceTree = try AccessibleDocumentSemanticTreeV1(
+            treeID: C24AccessibleDocumentTestSupport.id(403),
+            workspaceID: tree.workspaceID,
+            audience: tree.audience,
+            publication: tree.publication,
+            nodes: C24AccessibleDocumentTestSupport.replacing(nodeID: "figure", in: tree.nodes, with: multiFigure),
+            projectionVersion: tree.projectionVersion
+        )
+        let multiElements = try GlobalizedAccessibleDocumentTreeProjectionV1.elements(
+            tree: multiEvidenceTree,
+            imageDataByEvidenceID: [
+                evidence.evidenceID: evidenceBytes,
+                secondEvidence.evidenceID: secondEvidenceBytes
+            ]
+        )
+        let figureGroup = try XCTUnwrap(multiElements.first { $0.semanticID == "figure" })
+        XCTAssertNil(figureGroup.imageData)
+        XCTAssertNil(figureGroup.evidenceID)
+        XCTAssertEqual(figureGroup.text, "Source figure text")
+        XCTAssertEqual(figureGroup.alternateText, "Authored image description")
+        XCTAssertEqual(figureGroup.alternateTextProvenance, .authoredForSource)
+        XCTAssertEqual(multiElements.compactMap(\.text).filter { $0 == "Source figure text" }, ["Source figure text"])
+        XCTAssertEqual(multiElements.compactMap(\.alternateText), ["Authored image description"])
+        let imageChildren = multiElements.filter { $0.parentSemanticID == "figure" && $0.role == .figure }
+        XCTAssertEqual(imageChildren.count, 2)
+        XCTAssertEqual(imageChildren.map(\.evidenceID), multiFigure.evidenceLinks.map(\.evidenceID))
+        XCTAssertEqual(imageChildren.compactMap(\.imageData), multiFigure.evidenceLinks.map { link in
+            link.evidenceID == evidence.evidenceID ? evidenceBytes : secondEvidenceBytes
+        })
+        XCTAssertTrue(imageChildren.allSatisfy { $0.alternateText == nil && $0.alternateTextProvenance == .notProvided })
+        XCTAssertTrue(imageChildren.allSatisfy { $0.semanticID.hasPrefix("image.") && $0.semanticID.utf8.count <= 256 })
+        XCTAssertThrowsError(try GlobalizedAccessibleDocumentTreeProjectionV1.elements(
+            tree: multiEvidenceTree,
+            imageDataByEvidenceID: [evidence.evidenceID: evidenceBytes]
+        ))
+        XCTAssertThrowsError(try GlobalizedAccessibleDocumentTreeProjectionV1.elements(
+            tree: multiEvidenceTree,
+            imageDataByEvidenceID: [evidence.evidenceID: evidenceBytes, secondEvidence.evidenceID: Data("mismatch".utf8)]
+        ))
+
+        let decorativeMultiFigure = try C24AccessibleDocumentTestSupport.node(
+            nodeID: "figure", role: .figure, parentNodeID: "section", order: 2,
+            decorative: true, evidenceLinks: [evidence, secondEvidence]
+        )
+        let decorativeMultiTree = try AccessibleDocumentSemanticTreeV1(
+            treeID: C24AccessibleDocumentTestSupport.id(404), workspaceID: tree.workspaceID,
+            audience: tree.audience, publication: tree.publication,
+            nodes: C24AccessibleDocumentTestSupport.replacing(nodeID: "figure", in: tree.nodes, with: decorativeMultiFigure),
+            projectionVersion: tree.projectionVersion
+        )
+        let decorativeElements = try GlobalizedAccessibleDocumentTreeProjectionV1.elements(
+            tree: decorativeMultiTree,
+            imageDataByEvidenceID: [evidence.evidenceID: evidenceBytes, secondEvidence.evidenceID: secondEvidenceBytes]
+        )
+        let decorativeGroup = try XCTUnwrap(decorativeElements.first { $0.semanticID == "figure" })
+        XCTAssertTrue(decorativeGroup.decorative)
+        XCTAssertNil(decorativeGroup.alternateTextProvenance)
+        let decorativeChildren = decorativeElements.filter { $0.parentSemanticID == "figure" && $0.role == .figure }
+        XCTAssertEqual(decorativeChildren.map(\.evidenceID), decorativeMultiFigure.evidenceLinks.map(\.evidenceID))
+        XCTAssertTrue(decorativeChildren.allSatisfy { $0.decorative && $0.alternateText == nil && $0.alternateTextProvenance == nil })
+
+        let longNodeID = String(repeating: "n", count: 120)
+        let longEvidenceID = String(repeating: "e", count: 120)
+        let longEvidence = try AccessibleEvidenceLinkV1(
+            evidenceID: longEvidenceID, evidenceSHA256: KernelCanonicalHashV1.sha256(Data("long evidence".utf8)), mediaType: "application/json"
+        )
+        let longParagraph = try C24AccessibleDocumentTestSupport.node(
+            nodeID: longNodeID, role: .paragraph, parentNodeID: "section", order: 0,
+            localizedText: "Bounded evidence link", evidenceLinks: [longEvidence]
+        )
+        let longIdentityTree = try AccessibleDocumentSemanticTreeV1(
+            treeID: C24AccessibleDocumentTestSupport.id(405), workspaceID: tree.workspaceID,
+            audience: tree.audience, publication: tree.publication,
+            nodes: C24AccessibleDocumentTestSupport.replacing(nodeID: "paragraph", in: tree.nodes, with: longParagraph),
+            projectionVersion: tree.projectionVersion
+        )
+        let longIdentityElements = try GlobalizedAccessibleDocumentTreeProjectionV1.elements(
+            tree: longIdentityTree, imageDataByEvidenceID: [evidence.evidenceID: evidenceBytes]
+        )
+        let longEvidenceLink = try XCTUnwrap(longIdentityElements.first { $0.evidenceID == longEvidenceID })
+        XCTAssertEqual(longEvidenceLink.parentSemanticID, longNodeID)
+        XCTAssertTrue(longEvidenceLink.semanticID.hasPrefix("link.") && longEvidenceLink.semanticID.utf8.count <= 128)
+
+        let request = try AccessibleDocumentGlobalizedRenderRequestV1(
+            sourceCreatedAt: C24AccessibleDocumentTestSupport.fixedDate,
+            documentRequest: try GlobalizedDocumentRenderRequestV1(
+                language: ReportLanguageSelectionV1(requestedLanguage: .english, effectiveLanguage: .english, fallback: .exact),
+                formatting: FormattingLocaleProfileV1(localeIdentifier: "en-US", ianaTimeZoneIdentifier: "Etc/UTC", calendar: .gregorian, numberingSystem: .latin, units: .usCustomary),
+                paperSize: .usLetter
+            ),
+            imageDataByEvidenceID: [evidence.evidenceID: evidenceBytes]
+        )
+        let probe = V30GlobalizedAccessibleDocumentProbe()
+        let assessmentStore = V30GlobalizedAssessmentStore()
+        let existingOutput = try C24AccessibleDocumentTestSupport.output(tree: tree)
+        let adapter = AccessibleDocumentLifecycleAdapterV1(
+            operations: AccessibleDocumentLifecycleOperationsV1(
+                derive: { tree }, render: { _ in existingOutput },
+                accepted: { assessment, _ in await assessmentStore.accepted(assessment) },
+                append: { assessment, _ in await assessmentStore.append(assessment) }
+            ),
+            globalizedRenderer: probe
+        )
+        let coordinator = AccessibleDocumentCoordinatorV1(treeBuilder: adapter, renderer: adapter, writer: adapter, globalizedRenderer: adapter)
+        let (derivedTree, rendered) = try await coordinator.deriveAndRenderGlobalized(request)
+        XCTAssertEqual(derivedTree, tree)
+        XCTAssertEqual(rendered.documentReceipt.sourceSHA256, tree.treeSHA256)
+        XCTAssertEqual(rendered.documentReceipt.language, request.documentRequest.language)
+        XCTAssertEqual(rendered.documentReceipt.formatting, request.documentRequest.formatting)
+        XCTAssertTrue(rendered.documentReceipt.pendingExternalQualification)
+        let (receivedTree, receivedRequest) = await probe.snapshot()
+        XCTAssertEqual(receivedTree, tree)
+        XCTAssertEqual(receivedRequest?.sourceCreatedAt, request.sourceCreatedAt)
+        XCTAssertEqual(receivedRequest?.imageDataByEvidenceID, request.imageDataByEvidenceID)
+
+        let assessmentRequest = try C24AccessibleDocumentTestSupport.request(
+            workspaceID: tree.workspaceID,
+            receiptID: C24AccessibleDocumentTestSupport.id(402),
+            mutationSlot: 402
+        )
+        let firstAssessment = try await coordinator.assessGlobalized(assessmentRequest, renderRequest: request)
+        let replayedAssessment = try await coordinator.assessGlobalized(assessmentRequest, renderRequest: request)
+        XCTAssertEqual(firstAssessment, replayedAssessment)
+        XCTAssertEqual(firstAssessment.outputSHA256, rendered.output.sha256)
+        let appendCount = await assessmentStore.snapshot()
+        XCTAssertEqual(appendCount, 1)
+
+        let mismatchedProbe = V30GlobalizedAccessibleDocumentProbe(returnsMismatchedLanguage: true)
+        let mismatchedAdapter = AccessibleDocumentLifecycleAdapterV1(
+            operations: AccessibleDocumentLifecycleOperationsV1(
+                derive: { tree }, render: { _ in existingOutput }, accepted: { _, _ in nil }, append: { assessment, _ in assessment }
+            ),
+            globalizedRenderer: mismatchedProbe
+        )
+        let mismatchedCoordinator = AccessibleDocumentCoordinatorV1(
+            treeBuilder: mismatchedAdapter,
+            renderer: mismatchedAdapter,
+            writer: mismatchedAdapter,
+            globalizedRenderer: mismatchedAdapter
+        )
+        await c24AssertThrowsErrorAsync {
+            _ = try await mismatchedCoordinator.deriveAndRenderGlobalized(request)
+        }
+    }
+}
+
 
 private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38AccessibleDocumentTests_swift {
     static let compatibilityCardID = "V23-P03-C47"

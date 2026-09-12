@@ -87,9 +87,13 @@ final class S4_1DeterministicRendererTests: XCTestCase {
             )
         }
         XCTAssertEqual(firstValidated.referencedImageByteCount, expectedReferencedBytes)
-        let independentlyRendered = try WorklightPDFRendererV1().render(firstValidated)
+        let renderer = WorklightPDFRendererV1()
+        let independentlyRendered = try renderer.render(firstValidated)
         XCTAssertEqual(independentlyRendered.pageCount, 2)
         try assertInspectionContract(independentlyRendered.inspection)
+        let globalizedRequest = try renderer.defaultGlobalizedRequest(for: firstValidated)
+        let independentlyGlobalized = try renderer.renderGlobalized(firstValidated, request: globalizedRequest)
+        try independentlyGlobalized.receipt.validate()
         NSTimeZone.default = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
         let firstResult = try first.service.renderPendingReport(id: Fixture.reportID)
         NSTimeZone.default = try XCTUnwrap(TimeZone(identifier: "Pacific/Auckland"))
@@ -97,17 +101,36 @@ final class S4_1DeterministicRendererTests: XCTestCase {
 
         let firstPDF = try Data(contentsOf: first.session.generationRootURL.appendingPathComponent(firstResult.pdfRelativePath))
         let secondPDF = try Data(contentsOf: second.session.generationRootURL.appendingPathComponent(secondResult.pdfRelativePath))
-        XCTAssertEqual(firstPDF, independentlyRendered.data)
+        XCTAssertEqual(firstPDF, independentlyGlobalized.pdf.data)
         XCTAssertEqual(firstPDF, secondPDF)
         XCTAssertEqual(firstResult.pdfSHA256, sha256(firstPDF))
         XCTAssertEqual(firstResult.pdfSHA256, secondResult.pdfSHA256)
+        let firstReceipt = try XCTUnwrap(firstResult.documentReceipt)
+        let secondReceipt = try XCTUnwrap(secondResult.documentReceipt)
+        XCTAssertEqual(firstReceipt, independentlyGlobalized.receipt)
+        XCTAssertEqual(firstReceipt, secondReceipt)
+        XCTAssertEqual(firstReceipt.outputSHA256, firstResult.pdfSHA256)
+        XCTAssertEqual(firstReceipt.outputByteCount, Int64(firstPDF.count))
+        XCTAssertEqual(
+            try GlobalizedAccessibleDocumentRendererV1.readEmbeddedMetadata(from: firstPDF).sourceContentSHA256,
+            firstReceipt.sourceContentSHA256
+        )
+        XCTAssertEqual(
+            try GlobalizedAccessibleDocumentRendererV1.readEmbeddedMetadata(from: firstPDF).orderedSemanticIDs,
+            firstReceipt.orderedSemanticIDs
+        )
         XCTAssertEqual(firstResult.pdfRelativePath, "pdfs/\(Fixture.reportID.uuidString.lowercased()).pdf")
         try assertReadyAuthority(in: first, result: firstResult)
         try assertReadyAuthority(in: second, result: secondResult)
         try assertIndependentPDFContract(
-            firstPDF,
-            expectedPageCount: firstResult.pageCount,
+            independentlyRendered.data,
+            expectedPageCount: independentlyRendered.pageCount,
             snapshotSHA256: firstValidated.snapshotSHA256
+        )
+        XCTAssertEqual(try XCTUnwrap(PDFDocument(data: firstPDF)).pageCount, firstResult.pageCount)
+        XCTAssertEqual(
+            try GlobalizedAccessibleDocumentRendererV1.readEmbeddedMetadata(from: firstPDF).sourceSHA256,
+            firstValidated.snapshotSHA256
         )
         XCTAssertThrowsError(try first.service.renderPendingReport(id: Fixture.reportID)) {
             XCTAssertEqual($0 as? ReportRenderServiceError, .reportNotPending)
@@ -120,6 +143,23 @@ final class S4_1DeterministicRendererTests: XCTestCase {
         attach(secondPDF, name: "S4.1 deterministic PDF root B")
     }
 
+    @MainActor
+    func testGlobalizedSourceOnlyHistoryRetainsAllHistoricalEvidenceBeyondLegacyThreeImageLayout() throws {
+        let harness = try makeHarness(label: "globalized-all-history", historicalEvidenceCount: 5)
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let validated = try SnapshotValidatorV1(modelContext: harness.session.modelContext, generationRootURL: harness.session.generationRootURL).validate(report: harness.report)
+        let renderer = WorklightPDFRendererV1()
+        let result = try renderer.renderGlobalized(validated, request: renderer.defaultGlobalizedRequest(for: validated))
+        let expectedIDs = Fixture.historyExtraIDs.map { id in
+            "history.\(Fixture.checkID.uuidString.lowercased()).extra_context_\(Fixture.historyExtraIDs.firstIndex(of: id)!).\(id.uuidString.lowercased()).figure"
+        }
+        for semanticID in expectedIDs {
+            XCTAssertTrue(result.receipt.orderedSemanticIDs.contains(semanticID), semanticID)
+        }
+        let logical = try GlobalizedAccessibleDocumentRendererV1.readLogicalText(from: result.pdf.data)
+        XCTAssertTrue(logical.contains("Additional history 1"))
+        XCTAssertTrue(logical.contains("Additional history 2"))
+    }
     @MainActor
     func testValidatorRejectsFocusedCorruptionWithoutCreatingPDF() throws {
         let harness = try makeHarness(label: "validator")
@@ -399,6 +439,10 @@ private enum Fixture {
     static let historyCloseID = UUID(uuidString: "41000000-0000-0000-0000-000000000011")!
     static let historyWorkID = UUID(uuidString: "41000000-0000-0000-0000-000000000012")!
     static let historyWideID = UUID(uuidString: "41000000-0000-0000-0000-000000000013")!
+    static let historyExtraIDs = [
+        UUID(uuidString: "41000000-0000-0000-0000-000000000016")!,
+        UUID(uuidString: "41000000-0000-0000-0000-000000000017")!,
+    ]
     static let historicalPacketID = UUID(uuidString: "41000000-0000-0000-0000-000000000014")!
     static let historicalStableRootID = UUID(uuidString: "41000000-0000-0000-0000-000000000015")!
     static let snapshotDate = Date(timeIntervalSince1970: 1_768_420_926)
@@ -426,7 +470,8 @@ private extension S4_1DeterministicRendererTests {
     func makeHarness(
         label: String,
         c42Projection: String? = nil,
-        capacity: @escaping StoragePreflightService.CapacityProvider = { _ in Int64.max }
+        capacity: @escaping StoragePreflightService.CapacityProvider = { _ in Int64.max },
+        historicalEvidenceCount: Int = 3
     ) throws -> RenderHarness {
         let appSupport = fileManager.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent(
@@ -437,7 +482,7 @@ private extension S4_1DeterministicRendererTests {
         let session = try StoreGenerationFactory(applicationSupportURL: appSupport)
             .openOrBootstrapCurrent()
         let context = session.modelContext
-        let snapshot = try fixtureSnapshotAndRows(in: session, c42Projection: c42Projection)
+        let snapshot = try fixtureSnapshotAndRows(in: session, c42Projection: c42Projection, historicalEvidenceCount: historicalEvidenceCount)
         context.insert(snapshot.site)
         context.insert(snapshot.asset)
         context.insert(snapshot.check)
@@ -478,14 +523,15 @@ private extension S4_1DeterministicRendererTests {
     @MainActor
     func fixtureSnapshotAndRows(
         in session: StoreGenerationSession,
-        c42Projection: String? = nil
+        c42Projection: String? = nil,
+        historicalEvidenceCount: Int = 3
     ) throws -> FixtureAuthority {
         let normalizer = MediaNormalizerV1()
         let currentWide = try normalizer.normalize(makePNG(width: 320, height: 180, seed: 17))
         let historyWide = try normalizer.normalize(makePNG(width: 960, height: 540, seed: 31))
         let historyClose = try normalizer.normalize(makePNG(width: 600, height: 900, seed: 43))
         let historyWork = try normalizer.normalize(makePNG(width: 800, height: 480, seed: 79))
-        let evidence = [
+        var evidence = [
             try makeEvidence(
                 id: Fixture.currentWideID,
                 recordID: Fixture.recheckID,
@@ -523,6 +569,14 @@ private extension S4_1DeterministicRendererTests {
                 root: session.generationRootURL
             ),
         ]
+        for (index, id) in Fixture.historyExtraIDs.prefix(max(0, historicalEvidenceCount - 3)).enumerated() {
+            let media = try normalizer.normalize(makePNG(width: 640 + index * 40, height: 480 + index * 30, seed: 101 + index))
+            evidence.append(try makeEvidence(
+                id: id, recordID: Fixture.checkID, purpose: "extra_context_\(index)",
+                display: "Additional history \(index + 1)", media: media,
+                createdAt: Date(timeIntervalSince1970: 1_768_420_801 + Double(index)), root: session.generationRootURL
+            ))
+        }
         let rows = evidence.map(\.row)
         let site = Site(
             id: Fixture.siteID,
@@ -616,7 +670,7 @@ private extension S4_1DeterministicRendererTests {
             evidence: evidence.map(\.snapshot),
             evidenceSourceRecordID: recheck.id,
             history: [
-                historySnapshot(check, evidenceIDs: [Fixture.historyWideID, Fixture.historyCloseID], stageDisplay: "Check", outcomeDisplay: "Visible issue"),
+                historySnapshot(check, evidenceIDs: [Fixture.historyWideID, Fixture.historyCloseID] + Array(Fixture.historyExtraIDs.prefix(max(0, historicalEvidenceCount - 3))), stageDisplay: "Check", outcomeDisplay: "Visible issue"),
                 historySnapshot(work, evidenceIDs: [Fixture.historyWorkID], stageDisplay: "Work", outcomeDisplay: "Work recorded"),
             ],
             issues: [IssueSnapshotV1(

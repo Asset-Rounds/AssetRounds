@@ -19,7 +19,8 @@ extension ReportRenderService {
         id reportID: UUID,
         accessGate: any AppAccessGatePortV1,
         practiceShareConfirmation: PracticeShareConfirmationV1? = nil,
-        languageRequest: ReportLanguageRenderRequestV1? = nil
+        languageRequest: ReportLanguageRenderRequestV1? = nil,
+        documentRequest: GlobalizedDocumentRenderRequestV1? = nil
     ) async throws -> ReportRenderResult {
         let permit = try await accessGate.requireContentAccess(for: .render)
         guard permit.surface == .render, permit.state.permitsContentAccess else {
@@ -37,7 +38,8 @@ extension ReportRenderService {
         return try renderPendingReport(
             id: reportID,
             practiceShareConfirmation: practiceShareConfirmation,
-            languageRequest: languageRequest
+            languageRequest: languageRequest,
+            documentRequest: documentRequest
         )
     }
 }
@@ -768,12 +770,15 @@ struct ReportRenderResult: Equatable, Sendable {
     let requirementExplanations: [RequirementExplanationItemV1]
     /// Transient caller intent, not frozen PDF formatting or catalog evidence.
     let languageRequest: ReportLanguageRenderRequestV1?
+    /// Native technical provenance for this derived PDF, also embedded in its metadata.
+    let documentReceipt: GlobalizedDocumentRenderReceiptV1?
 
     init(
         reportID: UUID, pdfRelativePath: String, pdfSHA256: String, pageCount: Int,
         requirementAssuranceSnapshotSHA256: String?,
         requirementExplanations: [RequirementExplanationItemV1],
-        languageRequest: ReportLanguageRenderRequestV1? = nil
+        languageRequest: ReportLanguageRenderRequestV1? = nil,
+        documentReceipt: GlobalizedDocumentRenderReceiptV1? = nil
     ) {
         self.reportID = reportID
         self.pdfRelativePath = pdfRelativePath
@@ -782,6 +787,7 @@ struct ReportRenderResult: Equatable, Sendable {
         self.requirementAssuranceSnapshotSHA256 = requirementAssuranceSnapshotSHA256
         self.requirementExplanations = requirementExplanations
         self.languageRequest = languageRequest
+        self.documentReceipt = documentReceipt
     }
 }
 
@@ -931,10 +937,11 @@ final class ReportRenderService {
     /// Performs one bounded pending delivery attempt. Ordinary generation failures
     /// preserve the immutable report authority and durably leave only `failed`.
     func attemptPendingReport(
-        id reportID: UUID, languageRequest: ReportLanguageRenderRequestV1? = nil
+        id reportID: UUID, languageRequest: ReportLanguageRenderRequestV1? = nil,
+        documentRequest: GlobalizedDocumentRenderRequestV1? = nil
     ) throws -> ReportRenderAttemptResult {
         do {
-            return .ready(try renderPendingReport(id: reportID, languageRequest: languageRequest))
+            return .ready(try renderPendingReport(id: reportID, languageRequest: languageRequest, documentRequest: documentRequest))
         } catch {
             guard Self.isRetryableRenderFailure(error) else { throw error }
             try persistFailed(reportID: reportID)
@@ -1024,18 +1031,26 @@ final class ReportRenderService {
         _ validated: ValidatedReportSnapshotV1
     ) async throws -> RenderedPDFV1 {
         try await offMainWorker.run {
-            try WorklightPDFRendererV1().render(validated)
+            let renderer = WorklightPDFRendererV1()
+            return try renderer.renderGlobalized(
+                validated, request: renderer.defaultGlobalizedRequest(for: validated)
+            ).pdf
         }
     }
 
     func renderPendingReport(
         id reportID: UUID,
         practiceShareConfirmation: PracticeShareConfirmationV1? = nil,
-        languageRequest: ReportLanguageRenderRequestV1? = nil
+        languageRequest: ReportLanguageRenderRequestV1? = nil,
+        documentRequest: GlobalizedDocumentRenderRequestV1? = nil
     ) throws -> ReportRenderResult {
         // A requested app locale cannot enable an unavailable report catalog.
         // Validation precedes mutation; the historical renderer input is fixed.
         try languageRequest?.validate()
+        try documentRequest?.validate()
+        if let documentRequest {
+            try ReportLanguageControlPolicyV1.validateForCurrentRenderer(documentRequest.language)
+        }
         guard !modelContext.hasChanges else {
             throw ReportRenderServiceError.contextHasChanges
         }
@@ -1078,7 +1093,13 @@ final class ReportRenderService {
             failNextRenderAttempt = false
             throw ReportRenderServiceError.injectedFailure
         }
-        let rendered = try renderer.render(validated)
+        // New generation uses the source-bound Unicode version. The older
+        // languageRequest remains transient caller intent and cannot relabel
+        // or reformat frozen source. An explicit documentRequest controls the
+        // new document profile, including its paper choice.
+        let effectiveDocumentRequest = try documentRequest ?? renderer.defaultGlobalizedRequest(for: validated)
+        let globalized = try renderer.renderGlobalized(validated, request: effectiveDocumentRequest)
+        let rendered = globalized.pdf
         guard !rendered.data.isEmpty,
               rendered.pageCount > 0,
               Self.isLowercaseSHA256(rendered.sha256),
@@ -1167,7 +1188,8 @@ final class ReportRenderService {
                 requirementAssuranceSnapshotSHA256:
                     validated.snapshot.requirementAssurance?.snapshotSHA256,
                 requirementExplanations: validated.requirementExplanations,
-                languageRequest: languageRequest
+                languageRequest: languageRequest,
+                documentReceipt: globalized.receipt
             )
         } catch {
             do {
@@ -1317,6 +1339,14 @@ final class ReportRenderService {
     }
 
     private static func isRetryableRenderFailure(_ error: Error) -> Bool {
+        if let error = error as? GlobalizedAccessibleDocumentFailureV1 {
+            switch error {
+            case .missingResource, .fontNotQualified, .unsupportedGlyph, .pdfValidationFailed, .paginationFailed:
+                return true
+            case .invalidRequest, .invalidElement, .replayMismatch:
+                return false
+            }
+        }
         if error is SnapshotValidationErrorV1
             || error is StoragePreflightError
             || error is WorklightPDFRendererErrorV1 {
@@ -1957,10 +1987,22 @@ extension ReportRenderService {
         try DeterministicOpenJSONRendererV1.renderWorkResource(projection)
     }
 
+    /// Historical reproduction for the earlier projection-only contract.
     static func renderWorkResourcePDF(
         _ projection: C49WorkResourceReportProjectionV1
     ) throws -> Data {
         try DeterministicPDFRendererV1.renderWorkResourceData(projection)
+    }
+
+    static func renderWorkResourcePDF(
+        _ projection: C49WorkResourceReportProjectionV1,
+        sourceCreatedAt: Date,
+        request: GlobalizedDocumentRenderRequestV1,
+        expectedReplay: GlobalizedDocumentRenderReceiptV1? = nil
+    ) throws -> GlobalizedDocumentRenderResultV1 {
+        try DeterministicPDFRendererV1.renderWorkResource(
+            projection, sourceCreatedAt: sourceCreatedAt, request: request, expectedReplay: expectedReplay
+        )
     }
 
     static func renderWorkResourceFormulaSafeCSV(

@@ -74,6 +74,61 @@ enum ReportHistoryCoordinatorError: Error, Equatable {
     case invalidAuthority
 }
 
+/// Observes an already-ready PDF. This history seam never regenerates,
+/// upgrades, or relabels the immutable artifact delivery has validated.
+enum ReportHistoryDocumentArtifactKindV1: String, Equatable, Sendable {
+    case legacyDeterministic = "LEGACY_DETERMINISTIC"
+    case globalizedAccessible = "GLOBALIZED_ACCESSIBLE"
+}
+
+struct ReportHistoryDocumentReplayEvidenceV1: Equatable, Sendable {
+    let reportID: UUID
+    let artifactKind: ReportHistoryDocumentArtifactKindV1
+    let outputSHA256: String
+    let outputByteCount: Int
+    let sourceSHA256: String?
+    let sourceCreatedAtMilliseconds: Int64?
+    let sourceContentSHA256: String?
+    let rendererID: String?
+    let rendererVersion: String?
+
+    static func observe(_ ready: ValidatedReadyReportValue) throws -> Self {
+        let pdf = ready.delivery.pdfData
+        guard !pdf.isEmpty,
+              KernelCanonicalHashV1.sha256(pdf) == ready.delivery.pdfSHA256 else {
+            throw ReportHistoryCoordinatorError.invalidAuthority
+        }
+        guard let metadata = try GlobalizedAccessibleDocumentRendererV1
+            .readEmbeddedMetadataIfPresent(from: pdf) else {
+            return .init(reportID: ready.delivery.reportID, artifactKind: .legacyDeterministic,
+                         outputSHA256: ready.delivery.pdfSHA256, outputByteCount: pdf.count,
+                         sourceSHA256: nil, sourceCreatedAtMilliseconds: nil,
+                         sourceContentSHA256: nil, rendererID: nil, rendererVersion: nil)
+        }
+        let encodedSnapshot = try ReportSnapshotEncoderV1().encode(ready.snapshot)
+        let milliseconds = ready.snapshot.snapshotCreatedAt.timeIntervalSince1970 * 1_000
+        let roundedMilliseconds = milliseconds.rounded()
+        guard roundedMilliseconds.isFinite,
+              roundedMilliseconds >= Double(Int64.min),
+              roundedMilliseconds < Double(Int64.max) else {
+            throw ReportHistoryCoordinatorError.invalidAuthority
+        }
+        let expectedMilliseconds = Int64(roundedMilliseconds)
+        guard metadata.sourceSHA256 == encodedSnapshot.sha256,
+              metadata.sourceCreatedAtMilliseconds == expectedMilliseconds,
+              metadata.rendererID == GlobalizedDocumentRenderReceiptV1.rendererID,
+              metadata.rendererVersion == GlobalizedDocumentRenderReceiptV1.rendererVersion else {
+            throw ReportHistoryCoordinatorError.invalidAuthority
+        }
+        return .init(reportID: ready.delivery.reportID, artifactKind: .globalizedAccessible,
+                     outputSHA256: ready.delivery.pdfSHA256, outputByteCount: pdf.count,
+                     sourceSHA256: metadata.sourceSHA256,
+                     sourceCreatedAtMilliseconds: metadata.sourceCreatedAtMilliseconds,
+                     sourceContentSHA256: metadata.sourceContentSHA256,
+                     rendererID: metadata.rendererID, rendererVersion: metadata.rendererVersion)
+    }
+}
+
 @MainActor
 final class ReportHistoryCoordinator {
     private let modelContext: ModelContext
@@ -146,6 +201,23 @@ final class ReportHistoryCoordinator {
     ) throws -> ReportHistoryComparisonValue? {
         let authority = try buildAuthority()
         return try comparison(stableRootID: stableRootID, authority: authority)
+    }
+
+    /// Returns replay/provenance evidence for an existing ready artifact only.
+    /// This deliberately delegates to the ready-read validator and never
+    /// creates a replacement PDF for legacy history.
+    func documentReplayEvidence(
+        reportID: UUID
+    ) throws -> ReportHistoryDocumentReplayEvidenceV1 {
+        let ready: ValidatedReadyReportValue
+        do {
+            ready = try deliveryCoordinator.validatedReadyReport(id: reportID)
+        } catch ReportDeliveryCoordinatorError.contextHasChanges {
+            throw ReportHistoryCoordinatorError.contextHasChanges
+        } catch {
+            throw ReportHistoryCoordinatorError.invalidAuthority
+        }
+        return try ReportHistoryDocumentReplayEvidenceV1.observe(ready)
     }
 
     /// Builds authority once for a list instead of repeating the complete

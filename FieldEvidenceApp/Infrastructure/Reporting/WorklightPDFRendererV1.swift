@@ -247,11 +247,19 @@ private extension WorklightPDFRendererV1 {
         }
     }
 
-    func makeBlocks(_ validated: ValidatedReportSnapshotV1) throws -> [Block] {
+    func makeBlocks(_ validated: ValidatedReportSnapshotV1, sourceOnly: Bool = false) throws -> [Block] {
+        // The V30 projection consumes logical source before the frozen V1
+        // wrapping pass. The default branch retains historical V1 bytes.
+        func sourceFragment(_ value: String, style: Style, width: CGFloat) throws -> TextFragment {
+            if sourceOnly {
+                return TextFragment(sourceText: value, text: value, style: style, lineCount: 1, height: style.lineHeight)
+            }
+            return try makeText(value, style: style, width: width)
+        }
         let snapshot = validated.snapshot
         var blocks: [Block] = []
         func text(_ value: String, style: Style, role: String, before: CGFloat = 0, after: CGFloat = 6, keep: Int = 0) throws {
-            let fragment = try makeText(value, style: style, width: Self.contentRect.width)
+            let fragment = try sourceFragment(value, style: style, width: Self.contentRect.width)
             blocks.append(Block(role: role, content: .text(fragment), spacingBefore: before, spacingAfter: after, keepWithFollowingBodyLines: keep))
         }
         func section(_ value: String, role: String) throws { try text(value, style: .section, role: role, before: 12, after: 6, keep: 2) }
@@ -315,7 +323,8 @@ private extension WorklightPDFRendererV1 {
             try section("History", role: "history.heading")
             let evidenceByID = Dictionary(uniqueKeysWithValues: snapshot.evidence.map { ($0.evidenceID, $0) })
             for entry in snapshot.history {
-                let images: [ImageFragment] = try entry.evidenceIDs.prefix(3).map { id in
+                let historyEvidenceIDs = sourceOnly ? entry.evidenceIDs : Array(entry.evidenceIDs.prefix(3))
+                let images: [ImageFragment] = try historyEvidenceIDs.map { id in
                     guard let evidence = evidenceByID[id], let bytes = validated.thumbnailJPEG(for: id) else {
                         throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
                     }
@@ -347,7 +356,7 @@ private extension WorklightPDFRendererV1 {
                 }
                 if let work = entry.workDescription { summary += "\n\(work)" }
                 if let note = entry.note { summary += "\nNote: \(note)" }
-                let summaryFragment = try makeText(summary, style: .caption, width: 528)
+                let summaryFragment = try sourceFragment(summary, style: .caption, width: 528)
                 blocks.append(Block(role: "history.\(entry.recordID.uuidString.lowercased())", content: .historyRow(images, summaryFragment), spacingBefore: 0, spacingAfter: 6, keepWithFollowingBodyLines: 0))
             }
         }
@@ -990,10 +999,23 @@ enum C48PortableReviewWorklightRendererBoundaryV1 {
 // MARK: - C49 work-resource Worklight projection
 
 extension WorklightPDFRendererV1 {
+    /// Historical reproduction for projections whose original contract did
+    /// not carry a creation time or document profile.
     static func renderWorkResourceProjection(
         _ projection: C49WorkResourceReportProjectionV1
     ) throws -> Data {
         try DeterministicPDFRendererV1.renderWorkResourceData(projection)
+    }
+
+    static func renderWorkResourceProjection(
+        _ projection: C49WorkResourceReportProjectionV1,
+        sourceCreatedAt: Date,
+        request: GlobalizedDocumentRenderRequestV1,
+        expectedReplay: GlobalizedDocumentRenderReceiptV1? = nil
+    ) throws -> Data {
+        try DeterministicPDFRendererV1.renderWorkResourceData(
+            projection, sourceCreatedAt: sourceCreatedAt, request: request, expectedReplay: expectedReplay
+        )
     }
 }
 
@@ -1045,4 +1067,128 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Reporting_Worklig
         ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}
+
+
+// MARK: - V30 explicit globalized output
+
+extension WorklightPDFRendererV1 {
+    /// A new derived output version. Historical no-request rendering above
+    /// continues to use the complete frozen V1 layout and byte path.
+    func renderGlobalized(
+        _ validated: ValidatedReportSnapshotV1,
+        request: GlobalizedDocumentRenderRequestV1,
+        expectedReplay: GlobalizedDocumentRenderReceiptV1? = nil
+    ) throws -> GlobalizedDocumentRenderResultV1 {
+        try request.validate()
+        try validated.snapshot.practiceWorkspace?.validate()
+        guard !validated.snapshot.pdfTemplate.id.isEmpty,
+              validated.snapshot.pdfTemplate.version > 0,
+              [1, 2].contains(validated.snapshot.snapshotSchemaVersion),
+              KernelCanonicalHashV1.validSHA256(validated.snapshotSHA256) else {
+            throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
+        }
+        return try GlobalizedAccessibleDocumentRendererV1().render(
+            elements: globalizedDocumentElements(validated),
+            sourceSHA256: validated.snapshotSHA256,
+            sourceCreatedAt: validated.snapshot.snapshotCreatedAt,
+            request: request,
+            expectedReplay: expectedReplay
+        )
+    }
+
+    /// Reuse the existing snapshot projection, including its exact evidence,
+    /// history, status, comment and assurance traversal. No UI locale, live
+    /// storage lookup or source normalization enters this projection.
+    func globalizedDocumentElements(
+        _ validated: ValidatedReportSnapshotV1
+    ) throws -> [GlobalizedDocumentElementV1] {
+        let blocks = try makeBlocks(validated, sourceOnly: true)
+        var elements: [GlobalizedDocumentElementV1] = []
+        func appendText(_ value: TextFragment, id: String, keep: Bool = false) throws {
+            let headingLevel: Int?
+            switch value.style {
+            case .title: headingLevel = 1
+            case .section: headingLevel = 2
+            case .body, .caption: headingLevel = nil
+            }
+            elements.append(try GlobalizedDocumentElementV1(
+                semanticID: id,
+                role: headingLevel == nil ? .paragraph : .heading,
+                text: value.sourceText,
+                headingLevel: headingLevel,
+                keepWithNext: keep
+            ))
+        }
+        func appendImage(_ value: ImageFragment, original: Bool) throws {
+            let bytes = original
+                ? validated.originalJPEG(for: value.evidenceID)
+                : validated.thumbnailJPEG(for: value.evidenceID)
+            guard let bytes else { throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot }
+            let evidenceID = value.evidenceID.uuidString.lowercased()
+            let digest = KernelCanonicalHashV1.sha256(bytes)
+            elements.append(try GlobalizedDocumentElementV1(
+                semanticID: value.role + "." + evidenceID + ".figure",
+                role: .figure,
+                evidenceID: evidenceID,
+                evidenceSHA256: digest,
+                imageData: bytes,
+                alternateText: value.caption,
+                alternateTextProvenance: .sourceCaption,
+                maximumImageWidthPoints: original ? 528 : 160,
+                maximumImageHeightPoints: original ? 288 : 120,
+                keepWithNext: true
+            ))
+            elements.append(try GlobalizedDocumentElementV1(
+                semanticID: value.role + "." + evidenceID + ".caption",
+                role: .note,
+                text: value.caption,
+                evidenceID: evidenceID,
+                evidenceSHA256: digest
+            ))
+        }
+        for block in blocks {
+            switch block.content {
+            case .text(let value):
+                try appendText(value, id: block.role, keep: block.keepWithFollowingBodyLines > 0)
+            case .currentImage(let value):
+                try appendImage(value, original: true)
+            case .historyRow(let images, let summary):
+                for image in images { try appendImage(image, original: false) }
+                try appendText(summary, id: block.role + ".summary")
+            }
+        }
+        let snapshot = validated.snapshot
+        let provenance = "Source snapshot SHA256: \(validated.snapshotSHA256)"
+            + "\nSnapshot created: \(timestamp(snapshot.snapshotCreatedAt))"
+            + "\nSource app: \(snapshot.sourceApp.version)/\(snapshot.sourceApp.build)"
+            + "\nSource pack: \(snapshot.pack.id)/\(snapshot.pack.schemaVersion)/\(snapshot.pack.contentVersion)"
+            + "\nFrozen text template: \(snapshot.pdfTemplate.id)/\(snapshot.pdfTemplate.version)"
+        elements.append(try GlobalizedDocumentElementV1(
+            semanticID: "globalized.source-provenance", role: .note, text: provenance
+        ))
+        return elements
+    }
+}
+
+
+extension WorklightPDFRendererV1 {
+    /// Explicit baseline for newly generated documents. Frozen source strings
+    /// retain their own numerals, units and timestamps; this profile never
+    /// infers report language or paper from the current app/device locale.
+    func defaultGlobalizedRequest(
+        for validated: ValidatedReportSnapshotV1,
+        paperSize: LocalePaperSizeV1 = .usLetter
+    ) throws -> GlobalizedDocumentRenderRequestV1 {
+        let sourceZone = validated.snapshot.timeContext.timeZoneID
+        let zone = TimeZone.knownTimeZoneIdentifiers.contains(sourceZone) ? sourceZone : "Etc/UTC"
+        return try GlobalizedDocumentRenderRequestV1(
+            language: ReportLanguageSelectionV1(requestedLanguage: .english, effectiveLanguage: .english, fallback: .exact),
+            formatting: FormattingLocaleProfileV1(
+                localeIdentifier: "en-US", ianaTimeZoneIdentifier: zone,
+                calendar: .gregorian, numberingSystem: .latin, units: .usCustomary
+            ),
+            paperSize: paperSize
+        )
+    }
 }

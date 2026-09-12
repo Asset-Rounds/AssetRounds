@@ -2153,7 +2153,10 @@ enum C48PortableReviewPDFBoundaryV1 {
 // MARK: - C49 work-resource deterministic PDF projection
 
 extension DeterministicPDFRendererV1 {
-    static func renderWorkResourceData(
+    /// Historical C49 PDF bytes remain reproducible through this explicit
+    /// legacy entry point. New Unicode document generation must use
+    /// `renderWorkResource(_:sourceCreatedAt:request:expectedReplay:)`.
+    static func renderLegacyWorkResourceData(
         _ projection: C49WorkResourceReportProjectionV1
     ) throws -> Data {
         try C49WorkResourceProjectionSupportV1.validate(projection)
@@ -2164,10 +2167,19 @@ extension DeterministicPDFRendererV1 {
         )
     }
 
-    static func renderWorkResource(
+    /// Compatibility-only alias for callers reopening a historical C49
+    /// artifact. New product rendering uses the overload with explicit
+    /// source provenance and a globalized document request.
+    static func renderWorkResourceData(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        try renderLegacyWorkResourceData(projection)
+    }
+
+    static func renderLegacyWorkResource(
         _ projection: C49WorkResourceReportProjectionV1
     ) throws -> ReportProjectionOutputV1 {
-        let data = try renderWorkResourceData(projection)
+        let data = try renderLegacyWorkResourceData(projection)
         return ReportProjectionOutputV1(
             format: .pdf,
             data: data,
@@ -2176,6 +2188,66 @@ extension DeterministicPDFRendererV1 {
             orderedSemanticIDs: projection.sourceRecordIDs.map { $0.uuidString.lowercased() },
             taggedPDFAccessibilityEvidence: false
         )
+    }
+
+    /// Historical compatibility entry point. It intentionally preserves the
+    /// pre-globalized C49 byte path for callers replaying an existing report.
+    static func renderWorkResource(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try renderLegacyWorkResource(projection)
+    }
+
+    /// The default C49 document route. Its source time and profile are
+    /// required because this older canonical projection never carried either
+    /// value; deriving them from the device would forge replay provenance.
+    /// It preserves the C49 digest as source identity and does not reinterpret
+    /// material, quantity, or cost facts.
+    static func renderWorkResource(
+        _ projection: C49WorkResourceReportProjectionV1,
+        sourceCreatedAt: Date,
+        request: GlobalizedDocumentRenderRequestV1,
+        expectedReplay: GlobalizedDocumentRenderReceiptV1? = nil
+    ) throws -> GlobalizedDocumentRenderResultV1 {
+        let document = try C49WorkResourceDocumentProjectionV1(projection: projection)
+        let title = try GlobalizedDocumentElementV1(
+            semanticID: document.orderedSemanticIDs[0],
+            role: .heading,
+            text: "Work resource report",
+            headingLevel: 1,
+            keepWithNext: true
+        )
+        let body = try zip(document.orderedSemanticIDs.dropFirst(), document.lines).map {
+            try GlobalizedDocumentElementV1(
+                semanticID: $0.0,
+                role: .paragraph,
+                text: $0.1
+            )
+        }
+        return try GlobalizedAccessibleDocumentRendererV1().render(
+            elements: [title] + body,
+            sourceSHA256: document.sourceProjectionSHA256,
+            sourceCreatedAt: sourceCreatedAt,
+            request: request,
+            expectedReplay: expectedReplay
+        )
+    }
+
+    /// Globalized C49 bytes for a caller that has the immutable source time
+    /// and explicit document profile. The receipt-bearing overload above is
+    /// the replay API; this helper keeps the established data-only seam.
+    static func renderWorkResourceData(
+        _ projection: C49WorkResourceReportProjectionV1,
+        sourceCreatedAt: Date,
+        request: GlobalizedDocumentRenderRequestV1,
+        expectedReplay: GlobalizedDocumentRenderReceiptV1? = nil
+    ) throws -> Data {
+        try renderWorkResource(
+            projection,
+            sourceCreatedAt: sourceCreatedAt,
+            request: request,
+            expectedReplay: expectedReplay
+        ).pdf.data
     }
 }
 
@@ -2189,8 +2261,7 @@ private enum C49WorkResourcePDFPayloadV1 {
                 preparedLines: lines.map(BidirectionalTextSafetyV1.naturalText)
             )
         }
-        let safeLines = lines.map(asciiVisible)
-        let content = (safeLines.isEmpty ? ["C49 work-resource report"] : safeLines)
+        let content = (lines.isEmpty ? ["C49 work-resource report"] : lines)
             .enumerated()
             .map { index, line in
                 let escaped = line
@@ -2230,13 +2301,6 @@ private enum C49WorkResourcePDFPayloadV1 {
         return data
     }
 
-    private static func asciiVisible(_ value: String) -> String {
-        String(decoding: value.unicodeScalars.map {
-            ($0.value >= 0x20 && $0.value <= 0x7E) ? UInt8($0.value) : UInt8(asciiQuestionMark)
-        }, as: UTF8.self)
-    }
-
-    private static let asciiQuestionMark: UInt8 = 0x3F
 }
 
 /// The PDF route consumes the same validated semantic projection as Open JSON;
