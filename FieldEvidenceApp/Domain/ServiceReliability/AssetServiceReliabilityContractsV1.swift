@@ -321,7 +321,14 @@ struct ServiceImpactSegmentV1: Codable, Equatable, Sendable, ServiceReliabilityC
         self.interval=interval;self.openedAt=openedAt;self.certainty=certainty;self.transitionIntoImpactEventID=transitionIntoImpactEventID
         self.observationBasis=observationBasis;self.recordedTime=recordedTime;self.recordedBy=recordedBy
         self.evidence=evidence.sorted{$0.contentID<$1.contentID};self.predecessor=predecessor;self.revision=revision;self.mutationID=mutationID
-        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
+        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(Basis(
+            schemaVersion:self.schemaVersion,eventID:self.eventID,segmentID:self.segmentID,
+            incidentID:self.incidentID,workspaceID:self.workspaceID,subject:self.subject,
+            impact:self.impact,origin:self.origin,interval:self.interval,
+            openedAt:self.openedAt,certainty:self.certainty,transitionIntoImpactEventID:self.transitionIntoImpactEventID,
+            observationBasis:self.observationBasis,recordedTime:self.recordedTime,recordedBy:self.recordedBy,
+            evidence:self.evidence,predecessor:self.predecessor,revision:self.revision,
+            mutationID:self.mutationID));try validate()}
     func validate()throws{try [eventID,segmentID,incidentID].forEach(ServiceReliabilityLimitsV1.id);try subject.validate()
         try interval?.validate();try openedAt.validate();try observationBasis.validate();try recordedTime.validate();try recordedBy.validate()
         try predecessor?.validate();if let transitionIntoImpactEventID{try ServiceReliabilityLimitsV1.id(transitionIntoImpactEventID)}
@@ -363,7 +370,12 @@ struct ServiceCauseAssertionV1:Codable,Equatable,Sendable,ServiceReliabilityCano
         self.workspaceID=workspaceID;self.subject=subject;self.assessment=assessment;self.failureModeSemanticID=failureModeSemanticID
         self.note=note;self.observationBasis=observationBasis;self.recordedTime=recordedTime;self.recordedBy=recordedBy
         self.predecessor=predecessor;self.revision=revision;self.mutationID=mutationID
-        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
+        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(Basis(
+            schemaVersion:self.schemaVersion,eventID:self.eventID,assertionID:self.assertionID,
+            incidentID:self.incidentID,workspaceID:self.workspaceID,subject:self.subject,
+            assessment:self.assessment,failureModeSemanticID:self.failureModeSemanticID,note:self.note,
+            observationBasis:self.observationBasis,recordedTime:self.recordedTime,recordedBy:self.recordedBy,
+            predecessor:self.predecessor,revision:self.revision,mutationID:self.mutationID));try validate()}
     func validate()throws{try [eventID,assertionID,incidentID].forEach(ServiceReliabilityLimitsV1.id);try subject.validate()
         try observationBasis.validate();try recordedTime.validate();try recordedBy.validate();try predecessor?.validate()
         if let failureModeSemanticID{try ServiceReliabilityLimitsV1.text(failureModeSemanticID)};if let note{try ServiceReliabilityLimitsV1.text(note)}
@@ -398,7 +410,12 @@ struct ServiceRemedyAssertionV1:Codable,Equatable,Sendable,ServiceReliabilityCan
         schemaVersion=Self.schemaVersion;self.eventID=eventID;self.assertionID=assertionID;self.incidentID=incidentID
         self.workspaceID=workspaceID;self.subject=subject;self.work=work;self.note=note;self.recordedTime=recordedTime
         self.recordedBy=recordedBy;self.predecessor=predecessor;self.revision=revision;self.mutationID=mutationID
-        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
+        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(Basis(
+            schemaVersion:self.schemaVersion,eventID:self.eventID,assertionID:self.assertionID,
+            incidentID:self.incidentID,workspaceID:self.workspaceID,subject:self.subject,
+            work:self.work,note:self.note,recordedTime:self.recordedTime,
+            recordedBy:self.recordedBy,predecessor:self.predecessor,revision:self.revision,
+            mutationID:self.mutationID));try validate()}
     func validate()throws{try [eventID,assertionID,incidentID].forEach(ServiceReliabilityLimitsV1.id);try subject.validate();try work.validate()
         try recordedTime.validate();try recordedBy.validate();try predecessor?.validate();if let note{try ServiceReliabilityLimitsV1.text(note)}
         guard schemaVersion==Self.schemaVersion,subject.frozenScope.workspaceID==workspaceID,recordedBy.workspaceID==workspaceID,
@@ -434,7 +451,13 @@ struct ServiceRepairIntervalV1:Codable,Equatable,Sendable,ServiceReliabilityCano
         self.incidentID=incidentID;self.workspaceID=workspaceID;self.subject=subject;self.interval=interval;self.certainty=certainty
         self.completed=completed;self.work=work;self.observationBasis=observationBasis;self.recordedTime=recordedTime
         self.recordedBy=recordedBy;self.predecessor=predecessor;self.revision=revision;self.mutationID=mutationID
-        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
+        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(Basis(
+            schemaVersion:self.schemaVersion,eventID:self.eventID,repairID:self.repairID,
+            incidentID:self.incidentID,workspaceID:self.workspaceID,subject:self.subject,
+            interval:self.interval,certainty:self.certainty,completed:self.completed,
+            work:self.work,observationBasis:self.observationBasis,recordedTime:self.recordedTime,
+            recordedBy:self.recordedBy,predecessor:self.predecessor,revision:self.revision,
+            mutationID:self.mutationID));try validate()}
     func validate()throws{try [eventID,repairID,incidentID].forEach(ServiceReliabilityLimitsV1.id);try subject.validate();try interval?.validate()
         try work?.validate();try observationBasis.validate();try recordedTime.validate();try recordedBy.validate();try predecessor?.validate()
         guard schemaVersion==Self.schemaVersion,subject.frozenScope.workspaceID==workspaceID,recordedBy.workspaceID==workspaceID,
@@ -470,7 +493,12 @@ struct ServiceRestorationAssertionV1:Codable,Equatable,Sendable,ServiceReliabili
         self.assertionID=assertionID;self.incidentID=incidentID;self.workspaceID=workspaceID;self.subject=subject
         self.restoredAt=restoredAt;self.certainty=certainty;self.observationBasis=observationBasis;self.recordedTime=recordedTime
         self.recordedBy=recordedBy;self.predecessor=predecessor;self.revision=revision;self.mutationID=mutationID
-        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
+        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(Basis(
+            schemaVersion:self.schemaVersion,eventID:self.eventID,assertionID:self.assertionID,
+            incidentID:self.incidentID,workspaceID:self.workspaceID,subject:self.subject,
+            restoredAt:self.restoredAt,certainty:self.certainty,observationBasis:self.observationBasis,
+            recordedTime:self.recordedTime,recordedBy:self.recordedBy,predecessor:self.predecessor,
+            revision:self.revision,mutationID:self.mutationID));try validate()}
     func validate()throws{try [eventID,assertionID,incidentID].forEach(ServiceReliabilityLimitsV1.id);try subject.validate()
         try restoredAt?.validate();try observationBasis.validate();try recordedTime.validate();try recordedBy.validate();try predecessor?.validate()
         guard schemaVersion==Self.schemaVersion,subject.frozenScope.workspaceID==workspaceID,recordedBy.workspaceID==workspaceID,
@@ -510,7 +538,13 @@ struct QualifiedServiceExposureV1:Codable,Equatable,Sendable,ServiceReliabilityC
         self.coverage=coverage;self.plannedNonserviceExclusions=plannedNonserviceExclusions.sorted();self.source=source
         self.observationBasis=observationBasis;self.timeBasis=timeBasis;self.sourceNote=sourceNote;self.recordedBy=recordedBy
         self.predecessor=predecessor;self.revision=revision;self.mutationID=mutationID
-        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
+        eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(Basis(
+            schemaVersion:self.schemaVersion,eventID:self.eventID,exposureID:self.exposureID,
+            workspaceID:self.workspaceID,subject:self.subject,interval:self.interval,
+            declaredCoverageWindow:self.declaredCoverageWindow,coverage:self.coverage,plannedNonserviceExclusions:self.plannedNonserviceExclusions,
+            source:self.source,observationBasis:self.observationBasis,timeBasis:self.timeBasis,
+            sourceNote:self.sourceNote,recordedBy:self.recordedBy,predecessor:self.predecessor,
+            revision:self.revision,mutationID:self.mutationID));try validate()}
     func validate()throws{try [eventID,exposureID].forEach(ServiceReliabilityLimitsV1.id);try subject.validate();try interval.validate()
         try declaredCoverageWindow.validate();try plannedNonserviceExclusions.forEach{try $0.validate()};try observationBasis.validate()
         try timeBasis.validate();try recordedBy.validate();try predecessor?.validate();if let sourceNote{try ServiceReliabilityLimitsV1.text(sourceNote)}
@@ -639,7 +673,16 @@ struct ReliabilityMetricInputProjectionV1:Codable,Equatable,Sendable,ServiceReli
         self.mtbfQualification=mtbfQualification;self.mttrQualification=mttrQualification
         self.includedSourceEventIDs=includedSourceEventIDs.sorted{$0.uuidString<$1.uuidString};self.excludedSources=excludedSources.sorted()
         self.intervalUnionPolicySHA256=intervalUnionPolicySHA256;self.sourceClosureSHA256=sourceClosureSHA256
-        projectionSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
+        projectionSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(Basis(
+            schemaVersion:self.schemaVersion,workspaceID:self.workspaceID,subject:self.subject,
+            observationWindow:self.observationWindow,asOf:self.asOf,exposure:self.exposure,
+            downtime:self.downtime,operatingExposure:self.operatingExposure,maximalDowntimeComponents:self.maximalDowntimeComponents,
+            qualifiedRepairIntervals:self.qualifiedRepairIntervals,qualifiedRestorationIntervals:self.qualifiedRestorationIntervals,exposureDurationMilliseconds:self.exposureDurationMilliseconds,
+            unplannedFullDowntimeMilliseconds:self.unplannedFullDowntimeMilliseconds,operatingExposureDurationMilliseconds:self.operatingExposureDurationMilliseconds,exactRepairDurationMilliseconds:self.exactRepairDurationMilliseconds,
+            exactRestorationDurationMilliseconds:self.exactRestorationDurationMilliseconds,qualifyingFailureStartEventIDs:self.qualifyingFailureStartEventIDs,completedRepairCount:self.completedRepairCount,
+            availabilityQualification:self.availabilityQualification,mtbfQualification:self.mtbfQualification,mttrQualification:self.mttrQualification,
+            includedSourceEventIDs:self.includedSourceEventIDs,excludedSources:self.excludedSources,intervalUnionPolicySHA256:self.intervalUnionPolicySHA256,
+            sourceClosureSHA256:self.sourceClosureSHA256));try validate()}
     func validate()throws{try subject.validate();try observationWindow.validate();try asOf.validate()
         try exposure.forEach{try $0.validate()};try downtime.forEach{try $0.validate()};try operatingExposure.forEach{try $0.validate()}
         try maximalDowntimeComponents.forEach{try $0.validate()};try qualifiedRepairIntervals.forEach{try $0.validate()}

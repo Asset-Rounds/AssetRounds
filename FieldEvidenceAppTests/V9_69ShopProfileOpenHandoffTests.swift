@@ -4,6 +4,56 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_69ShopProfileOpenHandoffTests: XCTestCase {
+    func testOpenEvidenceManifestCanonicalRoundTripNormalizesArtifactsAndRejectsTampering() throws {
+        let fixture = try makeFixture(activation: .on)
+        let artifacts = try fixture.artifacts.map {
+            try ShopOpenEvidenceArtifactV1(format: $0.format, bytes: $0.bytes)
+        }
+        let selected = try XCTUnwrap(artifacts.first(where: { $0.format == .structuredText }))
+        let detection = try EvidenceDetailComposerV1.detectPostMarkupPrivacy(
+            card: fixture.card, policy: fixture.profile.evidenceDetailProfile.audiencePrivacyPolicy,
+            semanticText: "customer-safe summary", composedOutput: selected.bytes,
+            detectorID: ShopReportProfileLifecycleAdapterV1.detectorID,
+            detectorVersion: ShopReportProfileLifecycleAdapterV1.detectorVersion
+        )
+        XCTAssertEqual(detection.disposition, .pass)
+        let confirmation = try FinalAudiencePrivacyConfirmationV1(
+            confirmationID: "c04-manifest-confirmation",
+            sourceSnapshotSHA256: fixture.accessibleAssessment.snapshotSHA256,
+            semanticSHA256: String(repeating: "d", count: 64), composedOutputSHA256: selected.sha256,
+            card: fixture.card, detection: detection, userConfirmedExactComposedBytes: true
+        )
+        let detailReceipt = try EvidenceDetailCardRenderReceiptV1(
+            receiptID: "c04-manifest-detail", snapshotID: fixture.binding.snapshotID,
+            sourceSnapshotSHA256: confirmation.sourceSnapshotSHA256,
+            semanticSHA256: confirmation.semanticSHA256, card: fixture.card,
+            composedOutputSHA256: selected.sha256, confirmation: confirmation
+        )
+        func manifest(_ inputs: [ShopOpenEvidenceArtifactV1]) throws -> ShopOpenEvidenceHashManifestV1 {
+            try ShopOpenEvidenceHashManifestV1(
+                profile: fixture.profile, finalizedBinding: fixture.binding,
+                detailReceipt: detailReceipt, confirmation: confirmation,
+                artifacts: inputs, media: [], packaging: fixture.profile.packaging,
+                accessibleAssessment: fixture.accessibleAssessment, accessibleOutput: fixture.accessibleOutput
+            )
+        }
+        let original = try manifest(artifacts)
+        let bytes = try original.canonicalData()
+        XCTAssertEqual(try manifest(Array(artifacts.reversed())).canonicalData(), bytes)
+        XCTAssertEqual(original.artifacts.map(\.format), [.formulaSafeCSV, .openJSON, .pdf, .structuredText])
+        XCTAssertEqual(try ShopReportProfileCanonicalCodecV1.decode(ShopOpenEvidenceHashManifestV1.self, from: bytes), original)
+        XCTAssertThrowsError(try manifest(Array(artifacts.dropLast())))
+        var changed = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        changed["sourceSnapshotSHA256"] = String(repeating: "e", count: 64)
+        let tampered = try JSONSerialization.data(withJSONObject: changed, options: [.sortedKeys, .withoutEscapingSlashes])
+        XCTAssertThrowsError(try ShopReportProfileCanonicalCodecV1.decode(ShopOpenEvidenceHashManifestV1.self, from: tampered))
+        changed = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        changed["unknownManifestAuthority"] = true
+        let unknown = try JSONSerialization.data(withJSONObject: changed, options: [.sortedKeys, .withoutEscapingSlashes])
+        XCTAssertThrowsError(try ShopReportProfileCanonicalCodecV1.decode(ShopOpenEvidenceHashManifestV1.self, from: unknown))
+        XCTAssertEqual(try original.canonicalData(), bytes)
+    }
+
     @MainActor
     func testHandoffPresentationRequiresExactSavedProfileAndRemainsDefaultOff() throws {
         let harness = try makeSaveRetryHarness()

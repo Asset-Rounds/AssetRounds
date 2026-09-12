@@ -320,7 +320,14 @@ struct ShopOpenEvidenceHashManifestV1: Codable, Equatable, Sendable {
         confirmationSHA256=try ShopReportProfileCanonicalCodecV1.sha256(confirmation)
         accessibilityAssessmentSHA256=KernelCanonicalHashV1.sha256(try AccessibleDocumentCanonicalCodecV1.encode(accessibleAssessment))
         self.artifacts=entries;self.media=media;self.packaging=packaging;accessibleOutputSHA256=accessibleOutput.sha256
-        manifestSHA256=try ShopReportProfileCanonicalCodecV1.sha256(basisWithoutDigest)
+        manifestSHA256=try ShopReportProfileCanonicalCodecV1.sha256(Basis(
+            schemaVersion:self.schemaVersion,profileFrontier:self.profileFrontier,workspaceID:self.workspaceID,
+            snapshotID:self.snapshotID,sourceSnapshotSHA256:self.sourceSnapshotSHA256,outputScopeID:self.outputScopeID,
+            audience:self.audience,localeIdentifier:self.localeIdentifier,rendererVersion:self.rendererVersion,
+            reportLayoutProfileSHA256:self.reportLayoutProfileSHA256,exportProfileSHA256:self.exportProfileSHA256,evidenceDetailProfileSHA256:self.evidenceDetailProfileSHA256,
+            sectionRegistrySHA256:self.sectionRegistrySHA256,finalizedBindingSHA256:self.finalizedBindingSHA256,detailReceiptSHA256:self.detailReceiptSHA256,
+            confirmationSHA256:self.confirmationSHA256,accessibilityAssessmentSHA256:self.accessibilityAssessmentSHA256,artifacts:self.artifacts,
+            media:self.media,packaging:self.packaging,accessibleOutputSHA256:self.accessibleOutputSHA256))
         try validate()
     }
     func validate()throws{try profileFrontier.validate();try media.forEach{try $0.validate()};guard schemaVersion==Self.schemaVersion,SnapshotProjectionValidationV1.validID(workspaceID),SnapshotProjectionValidationV1.validID(snapshotID),SnapshotProjectionValidationV1.validID(outputScopeID),SnapshotProjectionValidationV1.validText(localeIdentifier),SnapshotProjectionValidationV1.validID(rendererVersion),[sourceSnapshotSHA256,reportLayoutProfileSHA256,exportProfileSHA256,evidenceDetailProfileSHA256,sectionRegistrySHA256,finalizedBindingSHA256,detailReceiptSHA256,confirmationSHA256,accessibilityAssessmentSHA256,accessibleOutputSHA256,manifestSHA256].allSatisfy(KernelCanonicalHashV1.validSHA256),artifacts==artifacts.sorted{$0.format.rawValue<$1.format.rawValue},Set(artifacts.map(\.format)) == [.pdf,.openJSON,.structuredText,.formulaSafeCSV],Set(artifacts).count==artifacts.count,artifacts.allSatisfy{KernelCanonicalHashV1.validSHA256($0.sha256)&&$0.byteCount>0&&$0.byteCount<=ShopReportProfileLimitsV1.maximumArtifactBytes},media==media.sorted(),Set(media).count==media.count,manifestSHA256==(try ShopReportProfileCanonicalCodecV1.sha256(basisWithoutDigest))else{throw ShopReportProfileFailureV1.artifactMismatch}}
