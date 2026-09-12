@@ -18,11 +18,11 @@ Accepted main is `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Preserve S10 brandi
 - Refresh relevant refs and owned dirty state before mutations. Root alone commits and pushes explicitly owned files. Use verified non-force linear updates only; investigate unexpected ref movement. No force-push, merge commit, PR, settings/secrets mutation or release operation.
 - Main stays unchanged until complete retained same-head functional/compatibility evidence, provider qualification as applicable, affected-state S10 visuals, independent review and genuine human visual review pass. Then follow the task's non-force integration and exact-main verification gates. Source readiness is not acceptance.
 
-## Cost policy — owner approved 2026-09-11
+## Parallel execution policy — owner updated 2026-09-12 UTC
 
-Primary agent implements by default; at most one delegated worker runs at a time. Use an independent reviewer at consequential checkpoints, not a permanent parallel team. Luna/max handles bounded support; Terra/low or medium is the default substantive worker. Escalate to Sol/Astra for a specific difficult question. Do not reuse an expensive worker for routine monitoring solely to preserve context. This supersedes earlier parallelism and strong-model preferences; hosted runner capacity is separate from model concurrency.
+The owner requested a turn restart to enable their selected fast mode and directed: "use as many subagents as needed." Use multiple independent, bounded workers where this accelerates the actual integration. Keep file ownership disjoint, one collector per original, root as sole committer, and independent review at consequential checkpoints. This supersedes the earlier one-worker cap and temporary two-worker exception. Honor the owner's primary model/speed selection without changing it through repository instructions.
 
-Temporary owner exception approved 2026-09-11: up to two delegated workers may run alongside the primary for independent compiler fixes, review and CI evidence until the first clean build and focused tests pass. The one-worker limit resumes at that milestone; all other cost, scope and verification rules remain unchanged.
+Luna/max handles bounded monitoring, extraction and inventory; Terra/low or medium handles ordinary delegated implementation/review. Escalate to Sol/Astra for a concrete difficult question. Use the existing five GitHub and three Bitrise capacity for distinct, source-defined, dependency-ready questions under CURRENT_INTEGRATION; no duplicate, speculative, known-failing or unqualified acceptance runs. All product, evidence, native-environment and final-main gates remain unchanged.
 
 Use the short active brief and targeted reads. No repeated full-history/log dumps, unnecessary worker messages, or repeated unchanged audits. Keep full evidence in its original files and update the brief at meaningful checkpoints. Preserve verification depth.
 

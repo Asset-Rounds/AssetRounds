@@ -1877,8 +1877,12 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
     func testToggleProofBindsFreshAuthenticationOwnerTargetAndSingleCompletion() async throws {
         for enabled in [false, true] {
             let gate = AppAccessGateV1(setting: .value(.init(isEnabled: !enabled)),
-                authentication: V915AuthenticationClient(outcomes: [.authenticated]),
-                clock: V915Clock(), identifiers: V915IDs(values: [Self.id(801), Self.id(802)]))
+                authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated]),
+                clock: V915Clock(), identifiers: V915IDs(values: (801...804).map(Self.id)))
+            if !enabled {
+                let unlockOutcome = await gate.authenticate(trigger: .unlock)
+                XCTAssertEqual(unlockOutcome, .authenticated)
+            }
             let outcome = await gate.authenticate(trigger: enabled ? .enableAppLock : .disableAppLock)
             XCTAssertEqual(outcome, .authenticated)
             let proof = try await gate.toggleAuthenticationToken(targetEnabled: enabled)
@@ -1888,9 +1892,14 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
                 XCTFail("toggle proof crossed its target")
             } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
             let other = AppAccessGateV1(setting: .value(.init(isEnabled: !enabled)),
-                authentication: V915AuthenticationClient(outcomes: [.authenticated]),
-                clock: V915Clock(), identifiers: V915IDs(values: [Self.id(801), Self.id(802)]))
-            _ = await other.authenticate(trigger: enabled ? .enableAppLock : .disableAppLock)
+                authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated]),
+                clock: V915Clock(), identifiers: V915IDs(values: (801...804).map(Self.id)))
+            if !enabled {
+                let unlockOutcome = await other.authenticate(trigger: .unlock)
+                XCTAssertEqual(unlockOutcome, .authenticated)
+            }
+            let otherOutcome = await other.authenticate(trigger: enabled ? .enableAppLock : .disableAppLock)
+            XCTAssertEqual(otherOutcome, .authenticated)
             do {
                 try await other.setEnabledAfterAuthenticated(enabled, toggleToken: proof)
                 XCTFail("matching session identifiers accepted another gate's proof")
@@ -1909,27 +1918,37 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
 
     func testToggleProofRevocationAndOrdinaryUnlockCannotAuthorizeConfiguration() async throws {
         for boundary in 0..<5 {
-            let gate = AppAccessGateV1(setting: .absentDisabled,
-                authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated]),
+            let targetEnabled = boundary != 3
+            let gate = AppAccessGateV1(setting: targetEnabled ? .absentDisabled : .value(.init(isEnabled: true)),
+                authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated, .authenticated]),
                 clock: V915Clock(), identifiers: V915IDs(values: (811...818).map(Self.id)))
-            _ = await gate.authenticate(trigger: .enableAppLock)
-            let proof = try await gate.toggleAuthenticationToken(targetEnabled: true)
+            if !targetEnabled {
+                let unlockOutcome = await gate.authenticate(trigger: .unlock)
+                XCTAssertEqual(unlockOutcome, .authenticated)
+            }
+            let outcome = await gate.authenticate(trigger: targetEnabled ? .enableAppLock : .disableAppLock)
+            XCTAssertEqual(outcome, .authenticated)
+            let proof = try await gate.toggleAuthenticationToken(targetEnabled: targetEnabled)
+            try await gate.validateToggleAuthentication(proof, targetEnabled: targetEnabled)
             switch boundary {
             case 0: await gate.sceneBecameInactive(); await gate.sceneBecameActive()
             case 1: await gate.lock(reason: .returnedFromBackground)
             case 2: await gate.markConfigurationUnknown()
-            case 3: _ = await gate.authenticate(trigger: .enableAppLock)
+            case 3:
+                let freshOutcome = await gate.authenticate(trigger: .disableAppLock)
+                XCTAssertEqual(freshOutcome, .authenticated)
             default: await gate.eraseAccessState()
             }
             do {
-                try await gate.validateToggleAuthentication(proof, targetEnabled: true)
+                try await gate.validateToggleAuthentication(proof, targetEnabled: targetEnabled)
                 XCTFail("revoked toggle proof survived boundary \(boundary)")
             } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
         }
         let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
             authentication: V915AuthenticationClient(outcomes: [.authenticated]),
             clock: V915Clock(), identifiers: V915IDs(values: [Self.id(821), Self.id(822)]))
-        _ = await gate.authenticate(trigger: .unlock)
+        let unlockOutcome = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(unlockOutcome, .authenticated)
         _ = try await gate.beginContentRead(for: .render)
         do {
             _ = try await gate.toggleAuthenticationToken(targetEnabled: false)

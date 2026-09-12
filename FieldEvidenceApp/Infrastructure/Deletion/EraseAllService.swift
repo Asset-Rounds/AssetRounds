@@ -545,7 +545,7 @@ final class EraseAllService {
         failureInjection: EraseAllFailureInjection? = nil,
         sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)? = nil,
         privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)? = PrivateSystemDiscoveryIndexRuntimeV1.shared,
-        notificationSystem: any NotificationSystemPortV1 = UserNotificationSystemAdapterV1()
+        notificationSystem: (any NotificationSystemPortV1)? = nil
     ) {
         let support = applicationSupportURL.standardizedFileURL
         self.applicationSupportURL = support
@@ -570,7 +570,7 @@ final class EraseAllService {
         self.failureInjection = failureInjection
         self.sceneNavigationStatePort = sceneNavigationStatePort
         self.privateSystemDiscoveryIndex = privateSystemDiscoveryIndex
-        self.notificationSystem = notificationSystem
+        self.notificationSystem = notificationSystem ?? UserNotificationSystemAdapterV1()
     }
 
     func erase(
