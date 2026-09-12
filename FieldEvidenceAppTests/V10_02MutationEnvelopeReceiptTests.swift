@@ -1267,7 +1267,7 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             label: "Compensation",
             expected: targetRequest.expectedRevision
         ).command
-        let targetPlan = try SemanticReversalPlanV1(
+        let canonicalTargetPlan = try SemanticReversalPlanV1(
             mutationID: targetRequest.mutationID,
             commandKind: targetRequest.command.kind,
             expectedRevision: targetRequest.expectedRevision,
@@ -1278,9 +1278,9 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             conflicts: [],
             compensatingCommands: [compensatingCommand]
         )
-        _ = try reversalHarness.writer.execute(targetRequest, reversalPlan: targetPlan)
+        _ = try reversalHarness.writer.execute(targetRequest, reversalPlan: canonicalTargetPlan)
         let reversalMutationID = try MutationIDV1(rawValue: MutationJournalHarnessV1.id(61))
-        let reversalRequest = WorkspaceMutationRequestV1(
+        let canonicalReversalRequest = WorkspaceMutationRequestV1(
             mutationID: reversalMutationID,
             expectedRevision: try reversalHarness.currentExpected(),
             command: compensatingCommand
@@ -1302,15 +1302,15 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
         let mismatchedBasis = try ReversalBasisV1.decodeCanonical(from: mismatchedBasisData)
         XCTAssertNotEqual(
             mismatchedBasis.compensatingCommandKinds,
-            targetPlan.compensatingCommands.map(\.kind)
+            canonicalTargetPlan.compensatingCommands.map(\.kind)
         )
         targetRow.reversalBasisData = mismatchedBasisData
         targetRow.reversalBasisSHA256 = try mismatchedBasis.canonicalSHA256()
         try reversalHarness.context.save()
         XCTAssertThrowsError(try reversalHarness.writer.executeSemanticReversal(
-            reversalRequest,
+            canonicalReversalRequest,
             targetMutationID: targetRequest.mutationID,
-            plan: targetPlan,
+            plan: canonicalTargetPlan,
             compensatingMutationIDs: [reversalMutationID]
         )) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReversal)
@@ -1330,7 +1330,7 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             compensatingCommands: [compensatingCommand, compensatingCommand]
         )
         XCTAssertThrowsError(try reversalHarness.writer.executeSemanticReversal(
-            reversalRequest,
+            canonicalReversalRequest,
             targetMutationID: targetRequest.mutationID,
             plan: preflightMultiCommandPlan,
             compensatingMutationIDs: [reversalMutationID]
@@ -1338,26 +1338,26 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReversal)
         }
         let acceptedReversal = try reversalHarness.writer.executeSemanticReversal(
-            reversalRequest,
+            canonicalReversalRequest,
             targetMutationID: targetRequest.mutationID,
-            plan: targetPlan,
+            plan: canonicalTargetPlan,
             compensatingMutationIDs: [reversalMutationID]
         )
         XCTAssertEqual(
             try reversalHarness.writer.executeSemanticReversal(
-                reversalRequest,
+                canonicalReversalRequest,
                 targetMutationID: targetRequest.mutationID,
-                plan: targetPlan,
+                plan: canonicalTargetPlan,
                 compensatingMutationIDs: [reversalMutationID]
             ),
             acceptedReversal
         )
         let acceptedSemanticSnapshot = try reversalHarness.store.exportSnapshot()
         let acceptedSemanticReplaySHA256 = try SemanticReversalReplayIdentityV1(
-            request: reversalRequest,
+            request: canonicalReversalRequest,
             identity: reversalHarness.identity,
             targetMutationID: targetRequest.mutationID,
-            planDigest: targetPlan.planDigest,
+            planDigest: canonicalTargetPlan.planDigest,
             compensatingMutationIDs: [reversalMutationID]
         ).canonicalSHA256()
 
@@ -1373,7 +1373,7 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             compensatingCommands: [compensatingCommand]
         )
         XCTAssertThrowsError(try reversalHarness.writer.executeSemanticReversal(
-            reversalRequest,
+            canonicalReversalRequest,
             targetMutationID: targetRequest.mutationID,
             plan: changedPlan,
             compensatingMutationIDs: [reversalMutationID]
@@ -1381,7 +1381,7 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
         }
         let changedPlanReplaySHA256 = try SemanticReversalReplayIdentityV1(
-            request: reversalRequest,
+            request: canonicalReversalRequest,
             identity: reversalHarness.identity,
             targetMutationID: targetRequest.mutationID,
             planDigest: changedPlan.planDigest,
@@ -1429,7 +1429,7 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
         )
         let replayVariants: [(String, MutationIDV1, String, [MutationIDV1])] = [
             ("missing-target", changedTargetID, changedTargetPlan.planDigest, [reversalMutationID]),
-            ("compensating-id", targetRequest.mutationID, targetPlan.planDigest, [changedCompensatingMutationID]),
+            ("compensating-id", targetRequest.mutationID, canonicalTargetPlan.planDigest, [changedCompensatingMutationID]),
         ]
         for (label, variantTarget, variantPlanDigest, variantCompensatingIDs) in replayVariants {
             let variantContainer = try MutationJournalHarnessV1.makeContainer(
@@ -1445,14 +1445,14 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
                 identityDisposition: .preserve
             )
             let conflictingReplaySHA256 = try SemanticReversalReplayIdentityV1(
-                request: reversalRequest,
+                request: canonicalReversalRequest,
                 identity: reversalHarness.identity,
                 targetMutationID: variantTarget,
                 planDigest: variantPlanDigest,
                 compensatingMutationIDs: variantCompensatingIDs
             ).canonicalSHA256()
             XCTAssertThrowsError(try variantStore.resolveSemanticReversalReplay(
-                request: reversalRequest,
+                request: canonicalReversalRequest,
                 replayIdentitySHA256: conflictingReplaySHA256,
                 detectedAt: reversalHarness.date(64)
             )) {
@@ -1483,7 +1483,7 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             )
         }
         XCTAssertThrowsError(try reversalHarness.writer.executeSemanticReversal(
-            reversalRequest,
+            canonicalReversalRequest,
             targetMutationID: changedTargetID,
             plan: changedTargetPlan,
             compensatingMutationIDs: [reversalMutationID]
@@ -1491,9 +1491,9 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
         }
         XCTAssertThrowsError(try reversalHarness.writer.executeSemanticReversal(
-            reversalRequest,
+            canonicalReversalRequest,
             targetMutationID: targetRequest.mutationID,
-            plan: targetPlan,
+            plan: canonicalTargetPlan,
             compensatingMutationIDs: [changedCompensatingMutationID]
         )) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
@@ -1511,7 +1511,7 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             compensatingCommands: [compensatingCommand, compensatingCommand]
         )
         XCTAssertThrowsError(try reversalHarness.writer.executeSemanticReversal(
-            reversalRequest,
+            canonicalReversalRequest,
             targetMutationID: targetRequest.mutationID,
             plan: multiCommandPlan,
             compensatingMutationIDs: [reversalMutationID]
@@ -2290,7 +2290,7 @@ extension V10_02MutationEnvelopeReceiptTests {
             postImage: .recordRelease(fixture.completedRelease)
         )
         XCTAssertEqual(mutation.workspaceID, fixture.workspaceID)
-        XCTAssertEqual(mutation.revision, fixture.completedRelease.revision)
+        XCTAssertEqual(mutation.postImage.revision, fixture.completedRelease.revision)
         XCTAssertEqual(try mutation.affectedIdentity.id, fixture.completedRelease.releaseID)
         XCTAssertEqual(try mutation.canonicalSHA256().count, 64)
     }
@@ -2544,7 +2544,7 @@ private final class MutationJournalHarnessV1 {
     ) throws -> WorkspaceMutationRequestV1 {
         WorkspaceMutationRequestV1(
             mutationID: try MutationIDV1(rawValue: Self.id(mutation)),
-            expectedRevision: expected ?? (try currentExpected()),
+            expectedRevision: try expected ?? currentExpected(),
             command: .createFirstSign(.init(
                 siteID: site.id,
                 newSite: .init(id: site.id, label: "Site", address: nil, timeZoneID: "UTC"),
@@ -3553,6 +3553,7 @@ private struct FinalizationCodecAdmissionFixtureV1 {
             issueID: nil, parentRecordID: nil, recordRevisionRootID: recordID,
             revisesRecordID: nil, evidenceSourceRecordID: nil,
             revisionKind: WorkflowRevisionKind.original.rawValue,
+            stage: WorkflowStage.check.rawValue,
             state: WorkflowState.completed.rawValue,
             draftStepKey: nil, startedAt: completedAt.addingTimeInterval(-60),
             completedAt: completedAt, observedAtUTC: completedAt, timeZoneID: "UTC",
@@ -3807,7 +3808,9 @@ private struct FinalizationCodecAdmissionFixtureV1 {
                 receiptData: try receipt.canonicalData(),
                 reversalBasisData: nil, semanticReversalData: nil
             )], quarantines: [],
-            entityRevisions: resultingRevisions
+            entityRevisions: resultingRevisions.map {
+                MutationHistoryEntityRevisionV1(identity: $0.identity, revision: $0.revision)
+            }
         )
     }
 

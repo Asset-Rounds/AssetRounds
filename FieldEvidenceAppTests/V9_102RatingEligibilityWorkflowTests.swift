@@ -14,15 +14,14 @@ private enum C39 {
     static func build(_ value: String = "230") throws -> RatingBuildVersionV1 { try .init(value) }
 
     static func completions(span: TimeInterval = 7 * 86_400,
-                            end: Date = now) throws -> [RatingEligibleCompletionProjectionV1] {
-        [
-            .init(finalizationMutationID: try mutation(10), activitySeriesID: id(11),
-                  completedAt: end.addingTimeInterval(-span), snapshotSHA256: digest("a")),
-            .init(finalizationMutationID: try mutation(12), activitySeriesID: id(13),
-                  completedAt: end.addingTimeInterval(-span / 2), snapshotSHA256: digest("b")),
-            .init(finalizationMutationID: try mutation(14), activitySeriesID: id(15),
-                  completedAt: end, snapshotSHA256: digest("c")),
-        ]
+                            end: Date = now,
+                            activitySeriesID: UUID? = nil) throws -> [RatingEligibleCompletionProjectionV1] {
+        try [end.addingTimeInterval(-span), end.addingTimeInterval(-span / 2), end]
+            .enumerated().map { index, completedAt in
+                try .init(candidate: finalizedCandidate(
+                    slot: index + 1, completedAt: completedAt, activitySeriesID: activitySeriesID
+                ))
+            }
     }
 
     static func stop(completions: [RatingEligibleCompletionProjectionV1],
@@ -60,12 +59,13 @@ private enum C39 {
     static func finalizedCandidate(slot: Int, v2: Bool = false,
                                    source: MutationSourceKindV1 = .localUser,
                                    evaluationCounted: Bool = true,
-                                   completedAt: Date? = nil) throws
+                                   completedAt: Date? = nil,
+                                   activitySeriesID: UUID? = nil) throws
         -> RatingFinalizedActivityCandidateV1 {
         let workspace = WorkspaceID(rawValue: id(1_000 + slot))
         let assetID = id(1_100 + slot), recordID = id(1_200 + slot)
         let packetID = id(1_300 + slot), reportID = id(1_400 + slot)
-        let rootID = id(1_500 + slot), snapshotID = "c39-snapshot-\(slot)"
+        let rootID = activitySeriesID ?? id(1_500 + slot), snapshotID = "c39-snapshot-\(slot)"
         let workspaceToken = workspace.rawValue.uuidString.lowercased()
         let formats: [ReportProjectionFormatV1] = [.openJSON, .pdf, .structuredText]
         let section = try ReportSectionDefinitionV1(
@@ -336,7 +336,7 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
         XCTAssertEqual(Set(completions.map(\.activitySeriesID)).count, 3)
         XCTAssertEqual(completions.map(\.completedAt).max()!.timeIntervalSince(
             completions.map(\.completedAt).min()!), 7 * 86_400)
-        let projection = await coordinator.project(
+        let projection = try await coordinator.project(
             completions: completions, marketingVersion: C39.version(), buildVersion: C39.build(),
             naturalStop: C39.stop(completions: completions))
         XCTAssertTrue(projection.eligible)
@@ -371,7 +371,7 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
             let values = try C39.completions(span: span)
             let coordinator = try RatingEligibilityCoordinatorV1(
                 store: C39Store(), nativeRequest: C39Adapter(), clock: C39Clock(value: C39.now))
-            let projection = await coordinator.project(
+            let projection = try await coordinator.project(
                 completions: values, marketingVersion: C39.version(), buildVersion: C39.build(),
                 naturalStop: C39.stop(completions: values))
             XCTAssertEqual(projection.eligible, eligible)
@@ -382,7 +382,7 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
                 store: C39Store(.current(try C39.state(attempts: [old]))),
                 nativeRequest: C39Adapter(), clock: C39Clock(value: C39.now))
             let values = try C39.completions()
-            let projection = await coordinator.project(
+            let projection = try await coordinator.project(
                 completions: values, marketingVersion: C39.version(), buildVersion: C39.build(),
                 naturalStop: C39.stop(completions: values))
             XCTAssertEqual(projection.eligible, eligible)
@@ -394,7 +394,7 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
                 store: C39Store(.current(try C39.state(attempts: [first, second]))),
                 nativeRequest: C39Adapter(), clock: C39Clock(value: C39.now))
             let values = try C39.completions()
-            let projection = await coordinator.project(
+            let projection = try await coordinator.project(
                 completions: values, marketingVersion: C39.version(), buildVersion: C39.build(),
                 naturalStop: C39.stop(completions: values))
             XCTAssertEqual(projection.eligible, eligible)
@@ -448,15 +448,12 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
         XCTAssertThrowsError(try zeroIdentityStop.validate()) { error in
             XCTAssertEqual(error as? RatingEligibilityFailureV1, .invalidValue)
         }
-        let duplicateSeries = try C39.completions().map {
-            RatingEligibleCompletionProjectionV1(finalizationMutationID: $0.finalizationMutationID,
-                activitySeriesID: C39.id(99), completedAt: $0.completedAt, snapshotSHA256: $0.snapshotSHA256)
-        }
+        let duplicateSeries = try C39.completions(activitySeriesID: C39.id(99))
         for context in RatingActiveContextV1.allCases {
             let store = C39Store(); let adapter = C39Adapter()
             let coordinator = try RatingEligibilityCoordinatorV1(
                 store: store, nativeRequest: adapter, clock: C39Clock(value: C39.now))
-            let projection = await coordinator.project(
+            let projection = try await coordinator.project(
                 completions: try C39.completions(), marketingVersion: C39.version(), buildVersion: C39.build(),
                 naturalStop: C39.stop(completions: try C39.completions(), active: [context]))
             XCTAssertTrue(projection.reasons.contains(.activeContext)); XCTAssertEqual(adapter.callCount, 0)
@@ -465,7 +462,7 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
         }
         let duplicateCoordinator = try RatingEligibilityCoordinatorV1(
             store: C39Store(), nativeRequest: C39Adapter(), clock: C39Clock(value: C39.now))
-        let duplicateProjection = await duplicateCoordinator.project(
+        let duplicateProjection = try await duplicateCoordinator.project(
             completions: duplicateSeries, marketingVersion: C39.version(), buildVersion: C39.build(),
             naturalStop: C39.stop(completions: duplicateSeries))
         XCTAssertTrue(duplicateProjection.reasons.contains(.insufficientDistinctSeries))
@@ -478,7 +475,7 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
             let adapter = C39Adapter(); let values = try C39.completions()
             let coordinator = try RatingEligibilityCoordinatorV1(
                 store: C39Store(loaded), nativeRequest: adapter, clock: C39Clock(value: C39.now))
-            let projection = await coordinator.project(
+            let projection = try await coordinator.project(
                 completions: values, marketingVersion: C39.version(), buildVersion: C39.build(),
                 naturalStop: C39.stop(completions: values))
             XCTAssertTrue(projection.reasons.contains(reason))
@@ -489,7 +486,7 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
             attempts: [], highWater: C39.now.addingTimeInterval(1))))
         let rollbackCoordinator = try RatingEligibilityCoordinatorV1(
             store: rollbackStore, nativeRequest: rollbackAdapter, clock: C39Clock(value: C39.now))
-        let rollbackProjection = await rollbackCoordinator.project(
+        let rollbackProjection = try await rollbackCoordinator.project(
             completions: try C39.completions(), marketingVersion: C39.version(), buildVersion: C39.build(),
             naturalStop: C39.stop(completions: try C39.completions()))
         XCTAssertTrue(rollbackProjection.reasons.contains(.clockRollbackDetected))
@@ -567,18 +564,18 @@ final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
             let at = C39.now.addingTimeInterval(offset)
             let c = try RatingEligibilityCoordinatorV1(
                 store: store, nativeRequest: adapter, clock: C39Clock(value: at))
-            let projection = await c.project(
+            let projection = try await c.project(
                 completions: values, marketingVersion: C39.version("3.0.0"), buildVersion: C39.build("300"),
                 naturalStop: C39.stop(completions: values, at: at, event: Int(offset)))
             XCTAssertEqual(projection.eligible, eligible)
         }
         let fresh = try RatingEligibilityCoordinatorV1(
             store: C39Store(), nativeRequest: C39Adapter(), clock: C39Clock(value: C39.now))
-        let insufficient = await fresh.project(
+        let insufficient = try await fresh.project(
             completions: Array(values.prefix(2)), marketingVersion: C39.version(), buildVersion: C39.build(),
             naturalStop: C39.stop(completions: values))
         XCTAssertFalse(insufficient.eligible)
-        let eligible = await fresh.project(
+        let eligible = try await fresh.project(
             completions: values, marketingVersion: C39.version(), buildVersion: C39.build(),
             naturalStop: C39.stop(completions: values))
         XCTAssertTrue(eligible.eligible)

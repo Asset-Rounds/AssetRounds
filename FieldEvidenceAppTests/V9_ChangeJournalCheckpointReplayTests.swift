@@ -102,7 +102,7 @@ final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
         XCTAssertEqual(replayed, mutation)
         XCTAssertEqual(
             try replayed.concurrencyIdentity,
-            WorkspaceEntityIdentityV1(kind: .authoritySourceRelease, id: predecessorID)
+            try WorkspaceEntityIdentityV1(kind: .authoritySourceRelease, id: predecessorID)
         )
         XCTAssertEqual(try replayed.postImage.mutationPostImage.concurrencyIdentity, try replayed.concurrencyIdentity)
         XCTAssertEqual(try replayed.postImage.mutationPostImage.identity, try replayed.affectedIdentity)
@@ -844,7 +844,7 @@ private final class C27ChangeJournalTypedLocatorAnchorTests: XCTestCase {
 extension V9_ChangeJournalCheckpointReplayTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
     }

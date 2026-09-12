@@ -81,6 +81,7 @@ private enum C37 {
         )
     }
 
+    @MainActor
     static func inbound(
         workflow: IncumbentFileAdapterWorkflowCoordinatorV1,
         release: IncumbentFileProfileReleaseV1,

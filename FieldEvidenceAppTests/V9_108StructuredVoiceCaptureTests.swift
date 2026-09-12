@@ -164,7 +164,7 @@ private enum C45 {
         await XCTAssertThrowsErrorAsync { try await coordinator.receive(.failed(sessionID: context.sessionID, lifecycleGeneration: context.lifecycleGeneration, contextSHA256: String(repeating: "0", count: 64), callbackSequence: 1, fallback: .unavailable), currentTargetRevision: 7) }
         XCTAssertTrue(scratch.calls.isEmpty); XCTAssertTrue(review.presented.isEmpty)
 
-        let (duplicate, _, duplicateScratch, duplicateReview) = try coordinator(); _ = try await duplicate.start(try C45.context(900))
+        let (duplicate, _, duplicateScratch, duplicateReview) = try self.coordinator(); _ = try await duplicate.start(try C45.context(900))
         let duplicateContext = try C45.context(900); let final = try C45.captured(duplicateContext, sequence: 2)
         _ = try await duplicate.receive(.final(final), currentTargetRevision: 7)
         await XCTAssertThrowsErrorAsync { try await duplicate.receive(.final(final), currentTargetRevision: 7) }
@@ -199,8 +199,8 @@ private enum C45 {
         XCTAssertEqual(scratch.calls.count, 1, "late callback cannot recreate scratch effects"); XCTAssertTrue(review.presented.isEmpty, "typed/manual draft remains untouched absent explicit review")
         XCTAssertEqual(try corpus()["cardID"] as? String, "V23-P04-C45"); XCTAssertEqual(try corpus()["schemaVersion"] as? Int, 1)
 
-        let scratch = C45Scratch(); scratch.failuresRemaining = 2; let review = C45Review(); review.cancelFailuresRemaining = 2
-        let (terminal, _, scratchProbe, reviewProbe) = try coordinator(scratch, review: review)
+        let terminalScratch = C45Scratch(); terminalScratch.failuresRemaining = 2; let terminalReview = C45Review(); terminalReview.cancelFailuresRemaining = 2
+        let (terminal, _, scratchProbe, reviewProbe) = try self.coordinator(terminalScratch, review: terminalReview)
         let terminalContext = try C45.context(750); _ = try await terminal.start(terminalContext)
         await XCTAssertThrowsErrorAsync { try await terminal.receive(.final(try C45.captured(terminalContext)), currentTargetRevision: 7) }
         let proposal = try XCTUnwrap(reviewProbe.presented.first?.0)
@@ -214,7 +214,7 @@ private enum C45 {
         XCTAssertEqual(reviewProbe.cancelled.count, 3)
 
         let clearScratch = C45Scratch(); clearScratch.failuresRemaining = 2; let clearReview = C45Review()
-        let (cleared, _, clearedScratch, clearedReview) = try coordinator(clearScratch, review: clearReview)
+        let (cleared, _, clearedScratch, clearedReview) = try self.coordinator(clearScratch, review: clearReview)
         let clearContext = try C45.context(800); _ = try await cleared.start(clearContext)
         await XCTAssertThrowsErrorAsync { try await cleared.receive(.final(try C45.captured(clearContext)), currentTargetRevision: 7) }
         await XCTAssertThrowsErrorAsync { try await cleared.permissionRevoked() }

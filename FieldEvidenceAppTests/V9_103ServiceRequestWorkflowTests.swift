@@ -174,7 +174,7 @@ final class V9_103ServiceRequestWorkflowTests: XCTestCase {
         let context = try ServiceRequestWorkflowContextV1(workspaceID: h.session.workspaceID,
             expectedRevision: preview.expectedRevision, records: [preview.record], dispositionEvents: [], workLinkEvents: [])
         let projection = try workflow.project(context)
-        XCTAssertEqual(projection.needsTriage.items.map(\.request), [preview.record.reference])
+        XCTAssertEqual(projection.needsTriage.items.map(\.request), [try preview.record.reference])
         XCTAssertTrue(projection.needsTriage.derived); XCTAssertTrue(projection.needsTriage.rebuildable)
 
         let (next, nextRevision) = try h.make()

@@ -2234,7 +2234,7 @@ private final class C27V1001TypedLocatorAnchorTests: XCTestCase {
 extension V10_01WorkspaceWriterTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
     }
@@ -2343,7 +2343,9 @@ extension V10_01WorkspaceWriterTests {
 
         let stagingPayload = FieldDraftMutationPayloadV1.appendStagingItem(fixture.readyItem)
         XCTAssertEqual(stagingPayload.workspaceID, fixture.workspaceID)
-        XCTAssertEqual(try stagingPayload.affectedIdentity.kind, .attachmentStagingItem)
+        XCTAssertEqual(try stagingPayload.affectedIdentities, [
+            try WorkspaceEntityIdentityV1(kind: .attachmentStagingItem, id: fixture.readyItem.stageID)
+        ])
     }
 }
 
@@ -2464,7 +2466,7 @@ private final class Harness {
         WorkspaceMutationRequestV1(
             mutationID: try MutationIDV1(rawValue: Self.id(mutation)),
             expectedRevision: WorkspaceExpectedRevisionV1(
-                snapshot: expected ?? (try writer.currentRevision())
+                snapshot: try expected ?? writer.currentRevision()
             ),
             command: .createFirstSign(.init(
                 siteID: siteID,
@@ -2531,7 +2533,7 @@ extension V10_01WorkspaceWriterTests {
         try mutation.validate()
         XCTAssertEqual(try mutation.affectedIdentities.count, 1)
         XCTAssertEqual(try mutation.concurrencyIdentities.count, 1)
-        XCTAssertNil(try mutation.predecessorIdentity)
+        XCTAssertNil(try mutation.postImage.predecessorIdentity)
         XCTAssertEqual(try mutation.affectedIdentity.kind, .inspectionReviewTransition)
         XCTAssertEqual(try mutation.affectedIdentity.id, transition.transitionID)
         XCTAssertEqual(try mutation.concurrencyIdentity.id, transition.transitionID)
