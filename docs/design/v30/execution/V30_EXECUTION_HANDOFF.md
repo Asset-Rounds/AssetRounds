@@ -4733,3 +4733,70 @@ Implementation paths (15 within the 20-path fence):
 - `FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift`
 
 This bookkeeping commit only appends this handoff and refreshes the read-only ledger projection to the observed sequence-53 checkpoint. CURRENT_TASK and the V30 selector remain at Card 25 until the exact next-card selection transition. No main or Phase 10 read/poll/mutation occurred. Replay or reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence; never merge wholesale. This entry does not self-record its containing commit.
+
+
+## Card 26 of 55 - V30-P03-C05 - Stable JSON, CSV, export, and import contracts
+
+State: PROVISIONAL_CHECKPOINTED. This provides graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false. The owner requested a pause before Card 27. Card 27 / V30-P03-C06 remains unselected and unstarted; no next-card transition is authorized while this pause remains in effect.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `77b1538aad3ff7229b7f3edcca4045dda7b3e711`, tree `5d967a47111b63f0d3db3f91793abde0bc08b486` (Card 25 checkpoint 53).
+- Observed G0 authority A: `af5ea61e680791f03c392bec9d2c50e907a889e7`; M..A is exactly the four V30 execution documents. All 22 fence entries match immutable authority and frozen B pins; no S10 shared-path tuple applies.
+- Product implementation E: `3f902a774e978c8c5c5c953f1e59298c7f9da29b`, tree `068d703866f816bd065962c79991f960ac1091e1`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 55: head `7ea49a6feb8cdf5d75950cf0b0c8d5619fd43df3`, ledger digest `0e2f3ed322b46b17ab34c5ce35e12d40439f045ac47fef00b21de7f51f2d3b34`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C05/CHECKPOINT/1`. It records all committed path hashes, candidate history, source review corrections and static evidence. Prior ledger events and requests were proved unchanged before append.
+
+Direct prerequisite evidence:
+- V30-P01-C05: `66ef581ea88ce2ee1d6cb35586574d5df5c94bf7`, tree `4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7`, checkpoint 24.
+- V30-P03-C01: `c004b4bdd19bc037e3373e7f3a8f508343e5dca0`, tree `7d63520aabb3424f3a2fea35b0bd268400a7517d`, checkpoint 47.
+
+Machine CSV uses stable schema headers, comma delimiters, quoted UTF-8 cells and CRLF. Nil has an explicit reversible sentinel; literal apostrophes/backslashes and formula-leading cells have collision-free guards. Bidi/whitespace-prefixed formulas and leading tab/CR/LF are guarded. Embedded quotes, line breaks, combining sequences and authored controls permitted by the dialect are preserved, with bounded records/columns/cells/bytes.
+
+A distinct optional CSV obtains simple header values from the exact validated catalog archive and formats typed values using the explicit locale/time-zone/calendar/numbering/unit profile. Its manifest carries requested/effective language and fallback, full catalog identity/qualification, formatter version/observed OS environment, delimiter, resolved header bindings, source hashes and human CSV hash. Replay requires identical archive/profile/environment output; ordinary machine import is independent of current app language.
+
+The explicit schema-driven parser rejects localized headers and ambiguous numbers/dates, enforces closed integer/decimal/boolean/Gregorian/UTC grammar, and reconstructs canonical JSON exactly from machine CSV. Bundle import checks hashes, byte identity, schema, media associations and optional human metadata. Localized-human content never supplies canonical values or mutation authority.
+
+The existing ImportBulkCoordinator and lifecycle adapter forward exports and machine admission without writes. Preview requires actual machine CSV source digest/length, exact schema/IDs/fields and the existing workspace revision gate. Existing sessions, commands, materializers and canonical writer bodies are unchanged.
+
+The new stateless machine-table contract preserves stable schema keys, raw enum values, stable external IDs, source ordinal, sparse optional fields and exact source Unicode. Existing canonical import/backup/diagnostic/report formats and identity hashes remain governed by their incumbent codecs.
+
+MEDIA and SIGNATURE are explicit row-associated output content references in canonical JSON and the required manifest, retaining content digest, MIME type, byte role and workspace/scope namespace binding. Signature references make no cryptographic or signer-identity claim. Orphans, changed namespace digests and cross-workspace references reject.
+
+Nine new native test methods are authored but unexecuted: exact Unicode/CSV JSON reconstruction, machine/human separation, locale fallback/provenance replay, scalar rejection, formula escaping and bounds, reference/optional-field roundtrip, coordinator zero-write admission/tampering, and actual canonical backup-byte invariance across device presentation preferences.
+
+Review and operational evidence:
+- The current card G0 and final static fence audit pass at observed A. Nine implementation/test paths change within the exact twenty-two-path fence; there are no S10 shared paths. The inherited backup, diagnostic, Open JSON, identity lifecycle and canonical codec bytes remain unchanged.
+- Existing machine surfaces use fixed machine values; the only Open JSON label helper currently resolves fixed English. No ambient-language defect was invented or used to change canonical formats. Backup/history resource replay belongs to the later C08 card.
+- Root implementation and independent static reviews corrected the uncommitted CSV doubled-quote cell cap, decimal underflow bound, typed workspace-to-content binding, reference namespace derivation, and aggregate JSON budget. A preliminary command-payload review concern was explicitly retracted because the incumbent materializer owns target resolution and command validation.
+- Test preparation corrected one nonexistent English header key and an incorrectly named six-language fixture list. The final fixture lists the six intended app languages without claiming their translated catalog execution. The original NFD rejection expectation was corrected: Swift String equality is canonically equivalent, so the prior condition was a no-op; source UTF-8 is preserved.
+- Final independent test/API review found no remaining actionable defect. Its initial nested-try concern was retracted because the outer Swift try covers throwing argument expressions; no unnecessary code change or false native failure was recorded.
+- No native compile, XCTest/Simulator run, hosted candidate, professional/native-language review, canonical/final acceptance, main integration or release was executed or accepted.
+
+The final independent source/API review identified no remaining actionable defect after corrections and retractions. These are static reviews, not compiler, native, linguistic, product or release qualification.
+
+New native regression methods (9), unexecuted:
+- `testV30CanonicalBackupPreservesSourceUTF8AcrossPresentationChange`
+- `testMachineJSONAndCSVRoundTripPreserveAuthoredUTF8Bytes`
+- `testMachineHeadersAreIndependentOfOptionalHumanProfile`
+- `testLocalizedHumanDecimalReplayAndEnglishFallbackStaySeparateFromMachine`
+- `testCSVWireDialectKeepsNilEmptyAndEscapedPrefixValuesDistinct`
+- `testStrictMachineScalarGrammarsRejectAmbiguousInputs`
+- `testManifestReferencesAndMalformedCSVFailClosed`
+- `testTableOptionalEmptyAndMediaSignatureReferencesRoundTrip`
+- `testV30P03C05MachineExportPreviewPreservesFormulaUnicodeAndRemainsZeroWrite`
+
+Static verification PASS: exact 22-path fence/B pins, four-document authority-only M..A, nine scoped implementation/test paths, zero S10 overlaps, unchanged incumbent canonical/backup/diagnostic/Open JSON/identity bytes, unchanged existing lifecycle/writer bodies, original test-method retention, 94-byte authored Unicode fixture, source hygiene, typed WINDOWS_STATIC null selector, and git diff --check. Audit SHA-256: `528c4fd1aed17b62b02b92790c4d3b2a2d4f40b80fc9a6639c36fbf4cae4ce0a`. Native tests increased S6.2 40 to 41 and V9.72 8 to 9; the new C05 test file contains seven methods. None was executed.
+
+Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots: unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT. KNOWN_BUGS was read and remains its template; no defect was accepted. Native compilation, Foundation formatting/parsing, CSV byte behavior, backup export and zero-write preview execution, resource integration, and professional/native linguistic qualification remain mandatory after reconciliation. The six-language fixture list is not evidence of six translated catalog executions.
+
+Implementation paths (9 within the 22-path fence):
+- `FieldEvidenceApp/Application/ImportExport/ImportBulkCoordinatorV1.swift`
+- `FieldEvidenceApp/Domain/ImportExport/GlobalizedMachineExportContractsV1.swift`
+- `FieldEvidenceApp/Domain/ImportExport/ImportBulkContractsV1.swift`
+- `FieldEvidenceApp/Infrastructure/ImportExport/GlobalizedMachineExportAdapterV1.swift`
+- `FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/ImportExport/globalized-machine-export-cases-v1.json`
+- `FieldEvidenceAppTests/S6_2BackupExportTests.swift`
+- `FieldEvidenceAppTests/V30_P03_C05GlobalizedMachineExportTests.swift`
+- `FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift`
+
+This bookkeeping commit only appends this handoff and refreshes the read-only ledger projection to observed checkpoint 55. CURRENT_TASK and the V30 selector remain at Card 26. The owner pause prevents Card 27 selection, hydration, implementation or dispatch. No main or Phase 10 read/poll/mutation occurred. On a later explicit resume, continue only with the immediate authorized next card; the 18-card post-S10 cohort remains locked. Replay or reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence; never merge wholesale. This entry does not self-record its containing commit.
