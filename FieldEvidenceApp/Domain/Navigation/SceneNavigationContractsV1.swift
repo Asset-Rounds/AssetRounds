@@ -14,6 +14,7 @@ struct SceneRootPathV1: Codable, Equatable, Sendable {
 
 struct SceneNavigationSnapshotV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
+    static let maximumEncodedByteCount = 64 * 1024
     let schemaVersion: Int
     let workspaceID: WorkspaceID
     let selectedRoot: AppRootV1
