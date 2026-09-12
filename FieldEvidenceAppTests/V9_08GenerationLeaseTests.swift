@@ -1585,8 +1585,12 @@ final class V9_08GenerationLeaseTests: XCTestCase {
 
     @MainActor
     func testV9_08R01BackupReplaceRestoreAndRelaunchReconciliation() async throws {
+        var diagnosticBoundary = "fixture-directories"
+        defer { print("V9_08R01 lastBoundary=\(diagnosticBoundary)") }
         let root = try makeApplicationSupport(label: "r01-production")
-        defer { try? fileManager.removeItem(at: root) }
+        addTeardownBlock { [root = root] in
+            try? FileManager.default.removeItem(at: root)
+        }
 
         let sourceSupport = root.appendingPathComponent(
             "source-support",
@@ -1608,6 +1612,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         let sourceFactory = StoreGenerationFactory(
             applicationSupportURL: sourceSupport
         )
+        diagnosticBoundary = "source-open"
         var sourceSession: StoreGenerationSession? = try sourceFactory
             .openOrBootstrapCurrent()
         let source = try XCTUnwrap(sourceSession)
@@ -1615,6 +1620,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         let sourceReaderLease = try XCTUnwrap(source.readerLeaseToken)
         XCTAssertEqual(sourceReaderLease.epoch.generationID, sourceGenerationID)
         XCTAssertEqual(try sourceFactory.currentGenerationID(), sourceGenerationID)
+        diagnosticBoundary = "source-writer"
         let sourceSiteID = makeUUID(2_400)
         let sourceAssetID = makeUUID(2_401)
         let sourceMutationID = try MutationIDV1(rawValue: makeUUID(2_402))
@@ -1640,6 +1646,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 physicalEpisodeID: makeUUID(2_405),
                 label: "Production backup source"
             )
+            diagnosticBoundary = "source-first-sign-commit"
             let outcome = try coordinator.workspaceWriter.execute(request)
             XCTAssertEqual(outcome.after.revision, 1)
             XCTAssertEqual(
@@ -1666,7 +1673,9 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             now: { Date(timeIntervalSinceReferenceDate: 900_010) },
             makeUUID: { exportUUIDs.next() }
         )
+        diagnosticBoundary = "export-prepare"
         let preview = try exporter.prepareStreaming()
+        diagnosticBoundary = "export-stream"
         let archive = try exporter.exportStreaming(
             previewID: preview.id,
             to: exportDirectory
@@ -1676,12 +1685,14 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         let destinationFactory = StoreGenerationFactory(
             applicationSupportURL: destinationSupport
         )
+        diagnosticBoundary = "destination-open"
         var destinationSession: StoreGenerationSession? = try destinationFactory
             .openOrBootstrapCurrent()
         let destination = try XCTUnwrap(destinationSession)
         let destinationIdentity = destination.workspaceIdentity
         let destinationOldID = destination.generationID
         let destinationReaderLease = try XCTUnwrap(destination.readerLeaseToken)
+        diagnosticBoundary = "destination-writer"
         let destinationSiteID = makeUUID(2_420)
         let destinationAssetID = makeUUID(2_421)
         let destinationMutationID = try MutationIDV1(rawValue: makeUUID(2_422))
@@ -1707,21 +1718,25 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 physicalEpisodeID: makeUUID(2_426),
                 label: "Existing destination data"
             )
+            diagnosticBoundary = "destination-first-sign-commit"
             let outcome = try coordinator.workspaceWriter.execute(request)
             XCTAssertEqual(outcome.after.revision, 1)
         }
 
+        diagnosticBoundary = "import-open"
         let importer = try BackupImportService(
             generationRootURL: destination.generationRootURL,
             storagePreflight: makeUnlimitedStoragePreflight(),
             makeUUID: { v908MakeUUID(2_424) },
             scopedAccess: .alreadyAuthorized
         )
+        diagnosticBoundary = "import-validate"
         let validated = try importer.stageAndValidate(
             selectedPackageURL: archive
         )
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 7)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion,
+                       LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
         XCTAssertTrue(validated.records.savedSmartViews.isEmpty)
         XCTAssertEqual(
             Set(validated.records.sites.map(\.id)),
@@ -1735,12 +1750,14 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         XCTAssertNotEqual(sourceReaderLease.ownerID, destinationReaderLease.ownerID)
 
         let restoreUUIDs = UUIDCursor((2_430...2_459).map(makeUUID))
+        diagnosticBoundary = "restore-open"
         let restoreService = try BackupRestoreService(
             applicationSupportURL: destinationSupport,
             storagePreflight: makeUnlimitedStoragePreflight(),
             now: { Date(timeIntervalSinceReferenceDate: 900_030) },
             makeUUID: { restoreUUIDs.next() }
         )
+        diagnosticBoundary = "restore-apply"
         var restoredSession: StoreGenerationSession? = try await restoreService.restore(
             validatedPackage: validated,
             currentModelContext: destination.modelContext,
@@ -1749,6 +1766,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             mode: .replaceExisting
         )
         let restored = try XCTUnwrap(restoredSession)
+        diagnosticBoundary = "restore-result-assertions"
         XCTAssertEqual(restored.workspaceIdentity, destinationIdentity)
         XCTAssertEqual(restored.generationID, try destinationFactory.currentGenerationID())
         XCTAssertNotEqual(restored.generationID, destinationOldID)
@@ -1796,6 +1814,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
 
         // The production startup reconciler is part of the replace/relaunch
         // contract even when the restore completed without a pending intent.
+        diagnosticBoundary = "startup-reconcile"
         XCTAssertNil(try BackupRestoreService(
             applicationSupportURL: destinationSupport,
             storagePreflight: makeUnlimitedStoragePreflight()
@@ -1808,6 +1827,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         let relaunchedFactory = StoreGenerationFactory(
             applicationSupportURL: destinationSupport
         )
+        diagnosticBoundary = "relaunch-open"
         var relaunchedSession: StoreGenerationSession? = try relaunchedFactory
             .openOrBootstrapCurrent()
         let relaunched = try XCTUnwrap(relaunchedSession)
@@ -1826,10 +1846,12 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             )
         )
         relaunchedSession = nil
+        diagnosticBoundary = "relaunch-prune"
         let relaunchPrune = try relaunchedFactory
             .reconcileGenerationLeasesAndPrune()
         XCTAssertEqual(relaunchPrune.disposition, .noEligibleGenerations)
         XCTAssertTrue(relaunchPrune.prunedEpochs.isEmpty)
+        diagnosticBoundary = "completed"
     }
 
     private func makeApplicationSupport(label: String) throws -> URL {
@@ -1863,7 +1885,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         let hex = String(format: "%x", value)
         return try GenerationEpochV1(
             generationID: makeUUID(1_000 + value),
-            generationManifestSHA256: String(repeating: hex, count: 64)
+            generationManifestSHA256: String(String(repeating: hex, count: 64).prefix(64))
         )
     }
 

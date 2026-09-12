@@ -1108,6 +1108,37 @@ private final class C31LightingAnchorS64AtomicRestoreTests: XCTestCase {
 
 extension S6_4AtomicRestoreTests {
     @MainActor
+    func testC32SeededAcceptanceFixtureRejectsLaterDirectMutationWithoutCheckpointAdoption() throws {
+        let harness = try makeHarness("c32-seeded-checkpoint-drift")
+        addTeardownBlock { [root = harness.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
+        _ = try C32AssistanceTestSupport.commitPersistentAcceptance(
+            in: harness.session,
+            slot: 619
+        )
+        let context = harness.session.modelContext
+        context.insert(Site(
+            id: uuid("64000000-0000-0000-0000-000000000619"),
+            label: "Unadopted C32 fixture site",
+            address: nil,
+            timeZoneID: "UTC",
+            createdAt: Date(timeIntervalSince1970: 1_786_708_619)
+        ))
+        try context.save()
+
+        let journal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: harness.session.workspaceIdentity,
+            generationID: harness.session.generationID,
+            allowStateBootstrap: false
+        )
+        XCTAssertThrowsError(try journal.validateAll()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+    }
+
+    @MainActor
     func testC32RealBackupRestorePreservesImmutableAcceptanceAndRebindsOnlyTargetFacts() async throws {
         for (offset, mode) in [
             BackupRestoreMode.emptyInstall,
@@ -1116,7 +1147,9 @@ extension S6_4AtomicRestoreTests {
             .fork
         ].enumerated() {
             let harness = try makeHarness("c32-real-restore-\(offset)")
-            defer { try? fileManager.removeItem(at: harness.root) }
+            addTeardownBlock { [root = harness.root] in
+                try? FileManager.default.removeItem(at: root)
+            }
             var sourceReceipt: AssistanceAcceptanceReceiptV1?
             var sourceAcceptanceBytes: Data?
             var sourceEnvelopeBytes: Data?
@@ -1209,7 +1242,9 @@ extension S6_4AtomicRestoreTests {
         }
 
         let chainHarness = try makeHarness("c32-historic-chain")
-        defer { try? fileManager.removeItem(at: chainHarness.root) }
+        addTeardownBlock { [root = chainHarness.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         var originalReceipt: AssistanceAcceptanceReceiptV1?
         var originalAcceptanceBytes: Data?
         var originalEnvelopeBytes: Data?
@@ -1348,7 +1383,9 @@ extension S6_4AtomicRestoreTests {
         )
 
         let ordinaryHarness = try makeHarness("c32-historic-chain-empty-install")
-        defer { try? fileManager.removeItem(at: ordinaryHarness.root) }
+        addTeardownBlock { [root = ordinaryHarness.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let ordinaryRestored = try await BackupRestoreService(
             applicationSupportURL: ordinaryHarness.support,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })

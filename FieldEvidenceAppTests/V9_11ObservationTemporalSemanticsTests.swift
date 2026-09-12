@@ -554,7 +554,9 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             XCTAssertEqual($0 as? WholeSignDeletionRuleError, .invalidGraph)
         }
         let deletion = try V906Integration.makeHarness("v9-11-delete", withAsset: true)
-        defer { V906Integration.remove(deletion.root) }
+        addTeardownBlock { [root = deletion.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let deletionAssetID = try XCTUnwrap(
             deletion.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
         )
@@ -566,6 +568,7 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             temporalData: temporalBytes,
             in: deletion.session.modelContext
         )
+        try V906Integration.adoptSeededDeletionBaseline(deletion.session)
         let persistedDeletionPair = try ObservationAndTimeRowStoreV1.requireRow(
             recordID: deletionRecordID,
             in: deletion.session.modelContext
@@ -598,7 +601,9 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
         )
 
         let erase = try V906Integration.makeHarness("v9-11-erase", withAsset: true)
-        defer { V906Integration.remove(erase.root) }
+        addTeardownBlock { [root = erase.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let eraseAssetID = try XCTUnwrap(
             erase.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
         )
@@ -610,6 +615,7 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             temporalData: temporalBytes,
             in: erase.session.modelContext
         )
+        try V906Integration.adoptSeededDeletionBaseline(erase.session)
         XCTAssertEqual(
             try erase.session.modelContext.fetchCount(FetchDescriptor<ObservationAndTimeRow>()),
             1
@@ -976,7 +982,6 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             observationBasisV1Data: basisData,
             temporalContextV1Data: temporalData
         ))
-        try context.save()
     }
 }
 

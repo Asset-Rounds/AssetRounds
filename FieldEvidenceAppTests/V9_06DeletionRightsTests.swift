@@ -105,7 +105,9 @@ final class V9_06DeletionRightsTests: XCTestCase {
         )
         XCTAssertTrue(fixture.registeredKindPolicy.currentPersistentTagKindPresent == false)
         let source = try V906Integration.makeHarness("g-source", withAsset: true)
-        defer { V906Integration.remove(source.root) }
+        addTeardownBlock { [root = source.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let deletedAssetID = try XCTUnwrap(
             source.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
         )
@@ -145,7 +147,9 @@ final class V9_06DeletionRightsTests: XCTestCase {
                 "g-target-\(mode.rawValue)",
                 withAsset: mode == .replaceExisting
             )
-            defer { V906Integration.remove(target.root) }
+            addTeardownBlock { [root = target.root] in
+                try? FileManager.default.removeItem(at: root)
+            }
             let restored = try await V906Integration.restore(
                 archive,
                 into: target,
@@ -171,9 +175,38 @@ final class V9_06DeletionRightsTests: XCTestCase {
     }
 
     @MainActor
+    func testSeededDeletionFixtureRejectsLaterDirectMutationWithoutCheckpointAdoption() throws {
+        let harness = try V906Integration.makeHarness("checkpoint-drift", withAsset: true)
+        addTeardownBlock { [root = harness.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
+        let context = harness.session.modelContext
+        context.insert(Site(
+            id: V906Integration.fixtureID(901),
+            label: "Unadopted deletion fixture site",
+            address: nil,
+            timeZoneID: "UTC",
+            createdAt: V906Integration.recreatedAt
+        ))
+        try context.save()
+
+        let journal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: harness.session.workspaceIdentity,
+            generationID: harness.session.generationID,
+            allowStateBootstrap: false
+        )
+        XCTAssertThrowsError(try journal.validateAll()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+    }
+
+    @MainActor
     func testV9_06A01DeleteRecreateUsesDistinctTypedIdentity() async throws {
         let harness = try V906Integration.makeHarness("a", withAsset: true)
-        defer { V906Integration.remove(harness.root) }
+        addTeardownBlock { [root = harness.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let context = harness.session.modelContext
         let old = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first)
         let oldID = old.id
@@ -205,7 +238,9 @@ final class V9_06DeletionRightsTests: XCTestCase {
     @MainActor
     func testV9_06H01OldArchiveUnknownKindAndNonEraseCannotClearLedger() async throws {
         let source = try V906Integration.makeHarness("h-source", withAsset: true)
-        defer { V906Integration.remove(source.root) }
+        addTeardownBlock { [root = source.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let archivedAssetID = try XCTUnwrap(
             source.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
         )
@@ -217,12 +252,14 @@ final class V9_06DeletionRightsTests: XCTestCase {
         XCTAssertEqual(legacyManifest.source.recordsSchemaVersion, 1)
 
         let target = try V906Integration.makeHarness("h-target", withAsset: false)
-        defer { V906Integration.remove(target.root) }
+        addTeardownBlock { [root = target.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let identity = try DeletionIdentityV2(kind: .asset, id: archivedAssetID)
         try DeletionLedgerStore(context: target.session.modelContext).stageUnion([
             try DeletionLedgerEntryV2(identity: identity, deletedAt: V906Integration.deletedAt),
         ])
-        try target.session.modelContext.save()
+        try V906Integration.adoptSeededDeletionBaseline(target.session)
 
         let restored = try await V906Integration.restore(
             oldArchive,
@@ -363,7 +400,7 @@ enum V906Integration {
                 label: "Deletion fixture sign",
                 createdAt: deletedAt.addingTimeInterval(-119)
             ))
-            try session.modelContext.save()
+            try adoptSeededDeletionBaseline(session)
         }
         return Harness(
             root: root,
@@ -373,6 +410,19 @@ enum V906Integration {
             factory: factory,
             session: session
         )
+    }
+
+    static func adoptSeededDeletionBaseline(_ session: StoreGenerationSession) throws {
+        let context = session.modelContext
+        let journal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: session.workspaceIdentity,
+            generationID: session.generationID,
+            allowStateBootstrap: false
+        )
+        try journal.stageMutableSemanticStateAfterAuthorizedExternalMutation()
+        try context.save()
+        try journal.validateAll()
     }
 
     static func deletionService(

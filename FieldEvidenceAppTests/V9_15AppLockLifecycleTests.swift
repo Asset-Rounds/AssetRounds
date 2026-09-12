@@ -201,7 +201,7 @@ extension V9_15AppLockLifecycleTests {
         XCTAssertEqual(mapping.source.writerRevision.revision, oldMapping.source.writerRevision.revision)
         XCTAssertEqual(mapping.source.writerRevision.entityRevisions, oldMapping.source.writerRevision.entityRevisions)
         XCTAssertNotEqual(mapping.source.writerRevision.writerInstanceID, oldMapping.source.writerRevision.writerInstanceID)
-        XCTAssertNotEqual(mapping.source.uiGenerationToken, oldMapping.source.uiGenerationToken)
+        XCTAssertEqual(mapping.source.uiGenerationToken, coordinator.uiGenerationToken)
         XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot(), repaired.settingWrite.successor)
     }
 

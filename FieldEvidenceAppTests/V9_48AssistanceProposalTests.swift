@@ -392,12 +392,15 @@ enum C32AssistanceTestSupport {
             identity: fixture.proposal.target.entity,
             revision: fixture.proposal.target.revision
         ))
-        try session.modelContext.save()
         let store = try MutationJournalStoreV1(
             modelContext: session.modelContext,
             identity: session.workspaceIdentity,
-            generationID: session.generationID
+            generationID: session.generationID,
+            allowStateBootstrap: false
         )
+        try store.stageMutableSemanticStateAfterAuthorizedExternalMutation()
+        try session.modelContext.save()
+        try store.validateAll()
         let writer = try WorkspaceWriterV1(
             identity: session.workspaceIdentity,
             generationID: session.generationID,

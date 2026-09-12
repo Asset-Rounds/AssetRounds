@@ -165,7 +165,6 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
     private struct DirectoryIdentity: Equatable {
         let device: UInt64
         let inode: UInt64
-        let linkCount: UInt64
 
         init(_ information: stat) throws {
             guard (information.st_mode & S_IFMT) == S_IFDIR else {
@@ -173,7 +172,6 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             }
             device = UInt64(information.st_dev)
             inode = UInt64(information.st_ino)
-            linkCount = UInt64(information.st_nlink)
         }
     }
 

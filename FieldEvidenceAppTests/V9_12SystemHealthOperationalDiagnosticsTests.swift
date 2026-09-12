@@ -30,6 +30,128 @@ private final class C30EvidenceContextAnchorV9_12SystemHealthOperationalDiagnost
 
 @MainActor
 final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
+    func testDiagnosticsFreshPublicationAllowsDirectoryChildChangesAndReopensCounters() async throws {
+        let root = try Self.temporaryRoot("diagnostics-directory-children")
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        let diagnosticsDirectory = Self.diagnosticsURL(root).deletingLastPathComponent()
+        let armURL = root.appendingPathComponent("allow-directory-children")
+        let applicationSupportChild = root.appendingPathComponent(
+            "LegitimateApplicationSupportChild",
+            isDirectory: true
+        )
+        let diagnosticsChild = diagnosticsDirectory.appendingPathComponent(
+            "LegitimateDiagnosticsChild",
+            isDirectory: true
+        )
+        let store = DiagnosticsStore(
+            applicationSupportURL: root,
+            capacityProvider: { _ in
+                if FileManager.default.fileExists(atPath: armURL.path) {
+                    try FileManager.default.removeItem(at: armURL)
+                    try FileManager.default.createDirectory(
+                        at: applicationSupportChild,
+                        withIntermediateDirectories: false
+                    )
+                    try FileManager.default.createDirectory(
+                        at: diagnosticsChild,
+                        withIntermediateDirectories: false
+                    )
+                }
+                return Int64.max
+            }
+        )
+
+        let fresh = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(fresh.counters, .zero)
+        await store.increment(.firstSignCreated)
+        try Data("armed".utf8).write(to: armURL)
+        await store.increment(.firstSignCreated)
+        let published = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(published.counters.firstSignCreated, 2)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: applicationSupportChild.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: diagnosticsChild.path))
+
+        let reopened = DiagnosticsStore(
+            applicationSupportURL: root,
+            capacityProvider: { _ in Int64.max }
+        )
+        let reopenedSnapshot = try await reopened.operationalSupportSnapshot()
+        XCTAssertEqual(reopenedSnapshot, published)
+    }
+
+    func testDiagnosticsRejectsRootReplacementDuringHeldPublicationWithoutChangingBytes() async throws {
+        let root = try Self.temporaryRoot("diagnostics-root-replacement")
+        let retainedRoot = root.deletingLastPathComponent().appendingPathComponent(
+            "\(root.lastPathComponent)-retained",
+            isDirectory: true
+        )
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: retainedRoot)
+        }
+        let armURL = root.appendingPathComponent("replace-root")
+        let store = DiagnosticsStore(
+            applicationSupportURL: root,
+            capacityProvider: { _ in
+                if FileManager.default.fileExists(atPath: armURL.path) {
+                    try FileManager.default.removeItem(at: armURL)
+                    try FileManager.default.moveItem(at: root, to: retainedRoot)
+                    try FileManager.default.createDirectory(
+                        at: root,
+                        withIntermediateDirectories: false
+                    )
+                }
+                return Int64.max
+            }
+        )
+        _ = try await store.operationalSupportSnapshot()
+        let before = try Data(contentsOf: Self.diagnosticsURL(root))
+        try Data("armed".utf8).write(to: armURL)
+
+        do {
+            try await store.recordOperationalFailure(
+                Self.failure(.storageWriteFailed, at: Date(timeIntervalSince1970: 1_700_000_000))
+            )
+            XCTFail("Replacing the pinned application-support root must fail closed")
+        } catch {
+            XCTAssertEqual(error as? DiagnosticsFailure, .invalidFile)
+        }
+        XCTAssertEqual(try Data(contentsOf: Self.diagnosticsURL(retainedRoot)), before)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: Self.diagnosticsURL(root).path))
+    }
+
+    func testDiagnosticsRejectsHardlinkedCounterDuringHeldPublicationWithoutChangingBytes() async throws {
+        let root = try Self.temporaryRoot("diagnostics-counter-hardlink")
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        let counterURL = Self.diagnosticsURL(root)
+        let aliasURL = root.appendingPathComponent("held-counter-alias.json")
+        let armURL = root.appendingPathComponent("hardlink-counter")
+        let store = DiagnosticsStore(
+            applicationSupportURL: root,
+            capacityProvider: { _ in
+                if FileManager.default.fileExists(atPath: armURL.path) {
+                    try FileManager.default.removeItem(at: armURL)
+                    try FileManager.default.linkItem(at: counterURL, to: aliasURL)
+                }
+                return Int64.max
+            }
+        )
+        _ = try await store.operationalSupportSnapshot()
+        let before = try Data(contentsOf: counterURL)
+        try Data("armed".utf8).write(to: armURL)
+
+        do {
+            try await store.recordOperationalFailure(
+                Self.failure(.storageWriteFailed, at: Date(timeIntervalSince1970: 1_700_000_000))
+            )
+            XCTFail("A multiply linked diagnostics file must fail closed")
+        } catch {
+            XCTAssertEqual(error as? DiagnosticsFailure, .invalidFile)
+        }
+        XCTAssertEqual(try Data(contentsOf: counterURL), before)
+        XCTAssertEqual(try Data(contentsOf: aliasURL), before)
+    }
+
     func testDiagnosticsHealthPersistsAndPendingPublicationUsesStrictCurrentDecoder() async throws {
         let root = try Self.temporaryRoot("diagnostics-decoder-origin")
         addTeardownBlock { try FileManager.default.removeItem(at: root) }

@@ -124,14 +124,14 @@ final class V9_02FileAuthorityTests: XCTestCase {
         var file = root.appendingPathComponent("model.sqlite")
         XCTAssertTrue(fileManager.createFile(atPath: file.path, contents: Data("old".utf8)))
 
-        try setFileProtection(.none, at: file)
+        try setFileProtection(.completeUntilFirstUserAuthentication, at: file)
         var wrongValues = URLResourceValues()
         wrongValues.isExcludedFromBackup = true
         try file.setResourceValues(wrongValues)
         try assertResourceValues(
             .database,
             at: file,
-            protection: .none,
+            protection: .completeUntilFirstUserAuthentication,
             isExcludedFromBackup: true
         )
 
@@ -155,11 +155,11 @@ final class V9_02FileAuthorityTests: XCTestCase {
         XCTAssertTrue(fileManager.createFile(atPath: file.path, contents: Data("protected".utf8)))
         try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
         _ = try file.resourceValues(forKeys: [.fileProtectionKey, .isExcludedFromBackupKey])
-        try setFileProtection(.none, at: file)
+        try setFileProtection(.completeUntilFirstUserAuthentication, at: file)
         try assertResourceValues(
             .database,
             at: file,
-            protection: .none,
+            protection: .completeUntilFirstUserAuthentication,
             isExcludedFromBackup: false
         )
         XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.database, at: file)) { error in

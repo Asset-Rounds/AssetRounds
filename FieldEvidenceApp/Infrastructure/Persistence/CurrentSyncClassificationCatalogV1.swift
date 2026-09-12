@@ -1421,6 +1421,12 @@ private extension CurrentSyncClassificationCatalogV1 {
             return try subjects(category: .persistentModel,
                 names: v27PersistentModelNames + v38PersistentModelNames)
         case "MyDayReadinessProjectionV1":return try subjects(category:.persistentModel,names:["MyDayPlanRowV1","WorkPacketManifestRow","ActivitySessionEnvelopeRow","OccurrenceHistoryEventRow","ScheduleDefinitionReleaseRow"])
+        case "RecoverabilityFreshnessProjectionV1":
+            return [try subject(category: .persistentModel, name: "RecoverabilityVerificationReceiptRow")]
+        case "RecoverabilityVerificationStagingV1", "RecoverabilityVerificationLifecycleV1":
+            // Staging is temporary archive-derived capability state; lifecycle
+            // is a static disposition descriptor, not a canonical row reader.
+            return []
         case "PlanDocumentV1","PlanRevisionV1","SpatialReferenceFrameV1","PlanPlacementV1","RebasePreviewV1","RebaseReceiptV1":return try subjects(category:.persistentModel,names:v28PersistentModelNames)
         case "PoseAxisDescriptorRegistryV1","AssetPoseCurrentTipV1","CompletedPlacementPoseSnapshotV1":return try subjects(category:.persistentModel,names:v29PersistentModelNames)
         case "EvidenceContextV1","PairedObservationLinkV1":return try subjects(category:.persistentModel,names:v30PersistentModelNames)

@@ -99,7 +99,9 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
     @MainActor
     func testV9_06I01PartialDeletionRecoveryAndInterruptedErasePreservesOrForwards() async throws {
         let deletion = try V906Integration.makeHarness("i-delete", withAsset: true)
-        defer { V906Integration.remove(deletion.root) }
+        addTeardownBlock { [root = deletion.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let assetID = try XCTUnwrap(
             deletion.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
         )
@@ -130,14 +132,16 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
             EraseAllFailurePoint.afterPointerSwitch,
         ].enumerated() {
             let harness = try V906Integration.makeHarness("i-erase-\(offset)", withAsset: true)
-            defer { V906Integration.remove(harness.root) }
+            addTeardownBlock { [root = harness.root] in
+                try? FileManager.default.removeItem(at: root)
+            }
             let context = harness.session.modelContext
             let tombstone = try DeletionLedgerEntryV2(
                 identity: DeletionIdentityV2(kind: .asset, id: V906Integration.id(800 + offset)),
                 deletedAt: V906Integration.deletedAt
             )
             try DeletionLedgerStore(context: context).stageUnion([tombstone])
-            try context.save()
+            try V906Integration.adoptSeededDeletionBaseline(harness.session)
             let oldGenerationID = harness.session.generationID
             var coordinator: StoreSessionCoordinator? = StoreSessionCoordinator(session: harness.session)
             let diagnostics = DiagnosticsStore(applicationSupportURL: harness.support)

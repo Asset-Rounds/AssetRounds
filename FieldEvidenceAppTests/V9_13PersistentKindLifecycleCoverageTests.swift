@@ -32,6 +32,30 @@ private final class C30EvidenceContextAnchorV9_13PersistentKindLifecycleCoverage
 
 @MainActor
 final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
+    func testRecoverabilityProjectionsBindOnlyTheirDeclaredCanonicalInputs() throws {
+        let current = try CurrentSyncClassificationCatalogV1.current
+        let expected: [String: Set<String>] = [
+            "RecoverabilityFreshnessProjectionV1": ["RecoverabilityVerificationReceiptRow"],
+            "RecoverabilityVerificationStagingV1": [],
+            "RecoverabilityVerificationLifecycleV1": [],
+        ]
+        for (name, owners) in expected {
+            let subject = try SyncSubjectIdentityV1(category: .projection, stableName: name)
+            let registration = try current.registration(for: subject)
+            XCTAssertEqual(registration.replicationPolicy.persistence, .nonpersistent, name)
+            XCTAssertEqual(Set(registration.replicationPolicy.dependencies.map(\.stableName)), owners, name)
+            XCTAssertTrue(registration.replicationPolicy.dependencies.allSatisfy {
+                $0.category == .persistentModel
+            }, name)
+        }
+        let receipt = try SyncSubjectIdentityV1(category: .persistentModel,
+            stableName: "RecoverabilityVerificationReceiptRow")
+        XCTAssertEqual(try current.registration(for: receipt).subject, receipt)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.stagingPersistence, "DERIVED_ONLY_DROP_AND_REBUILD")
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
+    }
+
     func testCurrentOwnedFileInventoryPreservesBaselineAndExcludesOperationalState() throws {
         let current = try CurrentSyncClassificationCatalogV1.current
         let baseline = try SyncClassificationRegistryV1.registrations

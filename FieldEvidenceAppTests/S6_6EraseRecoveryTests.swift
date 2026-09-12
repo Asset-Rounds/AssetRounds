@@ -32,6 +32,32 @@ private final class C30EvidenceContextAnchorS6_6EraseRecovery: XCTestCase {
 
 final class S6_6EraseRecoveryTests: XCTestCase {
     @MainActor
+    func testSeededEraseFixtureRejectsLaterDirectMutationWithoutCheckpointAdoption() async throws {
+        let harness = try await makeHarness("checkpoint-drift")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let context = coordinator.modelContext
+        context.insert(Site(
+            id: uuid("66000000-0000-0000-0000-000000000901"),
+            label: "Unadopted erase fixture site",
+            address: nil,
+            timeZoneID: "UTC",
+            createdAt: Date(timeIntervalSince1970: 1_786_800_901)
+        ))
+        try context.save()
+
+        let journal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: coordinator.workspaceIdentity,
+            generationID: coordinator.generationID,
+            allowStateBootstrap: false
+        )
+        XCTAssertThrowsError(try journal.validateAll()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+    }
+
+    @MainActor
     func testActualEraseRetainsGenerationAndPreferencesUntilNotificationAbsenceIsVerified() async throws {
         let harness = try await makeHarness("notification-readback")
         defer { cleanup(harness) }
@@ -1134,7 +1160,7 @@ private extension S6_6EraseRecoveryTests {
             contentDeletedAt: created.addingTimeInterval(3),
             createdAt: created.addingTimeInterval(2)
         ))
-        try context.save()
+        try adoptSeededEraseBaseline(session)
 
         for relative in [
             "FieldEvidenceRestore/owned.bin",
@@ -1174,6 +1200,20 @@ private extension S6_6EraseRecoveryTests {
             defaults: defaults,
             defaultsSuiteName: defaultsSuiteName
         )
+    }
+
+    @MainActor
+    func adoptSeededEraseBaseline(_ session: StoreGenerationSession) throws {
+        let context = session.modelContext
+        let journal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: session.workspaceIdentity,
+            generationID: session.generationID,
+            allowStateBootstrap: false
+        )
+        try journal.stageMutableSemanticStateAfterAuthorizedExternalMutation()
+        try context.save()
+        try journal.validateAll()
     }
 
     @MainActor

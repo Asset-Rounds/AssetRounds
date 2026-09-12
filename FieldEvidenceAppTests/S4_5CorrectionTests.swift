@@ -652,15 +652,20 @@ final class S4_5CorrectionTests: XCTestCase {
 
     @MainActor
     func testCurrentV1SnapshotPromotedRejectsRawReplayDespiteUnrelatedReceipt() async throws {
+        var diagnosticBoundary = "test-start"
+        defer { print("S4_5 snapshot-promoted lastBoundary=\(diagnosticBoundary)") }
         let substantiveDate = Date(timeIntervalSince1970: 1_768_940_000.123456)
         let harness = try await makeHarness(
             "snapshot-promoted-recovery-date",
-            substantiveDate: substantiveDate
+            substantiveDate: substantiveDate,
+            reportDiagnosticBoundary: { diagnosticBoundary = $0 }
         )
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
+        diagnosticBoundary = "test-original-snapshot"
         let priorSnapshot = try snapshot(report: harness.originalReport, in: harness)
         let priorRecord = recordPayload(harness.originalRecord)
+        diagnosticBoundary = "test-original-companion"
         let priorCompanion = try ObservationAndTimeRowStoreV1.requireRow(
             recordID: harness.originalRecord.id, in: harness.context
         )
@@ -669,6 +674,7 @@ final class S4_5CorrectionTests: XCTestCase {
         let identifiers = ReportCorrectionIdentifiers(
             mutationID: UUID(), recordID: UUID(), reportID: UUID()
         )
+        diagnosticBoundary = "test-correction-plan"
         let plan = try ReportCorrectionRule().makePlan(
             source: ReportCorrectionRuleSource(
                 currentRecord: priorRecord,
@@ -683,6 +689,7 @@ final class S4_5CorrectionTests: XCTestCase {
                 identifiers: identifiers
             )
         )
+        diagnosticBoundary = "test-snapshot-encode"
         let encodedSnapshot = try ReportSnapshotEncoderV1().encode(plan.snapshot)
         let payload = FinalizationPayloadV1(
             issueInsert: nil,
@@ -692,7 +699,9 @@ final class S4_5CorrectionTests: XCTestCase {
             reportInsert: plan.reportInsert,
             workflowRecordAfter: plan.recordAfter
         )
+        diagnosticBoundary = "test-payload-encode"
         let encodedPayload = try FinalizationContractEncoderV1().encodePayload(payload)
+        diagnosticBoundary = "test-intent-create"
         let intent = FinalizationIntentV1(
             completedAt: try XCTUnwrap(plan.recordAfter.completedAt),
             finalizationMutationID: identifiers.mutationID,
@@ -713,9 +722,13 @@ final class S4_5CorrectionTests: XCTestCase {
         let store = FinalizationIntentStore(
             generationRootURL: harness.session.generationRootURL
         )
+        diagnosticBoundary = "test-intent-prepare"
         let prepared = try await store.prepare(intent: intent, snapshot: encodedSnapshot)
+        diagnosticBoundary = "test-snapshot-promote"
         let promoted = try await store.promoteSnapshot(prepared)
+        diagnosticBoundary = "test-intent-advance"
         _ = try await store.advance(promoted, to: .snapshotPromoted)
+        diagnosticBoundary = "test-pre-recovery-counts"
         XCTAssertEqual(try counts(in: harness).records, 1)
         XCTAssertEqual(try counts(in: harness).reports, 1)
 
@@ -726,46 +739,57 @@ final class S4_5CorrectionTests: XCTestCase {
             lifecycleProfileRegistry: harness.lifecycleDependencies.profileRegistry
         )
         harness.context.delete(priorCompanion)
+        diagnosticBoundary = "test-companion-delete-save"
         try harness.context.save()
         do {
+            diagnosticBoundary = "test-first-recovery"
             _ = try await recovery.reconcile()
             XCTFail("current-schema recovery requires the historical companion")
         } catch {
             XCTAssertEqual(error as? FinalizationRecoveryServiceError, .inconsistent)
         }
+        diagnosticBoundary = "test-first-recovery-assertions"
         XCTAssertEqual(try counts(in: harness).records, 1)
         XCTAssertEqual(try counts(in: harness).reports, 1)
         XCTAssertEqual(harness.packet.currentRecordID, harness.originalRecord.id)
         XCTAssertTrue(try harness.context.fetch(FetchDescriptor<ObservationAndTimeRow>())
             .allSatisfy({ $0.recordID != identifiers.recordID }))
         XCTAssertTrue(fileManager.fileExists(atPath: intentURL(identifiers, in: harness).path))
+        diagnosticBoundary = "test-companion-restore"
         harness.context.insert(try ObservationAndTimeRow(
             recordID: harness.originalRecord.id,
             observationBasisV1Data: priorBasisBytes,
             temporalContextV1Data: priorTimeBytes
         ))
+        diagnosticBoundary = "test-companion-restore-save"
         try harness.context.save()
+        diagnosticBoundary = "test-original-envelope-read"
         XCTAssertNotNil(try harness.storeCoordinator.workspaceWriter.finalizationEnvelope(
             mutationID: MutationIDV1(
                 rawValue: try XCTUnwrap(harness.originalRecord.finalizationMutationID)
             )
         ))
+        diagnosticBoundary = "test-unrelated-receipt-read"
         XCTAssertNil(try harness.storeCoordinator.workspaceWriter.durableReceipt(
             mutationID: MutationIDV1(rawValue: identifiers.mutationID)
         ))
+        diagnosticBoundary = "test-before-raw-replay-snapshot"
         let beforeRejectedRawReplay = try domainSnapshot(in: harness)
         do {
+            diagnosticBoundary = "test-second-recovery"
             _ = try await recovery.reconcile()
             XCTFail("Expected inconsistent raw recovery replay to throw")
         } catch {
             XCTAssertEqual(error as? FinalizationRecoveryServiceError, .inconsistent)
         }
+        diagnosticBoundary = "test-final-domain-snapshot"
         XCTAssertEqual(try domainSnapshot(in: harness), beforeRejectedRawReplay)
         XCTAssertEqual(harness.packet.currentRecordID, harness.originalRecord.id)
         XCTAssertTrue(try harness.context.fetch(FetchDescriptor<ObservationAndTimeRow>())
             .allSatisfy({ $0.recordID != identifiers.recordID }))
         XCTAssertTrue(fileManager.fileExists(atPath: intentURL(identifiers, in: harness).path))
         XCTAssertTrue(fileManager.fileExists(atPath: finalSnapshotURL(identifiers, in: harness).path))
+        diagnosticBoundary = "completed"
     }
 
     @MainActor
@@ -1794,26 +1818,32 @@ private extension S4_5CorrectionTests {
     @MainActor
     func makeHarness(
         _ label: String,
-        substantiveDate: Date = Fixture.baseDate
+        substantiveDate: Date = Fixture.baseDate,
+        reportDiagnosticBoundary: ((String) -> Void)? = nil
     ) async throws -> CorrectionHarness {
         let applicationSupport = fileManager.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent(
                 "S4_5CorrectionTests-\(label)-\(UUID().uuidString)",
                 isDirectory: true
             )
+        reportDiagnosticBoundary?("harness-directory-create")
         try fileManager.createDirectory(
             at: applicationSupport,
             withIntermediateDirectories: false
         )
+        reportDiagnosticBoundary?("harness-bootstrap")
         let session = try StoreGenerationFactory(applicationSupportURL: applicationSupport)
             .openOrBootstrapCurrent()
         let context = session.modelContext
+        reportDiagnosticBoundary?("harness-writer")
         let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
         let diagnostics = DiagnosticsStore(applicationSupportURL: applicationSupport)
+        reportDiagnosticBoundary?("harness-diagnostics-prepare")
         await diagnostics.prepare()
         let siteID = UUID()
         let assetID = UUID()
         let placementMutationID = try MutationIDV1(rawValue: UUID())
+        reportDiagnosticBoundary?("harness-first-sign")
         _ = try storeCoordinator.workspaceWriter.execute(
             .createFirstSign(.init(
                 siteID: siteID,
@@ -1835,20 +1865,24 @@ private extension S4_5CorrectionTests {
             )),
             mutationID: placementMutationID
         )
+        reportDiagnosticBoundary?("harness-first-sign-fetch")
         let site = try XCTUnwrap(
             context.fetch(FetchDescriptor<Site>()).first { $0.id == siteID }
         )
         let asset = try XCTUnwrap(
             context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID }
         )
+        reportDiagnosticBoundary?("harness-lifecycle-profile")
         let lifecycleProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
             package: .illuminatedSignV1
         )
+        reportDiagnosticBoundary?("harness-lifecycle-dependencies")
         let lifecycleDependencies = try storeCoordinator.packageLifecycleDependencies(
             profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(
                 profiles: [lifecycleProfile]
             )
         )
+        reportDiagnosticBoundary?("harness-runner-create")
         let runner = try CheckRunnerCoordinator(
             modelContext: context,
             packageLifecycleDependencies: lifecycleDependencies,
@@ -1856,6 +1890,7 @@ private extension S4_5CorrectionTests {
             diagnosticsStore: diagnostics
         )
         runner.configureCapture(generationRootURL: session.generationRootURL)
+        reportDiagnosticBoundary?("harness-runner-begin")
         let record = try runner.beginCheck(
             assetID: asset.id,
             timeZoneID: "America/New_York",
@@ -1864,17 +1899,21 @@ private extension S4_5CorrectionTests {
             safePositionAccepted: true,
             observedAt: substantiveDate.addingTimeInterval(-20)
         )
+        reportDiagnosticBoundary?("harness-wide-import")
         let wide = try await runner.importCandidate(
             assetID: asset.id,
             sourceData: try makePNG(seed: 41),
             createdAt: substantiveDate.addingTimeInterval(-15)
         )
+        reportDiagnosticBoundary?("harness-wide-accept")
         _ = try await runner.accept(candidate: wide, assetID: asset.id)
+        reportDiagnosticBoundary?("harness-close-import")
         let close = try await runner.importCandidate(
             assetID: asset.id,
             sourceData: try makePNG(seed: 77),
             createdAt: substantiveDate.addingTimeInterval(-14)
         )
+        reportDiagnosticBoundary?("harness-close-accept")
         _ = try await runner.accept(candidate: close, assetID: asset.id)
         let originalIDs = FinalizationIdentifiers(
             mutationID: UUID(),
@@ -1883,6 +1922,7 @@ private extension S4_5CorrectionTests {
             reportID: UUID(),
             issueID: UUID()
         )
+        reportDiagnosticBoundary?("harness-runner-finalize")
         let result = try await runner.finalize(
             assetID: asset.id,
             selection: .visibleIssue(labelKey: "dark_section"),
@@ -1891,30 +1931,36 @@ private extension S4_5CorrectionTests {
             sourceApp: SourceAppSnapshotV1(build: "440", version: "1.0"),
             identifiers: originalIDs
         )
+        reportDiagnosticBoundary?("harness-delivery-create")
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: context,
             lifecycleDependencies: lifecycleDependencies,
             lifecycleProfile: lifecycleProfile,
             diagnosticsStore: diagnostics
         )
+        reportDiagnosticBoundary?("harness-delivery-prepare")
         guard case .ready = try coordinator.prepareFinalizedReport(id: result.reportID) else {
             throw CorrectionFixtureError.unexpectedSubmission
         }
+        reportDiagnosticBoundary?("harness-original-envelope")
         XCTAssertNotNil(try storeCoordinator.workspaceWriter.finalizationEnvelope(
             mutationID: MutationIDV1(rawValue: originalIDs.mutationID)
         ))
+        reportDiagnosticBoundary?("harness-original-journal-validate")
         try MutationJournalStoreV1(
             modelContext: context,
             identity: session.workspaceIdentity,
             generationID: session.generationID,
             allowStateBootstrap: false
         ).validateAll()
+        reportDiagnosticBoundary?("harness-final-rows")
         let packet = try XCTUnwrap(
             try context.fetch(FetchDescriptor<Packet>()).first { $0.id == originalIDs.packetID }
         )
         let report = try XCTUnwrap(
             try context.fetch(FetchDescriptor<Report>()).first { $0.id == result.reportID }
         )
+        reportDiagnosticBoundary?("harness-completed")
         return CorrectionHarness(
             applicationSupportURL: applicationSupport,
             session: session,
