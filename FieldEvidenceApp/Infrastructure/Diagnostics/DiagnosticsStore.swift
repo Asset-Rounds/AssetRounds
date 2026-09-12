@@ -210,18 +210,35 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             fileManager: FileManager,
             createIfMissing: Bool
         ) throws -> PinnedDiagnosticsAuthority? {
+            #if DEBUG
+            var diagnosticBoundary = "application-support-create"
+            var diagnosticFailed = true
+            defer {
+                if diagnosticFailed {
+                    print("Diagnostics authority lastBoundary=\(diagnosticBoundary)")
+                }
+            }
+            #endif
             if createIfMissing {
                 try fileManager.createDirectory(
                     at: applicationSupportURL,
                     withIntermediateDirectories: true
                 )
             }
+            #if DEBUG
+            diagnosticBoundary = "application-support-open"
+            #endif
             let applicationSupportDescriptor = Darwin.open(
                 applicationSupportURL.path,
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
             )
             if applicationSupportDescriptor < 0 {
-                if !createIfMissing, errno == ENOENT { return nil }
+                if !createIfMissing, errno == ENOENT {
+                    #if DEBUG
+                    diagnosticFailed = false
+                    #endif
+                    return nil
+                }
                 throw DiagnosticsFailure.invalidFile
             }
             var ownsApplicationSupport = true
@@ -230,6 +247,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                     _ = Darwin.close(applicationSupportDescriptor)
                 }
             }
+            #if DEBUG
+            diagnosticBoundary = "application-support-stat"
+            #endif
             var applicationSupportInformation = stat()
             guard Darwin.fstat(
                 applicationSupportDescriptor,
@@ -241,26 +261,48 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 applicationSupportInformation
             )
             let diagnosticsName = diagnosticsURL.lastPathComponent
+            #if DEBUG
+            diagnosticBoundary = "diagnostics-relationship"
+            #endif
             guard !diagnosticsName.isEmpty,
                   diagnosticsURL.deletingLastPathComponent()
                     .standardizedFileURL == applicationSupportURL.standardizedFileURL else {
                 throw DiagnosticsFailure.invalidFile
             }
+            #if DEBUG
+            diagnosticBoundary = "diagnostics-open"
+            #endif
             var diagnosticsDescriptor = Darwin.openat(
                 applicationSupportDescriptor,
                 diagnosticsName,
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
             )
             if diagnosticsDescriptor < 0, errno == ENOENT {
-                guard createIfMissing else { return nil }
+                guard createIfMissing else {
+                    #if DEBUG
+                    diagnosticFailed = false
+                    #endif
+                    return nil
+                }
+                #if DEBUG
+                diagnosticBoundary = "diagnostics-mkdir"
+                #endif
                 guard Darwin.mkdirat(
                     applicationSupportDescriptor,
                     diagnosticsName,
                     mode_t(0o700)
-                ) == 0 || errno == EEXIST,
-                      Darwin.fsync(applicationSupportDescriptor) == 0 else {
+                ) == 0 || errno == EEXIST else {
                     throw DiagnosticsFailure.invalidFile
                 }
+                #if DEBUG
+                diagnosticBoundary = "application-support-sync-after-mkdir"
+                #endif
+                guard Darwin.fsync(applicationSupportDescriptor) == 0 else {
+                    throw DiagnosticsFailure.invalidFile
+                }
+                #if DEBUG
+                diagnosticBoundary = "diagnostics-reopen"
+                #endif
                 diagnosticsDescriptor = Darwin.openat(
                     applicationSupportDescriptor,
                     diagnosticsName,
@@ -274,6 +316,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             defer {
                 if ownsDiagnostics { _ = Darwin.close(diagnosticsDescriptor) }
             }
+            #if DEBUG
+            diagnosticBoundary = "diagnostics-stat"
+            #endif
             var diagnosticsInformation = stat()
             guard Darwin.fstat(
                 diagnosticsDescriptor,
@@ -294,6 +339,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             )
             ownsApplicationSupport = false
             ownsDiagnostics = false
+            #if DEBUG
+            diagnosticFailed = false
+            #endif
             return authority
         }
 
@@ -427,8 +475,10 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 fileManager: fileManager,
                 createIfMissing: false
             ) else {
-                guard persist(.zero) else { return }
+                let initialHealth = try emptyHealth()
+                guard persist(.zero, health: initialHealth) else { return }
                 counters = .zero
+                health = initialHealth
                 isPrepared = true
                 preparationFailure = nil
                 return
@@ -439,8 +489,10 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 at: countersURL,
                 authorityCheck: authorityCheck
             ) else {
-                guard persist(.zero) else { return }
+                let initialHealth = try emptyHealth()
+                guard persist(.zero, health: initialHealth) else { return }
                 counters = .zero
+                health = initialHealth
                 isPrepared = true
                 preparationFailure = nil
                 return
@@ -922,6 +974,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
         var oldIdentity: FileIdentity?
         var didPublish = false
         var authority: PinnedDiagnosticsAuthority?
+        #if DEBUG
+        var diagnosticBoundary = "authority-open"
+        #endif
         do {
             guard let openedAuthority = try PinnedDiagnosticsAuthority.open(
                 applicationSupportURL: applicationSupportURL,
@@ -934,11 +989,17 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             authority = openedAuthority
             let authorityCheck = { try openedAuthority.verify() }
             try authorityCheck()
+            #if DEBUG
+            diagnosticBoundary = "staging-directory-protection"
+            #endif
             try ProtectedFilePolicyV1.applyAndVerify(
                 .stagingDirectory,
                 at: directoryURL,
                 authorityCheck: authorityCheck
             )
+            #if DEBUG
+            diagnosticBoundary = "envelope-encode"
+            #endif
             let state = try DeviceOperationalSupportEnvelopeV3(
                 health: try resolvedHealth(healthCandidate),
                 counters: candidate,
@@ -957,6 +1018,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             guard data.count <= Self.maximumOperationalTotalBytes else {
                 throw DiagnosticsFailure.sizeLimitExceeded
             }
+            #if DEBUG
+            diagnosticBoundary = "capacity-preflight"
+            #endif
             try storagePreflight.checkDeviceOperationalWrite(
                 byteCount: UInt64(data.count),
                 onVolumeContaining: directoryURL
@@ -977,6 +1041,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                     authorityCheck: authorityCheck
                 )
             }
+            #if DEBUG
+            diagnosticBoundary = "temporary-write"
+            #endif
             try authorityCheck()
             try data.write(to: temporaryURL, options: .withoutOverwriting)
             try authorityCheck()
@@ -987,11 +1054,17 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             guard let temporaryIdentity else {
                 throw DiagnosticsFailure.invalidFile
             }
+            #if DEBUG
+            diagnosticBoundary = "temporary-sync"
+            #endif
             try syncFile(
                 at: temporaryURL,
                 expected: temporaryIdentity,
                 authorityCheck: authorityCheck
             )
+            #if DEBUG
+            diagnosticBoundary = "temporary-protection"
+            #endif
             try ProtectedFilePolicyV1.applyAndVerify(
                 .temporaryFile,
                 at: temporaryURL,
@@ -1007,6 +1080,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 at: countersURL,
                 authorityCheck: authorityCheck
             )
+            #if DEBUG
+            diagnosticBoundary = "existing-readback"
+            #endif
             if !repairExisting {
                 switch (oldIdentity, lastCommittedData) {
                 case let (identity?, expected?):
@@ -1038,6 +1114,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 ) == oldIdentity else {
                     throw DiagnosticsFailure.invalidFile
                 }
+                #if DEBUG
+                diagnosticBoundary = "existing-replace"
+                #endif
                 if let staleBackup = try fileIdentityIfPresent(
                     at: backupURL,
                     authorityCheck: authorityCheck
@@ -1054,7 +1133,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                     countersURL,
                     withItemAt: temporaryURL,
                     backupItemName: Self.backupName,
-                    options: []
+                    options: [.withoutDeletingBackupItem]
                 )
                 try authorityCheck()
                 guard let publishedBackupIdentity = try fileIdentityIfPresent(
@@ -1075,6 +1154,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                     throw DiagnosticsFailure.invalidFile
                 }
             } else {
+                #if DEBUG
+                diagnosticBoundary = "fresh-move"
+                #endif
                 guard try fileIdentityIfPresent(
                     at: countersURL,
                     authorityCheck: authorityCheck
@@ -1085,6 +1167,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 try fileManager.moveItem(at: temporaryURL, to: countersURL)
             }
             didPublish = true
+            #if DEBUG
+            diagnosticBoundary = "replacement-identity"
+            #endif
             try authorityCheck()
             replacementIdentity = try fileIdentity(
                 at: countersURL,
@@ -1093,11 +1178,17 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             guard let replacementIdentity else {
                 throw DiagnosticsFailure.invalidFile
             }
+            #if DEBUG
+            diagnosticBoundary = "replacement-protection"
+            #endif
             try ProtectedFilePolicyV1.applyAndVerify(
                 .diagnostics,
                 at: countersURL,
                 authorityCheck: authorityCheck
             )
+            #if DEBUG
+            diagnosticBoundary = "replacement-sync-readback"
+            #endif
             try syncFile(
                 at: countersURL,
                 expected: replacementIdentity,
@@ -1164,10 +1255,16 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 }
                 try syncDirectory(authorityCheck: authorityCheck)
             }
+            #if DEBUG
+            diagnosticBoundary = "directory-sync"
+            #endif
             try syncDirectory(authorityCheck: authorityCheck)
             lastCommittedData = data
             return true
         } catch {
+            #if DEBUG
+            print("Diagnostics persist lastBoundary=\(diagnosticBoundary)")
+            #endif
             isPrepared = false
             let cleanupAuthority: () throws -> Void
             if let authority {

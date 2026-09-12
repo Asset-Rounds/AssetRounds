@@ -658,7 +658,10 @@ final class S4_5CorrectionTests: XCTestCase {
         let harness = try await makeHarness(
             "snapshot-promoted-recovery-date",
             substantiveDate: substantiveDate,
-            reportDiagnosticBoundary: { diagnosticBoundary = $0 }
+            reportDiagnosticBoundary: {
+                diagnosticBoundary = $0
+                FileHandle.standardError.write(Data(("S4_5 snapshot-promoted stage=" + $0 + "\n").utf8))
+            }
         )
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }

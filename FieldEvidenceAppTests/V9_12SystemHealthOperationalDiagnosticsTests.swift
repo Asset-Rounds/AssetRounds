@@ -79,6 +79,79 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
         XCTAssertEqual(reopenedSnapshot, published)
     }
 
+    func testDiagnosticsFreshHealthMatchesImmediateReopenForAbsentAndExistingDirectory() async throws {
+        for existingDirectory in [false, true] {
+            let root = try Self.temporaryRoot(
+                existingDirectory ? "diagnostics-existing-empty" : "diagnostics-absent"
+            )
+            addTeardownBlock { try FileManager.default.removeItem(at: root) }
+            if existingDirectory {
+                let directory = Self.diagnosticsURL(root).deletingLastPathComponent()
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: false
+                )
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: directory)
+            }
+            let initialDate = Date(
+                timeIntervalSince1970: existingDirectory ? 1_700_000_100 : 1_700_000_000
+            )
+            let clock = V912SteppingClock(initialDate)
+            let store = DiagnosticsStore(
+                applicationSupportURL: root,
+                now: { clock.next() },
+                capacityProvider: { _ in Int64.max }
+            )
+
+            let first = try await store.operationalSupportSnapshot()
+            let firstCanonical = try await store.canonicalOperationalSupportEnvelopeDataV3()
+            XCTAssertEqual(first.health.generatedAt, initialDate)
+            XCTAssertEqual(firstCanonical, try Data(contentsOf: Self.diagnosticsURL(root)))
+            XCTAssertEqual(clock.callCount, 1)
+
+            let reopened = DiagnosticsStore(
+                applicationSupportURL: root,
+                now: { clock.next() },
+                capacityProvider: { _ in Int64.max }
+            )
+            let reopenedSnapshot = try await reopened.operationalSupportSnapshot()
+            let reopenedCanonical = try await reopened.canonicalOperationalSupportEnvelopeDataV3()
+            XCTAssertEqual(reopenedSnapshot, first)
+            XCTAssertEqual(reopenedCanonical, firstCanonical)
+            XCTAssertEqual(clock.callCount, 1)
+        }
+    }
+
+    func testDiagnosticsLegacyMigrationAndRepeatedReplacementsFinishOwnedBackupCleanup() async throws {
+        let root = try Self.temporaryRoot("diagnostics-owned-backup")
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        try Self.writeLegacyDiagnosticsV1(at: root)
+        let original = try Data(contentsOf: Self.diagnosticsURL(root))
+        let store = DiagnosticsStore(applicationSupportURL: root,
+            now: { Date(timeIntervalSince1970: 1_700_000_000) },
+            capacityProvider: { _ in Int64.max })
+        let migrated = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(migrated.counters.firstSignCreated, 1)
+        for expectedCount in 1...3 {
+            if expectedCount > 1 { await store.increment(.firstSignCreated) }
+            let snapshot = try await store.operationalSupportSnapshot()
+            let canonical = try await store.canonicalOperationalSupportEnvelopeDataV3()
+            XCTAssertEqual(snapshot.counters.firstSignCreated, expectedCount)
+            XCTAssertEqual(snapshot.health, migrated.health)
+            XCTAssertEqual(canonical, try Data(contentsOf: Self.diagnosticsURL(root)))
+            XCTAssertNotEqual(canonical, original)
+            let directory = Self.diagnosticsURL(root).deletingLastPathComponent()
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted(),
+                ["counters.json"])
+            let reopened = DiagnosticsStore(applicationSupportURL: root,
+                capacityProvider: { _ in Int64.max })
+            let reopenedSnapshot = try await reopened.operationalSupportSnapshot()
+            let reopenedCanonical = try await reopened.canonicalOperationalSupportEnvelopeDataV3()
+            XCTAssertEqual(reopenedSnapshot, snapshot)
+            XCTAssertEqual(reopenedCanonical, canonical)
+        }
+    }
+
     func testDiagnosticsRejectsRootReplacementDuringHeldPublicationWithoutChangingBytes() async throws {
         let root = try Self.temporaryRoot("diagnostics-root-replacement")
         let retainedRoot = root.deletingLastPathComponent().appendingPathComponent(
@@ -1425,6 +1498,23 @@ private final class V912Clock: @unchecked Sendable {
     var now: Date { lock.withLock { value } }
     func advance(seconds: TimeInterval) {
         lock.withLock { value = value.addingTimeInterval(seconds) }
+    }
+}
+
+private final class V912SteppingClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+    private var calls = 0
+    init(_ value: Date) { self.value = value }
+    var callCount: Int { lock.withLock { calls } }
+    func next() -> Date {
+        lock.withLock {
+            defer {
+                calls += 1
+                value = value.addingTimeInterval(1)
+            }
+            return value
+        }
     }
 }
 

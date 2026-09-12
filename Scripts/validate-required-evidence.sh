@@ -1,4 +1,10 @@
 set -euo pipefail
+selection_path="${CI_SELECTION_PATH:-Scripts/ci-selection.json}"
+case "$selection_path" in
+  Scripts/ci-selection.json | "${CI_ARTIFACT_DIR:?}/ci-selection.selected.json") ;;
+  *) printf 'invalid closed selection path\n' >&2; exit 65 ;;
+esac
+test -f "$selection_path"
 
 require_nonempty_directory() {
   test -d "$1"
@@ -78,7 +84,7 @@ verify_executed_selectors() {
               or ($observed | startswith($wanted + "/"))
           )
       )
-  ' Scripts/ci-selection.json > /dev/null
+  ' "$selection_path" > /dev/null
 }
 
 test -s "$CI_ARTIFACT_DIR/simulator-boot-start.log"
@@ -137,7 +143,7 @@ if test "${CI_RUN_UI_SMOKE:-}" = "true"; then
       expected_resume_setup_count="$(jq -r '.resumeSetup.rowCount // 0' <<< "$segment_json")"
       expected_plan_sha256="$(shasum -a 256 Scripts/s10-4-segment-plan.json | awk '{print toupper($1)}')"
       expected_evidence_kernel_sha256="$(jq -r '.evidenceKernelSHA256' Scripts/s10-4-segment-plan.json)"
-      expected_selector_sha256="$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')"
+      expected_selector_sha256="$(shasum -a 256 "$selection_path" | awk '{print toupper($1)}')"
       expected_shard_contract_sha256="$(shasum -a 256 Scripts/s10-4-shards.json | awk '{print toupper($1)}')"
       expected_inventory_sha256="$(shasum -a 256 docs/design/s10/s10-screen-state-inventory.json | awk '{print toupper($1)}')"
       expected_common_task_schema_sha256="$(shasum -a 256 docs/design/s10/s10-accessibility-common-tasks.json | awk '{print toupper($1)}')"

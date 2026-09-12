@@ -5,6 +5,12 @@ set -euo pipefail
 derived_data_path="${RUNNER_TEMP:?}/FieldEvidenceDerivedData"
 result_bundle_path="${CI_ARTIFACT_DIR:?}/UnitTests.xcresult"
 expected_destination="platform=iOS Simulator,id=${CI_SIMULATOR_UDID:?}"
+selection_path="${CI_SELECTION_PATH:-Scripts/ci-selection.json}"
+case "$selection_path" in
+  Scripts/ci-selection.json | "${CI_ARTIFACT_DIR:?}/ci-selection.selected.json") ;;
+  *) printf 'invalid closed selection path\n' >&2; exit 65 ;;
+esac
+test -f "$selection_path"
 
 test "${CI_DESTINATION:?}" = "$expected_destination"
 test "${CODE_SIGNING_ALLOWED:-}" = "NO"
@@ -18,7 +24,7 @@ while IFS= read -r selector; do
     *) printf 'invalid unit selector: %s\n' "$selector" >&2; exit 65 ;;
   esac
   only_testing_args[${#only_testing_args[@]}]="-only-testing:$selector"
-done < <(jq -r '.unitTestSelectors[]' Scripts/ci-selection.json)
+done < <(jq -r '.unitTestSelectors[]' "$selection_path")
 
 test "${#only_testing_args[@]}" -gt 0
 
@@ -143,7 +149,7 @@ def validate_shared(environment, script_role):
     require(all(e.get(key) == value for key, value in expected.items()), "profile/runtime tuple")
     require(re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", e.get("CI_SIMULATOR_UDID", "")), "Simulator UDID")
     require(e.get("CI_DESTINATION") == "platform=iOS Simulator,id=" + e["CI_SIMULATOR_UDID"], "destination")
-    selection = read_json(workspace / "Scripts/ci-selection.json")
+    selection = read_json(Path(os.environ.get("CI_SELECTION_PATH", "Scripts/ci-selection.json")))
     expected_selection = {
         "schemaVersion": 1, "taskID": "S10.4", "tier": "F25", "runUISmoke": True,
         "setupArtifactTimeoutSeconds": 420, "buildTimeoutSeconds": 900, "testTimeoutSeconds": 1200,

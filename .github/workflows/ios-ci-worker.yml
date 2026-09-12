@@ -16,6 +16,21 @@ on:
         required: false
         default: none
         type: string
+      native_selection_id:
+        description: Closed checked-in V23 N8 selection ID; ordinary default is the complete selection
+        required: false
+        default: default-132
+        type: string
+      native_selection_sha256:
+        description: Dispatcher-bound SHA-256 of the selected canonical V23 selection
+        required: false
+        default: ""
+        type: string
+      native_selection_map_sha256:
+        description: Dispatcher-bound SHA-256 of the complete checked-in V23 selection map
+        required: false
+        default: ""
+        type: string
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
@@ -97,7 +112,7 @@ on:
         required: false
 
 concurrency:
-  group: ${{ inputs.native_acceptance_contract != 'none' && format('v23-{0}-', inputs.runner_provider) || '' }}${{ inputs.s10_4_shared_build_mode }}-${{ inputs.s10_4_minimum_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-${{ inputs.s10_4_shared_matrix_id }}-${{ inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}
+  group: ${{ inputs.native_acceptance_contract != 'none' && format('v23-{0}-{1}-', inputs.runner_provider, inputs.native_selection_id) || '' }}${{ inputs.s10_4_shared_build_mode }}-${{ inputs.s10_4_minimum_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-${{ inputs.s10_4_shared_matrix_id }}-${{ inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}
   cancel-in-progress: false
 
 jobs:
@@ -106,6 +121,10 @@ jobs:
     timeout-minutes: 90
     env:
       CI_NATIVE_ACCEPTANCE_CONTRACT: ${{ inputs.native_acceptance_contract }}
+      NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
+      DISPATCH_NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
+      DISPATCH_NATIVE_SELECTION_SHA256: ${{ inputs.native_selection_sha256 }}
+      DISPATCH_NATIVE_SELECTION_MAP_SHA256: ${{ inputs.native_selection_map_sha256 }}
       CI_S10_4_SHARED_BUILD_MODE: ${{ inputs.s10_4_shared_build_mode }}
       CI_S10_4_SHARED_PAYLOAD_RUN_ID: ${{ inputs.s10_4_shared_payload_run_id }}
       WORKER_S10_4_MINIMUM_CORE_SMOKE_ID: ${{ inputs.s10_4_minimum_core_smoke_id }}
@@ -167,6 +186,13 @@ jobs:
           test -f Scripts/test-smoke.sh
           test -f Scripts/ui-smoke.sh
           python3 Scripts/v23-native-ci.py admit --stage worker
+          CI_SELECTION_PATH="Scripts/ci-selection.json"
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" = v23.integration.current-native.v1; then
+            CI_SELECTION_PATH="$CI_ARTIFACT_DIR/ci-selection.selected.json"
+            python3 Scripts/v23-native-ci.py select --output "$CI_SELECTION_PATH"
+            cp Scripts/ci-selection-map.json "$CI_ARTIFACT_DIR/ci-selection-map.json"
+          fi
+          printf 'CI_SELECTION_PATH=%s\n' "$CI_SELECTION_PATH" >> "$GITHUB_ENV"
           case "$WORKER_S10_4_MINIMUM_CORE_SMOKE_ID" in
             none) ;;
             s10.4.minimum-core-smoke.v1)
@@ -318,22 +344,22 @@ jobs:
                 and (.uiTestSelectors | selectors("FieldEvidenceAppUITests/"; 1) and length == 1)
               end
             )
-          ' Scripts/ci-selection.json > /dev/null
+          ' "$CI_SELECTION_PATH" > /dev/null
 
-          selection_run_ui="$(jq -r '.runUISmoke | tostring' Scripts/ci-selection.json)"
+          selection_run_ui="$(jq -r '.runUISmoke | tostring' "$CI_SELECTION_PATH")"
           if test "$DISPATCH_S10_4_UNIT_ONLY" = false && test "$CI_S10_4_SHARED_BUILD_MODE" != producer; then
             test "$DISPATCH_RUN_UI_SMOKE" = "$selection_run_ui"
           fi
 
-          CI_TASK_ID="$(jq -r '.taskID' Scripts/ci-selection.json)"
-          CI_TIER="$(jq -r '.tier' Scripts/ci-selection.json)"
+          CI_TASK_ID="$(jq -r '.taskID' "$CI_SELECTION_PATH")"
+          CI_TIER="$(jq -r '.tier' "$CI_SELECTION_PATH")"
           CI_SELECTOR_RUN_UI_SMOKE="$selection_run_ui"
           CI_RUN_UI_SMOKE="$selection_run_ui"
-          CI_SETUP_ARTIFACT_TIMEOUT_SECONDS="$(jq -r '.setupArtifactTimeoutSeconds' Scripts/ci-selection.json)"
-          CI_BUILD_TIMEOUT_SECONDS="$(jq -r '.buildTimeoutSeconds' Scripts/ci-selection.json)"
-          CI_TEST_TIMEOUT_SECONDS="$(jq -r '.testTimeoutSeconds' Scripts/ci-selection.json)"
-          CI_UI_TIMEOUT_SECONDS="$(jq -r '.uiTimeoutSeconds' Scripts/ci-selection.json)"
-          CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
+          CI_SETUP_ARTIFACT_TIMEOUT_SECONDS="$(jq -r '.setupArtifactTimeoutSeconds' "$CI_SELECTION_PATH")"
+          CI_BUILD_TIMEOUT_SECONDS="$(jq -r '.buildTimeoutSeconds' "$CI_SELECTION_PATH")"
+          CI_TEST_TIMEOUT_SECONDS="$(jq -r '.testTimeoutSeconds' "$CI_SELECTION_PATH")"
+          CI_UI_TIMEOUT_SECONDS="$(jq -r '.uiTimeoutSeconds' "$CI_SELECTION_PATH")"
+          CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' "$CI_SELECTION_PATH")"
 
           if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" != none; then
             test "$CI_NATIVE_ACCEPTANCE_CONTRACT" = v23.integration.current-native.v1
@@ -970,6 +996,10 @@ jobs:
                 "TEST_RUNNER_CI_S10_4_REF=$GITHUB_REF" \
                 >> "$GITHUB_ENV"
             fi
+          fi
+          if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" = v23.integration.current-native.v1 \
+              && test "$CI_SELECTION_PATH" != "$CI_ARTIFACT_DIR/ci-selection.selected.json"; then
+            cp "$CI_SELECTION_PATH" "$CI_ARTIFACT_DIR/ci-selection.selected.json"
           fi
           cp Scripts/ci-selection.json "$CI_ARTIFACT_DIR/ci-selection.json"
           if test "$CI_TASK_ID" = "S10.4"; then
@@ -6077,7 +6107,7 @@ jobs:
         if: ${{ always() && inputs.s10_4_execution_role != 'payload-producer' && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && format('ios-ci-native-{0}-{1}-{2}', inputs.runner_provider, github.run_id, github.run_attempt) || (inputs.s10_4_shared_build_mode != 'none' && format('ios-ci-shared-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_minimum_segment_id != 'none' && inputs.s10_4_minimum_segment_id || inputs.s10_4_segment_id) || inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))))))) }}
+          name: ${{ inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && format('ios-ci-native-{0}-{1}-{2}-{3}', inputs.runner_provider, inputs.native_selection_id, github.run_id, github.run_attempt) || (inputs.s10_4_shared_build_mode != 'none' && format('ios-ci-shared-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_minimum_segment_id != 'none' && inputs.s10_4_minimum_segment_id || inputs.s10_4_segment_id) || inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))))))) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14

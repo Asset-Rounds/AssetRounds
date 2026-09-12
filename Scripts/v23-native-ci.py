@@ -31,6 +31,8 @@ PROTOCOL_PATHS = (
     "Scripts/ui-smoke.sh", "Scripts/run-with-timeout.sh",
     "Scripts/validate-required-evidence.sh",
 )
+SELECTION_MAP_PATH = "Scripts/ci-selection-map.json"
+DEFAULT_SELECTION_ID = "default-132"
 
 
 def require(condition, message):
@@ -80,9 +82,85 @@ def validate_selection(selection):
     require(len(selection["uiTestSelectors"]) == int(ui), "UI method count")
 
 
-def admission(selection, environment, checkout_head, stage):
+def selection_class(selector):
+    parts = selector.split("/")
+    require(len(parts) == 3 and parts[0] == "FieldEvidenceAppTests", "unit selector class")
+    return parts[1]
+
+
+def resolve_selection(default, selection_map, selection_id):
+    """Resolve a closed N8 partition from the checked-in default selection.
+
+    The map cannot carry selectors or paths.  It may only name complete XCTest
+    classes already present in the default selection, so it cannot become an
+    out-of-band selector override.
+    """
+    validate_selection(default)
+    require(isinstance(selection_map, dict), "selection map object")
+    require(set(selection_map) == {"schemaVersion", "taskID", "defaultSelectionID", "groups"},
+            "selection map keys")
+    require(selection_map["schemaVersion"] == 1 and selection_map["taskID"] == TASK,
+            "selection map identity")
+    require(selection_map["defaultSelectionID"] == DEFAULT_SELECTION_ID, "selection map default")
+    require(isinstance(selection_id, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", selection_id),
+            "selection ID")
+    groups = selection_map["groups"]
+    require(isinstance(groups, list) and len(groups) == 15, "selection group count")
+    defaults = set(default["unitTestSelectors"])
+    default_classes = {selection_class(item) for item in defaults}
+    covered = set()
+    ids = set()
+    resolved = {}
+    for group in groups:
+        require(isinstance(group, dict) and set(group) == {"id", "classes", "methodCount"},
+                "selection group shape")
+        group_id, classes, count = group["id"], group["classes"], group["methodCount"]
+        require(isinstance(group_id, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", group_id)
+                and group_id != DEFAULT_SELECTION_ID and group_id not in ids, "selection group ID")
+        require(isinstance(classes, list) and classes and all(isinstance(item, str) and
+                re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*Tests", item) for item in classes)
+                and len(classes) == len(set(classes)), "selection group classes")
+        require(set(classes) <= default_classes, "selection group contains unselected class")
+        require(type(count) is int and count > 0, "selection group count value")
+        members = [item for item in default["unitTestSelectors"] if selection_class(item) in classes]
+        require(len(members) == count and members, "selection group members")
+        member_set = set(members)
+        require(not (covered & member_set), "overlapping selection group")
+        covered.update(member_set)
+        ids.add(group_id)
+        derived = dict(default)
+        derived["unitTestSelectors"] = members
+        validate_selection(derived)
+        resolved[group_id] = derived
+    require(covered == defaults, "selection groups must cover default exactly")
+    if selection_id == DEFAULT_SELECTION_ID:
+        return default
+    require(selection_id in resolved, "unknown selection ID")
+    return resolved[selection_id]
+
+
+def selected_input(root, environment):
+    """Return the exact default or closed mapped selection for this execution."""
+    default = read_json(root / "Scripts/ci-selection.json")
+    selection_id = environment.get("NATIVE_SELECTION_ID", DEFAULT_SELECTION_ID)
+    enabled = (environment.get("CI_NATIVE_ACCEPTANCE_CONTRACT") == CONTRACT
+               or environment.get("SHARED_LANE") in LANES)
+    if not enabled:
+        require(selection_id == DEFAULT_SELECTION_ID, "selection ID outside ordinary route")
+        return default, {"selectionID": DEFAULT_SELECTION_ID,
+                         "selectionSHA256": sha256(canonical(default)), "selectionMapSHA256": ""}
+    selection_map = read_json(root / SELECTION_MAP_PATH)
+    selected = resolve_selection(default, selection_map, selection_id)
+    return selected, {"selectionID": selection_id, "selectionSHA256": sha256(canonical(selected)),
+                      "selectionMapSHA256": sha256((root / SELECTION_MAP_PATH).read_bytes())}
+
+
+def admission(selection, environment, checkout_head, stage, selection_record=None):
     """Validate actual source inputs. Return None only for unchanged legacy routes."""
     e = environment
+    if selection_record is None:
+        selection_record = {"selectionID": DEFAULT_SELECTION_ID,
+                            "selectionSHA256": sha256(canonical(selection)), "selectionMapSHA256": ""}
     require(stage in ("dispatch", "worker"), "admission stage")
     if stage == "dispatch":
         lane = e.get("SHARED_LANE", "")
@@ -116,6 +194,13 @@ def admission(selection, environment, checkout_head, stage):
         }
         ui = e.get("DISPATCH_RUN_UI_SMOKE")
     validate_selection(selection)
+    if stage == "worker" and e.get("CI_NATIVE_ACCEPTANCE_CONTRACT") == CONTRACT:
+        require(e.get("DISPATCH_NATIVE_SELECTION_ID") == selection_record["selectionID"],
+                "dispatcher selection ID")
+        require(e.get("DISPATCH_NATIVE_SELECTION_SHA256") == selection_record["selectionSHA256"],
+                "dispatcher selection digest")
+        require(e.get("DISPATCH_NATIVE_SELECTION_MAP_SHA256") == selection_record["selectionMapSHA256"],
+                "dispatcher selection map digest")
     require(all(e.get(key) == value for key, value in fields.items()), "foreign execution inputs")
     require(ui == str(selection["runUISmoke"]).lower(), "dispatch UI selection")
     require(e.get("GITHUB_REPOSITORY") == REPOSITORY, "repository")
@@ -128,7 +213,7 @@ def admission(selection, environment, checkout_head, stage):
     return {"contractID": CONTRACT, "taskID": TASK, "repository": REPOSITORY,
             "ref": e["GITHUB_REF"], "head": head, "runID": e["GITHUB_RUN_ID"],
             "runAttempt": e["GITHUB_RUN_ATTEMPT"], "executionLane": lane,
-            "runnerProvider": provider, "runnerLabel": label}
+            "runnerProvider": provider, "runnerLabel": label, **selection_record}
 
 
 def executed_methods(result, expected, bundle, bundle_type):
@@ -182,13 +267,24 @@ def source_binding(root):
         path = root / relative
         require(path.is_file() and not path.is_symlink(), "protocol source")
         sources[relative] = sha256(path.read_bytes())
+    selection_map = root / SELECTION_MAP_PATH
+    require(selection_map.is_file() and not selection_map.is_symlink(), "selection map source")
     return {"protocolSources": sources, "protocolSHA256": sha256(canonical(sources)),
-            "selectorSHA256": sha256((root / "Scripts/ci-selection.json").read_bytes())}
+            "selectorSHA256": sha256((root / "Scripts/ci-selection.json").read_bytes()),
+            "selectionMapSHA256": sha256(selection_map.read_bytes())}
 
 
 def verify_checkpoint(root, artifact, record, selection, environment):
     require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
     require(read_json(artifact / "native-admission.json") == record, "admission changed")
+    selected_artifact = artifact / "ci-selection.selected.json"
+    require(selected_artifact.is_file() and not selected_artifact.is_symlink()
+            and selected_artifact.read_bytes() == canonical(selection), "selected artifact binding")
+    if record["selectionMapSHA256"]:
+        selection_map = artifact / "ci-selection-map.json"
+        require(selection_map.is_file() and not selection_map.is_symlink()
+                and sha256(selection_map.read_bytes()) == record["selectionMapSHA256"],
+                "selection map artifact binding")
     provider = key_values(artifact / "runner-provider.txt")
     require(provider.get("provider") == record["runnerProvider"]
             and provider.get("label") == record["runnerLabel"], "observed provider")
@@ -240,17 +336,28 @@ def verify_checkpoint(root, artifact, record, selection, environment):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("admit", "verify"))
+    parser.add_argument("command", choices=("admit", "verify", "select"))
     parser.add_argument("--stage", choices=("dispatch", "worker"), default="worker")
+    parser.add_argument("--output")
     args = parser.parse_args()
     root = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
-    selection = read_json(root / "Scripts/ci-selection.json")
+    selection, selection_record = selected_input(root, os.environ)
+    if args.command == "select":
+        require(args.output is not None, "selection output")
+        output = Path(args.output)
+        require(output.parent.is_dir() and not output.exists() and not output.is_symlink(), "selection output path")
+        output.write_bytes(canonical(selection))
+        return
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
-    record = admission(selection, os.environ, head, args.stage)
+    record = admission(selection, os.environ, head, args.stage, selection_record)
     if args.stage == "dispatch":
         require(args.command == "admit", "dispatch command")
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
             stream.write("native_acceptance_contract=" + (CONTRACT if record else "none") + "\n")
+            if record:
+                stream.write("native_selection_id=" + record["selectionID"] + "\n")
+                stream.write("native_selection_sha256=" + record["selectionSHA256"] + "\n")
+                stream.write("native_selection_map_sha256=" + record["selectionMapSHA256"] + "\n")
         return
     if record is None:
         return

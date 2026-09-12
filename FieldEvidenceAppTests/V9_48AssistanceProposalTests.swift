@@ -388,6 +388,20 @@ enum C32AssistanceTestSupport {
             packageRelease: try C26SurveySessionTestSupport.packageRelease(),
             packageSlot: 12_000 + slot
         )
+        let promotedPackageRows = try session.modelContext.fetch(
+            FetchDescriptor<PromotedPackageReleaseRow>()
+        )
+        guard promotedPackageRows.count == 1,
+              let promotedPackage = try promotedPackageRows.first?.value() else {
+            throw AssistanceContractFailureV1.invalidValue
+        }
+        session.modelContext.insert(EntityMutationRevisionRow(
+            identity: try WorkspaceEntityIdentityV1(
+                kind: .promotedPackageRelease,
+                id: promotedPackage.releaseRecordID
+            ),
+            revision: promotedPackage.revision
+        ))
         session.modelContext.insert(EntityMutationRevisionRow(
             identity: fixture.proposal.target.entity,
             revision: fixture.proposal.target.revision

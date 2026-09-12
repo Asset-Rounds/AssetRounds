@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "taskID": "V23-INTEGRATION-20260910",
+  "defaultSelectionID": "default-132",
+  "groups": [
+    {
+      "id": "notification-controls",
+      "classes": [
+        "V9_14SettingsCapabilityLifecycleTests"
+      ],
+      "methodCount": 16
+    },
+    {
+      "id": "notification-owner",
+      "classes": [
+        "V9_15AppLockLifecycleTests"
+      ],
+      "methodCount": 63
+    },
+    {
+      "id": "notification-schedule-erase",
+      "classes": [
+        "V9_85RecurringRoundExperienceTests",
+        "S6_6EraseRecoveryTests"
+      ],
+      "methodCount": 18
+    },
+    {
+      "id": "rating-eligibility",
+      "classes": [
+        "V9_102RatingEligibilityWorkflowTests"
+      ],
+      "methodCount": 6
+    },
+    {
+      "id": "field-reference-pack",
+      "classes": [
+        "V9_37FieldReferencePackTests"
+      ],
+      "methodCount": 5
+    },
+    {
+      "id": "catalog-file-authority",
+      "classes": [
+        "V9_02FileAuthorityTests",
+        "V9_13PersistentKindLifecycleCoverageTests",
+        "V9_17KernelPersistenceTests"
+      ],
+      "methodCount": 17
+    },
+    {
+      "id": "operational-diagnostics",
+      "classes": [
+        "V9_12SystemHealthOperationalDiagnosticsTests"
+      ],
+      "methodCount": 9
+    },
+    {
+      "id": "archive-contracts",
+      "classes": [
+        "S6_3BackupValidationTests",
+        "V9_01VersionedSchemaIdentityTests",
+        "V9_04StreamingArchiveTests",
+        "V9_05RestoreIdentityTests",
+        "V9_07CompatibilityCorpusIntegrationTests",
+        "V9_07CompatibilityPolicyTests",
+        "V9_10LifecycleBoundaryTests"
+      ],
+      "methodCount": 8
+    },
+    {
+      "id": "generation-leases-migration",
+      "classes": [
+        "V9_03MigrationRecoveryTests",
+        "V9_08GenerationLeaseTests"
+      ],
+      "methodCount": 4
+    },
+    {
+      "id": "restore-acceptance",
+      "classes": [
+        "S6_4AtomicRestoreTests",
+        "V9_48AssistanceProposalTests"
+      ],
+      "methodCount": 9
+    },
+    {
+      "id": "deletion-rights",
+      "classes": [
+        "V9_06DeletionRightsTests"
+      ],
+      "methodCount": 6
+    },
+    {
+      "id": "deletion-archive-integration",
+      "classes": [
+        "V9_06DeletionArchiveIntegrationTests"
+      ],
+      "methodCount": 2
+    },
+    {
+      "id": "observation-temporal",
+      "classes": [
+        "V9_11ObservationTemporalSemanticsTests"
+      ],
+      "methodCount": 5
+    },
+    {
+      "id": "report-camera-recovery",
+      "classes": [
+        "S3_6CameraRecoveryTests",
+        "S4_5CorrectionTests",
+        "S6_2BackupExportTests"
+      ],
+      "methodCount": 3
+    },
+    {
+      "id": "legacy-lifecycle-recovery",
+      "classes": [
+        "S8_2GoldenAccessibilityTests",
+        "S8_3DiagnosticPrivacyTests",
+        "V23ActivityOrderingTests",
+        "V23AppAccessDispatchTests",
+        "V23LabelLineMetricsTests",
+        "V23PortableReviewCodingTests",
+        "V23_P04_C40ServiceRequestWorkflowUITests",
+        "V23_P04_C41MyDayWorkflowUITests",
+        "V23_P04_C42PartyContactSiteRoleWorkflowUITests",
+        "V23_P04_C43SignoffEnrollmentUITests",
+        "V23_P04_C44PartsStockWorkflowUITests",
+        "V23_P04_C45StructuredVoiceCaptureUITests",
+        "V9_14FindingLifecycleTests",
+        "V9_31IntegrationEventProjectionTests",
+        "V9_50CustomerLearningMeasurementTests",
+        "V9_52AssetLabelTests",
+        "V9_55PortableReviewTests",
+        "V9_56WorkResourceTests",
+        "V9_57IncumbentFileAdapterTests",
+        "V9_58ScheduleExceptionCalendarTests",
+        "V9_60PortableServiceRequestTests",
+        "V9_61AssetServiceReliabilityTests",
+        "V9_62EncryptedPortableEnvelopeTests",
+        "V9_67EvidenceCurationTests",
+        "V9_68IlluminatedSignPlaybookTests",
+        "V9_73OperationsMetricsTimelineTests",
+        "V9_74EvidenceQualityCoachTests",
+        "V9_75FastSurveyInboxTests",
+        "V9_76ReinspectionExceptionQueueTests",
+        "V9_78PrivateSystemDiscoveryTests",
+        "V9_79WorkspaceExperienceTests",
+        "V9_82PlanOfflineWorkTests",
+        "V9_86OCRProposalTests",
+        "V9_87DictationLocationProposalTests",
+        "V9_90BrandHIGStateInventoryTests",
+        "V9_92ExactCandidateRegressionFreezeTests",
+        "V9_93AssetLabelOutputTests",
+        "V9_93ExactCodeCandidateGateTests",
+        "V9_96InstallationWorkflowTests",
+        "V9_97PunchReviewWorkflowTests",
+        "V9_98RecipientReviewWorkflowTests"
+      ],
+      "methodCount": 88
+    }
+  ]
+}

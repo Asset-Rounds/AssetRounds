@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -127,9 +128,7 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
     func testHistoricalEnvelopeDependenciesExcludeLaterCanonicalFamilies() throws {
         let current = try CurrentSyncClassificationCatalogV1.current
         func dependencies(_ name: String) throws -> Set<String> {
-            let subject = try SyncSubjectIdentityV1(category: .projection, stableName: name)
-            return Set(try current.registration(for: subject)
-                .replicationPolicy.dependencies.map(\.stableName))
+            try historicalModelLeaves(name, in: current)
         }
         XCTAssertFalse(try dependencies("StoreSemanticEnvelopeV3").contains("MutationReceiptRow"))
         XCTAssertTrue(try dependencies("StoreSemanticEnvelopeV4").contains("MutationReceiptRow"))
@@ -156,6 +155,134 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertFalse(day.contains("LightingNightWorkflowRowV1"))
         XCTAssertEqual(try dependencies("StoreSemanticEnvelopeV53"),
                        Set(CurrentSyncClassificationCatalogV1.activePersistentModelNames))
+    }
+
+    func testHistoricalEnvelopeDirectEdgesAreBoundedAndRetainEveryFrozenModel() throws {
+        let current = try CurrentSyncClassificationCatalogV1.current
+        let schemas: [(Int, [any PersistentModel.Type])] = [
+            (3, PersistentSchemaV3.models),
+            (4, PersistentSchemaV4.models),
+            (5, PersistentSchemaV5.models),
+            (6, PersistentSchemaV6.models),
+            (7, PersistentSchemaV7.models),
+            (8, PersistentSchemaV8.models),
+            (9, PersistentSchemaV9.models),
+            (10, PersistentSchemaV10.models),
+            (11, PersistentSchemaV11.models),
+            (12, PersistentSchemaV12.models),
+            (13, PersistentSchemaV13.models),
+            (14, PersistentSchemaV14.models),
+            (15, PersistentSchemaV15.models),
+            (16, PersistentSchemaV16.models),
+            (17, PersistentSchemaV17.models),
+            (18, PersistentSchemaV18.models),
+            (19, PersistentSchemaV19.models),
+            (20, PersistentSchemaV20.models),
+            (21, PersistentSchemaV21.models),
+            (22, PersistentSchemaV22.models),
+            (23, PersistentSchemaV23.models),
+            (24, PersistentSchemaV24.models),
+            (25, PersistentSchemaV25.models),
+            (26, PersistentSchemaV26.models),
+            (27, PersistentSchemaV27.models),
+            (28, PersistentSchemaV28.models),
+            (29, PersistentSchemaV29.models),
+            (30, PersistentSchemaV30.models),
+            (31, PersistentSchemaV31.models),
+            (32, PersistentSchemaV32.models),
+            (33, PersistentSchemaV33.models),
+            (34, PersistentSchemaV34.models),
+            (35, PersistentSchemaV35.models),
+            (36, PersistentSchemaV36.models),
+            (37, PersistentSchemaV37.models),
+            (38, PersistentSchemaV38.models),
+            (39, PersistentSchemaV39.models),
+            (40, PersistentSchemaV40.models),
+            (41, PersistentSchemaV41.models),
+            (42, PersistentSchemaV42.models),
+            (43, PersistentSchemaV43.models),
+            (44, PersistentSchemaV44.models),
+            (45, PersistentSchemaV45.models),
+            (46, PersistentSchemaV46.models),
+            (47, PersistentSchemaV47.models),
+            (48, PersistentSchemaV48.models),
+            (49, PersistentSchemaV49.models),
+            (50, PersistentSchemaV50.models),
+            (51, PersistentSchemaV51.models),
+            (52, PersistentSchemaV52.models),
+            (53, PersistentSchemaV53.models),
+        ]
+        var previousModels: Set<String> = []
+        for (version, models) in schemas {
+            let name = "StoreSemanticEnvelopeV" + String(version)
+            let expected = Set(models.map { String(describing: $0).split(separator: ".").last.map(String.init) ?? "" })
+            let subject = try SyncSubjectIdentityV1(category: .projection, stableName: name)
+            let edges = try current.registration(for: subject).replicationPolicy.dependencies
+            XCTAssertLessThanOrEqual(edges.count, ReplicationPolicyV1.maximumDependencyCount, name)
+            XCTAssertEqual(edges.map(\.canonicalKey), edges.map(\.canonicalKey).sorted(), name)
+            XCTAssertEqual(Set(edges).count, edges.count, name)
+            XCTAssertEqual(try historicalModelLeaves(name, in: current), expected, name)
+            if expected.count <= ReplicationPolicyV1.maximumDependencyCount {
+                XCTAssertTrue(edges.allSatisfy { $0.category == .persistentModel }, name)
+                XCTAssertEqual(Set(edges.map(\.stableName)), expected, name)
+            } else {
+                XCTAssertEqual(edges.filter { $0.category == .projection }.map(\.stableName),
+                    ["StoreSemanticEnvelopeV" + String(version - 1)], name)
+                XCTAssertEqual(Set(edges.filter { $0.category == .persistentModel }.map(\.stableName)),
+                    expected.subtracting(previousModels), name)
+            }
+            previousModels = expected
+        }
+    }
+
+    func testReplicationPolicyStillAccepts64AndRejects65DirectDependencies() throws {
+        let current = try CurrentSyncClassificationCatalogV1.current
+        let subject = try SyncSubjectIdentityV1(category: .projection, stableName: "StoreSemanticEnvelopeV53")
+        let policy = try current.registration(for: subject).replicationPolicy
+        let raw = try JSONEncoder().encode(policy)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: raw) as? [String: Any])
+        for count in [64, 65] {
+            let dependencies = try (0..<count).map {
+                try SyncSubjectIdentityV1(category: .persistentModel, stableName: String(format: "Bound%02d", $0))
+            }
+            object["dependencies"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(dependencies))
+            let decoded = try JSONDecoder().decode(ReplicationPolicyV1.self,
+                from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+            if count == 64 {
+                XCTAssertNoThrow(try decoded.validate())
+            } else {
+                XCTAssertThrowsError(try decoded.validate()) { error in
+                    XCTAssertEqual(error as? ReplicationPolicyFailureV1, .invalidPolicy)
+                }
+            }
+        }
+    }
+
+    private func historicalModelLeaves(_ name: String,
+        in catalog: CurrentSyncClassificationCatalogV1) throws -> Set<String> {
+        var visiting: Set<String> = []
+        func visit(_ projectionName: String) throws -> Set<String> {
+            guard visiting.insert(projectionName).inserted else {
+                XCTFail("Historical envelope dependency cycle")
+                throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            }
+            defer { visiting.remove(projectionName) }
+            let subject = try SyncSubjectIdentityV1(category: .projection, stableName: projectionName)
+            let dependencies = try catalog.registration(for: subject).replicationPolicy.dependencies
+            var result: Set<String> = []
+            for dependency in dependencies {
+                _ = try catalog.registration(for: dependency)
+                switch dependency.category {
+                case .persistentModel: result.insert(dependency.stableName)
+                case .projection: result.formUnion(try visit(dependency.stableName))
+                default:
+                    XCTFail("Unexpected historical envelope dependency category")
+                    throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+                }
+            }
+            return result
+        }
+        return try visit(name)
     }
 
     func testTemporalAndScheduleProjectionsBindExistingCanonicalOwners() throws {

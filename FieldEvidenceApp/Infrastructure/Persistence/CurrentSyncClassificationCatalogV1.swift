@@ -1411,8 +1411,7 @@ private extension CurrentSyncClassificationCatalogV1 {
                 try subject(category: .persistentModel, name: "ObservationAndTimeRow"),
             ]
         case let name where name.hasPrefix("StoreSemanticEnvelopeV"):
-            return try subjects(category: .persistentModel,
-                names: historicalEnvelopeModelNames(for: name))
+            return try historicalEnvelopeDependencies(for: name)
         case "ExceptionCalendarReleaseV1":
             return [try subject(category: .persistentModel, name: "ExceptionCalendarReleaseRow")]
         case "ScheduleOverrideEventV1":
@@ -1444,6 +1443,31 @@ private extension CurrentSyncClassificationCatalogV1 {
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
+    }
+
+    // Large envelopes retain their actual nested base instead of flattening
+    // every historical model into a policy whose direct-edge bound is 64.
+    static func historicalEnvelopeDependencies(for name: String) throws -> [SyncSubjectIdentityV1] {
+        let names = try historicalEnvelopeModelNames(for: name)
+        if names.count <= ReplicationPolicyV1.maximumDependencyCount {
+            return try subjects(category: .persistentModel, names: names)
+        }
+        guard let version = Int(name.dropFirst("StoreSemanticEnvelopeV".count)), version > 3 else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+        let predecessor = "StoreSemanticEnvelopeV" + String(version - 1)
+        let predecessorNames = Set(try historicalEnvelopeModelNames(for: predecessor))
+        let currentNames = Set(names)
+        guard predecessorNames.isSubset(of: currentNames) else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+        let additions = try subjects(category: .persistentModel,
+            names: currentNames.subtracting(predecessorNames).sorted())
+        let dependencies = [try subject(category: .projection, name: predecessor)] + additions
+        guard dependencies.count <= ReplicationPolicyV1.maximumDependencyCount else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+        return dependencies
     }
 
     // Historical envelopes depend on their own frozen schema. Building these

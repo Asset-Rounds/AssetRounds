@@ -35,6 +35,9 @@ def environment(provider="github", tier="N8"):
         "SHARED_SOURCE_RUN": "", "SHARED_SOURCE_MAP": "", "SHARED_UI": str(tier != "N8").lower(),
         "CI_NATIVE_ACCEPTANCE_CONTRACT": CI.CONTRACT, "CI_RUNNER_PROVIDER": provider,
         "CI_RUNNER_LABEL": CI.LANES[lane][1], "DISPATCH_RUN_UI_SMOKE": str(tier != "N8").lower(),
+        "DISPATCH_NATIVE_SELECTION_ID": CI.DEFAULT_SELECTION_ID,
+        "DISPATCH_NATIVE_SELECTION_SHA256": CI.sha256(CI.canonical(selection(tier))),
+        "DISPATCH_NATIVE_SELECTION_MAP_SHA256": "",
         "DISPATCH_S10_4_SHARD_ID": "none", "DISPATCH_S10_4_SEGMENT_ID": "none",
         "DISPATCH_S10_4_EXECUTION_ROLE": "independent", "DISPATCH_S10_4_PILOT_MODE": "false",
         "DISPATCH_S10_4_UNIT_ONLY": "false", "DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME": "",
@@ -197,6 +200,7 @@ class CheckpointTests(unittest.TestCase):
         e, s = environment(provider, tier), selection(tier)
         record = CI.admission(s, e, HEAD, "worker")
         (self.path / "native-admission.json").write_bytes(CI.canonical(record))
+        (self.path / "ci-selection.selected.json").write_bytes(CI.canonical(s))
         directory = ("/Applications/Xcode-26.6.0.app/Contents/Developer" if provider == "bitrise"
                      else "/Applications/Xcode_26.6.app/Contents/Developer")
         (self.path / "runner-provider.txt").write_text(
@@ -243,6 +247,7 @@ class CheckpointTests(unittest.TestCase):
 
     def test_substituted_admission_sdk_runtime_or_simulator_fails(self):
         for name, replacement in (("native-admission.json", "{}"),
+                                  ("ci-selection.selected.json", "{}"),
                                   ("native-sdk.txt", "sdk=iphonesimulator\nversion=26.4\nbuild=23F81a\n"),
                                   ("simulator-selection.txt", f"runtime=iOS 26.2\nruntime_build=wrong\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n")):
             fixture = self.fixture()
@@ -271,13 +276,34 @@ class CheckpointTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.verify(fixture)
 
+    def test_named_group_rejects_tampered_map_artifact_before_result_credit(self):
+        e = environment()
+        e["NATIVE_SELECTION_ID"] = "rating-eligibility"
+        selected, record = CI.selected_input(ROOT, e)
+        e.update({"DISPATCH_NATIVE_SELECTION_ID": record["selectionID"],
+                  "DISPATCH_NATIVE_SELECTION_SHA256": record["selectionSHA256"],
+                  "DISPATCH_NATIVE_SELECTION_MAP_SHA256": record["selectionMapSHA256"]})
+        CI.admission(selected, e, HEAD, "worker", record)
+        (self.path / "native-admission.json").write_bytes(CI.canonical(record))
+        (self.path / "ci-selection.selected.json").write_bytes(CI.canonical(selected))
+        (self.path / "ci-selection-map.json").write_text("{}\n")
+        with self.assertRaises(ValueError):
+            CI.verify_checkpoint(ROOT, self.path, record, selected, e)
+
 
 class WorkflowWiringTests(unittest.TestCase):
     def test_required_evidence_extraction_retains_original_literal_body(self):
-        # Lossless extraction from the original 782cc047 startup-failure head.
-        # Keep this regression explicit if that original evidence protocol changes.
         body = (ROOT / "Scripts/validate-required-evidence.sh").read_bytes()
-        self.assertEqual(CI.sha256(body),
+        allowed_prefix = (b'selection_path="${CI_SELECTION_PATH:-Scripts/ci-selection.json}"\n'
+                          b'case "$selection_path" in\n'
+                          b'  Scripts/ci-selection.json | "${CI_ARTIFACT_DIR:?}/ci-selection.selected.json") ;;\n'
+                          b"  *) printf 'invalid closed selection path\\n' >&2; exit 65 ;;\n"
+                          b'esac\n'
+                          b'test -f "$selection_path"\n')
+        preserved = body.replace(allowed_prefix, b"", 1).replace(
+            b"' \"$selection_path\" > /dev/null", b"' Scripts/ci-selection.json > /dev/null").replace(
+            b'"$selection_path" | awk', b'Scripts/ci-selection.json | awk')
+        self.assertEqual(CI.sha256(preserved),
                          "76728F2ACA67ED1C77295F5FAF207E2CE3A8192CCE4F0D924B7C9991E6690FAE")
         source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
         self.assertEqual(step(source, "Validate required build and test evidence").strip(),
@@ -295,7 +321,7 @@ class WorkflowWiringTests(unittest.TestCase):
                          CI.sha256((ROOT / relative).read_bytes()))
         with tempfile.TemporaryDirectory(prefix="v23-native-source-binding-") as directory:
             root = Path(directory)
-            for path in (*CI.PROTOCOL_PATHS, "Scripts/ci-selection.json"):
+            for path in (*CI.PROTOCOL_PATHS, "Scripts/ci-selection.json", CI.SELECTION_MAP_PATH):
                 target = root / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / path, target)
@@ -309,12 +335,79 @@ class WorkflowWiringTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 CI.source_binding(root)
 
+    def test_closed_selection_map_partitions_default_without_overrides(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        groups = [CI.resolve_selection(default, mapping, group["id"])
+                  for group in mapping["groups"]]
+        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 259)
+        self.assertEqual({item for group in groups for item in group["unitTestSelectors"]},
+                         set(default["unitTestSelectors"]))
+        self.assertEqual(CI.resolve_selection(default, mapping, CI.DEFAULT_SELECTION_ID), default)
+        bad = copy.deepcopy(mapping)
+        bad["groups"][0]["methodCount"] += 1
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, bad, "notification-controls")
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, mapping, "../../arbitrary")
+        overlap = copy.deepcopy(mapping)
+        overlap["groups"][0]["classes"].append("V9_15AppLockLifecycleTests")
+        overlap["groups"][0]["methodCount"] += mapping["groups"][1]["methodCount"]
+        with self.assertRaisesRegex(ValueError, "overlapping selection group"):
+            CI.resolve_selection(default, overlap, "notification-controls")
+        omission = copy.deepcopy(mapping)
+        omission["groups"].pop()
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, omission, "notification-controls")
+
+    def test_closed_map_rejects_unselected_classes_and_workflow_choices_match(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        unknown = copy.deepcopy(mapping)
+        unknown["groups"][0]["classes"].append("UnselectedAuthorityTests")
+        with self.assertRaisesRegex(ValueError, "selection group contains unselected class"):
+            CI.resolve_selection(default, unknown, "notification-controls")
+        workflow = (ROOT / ".github/workflows/ios-ci.yml").read_text()
+        field = workflow.split("      native_selection_id:\n", 1)[1].split(
+            "      s10_4_minimum_core_smoke_id:", 1)[0]
+        choices = [line.strip()[2:] for line in field.splitlines()
+                   if line.startswith("          - ")]
+        self.assertEqual(choices, [mapping["defaultSelectionID"]]
+                         + [group["id"] for group in mapping["groups"]])
+
+    def test_selected_input_binds_the_checked_in_map_and_requested_id(self):
+        e = environment()
+        e["NATIVE_SELECTION_ID"] = "rating-eligibility"
+        selected, record = CI.selected_input(ROOT, e)
+        self.assertEqual(record["selectionID"], "rating-eligibility")
+        self.assertEqual(len(selected["unitTestSelectors"]), 6)
+        self.assertRegex(record["selectionSHA256"], r"^[0-9A-F]{64}$")
+        self.assertEqual(record["selectionMapSHA256"],
+                         CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes()))
+
+    def test_named_group_dispatcher_and_worker_reject_mismatched_bindings(self):
+        e = environment()
+        e["NATIVE_SELECTION_ID"] = "rating-eligibility"
+        selected, record = CI.selected_input(ROOT, e)
+        e.update({"DISPATCH_NATIVE_SELECTION_ID": record["selectionID"],
+                  "DISPATCH_NATIVE_SELECTION_SHA256": record["selectionSHA256"],
+                  "DISPATCH_NATIVE_SELECTION_MAP_SHA256": record["selectionMapSHA256"]})
+        self.assertEqual(CI.admission(selected, e, HEAD, "dispatch", record)["selectionID"], "rating-eligibility")
+        self.assertEqual(CI.admission(selected, e, HEAD, "worker", record)["selectionSHA256"], record["selectionSHA256"])
+        for key in ("DISPATCH_NATIVE_SELECTION_ID", "DISPATCH_NATIVE_SELECTION_SHA256", "DISPATCH_NATIVE_SELECTION_MAP_SHA256"):
+            bad = e.copy()
+            bad[key] = "bad"
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                CI.admission(selected, bad, HEAD, "worker", record)
+
     def test_dispatcher_admits_both_providers_before_worker(self):
         source = (ROOT / ".github/workflows/ios-ci.yml").read_text()
         native = step(source, "Validate ordinary V23 native acceptance selection")
         self.assertIn("github-xcode-26.6-acceptance", native)
         self.assertIn("bitrise-build-hub-xcode-26.6-acceptance", native)
         self.assertIn("python3 Scripts/v23-native-ci.py admit --stage dispatch", native)
+        self.assertIn("NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}", native)
+        self.assertIn("native_selection_map_sha256", source)
         self.assertEqual(source.count("native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract || 'none' }}"), 2)
         self.assertIn("v23-bitrise-", source)
         self.assertIn("cancel-in-progress: false", source)
@@ -323,6 +416,9 @@ class WorkflowWiringTests(unittest.TestCase):
         source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
         self.assertIn("python3 Scripts/v23-native-ci.py admit --stage worker",
                       step(source, "Validate task selection and timeout tier"))
+        selection = step(source, "Validate task selection and timeout tier")
+        self.assertIn("python3 Scripts/v23-native-ci.py select --output", selection)
+        self.assertIn("CI_SELECTION_PATH", selection)
         checkpoint = step(source, "Validate exact ordinary integration native checkpoint")
         self.assertIn("NATIVE_PRIOR_JOB_STATUS: ${{ job.status }}", checkpoint)
         self.assertIn("python3 Scripts/v23-native-ci.py verify", checkpoint)
@@ -340,9 +436,9 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertIn("exit 1", step(source, "Fail closed after Bitrise development-only evidence"))
         upload = step(source, "Upload build evidence")
         self.assertIn("steps.bitrise_credential_scan.outputs.safe_to_upload == 'true'", upload)
-        self.assertIn("ios-ci-native-{0}-{1}-{2}", upload)
+        self.assertIn("ios-ci-native-{0}-{1}-{2}-{3}", upload)
         self.assertIn("format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id)", upload)
-        self.assertIn("format('v23-{0}-', inputs.runner_provider)", source)
+        self.assertIn("format('v23-{0}-{1}-', inputs.runner_provider, inputs.native_selection_id)", source)
         self.assertIn("cancel-in-progress: false", source)
 
     def test_owned_native_simulator_and_sdk_are_observed_not_assumed(self):

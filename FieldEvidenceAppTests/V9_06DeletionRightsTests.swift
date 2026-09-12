@@ -202,6 +202,50 @@ final class V9_06DeletionRightsTests: XCTestCase {
     }
 
     @MainActor
+    func testSeededDeletionFixtureMissingPlacementFailsBeforeDeletionEffects() async throws {
+        let harness = try V906Integration.makeHarness("missing-placement", withAsset: true)
+        addTeardownBlock { [root = harness.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
+        let context = harness.session.modelContext
+        let assetID = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first?.id)
+        let placement = try XCTUnwrap(
+            context.fetch(FetchDescriptor<AssetPlacementEventRow>()).first
+        )
+        context.delete(placement)
+        try V906Integration.adoptSeededDeletionBaseline(harness.session)
+
+        let ledgerBefore = try DeletionLedgerStore(context: context).snapshot()
+        let service = V906Integration.deletionService(harness)
+        let journalURL = harness.support
+            .appendingPathComponent("FieldEvidenceOperations/deletion", isDirectory: true)
+        let journalNamesBefore = try FileManager.default.contentsOfDirectory(atPath: journalURL.path)
+            .sorted()
+
+        do {
+            _ = try await service.delete(assetID: assetID)
+            XCTFail("Expected incomplete location graph rejection")
+        } catch {
+            XCTAssertEqual(error as? WholeSignDeletionServiceError, .graphInvalid)
+        }
+
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Asset>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<AssetPlacementEventRow>()), 0)
+        XCTAssertEqual(try DeletionLedgerStore(context: context).snapshot(), ledgerBefore)
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: journalURL.path).sorted(),
+            journalNamesBefore
+        )
+        let mutationJournal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: harness.session.workspaceIdentity,
+            generationID: harness.session.generationID,
+            allowStateBootstrap: false
+        )
+        try mutationJournal.validateAll()
+    }
+
+    @MainActor
     func testV9_06A01DeleteRecreateUsesDistinctTypedIdentity() async throws {
         let harness = try V906Integration.makeHarness("a", withAsset: true)
         addTeardownBlock { [root = harness.root] in
@@ -400,6 +444,25 @@ enum V906Integration {
                 label: "Deletion fixture sign",
                 createdAt: deletedAt.addingTimeInterval(-119)
             ))
+            let placement = try AssetPlacementEventV1(
+                id: fixtureID(3),
+                workspaceID: session.workspaceIdentity.workspaceID,
+                assetID: fixtureID(2),
+                siteID: siteID,
+                locationNodeID: nil,
+                predecessorEventID: nil,
+                source: .migratedBaseline,
+                physicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: fixtureID(4)),
+                continuity: .samePhysicalInstallation,
+                pathSnapshot: LocationPathSnapshotV1(
+                    siteID: siteID,
+                    siteDisplay: "Deletion fixture site",
+                    nodes: []
+                ),
+                mutationID: MutationIDV1(rawValue: fixtureID(5)),
+                occurredAt: deletedAt.addingTimeInterval(-118)
+            )
+            session.modelContext.insert(try AssetPlacementEventRow(placement))
             try adoptSeededDeletionBaseline(session)
         }
         return Harness(

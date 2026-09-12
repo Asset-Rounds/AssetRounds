@@ -215,8 +215,25 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         let authoritySource = try C40BackupLifecycleTestValues.source(
             workspace: coordinator.workspaceIdentity.workspaceID.rawValue
         )
-        coordinator.modelContext.insert(try AuthoritySourceReleaseRow(authoritySource))
+        let authoritySourceRow = try AuthoritySourceReleaseRow(authoritySource)
+        coordinator.modelContext.insert(authoritySourceRow)
+        let persistedAuthoritySource = try authoritySourceRow.value()
+        coordinator.modelContext.insert(EntityMutationRevisionRow(
+            identity: try WorkspaceEntityIdentityV1(
+                kind: .authoritySourceRelease,
+                id: persistedAuthoritySource.releaseID
+            ),
+            revision: persistedAuthoritySource.revision
+        ))
+        let journal = try MutationJournalStoreV1(
+            modelContext: coordinator.modelContext,
+            identity: coordinator.workspaceIdentity,
+            generationID: coordinator.generationID,
+            allowStateBootstrap: false
+        )
+        try journal.stageMutableSemanticStateAfterAuthorizedExternalMutation()
         try coordinator.modelContext.save()
+        try journal.validateAll()
         XCTAssertEqual(
             try coordinator.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
             1

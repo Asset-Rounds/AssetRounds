@@ -25,6 +25,28 @@ on:
           - s10-4-hybrid-equivalence-pilot
           - s10-4-minimum-diagnostic-pilot
           - s10-4-focused-diagnostics-development-only
+      native_selection_id:
+        description: Closed V23 N8 selection; default retains all 259 methods across 15 bounded groups
+        required: true
+        default: default-132
+        type: choice
+        options:
+          - default-132
+          - notification-controls
+          - notification-owner
+          - notification-schedule-erase
+          - rating-eligibility
+          - field-reference-pack
+          - catalog-file-authority
+          - operational-diagnostics
+          - archive-contracts
+          - generation-leases-migration
+          - restore-acceptance
+          - deletion-rights
+          - deletion-archive-integration
+          - observation-temporal
+          - report-camera-recovery
+          - legacy-lifecycle-recovery
       s10_4_minimum_core_smoke_id:
         description: Explicit minimum functional smoke; none preserves full legacy behavior
         required: false
@@ -87,7 +109,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' && 'v23-bitrise-' || '' }}${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}
+  group: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' && 'v23-bitrise-' || '' }}${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance') && format('-{0}', inputs.native_selection_id) || '' }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}
   cancel-in-progress: false
 
 jobs:
@@ -101,6 +123,9 @@ jobs:
     outputs:
       matrix_id: ${{ steps.selection.outputs.matrix_id }}
       native_acceptance_contract: ${{ steps.native_selection.outputs.native_acceptance_contract }}
+      native_selection_id: ${{ steps.native_selection.outputs.native_selection_id }}
+      native_selection_sha256: ${{ steps.native_selection.outputs.native_selection_sha256 }}
+      native_selection_map_sha256: ${{ steps.native_selection.outputs.native_selection_map_sha256 }}
     steps:
       - name: Check out the exact revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,6 +142,7 @@ jobs:
           SHARED_SOURCE_RUN: ${{ inputs.s10_4_shared_payload_run_id }}
           SHARED_SOURCE_MAP: ${{ inputs.s10_4_segment_source_run_ids }}
           SHARED_UI: ${{ inputs.run_ui_smoke }}
+          NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
           SMOKE_ID: ${{ inputs.s10_4_minimum_core_smoke_id }}
         run: python3 Scripts/v23-native-ci.py admit --stage dispatch
       - name: Validate closed shared selection and original dependencies
@@ -301,6 +327,9 @@ jobs:
       runner_label: macos-26
       runner_provider: github
       native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract || 'none' }}
+      native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id || inputs.native_selection_id }}
+      native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
+      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
       s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
       s10_4_segment_id: ${{ startsWith(inputs.s10_4_shared_segment_id, 'segment-') && inputs.s10_4_shared_segment_id || 'none' }}
@@ -341,6 +370,9 @@ jobs:
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract || 'none' }}
+      native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id || inputs.native_selection_id }}
+      native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
+      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
       s10_4_shard_id: ${{ inputs.execution_lane == 's10-4-shared-build-producer' && 's10.4.current.default-light' || inputs.s10_4_shard_id }}
       s10_4_segment_id: none
