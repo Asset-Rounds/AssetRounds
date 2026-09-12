@@ -164,11 +164,13 @@ struct PersistentKindTemporalEvidenceV1: Codable, Equatable, Sendable {
                 throw PersistentKindLifecycleFailureV1.invalidDescriptor
             }
         case .nonpersistentNoCanonicalWrite:
-            guard representationSourceOrdinal < lifecycleEnrollmentOrdinal,
+            // The foundation also governs non-writing representations introduced
+            // later. Their source date is not a first-write date.
+            guard lifecycleEnrollmentVersion == "V23_P02_C09",
+                  lifecycleEnrollmentOrdinal == 29,
                   firstWriteVersion == Self.notApplicable,
                   forwardFixVersion == Self.notApplicable,
                   firstWriteOrdinal == 0,
-                  lifecycleEnrollmentOrdinal > 0,
                   forwardFixOrdinal == 0 else {
                 throw PersistentKindLifecycleFailureV1.invalidDescriptor
             }
@@ -281,15 +283,19 @@ struct PersistentKindDescriptorV1: Codable, Equatable, Sendable {
             }
         case .derived:
             guard replicationClassification == .derivedRebuildable,
-                  temporalEvidence.disposition == (hasDurableRepresentationWrite
-                    ? .preexistingBoundForwardFix : .nonpersistentNoCanonicalWrite) else {
+                  (hasDurableRepresentationWrite
+                    ? temporalEvidence.disposition == .preexistingBoundForwardFix
+                        || temporalEvidence.disposition == .enrolledBeforeFirstWrite
+                    : temporalEvidence.disposition == .nonpersistentNoCanonicalWrite) else {
                 throw PersistentKindLifecycleFailureV1.invalidDescriptor
             }
         case .nonpersistent:
             guard replicationClassification == .localOnly
                     || replicationClassification == .privateDeviceOnly,
-                  temporalEvidence.disposition == (hasDurableRepresentationWrite
-                    ? .preexistingBoundForwardFix : .nonpersistentNoCanonicalWrite) else {
+                  (hasDurableRepresentationWrite
+                    ? temporalEvidence.disposition == .preexistingBoundForwardFix
+                        || temporalEvidence.disposition == .enrolledBeforeFirstWrite
+                    : temporalEvidence.disposition == .nonpersistentNoCanonicalWrite) else {
                 throw PersistentKindLifecycleFailureV1.invalidDescriptor
             }
         }
@@ -1030,11 +1036,17 @@ enum PersistentKindLifecycleRegistryV1 {
                     temporalConflicts.insert(descriptor.stableKindID)
                 }
             }
+            let enrolledWithDeclaration = descriptor.temporalEvidence.disposition
+                == .enrolledBeforeFirstWrite
+            let expectedEnrollmentVersion = enrolledWithDeclaration
+                ? descriptor.temporalEvidence.representationSourceCard : "V23_P02_C09"
+            let expectedEnrollmentOrdinal = enrolledWithDeclaration
+                ? descriptor.temporalEvidence.representationSourceOrdinal : 29
             if descriptor.temporalEvidence.evidenceID
                 != "temporal." + descriptor.stableKindID
                 || descriptor.temporalEvidence.evidenceVersion != 1
-                || descriptor.temporalEvidence.lifecycleEnrollmentVersion != "V23_P02_C09"
-                || descriptor.temporalEvidence.lifecycleEnrollmentOrdinal != 29
+                || descriptor.temporalEvidence.lifecycleEnrollmentVersion != expectedEnrollmentVersion
+                || descriptor.temporalEvidence.lifecycleEnrollmentOrdinal != expectedEnrollmentOrdinal
                 || (descriptor.temporalEvidence.disposition == .preexistingBoundForwardFix
                     && descriptor.temporalEvidence.forwardFixOrdinal != 29) {
                 temporalConflicts.insert(descriptor.stableKindID)

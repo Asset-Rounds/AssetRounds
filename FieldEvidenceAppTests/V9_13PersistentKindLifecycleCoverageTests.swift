@@ -383,6 +383,13 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             XCTAssertEqual(descriptor.temporalEvidence.representationSourceCard, card, name)
             XCTAssertEqual(descriptor.temporalEvidence.representationSourceOrdinal, ordinal, name)
             XCTAssertEqual(descriptor.temporalEvidence.firstWriteOrdinal, ordinal, name)
+            XCTAssertEqual(descriptor.temporalEvidence.disposition, .enrolledBeforeFirstWrite, name)
+            XCTAssertEqual(descriptor.temporalEvidence.firstWriteVersion, card, name)
+            XCTAssertEqual(descriptor.temporalEvidence.lifecycleEnrollmentVersion, card, name)
+            XCTAssertEqual(descriptor.temporalEvidence.lifecycleEnrollmentOrdinal, ordinal, name)
+            XCTAssertEqual(descriptor.temporalEvidence.forwardFixVersion,
+                           PersistentKindTemporalEvidenceV1.notApplicable, name)
+            XCTAssertEqual(descriptor.temporalEvidence.forwardFixOrdinal, 0, name)
             XCTAssertEqual(try lifecycle.migration, .notApplicable, name)
             XCTAssertEqual(handling.fileProtection, .complete, name)
         }
@@ -663,6 +670,65 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertEqual(CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(preservedUniverse)),
                        "9c6bb0a73e59bcd49485940ffd33ad489d96514761a39e4706872f0fa306df0a")
         XCTAssertEqual(corpus.temporalProvenance.map(\.kindID), corpus.declaredKindIDs)
+        let searchIndex = try XCTUnwrap(catalog.descriptors.first {
+            $0.stableKindID == "INDEX:SearchIndexProjectionV1"
+        })
+        XCTAssertEqual(searchIndex.temporalEvidence.disposition, .nonpersistentNoCanonicalWrite)
+        XCTAssertEqual(searchIndex.temporalEvidence.representationSourceCard, "V23_P03_C09")
+        XCTAssertEqual(searchIndex.temporalEvidence.representationSourceOrdinal, 42)
+        XCTAssertEqual(searchIndex.temporalEvidence.lifecycleEnrollmentVersion, "V23_P02_C09")
+        XCTAssertEqual(searchIndex.temporalEvidence.lifecycleEnrollmentOrdinal, 29)
+        XCTAssertEqual(searchIndex.temporalEvidence.firstWriteVersion,
+                       PersistentKindTemporalEvidenceV1.notApplicable)
+        XCTAssertEqual(searchIndex.temporalEvidence.forwardFixVersion,
+                       PersistentKindTemporalEvidenceV1.notApplicable)
+
+        let myDayWire = try XCTUnwrap(catalog.descriptors.first {
+            $0.stableKindID == "PROJECTION:StoreSemanticEnvelopeV42"
+        })
+        XCTAssertEqual(myDayWire.temporalEvidence.disposition, .nonpersistentNoCanonicalWrite)
+        XCTAssertEqual(myDayWire.temporalEvidence.representationSourceCard, "V23_P03_C57")
+        XCTAssertEqual(myDayWire.temporalEvidence.representationSourceOrdinal, 77)
+        XCTAssertEqual(myDayWire.temporalEvidence.lifecycleEnrollmentVersion, "V23_P02_C09")
+        XCTAssertEqual(myDayWire.temporalEvidence.lifecycleEnrollmentOrdinal, 29)
+
+        let asset = try XCTUnwrap(catalog.descriptors.first {
+            $0.stableKindID == "PERSISTENT_MODEL:Asset"
+        })
+        XCTAssertEqual(asset.temporalEvidence.disposition, .preexistingBoundForwardFix)
+        XCTAssertEqual(asset.temporalEvidence.lifecycleEnrollmentVersion, "V23_P02_C09")
+        XCTAssertEqual(asset.temporalEvidence.lifecycleEnrollmentOrdinal, 29)
+        XCTAssertEqual(asset.temporalEvidence.forwardFixVersion, "V23_P02_C09")
+        XCTAssertEqual(asset.temporalEvidence.forwardFixOrdinal, 29)
+
+        for name in ["reportPDF", "reportSnapshot"] {
+            let subject = try SyncSubjectIdentityV1(category: .ownedFileClass, stableName: name)
+            let registration = try source.registration(for: subject)
+            let descriptor = try catalog.descriptor(for: subject)
+            let lifecycle = try catalog.lifecyclePolicy(for: subject)
+            let handling = try catalog.dataHandlingPolicy(for: subject)
+            XCTAssertEqual(registration.classification, .contentBlob, name)
+            XCTAssertEqual(descriptor.kindClassification, .content, name)
+            XCTAssertEqual(descriptor.storage, .ownedFile, name)
+            XCTAssertEqual(descriptor.mutation, .immutableContentWriter, name)
+            XCTAssertEqual(descriptor.digest, .immutableContentDigestRequired, name)
+            XCTAssertEqual(handling.destructiveAuthority, .immutableContentManager, name)
+            XCTAssertEqual(try lifecycle.erase, .contentManaged, name)
+        }
+
+        let semanticReportSnapshot = try XCTUnwrap(catalog.descriptors.first {
+            $0.stableKindID == "PROJECTION:ReportSnapshotV1"
+        })
+        let semanticReportHandling = try catalog.dataHandlingPolicy(for: semanticReportSnapshot.subject)
+        let semanticReportRegistration = try source.registration(for: semanticReportSnapshot.subject)
+        XCTAssertEqual(semanticReportRegistration.classification, .contentBlob)
+        XCTAssertEqual(semanticReportSnapshot.kindClassification, .content)
+        XCTAssertEqual(semanticReportSnapshot.storage, .ownedFile)
+        XCTAssertEqual(semanticReportSnapshot.mutation, .immutableContentWriter)
+        XCTAssertEqual(semanticReportSnapshot.digest, .immutableContentDigestRequired)
+        XCTAssertEqual(semanticReportHandling.destructiveAuthority, .immutableContentManager)
+        XCTAssertEqual(try catalog.lifecyclePolicy(for: semanticReportSnapshot.subject).erase, .contentManaged)
+
         XCTAssertEqual(
             Set(corpus.temporalProvenance.map(\.kindID)).count,
             corpus.declaredKindIDs.count
@@ -1030,6 +1096,103 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             descriptors: catalog.descriptors,
             lifecyclePolicies: catalog.lifecyclePolicies,
             dataHandlingPolicies: catalog.dataHandlingPolicies
+        )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .incompleteCoverage) }
+
+        let noWriteDescriptor = try XCTUnwrap(catalog.descriptors.first {
+            $0.stableKindID == "INDEX:SearchIndexProjectionV1"
+        })
+        let noWrite = noWriteDescriptor.temporalEvidence
+        for (card, ordinal) in [("V23_P02_C10", 29), ("V23_P02_C09", 30)] {
+            XCTAssertThrowsError(try PersistentKindTemporalEvidenceV1(
+                evidenceID: noWrite.evidenceID, evidenceVersion: noWrite.evidenceVersion,
+                disposition: .nonpersistentNoCanonicalWrite,
+                representationSourceCard: noWrite.representationSourceCard,
+                representationSourceOrdinal: noWrite.representationSourceOrdinal,
+                firstWriteVersion: noWrite.firstWriteVersion,
+                lifecycleEnrollmentVersion: card,
+                forwardFixVersion: noWrite.forwardFixVersion,
+                firstWriteOrdinal: noWrite.firstWriteOrdinal,
+                lifecycleEnrollmentOrdinal: ordinal,
+                forwardFixOrdinal: noWrite.forwardFixOrdinal
+            )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .invalidDescriptor) }
+        }
+        XCTAssertThrowsError(try PersistentKindTemporalEvidenceV1(
+            evidenceID: noWrite.evidenceID, evidenceVersion: noWrite.evidenceVersion,
+            disposition: .nonpersistentNoCanonicalWrite,
+            representationSourceCard: noWrite.representationSourceCard,
+            representationSourceOrdinal: noWrite.representationSourceOrdinal,
+            firstWriteVersion: "V23_P03_C09",
+            lifecycleEnrollmentVersion: noWrite.lifecycleEnrollmentVersion,
+            forwardFixVersion: noWrite.forwardFixVersion,
+            firstWriteOrdinal: noWrite.representationSourceOrdinal,
+            lifecycleEnrollmentOrdinal: noWrite.lifecycleEnrollmentOrdinal,
+            forwardFixOrdinal: noWrite.forwardFixOrdinal
+        )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .invalidDescriptor) }
+        XCTAssertThrowsError(try PersistentKindTemporalEvidenceV1(
+            evidenceID: noWrite.evidenceID, evidenceVersion: noWrite.evidenceVersion,
+            disposition: .nonpersistentNoCanonicalWrite,
+            representationSourceCard: noWrite.representationSourceCard,
+            representationSourceOrdinal: noWrite.representationSourceOrdinal,
+            firstWriteVersion: noWrite.firstWriteVersion,
+            lifecycleEnrollmentVersion: noWrite.lifecycleEnrollmentVersion,
+            forwardFixVersion: "V23_P02_C09",
+            firstWriteOrdinal: noWrite.firstWriteOrdinal,
+            lifecycleEnrollmentOrdinal: noWrite.lifecycleEnrollmentOrdinal,
+            forwardFixOrdinal: 29
+        )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .invalidDescriptor) }
+
+        let noWriteBytes = try CompatibilityCanonicalV1.encode(noWrite)
+        let noWriteJSON = try XCTUnwrap(String(data: noWriteBytes, encoding: .utf8))
+        for key in ["firstWriteVersion", "forwardFixVersion"] {
+            let missing = Data(noWriteJSON.replacingOccurrences(
+                of: "\"\(key)\":\"NOT_APPLICABLE\",", with: ""
+            ).utf8)
+            XCTAssertNotEqual(missing, noWriteBytes, key)
+            XCTAssertThrowsError(try CompatibilityCanonicalV1.decode(
+                PersistentKindTemporalEvidenceV1.self, from: missing
+            ), key)
+        }
+
+        let enrolledDescriptor = try XCTUnwrap(catalog.descriptors.first {
+            $0.stableKindID == "OWNED_FILE_CLASS:fieldDraftStagingFile"
+        })
+        let enrolled = enrolledDescriptor.temporalEvidence
+        XCTAssertThrowsError(try PersistentKindTemporalEvidenceV1(
+            evidenceID: enrolled.evidenceID, evidenceVersion: enrolled.evidenceVersion,
+            disposition: .enrolledBeforeFirstWrite,
+            representationSourceCard: enrolled.representationSourceCard,
+            representationSourceOrdinal: enrolled.representationSourceOrdinal,
+            firstWriteVersion: enrolled.firstWriteVersion,
+            lifecycleEnrollmentVersion: "V23_P02_C09",
+            forwardFixVersion: PersistentKindTemporalEvidenceV1.notApplicable,
+            firstWriteOrdinal: enrolled.firstWriteOrdinal, lifecycleEnrollmentOrdinal: 29,
+            forwardFixOrdinal: 0
+        )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .invalidDescriptor) }
+
+        let mismatchedEnrolledSource = try PersistentKindTemporalEvidenceV1(
+            evidenceID: enrolled.evidenceID, evidenceVersion: enrolled.evidenceVersion,
+            disposition: .enrolledBeforeFirstWrite,
+            representationSourceCard: enrolled.representationSourceCard,
+            representationSourceOrdinal: enrolled.representationSourceOrdinal,
+            firstWriteVersion: "V23_P03_C48", lifecycleEnrollmentVersion: enrolled.lifecycleEnrollmentVersion,
+            forwardFixVersion: PersistentKindTemporalEvidenceV1.notApplicable,
+            firstWriteOrdinal: 78, lifecycleEnrollmentOrdinal: enrolled.lifecycleEnrollmentOrdinal,
+            forwardFixOrdinal: 0
+        )
+        XCTAssertThrowsError(try compileReplacing(
+            descriptor: try Self.copy(enrolledDescriptor, temporalEvidence: mismatchedEnrolledSource)
+        )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .incompleteCoverage) }
+
+        let differentGenuineEnrollment = try PersistentKindTemporalEvidenceV1(
+            evidenceID: enrolled.evidenceID, evidenceVersion: enrolled.evidenceVersion,
+            disposition: .enrolledBeforeFirstWrite,
+            representationSourceCard: "V23_P03_C48", representationSourceOrdinal: 78,
+            firstWriteVersion: "V23_P03_C48", lifecycleEnrollmentVersion: "V23_P03_C48",
+            forwardFixVersion: PersistentKindTemporalEvidenceV1.notApplicable,
+            firstWriteOrdinal: 78, lifecycleEnrollmentOrdinal: 78, forwardFixOrdinal: 0
+        )
+        XCTAssertThrowsError(try compileReplacing(
+            descriptor: try Self.copy(enrolledDescriptor, temporalEvidence: differentGenuineEnrollment)
         )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .incompleteCoverage) }
 
         let completeEraseObservations = try catalog.descriptors.map { descriptor in

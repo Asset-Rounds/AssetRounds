@@ -821,7 +821,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         if registration.subject.category == .projection {
             switch registration.subject.stableName {
             case "ReportSnapshotV1":
-                return .immutable
+                return .content
             case "entityMutationRevision", "workspaceMutationState":
                 return .canonical
             default:
@@ -854,7 +854,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             case .journal, .diagnostics, .generationLeaseControl:
                 return .canonical
             case .reportSnapshot, .reportPDF:
-                return .immutable
+                return .content
             case .stagingDirectory, .restoreStaging, .stagingFile, .temporaryFile,
                     .generationPointerTemporary, .generationLeaseControlTemporary,
                     .generationLeaseOwnerLock, .journalTemporary, .cache, .scratch,
