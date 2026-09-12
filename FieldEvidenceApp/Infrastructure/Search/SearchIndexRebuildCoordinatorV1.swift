@@ -1513,7 +1513,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         }
     }
 
-    static func makeRegistry() throws -> SearchableFieldRegistryV1 {
+    internal static func makeRegistry() throws -> SearchableFieldRegistryV1 {
         var fields: [SearchableFieldDescriptorV1] = []
         func append(_ id: String, _ kind: SearchSourceKindV1, identity: Bool = false,
                     operational: Bool = false) throws {
