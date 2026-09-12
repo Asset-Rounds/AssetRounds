@@ -136,7 +136,7 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
             if expectedCount > 1 { await store.increment(.firstSignCreated) }
             let snapshot = try await store.operationalSupportSnapshot()
             let canonical = try await store.canonicalOperationalSupportEnvelopeDataV3()
-            XCTAssertEqual(snapshot.counters.firstSignCreated, expectedCount)
+            XCTAssertEqual(snapshot.counters.firstSignCreated, Int64(expectedCount))
             XCTAssertEqual(snapshot.health, migrated.health)
             XCTAssertEqual(canonical, try Data(contentsOf: Self.diagnosticsURL(root)))
             XCTAssertNotEqual(canonical, original)

@@ -4,7 +4,7 @@ Navigation only. CURRENT_INTEGRATION.md and frozen inputs control authority; det
 
 ## Current checkpoint
 
-Original347137 at edd6f55 is sealed and root-verified:395 retained files,20 audit checks; compilation passed,106 tests passed,29 failed and2 were incomplete before the unchanged unit watchdog. Reviewed runtime corrections cover catalog dependencies, diagnostics initialization/replacement and receipt/deletion fixtures, with fixed-stage crash tracing. The reviewed native map retains253 methods and adds6,259 total across15 complete disjoint groups;28 protocol tests pass against isolated candidate bytes. The next reviewed checkpoint is18 paths; first native question is catalog-file-authority with17 methods on the pinned Bitrise route. No successor has been dispatched. Other failure groups and broader app/MyDay drafts remain due.
+Original347176 at e561731 is sealed and root-verified:122 retained files,20 audit checks. Compilation stopped at one Int64/Int assertion mismatch after147.299s;0 of17 catalog-file-authority units started. The narrow expected-value conversion is the next three-path checkpoint; the259-method pool,15 groups and all native protocol bytes remain unchanged. Independent exact-index review and fresh dispatch gates remain due. No successor has been dispatched. Other failure groups and broader app/MyDay drafts remain due.
 
 ## Current source work
 
