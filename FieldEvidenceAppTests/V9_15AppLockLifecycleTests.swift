@@ -5,6 +5,296 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private struct C16NotificationControlFixture {
+    let support: URL
+    let suiteName: String
+    let defaults: UserDefaults
+    let preferences: PreferencesAdapterV1
+    var controlRoot: URL { support.appendingPathComponent("FieldEvidenceOperations")
+        .appendingPathComponent(AppLockNotificationControlStoreV1.rootName) }
+    var recordURL: URL { controlRoot.appendingPathComponent(AppLockNotificationControlStoreV1.recordName) }
+
+    init() throws {
+        support = FileManager.default.temporaryDirectory.appendingPathComponent("C16-control-" + UUID().uuidString)
+        suiteName = "C16.control." + UUID().uuidString
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        preferences = PreferencesAdapterV1(defaults: defaults)
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+    }
+
+    func owner(_ failure: AppLockNotificationControlFailurePointV1 = .none) throws -> AppLockNotificationControlStoreV1 {
+        try .init(applicationSupportURL: support, preferences: preferences, failurePoint: failure)
+    }
+
+    func policy() throws -> DeviceLocalReminderPolicyV1 {
+        let initial = try preferences.readReminderPolicy()
+        return try preferences.updateReminderPolicy(expected: initial, isEnabled: true,
+            detail: .details, operationID: UUID())
+    }
+
+    // Fixture dispositions test the storage protocol only; no OS observation is claimed.
+    func journal(_ policy: DeviceLocalReminderPolicyV1, operation: UUID,
+        disposition: AppLockNotificationPrivacyDispositionV1, enabled: Bool = true) throws -> AppLockNotificationJournalV1 {
+        try .init(operationID: operation, targetEnabled: enabled, priorPolicy: policy.appLockReference(),
+            projections: [], disposition: disposition)
+    }
+
+    func plan(_ policy: DeviceLocalReminderPolicyV1, operation: UUID, enabled: Bool = true) throws -> AppLockSettingWritePlanV1 {
+        try preferences.planAppLockSettingWrite(expectedSetting: preferences.readAppLockSettingSnapshot(),
+            expectedReminderPolicy: policy, target: .init(isEnabled: enabled), operationID: operation)
+    }
+
+    func remove() {
+        defaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: support)
+    }
+}
+
+extension V9_15AppLockLifecycleTests {
+    func testNotificationControlPersistsBeforeProjectionAndCompletesAfterPhysicalReopen() throws {
+        let fixture = try C16NotificationControlFixture()
+        defer { fixture.remove() }
+        let policy = try fixture.policy(), operation = UUID()
+        let journal = try fixture.journal(policy, operation: operation, disposition: .enablingPrepared)
+        let plan = try fixture.plan(policy, operation: operation)
+        let owner = try fixture.owner()
+        let prepared = try owner.prepareControl(journal: journal, priorReminderPolicy: policy,
+            settingWrite: plan, expectedPredecessor: nil)
+        let originalBytes = try Data(contentsOf: fixture.recordURL)
+        XCTAssertEqual(prepared.journal, journal)
+        XCTAssertEqual(try CompatibilityCanonicalV1.encode(prepared.journal), try CompatibilityCanonicalV1.encode(journal))
+        XCTAssertThrowsError(try owner.completeSetting(expected: prepared))
+        XCTAssertEqual(try Data(contentsOf: fixture.recordURL), originalBytes)
+        XCTAssertNil(try fixture.preferences.readAppLockSettingSnapshot().storedEnvelope)
+        let reopened = try fixture.owner()
+        XCTAssertEqual(try reopened.loadControl(), prepared)
+        let interrupted = try fixture.journal(policy, operation: operation, disposition: .interruptedRecoveryRequired)
+        let recovering = try reopened.recordJournal(interrupted, expected: prepared)
+        XCTAssertThrowsError(try reopened.completeSetting(expected: recovering))
+        let applied = try fixture.journal(policy, operation: operation, disposition: .genericProjectionApplied)
+        let ready = try reopened.recordJournal(applied, expected: recovering)
+        XCTAssertEqual(ready.priorReminderPolicy, policy)
+        XCTAssertEqual(ready.settingWrite, plan)
+        XCTAssertEqual(ready.phase, .prepared)
+        XCTAssertThrowsError(try reopened.recordJournal(journal, expected: ready))
+        let committed = try reopened.completeSetting(expected: ready)
+        XCTAssertEqual(committed.phase, .settingCommitted)
+        XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot(), plan.successor)
+        XCTAssertEqual(try fixture.owner().completeSetting(expected: ready), committed)
+        XCTAssertEqual(try fixture.preferences.readStoredReminderPolicy(), policy)
+    }
+
+    func testNotificationControlRecoversPreparedRecordAfterPreferenceWriteInterruption() throws {
+        let fixture = try C16NotificationControlFixture()
+        defer { fixture.remove() }
+        let policy = try fixture.policy(), operation = UUID()
+        let owner = try fixture.owner(.afterPreferenceWrite)
+        let plan = try fixture.plan(policy, operation: operation)
+        let prepared = try owner.prepareControl(journal: fixture.journal(policy, operation: operation,
+            disposition: .genericProjectionAdopted), priorReminderPolicy: policy,
+            settingWrite: plan, expectedPredecessor: nil)
+        let originalBytes = try Data(contentsOf: fixture.recordURL)
+        XCTAssertThrowsError(try owner.completeSetting(expected: prepared))
+        XCTAssertEqual(try Data(contentsOf: fixture.recordURL), originalBytes)
+        XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot(), plan.successor)
+        let reopened = try fixture.owner()
+        XCTAssertEqual(try reopened.loadControl(), prepared)
+        let completed = try reopened.completeSetting(expected: prepared)
+        XCTAssertEqual(completed.phase, .settingCommitted)
+        let completedBytes = try Data(contentsOf: fixture.recordURL)
+        XCTAssertEqual(try reopened.completeSetting(expected: prepared), completed)
+        XCTAssertEqual(try Data(contentsOf: fixture.recordURL), completedBytes)
+    }
+
+    func testNotificationControlTwoOwnersRejectChangedPredecessorsAndOperationSubjects() throws {
+        let fixture = try C16NotificationControlFixture()
+        defer { fixture.remove() }
+        let policy = try fixture.policy(), firstID = UUID(), secondID = UUID()
+        let first = try fixture.owner(), second = try fixture.owner()
+        let firstPlan = try fixture.plan(policy, operation: firstID)
+        let secondPlan = try fixture.plan(policy, operation: secondID)
+        let prepared = try first.prepareControl(journal: fixture.journal(policy, operation: firstID,
+            disposition: .enablingPrepared), priorReminderPolicy: policy,
+            settingWrite: firstPlan, expectedPredecessor: nil)
+        let bytes = try Data(contentsOf: fixture.recordURL)
+        XCTAssertThrowsError(try second.prepareControl(journal: fixture.journal(policy, operation: secondID,
+            disposition: .enablingPrepared), priorReminderPolicy: policy,
+            settingWrite: secondPlan, expectedPredecessor: nil))
+        XCTAssertThrowsError(try second.prepareControl(journal: fixture.journal(policy, operation: secondID,
+            disposition: .enablingPrepared), priorReminderPolicy: policy,
+            settingWrite: secondPlan, expectedPredecessor: prepared))
+        XCTAssertThrowsError(try first.recordJournal(fixture.journal(policy, operation: secondID,
+            disposition: .genericProjectionApplied), expected: prepared))
+        XCTAssertEqual(try Data(contentsOf: fixture.recordURL), bytes)
+        XCTAssertNil(try fixture.preferences.readAppLockSettingSnapshot().storedEnvelope)
+    }
+
+    func testNotificationControlCompletedReplayRejectsPreferenceResetAndPostEraseABA() throws {
+        for mode in 0..<4 {
+            let fixture = try C16NotificationControlFixture()
+            defer { fixture.remove() }
+            let policy = try fixture.policy(), operation = UUID()
+            let owner = try fixture.owner()
+            let prepared = try owner.prepareControl(journal: fixture.journal(policy, operation: operation,
+                disposition: .genericProjectionApplied), priorReminderPolicy: policy,
+                settingWrite: fixture.plan(policy, operation: operation), expectedPredecessor: nil)
+            _ = try owner.completeSetting(expected: prepared)
+            if mode == 0 {
+                let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalAppLockSettingV1.key)
+                try fixture.preferences.writeCanonicalValue(CompatibilityCanonicalV1.encode(true),
+                    descriptor: descriptor, operationID: UUID())
+            } else if mode == 1 {
+                _ = try fixture.preferences.resetReminderPolicy(expected: policy, operationID: UUID())
+            } else {
+                try fixture.preferences.preparePreferencesForCompletedErase(operationID: UUID(),
+                    persistentDomainName: fixture.suiteName)
+                if mode == 3 {
+                    XCTAssertNotEqual(try fixture.preferences.readReminderPolicy().instanceID, policy.instanceID)
+                }
+            }
+            let bytes = try Data(contentsOf: fixture.recordURL)
+            let defaultsBefore = fixture.defaults.persistentDomain(forName: fixture.suiteName) as NSDictionary?
+            XCTAssertThrowsError(try fixture.owner().completeSetting(expected: prepared))
+            XCTAssertEqual(try Data(contentsOf: fixture.recordURL), bytes)
+            XCTAssertEqual(fixture.defaults.persistentDomain(forName: fixture.suiteName) as NSDictionary?, defaultsBefore)
+        }
+    }
+
+    func testNotificationControlDisableRetainsHistoricalDetailWithoutRestoringConsent() throws {
+        let fixture = try C16NotificationControlFixture()
+        defer { fixture.remove() }
+        let policy = try fixture.policy(), enableID = UUID()
+        let owner = try fixture.owner()
+        let enabling = try owner.prepareControl(journal: fixture.journal(policy, operation: enableID,
+            disposition: .genericProjectionApplied), priorReminderPolicy: policy,
+            settingWrite: fixture.plan(policy, operation: enableID), expectedPredecessor: nil)
+        let enabled = try owner.completeSetting(expected: enabling)
+        let current = try fixture.preferences.updateReminderPolicy(expected: policy, isEnabled: false,
+            detail: .generic, operationID: UUID())
+        let disableID = UUID()
+        let disablePlan = try fixture.plan(current, operation: disableID, enabled: false)
+        let rebuilt = try fixture.journal(policy, operation: disableID, disposition: .priorPolicyRebuilt, enabled: false)
+        XCTAssertThrowsError(try owner.prepareControl(journal: rebuilt, priorReminderPolicy: policy,
+            settingWrite: disablePlan, expectedPredecessor: enabled))
+        let disabling = try owner.prepareControl(journal: fixture.journal(policy, operation: disableID,
+            disposition: .disablingPrepared, enabled: false), priorReminderPolicy: policy,
+            settingWrite: disablePlan, expectedPredecessor: enabled)
+        XCTAssertThrowsError(try owner.recordJournal(rebuilt, expected: disabling))
+        let disabled = try owner.completeSetting(expected: disabling)
+        let complete = try owner.recordJournal(rebuilt, expected: disabled)
+        XCTAssertEqual(complete.priorReminderPolicy.detail, .details)
+        XCTAssertEqual(complete.settingWrite.expectedReminderPolicy, current)
+        XCTAssertEqual(try fixture.preferences.readStoredReminderPolicy(), current)
+        XCTAssertFalse(try XCTUnwrap(fixture.preferences.readStoredReminderPolicy()).isEnabled)
+        XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot().setting,
+            DeviceLocalAppLockSettingV1(isEnabled: false))
+    }
+
+    func testNotificationControlRejectsCorruptUnknownOversizedAndNonregularFilesWithoutRepair() throws {
+        for mode in 0..<6 {
+            let fixture = try C16NotificationControlFixture()
+            defer { fixture.remove() }
+            let policy = try fixture.policy(), operation = UUID(), owner = try fixture.owner()
+            _ = try owner.prepareControl(journal: fixture.journal(policy, operation: operation,
+                disposition: .enablingPrepared), priorReminderPolicy: policy,
+                settingWrite: fixture.plan(policy, operation: operation), expectedPredecessor: nil)
+            let original = try Data(contentsOf: fixture.recordURL)
+            if mode < 4 {
+                let hostile: Data
+                if mode == 0 { hostile = Data("not-json".utf8) }
+                else if mode == 3 { hostile = Data(repeating: 32, count: AppLockNotificationControlStoreV1.maximumRecordBytes + 1) }
+                else {
+                    var object = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])
+                    object[mode == 1 ? "unknownAuthority" : "schemaVersion"] = mode == 1 ? 1 : 2
+                    hostile = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])
+                }
+                try hostile.write(to: fixture.recordURL)
+                try ProtectedFilePolicyV1.applyAndVerify(.journal, at: fixture.recordURL)
+                XCTAssertThrowsError(try owner.loadControl())
+                XCTAssertEqual(try Data(contentsOf: fixture.recordURL), hostile)
+            } else if mode == 4 {
+                let alias = fixture.controlRoot.appendingPathComponent("foreign-link")
+                XCTAssertEqual(Darwin.link(fixture.recordURL.path, alias.path), 0)
+                XCTAssertThrowsError(try owner.loadControl())
+                XCTAssertEqual(try Data(contentsOf: alias), original)
+            } else {
+                try FileManager.default.removeItem(at: fixture.recordURL)
+                try FileManager.default.createDirectory(at: fixture.recordURL, withIntermediateDirectories: false)
+                XCTAssertThrowsError(try owner.loadControl())
+                XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.recordURL.path))
+            }
+            XCTAssertNil(try fixture.preferences.readAppLockSettingSnapshot().storedEnvelope)
+        }
+    }
+
+    func testNotificationControlRejectsReplacedControlAndOperationsRootsBeforeSettingWrite() throws {
+        for replaceOperations in [false, true] {
+            let fixture = try C16NotificationControlFixture()
+            defer { fixture.remove() }
+            let policy = try fixture.policy(), operation = UUID(), owner = try fixture.owner()
+            let prepared = try owner.prepareControl(journal: fixture.journal(policy, operation: operation,
+                disposition: .genericProjectionApplied), priorReminderPolicy: policy,
+                settingWrite: fixture.plan(policy, operation: operation), expectedPredecessor: nil)
+            let original = try Data(contentsOf: fixture.recordURL)
+            let target = replaceOperations ? fixture.controlRoot.deletingLastPathComponent() : fixture.controlRoot
+            let held = fixture.support.appendingPathComponent("retired-control")
+            try FileManager.default.moveItem(at: target, to: held)
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: target)
+            XCTAssertThrowsError(try owner.completeSetting(expected: prepared))
+            XCTAssertNil(try fixture.preferences.readAppLockSettingSnapshot().storedEnvelope)
+            let retained = (replaceOperations ? held.appendingPathComponent(AppLockNotificationControlStoreV1.rootName) : held)
+                .appendingPathComponent(AppLockNotificationControlStoreV1.recordName)
+            XCTAssertEqual(try Data(contentsOf: retained), original)
+        }
+    }
+
+    func testNotificationControlRejectsDivergentPendingPublicationBeforePreferenceEffect() throws {
+        let fixture = try C16NotificationControlFixture()
+        defer { fixture.remove() }
+        let policy = try fixture.policy(), operation = UUID(), owner = try fixture.owner()
+        let prepared = try owner.prepareControl(journal: fixture.journal(policy, operation: operation,
+            disposition: .genericProjectionApplied), priorReminderPolicy: policy,
+            settingWrite: fixture.plan(policy, operation: operation), expectedPredecessor: nil)
+        let pendingURL = fixture.controlRoot.appendingPathComponent(AppLockNotificationControlStoreV1.pendingName)
+        let hostile = Data("unknown interrupted bytes".utf8)
+        try hostile.write(to: pendingURL)
+        try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary, at: pendingURL)
+        XCTAssertThrowsError(try owner.completeSetting(expected: prepared))
+        XCTAssertEqual(try owner.loadControl(), prepared)
+        XCTAssertNil(try fixture.preferences.readAppLockSettingSnapshot().storedEnvelope)
+        XCTAssertEqual(try Data(contentsOf: pendingURL), hostile)
+    }
+
+    func testNotificationControlReopensAndAdoptsExactPendingFileAfterPreSyncInterruption() throws {
+        let fixture = try C16NotificationControlFixture()
+        defer { fixture.remove() }
+        let policy = try fixture.policy(), operation = UUID()
+        let journal = try fixture.journal(policy, operation: operation, disposition: .genericProjectionApplied)
+        let plan = try fixture.plan(policy, operation: operation)
+        let interrupted = try fixture.owner(.afterPendingWriteBeforeSync)
+        XCTAssertThrowsError(try interrupted.prepareControl(journal: journal, priorReminderPolicy: policy,
+            settingWrite: plan, expectedPredecessor: nil))
+        XCTAssertNil(try interrupted.loadControl())
+        XCTAssertNil(try fixture.preferences.readAppLockSettingSnapshot().storedEnvelope)
+        let pendingURL = fixture.controlRoot.appendingPathComponent(AppLockNotificationControlStoreV1.pendingName)
+        var pending = stat()
+        XCTAssertEqual(Darwin.lstat(pendingURL.path, &pending), 0)
+        let pendingBytes = try Data(contentsOf: pendingURL)
+        let reopened = try fixture.owner()
+        let prepared = try reopened.prepareControl(journal: journal, priorReminderPolicy: policy,
+            settingWrite: plan, expectedPredecessor: nil)
+        var published = stat()
+        XCTAssertEqual(Darwin.lstat(fixture.recordURL.path, &published), 0)
+        XCTAssertEqual(published.st_ino, pending.st_ino)
+        XCTAssertEqual(published.st_dev, pending.st_dev)
+        XCTAssertEqual(try Data(contentsOf: fixture.recordURL), pendingBytes)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: pendingURL.path))
+        XCTAssertEqual(try reopened.completeSetting(expected: prepared).phase, .settingCommitted)
+    }
+}
+
 @MainActor
 final class V9_15AppLockLifecycleTests: XCTestCase {
     private func assertReadDenied(_ gate: AppAccessGateV1,

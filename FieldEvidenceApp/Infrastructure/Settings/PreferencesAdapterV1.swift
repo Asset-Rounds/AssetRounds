@@ -1,5 +1,17 @@
 import Foundation
 
+/// Process-local transaction fence shared by control-file publication and the
+/// sole preferences adapter. Bodies are synchronous and must never await.
+enum AppLockNotificationTransactionFenceV1 {
+    private static let lock = NSRecursiveLock()
+
+    static func perform<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
+    }
+}
+
 enum PreferencesAdapterFailureV1: Error, Equatable, Sendable {
     case invalidScope
     case invalidCanonicalValue
@@ -63,6 +75,94 @@ private struct PreferenceStorageEnvelopeV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Exact legacy storage bytes, including operation and migration metadata.
+/// Absence is distinct from an explicitly stored disabled value.
+struct AppLockStoredSettingSnapshotV1: Codable, Equatable, Sendable {
+    static let maximumEnvelopeBytes = 16_384
+    let storedEnvelope: Data?
+
+    init(storedEnvelope: Data?) throws {
+        self.storedEnvelope = storedEnvelope
+        if let storedEnvelope {
+            guard storedEnvelope.count <= Self.maximumEnvelopeBytes else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            let envelope = try Self.decode(storedEnvelope)
+            guard try CompatibilityCanonicalV1.encode(envelope) == storedEnvelope else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case storedEnvelope }
+    init(from decoder: any Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(storedEnvelope: values.decodeIfPresent(Data.self, forKey: .storedEnvelope))
+    }
+
+    fileprivate static func decode(_ bytes: Data) throws -> PreferenceStorageEnvelopeV1 {
+        try decodePreferenceStorageEnvelopeV1(bytes, descriptor: SettingsRegistryV1.current()
+            .descriptor(for: DeviceLocalAppLockSettingV1.key))
+    }
+
+    var setting: DeviceLocalAppLockSettingV1? {
+        get throws {
+            guard let storedEnvelope else { return nil }
+            return try DeviceLocalAppLockSettingV1(isEnabled: CompatibilityCanonicalV1.decode(
+                Bool.self, from: Self.decode(storedEnvelope).canonicalValue))
+        }
+    }
+}
+
+struct AppLockSettingWritePlanV1: Codable, Equatable, Sendable {
+    let expectedSetting: AppLockStoredSettingSnapshotV1
+    let expectedReminderPolicy: DeviceLocalReminderPolicyV1
+    let target: DeviceLocalAppLockSettingV1
+    let operationID: UUID
+    let successor: AppLockStoredSettingSnapshotV1
+
+    init(expectedSetting: AppLockStoredSettingSnapshotV1,
+         expectedReminderPolicy: DeviceLocalReminderPolicyV1,
+         target: DeviceLocalAppLockSettingV1, operationID: UUID) throws {
+        try expectedReminderPolicy.validate()
+        try target.validate()
+        guard operationID != SettingsValidationV1.zeroUUID else {
+            throw PreferencesAdapterFailureV1.conflictingOperation
+        }
+        let prior = try expectedSetting.storedEnvelope.map(AppLockStoredSettingSnapshotV1.decode)
+        // A new plan must not reinterpret an already-used operation ID.
+        guard prior?.writeRecord?.operationID != operationID else {
+            throw PreferencesAdapterFailureV1.conflictingOperation
+        }
+        let canonicalValue = try CompatibilityCanonicalV1.encode(target.isEnabled)
+        let replacement = PreferenceStorageEnvelopeV1(canonicalValue: canonicalValue,
+            writeRecord: .init(operationID: operationID,
+                canonicalValueDigest: CompatibilityCanonicalV1.sha256(canonicalValue)),
+            migrationRecord: prior?.migrationRecord)
+        self.expectedSetting = expectedSetting
+        self.expectedReminderPolicy = expectedReminderPolicy
+        self.target = target
+        self.operationID = operationID
+        successor = try .init(storedEnvelope: CompatibilityCanonicalV1.encode(replacement))
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case expectedSetting, expectedReminderPolicy, target, operationID, successor
+    }
+    init(from decoder: any Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(expectedSetting: values.decode(AppLockStoredSettingSnapshotV1.self, forKey: .expectedSetting),
+            expectedReminderPolicy: values.decode(DeviceLocalReminderPolicyV1.self, forKey: .expectedReminderPolicy),
+            target: values.decode(DeviceLocalAppLockSettingV1.self, forKey: .target),
+            operationID: values.decode(UUID.self, forKey: .operationID))
+        guard try values.decode(AppLockStoredSettingSnapshotV1.self, forKey: .successor) == successor else {
+            throw PreferencesAdapterFailureV1.invalidCanonicalValue
+        }
+    }
+}
+
 /// The rating ledger is deliberately separate from descriptor-backed settings:
 /// it is device-local operational policy, not a user-configurable preference.
 /// Its write record contains only the caller operation and canonical successor
@@ -102,7 +202,6 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
     private static let ratingEligibilityStorageKey = "rating-eligibility.v1"
     private static let ratingEligibilityLock = NSLock()
     private let defaults: UserDefaults
-    private static let lock = NSLock()
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -298,6 +397,54 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
 
     // MARK: - Device-local reminder policy
 
+    /// Unlike readReminderPolicy, this never creates a default or identity.
+    func readStoredReminderPolicy() throws -> DeviceLocalReminderPolicyV1? {
+        try withLock {
+            let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalReminderPolicyV1.key)
+            guard let envelope = try reminderEnvelope(descriptor: descriptor) else { return nil }
+            return try CompatibilityCanonicalV1.decode(DeviceLocalReminderPolicyV1.self, from: envelope.canonicalValue)
+        }
+    }
+
+    func readAppLockSettingSnapshot() throws -> AppLockStoredSettingSnapshotV1 {
+        try withLock {
+            let key = storageKey(DeviceLocalAppLockSettingV1.key)
+            guard let object = defaults.object(forKey: key) else { return try .init(storedEnvelope: nil) }
+            guard let bytes = object as? Data else { throw PreferencesAdapterFailureV1.invalidCanonicalValue }
+            return try .init(storedEnvelope: bytes)
+        }
+    }
+
+    func planAppLockSettingWrite(expectedSetting: AppLockStoredSettingSnapshotV1,
+        expectedReminderPolicy: DeviceLocalReminderPolicyV1,
+        target: DeviceLocalAppLockSettingV1, operationID: UUID) throws -> AppLockSettingWritePlanV1 {
+        try withLock {
+            guard try readAppLockSettingSnapshot() == expectedSetting,
+                  try readStoredReminderPolicy() == expectedReminderPolicy else {
+                throw SettingsContractFailureV1.staleRevision
+            }
+            return try .init(expectedSetting: expectedSetting, expectedReminderPolicy: expectedReminderPolicy,
+                target: target, operationID: operationID)
+        }
+    }
+
+    func applyAppLockSettingWrite(_ plan: AppLockSettingWritePlanV1) throws -> AppLockStoredSettingSnapshotV1 {
+        try withLock {
+            guard try readStoredReminderPolicy() == plan.expectedReminderPolicy else {
+                throw SettingsContractFailureV1.staleRevision
+            }
+            let current = try readAppLockSettingSnapshot()
+            if current == plan.successor { return current }
+            guard current == plan.expectedSetting, let bytes = plan.successor.storedEnvelope else {
+                throw SettingsContractFailureV1.staleRevision
+            }
+            defaults.set(bytes, forKey: storageKey(DeviceLocalAppLockSettingV1.key))
+            let readback = try readAppLockSettingSnapshot()
+            guard readback == plan.successor else { throw PreferencesAdapterFailureV1.invalidCanonicalValue }
+            return readback
+        }
+    }
+
     func readReminderPolicy() throws -> DeviceLocalReminderPolicyV1 {
         try withLock {
             let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalReminderPolicyV1.key)
@@ -482,6 +629,26 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
         }) ?? false
     }
 
+    /// Serializes only the exact-cooldown check and conditional domain wipe.
+    /// The later awaited rating completion and OS effects are separate work.
+    @discardableResult
+    func preparePreferencesForCompletedErase(operationID: UUID,
+        persistentDomainName: String) throws -> Bool {
+        try withLock {
+            guard operationID != SettingsValidationV1.zeroUUID, !persistentDomainName.isEmpty else {
+                throw PreferencesAdapterFailureV1.conflictingOperation
+            }
+            if hasExactEraseCooldown(operationID: operationID, persistentDomainName: persistentDomainName) {
+                return true
+            }
+            defaults.removePersistentDomain(forName: persistentDomainName)
+            guard defaults.persistentDomain(forName: persistentDomainName)?.isEmpty != false else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            return false
+        }
+    }
+
     private func replaceWithDefaults(
         descriptors: [SettingDescriptorV1],
         operationID: UUID,
@@ -577,60 +744,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
         _ data: Data,
         descriptor: SettingDescriptorV1
     ) throws -> PreferenceStorageEnvelopeV1 {
-        do {
-            if descriptor.key == DeviceLocalReminderPolicyV1.key, data.count > 4_096 {
-                throw PreferencesAdapterFailureV1.invalidCanonicalValue
-            }
-            let envelope = try CompatibilityCanonicalV1.decode(
-                PreferenceStorageEnvelopeV1.self,
-                from: data
-            )
-            guard envelope.schemaVersion == PreferenceStorageEnvelopeV1.schemaVersion,
-                  envelope.writeRecord.map({
-                    $0.operationID != SettingsValidationV1.zeroUUID
-                        && CompatibilityCanonicalV1.validSHA256($0.canonicalValueDigest)
-                        && $0.canonicalValueDigest
-                            == CompatibilityCanonicalV1.sha256(envelope.canonicalValue)
-                  }) ?? true,
-                  envelope.migrationRecord.map({
-                    CompatibilityCanonicalV1.validSHA256($0.requestDigest)
-                        && CompatibilityCanonicalV1.validSHA256($0.legacySourceDigest)
-                        && $0.receipt.operationID != SettingsValidationV1.zeroUUID
-                        && $0.receipt.key == descriptor.key
-                        && $0.receipt.migrationVersion == descriptor.migrationVersion
-                        && CompatibilityCanonicalV1.validSHA256(
-                            $0.receipt.canonicalValueDigest
-                        )
-                  }) ?? true else {
-                throw PreferencesAdapterFailureV1.invalidCanonicalValue
-            }
-            try validate(envelope.canonicalValue, descriptor: descriptor)
-            if descriptor.key == DeviceLocalReminderPolicyV1.key {
-                guard envelope.writeRecord == nil, envelope.migrationRecord == nil else {
-                    throw PreferencesAdapterFailureV1.invalidCanonicalValue
-                }
-                let policy = try CompatibilityCanonicalV1.decode(DeviceLocalReminderPolicyV1.self,
-                                                                  from: envelope.canonicalValue)
-                try policy.validate()
-                if let operation = envelope.reminderOperation {
-                    try operation.validate()
-                    guard operation.successor == policy else {
-                        throw PreferencesAdapterFailureV1.invalidCanonicalValue
-                    }
-                } else {
-                    guard policy.revision == 1, !policy.isEnabled, policy.detail == .generic else {
-                        throw PreferencesAdapterFailureV1.invalidCanonicalValue
-                    }
-                }
-            } else if envelope.reminderOperation != nil {
-                throw PreferencesAdapterFailureV1.invalidCanonicalValue
-            }
-            return envelope
-        } catch let error as PreferencesAdapterFailureV1 {
-            throw error
-        } catch {
-            throw PreferencesAdapterFailureV1.invalidCanonicalValue
-        }
+        try decodePreferenceStorageEnvelopeV1(data, descriptor: descriptor)
     }
 
     private func storeEnvelope(
@@ -731,15 +845,15 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
     }
 
     private func withLock<T>(_ body: () throws -> T) throws -> T {
-        Self.lock.lock()
-        defer { Self.lock.unlock() }
-        return try body()
+        try AppLockNotificationTransactionFenceV1.perform(body)
     }
 
     private func withRatingEligibilityLock<T>(_ body: () throws -> T) throws -> T {
-        Self.ratingEligibilityLock.lock()
-        defer { Self.ratingEligibilityLock.unlock() }
-        return try body()
+        try AppLockNotificationTransactionFenceV1.perform {
+            Self.ratingEligibilityLock.lock()
+            defer { Self.ratingEligibilityLock.unlock() }
+            return try body()
+        }
     }
 }
 
@@ -939,4 +1053,64 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Settings_Pre
     static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
     static let createsSecondRouteOrInspectionAlias = false
     static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}
+
+// Shared validation preserves the existing descriptor/envelope wire contract.
+private func decodePreferenceStorageEnvelopeV1(
+    _ data: Data, descriptor: SettingDescriptorV1
+) throws -> PreferenceStorageEnvelopeV1 {
+        do {
+            if descriptor.key == DeviceLocalReminderPolicyV1.key, data.count > 4_096 {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            let envelope = try CompatibilityCanonicalV1.decode(
+                PreferenceStorageEnvelopeV1.self,
+                from: data
+            )
+            guard envelope.schemaVersion == PreferenceStorageEnvelopeV1.schemaVersion,
+                  envelope.writeRecord.map({
+                    $0.operationID != SettingsValidationV1.zeroUUID
+                        && CompatibilityCanonicalV1.validSHA256($0.canonicalValueDigest)
+                        && $0.canonicalValueDigest
+                            == CompatibilityCanonicalV1.sha256(envelope.canonicalValue)
+                  }) ?? true,
+                  envelope.migrationRecord.map({
+                    CompatibilityCanonicalV1.validSHA256($0.requestDigest)
+                        && CompatibilityCanonicalV1.validSHA256($0.legacySourceDigest)
+                        && $0.receipt.operationID != SettingsValidationV1.zeroUUID
+                        && $0.receipt.key == descriptor.key
+                        && $0.receipt.migrationVersion == descriptor.migrationVersion
+                        && CompatibilityCanonicalV1.validSHA256(
+                            $0.receipt.canonicalValueDigest
+                        )
+                  }) ?? true else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            try descriptor.validateCanonicalValue(envelope.canonicalValue)
+            if descriptor.key == DeviceLocalReminderPolicyV1.key {
+                guard envelope.writeRecord == nil, envelope.migrationRecord == nil else {
+                    throw PreferencesAdapterFailureV1.invalidCanonicalValue
+                }
+                let policy = try CompatibilityCanonicalV1.decode(DeviceLocalReminderPolicyV1.self,
+                                                                  from: envelope.canonicalValue)
+                try policy.validate()
+                if let operation = envelope.reminderOperation {
+                    try operation.validate()
+                    guard operation.successor == policy else {
+                        throw PreferencesAdapterFailureV1.invalidCanonicalValue
+                    }
+                } else {
+                    guard policy.revision == 1, !policy.isEnabled, policy.detail == .generic else {
+                        throw PreferencesAdapterFailureV1.invalidCanonicalValue
+                    }
+                }
+            } else if envelope.reminderOperation != nil {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            return envelope
+        } catch let error as PreferencesAdapterFailureV1 {
+            throw error
+        } catch {
+            throw PreferencesAdapterFailureV1.invalidCanonicalValue
+        }
 }

@@ -310,6 +310,114 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         try reference.validate()
     }
 
+    func testAppLockSettingPlanPreservesLegacyBytesAndDistinguishesAbsentStoredFalse() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        let legacy = try V914ReminderPreferencesFixture()
+        defer { fixture.remove(); legacy.remove() }
+        let preferences = fixture.adapter()
+        XCTAssertNil(try preferences.readStoredReminderPolicy())
+        XCTAssertNil(try preferences.readAppLockSettingSnapshot().storedEnvelope)
+        XCTAssertNil(fixture.defaults.persistentDomain(forName: fixture.suiteName))
+        let policy = try preferences.readReminderPolicy()
+        let absent = try preferences.readAppLockSettingSnapshot()
+        let operation = Self.uuid(240)
+        let plan = try preferences.planAppLockSettingWrite(expectedSetting: absent,
+            expectedReminderPolicy: policy, target: .init(isEnabled: false), operationID: operation)
+        XCTAssertNil(try absent.setting)
+        XCTAssertEqual(try plan.successor.setting, DeviceLocalAppLockSettingV1(isEnabled: false))
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalAppLockSettingV1.key)
+        try legacy.adapter().writeCanonicalValue(CompatibilityCanonicalV1.encode(false),
+            descriptor: descriptor, operationID: operation)
+        XCTAssertEqual(plan.successor.storedEnvelope, legacy.defaults.data(forKey:
+            PreferencesAdapterV1.storagePrefix + DeviceLocalAppLockSettingV1.key))
+        XCTAssertEqual(try preferences.applyAppLockSettingWrite(plan), plan.successor)
+        XCTAssertEqual(try fixture.reopenedAdapter().readAppLockSettingSnapshot(), plan.successor)
+        XCTAssertEqual(try preferences.applyAppLockSettingWrite(plan), plan.successor)
+        let bytes = try CompatibilityCanonicalV1.encode(plan)
+        XCTAssertEqual(try JSONDecoder().decode(AppLockSettingWritePlanV1.self, from: bytes), plan)
+        var hostile = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        hostile["operationID"] = Self.uuid(241).uuidString
+        XCTAssertThrowsError(try JSONDecoder().decode(AppLockSettingWritePlanV1.self,
+            from: JSONSerialization.data(withJSONObject: hostile)))
+    }
+
+    func testAppLockSettingCompletionRejectsSameValueCompetingOperationsAndReplayDrift() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        defer { fixture.remove() }
+        let preferences = fixture.adapter(), other = try fixture.reopenedAdapter()
+        let policy = try preferences.readReminderPolicy()
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalAppLockSettingV1.key)
+        try preferences.writeCanonicalValue(CompatibilityCanonicalV1.encode(false),
+            descriptor: descriptor, operationID: Self.uuid(242))
+        let before = try preferences.readAppLockSettingSnapshot()
+        let stale = try preferences.planAppLockSettingWrite(expectedSetting: before,
+            expectedReminderPolicy: policy, target: .init(isEnabled: true), operationID: Self.uuid(243))
+        try other.writeCanonicalValue(CompatibilityCanonicalV1.encode(false),
+            descriptor: descriptor, operationID: Self.uuid(244))
+        let competing = try preferences.readAppLockSettingSnapshot()
+        XCTAssertEqual(try before.setting, try competing.setting)
+        XCTAssertNotEqual(before, competing)
+        XCTAssertThrowsError(try preferences.applyAppLockSettingWrite(stale))
+        XCTAssertEqual(try preferences.readAppLockSettingSnapshot(), competing)
+        let current = try preferences.planAppLockSettingWrite(expectedSetting: competing,
+            expectedReminderPolicy: policy, target: .init(isEnabled: true), operationID: Self.uuid(245))
+        _ = try preferences.applyAppLockSettingWrite(current)
+        try other.writeCanonicalValue(CompatibilityCanonicalV1.encode(true),
+            descriptor: descriptor, operationID: Self.uuid(246))
+        let later = try other.readAppLockSettingSnapshot()
+        XCTAssertThrowsError(try preferences.applyAppLockSettingWrite(current))
+        XCTAssertEqual(try other.readAppLockSettingSnapshot(), later)
+    }
+
+    func testAppLockSettingCompletionNeverInitializesPostWipeOrResetConsent() throws {
+        for mode in 0..<3 {
+            let fixture = try V914ReminderPreferencesFixture()
+            defer { fixture.remove() }
+            let preferences = fixture.adapter()
+            let policy = try preferences.readReminderPolicy()
+            let plan = try preferences.planAppLockSettingWrite(expectedSetting: preferences.readAppLockSettingSnapshot(),
+                expectedReminderPolicy: policy, target: .init(isEnabled: true), operationID: Self.uuid(247))
+            if mode == 0 {
+                _ = try preferences.resetReminderPolicy(expected: policy, operationID: Self.uuid(248))
+            } else {
+                try preferences.preparePreferencesForCompletedErase(operationID: Self.uuid(249),
+                    persistentDomainName: fixture.suiteName)
+                if mode == 2 {
+                    XCTAssertNotEqual(try preferences.readReminderPolicy().instanceID, policy.instanceID)
+                }
+            }
+            let before = fixture.defaults.persistentDomain(forName: fixture.suiteName) as NSDictionary?
+            XCTAssertThrowsError(try preferences.applyAppLockSettingWrite(plan))
+            XCTAssertEqual(fixture.defaults.persistentDomain(forName: fixture.suiteName) as NSDictionary?, before)
+            XCTAssertNil(try preferences.readAppLockSettingSnapshot().storedEnvelope)
+        }
+    }
+
+    func testAppLockSettingPlanRetainsOriginalMigrationReceiptAcrossConditionalWrite() throws {
+        let fixture = try V914ReminderPreferencesFixture()
+        defer { fixture.remove() }
+        let preferences = fixture.adapter()
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalAppLockSettingV1.key)
+        fixture.defaults.set(true, forKey: "notification-test-legacy-lock")
+        let migration = try preferences.migrate(descriptor: descriptor,
+            legacyKeys: ["notification-test-legacy-lock"], operationID: Self.uuid(250))
+        XCTAssertEqual(migration.disposition, .migratedLegacyValue)
+        let expected = try preferences.readAppLockSettingSnapshot()
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(expected.storedEnvelope)) as? [String: Any])
+        let originalMigration = try XCTUnwrap(before["migrationRecord"] as? NSDictionary)
+        let policy = try preferences.readReminderPolicy()
+        let plan = try preferences.planAppLockSettingWrite(expectedSetting: expected,
+            expectedReminderPolicy: policy, target: .init(isEnabled: false), operationID: Self.uuid(251))
+        _ = try preferences.applyAppLockSettingWrite(plan)
+        let current = try fixture.reopenedAdapter().readAppLockSettingSnapshot()
+        let after = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(current.storedEnvelope)) as? [String: Any])
+        XCTAssertEqual(after["migrationRecord"] as? NSDictionary, originalMigration)
+        XCTAssertEqual(try expected.setting, DeviceLocalAppLockSettingV1(isEnabled: true))
+        XCTAssertEqual(try current.setting, DeviceLocalAppLockSettingV1(isEnabled: false))
+        XCTAssertEqual(current, plan.successor)
+        XCTAssertEqual(try preferences.applyAppLockSettingWrite(plan), current)
+    }
+
     func testReminderPolicyTwoInstancesRequireExactPredecessorAndOperationRequest() throws {
         let fixture = try V914ReminderPreferencesFixture()
         defer { fixture.remove() }

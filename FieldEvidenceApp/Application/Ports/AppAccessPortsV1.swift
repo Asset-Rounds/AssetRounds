@@ -349,6 +349,69 @@ protocol AppLockNotificationPrivacyPortV1: Sendable {
     func eraseNotificationsAndMappings(operationID: UUID) async throws
 }
 
+/// Device-local recovery control, separate from the unchanged legacy journal.
+/// It records setting completion only, never OS delivery or projection proof.
+struct AppLockNotificationControlV1: Codable, Equatable, Sendable {
+    enum Phase: String, Codable, Sendable { case prepared, settingCommitted }
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let journal: AppLockNotificationJournalV1
+    let priorReminderPolicy: DeviceLocalReminderPolicyV1
+    let settingWrite: AppLockSettingWritePlanV1
+    let phase: Phase
+
+    init(journal: AppLockNotificationJournalV1,
+         priorReminderPolicy: DeviceLocalReminderPolicyV1,
+         settingWrite: AppLockSettingWritePlanV1, phase: Phase = .prepared) throws {
+        let validatedJournal = try AppLockNotificationJournalV1(operationID: journal.operationID,
+            targetEnabled: journal.targetEnabled, priorPolicy: journal.priorPolicy,
+            projections: journal.projections, disposition: journal.disposition)
+        guard validatedJournal == journal,
+              try priorReminderPolicy.appLockReference() == journal.priorPolicy,
+              priorReminderPolicy.instanceID == settingWrite.expectedReminderPolicy.instanceID,
+              journal.operationID == settingWrite.operationID,
+              journal.targetEnabled == settingWrite.target.isEnabled else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        // The caller must supply an existing disposition from the OS owner.
+        // This foundation never advances the notification state machine.
+        if journal.targetEnabled, phase == .settingCommitted {
+            guard journal.disposition == .genericProjectionApplied
+                    || journal.disposition == .genericProjectionAdopted else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        } else if !journal.targetEnabled {
+            guard journal.disposition == .disablingPrepared
+                    || (phase == .settingCommitted && journal.disposition == .priorPolicyRebuilt) else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
+        schemaVersion = Self.schemaVersion
+        self.journal = journal
+        self.priorReminderPolicy = priorReminderPolicy
+        self.settingWrite = settingWrite
+        self.phase = phase
+    }
+
+    func committingSetting() throws -> Self {
+        try .init(journal: journal, priorReminderPolicy: priorReminderPolicy,
+            settingWrite: settingWrite, phase: .settingCommitted)
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, journal, priorReminderPolicy, settingWrite, phase }
+    init(from decoder: any Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try self.init(journal: values.decode(AppLockNotificationJournalV1.self, forKey: .journal),
+            priorReminderPolicy: values.decode(DeviceLocalReminderPolicyV1.self, forKey: .priorReminderPolicy),
+            settingWrite: values.decode(AppLockSettingWritePlanV1.self, forKey: .settingWrite),
+            phase: values.decode(Phase.self, forKey: .phase))
+    }
+}
+
 /// Injected durable/system boundary used by the production privacy
 /// coordinator. Implementations atomically persist the journal before changing
 /// notification state, and every returned journal is an exact readback.

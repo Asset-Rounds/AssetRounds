@@ -1091,6 +1091,382 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
     }
 }
 
+enum AppLockNotificationControlFailurePointV1: Equatable, Sendable {
+    case none, afterPreferenceWrite, afterPendingWriteBeforeSync
+}
+
+/// Explicitly unadopted notification recovery foundation. Owns only a control
+/// journal under the existing operations root, with no scratch lease, private
+/// mapping, OS request, workspace writer, or authentication claim.
+final class AppLockNotificationControlStoreV1: @unchecked Sendable {
+    static let rootName = "AppLockNotificationControlV1"
+    static let recordName = "control.json"
+    static let pendingName = "control.pending.json"
+    static let maximumRecordBytes = 1_048_576
+    private let preferences: PreferencesAdapterV1
+    private let supportURL: URL
+    private let supportDescriptor: Int32
+    private let supportDevice: UInt64
+    private let supportInode: UInt64
+    private let authority: PinnedScratchRootV1
+    private let failurePoint: AppLockNotificationControlFailurePointV1
+
+    init(applicationSupportURL: URL, preferences: PreferencesAdapterV1,
+         failurePoint: AppLockNotificationControlFailurePointV1 = .none) throws {
+        guard applicationSupportURL.isFileURL else { throw AppAccessContractFailureV1.configurationUnknown }
+        self.preferences = preferences
+        supportURL = applicationSupportURL.standardizedFileURL
+        self.failurePoint = failurePoint
+        let opened = try AppLockNotificationTransactionFenceV1.perform {
+            try Self.openRoot(applicationSupportURL.standardizedFileURL)
+        }
+        supportDescriptor = opened.support
+        supportDevice = opened.device
+        supportInode = opened.inode
+        authority = opened.authority
+    }
+
+    deinit { _ = Darwin.close(supportDescriptor) }
+
+    func loadControl() throws -> AppLockNotificationControlV1? {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard let bytes = try readFile(Self.recordName, kind: .journal) else { return nil }
+            return try Self.decode(bytes)
+        }
+    }
+
+    func prepareControl(journal: AppLockNotificationJournalV1,
+        priorReminderPolicy: DeviceLocalReminderPolicyV1,
+        settingWrite: AppLockSettingWritePlanV1,
+        expectedPredecessor: AppLockNotificationControlV1?) throws -> AppLockNotificationControlV1 {
+        try AppLockNotificationTransactionFenceV1.perform {
+            let candidate = try AppLockNotificationControlV1(journal: journal,
+                priorReminderPolicy: priorReminderPolicy, settingWrite: settingWrite)
+            let current = try loadControl()
+            try requirePolicy(settingWrite)
+            let setting = try preferences.readAppLockSettingSnapshot()
+            if current == candidate {
+                guard setting == settingWrite.expectedSetting || setting == settingWrite.successor else {
+                    throw SettingsContractFailureV1.staleRevision
+                }
+                return candidate
+            }
+            guard current == expectedPredecessor, setting == settingWrite.expectedSetting else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            if let current {
+                guard current.phase == .settingCommitted,
+                      current.journal.operationID != journal.operationID else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            }
+            if !journal.targetEnabled, let current {
+                guard priorReminderPolicy == current.priorReminderPolicy else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            } else {
+                guard priorReminderPolicy == settingWrite.expectedReminderPolicy else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            }
+            try publish(candidate, expected: current)
+            return candidate
+        }
+    }
+
+    func completeSetting(expected: AppLockNotificationControlV1) throws -> AppLockNotificationControlV1 {
+        try AppLockNotificationTransactionFenceV1.perform {
+            let completed = try expected.committingSetting()
+            let current = try loadControl()
+            try requirePolicy(expected.settingWrite)
+            if current == completed {
+                guard try preferences.readAppLockSettingSnapshot() == completed.settingWrite.successor else {
+                    throw SettingsContractFailureV1.staleRevision
+                }
+                return completed
+            }
+            guard expected.phase == .prepared, current == expected else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            if let pending = try readFile(Self.pendingName, kind: .journalTemporary) {
+                guard pending == (try CompatibilityCanonicalV1.encode(completed)) else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            }
+            _ = try preferences.applyAppLockSettingWrite(expected.settingWrite)
+            // Exact control stays prepared if this boundary is interrupted.
+            if failurePoint == .afterPreferenceWrite { throw AppAccessContractFailureV1.effectMismatch }
+            try publish(completed, expected: expected)
+            return completed
+        }
+    }
+
+    /// Records an actual same-operation journal result supplied by the future
+    /// OS owner. No private/generic projection is performed or inferred here.
+    func recordJournal(_ journal: AppLockNotificationJournalV1,
+        expected: AppLockNotificationControlV1) throws -> AppLockNotificationControlV1 {
+        try AppLockNotificationTransactionFenceV1.perform {
+            let old = expected.journal
+            guard journal.operationID == old.operationID, journal.targetEnabled == old.targetEnabled,
+                  journal.priorPolicy == old.priorPolicy, journal.projections == old.projections else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            let same = journal == old
+            let advancesEnable = old.targetEnabled && expected.phase == .prepared
+                && ((old.disposition == .enablingPrepared
+                     && journal.disposition == .interruptedRecoveryRequired)
+                    || ((old.disposition == .enablingPrepared || old.disposition == .interruptedRecoveryRequired)
+                        && (journal.disposition == .genericProjectionApplied || journal.disposition == .genericProjectionAdopted)))
+            let advancesDisable = !old.targetEnabled && expected.phase == .settingCommitted
+                && old.disposition == .disablingPrepared && journal.disposition == .priorPolicyRebuilt
+            guard same || advancesEnable || advancesDisable else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            let successor = try AppLockNotificationControlV1(journal: journal,
+                priorReminderPolicy: expected.priorReminderPolicy, settingWrite: expected.settingWrite,
+                phase: expected.phase)
+            try requirePolicy(expected.settingWrite)
+            let setting = try preferences.readAppLockSettingSnapshot()
+            guard expected.phase == .prepared
+                    ? (setting == expected.settingWrite.expectedSetting || setting == expected.settingWrite.successor)
+                    : setting == expected.settingWrite.successor else {
+                throw SettingsContractFailureV1.staleRevision
+            }
+            let current = try loadControl()
+            if current == successor { return successor }
+            guard current == expected else { throw AppAccessContractFailureV1.effectMismatch }
+            try publish(successor, expected: expected)
+            return successor
+        }
+    }
+
+    private func requirePolicy(_ plan: AppLockSettingWritePlanV1) throws {
+        guard try preferences.readStoredReminderPolicy() == plan.expectedReminderPolicy else {
+            throw SettingsContractFailureV1.staleRevision
+        }
+    }
+
+    private static func decode(_ bytes: Data) throws -> AppLockNotificationControlV1 {
+        guard !bytes.isEmpty, bytes.count <= maximumRecordBytes else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let value = try JSONDecoder().decode(AppLockNotificationControlV1.self, from: bytes)
+        guard try CompatibilityCanonicalV1.encode(value) == bytes else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return value
+    }
+
+    private var rootURL: URL {
+        supportURL.appendingPathComponent(OwnedStorageRootKindV1.operations.rawValue)
+            .appendingPathComponent(Self.rootName)
+    }
+
+    private func verifyRoot() throws {
+        try Self.verifySupport(supportURL, descriptor: supportDescriptor,
+            device: supportDevice, inode: supportInode, authority: authority)
+        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: rootURL)
+        try authority.verify(rootName: Self.rootName)
+    }
+
+    private static func verifySupport(_ url: URL, descriptor: Int32,
+        device: UInt64, inode: UInt64, authority: PinnedScratchRootV1) throws {
+        var opened = stat(), linked = stat(), operations = stat()
+        guard Darwin.fstat(descriptor, &opened) == 0, Darwin.lstat(url.path, &linked) == 0,
+              (linked.st_mode & S_IFMT) == S_IFDIR,
+              UInt64(opened.st_dev) == device, UInt64(opened.st_ino) == inode,
+              linked.st_dev == opened.st_dev, linked.st_ino == opened.st_ino,
+              Darwin.fstatat(descriptor, OwnedStorageRootKindV1.operations.rawValue,
+                  &operations, AT_SYMLINK_NOFOLLOW) == 0,
+              (operations.st_mode & S_IFMT) == S_IFDIR,
+              UInt64(operations.st_dev) == authority.operationsDevice,
+              UInt64(operations.st_ino) == authority.operationsInode else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try authority.verify(rootName: rootName)
+    }
+
+    private static func openRoot(_ supportURL: URL) throws
+        -> (support: Int32, device: UInt64, inode: UInt64, authority: PinnedScratchRootV1) {
+        let support = Darwin.open(supportURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard support >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        var keep = false
+        defer { if !keep { _ = Darwin.close(support) } }
+        var information = stat(), linked = stat()
+        guard Darwin.fstat(support, &information) == 0,
+              Darwin.lstat(supportURL.path, &linked) == 0,
+              (linked.st_mode & S_IFMT) == S_IFDIR,
+              information.st_dev == linked.st_dev, information.st_ino == linked.st_ino else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let operationsName = OwnedStorageRootKindV1.operations.rawValue
+        guard Darwin.mkdirat(support, operationsName, 0o700) == 0 || errno == EEXIST else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let operations = Darwin.openat(support, operationsName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard operations >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        defer { _ = Darwin.close(operations) }
+        var operationsInfo = stat()
+        guard Darwin.fstat(operations, &operationsInfo) == 0,
+              operationsInfo.st_dev == information.st_dev else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let created = Darwin.mkdirat(operations, rootName, 0o700) == 0
+        guard created || errno == EEXIST else { throw AppAccessContractFailureV1.configurationUnknown }
+        let operationsURL = supportURL.appendingPathComponent(operationsName)
+        let pinned = try PinnedScratchRootV1(operationsURL: operationsURL, rootName: rootName)
+        guard UInt64(operationsInfo.st_dev) == pinned.operationsDevice,
+              UInt64(operationsInfo.st_ino) == pinned.operationsInode else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let check = {
+            try verifySupport(supportURL, descriptor: support, device: UInt64(information.st_dev),
+                inode: UInt64(information.st_ino), authority: pinned)
+        }
+        try check()
+        let root = operationsURL.appendingPathComponent(rootName)
+        if created {
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: root, authorityCheck: check)
+        } else {
+            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: root)
+        }
+        try check()
+        guard Darwin.fsync(pinned.rootDescriptor) == 0, Darwin.fsync(operations) == 0,
+              Darwin.fsync(support) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        keep = true
+        return (support, UInt64(information.st_dev), UInt64(information.st_ino), pinned)
+    }
+
+    private func information(_ name: String) throws -> stat? {
+        try verifyRoot()
+        var value = stat()
+        if Darwin.fstatat(authority.rootDescriptor, name, &value, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw AppAccessContractFailureV1.configurationUnknown }
+            return nil
+        }
+        guard (value.st_mode & S_IFMT) == S_IFREG, value.st_nlink == 1,
+              value.st_uid == Darwin.geteuid(), UInt64(value.st_dev) == authority.rootDevice,
+              value.st_size > 0, value.st_size <= Int64(Self.maximumRecordBytes) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return value
+    }
+
+    private static func sameFile(_ a: stat, _ b: stat) -> Bool {
+        a.st_dev == b.st_dev && a.st_ino == b.st_ino && a.st_size == b.st_size
+            && a.st_nlink == b.st_nlink && a.st_mode == b.st_mode && a.st_uid == b.st_uid
+            && a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec && a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec
+            && a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec && a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec
+    }
+
+    private func readFile(_ name: String, kind: OwnedFileKindV1) throws -> Data? {
+        guard let before = try information(name) else { return nil }
+        let file = Darwin.openat(authority.rootDescriptor, name, O_RDONLY | O_NOFOLLOW)
+        guard file >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        defer { _ = Darwin.close(file) }
+        var opened = stat()
+        guard Darwin.fstat(file, &opened) == 0, Self.sameFile(before, opened) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try ProtectedFilePolicyV1.verify(kind, at: rootURL.appendingPathComponent(name))
+        var bytes = Data(count: Int(opened.st_size))
+        var offset = 0
+        while offset < bytes.count {
+            let count = bytes.withUnsafeMutableBytes { raw -> Int in
+                guard let base = raw.baseAddress else { return 0 }
+                return Darwin.read(file, base.advanced(by: offset), raw.count - offset)
+            }
+            if count < 0, errno == EINTR { continue }
+            guard count > 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+            offset += count
+        }
+        var after = stat()
+        guard Darwin.fstat(file, &after) == 0, Self.sameFile(opened, after),
+              let linked = try information(name), Self.sameFile(after, linked) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return bytes
+    }
+
+    private func publish(_ value: AppLockNotificationControlV1,
+        expected: AppLockNotificationControlV1?) throws {
+        let bytes = try CompatibilityCanonicalV1.encode(value)
+        guard try Self.decode(bytes) == value, try loadControl() == expected else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        if let pending = try readFile(Self.pendingName, kind: .journalTemporary) {
+            // Only an exact interrupted successor can be adopted. Unknown or
+            // divergent pending bytes are retained for explicit recovery.
+            guard pending == bytes else { throw AppAccessContractFailureV1.effectMismatch }
+        } else {
+            let file = Darwin.openat(authority.rootDescriptor, Self.pendingName,
+                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+            guard file >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+            defer { _ = Darwin.close(file) }
+            var offset = 0
+            while offset < bytes.count {
+                let count = bytes.withUnsafeBytes { raw -> Int in
+                    guard let base = raw.baseAddress else { return 0 }
+                    return Darwin.write(file, base.advanced(by: offset), raw.count - offset)
+                }
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+                offset += count
+            }
+            let pinned = try information(Self.pendingName)
+            try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary,
+                at: rootURL.appendingPathComponent(Self.pendingName), authorityCheck: {
+                    try self.verifyRoot()
+                    var opened = stat()
+                    guard Darwin.fstat(file, &opened) == 0,
+                          let linked = try self.information(Self.pendingName),
+                          let pinned, opened.st_dev == pinned.st_dev, opened.st_ino == pinned.st_ino,
+                          opened.st_dev == linked.st_dev, opened.st_ino == linked.st_ino else {
+                        throw AppAccessContractFailureV1.configurationUnknown
+                    }
+                })
+            if failurePoint == .afterPendingWriteBeforeSync {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
+        guard try readFile(Self.pendingName, kind: .journalTemporary) == bytes,
+              try loadControl() == expected else { throw AppAccessContractFailureV1.effectMismatch }
+        // A valid pending file can survive an interruption before its content
+        // was flushed. Adopted and freshly written bytes need the same fsync.
+        try syncPendingFile()
+        try verifyRoot()
+        let result: Int32
+        if expected == nil {
+            result = Darwin.renameatx_np(authority.rootDescriptor, Self.pendingName,
+                authority.rootDescriptor, Self.recordName, UInt32(RENAME_EXCL))
+        } else {
+            result = Darwin.renameat(authority.rootDescriptor, Self.pendingName,
+                authority.rootDescriptor, Self.recordName)
+        }
+        guard result == 0, Darwin.fsync(authority.rootDescriptor) == 0,
+              try loadControl() == value else { throw AppAccessContractFailureV1.effectMismatch }
+    }
+
+    private func syncPendingFile() throws {
+        guard let before = try information(Self.pendingName) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let descriptor = Darwin.openat(authority.rootDescriptor, Self.pendingName, O_RDWR | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        defer { _ = Darwin.close(descriptor) }
+        var opened = stat()
+        guard Darwin.fstat(descriptor, &opened) == 0, Self.sameFile(before, opened) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try ProtectedFilePolicyV1.verify(.journalTemporary, at: rootURL.appendingPathComponent(Self.pendingName))
+        try verifyRoot()
+        guard Darwin.fsync(descriptor) == 0,
+              let linked = try information(Self.pendingName), Self.sameFile(opened, linked) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+    }
+}
+
 /// Sole process adapter for the shared, noncanonical scratch root. Every byte
 /// remains under `FieldEvidenceOperations`, so the closed owned-storage ledger
 /// accounts for it while purpose-separated leases prevent support export from

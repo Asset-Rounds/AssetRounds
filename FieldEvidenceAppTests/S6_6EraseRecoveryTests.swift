@@ -31,6 +31,42 @@ private final class C30EvidenceContextAnchorS6_6EraseRecovery: XCTestCase {
 }
 
 final class S6_6EraseRecoveryTests: XCTestCase {
+    @MainActor
+    func testNotificationPreferenceEraseFencePreservesExactCooldownAndRejectsHeldSettingAuthority() async throws {
+        let suite = "S6_6.notification-control." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let policy = try preferences.readReminderPolicy()
+        let heldPlan = try preferences.planAppLockSettingWrite(expectedSetting: preferences.readAppLockSettingSnapshot(),
+            expectedReminderPolicy: policy, target: .init(isEnabled: true), operationID: UUID())
+        let eraseID = UUID(), erasedAt = Date(timeIntervalSince1970: 1_900_000_000)
+        XCTAssertFalse(try preferences.preparePreferencesForCompletedErase(operationID: eraseID, persistentDomainName: suite))
+        XCTAssertThrowsError(try preferences.applyAppLockSettingWrite(heldPlan))
+        XCTAssertNil(try preferences.readStoredReminderPolicy())
+        let rating = try RatingEligibilityCoordinatorV1(store: preferences,
+            nativeRequest: AppStoreRatingRequestAdapterV1(), clock: SystemApplicationClock())
+        let original = try await rating.applyCompletedErase(eraseOperationID: eraseID, erasedAt: erasedAt)
+        let bytes = try XCTUnwrap(defaults.persistentDomain(forName: suite)) as NSDictionary
+        XCTAssertEqual(bytes.count, 1)
+        XCTAssertTrue(try preferences.preparePreferencesForCompletedErase(operationID: eraseID, persistentDomainName: suite))
+        XCTAssertEqual(defaults.persistentDomain(forName: suite) as NSDictionary?, bytes)
+        let retry = try await rating.applyCompletedErase(eraseOperationID: eraseID,
+            erasedAt: erasedAt.addingTimeInterval(10_000))
+        XCTAssertEqual(retry.suppressUntil, original.suppressUntil)
+        XCTAssertEqual(retry.receipt.stateSHA256, original.receipt.stateSHA256)
+        defaults.set("foreign preference", forKey: "notification-test-foreign")
+        XCTAssertFalse(try preferences.preparePreferencesForCompletedErase(operationID: eraseID, persistentDomainName: suite))
+        XCTAssertNil(try preferences.readStoredReminderPolicy())
+        XCTAssertThrowsError(try preferences.applyAppLockSettingWrite(heldPlan))
+        let replacement = try preferences.readReminderPolicy()
+        XCTAssertNotEqual(replacement.instanceID, policy.instanceID)
+        XCTAssertThrowsError(try preferences.applyAppLockSettingWrite(heldPlan))
+        XCTAssertEqual(try preferences.readStoredReminderPolicy(), replacement)
+        XCTAssertNil(try preferences.readAppLockSettingSnapshot().storedEnvelope)
+    }
+
     func testCompleteKernelEraseMappingsValidateWithoutDroppingRegistrations() throws {
         try KernelDeletionEraseRegistryV4.validate()
         XCTAssertEqual(KernelDeletionEraseRegistryV4.registrations.map(\.kind),

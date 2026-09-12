@@ -1508,13 +1508,10 @@ private extension EraseAllService {
         // scratch namespace; there is no application-support-level C45 root.
         try auxiliary.removeFrozenTargets()
         let ratingStore = PreferencesAdapterV1(defaults: userDefaults)
-        let preservesExactCooldown = ratingStore.hasExactEraseCooldown(
+        try ratingStore.preparePreferencesForCompletedErase(
             operationID: activated.eraseID,
             persistentDomainName: defaultsDomainName
         )
-        if !preservesExactCooldown {
-            userDefaults.removePersistentDomain(forName: defaultsDomainName)
-        }
         // The one post-wipe Defaults value is an installation-only cooldown,
         // written through the sole preferences owner. Its CAS receipt and
         // read-back are required before Erase may publish cleanupComplete.
