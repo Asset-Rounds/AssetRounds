@@ -164,7 +164,7 @@ extension FieldReferenceReleaseV1 {
             revision: values.decode(UInt64.self, forKey: .revision),
             mutationID: values.decode(MutationIDV1.self, forKey: .mutationID), importedContent: imported)
         guard try values.decode(String.self, forKey: .manifestSHA256) == manifestSHA256,
-              values.decode(String.self, forKey: .releaseSHA256) == releaseSHA256 else {
+              try values.decode(String.self, forKey: .releaseSHA256) == releaseSHA256 else {
             throw FieldReferencePackFailureV1.invalidDigest
         }
     }
