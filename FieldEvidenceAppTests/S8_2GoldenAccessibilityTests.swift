@@ -236,7 +236,10 @@ extension S8_2GoldenAccessibilityTests {
         let accessibility = try BundledLocalizationCatalogV1.accessibilityRegistry(
             localization: localization
         )
-        try accessibility.validate()
+        XCTAssertEqual(
+            try SemanticAccessibilityIDRegistryV1(entries: accessibility.entries, localization: localization),
+            accessibility
+        )
         let exactRoles: [String: SemanticAccessibilityRoleV1] = [
             "feedback.mail.screen": .screen,
             "feedback.mail.recipient": .group,

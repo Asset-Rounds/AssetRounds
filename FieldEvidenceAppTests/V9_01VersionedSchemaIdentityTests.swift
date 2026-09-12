@@ -976,7 +976,7 @@ extension V9_01VersionedSchemaIdentityTests {
 extension V9_01VersionedSchemaIdentityTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
     }

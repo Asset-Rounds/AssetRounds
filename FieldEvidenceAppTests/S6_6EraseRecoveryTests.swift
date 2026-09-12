@@ -907,7 +907,7 @@ extension S6_6EraseRecoveryTests {
 extension S6_6EraseRecoveryTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.receiptPersistence,
                        "RECOVERABILITY_VERIFICATION_RECEIPT_V1_IMMUTABLE_EVIDENCE")
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)

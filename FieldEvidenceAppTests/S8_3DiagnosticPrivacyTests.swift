@@ -701,7 +701,7 @@ extension S8_3DiagnosticPrivacyTests {
 extension S8_3DiagnosticPrivacyTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
     }

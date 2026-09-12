@@ -153,7 +153,11 @@
     "FieldEvidenceAppTests/V9_78PrivateSystemDiscoveryTests/testV23P04C14R01DeleteEraseExportAndReportDropAndRebuildDerivedDiscoveryProjection",
     "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16A01PracticeWorkspaceIsolationAndReset",
     "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16I01InterruptedInstallResumeIsIdempotent",
-    "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16G01TypedSettingsAndTaskFirstShell"
+    "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16G01TypedSettingsAndTaskFirstShell",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testC22RecoverabilityVerificationAnchor",
+    "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testV23P03C42GoldenAccessibilityResolvesTypedJourneyThroughShippingRegistry",
+    "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testC22RecoverabilityVerificationAnchor",
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests/testC22RecoverabilityVerificationAnchor"
   ],
   "uiTestSelectors": []
 }
