@@ -667,8 +667,8 @@ final class V9_61AssetServiceReliabilityTests: XCTestCase {
             exposures: [try C53AssetServiceReliabilityTestSupport.exposure(
                 subject: subject,
                 coverage: .incomplete,
-                eventID: C53AssetServiceReliabilityTestSupport.uuid("8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A54BE"),
-                mutationID: try C53AssetServiceReliabilityTestSupport.mutation("8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A54BF")
+                mutationID: try C53AssetServiceReliabilityTestSupport.mutation("8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A54BF"),
+                eventID: C53AssetServiceReliabilityTestSupport.uuid("8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A54BE")
             )],
             segments: []
         )

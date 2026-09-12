@@ -922,7 +922,7 @@ private enum C45AssetLabelTestSupport {
                 slot: slot
             )
         }
-        try LabelOutputReceiptV1(
+        return try LabelOutputReceiptV1(
             receiptID: id(slot),
             workspaceID: plan.workspaceID,
             planID: plan.planID,

@@ -1126,7 +1126,9 @@ final class V9_60PortableServiceRequestTests: XCTestCase {
         try cloned.validate()
         XCTAssertEqual(cloned.invalidatedSessionCount, 1)
         XCTAssertTrue(cloned.activeCapabilitiesInvalidated)
-        let clonedSession = try await lifecycle.serviceRequestSession(golden.manifest.invitationPublicID)
+        let clonedSession = try await lifecycle.serviceRequestSession(
+            invitationPublicID: golden.manifest.invitationPublicID
+        )
         XCTAssertEqual(
             clonedSession?.state,
             .some(PortableExchangeSessionStateV2.historyOnlyClonedOrForked)

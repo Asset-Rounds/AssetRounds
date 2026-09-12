@@ -2181,7 +2181,7 @@ final class V9_57IncumbentFileAdapterTests: XCTestCase {
         XCTAssertEqual(firstTerminal, secondTerminal)
         XCTAssertTrue(firstTerminal.scratchDeleted)
         XCTAssertFalse(firstTerminal.canonicalEffectOccurred)
-        let finishCount = await scratch.finishCount(for: binding.lease.leaseID)
+        let finishCount = await scratch.finishCount(for: binding.lease.request.leaseID)
         XCTAssertEqual(finishCount, 1)
 
         let interruptedScope = try C50IncumbentFileAdapterTestSupport.scope(

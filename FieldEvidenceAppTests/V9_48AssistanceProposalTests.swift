@@ -132,7 +132,7 @@ enum C32AssistanceTestSupport {
         AssistanceProposalEvaluationContextV1(
             workspaceID: workspaceID ?? proposal.target.workspaceID,
             targetRevision: targetRevision ?? proposal.target.revision,
-            policy: policy ?? (try self.policy(capability: proposal.capability)),
+            policy: try policy ?? self.policy(capability: proposal.capability),
             packageReleaseSHA256: packageDigest ?? proposal.packageReleaseSHA256,
             definitionReleaseSHA256: definitionDigest ?? proposal.definitionReleaseSHA256,
             currentSource: source ?? .some(proposal.source),
@@ -385,7 +385,7 @@ enum C32AssistanceTestSupport {
         try C26SurveySessionTestSupport.seedPersistence(
             context: session.modelContext,
             session: surveySession,
-            packageRelease: surveySession.authority.packageRelease,
+            packageRelease: try C26SurveySessionTestSupport.packageRelease(),
             packageSlot: 12_000 + slot
         )
         session.modelContext.insert(EntityMutationRevisionRow(
@@ -787,7 +787,7 @@ private final class C32PersistentAcceptanceHarness {
         try C26SurveySessionTestSupport.seedPersistence(
             context: context,
             session: session,
-            packageRelease: session.authority.packageRelease,
+            packageRelease: try C26SurveySessionTestSupport.packageRelease(),
             packageSlot: 9_000 + slot
         )
         context.insert(EntityMutationRevisionRow(
@@ -1540,11 +1540,11 @@ final class V9_48AssistanceProposalTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? AssistanceContractFailureV1, .invalidValue)
         }
-        let wrongSource = try C32AssistanceTestSupport.source(sourceID: C32AssistanceTestSupport.id(313).uuidString.lowercased())
+        let wrongScratchSource = try C32AssistanceTestSupport.source(sourceID: C32AssistanceTestSupport.id(313).uuidString.lowercased())
         do {
             _ = try await scratchBridge.acquireAndBind(
                 proposalID: proposalID,
-                source: wrongSource,
+                source: wrongScratchSource,
                 request: scratchRequest
             )
             XCTFail("scratch source identity must equal the requested lease identity")

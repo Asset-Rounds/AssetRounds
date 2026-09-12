@@ -165,13 +165,48 @@ final class V9_56WorkResourceTests: XCTestCase {
         }
     }
 
-    func testV23P03C49I01ReplaceRestoreAndCloneForkRecoveryChainIsExplicit() {
-        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(.emptyInstall))
-        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(.replaceExisting))
-        XCTAssertFalse(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(.clone))
-        XCTAssertFalse(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(.fork))
-        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.requiresHistoricRebinding(.clone))
-        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.requiresHistoricRebinding(.fork))
+    func testV23P03C49I01ReplaceRestoreAndCloneForkRecoveryChainIsExplicit() throws {
+        func id(_ slot: Int) -> UUID {
+            UUID(uuidString: String(format: "49000000-0000-4000-8000-%012x", slot))!
+        }
+        let source = RestoreSourceIdentityV1(
+            workspaceID: workspaceID.rawValue,
+            replicaID: id(900)
+        )
+        let oldPointer = RestorePointerIdentityV1(
+            generationID: id(901),
+            generationManifestSHA256: digest,
+            workspaceID: workspaceID.rawValue,
+            replicaID: id(902)
+        )
+        func identity(_ mode: BackupRestoreMode) throws -> RestoreIdentityV1 {
+            let slot: Int
+            switch mode {
+            case .emptyInstall: slot = 910
+            case .replaceExisting: slot = 920
+            case .clone: slot = 930
+            case .fork: slot = 940
+            }
+            return try RestoreIdentityDecisionV1.decide(RestoreIdentityDecisionInputV1(
+                mode: mode,
+                source: source,
+                oldPointer: oldPointer,
+                targetGenerationID: id(slot),
+                targetGenerationManifestSHA256: digest,
+                allocatedWorkspaceID: mode == .clone || mode == .fork ? id(slot + 1) : nil,
+                allocatedReplicaID: id(slot + 2)
+            ))
+        }
+        let emptyInstall = try identity(.emptyInstall)
+        let replaceExisting = try identity(.replaceExisting)
+        let clone = try identity(.clone)
+        let fork = try identity(.fork)
+        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(emptyInstall))
+        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(replaceExisting))
+        XCTAssertFalse(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(clone))
+        XCTAssertFalse(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(fork))
+        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.requiresHistoricRebinding(clone))
+        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.requiresHistoricRebinding(fork))
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.backupRestoreCloneForkDeleteAndEraseAreExplicit)
         XCTAssertTrue(C49WorkResourceStreamingArchiveBoundaryV1.totalsSearchDraftsAndLiveStockAreExcluded)
     }

@@ -324,6 +324,9 @@ struct ResponseAuthorAssertionV1: Codable, Equatable, Hashable, Sendable {
 
     func validate() throws {
         try PortableReviewLimitsV1.boundedText(displayName, maximumBytes: PortableReviewLimitsV1.maximumAuthorBytes)
+        guard displayName.rangeOfCharacter(from: .newlines) == nil else {
+            throw PortableReviewFailureV1.invalidValue
+        }
         if let organization { try PortableReviewLimitsV1.boundedText(organization, maximumBytes: PortableReviewLimitsV1.maximumAuthorBytes) }
         if let statedResponseAt, !statedResponseAt.timeIntervalSinceReferenceDate.isFinite { throw PortableReviewFailureV1.invalidValue }
         if let statedTimeZoneIdentifier, TimeZone(identifier: statedTimeZoneIdentifier) == nil { throw PortableReviewFailureV1.invalidValue }

@@ -1401,12 +1401,12 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
         unknownKDF.replaceSubrange(16..<18, with: Data([0, 2]))
         var unknownAEAD = sealedBytes
         unknownAEAD.replaceSubrange(18..<20, with: Data([0, 2]))
-        var missingFinal = sealedBytes
+        var missingFinalBytes = sealedBytes
         let firstFrameOffset = EncryptedPortableEnvelopeProtocolReleaseV1.headerByteCount
         let firstFrameByteCount = EncryptedPortableEnvelopeProtocolReleaseV1.frameHeaderByteCount
             + 1_048_576 + 16
         let secondFrameOffset = firstFrameOffset + firstFrameByteCount
-        missingFinal[secondFrameOffset + 4] = 0
+        missingFinalBytes[secondFrameOffset + 4] = 0
         var multipleFinal = sealedBytes
         multipleFinal[firstFrameOffset + 4] = EncryptedEnvelopeFrameHeaderV1.finalFlag
         let firstFrame = Data(sealedBytes[firstFrameOffset..<secondFrameOffset])
@@ -1428,7 +1428,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
         appended.append(0)
         let truncated = Data(sealedBytes.dropLast())
         for malformed in [
-            badMagic, zeroFrames, unknownKDF, unknownAEAD, missingFinal, multipleFinal,
+            badMagic, zeroFrames, unknownKDF, unknownAEAD, missingFinalBytes, multipleFinal,
             reordered, duplicated, omitted, oversized, appended, truncated,
         ] {
             XCTAssertThrowsError(try crypto.structuralPreflight(source: C54StreamingBuffer(malformed)))

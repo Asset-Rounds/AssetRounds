@@ -515,25 +515,29 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
         )
         let excludedResolution = try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan07, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .nextIncludedDay, events: []
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .nextIncludedDay, events: []
         )
         XCTAssertEqual(excludedResolution.level, .exceptionCalendar)
         XCTAssertEqual(excludedResolution.effectiveDate, try C51ScheduleTestSupport.date("2025-01-09"))
         XCTAssertEqual(excludedResolution.adjustmentReason, .nextIncludedDay)
         let previousResolution = try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan07, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .previousIncludedDay, events: []
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .previousIncludedDay, events: []
         )
         XCTAssertEqual(previousResolution.effectiveDate, jan06)
         let manualResolution = try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan07, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .requireManualResolution, events: []
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .requireManualResolution, events: []
         )
         XCTAssertTrue(manualResolution.requiresManualResolution)
         XCTAssertNil(manualResolution.effectiveDate)
         let skippedResolution = try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan07, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .skipWithReason, events: []
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .skipWithReason, events: []
         )
         XCTAssertNil(skippedResolution.effectiveDate)
         XCTAssertEqual(skippedResolution.adjustmentReason, .explicitSkip)
@@ -564,7 +568,8 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
 
         let exact = try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan06, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .nextIncludedDay, events: [exactSkip, seriesMove]
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .nextIncludedDay, events: [exactSkip, seriesMove]
         )
         XCTAssertEqual(exact.level, .explicitOccurrenceOverride)
         XCTAssertEqual(exact.event?.eventID, exactSkip.eventID)
@@ -572,7 +577,8 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
 
         let series = try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan13, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .nextIncludedDay, events: [seriesMove]
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .nextIncludedDay, events: [seriesMove]
         )
         XCTAssertEqual(series.level, .effectiveSeriesOverride)
         XCTAssertEqual(series.effectiveDate, try C51ScheduleTestSupport.date("2025-01-15"))
@@ -580,14 +586,16 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
 
         let entireSeries = try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan13, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .nextIncludedDay, events: [allSeriesMove]
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .nextIncludedDay, events: [allSeriesMove]
         )
         XCTAssertEqual(entireSeries.level, .effectiveSeriesOverride)
         XCTAssertEqual(entireSeries.effectiveDate, try C51ScheduleTestSupport.date("2025-01-20"))
 
         let addResolution = try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan12, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .nextIncludedDay, events: [addOne]
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .nextIncludedDay, events: [addOne]
         )
         XCTAssertEqual(addResolution.level, .explicitOccurrenceOverride)
         XCTAssertEqual(addResolution.effectiveDate, try C51ScheduleTestSupport.date("2025-01-16"))
@@ -599,7 +607,8 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
         )
         XCTAssertThrowsError(try ScheduleOverridePrecedenceV1.resolve(
             occurrenceID: occurrenceID, nominalDate: jan06, nominalWindow: nominalWindow,
-            calendar: calendar, adjustmentPolicy: .nextIncludedDay, events: [exactSkip, conflict]
+            scheduleRelease: schedule, calendar: calendar,
+            adjustmentPolicy: .nextIncludedDay, events: [exactSkip, conflict]
         ))
 
         let successor = try C51ScheduleTestSupport.override(

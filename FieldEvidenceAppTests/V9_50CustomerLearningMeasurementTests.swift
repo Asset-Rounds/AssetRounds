@@ -586,7 +586,7 @@ final class V9_50CustomerLearningMeasurementTests: XCTestCase {
         }
         XCTAssertFalse(clean.claimsReleaseArchiveInspection)
         XCTAssertFalse(clean.claimsRuntimeNetworkObservation)
-        XCTAssertThrowsError(try ZeroCollectionConformanceScannerV1.scan(documents: [])) {
+        XCTAssertThrowsError(try ZeroCollectionConformanceScannerV1.scan(documents: [])) { error in
             XCTAssertEqual(error as? ZeroCollectionConformanceScannerFailureV1, .emptyInput)
         }
         let duplicateDocument = try ZeroCollectionStaticDocumentV1(

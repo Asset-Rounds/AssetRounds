@@ -261,7 +261,7 @@ private enum C48PortableReviewTestSupport {
         responseBodyDigest: Data? = nil
     ) throws -> ReviewCapabilityProofInputV1 {
         try ReviewCapabilityProofInputV1(
-            protocolReleaseDigest: protocolDigest ?? hex(vector.releaseDigestHex),
+            protocolReleaseDigest: protocolDigest ?? hex(fixture().protocolFixture.releaseDigestHex),
             requestPublicID: try ReviewRequestPublicIDV1(requestID ?? vector.requestPublicID),
             requestManifestDigest: requestManifestDigest ?? hex(vector.requestManifestDigestHex),
             innerRequestPackageDigest: innerPackageDigest ?? hex(vector.innerRequestPackageDigestHex),
@@ -769,14 +769,24 @@ final class V9_55PortableReviewTests: XCTestCase {
             vector.expectedHMACHex
         )
 
-        let rawVsHexInput = try C48PortableReviewTestSupport.input(
-            vector: vector,
-            requestManifestDigest: Data(vector.requestManifestDigestHex.utf8)
+        let rawVsHexTranscript = try C48PortableReviewTestSupport.transcript(
+            domain: ReviewCapabilityProofCodecV1.domain,
+            protocolDigest: input.protocolReleaseDigest,
+            requestID: input.requestPublicID.rawValue,
+            requestManifestDigest: Data(vector.requestManifestDigestHex.utf8),
+            innerPackageDigest: input.innerRequestPackageDigest,
+            responseBodyDigest: input.canonicalResponseBodyDigest
         )
         XCTAssertNotEqual(
-            try ReviewCapabilityProofCodecV1.makeProof(capability: productionVector.capability, input: rawVsHexInput),
-            proof
+            C48PortableReviewTestSupport.hmacHex(capability: capability, transcript: rawVsHexTranscript),
+            vector.expectedHMACHex
         )
+        XCTAssertThrowsError(try C48PortableReviewTestSupport.input(
+            vector: vector,
+            requestManifestDigest: Data(vector.requestManifestDigestHex.utf8)
+        )) { error in
+            XCTAssertEqual(error as? PortableReviewFailureV1, .invalidDigest)
+        }
         let alternateIDInput = try C48PortableReviewTestSupport.input(
             vector: vector,
             requestID: vector.requestPublicID.uppercased()
