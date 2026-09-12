@@ -783,6 +783,17 @@ private extension BackupExportService {
         previewID: UUID,
         exportedAt: Date
     ) throws -> StreamingPrepared {
+#if DEBUG
+        var backupTracePhase = "identity"
+        var backupTraceCompleted = false
+        defer {
+            if !backupTraceCompleted {
+                FileHandle.standardError.write(Data(
+                    "BackupExportService.buildStreamingPrepared failure phase=\(backupTracePhase)\n".utf8
+                ))
+            }
+        }
+#endif
         guard let rootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
@@ -792,9 +803,21 @@ private extension BackupExportService {
         }
         let sourceIdentity = try currentStreamingWorkspaceIdentity()
         let generationID = try currentStreamingGenerationID()
+#if DEBUG
+        backupTracePhase = "rows"
+#endif
         let rows = try fetchRows()
+#if DEBUG
+        backupTracePhase = "lifecycle-backup"
+#endif
         try validateLifecycleScope(rows, operation: .backup)
+#if DEBUG
+        backupTracePhase = "lifecycle-archive"
+#endif
         try validateLifecycleScope(rows, operation: .archive)
+#if DEBUG
+        backupTracePhase = "deletion-ledger"
+#endif
         let deletionLedger: DeletionLedgerV2
         do {
             deletionLedger = try DeletionLedgerStore(context: modelContext).snapshot()
@@ -802,7 +825,13 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
+#if DEBUG
+        backupTracePhase = "graph"
+#endif
         try validateGraph(rows, deletionLedger: deletionLedger)
+#if DEBUG
+        backupTracePhase = "mutation-history"
+#endif
         let mutationHistory: MutationHistorySnapshotV1
         do {
             mutationHistory = try MutationJournalStoreV1(
@@ -813,18 +842,30 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
+#if DEBUG
+        backupTracePhase = "records"
+#endif
         let records = try makeRecords(
             rows,
             deletionLedger: deletionLedger,
             mutationHistory: mutationHistory
         )
+#if DEBUG
+        backupTracePhase = "canonical-records"
+#endif
         let recordsData: Data
         let semanticRecordsData: Data
         let portableExchangeSnapshotData: Data
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
+#if DEBUG
+            backupTracePhase = "canonical-semantic"
+#endif
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(records).data
+#if DEBUG
+            backupTracePhase = "portable-exchange"
+#endif
             portableExchangeSnapshotData = try portableExchangeBackupSnapshotData(
                 snapshotID: previewID,
                 createdAt: exportedAt
@@ -832,12 +873,18 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
+#if DEBUG
+        backupTracePhase = "record-budgets"
+#endif
         guard Int64(recordsData.count) <= archiveLimits.maximumUncompressedEntryByteCount,
               Int64(semanticRecordsData.count)
                 <= archiveLimits.maximumUncompressedEntryByteCount else {
             throw BackupExportServiceError.invalidAuthority
         }
 
+#if DEBUG
+        backupTracePhase = "content-inventory"
+#endif
         var sources = [StreamingSource(
             path: "records.json",
             mimeType: "application/json",
@@ -1045,6 +1092,9 @@ private extension BackupExportService {
         }
 
         sources.sort { utf8Less($0.path, $1.path) }
+#if DEBUG
+        backupTracePhase = "budget"
+#endif
         guard sources.count + 1 <= archiveLimits.maximumEntryCount else {
             throw BackupExportServiceError.invalidAuthority
         }
@@ -1067,6 +1117,9 @@ private extension BackupExportService {
                 sha256: source.sha256
             )
         }
+#if DEBUG
+        backupTracePhase = "manifest"
+#endif
         let packs = try manifestPacks(rows)
         let packageReleases: [PackageReleaseIdentityV1]
         do {
@@ -1101,11 +1154,17 @@ private extension BackupExportService {
             )
         )
         let manifestData: Data
+#if DEBUG
+        backupTracePhase = "canonical-manifest"
+#endif
         do {
             manifestData = try BackupCanonicalEncoderV1().encodeManifest(manifest).data
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
+#if DEBUG
+        backupTracePhase = "manifest-budgets"
+#endif
         guard manifestData.count <= archiveLimits.maximumIndexByteCount,
               Int64(manifestData.count)
                 <= archiveLimits.maximumUncompressedEntryByteCount else {
@@ -1123,6 +1182,9 @@ private extension BackupExportService {
             semanticRecordsData: semanticRecordsData,
             memberInventory: entries
         )
+#if DEBUG
+        backupTraceCompleted = true
+#endif
         return StreamingPrepared(
             preview: .init(
                 id: previewID,
