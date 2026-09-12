@@ -597,6 +597,40 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         )
         try catalog.validate()
 
+        // Survey previews are derived values with no independent stored representation.
+        for name in ["SurveyDefinitionSemanticDiffV1", "SurveyDefinitionAdoptionPreviewV1",
+                     "SurveyTemplateQuarantineAssessmentV1"] {
+            let subject = try SyncSubjectIdentityV1(category: .projection, stableName: name)
+            let descriptor = try catalog.descriptor(for: subject)
+            XCTAssertEqual(descriptor.kindClassification, .derived)
+            XCTAssertEqual(descriptor.replicationClassification, .derivedRebuildable)
+            XCTAssertEqual(descriptor.storage, .nonpersistent)
+            XCTAssertEqual(descriptor.mutation, .derivedOnly)
+            XCTAssertEqual(descriptor.digest, .rebuildFromDependencies)
+            XCTAssertFalse(PersistentKindLifecycleRegistryV1.hasIndependentRepresentationWrite(subject))
+            XCTAssertEqual(descriptor.temporalEvidence.disposition, .nonpersistentNoCanonicalWrite)
+            let policy = try catalog.lifecyclePolicy(for: subject)
+            XCTAssertEqual(try policy.rebuild, .rebuildable)
+            XCTAssertEqual(try policy.erase, .rebuildable)
+            XCTAssertNoThrow(try SurveyDefinitionPersistentKindPolicyV1.validate(catalog.descriptors))
+            XCTAssertThrowsError(try SurveyDefinitionPersistentKindPolicyV1.validate(
+                catalog.descriptors.filter { $0.subject != subject }
+            )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .invalidLifecyclePolicy) }
+            let storedSubstitution = try PersistentKindDescriptorV1(
+                subject: descriptor.subject, policyRevision: descriptor.policyRevision,
+                storage: .ownedFile, revision: descriptor.revision, mutation: descriptor.mutation,
+                digest: descriptor.digest, kindClassification: descriptor.kindClassification,
+                replicationClassification: descriptor.replicationClassification,
+                temporalEvidence: descriptor.temporalEvidence,
+                declarationOwner: descriptor.declarationOwner,
+                currentImplementationOwner: descriptor.currentImplementationOwner
+            )
+            XCTAssertNoThrow(try storedSubstitution.validate())
+            XCTAssertThrowsError(try SurveyDefinitionPersistentKindPolicyV1.validate(
+                catalog.descriptors.map { $0.subject == subject ? storedSubstitution : $0 }
+            )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .invalidLifecyclePolicy) }
+        }
+
         let derivedUniverse = source.registrations.map(\.subject.canonicalKey).sorted()
         let manifest = catalog.coverageManifest
         let c35PersistentKindIDs = Set([

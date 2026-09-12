@@ -4,7 +4,7 @@ Navigation only. CURRENT_INTEGRATION.md and frozen inputs control authority; det
 
 ## Current checkpoint
 
-Original347226 at409c419 is sealed and root-verified:2241 files/20 audit predicates. Unsigned compilation passed271.885s; all17 catalog-file-authority units executed56.068s with13 passed/4 invalidDescriptor failures. The counter correction closed eight more failures. The temporal validation and three-report-subject content classification correction now has independent/root source GO, with163 additive test lines and every old test preserved. Actual source origins, historical pins, all243 warning signatures and native protocol remain exact. Five-path index review and one same17-method successor remain due; no native pass or provider comparison is claimed. Broader app/MyDay drafts remain separate.
+Original347242 at902ee06 is sealed and root-verified:2245 files/20 audit predicates. Unsigned compilation passed255.527s; all17 catalog-file-authority units executed62.92s with13 passed/4 invalidLifecyclePolicy failures. The temporal/content correction reached a later local SurveyDefinition policy contradiction. Independent/root source GO now covers its one-guard correction and34 additive test lines, preserving every old test, actual source classification/origins, historical pins and243 warning signatures. The next four-path checkpoint will ask the same17 catalog methods and the separate nine-method operational-diagnostics question through two distinct mapped Bitrise jobs after fresh gates. Generation/deletion groups remain withheld for unresolved unchanged failures. Broader app/MyDay drafts remain separate; provider/main/visual acceptance remains due.
 
 ## Current source work
 
