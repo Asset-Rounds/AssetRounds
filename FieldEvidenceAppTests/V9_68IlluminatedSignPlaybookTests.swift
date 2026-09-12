@@ -856,6 +856,7 @@ final class V9_68IlluminatedSignPlaybookTests: XCTestCase {
             workspaceID: fixture.workspace,
             playbookID: .darkSection,
             registry: fixture.registry,
+            subject: fixture.evidenceSequence.target,
             stage: .check,
             checkedTime: fixture.payload.checkedTime,
             selectedVisibleCondition: fixture.payload.selectedVisibleCondition,

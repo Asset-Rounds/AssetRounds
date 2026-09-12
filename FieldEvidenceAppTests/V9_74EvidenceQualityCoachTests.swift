@@ -59,8 +59,7 @@ final class V9_74EvidenceQualityCoachTests: XCTestCase {
                 onAcceptWithReason: { _ in actionCount += 1 },
                 onCancel: { actionCount += 1 }
             )
-            .environment(\.accessibilityDifferentiateWithoutColor, true)
-            .environment(\.accessibilityReduceMotion, true)
+            // These OS-owned accessibility preferences require separate runtime evidence.
             .environment(\.dynamicTypeSize, .accessibility3)
             let controller = UIHostingController(rootView: view)
             controller.loadViewIfNeeded()

@@ -528,8 +528,7 @@ final class V9_67EvidenceCurationTests: XCTestCase {
             onMoveEarlier: { _ in actionCount += 1 },
             onMoveLater: { _ in actionCount += 1 }
         )
-        .environment(\.accessibilityDifferentiateWithoutColor, true)
-        .environment(\.accessibilityReduceMotion, true)
+        // These OS-owned accessibility preferences require separate runtime evidence.
         .environment(\.dynamicTypeSize, .accessibility3)
         let controller = UIHostingController(rootView: view)
         controller.loadViewIfNeeded()

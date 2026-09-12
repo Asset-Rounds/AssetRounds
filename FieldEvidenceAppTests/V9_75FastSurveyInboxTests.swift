@@ -93,7 +93,7 @@ final class V9_75FastSurveyInboxTests: XCTestCase {
         XCTAssertEqual(preview.snippetRevision, 2); XCTAssertEqual(preview.insertionText, edited.body)
         XCTAssertFalse(preview.automaticallyAnswers); XCTAssertFalse(preview.createsDirectObservation); XCTAssertTrue(preview.requiresExplicitBasisAndSave)
         XCTAssertEqual(insertionReceipt.semanticSHA256s, [insertion.insertionSHA256])
-        XCTAssertEqual(try f.journal.receipt(mutationID: insertion.mutationID)?.semanticSHA256s, [insertion.insertionSHA256])
+        XCTAssertEqual(try f.journal.receipt(mutationID: insertion.mutationID)?.postImages.map(\.semanticSHA256).sorted(), [insertion.insertionSHA256])
         let insertionRows = try f.context.fetch(FetchDescriptor<SnippetInsertionHistoryRowV1>())
         XCTAssertEqual(insertionRows.count, 1)
         let frozen = try XCTUnwrap(insertionRows.first?.value(snippet: first))

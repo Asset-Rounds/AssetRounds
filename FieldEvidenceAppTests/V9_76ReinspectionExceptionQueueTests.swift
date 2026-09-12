@@ -22,7 +22,7 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
 
         let projection = try ExceptionQueueProjectionV1(
             workspaceID: fixture.workspaceID,
-            registry: try .init(),
+            registry: try .init(registeredKinds: ExceptionQueueSourceKindV1.allCases.sorted { $0.rawValue < $1.rawValue }),
             sources: fixture.authority.queueSources,
             acknowledgements: [latest, first],
             evaluatedAt: fixture.date.addingTimeInterval(2),
@@ -40,7 +40,7 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
         ).acknowledgement(recordedAt: fixture.date.addingTimeInterval(2))
         XCTAssertThrowsError(try ExceptionQueueProjectionV1(
             workspaceID: fixture.workspaceID,
-            registry: try .init(),
+            registry: try .init(registeredKinds: ExceptionQueueSourceKindV1.allCases.sorted { $0.rawValue < $1.rawValue }),
             sources: fixture.authority.queueSources,
             acknowledgements: [first, latest, duplicateLatest],
             evaluatedAt: fixture.date.addingTimeInterval(3),

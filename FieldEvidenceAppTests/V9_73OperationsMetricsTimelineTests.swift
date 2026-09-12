@@ -694,7 +694,7 @@ final class V9_73OperationsMetricsTimelineTests: XCTestCase {
         XCTAssertEqual(dashboard.metricProjections[0].availabilityNumeratorSHA256, dashboard.metricProjections[1].availabilityNumeratorSHA256)
 
         let canonical = try WorkspaceMutationCanonicalV1.data(dashboard)
-        XCTAssertEqual(canonical, try WorkspaceMutationCanonicalV1.data(repeated))
+        XCTAssertEqual(canonical, try WorkspaceMutationCanonicalV1.data(repeated.dashboard))
         let decoded = try C09OperationsMetricsTestSupport.decoder().decode(DashboardProjectionV1.self, from: canonical)
         try decoded.validate()
         XCTAssertEqual(decoded, dashboard)
@@ -1245,13 +1245,16 @@ final class V9_73OperationsMetricsTimelineTests: XCTestCase {
             exposures: [exposure],
             segments: [segment]
         )
-        let scaleSources = try (0..<interruption.assetCount).map { index in
-            try C09OperationsMetricsTestSupport.source(
+        var scaleSources: [OperationsMetricsCanonicalSourceV1] = []
+        scaleSources.reserveCapacity(interruption.assetCount)
+        for index in 0..<interruption.assetCount {
+            let source: OperationsMetricsCanonicalSourceV1 = try C09OperationsMetricsTestSupport.source(
                 subject: subject,
                 observationLower: Int64(index),
                 observationUpper: Int64(index + 1),
                 asOf: Int64(index + 1)
             )
+            scaleSources.append(source)
         }
         XCTAssertEqual(scaleSources.count, OperationsMetricsCanonicalSourceV1.maximumAssetsPerRebuild)
         let rebuildCoordinator = OperationsMetricsRebuildCoordinatorV1()

@@ -229,11 +229,11 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         XCTAssertFalse(WorkspaceExperienceDataPolicyV1.practiceMetricsCollected)
     }
 
-    func testV23P04C16A01PracticeWorkspaceIsolationAndReset() throws {
+    func testV23P04C16A01PracticeWorkspaceIsolationAndReset() async throws {
         let fixture = try C16Fixture()
         let command = try fixture.command()
         let receipt = try fixture.writer.commitWorkspaceExperience(command)
-        XCTAssertEqual(receipt.mutationID, command.mutationID)
+        XCTAssertEqual(receipt.mutationReceipt.mutationID, command.mutationID)
         XCTAssertEqual(try fixture.lifecycle.classification(), .practice)
         XCTAssertEqual(try fixture.lifecycle.provenance(), command.provenance)
 
@@ -258,22 +258,39 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         )
         defer { try? FileManager.default.removeItem(at: eraseSupport) }
         let factory = StoreGenerationFactory(applicationSupportURL: eraseSupport)
-        let emptySession = try factory.openOrBootstrapCurrent()
+        let eraseCoordinator = StoreSessionCoordinator(
+            session: try factory.openOrBootstrapCurrent()
+        )
+        let diagnostics = DiagnosticsStore(applicationSupportURL: eraseSupport)
+        await diagnostics.prepare()
+        let defaultsSuiteName = "c16.erase.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
         let eraseService = EraseAllService(
             applicationSupportURL: eraseSupport,
             cachesDirectoryURL: eraseSupport.appendingPathComponent("Caches", isDirectory: true),
             temporaryDirectoryURL: eraseSupport.appendingPathComponent("Temporary", isDirectory: true),
-            userDefaults: UserDefaults(suiteName: "c16.erase.\(UUID().uuidString)")!,
+            userDefaults: defaults,
+            bundleIdentifier: defaultsSuiteName,
+            defaultsDomainName: defaultsSuiteName,
             privateSystemDiscoveryIndex: nil
         )
-        let verifiedEmpty = try eraseService.validatedEmptySession(
-            id: emptySession.generationID,
-            identity: emptySession.workspaceIdentity,
-            authority: factory.makeRestoreGenerationAuthority()
-        )
-        XCTAssertEqual(verifiedEmpty.workspaceID, emptySession.workspaceID)
+        let erased = try await eraseService.erase(
+            confirmation: EraseAllService.requiredConfirmation,
+            coordinator: eraseCoordinator,
+            diagnosticsStore: diagnostics
+        ) { session in
+            eraseCoordinator.activate(session: session)
+        }
+        XCTAssertFalse(erased.cleanupDeferred)
+        XCTAssertEqual(erased.session.generationID, eraseCoordinator.generationID)
+        XCTAssertEqual(erased.session.workspaceID, eraseCoordinator.workspaceID)
+        XCTAssertTrue(try BackupRestoreService.isEmptyCurrent(erased.session.modelContext))
         XCTAssertEqual(try WorkspaceExperienceLifecycleAdapterV1(
-            modelContext: verifiedEmpty.modelContext, workspaceID: verifiedEmpty.workspaceID
+            modelContext: erased.session.modelContext, workspaceID: erased.session.workspaceID
+        ).classification(), .real)
+        XCTAssertEqual(try WorkspaceExperienceLifecycleAdapterV1(
+            modelContext: eraseCoordinator.modelContext, workspaceID: eraseCoordinator.workspaceID
         ).classification(), .real)
 
         let destination = WorkspaceID(rawValue: UUID())
@@ -353,7 +370,7 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
             workspaceID: target.workspaceID.rawValue, generationID: UUID(), commitRevision: 0
         )
         let searchPlan = try search.makePlan(query: "sign", sourceRevision: 0)
-        let registry = try SearchIndexRebuildCoordinatorV1.makeRegistry()
+        let registry = try SwiftDataSearchCanonicalProjectionSourceV1.makeRegistry()
         let searchGate = C16AccessGate(state: .locked(reason: .lockNow))
         do { _ = try await search.search(searchPlan, source: sourceRevision, registry: registry, accessGate: searchGate); XCTFail("search read bypassed gate") }
         catch {
@@ -417,7 +434,7 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         let recovered = try fixture.lifecycle.replay(command)
         let replayed = try fixture.lifecycle.replay(command)
         XCTAssertEqual(recovered, replayed)
-        XCTAssertEqual(recovered.mutationID, command.mutationID)
+        XCTAssertEqual(recovered.mutationReceipt.mutationID, command.mutationID)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>()), 1)
         XCTAssertEqual(try fixture.lifecycle.provenance(), command.provenance)
         try recovered.validate(command: command)

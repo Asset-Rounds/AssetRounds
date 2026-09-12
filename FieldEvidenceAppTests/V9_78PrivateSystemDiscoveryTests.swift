@@ -715,7 +715,7 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
             .appendingPathComponent("C14-private-system-search-\(C14TestSupport.id(590).uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: searchRoot) }
         let searchStore = try LocalSearchIndexStoreV1(applicationSupportURL: searchRoot)
-        let searchRegistry = try SearchIndexRebuildCoordinatorV1.makeRegistry()
+        let searchRegistry = try SwiftDataSearchCanonicalProjectionSourceV1.makeRegistry()
         let firstSourceRevision = try SearchSourceRevisionV1(
             workspaceID: workspace.rawValue,
             generationID: C14TestSupport.id(591),
