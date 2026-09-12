@@ -206,7 +206,13 @@
     "FieldEvidenceAppTests/V9_87DictationLocationProposalTests/testV23P04C24G01EnabledOnDeviceDictationEditAcceptAndOneShotLocationReview",
     "FieldEvidenceAppTests/V9_87DictationLocationProposalTests/testV23P04C24I01AudioInterruptionLocationTimeoutAndScratchCleanup",
     "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests/testV23P04C35G01OfflineIsolatedDraftResponsePreviewAndExplicitAcceptAndApply",
-    "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests/testV23P04C35H01HostileMismatchDivergenceStalePreviewAndClaimsFailWithoutEffect"
+    "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests/testV23P04C35H01HostileMismatchDivergenceStalePreviewAndClaimsFailWithoutEffect",
+    "FieldEvidenceAppTests/S3_6CameraRecoveryTests/testV23P03C34ResumeRouteNeverStartsCapture",
+    "FieldEvidenceAppTests/S4_5CorrectionTests/testCurrentV1SnapshotPromotedRejectsRawReplayDespiteUnrelatedReceipt",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testC22RecoverabilityVerificationAnchor",
+    "FieldEvidenceAppTests/S6_3BackupValidationTests/testC22RecoverabilityVerificationAnchor",
+    "FieldEvidenceAppTests/S6_3BackupValidationTests/testV23P03C41BackupValidationRejectsNonCanonicalRelationshipBytes",
+    "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testC22RecoverabilityVerificationAnchor"
   ],
   "uiTestSelectors": []
 }

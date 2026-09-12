@@ -800,7 +800,7 @@ extension S6_4AtomicRestoreTests {
 extension S6_4AtomicRestoreTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
     }

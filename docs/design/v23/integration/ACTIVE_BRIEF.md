@@ -4,9 +4,9 @@ Navigation only. CURRENT_INTEGRATION.md and frozen inputs control authority; det
 
 ## Current checkpoint
 
-Committed source is a10180e026901c44b22be0a97a187c1ca2fa75ab. Accepted main remains b1d04ae. Original34687989609 is terminal build failure:37 diagnostics across nine test sources;173 units skipped/UI disabled. Its sealed originals pass118 inventory checks and19 audit predicates; root reviewed all five new warning signatures. Exact pins remain in CURRENT_INTEGRATION.
+Committed source is44025102d85a8cf3f03eab0ad81d7e91dfc125cc. Accepted main remains b1d04ae. Original34689895885 is terminal build failure:seven diagnostics across five test sources;198 units skipped/UI disabled. Root verified its119 sealed inventory entries and19 audit predicates. Exact pins remain in CURRENT_INTEGRATION.
 
-The next checkpoint batches the emitted test-contract compiler fixes and the portable proof fixture's source-proven typed rejection expectation. Existing assertions, hostile cases and frozen fixtures remain; the portable cleanup draft stays separate. The selector retains173 methods and adds25 corrected/shared consumers:198 total, SHA25647DEE1DEBCC9C7F41DC9556AB09978010895706A3F495C81416DCE044ACAEEF8. Native protocol, N8/UI-false and budgets remain unchanged. Independent review and fresh refs/capacity precede one successor. C27 historical provenance, frozen artifacts and accepted S10 remain unchanged. No native pass or provider qualification is inferred.
+The next checkpoint corrects the five diagnosed test call sites, including both emitted errors in backup validation. Existing assertions, values and helper APIs remain. The selector retains198 methods and adds all six corrected consumers:204 total, SHA256AC4EDDC57C4C1C3A67453094AA265B9CF8F422DAC880659FFA2D8FC87322D9CE. Native protocol, N8/UI-false and budgets remain unchanged. Independent review and fresh refs/capacity precede one successor. C27 historical provenance, frozen artifacts and accepted S10 remain unchanged. No native pass or provider qualification is inferred.
 
 ## Current source work
 

@@ -754,7 +754,10 @@ final class S4_5CorrectionTests: XCTestCase {
             mutationID: MutationIDV1(rawValue: identifiers.mutationID)
         ))
         let beforeRejectedRawReplay = try domainSnapshot(in: harness)
-        await assertThrowsErrorAsync(try await recovery.reconcile()) { error in
+        do {
+            _ = try await recovery.reconcile()
+            XCTFail("Expected inconsistent raw recovery replay to throw")
+        } catch {
             XCTAssertEqual(error as? FinalizationRecoveryServiceError, .inconsistent)
         }
         XCTAssertEqual(try domainSnapshot(in: harness), beforeRejectedRawReplay)

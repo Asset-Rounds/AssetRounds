@@ -389,7 +389,7 @@ extension S6_3BackupValidationTests {
 extension S6_3BackupValidationTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.stagingPersistence, "DERIVED_ONLY_DROP_AND_REBUILD")
     }
@@ -2200,7 +2200,7 @@ extension S6_3BackupValidationTests {
             XCTAssertEqual(error as? FunctionalRelationshipFailureV1, .nonCanonicalData)
         }
         XCTAssertEqual(fixture.added.eventSHA256.count, 64)
-        XCTAssertEqual(fixture.added.mutationID.rawValue, C41FunctionalRelationshipTestSupportV1.mutation(41_641).rawValue)
+        XCTAssertEqual(fixture.added.mutationID.rawValue, try C41FunctionalRelationshipTestSupportV1.mutation(41_641).rawValue)
     }
 }
 
