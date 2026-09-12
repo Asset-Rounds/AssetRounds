@@ -212,7 +212,16 @@
     "FieldEvidenceAppTests/S6_2BackupExportTests/testC22RecoverabilityVerificationAnchor",
     "FieldEvidenceAppTests/S6_3BackupValidationTests/testC22RecoverabilityVerificationAnchor",
     "FieldEvidenceAppTests/S6_3BackupValidationTests/testV23P03C41BackupValidationRejectsNonCanonicalRelationshipBytes",
-    "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testC22RecoverabilityVerificationAnchor"
+    "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testC22RecoverabilityVerificationAnchor",
+    "FieldEvidenceAppTests/V23_P04_C40ServiceRequestWorkflowUITests/testV23P04C40SemanticSelectorContractIsClosedAndUnique",
+    "FieldEvidenceAppTests/V23_P04_C40ServiceRequestWorkflowUITests/testV23P04C40TypedPreviewAndStatusInitializerShape",
+    "FieldEvidenceAppTests/V23_P04_C41MyDayWorkflowUITests/testV23P04C41SemanticSelectorContractIsClosedAndUnique",
+    "FieldEvidenceAppTests/V23_P04_C41MyDayWorkflowUITests/testV23P04C41WorkflowInitializerBindsCoreContractShapes",
+    "FieldEvidenceAppTests/V23_P04_C42PartyContactSiteRoleWorkflowUITests/testV23P04C42SemanticSelectorContractIsClosedAndUnique",
+    "FieldEvidenceAppTests/V23_P04_C42PartyContactSiteRoleWorkflowUITests/testV23P04C42WorkflowInitializerBindsCoreContractShapes",
+    "FieldEvidenceAppTests/V23_P04_C43SignoffEnrollmentUITests/testV23P04C43JourneyIdentifiersAreClosedAndOrdered",
+    "FieldEvidenceAppTests/V23_P04_C44PartsStockWorkflowUITests/testV23P04C44StaticAccessibilityJourneyIsClosed",
+    "FieldEvidenceAppTests/V23_P04_C45StructuredVoiceCaptureUITests/testV23P04C45ContainedSurfaceAccessibilityContract"
   ],
   "uiTestSelectors": []
 }

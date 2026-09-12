@@ -4,9 +4,9 @@ Navigation only. CURRENT_INTEGRATION.md and frozen inputs control authority; det
 
 ## Current checkpoint
 
-Committed source is44025102d85a8cf3f03eab0ad81d7e91dfc125cc. Accepted main remains b1d04ae. Original34689895885 is terminal build failure:seven diagnostics across five test sources;198 units skipped/UI disabled. Root verified its119 sealed inventory entries and19 audit predicates. Exact pins remain in CURRENT_INTEGRATION.
+Committed source is2ff595c1dd584094fd9df89c3df3c8b81fede310. Accepted main remains b1d04ae. Original34691395353 is sealed at that exact source: root verified118 retained inventory entries and19 audit predicates. There were no Swift compiler errors, but the separate UI runner could not link direct app symbols in contained C40/C41/C42 contract tests. Build65/197.144s failed two commands; all204 selected units were skipped and UI was disabled. No native pass or provider qualification is inferred.
 
-The next checkpoint corrects the five diagnosed test call sites, including both emitted errors in backup validation. Existing assertions, values and helper APIs remain. The selector retains198 methods and adds all six corrected consumers:204 total, SHA256AC4EDDC57C4C1C3A67453094AA265B9CF8F422DAC880659FFA2D8FC87322D9CE. Native protocol, N8/UI-false and budgets remain unchanged. Independent review and fresh refs/capacity precede one successor. C27 historical provenance, frozen artifacts and accepted S10 remain unchanged. No native pass or provider qualification is inferred.
+The scoped linker correction moves all six app-importing C40-C45 contract files unchanged into the existing app-hosted unit target. All15 methods and six explicit no-launch skips remain; the selector retains204 methods and adds nine executable contract checks,213 total, SHA2563D7923B3B94473AF6547A03E3060079E136EEC9D1CE9AA9B61A0983C0FE7F7C1. Exact preservation/selection checks and independent staged review pass. All93 new warning signatures were inspected without a current Swift5 compiler blocker. Native protocol, N8/UI-false and budgets remain unchanged. Historical card path references remain provenance; real production UI journeys remain due.
 
 ## Current source work
 
