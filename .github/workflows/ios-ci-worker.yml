@@ -1328,12 +1328,20 @@ jobs:
               simulator_elapsed_seconds="$(( $(date +%s) - bitrise_simulator_budget_start_epoch ))"
               runtime_provision_budget_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_elapsed_seconds ))"
               test "$runtime_provision_budget_seconds" -gt 0
+              # V23 uses the native Apple silicon runtime; legacy routes keep universal.
+              runtime_architecture_variant=universal
+              if test "$CI_NATIVE_ACCEPTANCE_CONTRACT" = v23.integration.current-native.v1; then
+                test "$RUNNER_ARCH" = ARM64
+                test "$(uname -m)" = arm64
+                runtime_architecture_variant=arm64
+              fi
+              # End V23 runtime architecture selection.
               set +e
               bash Scripts/run-with-timeout.sh "$runtime_provision_budget_seconds" \
                 env -u BITRISE_BUILD_CACHE_AUTH_TOKEN -u BITRISE_BUILD_CACHE_WORKSPACE_ID \
                   /usr/bin/xcodebuild -downloadPlatform iOS \
                   -buildVersion "$SIMULATOR_RUNTIME_BUILD" \
-                  -architectureVariant universal \
+                  -architectureVariant "$runtime_architecture_variant" \
                 2>&1 | tee "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
               provision_pipeline_status=( "${PIPESTATUS[@]}" )
               set -e
