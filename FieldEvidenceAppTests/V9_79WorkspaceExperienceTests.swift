@@ -356,7 +356,10 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         let registry = try SearchIndexRebuildCoordinatorV1.makeRegistry()
         let searchGate = C16AccessGate(state: .locked(reason: .lockNow))
         do { _ = try await search.search(searchPlan, source: sourceRevision, registry: registry, accessGate: searchGate); XCTFail("search read bypassed gate") }
-        catch { XCTAssertEqual(await searchSource.readCount, 0) }
+        catch {
+            let readCount = await searchSource.readCount
+            XCTAssertEqual(readCount, 0)
+        }
 
         let localIndex = try LocalSearchIndexStoreV1(applicationSupportURL: support)
         let rebuildSource = C16CanonicalSearchProbe(revision: sourceRevision)
@@ -366,7 +369,10 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         )
         let rebuildGate = C16AccessGate(state: .locked(reason: .lockNow))
         do { _ = try await rebuilder.rebuildIfNeeded(accessGate: rebuildGate); XCTFail("rebuild bypassed gate") }
-        catch { XCTAssertEqual(await rebuildSource.readCount, 0) }
+        catch {
+            let readCount = await rebuildSource.readCount
+            XCTAssertEqual(readCount, 0)
+        }
 
         let generationRoot = support.appendingPathComponent("FieldEvidenceData/generations/\(UUID().uuidString.lowercased())", isDirectory: true)
         try FileManager.default.createDirectory(at: generationRoot, withIntermediateDirectories: true)

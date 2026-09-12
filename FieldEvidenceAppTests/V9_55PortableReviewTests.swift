@@ -1487,13 +1487,12 @@ final class V9_55PortableReviewTests: XCTestCase {
         } catch let error as PortableExchangePersistenceFailureV2 {
             XCTAssertEqual(error, .invalidTransition)
         }
-        XCTAssertTrue(
-            try await store.deleteUnfinalizedSubject(
-                sessionID: serviceID,
-                tombstoneProven: true,
-                operationID: UUID(uuidString: "48000000-0000-4000-8000-000000000037")!
-            )
+        let deletedUnfinalizedSubject = try await store.deleteUnfinalizedSubject(
+            sessionID: serviceID,
+            tombstoneProven: true,
+            operationID: UUID(uuidString: "48000000-0000-4000-8000-000000000037")!
         )
+        XCTAssertTrue(deletedUnfinalizedSubject)
         let service = try await store.stage(PortableExchangeSessionStageInputV2(
             sessionID: serviceID,
             namespace: .serviceRequest,

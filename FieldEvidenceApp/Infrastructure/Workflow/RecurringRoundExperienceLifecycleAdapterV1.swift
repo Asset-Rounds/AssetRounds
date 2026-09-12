@@ -523,7 +523,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
             guard value.phase == .settingCommitted, value.settingWrite.successor == setting else {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
-        } else if setting.setting?.isEnabled == true {
+        } else if try setting.setting?.isEnabled == true {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
         return value

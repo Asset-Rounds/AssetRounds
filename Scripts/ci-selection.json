@@ -140,7 +140,9 @@
     "FieldEvidenceAppTests/V9_13PersistentKindLifecycleCoverageTests/testC57MyDayLifecycleInventoryIsCompleteAndReadinessIsDerived",
     "FieldEvidenceAppTests/V9_13PersistentKindLifecycleCoverageTests/testV9_13G01ClosedUniverseAndCoverageManifestAreComplete",
     "FieldEvidenceAppTests/V9_13PersistentKindLifecycleCoverageTests/testV9_13H01DuplicateConflictingAndUnsafePoliciesFailClosed",
-    "FieldEvidenceAppTests/V9_14FindingLifecycleTests/testV9_14R01SnapshotFixtureLineageAndExplicitRelatedWorkSafeguardsReconcile"
+    "FieldEvidenceAppTests/V9_14FindingLifecycleTests/testV9_14R01SnapshotFixtureLineageAndExplicitRelatedWorkSafeguardsReconcile",
+    "FieldEvidenceAppTests/V9_55PortableReviewTests/testV23P03C48R01RestoreCloneForkEraseAndReplayPreserveHistoricBytesAndInvalidateActiveCapability",
+    "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16H01AccessGatePrecedesEveryContentRead"
   ],
   "uiTestSelectors": []
 }
