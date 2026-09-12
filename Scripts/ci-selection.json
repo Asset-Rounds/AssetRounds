@@ -152,7 +152,8 @@
     "FieldEvidenceAppTests/V9_76ReinspectionExceptionQueueTests/testExceptionQueueProjectionSelectsLatestAcknowledgementAndRejectsDuplicateRevisions",
     "FieldEvidenceAppTests/V9_78PrivateSystemDiscoveryTests/testV23P04C14R01DeleteEraseExportAndReportDropAndRebuildDerivedDiscoveryProjection",
     "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16A01PracticeWorkspaceIsolationAndReset",
-    "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16I01InterruptedInstallResumeIsIdempotent"
+    "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16I01InterruptedInstallResumeIsIdempotent",
+    "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16G01TypedSettingsAndTaskFirstShell"
   ],
   "uiTestSelectors": []
 }

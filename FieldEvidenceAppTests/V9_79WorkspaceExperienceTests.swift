@@ -218,7 +218,7 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         XCTAssertEqual(WorkspaceExperienceRootV1.allCases.count, 4)
         XCTAssertEqual(WorkspaceExperienceSearchScopeV1.allCases.count, 5)
         XCTAssertEqual(settings.availability.first?.reason, .available)
-        XCTAssertEqual(settings.availability.first?.nextAction, .none)
+        XCTAssertEqual(settings.availability.first?.nextAction, WorkspaceExperienceAvailabilityNextActionV1.none)
         XCTAssertEqual(ActiveWorkspaceSelectionV1.lifecycleDisposition, .deviceLocalNotBackedUp)
         XCTAssertEqual(NoticeAcknowledgementV1.lifecycleDisposition, .deviceLocalNotBackedUp)
 
