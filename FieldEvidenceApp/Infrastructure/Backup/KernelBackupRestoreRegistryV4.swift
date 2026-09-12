@@ -225,13 +225,16 @@ enum C05RoundSessionKernelBackupRestoreEnrollmentV1 {
 }
 
 enum C08ImportBulkKernelBackupRestoreEnrollmentV1 {
-    static let persistentSchemaVersion = 46
-    static let recordsSchemaVersion = 45
+    // Current imports carry the existing C10 provenance envelope; V45 remains readable.
+    static let persistentSchemaVersion = 47
+    static let recordsSchemaVersion = 46
+    static let legacyRecordsSchemaVersion = 45
     static let durableFamilies = ["ImportMappingProfileRowV1", "BulkSessionRowV1", "BulkCommitReceiptRowV1"]
 
     static func validate() throws {
         guard persistentSchemaVersion == C08ImportBulkBackupEnrollmentV1.persistentSchemaVersion,
               recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion,
+              legacyRecordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion,
               durableFamilies == C08ImportBulkBackupEnrollmentV1.canonicalRowKinds else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }

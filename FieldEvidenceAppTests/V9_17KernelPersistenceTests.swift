@@ -75,6 +75,16 @@ final class V9_17KernelPersistenceTests: XCTestCase {
         try KernelPersistenceV4Schema.validate()
         try KernelRecordRegistryV4.validate()
         try KernelMutationReceiptRegistryV4.validate()
+        XCTAssertEqual(C08ImportBulkKernelBackupRestoreEnrollmentV1.persistentSchemaVersion, 47)
+        XCTAssertEqual(C08ImportBulkKernelBackupRestoreEnrollmentV1.recordsSchemaVersion, 46)
+        XCTAssertEqual(C08ImportBulkKernelBackupRestoreEnrollmentV1.legacyRecordsSchemaVersion, 45)
+        XCTAssertEqual(C08ImportBulkKernelBackupRestoreEnrollmentV1.persistentSchemaVersion,
+                       EvidenceQualitySchemaV1.schemaVersion)
+        XCTAssertEqual(C08ImportBulkKernelBackupRestoreEnrollmentV1.legacyRecordsSchemaVersion,
+                       C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion)
+        XCTAssertEqual(C08ImportBulkKernelBackupRestoreEnrollmentV1.durableFamilies,
+                       ["ImportMappingProfileRowV1", "BulkSessionRowV1", "BulkCommitReceiptRowV1"])
+        try C08ImportBulkKernelBackupRestoreEnrollmentV1.validate()
         try KernelBackupRestoreRegistryV4.validate()
         try KernelDeletionEraseRegistryV4.validate()
 

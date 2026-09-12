@@ -61,6 +61,14 @@ enum CurrentSyncClassificationCatalogFailureV1: Error, Equatable {
 /// the current repository and adds infrastructure-only lifecycle routes that
 /// do not belong in the transport-neutral domain contract.
 struct CurrentSyncClassificationCatalogV1: Sendable {
+    /// Preserve the public error while retaining its static origin in native diagnostics.
+    private static func invalidInventoryFailure(line: UInt = #line) -> CurrentSyncClassificationCatalogFailureV1 {
+        #if DEBUG
+        print("V23_CURRENT_CATALOG_INVALID_INVENTORY line=\(line)")
+        #endif
+        return .invalidInventory
+    }
+
     static let persistentModelNames = [
         "Asset", "DeletionLedgerRow", "EntityMutationRevisionRow", "EvidenceFile",
         "Issue", "MutationQuarantineRow", "MutationReceiptRow", "ObservationAndTimeRow", "Packet",
@@ -409,7 +417,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
                   C16WorkspaceExperienceSyncClassificationBoundaryV1.validate(),
                   C17LightingDayInventorySyncClassificationBoundaryV1.validate(),
                   C18LightingNightWorkflowSyncClassificationBoundaryV1.validate() else {
-                throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+                throw Self.invalidInventoryFailure()
             }
             let baseline = try SyncClassificationRegistryV1.registrations
             let additions = try makeAdditionalRegistrations()
@@ -498,7 +506,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     ) throws -> SyncClassificationRegistrationV1 {
         let matches = registrations.filter { $0.subject == subject }
         guard matches.count == 1, let value = matches.first else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         return value
     }
@@ -515,31 +523,31 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
 
     func validate() throws {
         guard C08ImportBulkSyncClassificationBoundaryV1.validate() else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         guard C34SceneNavigationSyncBoundaryV1.validate() else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         guard C50IncumbentFileExchangeSyncBoundaryV1.validate() else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         guard C52ServiceRequestSyncClassificationBoundaryV1.validate() else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         guard C53AssetServiceReliabilitySyncClassificationBoundaryV1.validate() else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         try SyncClassificationRegistryV1.validate()
         // The baseline registry's ceiling applies to its baseline inventory,
         // not this exact, category-closed current adapter. The declarations
         // below are the authoritative cardinality and membership guard.
         guard !registrations.isEmpty else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         let registrationKeys = registrations.map(\.subject.canonicalKey)
         guard registrationKeys == registrationKeys.sorted(),
               Set(registrationKeys).count == registrationKeys.count else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         try registrations.forEach { try $0.validate() }
 
@@ -581,7 +589,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         ))
         guard Set(derivedIndexProjectionSubjects) == Set(expectedDerived),
               derivedIndexProjectionSubjects.count == expectedDerived.count else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         try requireExactCategory(
             journalRecoverySubjects,
@@ -613,7 +621,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         )
         guard declaredSubjects == Set(registrations.map(\.subject)),
               lifecycleRoutes.map(\.subject.canonicalKey) == registrationKeys else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         try lifecycleRoutes.forEach { route in
             let policy = try registration(for: route.subject).replicationPolicy
@@ -647,14 +655,14 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
               mutationRules.allSatisfy({
                   $0.representationAuthority == .portableProjection
               }) else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         let diagnosticRules = try Self.diagnosticRepresentationRules
         let diagnosticViewNames = Set(diagnosticRules.map { $0.representation.stableName })
         guard diagnosticViewNames == Set(Self.diagnosticNames).subtracting([
             "DeviceOperationalSupportStoreV2", "ScratchDataLeaseStoreV1",
         ]) else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         let supportStore = try Self.subject(
             category: .diagnostic,
@@ -670,7 +678,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
                   try registration(for: rule.representation)
                       .replicationPolicy.persistence == .nonpersistent
               }) else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
 
         // These two assertions prevent filesystem-backup eligibility from
@@ -1389,7 +1397,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "OccurrenceGenerationPlanV1","DueQueueProjectionV1","ReminderProjectionV1":return try subjects(category:.persistentModel,names:v27PersistentModelNames)
         case "PackageSemanticDiffV1","DraftUpgradePlanV1":return []
         default:
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
     }
 
@@ -1441,7 +1449,7 @@ private extension CurrentSyncClassificationCatalogV1 {
              "IntegrationProjectionCheckpointStoreV1", "ProjectionCheckpointV1":
             return [try subject(category: .journal, name: "MutationReceiptV1")]
         default:
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
     }
 
@@ -1453,19 +1461,19 @@ private extension CurrentSyncClassificationCatalogV1 {
             return try subjects(category: .persistentModel, names: names)
         }
         guard let version = Int(name.dropFirst("StoreSemanticEnvelopeV".count)), version > 3 else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         let predecessor = "StoreSemanticEnvelopeV" + String(version - 1)
         let predecessorNames = Set(try historicalEnvelopeModelNames(for: predecessor))
         let currentNames = Set(names)
         guard predecessorNames.isSubset(of: currentNames) else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         let additions = try subjects(category: .persistentModel,
             names: currentNames.subtracting(predecessorNames).sorted())
         let dependencies = [try subject(category: .projection, name: predecessor)] + additions
         guard dependencies.count <= ReplicationPolicyV1.maximumDependencyCount else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
         return dependencies
     }
@@ -1527,7 +1535,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV51": models = PersistentSchemaV51.models
         case "StoreSemanticEnvelopeV52": models = PersistentSchemaV52.models
         case "StoreSemanticEnvelopeV53": models = PersistentSchemaV53.models
-        default: throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        default: throw Self.invalidInventoryFailure()
         }
         return models.map {
             String(describing: $0).split(separator: ".").last.map(String.init) ?? ""
@@ -1556,7 +1564,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "LocationMigrationReceiptRow":
             return try subjects(category: .persistentModel, names: ["Asset", "AssetPlacementEventRow", "Site"])
         default:
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
     }
 
@@ -1570,7 +1578,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "QualificationSnapshotRow": return []
         case "SignoffSnapshotRow":
             return try subjects(category: .persistentModel, names: ["ActorSnapshotRow", "QualificationSnapshotRow", "ServicePartyRow"])
-        default: throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        default: throw Self.invalidInventoryFailure()
         }
     }
 
@@ -1587,7 +1595,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "WorkSubjectScopeSnapshotRow":
             return try subjects(category: .persistentModel, names: ["Asset", "LocationNodeRow", "Site"])
         default:
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
     }
 
@@ -1607,7 +1615,7 @@ private extension CurrentSyncClassificationCatalogV1 {
             return try subjects(category: .persistentModel, names: [
                 "DerivedFactEvaluatorDescriptorRow", "MeasurementProtocolReleaseRow",
             ])
-        default: throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        default: throw Self.invalidInventoryFailure()
         }
     }
 
@@ -1619,10 +1627,10 @@ private extension CurrentSyncClassificationCatalogV1 {
                 "Asset", "FunctionalRelationshipTypeDescriptorRow",
                 "AssetKindBindingEventRow", "AssetWorkflowCapabilityBindingEventRow",
             ])
-        default: throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        default: throw Self.invalidInventoryFailure()
         }
     }
-    static func evidenceAssurancePersistentDependencies(for name:String)throws->[SyncSubjectIdentityV1]{switch name{case "EvidenceVisibilityRow":return[];case "ClaimEvidenceLinkRow":return[try subject(category:.persistentModel,name:"EvidenceVisibilityRow")];case "AssuranceManifestRow":return try subjects(category:.persistentModel,names:["ClaimEvidenceLinkRow","EvidenceVisibilityRow"]);case "AttestationRow":return[try subject(category:.persistentModel,name:"AssuranceManifestRow")];default:throw CurrentSyncClassificationCatalogFailureV1.invalidInventory}}
+    static func evidenceAssurancePersistentDependencies(for name:String)throws->[SyncSubjectIdentityV1]{switch name{case "EvidenceVisibilityRow":return[];case "ClaimEvidenceLinkRow":return[try subject(category:.persistentModel,name:"EvidenceVisibilityRow")];case "AssuranceManifestRow":return try subjects(category:.persistentModel,names:["ClaimEvidenceLinkRow","EvidenceVisibilityRow"]);case "AttestationRow":return[try subject(category:.persistentModel,name:"AssuranceManifestRow")];default:throw Self.invalidInventoryFailure()}}
 
     static func validatePersistentModelsImplementation() throws {
         let frozenV5: [any PersistentModel.Type] = [
@@ -1742,7 +1750,7 @@ private extension CurrentSyncClassificationCatalogV1 {
               runtimeNames == activePersistentModelNames,
               Set(persistentModelNames)
                 == Set(SyncClassificationRegistryV1.persistentModelNames + ["ObservationAndTimeRow"]) else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
     }
 
@@ -1754,7 +1762,7 @@ private extension CurrentSyncClassificationCatalogV1 {
                 with: Set(SyncClassificationRegistryV1.ownedFileClassNames)),
               ownedFileClassNames == (SyncClassificationRegistryV1.ownedFileClassNames
                 + additionalOwnedFileClassNames).sorted() else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
     }
 
@@ -1766,7 +1774,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         guard subjects.allSatisfy({ $0.category == category }),
               subjects.map(\.stableName).sorted() == expectedNames.sorted(),
               Set(subjects).count == subjects.count else {
-            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            throw Self.invalidInventoryFailure()
         }
     }
 
