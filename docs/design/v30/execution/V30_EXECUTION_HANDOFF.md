@@ -4653,3 +4653,83 @@ Implementation paths (11 within the 25-path fence):
 - `FieldEvidenceAppTests/V9_83GuidedSurveyFlowTests.swift`
 
 Owner-directed pause: after completing this card, do not select or start V30-P03-C04. This bookkeeping commit only appends this handoff and refreshes the read-only ledger projection to the observed sequence-51 checkpoint. CURRENT_TASK and the V30 selector remain byte-for-byte at Card 24. The four source authority/selector documents and all prior receipts retain their historical meaning. No main or Phase 10 read/poll/mutation occurred. Replay or reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence; never merge wholesale. This entry does not self-record its containing commit.
+
+
+## Card 25 of 55 - V30-P03-C04 - Unicode PDF and accessible-document renderer
+
+State: PROVISIONAL_CHECKPOINTED. This is graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false. Card 26 / V30-P03-C05 is the immediate next unstarted card and may be selected after this checkpoint handoff.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `45eb5bb4dca6b32f3434d57ccada1059bf8fb0e6`, tree `2bd1a2364e17c9185812e43439c95870eb21e29e` (Card 24 checkpoint 51).
+- Observed G0 authority A: `d860b55286bce6041b11bacad2a6523cd4dd060f`; M..A is exactly the four V30 execution documents. All 20 fence entries match immutable authority and frozen B pins; no S10 shared-path tuple applies.
+- Product implementation E: `77b1538aad3ff7229b7f3edcca4045dda7b3e711`, tree `5d967a47111b63f0d3db3f91793abde0bc08b486`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 53: head `4a0ed48fc412bbde6e4464d7f775104ab9cb23a8`, ledger digest `76b7e7602efc93ef5951fb5efa861b46d51197b90a8b0aeee36857567bcbc6fd`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C04/CHECKPOINT/1`. The receipt records every committed path/hash, candidate history, review findings/corrections and static evidence. Prior event/request objects were proved unchanged before append.
+
+Direct prerequisite evidence:
+- V30-P01-C07: `36f9c62ef09bff21c47923add3ade6469a82650e`, tree `0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8`, checkpoint 28.
+- V30-P02-C04: `d804f60308bcfdcaadf01780d429132e4bcbd77d`, tree `0cde23d9cf27616f10d4465ef4ee5a9ac387791e`, checkpoint 39.
+- V30-P03-C01: `c004b4bdd19bc037e3373e7f3a8f508343e5dca0`, tree `7d63520aabb3424f3a2fea35b0bd268400a7517d`, checkpoint 47.
+
+Existing semantic-tree roles, parent order, headings, table header scope/references, alternate-text provenance, decorative state, language and evidence are projected into PDF tags and verified from native dictionaries. Table IDTree keys sort by underlying UTF-16 bytes and resolve to the exact structure nodes. No PDF/UA, WCAG or legal certification is inferred.
+
+Exact native PostScript name, version, font-file SHA/size, OS/2 embedding flags and OS build are captured. Missing files, unsupported visible glyphs, last-resort fallback and prohibited embedding fail closed. Actual outline resources require embedded FontFile2/3 plus a bounded parsed ToUnicode CMap. Color fonts use shaped glyph images with ActualText and separate image observations. All license/professional/environment qualification remains pending.
+
+The existing Letter/A4 layout contract supplies media boxes. Image bytes, source captions, comments, statuses and evidence IDs/digests retain order and association. The new snapshot projection includes all historical evidence. Multi-link accessible figures retain group alt text once and bind each child to exact evidence bytes; decorative children retain nil alt/provenance.
+
+New pending/off-main report generation uses CoreText-shaped Unicode output from validated frozen snapshots. Explicit document profile controls paper and provenance; prior languageRequest remains transient intent. Report-language fallback policy still requires the available English report catalog and does not imply source translation.
+
+Renderer version, frozen source SHA/date, framed original source-content digest, explicit language/formatting/paper and exact font/OS environment bind the receipt. PDF creation/modification dates normalize to source time and native trailer ID is omitted. Same-version expected replay requires the complete receipt including exact output SHA. Ready history observes stored PDF metadata/hash without regeneration; historical rendering APIs preserve predecessor bytes.
+
+Fifteen implementation/test/fixture paths inside the twenty-path fence; no S10 overlap. Canonical snapshot/JSON/CSV/backup/journal/schema, source catalog, project, dependencies, inherited V4 authority/selector and CI workflow remain unchanged.
+
+Paragraph alignment comes from CoreText natural direction, including Arabic with weak leading digits. CJK/RTL and composed sequences wrap without splitting graphemes. Visible control markers are confined to presentation; outer ActualText preserves original source UTF-8, authored line breaks, and semantic order. Color-glyph source remains available through ActualText.
+
+Review and operational evidence:
+- New normal report generation and the accessible-document lifecycle call the source-bound Unicode renderer. Original no-request Worklight bytes and C49 ASCII/Unicode-raster APIs remain explicit historical reproduction; saved ready PDFs are never regenerated.
+- Independent reviews corrected uncommitted source loss through control escaping, weak-digit-prefix RTL alignment, figure evidence truncation and multi-link associations, table IDs/name-tree ordering, native metadata dates, malformed CMap acceptance, required test initializer fields/order, and unused zero-glyph font claims.
+- The renderer observes actual native outline font programs and ToUnicode streams, color-glyph image representations, source ActualText and structure order, language/paper, table Scope/Headers/IDTree, and source-bound dates before forming a receipt. These paths have been reviewed statically only.
+- The PDF postprocessor supports bounded native classic-xref files. It normalizes only Info dates and xref/trailer before appending language/table metadata. Content/font/image streams are copied unchanged; unsupported forms fail closed.
+- Static audit development had a sandbox Git ownership failure, one wrong read-only contract path, and two incorrect text/API-token assertions. Those audit defects were diagnosed and corrected; they were not product test or hosted CI runs.
+- No native compile, XCTest/Simulator run, hosted candidate, legal/license opinion, professional/native-language review, PDF/UA/WCAG certification, main integration or release was executed or accepted.
+
+Independent review was performed at the renderer integration, font/text, and final PDF metadata checkpoints. The final reviewer found no further concrete static blocker after corrections. Those reviews are source analysis, not compiler, native test, font-license, linguistic, accessibility or cross-environment qualification.
+
+New native regression methods (15), unexecuted:
+- `testGlobalizedSourceOnlyHistoryRetainsAllHistoricalEvidenceBeyondLegacyThreeImageLayout`
+- `testRecoveredReadyReportRetainsGlobalizedReceiptMetadataAndImmutableBytes`
+- `testFixturePreservesSixReportLanguageTagsAndExactUTF8SourceBytes`
+- `testAuthoredMultilingualTextExtractsAsLogicalTextWhileEffectiveReportLanguageRemainsEnglish`
+- `testLetterAndA4UseExplicitPaperDimensionsIndependentOfFormattingLocale`
+- `testReplayIsByteAndReceiptIdenticalAndRejectsChangedDependencies`
+- `testLongCJKAndRTLPaginateWithoutClippingAndRemainExtractableInLogicalOrder`
+- `testVisiblePhotoCaptionStatusAndEvidenceRemainInSemanticOrder`
+- `testInvalidImageDigestAndUnassignedGlyphRejectWithoutClaimingExternalQualification`
+- `testTamperedReplayReceiptAndControlSeparatedSourcesCannotCollide`
+- `testSemanticTableIDTreeResolvesNativeHeaderAndCellDictionaries`
+- `testDirectionalControlsPreserveOuterActualTextWhileInspectionUsesVisibleMarkers`
+- `testWeakPrefixArabicUsesRTLSelectionGeometryAndExactLogicalText`
+- `testToUnicodeCMapValidationAcceptsAdobeFormsAndRejectsMalformedTokens`
+- `testV30P03C04GlobalizedLifecycleUsesDepthFirstTreeAndExplicitProvenance`
+
+Static validation PASS: immutable 55-card/107-edge package and installed pins; typed WINDOWS_STATIC null selector; exact 20-path fence/B pins and four-document authority-only M..A; fifteen scoped implementation/test paths and zero S10 overlaps; exact legacy Worklight default-path body and C49 byte-path preservation; all original test method names retained; nine fixture UTF-8 byte lengths; source hygiene; git diff --check. The final audit artifact is SHA-256 `f0029adac6f7cf86d031206aa41d40e5ae24b2bb034ad97607a36a3fc9369d88`. No native or whole-suite pass is claimed.
+
+Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots: unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT. KNOWN_BUGS was read and remains its template; no defect was accepted. Native compilation, font access/embedding/permissions, mixed CJK/RTL/color-glyph extraction, actual layout, repeated PDF byte identity and professional/native accessibility/linguistic review remain mandatory after reconciliation.
+
+Implementation paths (15 within the 20-path fence):
+- `FieldEvidenceApp/Application/Reporting/AccessibleDocumentCoordinatorV1.swift`
+- `FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift`
+- `FieldEvidenceApp/Domain/Reporting/GlobalizedAccessibleDocumentContractsV1.swift`
+- `FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/AccessibleDocumentLifecycleAdapterV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/GlobalizedAccessibleDocumentRendererV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/Reports/globalized-accessible-document-cases-v1.json`
+- `FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift`
+- `FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift`
+- `FieldEvidenceAppTests/V30_P03_C04GlobalizedAccessibleDocumentTests.swift`
+- `FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift`
+
+This bookkeeping commit only appends this handoff and refreshes the read-only ledger projection to the observed sequence-53 checkpoint. CURRENT_TASK and the V30 selector remain at Card 25 until the exact next-card selection transition. No main or Phase 10 read/poll/mutation occurred. Replay or reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence; never merge wholesale. This entry does not self-record its containing commit.
