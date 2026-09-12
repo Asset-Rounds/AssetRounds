@@ -21,6 +21,52 @@ struct EvidenceBundleInput: Sendable {
 }
 
 extension EvidenceBundleStore {
+    /// C23 immutable originals never relocate or advance a locator revision.
+    /// This is the owner's fixed mapping, independent of manifest expectations.
+    static func fieldReferenceLocator(for reference: ContentReferenceV1) throws -> ContentLocatorV1 {
+        guard reference.byteRole == .immutableOriginal,
+              reference.byteLength >= 0, reference.byteLength <= FieldReferenceImportedContentV1.maximumBytes,
+              reference.contentID != ".", reference.contentID != "..",
+              let workspace = UUID(uuidString: reference.workspaceID),
+              workspace.uuidString.lowercased() == reference.workspaceID,
+              let digest = reference.digests.digest(for: .sha256) else {
+            throw FieldReferencePackFailureV1.unsupported
+        }
+        return try .init(locatorID: "c05-\(reference.contentID)", workspaceID: reference.workspaceID,
+            contentID: reference.contentID, locatorRevision: 0, contentDigest: digest,
+            expectedByteLength: reference.byteLength)
+    }
+
+    /// Reopens actual protected originals and verifies every retained digest.
+    /// Missing files are absent; invalid mappings, substitutions and corrupt
+    /// files throw. No declared provenance is inferred from filesystem facts.
+    func readFieldReferenceContent(_ metadata: FieldReferenceImportedContentV1) throws
+        -> [FieldReferenceImportedContentV1.Entry] {
+        _ = try FieldReferenceImportedContentV1(entries: metadata.entries)
+        return try withGenerationRootAuthority { _ in
+            var present: [FieldReferenceImportedContentV1.Entry] = []
+            for entry in metadata.entries {
+                let reference = entry.reference
+                let locator = try Self.fieldReferenceLocator(for: reference)
+                guard locator == entry.locator else { throw FieldReferencePackFailureV1.unsupported }
+                let target = generationRootURL.appendingPathComponent("content", isDirectory: true)
+                    .appendingPathComponent(reference.workspaceID, isDirectory: true)
+                    .appendingPathComponent(reference.contentID, isDirectory: true)
+                    .appendingPathComponent("original.bin", isDirectory: false)
+                guard let type = try itemType(at: target) else { continue }
+                guard type == .typeRegular else { throw EvidenceBundleStoreError.fileTypeInvalid }
+                let digests = try withParentDescriptor(of: target) { parent, leaf in
+                    try verifyProtectedRegularFileDigests(.mediaOriginal, at: target, parent: parent,
+                        name: leaf, expectedByteCount: reference.byteLength,
+                        algorithms: reference.digests.values.map(\.algorithm))
+                }
+                guard digests == reference.digests else { throw ContentIntegrityFailureV1.digestMismatch }
+                present.append(try .init(reference: reference, locator: locator))
+            }
+            return present
+        }
+    }
+
     func persistFieldReferenceItem(
         _ item: FieldReferenceImportItemV1,
         workspaceID: WorkspaceID,
@@ -39,7 +85,14 @@ extension EvidenceBundleStore {
             mutationID: mutationID,
             createdAt: item.reference.createdAt
         )
-        return try await persistImmutableOriginal(bytes: item.bytes, request: request)
+        guard item.locator == (try Self.fieldReferenceLocator(for: item.reference)) else {
+            throw FieldReferencePackFailureV1.unsupported
+        }
+        let receipt = try await persistImmutableOriginal(bytes: item.bytes, request: request)
+        let expected = try FieldReferenceImportedContentV1.Entry(reference: item.reference, locator: item.locator)
+        let observed = try readFieldReferenceContent(.init(entries: [expected]))
+        guard observed == [expected] else { throw FieldReferencePackFailureV1.missingContent }
+        return receipt
     }
 }
 
@@ -606,6 +659,7 @@ private final class EvidenceBundleStoreAssetLabelPublicationV1: @unchecked Senda
 actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     private static let legacyBundleLock = NSRecursiveLock()
     private let sourceMutationGuard: StoreMigrationSourceMutationGuardV1?
+    nonisolated private let expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity?
     private struct FileIdentity: Equatable {
         let device: dev_t
         let inode: ino_t
@@ -619,9 +673,11 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     init(
         generationRootURL: URL,
         fileManager: FileManager = .default,
-        failureInjection: EvidenceBundleStoreFailureInjection? = nil
+        failureInjection: EvidenceBundleStoreFailureInjection? = nil,
+        expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
     ) {
         self.sourceMutationGuard = nil
+        self.expectedGenerationRootIdentity = expectedGenerationRootIdentity
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.fileManager = fileManager
         self.failureInjection = failureInjection
@@ -635,6 +691,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     @MainActor
     init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
         generationRootURL = authority.generationRootURL.standardizedFileURL
+        expectedGenerationRootIdentity = nil
         fileManager = .default
         failureInjection = nil
         sourceMutationGuard = try authority.recoveryMutationGuard()
@@ -1802,6 +1859,12 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         let authority = try openGenerationRootAuthority()
         defer { closeGenerationRootAuthority(authority) }
         try reproveGenerationRoot(authority)
+        if let expectedGenerationRootIdentity {
+            guard authority.generationIdentity.device == expectedGenerationRootIdentity.device,
+                  authority.generationIdentity.inode == expectedGenerationRootIdentity.inode else {
+                throw EvidenceBundleStoreError.generationRootInvalid
+            }
+        }
         let result = try body(authority)
         try reproveGenerationRoot(authority)
         return result
@@ -2362,6 +2425,25 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         name: String,
         expectedByteCount: Int64
     ) throws -> String {
+        let digests = try verifyProtectedRegularFileDigests(kind, at: url, parent: parent,
+            name: name, expectedByteCount: expectedByteCount, algorithms: [.sha256])
+        guard let digest = digests.digest(for: .sha256) else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        return digest.hexadecimalValue
+    }
+
+    private func verifyProtectedRegularFileDigests(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        parent: Int32,
+        name: String,
+        expectedByteCount: Int64,
+        algorithms: [ContentDigestAlgorithmV1]
+    ) throws -> ContentDigestSetV1 {
+        guard algorithms == algorithms.sorted(by: { $0.rawValue < $1.rawValue }),
+              algorithms.contains(.sha256), Set(algorithms).count == algorithms.count,
+              algorithms.count <= ContentContractLimitsV1.maximumDigestCount else {
+            throw ContentIntegrityFailureV1.digestMismatch
+        }
         guard expectedByteCount >= 0,
               expectedByteCount <= EvidenceCurationLimitsV1.maximumSourceBytes else {
             throw EvidenceDerivativeServiceFailureV1.limitExceeded
@@ -2380,6 +2462,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         let parentIdentity = try directoryIdentity(parent)
         try ProtectedFilePolicyV1.verify(kind, at: url)
         var hasher = SHA256()
+        var secondaryHasher = SHA512()
+        let verifiesSecondary = algorithms.contains(.sha512)
         var total: Int64 = 0
         var buffer = [UInt8](repeating: 0, count: 64 * 1024)
         while total < expectedByteCount {
@@ -2388,7 +2472,9 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                 Darwin.read(descriptor, $0.baseAddress, requested)
             }
             if count > 0 {
-                hasher.update(data: Data(buffer.prefix(count)))
+                let chunk = Data(buffer.prefix(count))
+                hasher.update(data: chunk)
+                if verifiesSecondary { secondaryHasher.update(data: chunk) }
                 total += Int64(count)
             } else if count == 0 {
                 throw EvidenceBundleStoreError.bundleFactsMismatch
@@ -2409,7 +2495,13 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
               try directoryIdentity(parent) == parentIdentity else {
             throw EvidenceBundleStoreError.bundleFactsMismatch
         }
-        return Data(hasher.finalize()).map { String(format: "%02x", $0) }.joined()
+        var digests = [try ContentDigestV1(algorithm: .sha256,
+            hexadecimalValue: Data(hasher.finalize()).map { String(format: "%02x", $0) }.joined())]
+        if verifiesSecondary {
+            digests.append(try .init(algorithm: .sha512,
+                hexadecimalValue: Data(secondaryHasher.finalize()).map { String(format: "%02x", $0) }.joined()))
+        }
+        return try ContentDigestSetV1(digests)
     }
 
     nonisolated private func withParentDescriptor<T>(

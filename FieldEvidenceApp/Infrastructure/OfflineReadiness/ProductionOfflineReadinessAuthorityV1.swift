@@ -145,9 +145,8 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
             let expectedState: FieldReferenceSubjectStateV1 = round.state == .completed || round.state == .archived ? .finalized : .active
             if bindings.contains(where: { $0.subjectRevision != round.revision || $0.subjectState != expectedState }) {
                 assessment = .unavailable(.staleFieldReferenceBinding)
-            } else if !bindings.isEmpty {
-                // Canonical release/binding rows do not contain the actual
-                // content-locator closure. Never manufacture it from a manifest.
+            } else if try await fieldReferenceReadiness(for: round, sources: initial,
+                checkedAt: clock.now(), token: token) == nil {
                 assessment = .unavailable(.fieldReferenceContentClosureUnavailable)
             } else if let expected = round.items.first?.requirement.packageRelease,
                       try initial.package(for: expected) != nil {
@@ -159,7 +158,7 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
             }
         }
         let result = MyDaySourceReadinessAssessmentV1(reference: reference, assessment: assessment)
-        let completionRoot = try validateCompletionsForPublication([result])
+        let completionRoot = try await validateCompletionsForPublication([result], token: token)
         try await accessGate.validateContentRead(token, for: .render)
         try Task.checkCancellation()
         let reread = try currentSession()
@@ -223,9 +222,74 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
         return allMatch
     }
 
+    /// Canonical release facts select the existing immutable byte owner. A
+    /// supported sibling is still verified when another entry is unavailable.
+    private func fieldReferenceReadiness(for round: RoundSessionV1,
+        sources: ProductionOfflineReadinessSourceClosureV1, checkedAt: Date,
+        token: AppAccessGateV1.ContentReadToken) async throws -> [FieldReferenceOfflineReadinessV1]? {
+        let pairs = try fieldReferenceBindings(for: round, sources: sources)
+        let superseded = Set(sources.releases.compactMap(\.supersedesReleaseID))
+        let revoked = Set(sources.releases.filter { $0.releaseDisposition == .revoked }.map(\.releaseID))
+        var values: [FieldReferenceOfflineReadinessV1] = []
+        var complete = true
+        for (release, binding) in pairs {
+            try Task.checkCancellation()
+            _ = try currentSession().workspaceWriter.currentRevision()
+            guard let metadata = release.importedContent else { complete = false; continue }
+            var supported: [FieldReferenceImportedContentV1.Entry] = []
+            for entry in metadata.entries {
+                do {
+                    guard try EvidenceBundleStore.fieldReferenceLocator(for: entry.reference) == entry.locator else {
+                        complete = false; continue
+                    }
+                    supported.append(entry)
+                } catch FieldReferencePackFailureV1.unsupported {
+                    complete = false
+                }
+            }
+            var present: [FieldReferenceImportedContentV1.Entry] = []
+            if !supported.isEmpty {
+                try await accessGate.validateContentRead(token, for: .render)
+                try Task.checkCancellation()
+                _ = try currentSession().workspaceWriter.currentRevision()
+                present = try await content.readFieldReferenceContent(.init(entries: supported))
+                try Task.checkCancellation()
+                _ = try currentSession().workspaceWriter.currentRevision()
+            }
+            if supported.count != metadata.entries.count { continue }
+            let inputs = FieldReferenceReadinessInputsV1(references: present.map(\.reference),
+                locators: present.map(\.locator), knownSupersededReleaseIDs: superseded,
+                knownRevokedReleaseIDs: revoked, evaluatedAt: checkedAt,
+                protectedDataAvailable: UIApplication.shared.isProtectedDataAvailable)
+            let value = try FieldReferenceOfflineReadinessV1(release: release, binding: binding, inputs: inputs)
+            try value.validate(recomputedFrom: inputs, release: release, binding: binding)
+            values.append(value)
+        }
+        return complete ? values : nil
+    }
+
+    private func fieldReferenceBindings(for round: RoundSessionV1,
+        sources: ProductionOfflineReadinessSourceClosureV1) throws
+        -> [(release: FieldReferenceReleaseV1, binding: FieldReferenceBindingV1)] {
+        let bindings = sources.currentBindings(for: round)
+        guard bindings.count <= OfflineReadinessManifestLimitsV1.maximumFieldReferences else {
+            throw MyDaySourceReadFailureV1.corruptSourceClosure
+        }
+        let state: FieldReferenceSubjectStateV1 = round.state == .completed || round.state == .archived ? .finalized : .active
+        return try bindings.map { binding in
+            guard binding.subjectRevision == round.revision, binding.subjectState == state,
+                  let release = sources.releases.first(where: { $0.releaseID == binding.releaseID }) else {
+                throw MyDaySourceReadFailureV1.sourcesChanged
+            }
+            try binding.validate(release: release)
+            return (release, binding)
+        }
+    }
+
     /// Reads protected completion content before the caller's final validation
     /// of its original content-read token. No proof survives that operation.
-    func validateCompletionsForPublication(_ assessments: [MyDaySourceReadinessAssessmentV1]) throws
+    func validateCompletionsForPublication(_ assessments: [MyDaySourceReadinessAssessmentV1],
+        token: AppAccessGateV1.ContentReadToken) async throws
         -> ReportPDFAnchoredFile.RootIdentity? {
         _ = try currentSession()
         let manifests = assessments.compactMap { record -> OfflineReadinessManifestV1? in
@@ -242,6 +306,22 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
                 workspaceID: workspaceID, sessionID: manifest.session.sessionID),
                   try round.reference == manifest.session,
                   try completedItemsMatch(round, sources: sources) else {
+                throw MyDaySourceReadFailureV1.sourcesChanged
+            }
+            guard let references = try await fieldReferenceReadiness(for: round, sources: sources,
+                checkedAt: manifest.checkedAt, token: token) else {
+                throw MyDaySourceReadFailureV1.sourcesChanged
+            }
+            let observations = try references.map(OfflineReadinessReferenceObservationV1.init)
+                .sorted { $0.releaseID.uuidString < $1.releaseID.uuidString }
+            let requirements = try fieldReferenceBindings(for: round, sources: sources).map { pair in
+                let (release, binding) = pair
+                return try OfflineReadinessFieldReferenceRequirementV1(workspaceID: release.workspaceID.rawValue.uuidString.lowercased(),
+                    releaseID: release.releaseID, releaseRevision: release.revision, releaseSHA256: release.releaseSHA256,
+                    manifestSHA256: release.manifestSHA256, bindingID: binding.bindingID,
+                    bindingRevision: binding.revision, bindingSHA256: binding.bindingSHA256)
+            }.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString }
+            guard observations == manifest.referenceObservations, requirements == manifest.expectedFieldReferences else {
                 throw MyDaySourceReadFailureV1.sourcesChanged
             }
         }
@@ -270,6 +350,20 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
         guard manifests.allSatisfy({ $0.storage == current && $0.protectedDataAvailable == protected }) else {
             throw MyDaySourceReadFailureV1.sourcesChanged
         }
+        let now = clock.now()
+        let sources = try ProductionOfflineReadinessSourceClosureV1(context: session.modelContext, workspaceID: workspaceID)
+        for manifest in manifests {
+            guard now.timeIntervalSinceReferenceDate.isFinite, now >= manifest.checkedAt,
+                  manifest.timeZoneIdentifier == TimeZone.current.identifier else {
+                throw MyDaySourceReadFailureV1.sourcesChanged
+            }
+            for observation in manifest.referenceObservations where observation.availability == .readyOffline {
+                guard let release = sources.releases.first(where: { $0.releaseID == observation.releaseID }),
+                      release.expiresAt.map({ $0 > now }) ?? true else {
+                    throw MyDaySourceReadFailureV1.sourcesChanged
+                }
+            }
+        }
     }
 
     /// Operation-scoped only. Each current() call reacquires canonical rows;
@@ -279,8 +373,10 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
         let token: AppAccessGateV1.ContentReadToken
         private var sources: ProductionOfflineReadinessSourceClosureV1?
         private var round: RoundSessionV1?
+        private let operationCheckedAt: Date
         init(owner: ProductionOfflineReadinessAuthorityV1, token: AppAccessGateV1.ContentReadToken) {
             self.owner = owner; self.token = token
+            operationCheckedAt = owner.clock.now()
         }
 
         func current(sessionID: UUID) throws -> RoundSessionV1? {
@@ -301,10 +397,12 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
             return round
         }
         func checkCancellation() throws { try Task.checkCancellation(); _ = try owner.currentSession() }
-        func checkedAt() async throws -> Date { try checkCancellation(); return owner.clock.now() }
+        func checkedAt() async throws -> Date { try checkCancellation(); return operationCheckedAt }
         func timeZoneIdentifier() async throws -> String { TimeZone.current.identifier }
         func clockState(previous: OfflineReadinessManifestV1?, checkedAt: Date, timeZoneIdentifier: String) async throws -> OfflineReadinessClockStateV1 {
-            guard checkedAt.timeIntervalSinceReferenceDate.isFinite, TimeZone(identifier: timeZoneIdentifier) != nil else { return .uncheckable }
+            let now = owner.clock.now()
+            guard checkedAt.timeIntervalSinceReferenceDate.isFinite, now.timeIntervalSinceReferenceDate.isFinite,
+                  now >= checkedAt, TimeZone(identifier: timeZoneIdentifier) != nil else { return .uncheckable }
             if let previous, previous.timeZoneIdentifier != timeZoneIdentifier || checkedAt < previous.checkedAt { return .changedSincePriorManifest }
             return .checked
         }
@@ -353,19 +451,18 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
         }
         func expectedFieldReferenceBindings(session: RoundSessionReferenceV1, expectedPackage: RoundPackageReleaseReferenceV1) async throws -> [(release: FieldReferenceReleaseV1, binding: FieldReferenceBindingV1)] {
             let sources = try requireSources()
-            guard let round, try round.reference == session, try sources.package(for: expectedPackage) != nil,
-                  sources.currentBindings(for: round).isEmpty else {
+            guard let round, try round.reference == session, try sources.package(for: expectedPackage) != nil else {
                 throw OfflineReadinessPreflightCoordinatorFailureV1.inconsistentSessionRequirements
             }
-            // The exact closed package has no field-reference declaration;
-            // the fully validated subject binding history is genuinely empty.
-            return []
+            return try owner.fieldReferenceBindings(for: round, sources: sources)
         }
         func fieldReferenceReadiness(workspaceID: WorkspaceID, checkedAt: Date) async throws -> [FieldReferenceOfflineReadinessV1] {
-            guard workspaceID == owner.workspaceID, let round, try requireSources().currentBindings(for: round).isEmpty else {
+            guard workspaceID == owner.workspaceID, let round,
+                  let values = try await owner.fieldReferenceReadiness(for: round,
+                    sources: requireSources(), checkedAt: checkedAt, token: token) else {
                 throw OfflineReadinessPreflightCoordinatorFailureV1.inconsistentSessionRequirements
             }
-            return []
+            return values
         }
         func storageObservation(for requirements: [OfflineReadinessContentRequirementV1]) async throws -> OfflineReadinessStorageObservationV1 {
             try owner.ledger.observeOfflineReadiness(expectedApplicationSupportURL: owner.applicationSupportURL)

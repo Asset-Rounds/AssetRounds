@@ -122,7 +122,7 @@ struct MyDaySourceSnapshotV1: Sendable {
         let result = MyDaySourceSnapshotV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
             sources: sourceResult.sources, frontiers: frontiers, dueQueue: sourceResult.dueQueue,
             sourceClosureSHA256: sourceResult.sourceClosureSHA256, readinessAssessments: assessments)
-        let completionRoot = try readinessAuthority?.validateCompletionsForPublication(assessments)
+        let completionRoot = try await readinessAuthority?.validateCompletionsForPublication(assessments, token: token)
         #if DEBUG
         try await afterSourceMaterializationForTesting?()
         #endif

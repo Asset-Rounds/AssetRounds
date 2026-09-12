@@ -70,6 +70,23 @@ private enum C41 {
 }
 
 private struct C41Clock: ApplicationClock { func now() -> Date { C41.now } }
+private final class C41FieldReferenceClock: ApplicationClock, @unchecked Sendable {
+    private let lock = NSLock()
+    private var instant = C41.now
+    private let step: TimeInterval
+    private var reads = 0
+    init(step: TimeInterval = 0) { self.step = step }
+    func now() -> Date {
+        lock.withLock {
+            let value = instant
+            instant = instant.addingTimeInterval(step)
+            reads += 1
+            return value
+        }
+    }
+    func set(_ value: Date) { lock.withLock { instant = value } }
+    var count: Int { lock.withLock { reads } }
+}
 private final class C41CapacitySequence: @unchecked Sendable {
     private let lock = NSLock()
     private let values: [Int64]
@@ -484,6 +501,82 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
     func assessedProvider(ledger: OwnedStorageLedgerV1) -> ProductionMyDaySourceProviderV1 {
         coordinator.makeMyDaySourceProvider(accessGate: gate, ownedStorageLedger: ledger)
     }
+
+    func assessedProvider(ledger: OwnedStorageLedgerV1, clock: any ApplicationClock) -> ProductionMyDaySourceProviderV1 {
+        let authority = ProductionOfflineReadinessAuthorityV1(session: coordinator, accessGate: gate,
+            clock: clock, ownedStorageLedger: ledger, expectedApplicationSupportURL: root)
+        return ProductionMyDaySourceProviderV1(session: coordinator, accessGate: gate, readinessAuthority: authority)
+    }
+
+    struct FieldReferenceFixture {
+        let release: FieldReferenceReleaseV1
+        let binding: FieldReferenceBindingV1
+        let items: [FieldReferenceImportItemV1]
+    }
+
+    /// Only the package/asset setup is a constructed canonical fixture. These
+    /// imported bytes and release/binding rows use their actual existing owners.
+    func importedReference(for round: RoundSessionV1, seed: Int, count: Int = 1,
+        legacy: Bool = false, unsupportedFirstLocator: Bool = false,
+        expiresAt: Date? = nil) async throws -> FieldReferenceFixture {
+        let workspace = store.workspaceID.rawValue.uuidString.lowercased()
+        let items = try (0..<count).map { index -> FieldReferenceImportItemV1 in
+            let bytes = Data("protected field reference \(seed) \(index)".utf8)
+            let observation = try ContentIntegrityV1.observe(workspaceID: workspace,
+                contentID: "c41-field-\(seed)-\(index)", data: bytes, mediaType: "application/pdf",
+                algorithms: [.sha256, .sha512])
+            let reference = try ContentReferenceV1(workspaceID: workspace, contentID: observation.contentID,
+                byteLength: Int64(bytes.count), mediaType: "application/pdf", digests: observation.digests,
+                byteRole: .immutableOriginal, createdAt: "2025-01-02T00:00:00Z")
+            return try .init(reference: reference, locator: EvidenceBundleStore.fieldReferenceLocator(for: reference), bytes: bytes)
+        }
+        let entries = try items.enumerated().map { index, item -> FieldReferenceImportedContentV1.Entry in
+            let locator: ContentLocatorV1
+            if unsupportedFirstLocator && index == 0 {
+                locator = try .init(locatorID: "unsupported-c41-\(seed)", workspaceID: workspace,
+                    contentID: item.reference.contentID, locatorRevision: 0,
+                    contentDigest: item.locator.contentDigest, expectedByteLength: item.reference.byteLength)
+            } else { locator = item.locator }
+            return try .init(reference: item.reference, locator: locator)
+        }
+        let manifest = try ContentManifestV1(manifestID: "c41-field-manifest-\(seed)", workspaceID: workspace,
+            manifestRevision: 1, entries: items.map { item in
+                try .init(contentID: item.reference.contentID, expectedByteLength: item.reference.byteLength,
+                    mediaType: item.reference.mediaType, digest: XCTUnwrap(item.reference.digests.digest(for: .sha256)),
+                    expectedLocatorRevision: 0, requiredForOpen: true)
+            })
+        let release = try FieldReferenceReleaseV1(releaseID: C41.id(seed), workspaceID: store.workspaceID,
+            referencePackID: "c41-field-pack-\(seed)", kind: .manual, semanticVersion: "1.0",
+            provenance: .init(kind: .synthetic, sourceName: "Explicit protected test reference",
+                sourceReleaseIdentifier: "v1", licenseScope: .localUseOnly),
+            manifest: manifest, issuedAt: C41.now, expiresAt: expiresAt, mutationID: C41.mutation(seed + 1),
+            importedContent: legacy ? nil : FieldReferenceImportedContentV1(entries: entries))
+        let binding = try FieldReferenceBindingV1(bindingID: C41.id(seed + 2), workspaceID: store.workspaceID,
+            subjectKind: .roundSession, subjectID: round.sessionID, subjectRevision: round.revision,
+            subjectState: .active, release: release, boundAt: C41.now, mutationID: C41.mutation(seed + 3))
+        if legacy || unsupportedFirstLocator {
+            // Explicit historical/unsupported metadata fixtures bypass new
+            // import admission so readiness must still fail closed on them.
+            let content = EvidenceBundleStore(generationRootURL: coordinator.generationRootURL)
+            for item in items {
+                _ = try await content.persistFieldReferenceItem(item, workspaceID: store.workspaceID, mutationID: release.mutationID)
+            }
+            _ = try coordinator.workspaceWriter.commitFieldReference(.importRelease(release))
+            _ = try coordinator.workspaceWriter.commitFieldReference(.bind(value: binding, release: release))
+        } else {
+            let ledger = try OwnedStorageLedgerV1(applicationSupportURL: root, capacityProvider: { _ in 1_000_000_000 })
+            let lifecycle = ProductionFieldReferencePackLifecycleV1(session: coordinator, accessGate: gate,
+                clock: C41Clock(), ownedStorageLedger: ledger, expectedApplicationSupportURL: root)
+            _ = try await lifecycle.importRelease(.init(release: release, items: items))
+            _ = try await lifecycle.bind(binding, to: release)
+            XCTAssertEqual(ledger.snapshot().activeReservationCount, 0)
+        }
+        return .init(release: release, binding: binding, items: items)
+    }
+
+    func fieldReferenceURL(_ item: FieldReferenceImportItemV1) -> URL {
+        coordinator.generationRootURL.appendingPathComponent("content/\(item.reference.workspaceID)/\(item.reference.contentID)/original.bin")
+    }
     func baseline() throws -> Baseline {
         let revision = try coordinator.workspaceWriter.currentRevision()
         let receipts = try coordinator.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count
@@ -499,6 +592,162 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
 }
 
 final class V9_104MyDayWorkflowTests: XCTestCase {
+    @MainActor
+    func testProductionMyDayImportedFieldReferencesRemainReadyWithAdvancingClockAndNoEffects() async throws {
+        let h = try C41ProductionSourceHarness()
+        let round = try await h.readinessRound(seed: 5000, withContent: false)
+        let field = try await h.importedReference(for: round.round, seed: 5020)
+        let clock = C41FieldReferenceClock(step: 1)
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+        let provider = h.assessedProvider(ledger: ledger, clock: clock)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let before = try h.baseline(), history = try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+        let storage = ledger.snapshot()
+        let snapshot = try await provider.snapshot(evaluatedAt: C41.now)
+        guard case let .roundManifest(manifest)? = snapshot.readinessAssessments.first?.assessment else {
+            return XCTFail("Real imported reference did not produce a manifest")
+        }
+        try manifest.validate()
+        XCTAssertEqual(manifest.status, .ready)
+        XCTAssertEqual(manifest.expectedFieldReferences.map(\.bindingID), [field.binding.bindingID])
+        XCTAssertEqual(manifest.referenceObservations.map(\.availability), [.readyOffline])
+        XCTAssertGreaterThan(clock.count, 2)
+        let expected = try FieldReferenceOfflineReadinessV1(release: field.release, binding: field.binding,
+            inputs: .init(references: field.items.map(\.reference), locators: field.items.map(\.locator),
+                evaluatedAt: manifest.checkedAt))
+        XCTAssertEqual(manifest.referenceObservations, [try OfflineReadinessReferenceObservationV1(expected)])
+        XCTAssertEqual(field.items[0].reference.digests.values.map(\.algorithm), [.sha256, .sha512])
+        XCTAssertEqual(try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), history)
+        XCTAssertEqual(try h.baseline(), before)
+        XCTAssertEqual(ledger.snapshot(), storage)
+        let authCalls = await h.authentication.count
+        XCTAssertEqual(authCalls, 0)
+    }
+
+    @MainActor
+    func testProductionMyDayImportedFieldReferencesReadActualMissingAndCorruptBytes() async throws {
+        let h = try C41ProductionSourceHarness()
+        let round = try await h.readinessRound(seed: 5100, withContent: false)
+        let field = try await h.importedReference(for: round.round, seed: 5120)
+        let item = field.items[0], target = h.fieldReferenceURL(field.items[0])
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+        let provider = h.assessedProvider(ledger: ledger, clock: C41Clock())
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let history = try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), storage = ledger.snapshot()
+        try FileManager.default.removeItem(at: target)
+        let missingBefore = try h.baseline()
+        let missing = try await provider.snapshot(evaluatedAt: C41.now)
+        guard case let .roundManifest(manifest)? = missing.readinessAssessments.first?.assessment else {
+            return XCTFail("Missing imported bytes must yield a blocked manifest")
+        }
+        XCTAssertEqual(manifest.status, .blocked)
+        XCTAssertEqual(manifest.referenceObservations.map(\.availability), [.missingBytes])
+        XCTAssertEqual(manifest.referenceObservations.first?.missingContentIDs, [item.reference.contentID])
+        XCTAssertEqual(try h.baseline(), missingBefore)
+        _ = try await EvidenceBundleStore(generationRootURL: h.coordinator.generationRootURL)
+            .persistFieldReferenceItem(item, workspaceID: h.store.workspaceID, mutationID: field.release.mutationID)
+        var corrupt = item.bytes; corrupt[0] ^= 1
+        try corrupt.write(to: target)
+        let corruptBefore = try h.baseline()
+        do {
+            _ = try await provider.snapshot(evaluatedAt: C41.now)
+            XCTFail("Corrupt protected imported bytes must not publish readiness")
+        } catch { XCTAssertEqual(error as? ContentIntegrityFailureV1, .digestMismatch) }
+        XCTAssertEqual(try h.baseline(), corruptBefore)
+        try item.bytes.write(to: target)
+        let restoredBefore = try h.baseline()
+        let restored = try await provider.snapshot(evaluatedAt: C41.now)
+        guard case let .roundManifest(restoredManifest)? = restored.readinessAssessments.first?.assessment else {
+            return XCTFail("Restored original imported bytes must be reopened")
+        }
+        XCTAssertEqual(restoredManifest.status, .ready)
+        XCTAssertEqual(restoredManifest.referenceObservations.map(\.availability), [.readyOffline])
+        XCTAssertEqual(try h.baseline(), restoredBefore)
+        XCTAssertEqual(try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), history)
+        XCTAssertEqual(ledger.snapshot(), storage)
+    }
+
+    @MainActor
+    func testProductionMyDayUnsupportedFieldReferencesCannotHideSupportedCorruption() async throws {
+        // A legacy release before a supported release, and an unsupported
+        // first locator before a supported sibling, must both retain fail-closed
+        // physical validation without manufacturing missing legacy metadata.
+        for mixedEntries in [false, true] {
+            let h = try C41ProductionSourceHarness()
+            let round = try await h.readinessRound(seed: 5200, withContent: false)
+            let field: C41ProductionSourceHarness.FieldReferenceFixture
+            if mixedEntries {
+                field = try await h.importedReference(for: round.round, seed: 5220, count: 2,
+                    unsupportedFirstLocator: true)
+            } else {
+                _ = try await h.importedReference(for: round.round, seed: 5220, legacy: true)
+                field = try await h.importedReference(for: round.round, seed: 5240)
+            }
+            let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+            let provider = h.assessedProvider(ledger: ledger, clock: C41Clock())
+            try await h.coordinator.awaitSearchIndexLifecycle()
+            let history = try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), storage = ledger.snapshot()
+            let unavailableBefore = try h.baseline()
+            let unavailable = try await provider.snapshot(evaluatedAt: C41.now)
+            XCTAssertEqual(unavailable.readinessAssessments.first?.assessment,
+                .unavailable(.fieldReferenceContentClosureUnavailable))
+            XCTAssertEqual(try h.baseline(), unavailableBefore)
+            let supported = try XCTUnwrap(field.items.last)
+            let target = h.fieldReferenceURL(supported)
+            var corrupt = supported.bytes; corrupt[0] ^= 1
+            try corrupt.write(to: target)
+            let corruptBefore = try h.baseline()
+            do {
+                _ = try await provider.snapshot(evaluatedAt: C41.now)
+                XCTFail("Unsupported metadata masked supported corruption; mixed entries: \(mixedEntries)")
+            } catch { XCTAssertEqual(error as? ContentIntegrityFailureV1, .digestMismatch) }
+            XCTAssertEqual(try h.baseline(), corruptBefore)
+            XCTAssertEqual(try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), history)
+            XCTAssertEqual(ledger.snapshot(), storage)
+        }
+    }
+
+    #if DEBUG
+    @MainActor
+    func testProductionMyDayImportedFieldReferencePublicationRejectsExpiryAndBackwardClock() async throws {
+        let h = try C41ProductionSourceHarness()
+        let round = try await h.readinessRound(seed: 5300, withContent: false)
+        let expiry = C41.now.addingTimeInterval(60)
+        _ = try await h.importedReference(for: round.round, seed: 5320, expiresAt: expiry)
+        let clock = C41FieldReferenceClock()
+        let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
+        let provider = h.assessedProvider(ledger: ledger, clock: clock)
+        try await h.coordinator.awaitSearchIndexLifecycle()
+        let before = try h.baseline(), history = try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+        let storage = ledger.snapshot()
+        for instant in [expiry, C41.now.addingTimeInterval(-1)] {
+            clock.set(C41.now)
+            var reachedPublication = false
+            provider.afterSourceMaterializationForTesting = {
+                reachedPublication = true
+                clock.set(instant)
+            }
+            do {
+                _ = try await provider.snapshot(evaluatedAt: C41.now)
+                XCTFail("Final publication accepted changed time \(instant)")
+            } catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+            XCTAssertTrue(reachedPublication)
+            XCTAssertEqual(try h.baseline(), before)
+            XCTAssertEqual(try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), history)
+            XCTAssertEqual(ledger.snapshot(), storage)
+        }
+        provider.afterSourceMaterializationForTesting = nil
+        clock.set(expiry)
+        let expired = try await provider.snapshot(evaluatedAt: C41.now)
+        guard case let .roundManifest(manifest)? = expired.readinessAssessments.first?.assessment else {
+            return XCTFail("A fresh expired observation must be explicit")
+        }
+        XCTAssertEqual(manifest.status, .blocked)
+        XCTAssertEqual(manifest.referenceObservations.map(\.availability), [.expired])
+        XCTAssertEqual(try h.baseline(), before)
+    }
+    #endif
+
     @MainActor func testSummaryPresentationUsesExactMembershipEstimate() throws {
         // Exercise the view's actual formatter with validated canonical summary values.
         for minutes in [nil, 1, 37] as [Int?] {

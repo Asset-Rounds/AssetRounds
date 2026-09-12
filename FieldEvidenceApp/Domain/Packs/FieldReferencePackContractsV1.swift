@@ -24,16 +24,150 @@ struct FieldReferenceProvenanceV1:Codable,Equatable,Hashable,Sendable{
     func validate()throws{try FieldReferenceValidationV1.text(sourceName);try FieldReferenceValidationV1.token(sourceReleaseIdentifier);if let licenseNotice{try FieldReferenceValidationV1.text(licenseNotice)};guard !authorityClaimed,kind != .licensed || licenseNotice != nil else{throw FieldReferencePackFailureV1.invalidValue}}
 }
 
+/// Retained declared reference facts and the physical owner's immutable mapping.
+/// Bytes remain in the existing content store; this payload is release authority.
+struct FieldReferenceImportedContentV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumBytes: Int64 = 64 * 1_048_576
+    let schemaVersion: Int
+    let entries: [Entry]
+
+    struct Entry: Codable, Equatable, Sendable {
+        let reference: ContentReferenceV1
+        let locator: ContentLocatorV1
+
+        init(reference: ContentReferenceV1, locator: ContentLocatorV1) throws {
+            guard reference.byteRole == .immutableOriginal,
+                  reference.byteLength <= FieldReferenceImportedContentV1.maximumBytes else {
+                throw FieldReferencePackFailureV1.invalidValue
+            }
+            try locator.validate(against: reference)
+            self.reference = reference; self.locator = locator
+        }
+
+        private enum CodingKeys: String, CodingKey, CaseIterable { case reference, locator }
+        init(from decoder: any Decoder) throws {
+            try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            try self.init(reference: values.decode(ContentReferenceV1.self, forKey: .reference),
+                          locator: values.decode(ContentLocatorV1.self, forKey: .locator))
+        }
+    }
+
+    init(entries: [Entry]) throws {
+        guard !entries.isEmpty, entries.count <= ContentContractLimitsV1.maximumManifestEntries,
+              entries == entries.sorted(by: { $0.reference.contentID < $1.reference.contentID }),
+              Set(entries.map(\.reference.contentID)).count == entries.count,
+              Set(entries.map(\.locator.id)).count == entries.count,
+              Set(entries.map(\.reference.workspaceID)).count == 1 else {
+            throw FieldReferencePackFailureV1.invalidValue
+        }
+        var total: Int64 = 0
+        for entry in entries {
+            guard entry.reference.byteLength >= 0,
+                  entry.reference.byteLength <= Self.maximumBytes - total else {
+                throw FieldReferencePackFailureV1.invalidValue
+            }
+            _ = try Entry(reference: entry.reference, locator: entry.locator)
+            total += entry.reference.byteLength
+        }
+        schemaVersion = Self.schemaVersion; self.entries = entries
+    }
+
+    func validate(manifest: ContentManifestV1) throws {
+        guard schemaVersion == Self.schemaVersion else { throw FieldReferencePackFailureV1.unsupported }
+        _ = try Self(entries: entries)
+        try manifest.validate(references: entries.map(\.reference), locators: entries.map(\.locator))
+    }
+
+    func rebound(to workspaceID: WorkspaceID) throws -> Self {
+        let workspace = FieldReferenceValidationV1.workspaceString(workspaceID)
+        return try Self(entries: entries.map { entry in
+            let prior = entry.reference, locator = entry.locator
+            let reference = try ContentReferenceV1(workspaceID: workspace, contentID: prior.contentID,
+                byteLength: prior.byteLength, mediaType: prior.mediaType, digests: prior.digests,
+                byteRole: prior.byteRole, createdAt: prior.createdAt)
+            return try Entry(reference: reference, locator: .init(locatorID: locator.locatorID,
+                workspaceID: workspace, contentID: locator.contentID, locatorRevision: locator.locatorRevision,
+                contentDigest: locator.contentDigest, expectedByteLength: locator.expectedByteLength))
+        })
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, entries }
+    init(from decoder: any Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw FieldReferencePackFailureV1.unsupported
+        }
+        try self.init(entries: values.decode([Entry].self, forKey: .entries))
+    }
+}
+
 struct FieldReferenceReleaseV1:Codable,Equatable,Sendable{
     static let schemaVersion=1
+    static let importedContentSchemaVersion=2
+    let importedContent:FieldReferenceImportedContentV1?
     let schemaVersion:Int;let releaseID:UUID;let workspaceID:WorkspaceID;let referencePackID:String;let kind:FieldReferenceKindV1;let semanticVersion:String;let provenance:FieldReferenceProvenanceV1;let manifest:ContentManifestV1;let manifestSHA256:String;let releaseDisposition:FieldReferenceReleaseDispositionV1;let issuedAt:Date;let expiresAt:Date?;let revokedAt:Date?;let supersedesReleaseID:UUID?;let revision:UInt64;let mutationID:MutationIDV1;let releaseSHA256:String
-    init(releaseID:UUID,workspaceID:WorkspaceID,referencePackID:String,kind:FieldReferenceKindV1,semanticVersion:String,provenance:FieldReferenceProvenanceV1,manifest:ContentManifestV1,releaseDisposition:FieldReferenceReleaseDispositionV1 = .active,issuedAt:Date,expiresAt:Date?=nil,revokedAt:Date?=nil,supersedesReleaseID:UUID?=nil,revision:UInt64=1,mutationID:MutationIDV1)throws{try FieldReferenceValidationV1.token(referencePackID);try FieldReferenceValidationV1.token(semanticVersion);try provenance.validate();let manifestDigest=try WorkspaceMutationCanonicalV1.sha256(manifest);schemaVersion=Self.schemaVersion;self.releaseID=releaseID;self.workspaceID=workspaceID;self.referencePackID=referencePackID;self.kind=kind;self.semanticVersion=semanticVersion;self.provenance=provenance;self.manifest=manifest;manifestSHA256=manifestDigest;self.releaseDisposition=releaseDisposition;self.issuedAt=issuedAt;self.expiresAt=expiresAt;self.revokedAt=revokedAt;self.supersedesReleaseID=supersedesReleaseID;self.revision=revision;self.mutationID=mutationID;releaseSHA256=try WorkspaceMutationCanonicalV1.sha256(Basis(schemaVersion:Self.schemaVersion,releaseID:releaseID,workspaceID:workspaceID,referencePackID:referencePackID,kind:kind,semanticVersion:semanticVersion,provenance:provenance,manifest:manifest,manifestSHA256:manifestDigest,releaseDisposition:releaseDisposition,issuedAt:issuedAt,expiresAt:expiresAt,revokedAt:revokedAt,supersedesReleaseID:supersedesReleaseID,revision:revision,mutationID:mutationID));try validate()}
-    func validate()throws{try FieldReferenceValidationV1.token(referencePackID);try FieldReferenceValidationV1.token(semanticVersion);try provenance.validate();let expectedManifest=try WorkspaceMutationCanonicalV1.sha256(manifest);guard schemaVersion==Self.schemaVersion,releaseID != FieldReferenceValidationV1.zero,manifest.workspaceID==FieldReferenceValidationV1.workspaceString(workspaceID),!manifest.entries.isEmpty,manifest.entries.allSatisfy(\.requiredForOpen),manifestSHA256==expectedManifest,revision>0,(supersedesReleaseID==nil)==(revision==1),expiresAt.map{$0>issuedAt} ?? true,(releaseDisposition == .revoked)==(revokedAt != nil),revokedAt.map{$0>=issuedAt} ?? true,releaseSHA256==(try WorkspaceMutationCanonicalV1.sha256(basis))else{throw FieldReferencePackFailureV1.invalidDigest}}
-    func validateContent(references:[ContentReferenceV1],locators:[ContentLocatorV1])throws{try validate();try manifest.validateOpenability(references:references,locators:locators);guard references.count==manifest.entries.count,references.allSatisfy({$0.byteRole == .immutableOriginal})else{throw FieldReferencePackFailureV1.missingContent}}
+    init(releaseID:UUID,workspaceID:WorkspaceID,referencePackID:String,kind:FieldReferenceKindV1,semanticVersion:String,provenance:FieldReferenceProvenanceV1,manifest:ContentManifestV1,releaseDisposition:FieldReferenceReleaseDispositionV1 = .active,issuedAt:Date,expiresAt:Date?=nil,revokedAt:Date?=nil,supersedesReleaseID:UUID?=nil,revision:UInt64=1,mutationID:MutationIDV1,importedContent:FieldReferenceImportedContentV1?=nil)throws{try FieldReferenceValidationV1.token(referencePackID);try FieldReferenceValidationV1.token(semanticVersion);try provenance.validate();let manifestDigest=try WorkspaceMutationCanonicalV1.sha256(manifest);schemaVersion=importedContent == nil ? Self.schemaVersion:Self.importedContentSchemaVersion;self.importedContent=importedContent;self.releaseID=releaseID;self.workspaceID=workspaceID;self.referencePackID=referencePackID;self.kind=kind;self.semanticVersion=semanticVersion;self.provenance=provenance;self.manifest=manifest;manifestSHA256=manifestDigest;self.releaseDisposition=releaseDisposition;self.issuedAt=issuedAt;self.expiresAt=expiresAt;self.revokedAt=revokedAt;self.supersedesReleaseID=supersedesReleaseID;self.revision=revision;self.mutationID=mutationID;releaseSHA256=try WorkspaceMutationCanonicalV1.sha256(Basis(schemaVersion:schemaVersion,releaseID:releaseID,workspaceID:workspaceID,referencePackID:referencePackID,kind:kind,semanticVersion:semanticVersion,provenance:provenance,manifest:manifest,manifestSHA256:manifestDigest,releaseDisposition:releaseDisposition,issuedAt:issuedAt,expiresAt:expiresAt,revokedAt:revokedAt,supersedesReleaseID:supersedesReleaseID,revision:revision,mutationID:mutationID,importedContent:importedContent));try validate()}
+    func validate()throws{try importedContent?.validate(manifest:manifest);try FieldReferenceValidationV1.token(referencePackID);try FieldReferenceValidationV1.token(semanticVersion);try provenance.validate();let expectedManifest=try WorkspaceMutationCanonicalV1.sha256(manifest);guard schemaVersion==(importedContent == nil ? Self.schemaVersion:Self.importedContentSchemaVersion),releaseID != FieldReferenceValidationV1.zero,manifest.workspaceID==FieldReferenceValidationV1.workspaceString(workspaceID),!manifest.entries.isEmpty,manifest.entries.allSatisfy(\.requiredForOpen),manifestSHA256==expectedManifest,revision>0,(supersedesReleaseID==nil)==(revision==1),expiresAt.map{$0>issuedAt} ?? true,(releaseDisposition == .revoked)==(revokedAt != nil),revokedAt.map{$0>=issuedAt} ?? true,releaseSHA256==(try WorkspaceMutationCanonicalV1.sha256(basis))else{throw FieldReferencePackFailureV1.invalidDigest}}
+    func validateContent(references: [ContentReferenceV1], locators: [ContentLocatorV1]) throws {
+        try validate()
+        try manifest.validateOpenability(references: references, locators: locators)
+        guard references.count == manifest.entries.count,
+              references.allSatisfy({ $0.byteRole == .immutableOriginal }) else {
+            throw FieldReferencePackFailureV1.missingContent
+        }
+        if let importedContent {
+            guard references.sorted(by: { $0.contentID < $1.contentID }) == importedContent.entries.map(\.reference),
+                  locators.sorted(by: { $0.contentID < $1.contentID }) == importedContent.entries.map(\.locator) else {
+                throw FieldReferencePackFailureV1.invalidDigest
+            }
+        }
+    }
     func validateSuccessor(of old:Self)throws{try validate();try old.validate();guard releaseID != old.releaseID,supersedesReleaseID==old.releaseID,workspaceID==old.workspaceID,referencePackID==old.referencePackID,mutationID != old.mutationID,old.revision<UInt64.max,revision==old.revision+1 else{throw FieldReferencePackFailureV1.invalidSuccessor}}
-    func rebound(to workspaceID:WorkspaceID,manifest:ContentManifestV1)throws->Self{try .init(releaseID:releaseID,workspaceID:workspaceID,referencePackID:referencePackID,kind:kind,semanticVersion:semanticVersion,provenance:provenance,manifest:manifest,releaseDisposition:releaseDisposition,issuedAt:issuedAt,expiresAt:expiresAt,revokedAt:revokedAt,supersedesReleaseID:supersedesReleaseID,revision:revision,mutationID:mutationID)}
-    private var basis:Basis{.init(schemaVersion:schemaVersion,releaseID:releaseID,workspaceID:workspaceID,referencePackID:referencePackID,kind:kind,semanticVersion:semanticVersion,provenance:provenance,manifest:manifest,manifestSHA256:manifestSHA256,releaseDisposition:releaseDisposition,issuedAt:issuedAt,expiresAt:expiresAt,revokedAt:revokedAt,supersedesReleaseID:supersedesReleaseID,revision:revision,mutationID:mutationID)}
-    private struct Basis:Codable{let schemaVersion:Int;let releaseID:UUID;let workspaceID:WorkspaceID;let referencePackID:String;let kind:FieldReferenceKindV1;let semanticVersion:String;let provenance:FieldReferenceProvenanceV1;let manifest:ContentManifestV1;let manifestSHA256:String;let releaseDisposition:FieldReferenceReleaseDispositionV1;let issuedAt:Date;let expiresAt:Date?;let revokedAt:Date?;let supersedesReleaseID:UUID?;let revision:UInt64;let mutationID:MutationIDV1}
+    func rebound(to workspaceID:WorkspaceID,manifest:ContentManifestV1)throws->Self{try .init(releaseID:releaseID,workspaceID:workspaceID,referencePackID:referencePackID,kind:kind,semanticVersion:semanticVersion,provenance:provenance,manifest:manifest,releaseDisposition:releaseDisposition,issuedAt:issuedAt,expiresAt:expiresAt,revokedAt:revokedAt,supersedesReleaseID:supersedesReleaseID,revision:revision,mutationID:mutationID,importedContent:try importedContent?.rebound(to:workspaceID))}
+    private var basis:Basis{.init(schemaVersion:schemaVersion,releaseID:releaseID,workspaceID:workspaceID,referencePackID:referencePackID,kind:kind,semanticVersion:semanticVersion,provenance:provenance,manifest:manifest,manifestSHA256:manifestSHA256,releaseDisposition:releaseDisposition,issuedAt:issuedAt,expiresAt:expiresAt,revokedAt:revokedAt,supersedesReleaseID:supersedesReleaseID,revision:revision,mutationID:mutationID,importedContent:importedContent)}
+    private struct Basis:Codable{let schemaVersion:Int;let releaseID:UUID;let workspaceID:WorkspaceID;let referencePackID:String;let kind:FieldReferenceKindV1;let semanticVersion:String;let provenance:FieldReferenceProvenanceV1;let manifest:ContentManifestV1;let manifestSHA256:String;let releaseDisposition:FieldReferenceReleaseDispositionV1;let issuedAt:Date;let expiresAt:Date?;let revokedAt:Date?;let supersedesReleaseID:UUID?;let revision:UInt64;let mutationID:MutationIDV1;let importedContent:FieldReferenceImportedContentV1?}
+}
+
+
+extension FieldReferenceReleaseV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, releaseID, workspaceID, referencePackID, kind, semanticVersion,
+             provenance, manifest, manifestSHA256, releaseDisposition, issuedAt, expiresAt,
+             revokedAt, supersedesReleaseID, revision, mutationID, releaseSHA256, importedContent
+    }
+    init(from decoder: any Decoder) throws {
+        let optional: Set<String> = ["expiresAt", "revokedAt", "supersedesReleaseID", "importedContent"]
+        try ContentClosedCodingV1.requireClosed(decoder, allowed: CodingKeys.allCases.map(\.rawValue),
+            required: CodingKeys.allCases.map(\.rawValue).filter { !optional.contains($0) })
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let imported = try values.contains(.importedContent)
+            ? values.decode(FieldReferenceImportedContentV1.self, forKey: .importedContent) : nil
+        let version = try values.decode(Int.self, forKey: .schemaVersion)
+        guard version == (imported == nil ? Self.schemaVersion : Self.importedContentSchemaVersion) else {
+            throw FieldReferencePackFailureV1.unsupported
+        }
+        try self.init(releaseID: values.decode(UUID.self, forKey: .releaseID),
+            workspaceID: values.decode(WorkspaceID.self, forKey: .workspaceID),
+            referencePackID: values.decode(String.self, forKey: .referencePackID),
+            kind: values.decode(FieldReferenceKindV1.self, forKey: .kind),
+            semanticVersion: values.decode(String.self, forKey: .semanticVersion),
+            provenance: values.decode(FieldReferenceProvenanceV1.self, forKey: .provenance),
+            manifest: values.decode(ContentManifestV1.self, forKey: .manifest),
+            releaseDisposition: values.decode(FieldReferenceReleaseDispositionV1.self, forKey: .releaseDisposition),
+            issuedAt: values.decode(Date.self, forKey: .issuedAt),
+            expiresAt: values.decodeIfPresent(Date.self, forKey: .expiresAt),
+            revokedAt: values.decodeIfPresent(Date.self, forKey: .revokedAt),
+            supersedesReleaseID: values.decodeIfPresent(UUID.self, forKey: .supersedesReleaseID),
+            revision: values.decode(UInt64.self, forKey: .revision),
+            mutationID: values.decode(MutationIDV1.self, forKey: .mutationID), importedContent: imported)
+        guard try values.decode(String.self, forKey: .manifestSHA256) == manifestSHA256,
+              values.decode(String.self, forKey: .releaseSHA256) == releaseSHA256 else {
+            throw FieldReferencePackFailureV1.invalidDigest
+        }
+    }
 }
 
 struct FieldReferenceBindingV1:Codable,Equatable,Sendable{
