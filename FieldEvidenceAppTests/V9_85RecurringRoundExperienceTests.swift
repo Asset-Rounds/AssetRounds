@@ -96,7 +96,7 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
             identityNamespaceID: release.occurrenceIdentityNamespaceID, nominalKey: basis.nominalKey)
         let event = try OccurrenceHistoryEventV1(eventID: UUID(), workspaceID: workspace, occurrenceID: occurrence,
             scheduleRelease: .init(release), action: .generated, nominalBasis: basis, effectiveBasis: basis,
-            revision: 1, mutationID: .init(rawValue: UUID()), recordedBy: actor, recordedAt: C22RecurringRoundTestSupport.now)
+            predecessor: nil, revision: 1, mutationID: .init(rawValue: UUID()), recordedBy: actor, recordedAt: C22RecurringRoundTestSupport.now)
         coordinator.modelContext.insert(try ScheduleDefinitionReleaseRow(release))
         coordinator.modelContext.insert(try OccurrenceHistoryEventRow(event))
         try coordinator.modelContext.save()
