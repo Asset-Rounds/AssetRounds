@@ -157,7 +157,12 @@
     "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testC22RecoverabilityVerificationAnchor",
     "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testV23P03C42GoldenAccessibilityResolvesTypedJourneyThroughShippingRegistry",
     "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testC22RecoverabilityVerificationAnchor",
-    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests/testC22RecoverabilityVerificationAnchor"
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests/testC22RecoverabilityVerificationAnchor",
+    "FieldEvidenceAppTests/V9_31IntegrationEventProjectionTests/testV23P03C17G01AcceptedReceiptsProjectStableOrderedIDsAndDigests",
+    "FieldEvidenceAppTests/V9_31IntegrationEventProjectionTests/testV23P03C17A01LegacyCompatibleConsumerReplaysFromZeroAndArbitraryBoundaries",
+    "FieldEvidenceAppTests/V9_31IntegrationEventProjectionTests/testV23P03C17H01UnknownVersionDivergentSameIDSensitiveCanaryAndForgedCheckpointFailClosed",
+    "FieldEvidenceAppTests/V9_31IntegrationEventProjectionTests/testV23P03C17I01EffectBeforeCheckpointCrashRetriesWithoutProviderDeliveryState",
+    "FieldEvidenceAppTests/V9_31IntegrationEventProjectionTests/testV23P03C17R01DropAndRebuildReproducesExactConsumerResultAndLeavesCanonicalReceiptsUntouched"
   ],
   "uiTestSelectors": []
 }

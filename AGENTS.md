@@ -18,13 +18,18 @@ Accepted main is `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Preserve S10 brandi
 - Refresh relevant refs and owned dirty state before mutations. Root alone commits and pushes explicitly owned files. Use verified non-force linear updates only; investigate unexpected ref movement. No force-push, merge commit, PR, settings/secrets mutation or release operation.
 - Main stays unchanged until complete retained same-head functional/compatibility evidence, provider qualification as applicable, affected-state S10 visuals, independent review and genuine human visual review pass. Then follow the task's non-force integration and exact-main verification gates. Source readiness is not acceptance.
 
-## Parallel execution policy — owner updated 2026-09-12 UTC
+## Model routing and efficient execution — owner updated 2026-09-12 UTC
 
-The owner requested a turn restart to enable their selected fast mode and directed: "use as many subagents as needed." The owner reaffirmed authorization for up to15 subagents while unlimited tokens are available. Use that capacity for independent, bounded implementation, review and evidence tasks where it accelerates integration. Keep file ownership disjoint, one collector per original, root as sole committer, and independent review at consequential checkpoints. This supersedes the earlier one-worker cap and temporary two-worker exception. Honor the owner's primary model/speed selection without changing it through repository instructions.
+- Preserve the owner's primary model, reasoning and speed selections. Repository instructions must not change them.
+- Root implements and integrates by default. Use at most two active delegated workers for CI evidence, diagnosed fixes or independent review. This replaces the unlimited-token parallel policy and earlier worker caps; hosted runner capacity is separate.
+- Use `gpt-5.6-luna` at `max` for bounded monitoring, extraction and inventory. Use deterministic scripts and event waits; do not spend model turns reporting unchanged status.
+- For implementation and review, choose `gpt-6-astra` at `low` or `medium`, or `gpt-5.6-sol` at `low`, `medium` or `high`, according to the concrete difficulty and consequence. Use the least costly suitable choice. Terra is outside the owner's current selection.
+- Reuse a worker when its model, remaining context and relevant knowledge fit the task. Otherwise provide a compact handoff containing only the necessary scope, findings and next action.
+- Give each worker one bounded task, exact owned paths, shared interfaces, invariants and expected evidence. Keep writes disjoint. Root alone commits and pushes; obtain independent review at consequential checkpoints.
+- Read the active brief and relevant source sections. Retain verified findings while their inputs are unchanged. Keep complete evidence externally and return concise diagnoses, hashes and unresolved issues.
+- Batch compatible diagnosed fixes and review the combined result. Choose a faster supported route when it preserves product requirements, test meaning and acceptance gates. Do not trade verification quality for less orchestration.
 
-Luna/max handles bounded monitoring, extraction and inventory; Terra/low or medium handles ordinary delegated implementation/review. Escalate to Sol/Astra for a concrete difficult question. Use the existing five GitHub and three Bitrise capacity for distinct, source-defined, dependency-ready questions under CURRENT_INTEGRATION; no duplicate, speculative, known-failing or unqualified acceptance runs. All product, evidence, native-environment and final-main gates remain unchanged.
-
-Use the short active brief and targeted reads. No repeated full-history/log dumps, unnecessary worker messages, or repeated unchanged audits. Keep full evidence in its original files and update the brief at meaningful checkpoints. Preserve verification depth.
+Use the existing five GitHub and three Bitrise capacity only for distinct, source-defined, dependency-ready questions under CURRENT_INTEGRATION. Never dispatch duplicate, speculative, known-failing or unqualified acceptance runs. One collector audits each original once. Preserve all native-environment and final-main gates.
 
 ## Preserved historical instructions
 
