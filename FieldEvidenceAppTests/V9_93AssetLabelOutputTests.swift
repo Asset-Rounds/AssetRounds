@@ -64,7 +64,8 @@ final class V9_93AssetLabelOutputTests: XCTestCase {
         let item = fixture.plan.items[0]
         try item.shortCode.validate()
         XCTAssertEqual(try ManualShortCodeV1(displayValue: item.shortCode.displayValue), item.shortCode)
-        XCTAssertEqual(item.locator.representation, .externalKey(try item.shortCode.externalKey()))
+        XCTAssertEqual(item.locator, fixture.locator.reference)
+        XCTAssertEqual(fixture.locator.representation, .externalKey(try item.shortCode.externalKey()))
 
         let resolutions = try await C30AssetLabelTestSupport.resolveAllSources(fixture)
         XCTAssertEqual(Set(resolutions.map(\.inputSHA256)).count, 1)

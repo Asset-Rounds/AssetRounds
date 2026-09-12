@@ -125,8 +125,8 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
             taskID: "install", outcome: .completed, revision: 1, mutationID: try C33Fixture.mutation(81)
         )
         XCTAssertThrowsError(try InstallationWorkflowContextV1(
-            envelope: fixture.envelope, release: fixture.release, taskHistory: [duplicate, duplicate],
-            basis: fixture.basis, planCapability: fixture.plan, scanCapability: fixture.scan
+            envelope: fixture.envelope, release: fixture.release, basis: fixture.basis,
+            taskHistory: [duplicate, duplicate], planCapability: fixture.plan, scanCapability: fixture.scan
         ))
         let differentRelease = try InstallationWorkflowDefinitionReleaseV1(
             releaseID: C33Fixture.id(82), workspaceID: fixture.workspaceID, tasks: fixture.release.tasks,
@@ -324,7 +324,7 @@ private final class C33Fixture {
                   state: .ready, reviewState: .notRequested, subjectID: Self.id(4), title: "Recorded installation",
                   readiness: readiness ?? [try .init(facetID: "access", kind: .access, disposition: .ready)],
                   readinessPolicy: try .installation(policy ?? .init(requiredFacets: [.access])),
-                  currentBasisReference: try basis.map { .installation(.init($0)) }, revision: 1, mutationID: try Self.mutation(4))
+                  currentBasisReference: try basis.map { .installation(try .init($0)) }, revision: 1, mutationID: try Self.mutation(4))
     }
 
     static func manualFallback(workspaceID: WorkspaceID) throws -> ManualLookupFallbackV1 {

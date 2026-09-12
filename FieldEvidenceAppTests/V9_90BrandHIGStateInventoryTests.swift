@@ -59,8 +59,9 @@ final class V9_90BrandHIGStateInventoryTests: XCTestCase {
         XCTAssertEqual(freeze["inFlightExceptionCountFrozen"] as? Bool, false)
         XCTAssertEqual(freeze["freezeDisposition"] as? String, "PRE_POLISH_INVENTORY_ONLY")
         XCTAssertTrue(try c27FlagsAreClosed(root))
-        XCTAssertTrue(try allBindingsMatchRepository(root))
+        XCTAssertTrue(try allBindingsMatchFrozenSource(root))
         XCTAssertTrue(try rendererOwnersMatchRepository(states))
+        XCTAssertTrue(try technicalIdentitySourcesMatchRepository(dictionary(contracts, "technicalIdentityFreeze")))
     }
 
     func testV23P04C27A01GovernedReuseAndDualRuntimeSemanticParity() throws {
@@ -115,6 +116,58 @@ final class V9_90BrandHIGStateInventoryTests: XCTestCase {
         )
 
         let mutations: [(String, (inout [String: Any]) throws -> Void)] = [
+            ("changed historical appBaseHead", { root in
+                var authority = try self.dictionary(root, "authority")
+                authority["appBaseHead"] = String(repeating: "0", count: 40)
+                root["authority"] = authority
+            }),
+            ("changed historical appBaseTree", { root in
+                var authority = try self.dictionary(root, "authority")
+                authority["appBaseTree"] = String(repeating: "0", count: 40)
+                root["authority"] = authority
+            }),
+            ("changed freeze acceptedHead", { root in
+                var contracts = try self.dictionary(root, "contracts")
+                var freeze = try self.dictionary(contracts, "brandPrePolishFreezeReceipt")
+                freeze["acceptedHead"] = String(repeating: "0", count: 40)
+                contracts["brandPrePolishFreezeReceipt"] = freeze
+                root["contracts"] = contracts
+            }),
+            ("changed freeze acceptedTree", { root in
+                var contracts = try self.dictionary(root, "contracts")
+                var freeze = try self.dictionary(contracts, "brandPrePolishFreezeReceipt")
+                freeze["acceptedTree"] = String(repeating: "0", count: 40)
+                contracts["brandPrePolishFreezeReceipt"] = freeze
+                root["contracts"] = contracts
+            }),
+            ("changed historical digest", { root in
+                var discovery = try self.dictionary(root, "discovery")
+                var rows = try self.arrayOfDictionaries(discovery, "criticalInputs")
+                rows[0]["sha256"] = String(repeating: "0", count: 64)
+                discovery["criticalInputs"] = rows
+                root["discovery"] = discovery
+            }),
+            ("unsafe historical path", { root in
+                var discovery = try self.dictionary(root, "discovery")
+                var rows = try self.arrayOfDictionaries(discovery, "criticalInputs")
+                rows[0]["path"] = "../outside.swift"
+                discovery["criticalInputs"] = rows
+                root["discovery"] = discovery
+            }),
+            ("duplicate historical path", { root in
+                var discovery = try self.dictionary(root, "discovery")
+                var rows = try self.arrayOfDictionaries(discovery, "criticalInputs")
+                rows[1] = rows[0]
+                discovery["criticalInputs"] = rows
+                root["discovery"] = discovery
+            }),
+            ("missing historical row", { root in
+                var discovery = try self.dictionary(root, "discovery")
+                var rows = try self.arrayOfDictionaries(discovery, "criticalInputs")
+                rows.removeLast()
+                discovery["criticalInputs"] = rows
+                root["discovery"] = discovery
+            }),
             ("technical rename", { root in
                 var contracts = try self.dictionary(root, "contracts")
                 var identity = try self.dictionary(contracts, "technicalIdentityFreeze")
@@ -307,6 +360,7 @@ final class V9_90BrandHIGStateInventoryTests: XCTestCase {
 
     private func c27InventoryValidUnchecked(_ root: [String: Any]) throws -> Bool {
         guard try c27FlagsAreClosed(root),
+              try allBindingsMatchFrozenSource(root),
               let contracts = root["contracts"] as? [String: Any],
               Set(contracts.keys) == [
                   "affectedConsumerGraph", "appIconReleaseManifest", "applicationStateInventory",
@@ -383,15 +437,56 @@ final class V9_90BrandHIGStateInventoryTests: XCTestCase {
             && flags.values.allSatisfy { $0 as? Bool == false }
     }
 
-    private func allBindingsMatchRepository(_ root: [String: Any]) throws -> Bool {
+    // Discovery was generated from this historical Git tree, before accepted S10 changes.
+    // Its exact blob hashes are provenance pins; renderer and identity checks below stay live.
+    private func allBindingsMatchFrozenSource(_ root: [String: Any]) throws -> Bool {
+        let authority = try dictionary(root, "authority")
+        let freeze = try dictionary(dictionary(root, "contracts"), "brandPrePolishFreezeReceipt")
         let discovery = try dictionary(root, "discovery")
-        let bindings = try arrayOfDictionaries(discovery, "criticalInputs")
-            + arrayOfDictionaries(discovery, "c26Drafts")
-        return try bindings.allSatisfy { binding in
-            let path = try string(binding, "path")
-            let expected = try string(binding, "sha256")
-            return !path.hasPrefix("/") && !path.contains("..") && sha256(try data(path)) == expected
+        let head = "4c29f9781856526e6eb94a6cf357911497bb4c1f"
+        let tree = "ed081e7349e1577546c68b7bd7414d39a454df5f"
+        guard authority["appBaseHead"] as? String == head,
+              authority["appBaseTree"] as? String == tree,
+              freeze["acceptedHead"] as? String == head,
+              freeze["acceptedTree"] as? String == tree,
+              freeze["freezeDisposition"] as? String == "PRE_POLISH_INVENTORY_ONLY",
+              discovery["algorithm"] as? String == "GIT_LS_TREE_ACCEPTED_TREE_THEN_GIT_SHOW_BYTES_CANONICAL_SORT"
+        else { return false }
+        let criticalInputs: [String: String] = [
+            "FieldEvidenceApp.xcodeproj/project.pbxproj": "5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f",
+            "FieldEvidenceApp/DesignSystem/DesignTokens.swift": "59ad0c6445779814d0b621dc2ba47a660052b8bc289d1c9dd773caa1aaf58164",
+            "FieldEvidenceApp/DesignSystem/WorklightComponents.swift": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+            "FieldEvidenceApp/App/FieldEvidenceAppApp.swift": "7c33e08af4b67ffa60f4574192cca077548e9d1d5989f890be2a3a07c7fa8563",
+            "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift": "4f1936ed6674adca8ce1ec330dcd8f206ca9cccc4e6b40f67e5d4a04f9ed82b5",
+            "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift": "fc0d1eb69f0f60116ae84bca6a53dae16cdea0284f1d817d27f3c20991231be4",
+            "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift": "978b0324c6a754275fbf1889ac47a1f722ba68b47786910751d9db9f5012ead9",
+            "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift": "c164446b1861c0e007333d8ba60dd505dd8daa48dfcbc2bfff69a9c51ce6552d",
+            "FieldEvidenceApp/Domain/Navigation/RouteRegistryContractsV1.swift": "5c9e7df55b65ee374f8e399dd7f1b645cbb376f4843f8849fc9aae8acaaed669",
+            "FieldEvidenceApp/Info.plist": "f3d203008dc9d35f39efdbb2e66dc9a3ff220aa13544cc36fcfa77403b34b53a",
+            "FieldEvidenceApp/InfoPlist.xcstrings": "85e1c67daf46b4959705baf42584254197cd1c4561c0fa3e3f2d0ed0dcc82503",
+            "FieldEvidenceApp/Resources/Localizable.xcstrings": "67cbc936089d01bc772330600727ddea7d312a5a52cd8b16f5f3aff3577d8a53",
+        ]
+        let c26Drafts: [String: String] = [
+            "docs/product/discovery/V23P04C26AcquisitionContentDraftV1.json": "b668e29382c1154cc93d3106d416ddf80bf6cf35915746b2b128696801064238",
+            "docs/product/discovery/V23P04C26AppTagDispositionV1.json": "dedbc785e15a6c93a477f477178ce9144bad5e01df187f80aa720e0cdd35c2c8",
+            "docs/product/discovery/V23P04C26DiscoveryTruthCatalogRefinementReceiptV1.json": "5b1594305a51e80c0a63108d317318ff570e318d63c2531b8a9c7704b8570374",
+            "docs/product/discovery/V23P04C26MetadataEvidenceReportV1.json": "468eae786e7a461e21b3e2d826269e4a1ddb875e60ecc9e1f78f050511637bf5",
+        ]
+        for (key, expected) in [("criticalInputs", criticalInputs), ("c26Drafts", c26Drafts)] {
+            let rows = try arrayOfDictionaries(discovery, key)
+            guard rows.count == expected.count else { return false }
+            var seen: Set<String> = []
+            for row in rows {
+                let path = try string(row, "path")
+                let digest = try string(row, "sha256")
+                guard !path.hasPrefix("/"), !path.contains(".."),
+                      seen.insert(path).inserted, expected[path] == digest,
+                      digest.count == 64,
+                      digest.allSatisfy({ "0123456789abcdef".contains($0) }) else { return false }
+                if key == "c26Drafts", row["adopted"] as? Bool != false { return false }
+            }
         }
+        return true
     }
 
     private func primaryContractNames(_ contracts: [String: Any]) throws -> [String] {

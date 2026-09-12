@@ -308,7 +308,7 @@ final class V9_87DictationLocationProposalTests: XCTestCase {
             .targetRevisionChanged
         )
         XCTAssertFalse(location.request.foreground == false)
-        XCTAssertFalse(dictation.edited.networkAccessUsed)
+        XCTAssertFalse(unsupported.edited.networkAccessUsed)
         XCTAssertFalse(DictationLocationProposalLifecycleBoundaryV1.serverSpeechFallbackAllowed)
         XCTAssertFalse(DictationLocationProposalLifecycleBoundaryV1.backgroundLocationAllowed)
         XCTAssertFalse(DictationLocationProposalSearchRebuildBoundaryV1.rawTranscriptIndexed)

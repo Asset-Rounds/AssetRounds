@@ -344,6 +344,7 @@ final class V9_82PlanOfflineWorkTests: XCTestCase {
                                                     planRevision: revision))
     }
 
+    @MainActor
     func testV23P04C19H01MissingCorruptWithdrawnEncryptedAndUnsupportedReferencesFailClosed() throws {
         for state in [PlanDocumentOpenabilityStateV1.missing, .partial, .corrupt,
                       .encrypted, .unsupportedDocument, .uncheckable] {

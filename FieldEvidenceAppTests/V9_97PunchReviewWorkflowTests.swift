@@ -137,7 +137,7 @@ final class V9_97PunchReviewWorkflowTests: XCTestCase {
 
         let actionID = try XCTUnwrap(h.context.correctiveActionEvents.first?.actionID.uuidString.lowercased())
         let failed = try C34Support.recheck(
-            findingID: findingID.uuidString.lowercased(), workID: actionID, slot: 726, outcome: .failed
+            findingID: findingID, workID: actionID, slot: 726, outcome: .failed
         )
         let failedLink = try C34Support.rebound(resolvedLink, operationalRecheck: failed)
         let failedDecision = try PunchItemProjectionV1(
@@ -574,7 +574,7 @@ private final class C34Harness {
             reviewState: state == .readyForReview ? .pending : state == .finalized ? .acceptedRecordedFacts : .notRequested,
             subjectID: p.subjectID, title: p.title, readiness: p.readiness, readinessPolicy: p.readinessPolicy,
             variations: variations ?? p.variations,
-            currentBasisReference: try basis.map { .punchReview(.init($0)) } ?? p.currentBasisReference,
+            currentBasisReference: try basis.map { .punchReview(try .init($0)) } ?? p.currentBasisReference,
             punchReviewCloseout: closeout ?? p.punchReviewCloseout,
             completedSnapshotReference: completedReference ?? p.completedSnapshotReference,
             startedAt: p.startedAt ?? (state.hasStarted ? C34Support.fixedDate : nil),

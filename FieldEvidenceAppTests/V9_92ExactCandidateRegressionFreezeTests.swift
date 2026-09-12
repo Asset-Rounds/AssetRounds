@@ -130,7 +130,7 @@ final class V9_92ExactCandidateRegressionFreezeTests: XCTestCase {
             && scripts["verifierSHA256"] is NSNull
             && digest is NSNull
         if !pending {
-            XCTAssertEqual(digest as? String, sha(canonicalObservedBytes(observed)))
+            XCTAssertEqual(digest as? String, sha(try canonicalObservedBytes(observed)))
             XCTAssertEqual(scripts["generatorSHA256"] as? String, sha(try data("Scripts/v23/generate_p04_c29_contracts.py")))
             XCTAssertEqual(scripts["verifierSHA256"] as? String, sha(try data("Scripts/v23/verify_p04_c29_contracts.py")))
             XCTAssertFalse(sourceRows.isEmpty)

@@ -100,7 +100,7 @@ final class V9_93ExactCodeCandidateGateTests: XCTestCase {
         let replay = try object(ledgerPath)
         XCTAssertTrue(try valid(first))
         XCTAssertTrue(try valid(replay))
-        XCTAssertEqual(try canonical(first), canonical(replay))
+        XCTAssertEqual(try canonical(first), try canonical(replay))
         try assertNoCreditAndStaticOnly(replay)
         XCTAssertTrue(try strings(try object(corpusPath), "forbiddenOutcomes").allSatisfy { ["READY", "ACCEPTED", "RELEASE_READY", "RELEASED", "PHASE_INTEGRATED", "P05_C02", "P05_C03", "P06"].contains($0) })
     }

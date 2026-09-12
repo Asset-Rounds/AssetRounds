@@ -31,8 +31,8 @@ final class V9_86OCRProposalTests: XCTestCase {
 
         XCTAssertEqual(OCRProposalPersistenceBoundaryV1.addedDurableRowCount, 0)
         XCTAssertFalse(OCRProposalPersistenceBoundaryV1.activationEnabled)
-        XCTAssertFalse(OCRProposalSearchRebuildBoundaryV1.mayIndex(bundle.evidence))
-        XCTAssertFalse(OCRProposalReportProjectionBoundaryV1.mayProject(bundle.evidence))
+        XCTAssertFalse(try OCRProposalSearchRebuildBoundaryV1.mayIndex(bundle.evidence))
+        XCTAssertFalse(try OCRProposalReportProjectionBoundaryV1.mayProject(bundle.evidence))
         let receipt = try C23OCRSupport.acceptanceReceipt(bundle)
         XCTAssertTrue(try OCRProposalSearchRebuildBoundaryV1.acceptsCanonicalTargetFact(
             receipt: receipt,
@@ -245,10 +245,10 @@ final class V9_86OCRProposalTests: XCTestCase {
             localization: localization
         )
         try C32AssistanceLocalizationPolicyV1.validate()
-        try C32AssistanceAccessibilityPolicyV1.validate(
-            registry: accessibility,
-            localization: localization
-        )
+        try C32AssistanceAccessibilityPolicyV1.validate()
+        XCTAssertEqual(try SemanticAccessibilityIDRegistryV1(
+            entries: accessibility.entries, localization: localization
+        ), accessibility)
         XCTAssertEqual(C32AssistanceLocalizationKeyV1.allCases.count, 31)
         XCTAssertTrue(C32AssistanceAccessibilityPolicyV1.dynamicTypeThroughAX5Required)
         XCTAssertTrue(C32AssistanceAccessibilityPolicyV1.rightToLeftReadingOrderRequired)
