@@ -81,9 +81,9 @@ final class ImportBulkCoordinatorV1 {
 
     /// ImportSourceV1 is external bounded scratch; zero canonical writes occur
     /// during preview and stable plan identities retain no source bytes.
-    /// Deterministic export, formula/control neutralization, CSV formatting,
-    /// and correction artifacts remain delegated to their incumbent seams.
-    /// This coordinator accepts no alternate parser, renderer, or exporter.
+    /// V30 machine/human export and reversible CSV validation are delegated
+    /// through the same C08 lifecycle seam; all accepted mutations still use
+    /// this coordinator's existing writer and materializer registry.
 
     init(
         writer: WorkspaceWriterV1,
@@ -98,6 +98,46 @@ final class ImportBulkCoordinatorV1 {
         self.lifecycle = lifecycle
         lifecycle.bind(writer: writer)
         self.materializers = Dictionary(uniqueKeysWithValues: materializers.map { ($0.kind, $0) })
+    }
+
+    /// Export reads workspace scope but never creates a lifecycle row.
+    func exportMachine(
+        _ table: GlobalizedMachineTableV1,
+        human: GlobalizedHumanCSVRequestV1? = nil
+    ) throws -> GlobalizedMachineExportArtifactsV1 {
+        guard table.workspaceID == (try writer.currentRevision()).workspaceID else {
+            throw ImportBulkFailureV1.invalidValue
+        }
+        return try lifecycle.exportMachine(table, human: human)
+    }
+
+    /// Machine bytes must agree with the proposed stable IDs and fields before
+    /// ordinary revision checks. The localized-human file is never a parser input.
+    func previewMachineImport(
+        artifacts: GlobalizedMachineExportArtifactsV1,
+        importPlan: ImportPlanV1,
+        bulkPlan: BulkCommandPlanV1,
+        currentWorkspaceRevisionSHA256: String
+    ) throws -> ImportBulkPreviewV1 {
+        guard importPlan.workspaceID == (try writer.currentRevision()).workspaceID else {
+            throw ImportBulkFailureV1.invalidValue
+        }
+        try lifecycle.validateMachineImport(importPlan, artifacts: artifacts)
+        return try preview(importPlan: importPlan, bulkPlan: bulkPlan,
+            currentSourceSHA256: KernelCanonicalHashV1.sha256(artifacts.machineCSV),
+            currentWorkspaceRevisionSHA256: currentWorkspaceRevisionSHA256)
+    }
+
+    func previewMachineImport(
+        artifacts: GlobalizedMachineExportArtifactsV1,
+        importPlan: ImportPlanV1,
+        bulkPlan: BulkCommandPlanV1,
+        currentWorkspaceRevisionSHA256: String,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> ImportBulkPreviewV1 {
+        _ = try await accessGate.requireContentAccess(for: .bulkImport)
+        return try previewMachineImport(artifacts: artifacts, importPlan: importPlan,
+            bulkPlan: bulkPlan, currentWorkspaceRevisionSHA256: currentWorkspaceRevisionSHA256)
     }
 
     /// Preview is validation-only: it never creates a session or calls writer.

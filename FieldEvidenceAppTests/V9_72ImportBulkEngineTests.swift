@@ -215,9 +215,133 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
         let lf = try DeterministicCSVExportV1(exportID: C08.id(980_021), workspaceID: plan.workspaceID, kind: .inventory, exportSchema: exportSchema, rowCount: 1, bytes: lfBytes)
         XCTAssertTrue(first.formulaAndControlPrefixesNeutralized); XCTAssertEqual(first.exportSHA256, repeated.exportSHA256); XCTAssertEqual(first.bytesSHA256, repeated.bytesSHA256)
         XCTAssertNotEqual(first.bytesSHA256, lf.bytesSHA256)
-        let NFC = "caf\u{00e9}", nfd = "cafe\u{0301}"
-        XCTAssertEqual(NFC, nfd.precomposedStringWithCanonicalMapping)
-        XCTAssertThrowsError(try ImportMappedFieldV1(key: "asset_name", value: nfd))
+        let nfd = "cafe\u{0301}"
+        let mappedField = try ImportMappedFieldV1(key: "asset_name", value: nfd)
+        XCTAssertEqual(Array(mappedField.value.utf8), Array(nfd.utf8))
+    }
+
+    func testV30P03C05MachineExportPreviewPreservesFormulaUnicodeAndRemainsZeroWrite() throws {
+        let incumbentSchema = try C08.schema()
+        let schema = try ImportSchemaReleaseV1(
+            releaseID: incumbentSchema.releaseID,
+            release: incumbentSchema.release,
+            entityKind: incumbentSchema.entityKind,
+            externalKeyColumn: incumbentSchema.externalKeyColumn,
+            columns: incumbentSchema.columns,
+            budget: try ImportStreamingBudgetV1(
+                maximumSourceBytes: 4_096,
+                maximumRows: incumbentSchema.budget.maximumRows,
+                maximumColumns: incumbentSchema.budget.maximumColumns,
+                maximumCellBytes: incumbentSchema.budget.maximumCellBytes,
+                maximumScalarsPerCell: incumbentSchema.budget.maximumScalarsPerCell
+            )
+        )
+        let formulaNFD = "=Cafe\u{0301} 👩🏽‍🔧"
+        let fields = [
+            try ImportMappedFieldV1(key: "asset_key", value: "asset_001"),
+            try ImportMappedFieldV1(key: "asset_name", value: formulaNFD),
+        ]
+        let table = GlobalizedMachineTableV1(
+            workspaceID: C08.workspace(),
+            schemaRelease: schema,
+            columns: schema.columns.map {
+                GlobalizedMachineColumnGrammarV1(
+                    key: $0.key,
+                    grammar: $0.scalar == .identifier ? .identifier : .text
+                )
+            },
+            rows: [
+                GlobalizedMachineRowV1(
+                    sourceOrdinal: 1,
+                    stableExternalKey: "asset_001",
+                    fields: fields
+                )
+            ]
+        )
+        let stack = try c08Stack()
+        let historyBefore = try stack.writer.sourceMutationHistorySnapshot()
+        let artifacts = try stack.coordinator.exportMachine(table)
+        XCTAssertLessThanOrEqual(
+            Int64(artifacts.machineJSON.count),
+            schema.budget.maximumSourceBytes
+        )
+        XCTAssertNotNil(artifacts.machineCSV.range(of: Data("'=Cafe\u{0301}".utf8)))
+
+        let (plan, bulk) = try v30MachinePlan(
+            schema: schema,
+            artifacts: artifacts,
+            fields: fields,
+            workspaceRevisionSHA256: C08.workspaceRevisionSHA256
+        )
+        let preview = try stack.coordinator.previewMachineImport(
+            artifacts: artifacts,
+            importPlan: plan,
+            bulkPlan: bulk,
+            currentWorkspaceRevisionSHA256: C08.workspaceRevisionSHA256
+        )
+        XCTAssertEqual(preview.importPlan, plan)
+        XCTAssertEqual(preview.bulkPlan, bulk)
+        XCTAssertEqual(preview.importPlan.planID, plan.planID)
+        XCTAssertEqual(preview.bulkPlan.bulkPlanID, bulk.bulkPlanID)
+        XCTAssertEqual(
+            preview.importPlan.rows.first?.identity.identitySHA256,
+            plan.rows.first?.identity.identitySHA256
+        )
+        XCTAssertEqual(
+            Array(try XCTUnwrap(preview.importPlan.rows.first?.mappedFields.last).value.utf8),
+            Array(formulaNFD.utf8)
+        )
+        XCTAssertEqual(preview.importPlan.rows.first?.identity.sourceSHA256, KernelCanonicalHashV1.sha256(artifacts.machineCSV))
+        XCTAssertEqual(preview.importPlan.source.byteCount, Int64(artifacts.machineCSV.count))
+
+        var changedCSV = artifacts.machineCSV
+        changedCSV.append(0x20)
+        let sourceTamperedArtifacts = GlobalizedMachineExportArtifactsV1(
+            machineJSON: artifacts.machineJSON,
+            machineCSV: changedCSV,
+            manifestJSON: artifacts.manifestJSON,
+            humanCSV: artifacts.humanCSV
+        )
+        XCTAssertThrowsError(
+            try stack.coordinator.previewMachineImport(
+                artifacts: sourceTamperedArtifacts,
+                importPlan: plan,
+                bulkPlan: bulk,
+                currentWorkspaceRevisionSHA256: C08.workspaceRevisionSHA256
+            )
+        ) { XCTAssertEqual($0 as? ImportBulkFailureV1, .digestMismatch) }
+
+        let changedFields = [
+            try ImportMappedFieldV1(key: "asset_key", value: "asset_001"),
+            try ImportMappedFieldV1(key: "asset_name", value: "=changed Cafe\u{0301}"),
+        ]
+        let (fieldTamperedPlan, fieldTamperedBulk) = try v30MachinePlan(
+            schema: schema,
+            artifacts: artifacts,
+            fields: changedFields,
+            workspaceRevisionSHA256: C08.workspaceRevisionSHA256
+        )
+        XCTAssertThrowsError(
+            try stack.coordinator.previewMachineImport(
+                artifacts: artifacts,
+                importPlan: fieldTamperedPlan,
+                bulkPlan: fieldTamperedBulk,
+                currentWorkspaceRevisionSHA256: C08.workspaceRevisionSHA256
+            )
+        ) { XCTAssertEqual($0 as? ImportBulkFailureV1, .changedInputQuarantined) }
+        XCTAssertThrowsError(
+            try stack.coordinator.previewMachineImport(
+                artifacts: artifacts,
+                importPlan: plan,
+                bulkPlan: bulk,
+                currentWorkspaceRevisionSHA256: String(repeating: "e", count: 64)
+            )
+        ) { XCTAssertEqual($0 as? ImportBulkFailureV1, .changedInputQuarantined) }
+
+        XCTAssertEqual(stack.adapter.applyCount, 0)
+        XCTAssertTrue(try stack.context.fetch(FetchDescriptor<BulkSessionRowV1>()).isEmpty)
+        XCTAssertTrue(try stack.context.fetch(FetchDescriptor<BulkCommitReceiptRowV1>()).isEmpty)
+        XCTAssertEqual(try stack.writer.sourceMutationHistorySnapshot(), historyBefore)
     }
 
     func testV23P04C08A01CorrectionAndPoseRoundTripAlternate() throws {
@@ -475,5 +599,99 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
         XCTAssertEqual(corpus.schema, "V22P04C08ImportBulkEngineCorpusV1"); XCTAssertEqual(corpus.schemaVersion, 1); XCTAssertEqual(corpus.cardID, "V23-P04-C08"); XCTAssertEqual(corpus.ordinal, 96)
         XCTAssertEqual(corpus.selectors.map(\.id), ["G01", "A01", "H01", "I01", "R01"]); XCTAssertEqual(corpus.selectors.map(\.selector), ["V23-P04-C08-G01", "V23-P04-C08-A01", "V23-P04-C08-H01", "V23-P04-C08-I01", "V23-P04-C08-R01"]); XCTAssertEqual(corpus.selectors.first { $0.id == id }?.tier, tier)
         XCTAssertFalse(corpus.expected.previewWritesCanonicalState); XCTAssertEqual(corpus.expected.allOrNothing, "ALL_OR_NOTHING"); XCTAssertEqual(corpus.expected.changedInput, "QUARANTINED_CHANGED_INPUT"); XCTAssertEqual(corpus.expected.errorCodes, ["INVALID_VALUE", "STALE_EXPECTED_REVISION"]); XCTAssertEqual(corpus.expected.receipt.chunkIndex, 0); XCTAssertEqual(corpus.expected.receipt.committedMutationCount, 1); XCTAssertEqual(corpus.expected.receipt.disposition, "COMMITTED"); XCTAssertEqual(corpus.expected.receiptDisposition, "COMMITTED"); XCTAssertEqual(corpus.expected.sourceSHA256, C08.sourceSHA256); XCTAssertEqual(corpus.expected.workspaceRevisionSHA256, C08.workspaceRevisionSHA256); XCTAssertTrue(corpus.synthetic)
+    }
+
+    private func v30MachinePlan(
+        schema: ImportSchemaReleaseV1,
+        artifacts: GlobalizedMachineExportArtifactsV1,
+        fields: [ImportMappedFieldV1],
+        workspaceRevisionSHA256: String
+    ) throws -> (ImportPlanV1, BulkCommandPlanV1) {
+        let sourceSHA256 = KernelCanonicalHashV1.sha256(artifacts.machineCSV)
+        let source = try ImportSourceV1(
+            sourceID: C08.id(980_320),
+            workspaceID: C08.workspace(),
+            kind: .userSelectedFile,
+            sourceSHA256: sourceSHA256,
+            byteCount: Int64(artifacts.machineCSV.count),
+            leaseID: C08.id(980_321),
+            importedAt: C08.time
+        )
+        let identity = try ImportRowIdentityV1(
+            workspaceID: C08.workspace(),
+            sourceSHA256: sourceSHA256,
+            sourceOrdinal: 1,
+            canonicalRowSHA256: try ImportBulkCanonicalCodecV1.sha256(fields),
+            stableExternalKey: "asset_001",
+            schemaReleaseID: schema.releaseID,
+            schemaRelease: schema.release
+        )
+        let payloadSHA256 = try ImportProposedCommandV1.canonicalPayloadSHA256(
+            commandID: "create_asset_001",
+            kind: .createAsset,
+            targetStableID: nil,
+            expectedRevision: nil,
+            dependencyCommandIDs: [],
+            rowIdentity: identity,
+            schemaRelease: schema,
+            mappedFields: fields
+        )
+        let command = try ImportProposedCommandV1(
+            commandID: "create_asset_001",
+            kind: .createAsset,
+            targetStableID: nil,
+            expectedRevision: nil,
+            dependencyCommandIDs: [],
+            payloadSHA256: payloadSHA256
+        )
+        let row = try ImportPlanRowV1(
+            identity: identity,
+            disposition: .create,
+            reasons: [.exactStableKeyCreate],
+            mappedFields: fields,
+            commands: [command],
+            expectedTargetRevision: nil
+        )
+        let planID = try ImportPlanV1.deterministicPlanID(
+            workspaceID: C08.workspace(),
+            source: source,
+            schemaRelease: schema,
+            mappingProfileSHA256: nil,
+            workspaceRevisionSHA256: workspaceRevisionSHA256,
+            rows: [row]
+        )
+        let plan = try ImportPlanV1(
+            planID: planID,
+            workspaceID: C08.workspace(),
+            source: source,
+            schemaRelease: schema,
+            mappingProfileSHA256: nil,
+            workspaceRevisionSHA256: workspaceRevisionSHA256,
+            rows: [row]
+        )
+        let mutationID = try BulkCommandPlanV1.deterministicMutationID(
+            importPlanID: plan.planID,
+            chunkIndex: 0,
+            rowIdentitySHA256: row.identity.identitySHA256
+        )
+        let chunk = try BulkChunkPlanV1(
+            chunkIndex: 0,
+            rowIdentitySHA256s: [row.identity.identitySHA256],
+            mutationIDs: [mutationID]
+        )
+        let bulkPlanID = try BulkCommandPlanV1.deterministicBulkPlanID(
+            importPlan: plan,
+            atomicity: .allOrNothing,
+            chunks: [chunk]
+        )
+        return (
+            plan,
+            try BulkCommandPlanV1(
+                bulkPlanID: bulkPlanID,
+                importPlan: plan,
+                atomicity: .allOrNothing,
+                chunks: [chunk]
+            )
+        )
     }
 }

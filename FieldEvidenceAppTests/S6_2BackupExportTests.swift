@@ -95,6 +95,112 @@ final class S6_2BackupExportTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testV30CanonicalBackupPreservesSourceUTF8AcrossPresentationChange() async throws {
+        let authoredAddress = "Cafe\u{301} / café / 👩🏽‍🔧 / 漢字 / 한 / مرحبا\u{200F}"
+        let harness = try await makeMixedHarness(
+            "v30-c05-presentation-invariance",
+            siteAddress: authoredAddress
+        )
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+
+        let site = try XCTUnwrap(harness.context.fetch(FetchDescriptor<Site>()).first)
+        let asset = try XCTUnwrap(harness.context.fetch(FetchDescriptor<Asset>()).first)
+        site.label = "原始 site — cafe\u{301}"
+        asset.label = "معدات 👩🏽‍🔧 / 장비"
+        try harness.context.save()
+
+        let firstDestination = harness.applicationSupportURL.appendingPathComponent(
+            "first-export",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: firstDestination, withIntermediateDirectories: false)
+        let service = makeService(harness, capacity: .max)
+        let firstPackage = try service.export(
+            previewID: try service.prepare().id,
+            to: firstDestination
+        )
+        let firstRecordsData = try Data(
+            contentsOf: firstPackage.appendingPathComponent("records.json")
+        )
+        let firstRecords = try BackupCanonicalDecoderV1().decodeRecords(firstRecordsData)
+
+        let suiteName = "V30-P03-C05-backup-presentation-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let changedPresentation = try GlobalizationPresentationPreferenceV1(
+            formatting: FormattingLocaleProfileV1(
+                localeIdentifier: "es-US",
+                ianaTimeZoneIdentifier: "America/Chicago",
+                calendar: .gregorian,
+                numberingSystem: .latin,
+                units: .metric
+            ),
+            reportLanguage: ReportLanguageSelectionV1(
+                requestedLanguage: AppLanguageTagV1("es"),
+                effectiveLanguage: AppLanguageTagV1("es"),
+                fallback: .exact
+            )
+        )
+        try preferences.writeGlobalizationPresentationPreference(
+            changedPresentation,
+            operationID: UUID()
+        )
+        XCTAssertEqual(
+            try preferences.readGlobalizationPresentationPreference(),
+            changedPresentation
+        )
+
+        let secondDestination = harness.applicationSupportURL.appendingPathComponent(
+            "second-export",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: secondDestination, withIntermediateDirectories: false)
+        let secondPackage = try service.export(
+            previewID: try service.prepare().id,
+            to: secondDestination
+        )
+        let secondRecordsData = try Data(
+            contentsOf: secondPackage.appendingPathComponent("records.json")
+        )
+        let secondRecords = try BackupCanonicalDecoderV1().decodeRecords(secondRecordsData)
+
+        XCTAssertEqual(secondRecordsData, firstRecordsData)
+        XCTAssertEqual(secondRecords, firstRecords)
+        XCTAssertEqual(
+            try BackupCanonicalEncoderV1().encodeRecords(secondRecords).data,
+            firstRecordsData
+        )
+        XCTAssertNotNil(firstRecordsData.range(of: Data(authoredAddress.utf8)))
+        XCTAssertEqual(
+            Array(try XCTUnwrap(secondRecords.sites.first?.address).utf8),
+            Array(authoredAddress.utf8)
+        )
+        XCTAssertEqual(secondRecords.sites.map(\.id), [site.id])
+        XCTAssertEqual(secondRecords.assets.map(\.id), [asset.id])
+        XCTAssertEqual(
+            secondRecords.workflowRecords.map(\.stage),
+            firstRecords.workflowRecords.map(\.stage)
+        )
+        XCTAssertEqual(
+            Set(secondRecords.workflowRecords.map(\.stage)),
+            Set([WorkflowStage.check.rawValue, WorkflowStage.recheck.rawValue])
+        )
+        XCTAssertEqual(
+            secondRecords.reports.map(\.pdfState),
+            firstRecords.reports.map(\.pdfState)
+        )
+        XCTAssertEqual(
+            Set(secondRecords.reports.map(\.pdfState)),
+            Set([
+                ReportPDFState.ready.rawValue,
+                ReportPDFState.pending.rawValue,
+                ReportPDFState.failed.rawValue,
+            ])
+        )
+    }
+
     private let fileManager = FileManager.default
 
     @MainActor

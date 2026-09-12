@@ -1,0 +1,15 @@
+{
+  "schema": "V30P03C05GlobalizedMachineExportCasesV1",
+  "schemaVersion": 1,
+  "cardID": "V30-P03-C05",
+  "languageMatrixFixtureOnly": ["en", "es", "zh-Hans", "zh-Hant", "vi", "ko"],
+  "qualificationClaim": "NONE",
+  "machineHeaders": ["asset_key", "notes"],
+  "canonicalScalars": {
+    "integer": ["0", "-1", "9223372036854775807", "-9223372036854775808"],
+    "decimal": ["0", "-0", "12.50", "12345678901234567890123456789012345678"],
+    "gregorianDate": "2024-02-29",
+    "utcTimestamp": "2024-02-29T12:34:56.789Z"
+  },
+  "authoredUTF8": "Café — مرحبا‮ | 東京 | 한 | tiếng Việt | 👩🏽‍🔧 \"quote\"\r\n\ttab"
+}

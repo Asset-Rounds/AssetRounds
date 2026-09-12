@@ -617,13 +617,13 @@ struct ImportMappedFieldV1: Codable, Equatable, Hashable, Comparable, Sendable {
         try ImportBulkCanonicalCodecV1.requireText(key)
         guard key == key.lowercased(),
               key.allSatisfy({ $0.isASCII && ($0.isLowercase || $0.isNumber || $0 == "_") }),
-              value == value.precomposedStringWithCanonicalMapping,
               value.utf8.count <= ImportBulkLimitsV1.maximumCellBytes,
               value.unicodeScalars.count <= ImportBulkLimitsV1.maximumScalarsPerCell,
               !value.unicodeScalars.contains(where: { $0.value == 0 }) else {
             throw ImportBulkFailureV1.invalidValue
         }
         self.key = key
+        // Authored text keeps its exact Unicode scalar sequence.
         self.value = value
     }
 

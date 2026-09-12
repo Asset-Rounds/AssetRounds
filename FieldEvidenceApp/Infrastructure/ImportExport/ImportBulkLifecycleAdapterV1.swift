@@ -38,6 +38,22 @@ final class ImportBulkLifecycleAdapterV1 {
         self.writer = writer
     }
 
+    /// Scratch-only transformations. These functions neither access the model
+    /// context nor enroll source/CSV bytes among the three durable C08 families.
+    func exportMachine(
+        _ table: GlobalizedMachineTableV1,
+        human: GlobalizedHumanCSVRequestV1? = nil
+    ) throws -> GlobalizedMachineExportArtifactsV1 {
+        try GlobalizedMachineExportAdapterV1.export(table, human: human)
+    }
+
+    func validateMachineImport(
+        _ plan: ImportPlanV1,
+        artifacts: GlobalizedMachineExportArtifactsV1
+    ) throws {
+        try GlobalizedMachineExportAdapterV1.validateImportPlan(plan, artifacts: artifacts)
+    }
+
     func durableSession(sessionID: UUID) throws -> BulkSessionV1? {
         let rows = try modelContext.fetch(
             FetchDescriptor<BulkSessionRowV1>(predicate: #Predicate { $0.sessionID == sessionID })
