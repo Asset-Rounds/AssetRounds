@@ -277,7 +277,7 @@ extension V9_06DeletionRightsTests {
 extension V9_06DeletionRightsTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.receiptPersistence,
                        "RECOVERABILITY_VERIFICATION_RECEIPT_V1_IMMUTABLE_EVIDENCE")
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
@@ -503,7 +503,7 @@ enum V906Integration {
 
     static func restoreIDs(_ mode: BackupRestoreMode, offset: Int) -> [UUID] {
         let base = 200 + offset * 10
-        switch mode {
+        return switch mode {
         case .emptyInstall: [id(base), id(base + 1), id(base + 2)]
         case .replaceExisting: [id(base), id(base + 1)]
         case .clone, .fork: [id(base), id(base + 1), id(base + 2), id(base + 3)]
@@ -515,7 +515,7 @@ enum V906Integration {
         return { remaining.isEmpty ? UUID() : remaining.removeFirst() }
     }
 
-    static func id(_ suffix: Int) -> UUID {
+    nonisolated static func id(_ suffix: Int) -> UUID {
         UUID(uuidString: String(format: "76000000-0000-4000-8000-%012d", suffix))!
     }
 

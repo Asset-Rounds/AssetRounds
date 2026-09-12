@@ -56,6 +56,18 @@ struct MyDaySourceSnapshotV1: Sendable {
     }
 }
 
+/// Private scheduling evidence, never a portable read capability. Repair reads
+/// contain only the schedule closure and cannot expose the general MyDay view.
+struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
+    let projection: ReminderProjectionV1
+    let generationID: UUID
+    let uiGenerationToken: UInt64
+    let writerRevision: WorkspaceRevisionV1
+    let rootDevice: UInt64
+    let rootInode: UInt64
+    let sourceClosureSHA256: String
+}
+
 /// A revocable, generation-bound read entry. It neither conforms to nor exports
 /// a permanently authorized synchronous source reader. The concrete gate is
 /// mandatory; there is no permissive protocol default or cached permit.
@@ -153,6 +165,106 @@ struct MyDaySourceSnapshotV1: Sendable {
         return session
     }
 
+    func notificationSnapshot(authorization: NotificationOperationAuthorizationV1,
+                              evaluatedAt: Date) async throws -> NotificationSourceSnapshotV1 {
+        guard authorization.gate === accessGate else { throw AppAccessContractFailureV1.accessDenied }
+        try await authorization.validateRead()
+        try Task.checkCancellation()
+        let current = try currentSession()
+        let root = try ReportPDFAnchoredFile.rootIdentity(at: current.generationRootURL)
+        let revision = try current.workspaceWriter.currentRevision()
+        let closure = try ScheduleSourceClosure(context: current.modelContext, workspaceID: workspaceID)
+        let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
+            definitions: closure.definitions, history: closure.occurrences)
+        let value = NotificationSourceSnapshotV1(projection: try .init(dueQueue: due,
+            localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue),
+            generationID: generationID, uiGenerationToken: uiGenerationToken, writerRevision: revision,
+            rootDevice: UInt64(root.device), rootInode: UInt64(root.inode),
+            sourceClosureSHA256: try MyDayCanonicalCodecV1.sha256(closure))
+        try await validateNotificationSnapshot(value, authorization: authorization)
+        return value
+    }
+
+    func validateNotificationSnapshot(_ expected: NotificationSourceSnapshotV1,
+                                      authorization: NotificationOperationAuthorizationV1) async throws {
+        guard authorization.gate === accessGate else { throw AppAccessContractFailureV1.accessDenied }
+        try await authorization.validateRead()
+        try Task.checkCancellation()
+        try validateNotificationStorage(expected)
+    }
+
+    /// A reopened process has a new writer instance and UI token. Configuration
+    /// recovery may rebind those ephemeral identities only after freshly
+    /// proving the unchanged durable generation, revision and schedule closure.
+    /// Effect-time validation remains strict against the rebound snapshot.
+    func revalidatePersistedNotificationSnapshot(_ expected: NotificationSourceSnapshotV1,
+                                                authorization: NotificationOperationAuthorizationV1) async throws -> NotificationSourceSnapshotV1 {
+        if case .content = authorization.proof { throw AppAccessContractFailureV1.accessDenied }
+        let current = try await notificationSnapshot(authorization: authorization,
+            evaluatedAt: expected.projection.evaluatedAt)
+        guard current.projection == expected.projection,
+              current.generationID == expected.generationID,
+              current.rootDevice == expected.rootDevice, current.rootInode == expected.rootInode,
+              current.sourceClosureSHA256 == expected.sourceClosureSHA256,
+              current.writerRevision.workspaceID == expected.writerRevision.workspaceID,
+              current.writerRevision.generationID == expected.writerRevision.generationID,
+              current.writerRevision.revision == expected.writerRevision.revision,
+              current.writerRevision.entityRevisions == expected.writerRevision.entityRevisions else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        return current
+    }
+
+    /// Keeps canonical reads behind the original proof and rechecks that proof
+    /// and the same source after the effect. A failed postcheck does not imply
+    /// that the effect did not occur; the effect owner must retain/clean it up.
+    func performNotificationEffect<Result: Sendable>(
+        snapshot: NotificationSourceSnapshotV1,
+        authorization: NotificationOperationAuthorizationV1,
+        effect: @MainActor () async throws -> Result
+    ) async throws -> Result {
+        try await validateNotificationSnapshot(snapshot, authorization: authorization)
+        let result = try await effect()
+        try await validateNotificationSnapshot(snapshot, authorization: authorization)
+        return result
+    }
+
+    private func validateNotificationStorage(_ expected: NotificationSourceSnapshotV1) throws {
+        let current = try currentSession()
+        let root = try ReportPDFAnchoredFile.rootIdentity(at: current.generationRootURL)
+        guard expected.projection.workspaceID == workspaceID,
+              expected.generationID == generationID, expected.uiGenerationToken == uiGenerationToken,
+              expected.rootDevice == UInt64(root.device), expected.rootInode == UInt64(root.inode),
+              try current.workspaceWriter.currentRevision() == expected.writerRevision else {
+            throw MyDaySourceReadFailureV1.sessionChanged
+        }
+        let closure = try ScheduleSourceClosure(context: current.modelContext, workspaceID: workspaceID)
+        guard try MyDayCanonicalCodecV1.sha256(closure) == expected.sourceClosureSHA256 else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: expected.projection.evaluatedAt,
+            definitions: closure.definitions, history: closure.occurrences)
+        guard try ReminderProjectionV1(dueQueue: due,
+            localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue) == expected.projection else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+    }
+
+    /// Shared by ordinary MyDay materialization and notification-only repair.
+    private struct ScheduleSourceClosure: Encodable {
+        let definitions: [ScheduleDefinitionReleaseV1]
+        let occurrences: [OccurrenceHistoryEventV1]
+
+        @MainActor init(context: ModelContext, workspaceID: WorkspaceID) throws {
+            guard !context.hasChanges else { throw MyDaySourceReadFailureV1.sourcesChanged }
+            let workspace = workspaceID.rawValue
+            definitions = try context.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString }
+            occurrences = try context.fetch(FetchDescriptor<OccurrenceHistoryEventRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.eventID.uuidString < $1.eventID.uuidString }
+        }
+    }
+
     private struct SourceClosure: Encodable {
         let manifests: [WorkPacketManifestV1]
         let claims: [WorkItemClaimV1]
@@ -180,10 +292,9 @@ struct MyDaySourceSnapshotV1: Sendable {
                 .map { try $0.value() }.sorted { $0.handoffID.uuidString < $1.handoffID.uuidString }
             rounds = try context.fetch(FetchDescriptor<RoundSessionRevisionRowV1>(predicate: #Predicate { $0.workspaceID == workspace }))
                 .map { try $0.value() }.sorted { ($0.sessionID.uuidString, $0.revision) < ($1.sessionID.uuidString, $1.revision) }
-            definitions = try context.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>(predicate: #Predicate { $0.workspaceID == workspace }))
-                .map { try $0.value() }.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString }
-            occurrences = try context.fetch(FetchDescriptor<OccurrenceHistoryEventRow>(predicate: #Predicate { $0.workspaceID == workspace }))
-                .map { try $0.value() }.sorted { $0.eventID.uuidString < $1.eventID.uuidString }
+            let schedules = try ScheduleSourceClosure(context: context, workspaceID: workspaceID)
+            definitions = schedules.definitions
+            occurrences = schedules.occurrences
             drafts = try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate { $0.workspaceID == workspace }))
                 .map { try $0.value() }.sorted { $0.draftID.uuidString < $1.draftID.uuidString }
             readinessSources = includeReadiness ? try ProductionOfflineReadinessSourceClosureV1(context: context, workspaceID: workspaceID) : nil

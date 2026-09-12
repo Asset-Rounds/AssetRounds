@@ -1656,10 +1656,10 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             XCTAssertEqual(outcome.after.revision, 1)
         }
 
-        let importer = BackupImportService(
+        let importer = try BackupImportService(
             generationRootURL: destination.generationRootURL,
             storagePreflight: makeUnlimitedStoragePreflight(),
-            makeUUID: { makeUUID(2_424) },
+            makeUUID: { v908MakeUUID(2_424) },
             scopedAccess: .alreadyAuthorized
         )
         let validated = try importer.stageAndValidate(

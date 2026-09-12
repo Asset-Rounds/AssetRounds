@@ -1095,14 +1095,17 @@ enum AppLockNotificationControlFailurePointV1: Equatable, Sendable {
     case none, afterPreferenceWrite, afterPendingWriteBeforeSync
 }
 
-/// Explicitly unadopted notification recovery foundation. Owns only a control
-/// journal under the existing operations root, with no scratch lease, private
-/// mapping, OS request, workspace writer, or authentication claim.
+/// Sole descriptor-pinned notification control and private correlation owner.
+/// Authentication and OS observation remain the concrete effect's responsibility.
 final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     static let rootName = "AppLockNotificationControlV1"
     static let recordName = "control.json"
     static let pendingName = "control.pending.json"
     static let maximumRecordBytes = 1_048_576
+    static let mappingName = "mapping.json"
+    static let mappingPendingName = "mapping.pending.json"
+    static let eraseName = "notification-erase.json"
+    static let erasePendingName = "notification-erase.pending.json"
     private let preferences: PreferencesAdapterV1
     private let supportURL: URL
     private let supportDescriptor: Int32
@@ -1128,6 +1131,123 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
 
     deinit { _ = Darwin.close(supportDescriptor) }
 
+    var notificationRootIdentity: String {
+        "\(supportDevice):\(supportInode):\(authority.rootDevice):\(authority.rootInode)"
+    }
+
+    func verifyNotificationStorage() throws {
+        try AppLockNotificationTransactionFenceV1.perform { try verifyRoot() }
+    }
+
+    func requireNotificationPublicationAllowed() throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try verifyRoot()
+            guard try information(Self.eraseName) == nil,
+                  try information(Self.erasePendingName) == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
+    }
+
+    /// Only the effect may call this after validating its original proof, or
+    /// during explicitly authorized destructive erase. Bootstrap never calls it.
+    func loadPrivateNotificationMapping() throws -> NotificationPrivateMappingV1? {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard let bytes = try readFile(Self.mappingName, kind: .journal) else { return nil }
+            let value = try Self.decodeAuxiliary(NotificationPrivateMappingV1.self, bytes: bytes)
+            try value.validate()
+            return value
+        }
+    }
+
+    func replacePrivateNotificationMapping(_ value: NotificationPrivateMappingV1,
+                                           expected: NotificationPrivateMappingV1?) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try requireNotificationPublicationAllowed()
+            try value.validate()
+            guard try loadPrivateNotificationMapping() == expected else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            try publishBytes(CompatibilityCanonicalV1.encode(value), recordName: Self.mappingName,
+                pendingName: Self.mappingPendingName,
+                expected: expected.map { try CompatibilityCanonicalV1.encode($0) })
+        }
+    }
+
+    /// A late add completion may clear only its own durable admission. This
+    /// cannot re-enable publication or change policy/source/correlation data.
+    func finishNotificationAdd(admissionID: UUID, requestID: String, verifiedPresent: Bool) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard var value = try loadPrivateNotificationMapping(),
+                  let index = value.entries.firstIndex(where: {
+                      $0.admissionID == admissionID && $0.request.notification.requestID == requestID
+                  }) else { throw AppAccessContractFailureV1.effectMismatch }
+            let old = value
+            value.entries[index].admissionID = nil
+            value.entries[index].acknowledged = verifiedPresent
+            try value.validate()
+            try publishBytes(CompatibilityCanonicalV1.encode(value), recordName: Self.mappingName,
+                pendingName: Self.mappingPendingName, expected: CompatibilityCanonicalV1.encode(old))
+        }
+    }
+
+    func beginNotificationErase(operationID: UUID) throws -> NotificationEraseRevocationV1 {
+        try AppLockNotificationTransactionFenceV1.perform {
+            let value = NotificationEraseRevocationV1(schemaVersion: 1, operationID: operationID,
+                rootIdentity: notificationRootIdentity)
+            try value.validate()
+            if let bytes = try readFile(Self.eraseName, kind: .journal) {
+                let current = try Self.decodeAuxiliary(NotificationEraseRevocationV1.self, bytes: bytes)
+                guard current == value else { throw AppAccessContractFailureV1.effectMismatch }
+                return current
+            }
+            try publishBytes(CompatibilityCanonicalV1.encode(value), recordName: Self.eraseName,
+                pendingName: Self.erasePendingName, expected: nil)
+            return value
+        }
+    }
+
+    /// Called only after the system owner has drained admissions and observed
+    /// owned pending/delivered request absence. Retain the revocation marker.
+    func removeNotificationRecordsAfterErase(_ revocation: NotificationEraseRevocationV1) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard let bytes = try readFile(Self.eraseName, kind: .journal),
+                  try Self.decodeAuxiliary(NotificationEraseRevocationV1.self, bytes: bytes) == revocation,
+                  revocation.rootIdentity == notificationRootIdentity else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            if let mapping = try loadPrivateNotificationMapping() {
+                guard mapping.entries.allSatisfy({ $0.admissionID == nil }) else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+            }
+            // Unknown interrupted publication bytes are never silently erased.
+            guard try information(Self.pendingName) == nil,
+                  try information(Self.mappingPendingName) == nil,
+                  try information(Self.erasePendingName) == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            for name in [Self.mappingName, Self.recordName] {
+                if let expected = try information(name) {
+                    try verifyRoot()
+                    guard let linked = try information(name), Self.sameFile(expected, linked),
+                          Darwin.unlinkat(authority.rootDescriptor, name, 0) == 0,
+                          Darwin.fsync(authority.rootDescriptor) == 0 else {
+                        throw AppAccessContractFailureV1.configurationUnknown
+                    }
+                }
+            }
+        }
+    }
+
+    private static func decodeAuxiliary<T: Codable>(_ type: T.Type, bytes: Data) throws -> T {
+        let value = try JSONDecoder().decode(type, from: bytes)
+        guard try CompatibilityCanonicalV1.encode(value) == bytes else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return value
+    }
+
     func loadControl() throws -> AppLockNotificationControlV1? {
         try AppLockNotificationTransactionFenceV1.perform {
             guard let bytes = try readFile(Self.recordName, kind: .journal) else { return nil }
@@ -1140,6 +1260,7 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         settingWrite: AppLockSettingWritePlanV1,
         expectedPredecessor: AppLockNotificationControlV1?) throws -> AppLockNotificationControlV1 {
         try AppLockNotificationTransactionFenceV1.perform {
+            try requireNotificationPublicationAllowed()
             let candidate = try AppLockNotificationControlV1(journal: journal,
                 priorReminderPolicy: priorReminderPolicy, settingWrite: settingWrite)
             let current = try loadControl()
@@ -1176,6 +1297,7 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
 
     func completeSetting(expected: AppLockNotificationControlV1) throws -> AppLockNotificationControlV1 {
         try AppLockNotificationTransactionFenceV1.perform {
+            try requireNotificationPublicationAllowed()
             let completed = try expected.committingSetting()
             let current = try loadControl()
             try requirePolicy(expected.settingWrite)
@@ -1206,6 +1328,7 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     func recordJournal(_ journal: AppLockNotificationJournalV1,
         expected: AppLockNotificationControlV1) throws -> AppLockNotificationControlV1 {
         try AppLockNotificationTransactionFenceV1.perform {
+            try requireNotificationPublicationAllowed()
             let old = expected.journal
             guard journal.operationID == old.operationID, journal.targetEnabled == old.targetEnabled,
                   journal.priorPolicy == old.priorPolicy, journal.projections == old.projections else {
@@ -1394,12 +1517,22 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         guard try Self.decode(bytes) == value, try loadControl() == expected else {
             throw AppAccessContractFailureV1.effectMismatch
         }
-        if let pending = try readFile(Self.pendingName, kind: .journalTemporary) {
+        try publishBytes(bytes, recordName: Self.recordName, pendingName: Self.pendingName,
+            expected: expected.map { try CompatibilityCanonicalV1.encode($0) })
+    }
+
+    private func publishBytes(_ bytes: Data, recordName: String, pendingName: String,
+                              expected: Data?) throws {
+        guard !bytes.isEmpty, bytes.count <= Self.maximumRecordBytes,
+              try readFile(recordName, kind: .journal) == expected else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        if let pending = try readFile(pendingName, kind: .journalTemporary) {
             // Only an exact interrupted successor can be adopted. Unknown or
             // divergent pending bytes are retained for explicit recovery.
             guard pending == bytes else { throw AppAccessContractFailureV1.effectMismatch }
         } else {
-            let file = Darwin.openat(authority.rootDescriptor, Self.pendingName,
+            let file = Darwin.openat(authority.rootDescriptor, pendingName,
                 O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
             guard file >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
             defer { _ = Darwin.close(file) }
@@ -1413,13 +1546,13 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
                 guard count > 0 else { throw AppAccessContractFailureV1.configurationUnknown }
                 offset += count
             }
-            let pinned = try information(Self.pendingName)
+            let pinned = try information(pendingName)
             try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary,
-                at: rootURL.appendingPathComponent(Self.pendingName), authorityCheck: {
+                at: rootURL.appendingPathComponent(pendingName), authorityCheck: {
                     try self.verifyRoot()
                     var opened = stat()
                     guard Darwin.fstat(file, &opened) == 0,
-                          let linked = try self.information(Self.pendingName),
+                          let linked = try self.information(pendingName),
                           let pinned, opened.st_dev == pinned.st_dev, opened.st_ino == pinned.st_ino,
                           opened.st_dev == linked.st_dev, opened.st_ino == linked.st_ino else {
                         throw AppAccessContractFailureV1.configurationUnknown
@@ -1429,39 +1562,39 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
                 throw AppAccessContractFailureV1.effectMismatch
             }
         }
-        guard try readFile(Self.pendingName, kind: .journalTemporary) == bytes,
-              try loadControl() == expected else { throw AppAccessContractFailureV1.effectMismatch }
+        guard try readFile(pendingName, kind: .journalTemporary) == bytes,
+              try readFile(recordName, kind: .journal) == expected else { throw AppAccessContractFailureV1.effectMismatch }
         // A valid pending file can survive an interruption before its content
         // was flushed. Adopted and freshly written bytes need the same fsync.
-        try syncPendingFile()
+        try syncPendingFile(pendingName)
         try verifyRoot()
         let result: Int32
         if expected == nil {
-            result = Darwin.renameatx_np(authority.rootDescriptor, Self.pendingName,
-                authority.rootDescriptor, Self.recordName, UInt32(RENAME_EXCL))
+            result = Darwin.renameatx_np(authority.rootDescriptor, pendingName,
+                authority.rootDescriptor, recordName, UInt32(RENAME_EXCL))
         } else {
-            result = Darwin.renameat(authority.rootDescriptor, Self.pendingName,
-                authority.rootDescriptor, Self.recordName)
+            result = Darwin.renameat(authority.rootDescriptor, pendingName,
+                authority.rootDescriptor, recordName)
         }
         guard result == 0, Darwin.fsync(authority.rootDescriptor) == 0,
-              try loadControl() == value else { throw AppAccessContractFailureV1.effectMismatch }
+              try readFile(recordName, kind: .journal) == bytes else { throw AppAccessContractFailureV1.effectMismatch }
     }
 
-    private func syncPendingFile() throws {
-        guard let before = try information(Self.pendingName) else {
+    private func syncPendingFile(_ pendingName: String) throws {
+        guard let before = try information(pendingName) else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        let descriptor = Darwin.openat(authority.rootDescriptor, Self.pendingName, O_RDWR | O_NOFOLLOW)
+        let descriptor = Darwin.openat(authority.rootDescriptor, pendingName, O_RDWR | O_NOFOLLOW)
         guard descriptor >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
         defer { _ = Darwin.close(descriptor) }
         var opened = stat()
         guard Darwin.fstat(descriptor, &opened) == 0, Self.sameFile(before, opened) else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        try ProtectedFilePolicyV1.verify(.journalTemporary, at: rootURL.appendingPathComponent(Self.pendingName))
+        try ProtectedFilePolicyV1.verify(.journalTemporary, at: rootURL.appendingPathComponent(pendingName))
         try verifyRoot()
         guard Darwin.fsync(descriptor) == 0,
-              let linked = try information(Self.pendingName), Self.sameFile(opened, linked) else {
+              let linked = try information(pendingName), Self.sameFile(opened, linked) else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
     }

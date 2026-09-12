@@ -1141,7 +1141,7 @@ private final class V911WriterHarness {
         }
         return WorkspaceMutationRequestV1(
             mutationID: try MutationIDV1(rawValue: Self.id(mutationByte)),
-            expectedRevision: expected ?? WorkspaceExpectedRevisionV1(
+            expectedRevision: try expected ?? WorkspaceExpectedRevisionV1(
                 snapshot: try writer.currentRevision()
             ),
             command: .createCheckDraft(CheckDraftMutationV1(

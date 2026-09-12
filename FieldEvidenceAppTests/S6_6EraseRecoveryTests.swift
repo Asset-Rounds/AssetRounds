@@ -32,6 +32,52 @@ private final class C30EvidenceContextAnchorS6_6EraseRecovery: XCTestCase {
 
 final class S6_6EraseRecoveryTests: XCTestCase {
     @MainActor
+    func testActualEraseRetainsGenerationAndPreferencesUntilNotificationAbsenceIsVerified() async throws {
+        let harness = try await makeHarness("notification-readback")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let oldID = coordinator.generationID
+        let preferences = PreferencesAdapterV1(defaults: harness.defaults)
+        let policy = try preferences.readReminderPolicy()
+        let control = try AppLockNotificationControlStoreV1(applicationSupportURL: harness.support, preferences: preferences)
+        let operation = UUID()
+        let request = NotificationSystemRequestV1(notification: .init(requestID: UUID().uuidString.lowercased(),
+            opaqueCorrelationToken: String(repeating: "a", count: 64)), fireAtUTC: Date().addingTimeInterval(600))
+        let journal = try AppLockNotificationJournalV1(operationID: operation, targetEnabled: true,
+            priorPolicy: policy.appLockReference(), projections: [request.notification], disposition: .enablingPrepared)
+        let plan = try preferences.planAppLockSettingWrite(expectedSetting: preferences.readAppLockSettingSnapshot(),
+            expectedReminderPolicy: policy, target: .init(isEnabled: true), operationID: operation)
+        let prepared = try control.prepareControl(journal: journal, priorReminderPolicy: policy,
+            settingWrite: plan, expectedPredecessor: nil)
+        harness.defaults.set("retain-until-notifications-cleared", forKey: "notification-erase-sentinel")
+        let system = S66NotificationSystemProbe(requests: [request])
+        let service = EraseAllService(applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches, temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults, bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName, notificationSystem: system)
+        do {
+            _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: harness.diagnostics) { coordinator.activate(session: $0) }
+            XCTFail("an ignored OS removal completed Erase")
+        } catch { /* The retained intent and bytes below are the recovery proof. */ }
+        XCTAssertGreaterThan(system.observationCount, 0)
+        XCTAssertTrue(fileManager.fileExists(atPath: harness.factory.installedGenerationURL(id: oldID).path))
+        XCTAssertEqual(harness.defaults.string(forKey: "notification-erase-sentinel"), "retain-until-notifications-cleared")
+        XCTAssertEqual(try control.loadControl(), prepared)
+        XCTAssertThrowsError(try control.requireNotificationPublicationAllowed())
+        let retained = try XCTUnwrap(EraseIntentStore(applicationSupportURL: harness.support).load())
+        XCTAssertEqual(retained.phase, .sessionActivated)
+        system.removalEnabled = true
+        let recovered = try await service.reconcileAtStartup(diagnosticsStore: harness.diagnostics)
+        XCTAssertEqual(recovered?.generationID, retained.newGenerationID)
+        XCTAssertTrue(system.requests.isEmpty)
+        XCTAssertFalse(fileManager.fileExists(atPath: harness.factory.installedGenerationURL(id: oldID).path))
+        XCTAssertNil(harness.defaults.object(forKey: "notification-erase-sentinel"))
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: harness.support).load())
+        XCTAssertThrowsError(try control.requireNotificationPublicationAllowed())
+    }
+
+    @MainActor
     func testNotificationPreferenceEraseFencePreservesExactCooldownAndRejectsHeldSettingAuthority() async throws {
         let suite = "S6_6.notification-control." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -982,6 +1028,22 @@ extension S6_6EraseRecoveryTests {
         XCTAssertEqual(reboundManifest.workspaceID, fixture.otherWorkspaceID)
         XCTAssertEqual(reboundClaim.workspaceID, fixture.otherWorkspaceID)
         XCTAssertEqual(reboundLease.workspaceID, fixture.otherWorkspaceID)
+    }
+}
+
+@MainActor private final class S66NotificationSystemProbe: NotificationSystemPortV1 {
+    var requests: [NotificationSystemRequestV1]
+    var removalEnabled = false
+    var observationCount = 0
+    init(requests: [NotificationSystemRequestV1]) { self.requests = requests }
+    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+    func observations() async throws -> [NotificationSystemObservationV1] {
+        observationCount += 1
+        return requests.map { .init(requestID: $0.notification.requestID, request: $0, delivered: false) }
+    }
+    func add(_ request: NotificationSystemRequestV1) async throws { requests.append(request) }
+    func remove(_ requestIDs: [String]) async throws {
+        if removalEnabled { requests.removeAll { requestIDs.contains($0.notification.requestID) } }
     }
 }
 

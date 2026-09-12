@@ -1,6 +1,109 @@
 import Foundation
+import SwiftData
+import UserNotifications
 import XCTest
 @testable import FieldEvidenceApp
+
+private struct C22NotificationClock: ApplicationClock {
+    func now() -> Date { C22RecurringRoundTestSupport.now }
+}
+
+private actor C22NotificationAuthentication: LocalAuthenticationClient {
+    func availability() async -> LocalAuthenticationAvailabilityV1 { .systemValue(status: .available, biometry: .faceID) }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) async -> LocalAuthenticationOutcomeV1 { .authenticated }
+    func cancel(attemptID: UUID) async {}
+}
+
+@MainActor private final class C22NotificationSystem: NotificationSystemPortV1 {
+    var requests: [NotificationSystemRequestV1] = []
+    var pausesAdd = false
+    private var started = false
+    private var startedWaiter: CheckedContinuation<Void, Never>?
+    private var addContinuation: CheckedContinuation<Void, Never>?
+    private(set) var addCount = 0
+    private(set) var removeCount = 0
+    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+    func observations() async throws -> [NotificationSystemObservationV1] {
+        requests.map { .init(requestID: $0.notification.requestID, request: $0, delivered: false) }
+    }
+    func add(_ request: NotificationSystemRequestV1) async throws {
+        addCount += 1
+        if pausesAdd {
+            started = true
+            startedWaiter?.resume(); startedWaiter = nil
+            await withCheckedContinuation { addContinuation = $0 }
+        }
+        requests.append(request)
+    }
+    func remove(_ requestIDs: [String]) async throws {
+        removeCount += 1
+        requests.removeAll { requestIDs.contains($0.notification.requestID) }
+    }
+    func waitForAdd() async {
+        if started { return }
+        await withCheckedContinuation { startedWaiter = $0 }
+    }
+    func releaseAdd() { addContinuation?.resume(); addContinuation = nil }
+}
+
+@MainActor private final class C22NotificationFixture {
+    let support: URL
+    let suite: String
+    let defaults: UserDefaults
+    let preferences: PreferencesAdapterV1
+    let coordinator: StoreSessionCoordinator
+    let gate: AppAccessGateV1
+    let control: AppLockNotificationControlStoreV1
+    let system = C22NotificationSystem()
+    let source: ProductionMyDaySourceProviderV1
+    let owner: DeviceLocalNotificationOwnerV1
+    let projection: ReminderProjectionV1
+
+    init() throws {
+        support = FileManager.default.temporaryDirectory.appendingPathComponent("C22-notification-" + UUID().uuidString)
+        suite = "C22.notification." + UUID().uuidString
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        preferences = PreferencesAdapterV1(defaults: defaults)
+        let initial = try preferences.readReminderPolicy()
+        _ = try preferences.updateReminderPolicy(expected: initial, isEnabled: true, detail: .generic, operationID: UUID())
+        coordinator = try StoreSessionCoordinator(validatingSession:
+            StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent())
+        gate = AppAccessGateV1(setting: .absentDisabled, authentication: C22NotificationAuthentication(),
+            clock: C22NotificationClock(), identifiers: SystemApplicationIDSource())
+        control = try AppLockNotificationControlStoreV1(applicationSupportURL: support, preferences: preferences)
+        source = ProductionMyDaySourceProviderV1(session: coordinator, accessGate: gate)
+        let concreteSource = source
+        owner = DeviceLocalNotificationOwnerV1(control: control, preferences: preferences, system: system,
+            clock: C22NotificationClock()) { _ in concreteSource }
+        let workspace = coordinator.workspaceID
+        let actorReference = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Notification fixture")
+        let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: actorReference,
+            responsibility: .recordedBy, displayNameAtTime: actorReference.displayName, capturedAt: C22RecurringRoundTestSupport.now)
+        let anchor = ScheduleLocalAnchorV1(year: nil, month: nil, day: nil, weekday: nil,
+            weekdayOrdinal: nil, hour: 9, minute: 0, second: 0)
+        let original = try C22RecurringRoundTestSupport.release(
+            recurrence: .fixedCalendar(.init(cadence: .daily, interval: 1, anchor: anchor)), slot: 6000)
+        let definition = try C22RecurringRoundTestSupport.definition().rebound(to: workspace, actor: actor)
+        let release = try original.rebound(to: workspace, subject: original.subject,
+            workDefinition: .init(kind: .roundSession, definition: definition, packageRelease: C22RecurringRoundTestSupport.package()),
+            authoredBy: actor, assignee: nil)
+        let priorBasis = try C22RecurringRoundTestSupport.basis(release)
+        let basis = ResolvedOccurrenceBasisV1(nominalLocalDate: priorBasis.nominalLocalDate,
+            nominalLocalTime: priorBasis.nominalLocalTime, resolvedAtUTC: C22RecurringRoundTestSupport.now.addingTimeInterval(600),
+            utcOffsetSeconds: priorBasis.utcOffsetSeconds, disposition: priorBasis.disposition,
+            timeBasisSHA256: priorBasis.timeBasisSHA256, adjustmentProvenanceSHA256: priorBasis.adjustmentProvenanceSHA256)
+        let occurrence = try OccurrenceIDV1(scheduleDefinitionID: release.scheduleDefinitionID,
+            identityNamespaceID: release.occurrenceIdentityNamespaceID, nominalKey: basis.nominalKey)
+        let event = try OccurrenceHistoryEventV1(eventID: UUID(), workspaceID: workspace, occurrenceID: occurrence,
+            scheduleRelease: .init(release), action: .generated, nominalBasis: basis, effectiveBasis: basis,
+            revision: 1, mutationID: .init(rawValue: UUID()), recordedBy: actor, recordedAt: C22RecurringRoundTestSupport.now)
+        coordinator.modelContext.insert(try ScheduleDefinitionReleaseRow(release))
+        coordinator.modelContext.insert(try OccurrenceHistoryEventRow(event))
+        try coordinator.modelContext.save()
+        projection = try .init(dueQueue: .init(workspaceID: workspace, evaluatedAt: C22RecurringRoundTestSupport.now,
+            definitions: [release], history: [event]), localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue)
+    }
+}
 
 private enum C22RecurringRoundTestSupport {
     static let now = Date(timeIntervalSince1970: 1_804_000_000)
@@ -327,8 +430,15 @@ private final class C22ReminderPortProbe: DeviceLocalScheduleReminderPortV1 {
     var observed: [ReminderEntryV1] = []
     private(set) var applications: [(removed: [String], added: [ReminderEntryV1])] = []
 
-    func authorization() async throws -> LocalReminderAuthorizationV1 { currentAuthorization }
-    func scheduledReminders(workspaceID: WorkspaceID) async throws -> [ReminderEntryV1] { observed }
+    func reconcile(_ projection: ReminderProjectionV1) async throws -> LocalReminderReconciliationV1 {
+        let plan = try LocalReminderReconciliationV1(projection: projection,
+            observedReminderEntries: observed, authorization: currentAuthorization)
+        if plan.disposition == .applied {
+            try await apply(workspaceID: projection.workspaceID,
+                remove: plan.notificationIDsToRemove, add: plan.reminderEntriesToApply)
+        }
+        return plan
+    }
     func apply(workspaceID: WorkspaceID, remove notificationIDs: [String],
                add reminderEntries: [ReminderEntryV1]) async throws {
         applications.append((notificationIDs, reminderEntries))
@@ -373,6 +483,114 @@ private struct C22AccessGateProbe: AppAccessGatePortV1 {
 
 @MainActor
 final class V9_85RecurringRoundExperienceTests: XCTestCase {
+    func testSystemNotificationReadbackRejectsAlteredContentAndCalendarComponents() throws {
+        let value = NotificationSystemRequestV1(notification: .init(requestID: UUID().uuidString,
+            opaqueCorrelationToken: String(repeating: "a", count: 64)),
+            fireAtUTC: C22RecurringRoundTestSupport.now.addingTimeInterval(600))
+        let canonical = try UserNotificationSystemAdapterV1.systemRequest(value)
+        let bytes = try NSKeyedArchiver.archivedData(withRootObject: canonical, requiringSecureCoding: true)
+        let reopened = try XCTUnwrap(NSKeyedUnarchiver.unarchivedObject(ofClass: UNNotificationRequest.self, from: bytes))
+        for delivered in [false, true] {
+            let observation = UserNotificationSystemAdapterV1.observation(reopened, delivered: delivered)
+            XCTAssertEqual(observation.request, value)
+            XCTAssertEqual(observation.delivered, delivered)
+        }
+        let mutations: [(UNMutableNotificationContent) -> Void] = [
+            { $0.interruptionLevel = .timeSensitive }, { $0.relevanceScore = 0.8 },
+            { $0.summaryArgument = "private asset" },
+            { $0.summaryArgumentCount += 1 }, { $0.filterCriteria = "private filter" },
+            { $0.subtitle = "private detail" }, { $0.userInfo["asset"] = "private asset" },
+            { $0.threadIdentifier = "private group" }, { $0.targetContentIdentifier = "private route" },
+            { $0.sound = .default }, { $0.badge = 1 },
+        ]
+        for (index, mutate) in mutations.enumerated() {
+            let content = try XCTUnwrap(canonical.content.mutableCopy() as? UNMutableNotificationContent)
+            mutate(content)
+            let changed = UNNotificationRequest(identifier: canonical.identifier, content: content, trigger: canonical.trigger)
+            for delivered in [false, true] {
+                let observation = UserNotificationSystemAdapterV1.observation(changed, delivered: delivered)
+                XCTAssertEqual(observation.requestID, canonical.identifier)
+                XCTAssertNil(observation.request, "content mutation \(index)")
+            }
+        }
+        var components = try XCTUnwrap(canonical.trigger as? UNCalendarNotificationTrigger).dateComponents
+        components.weekday = try XCTUnwrap(components.calendar).component(.weekday, from: value.fireAtUTC)
+        let changedTrigger = UNNotificationRequest(identifier: canonical.identifier, content: canonical.content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false))
+        XCTAssertNil(UserNotificationSystemAdapterV1.observation(changedTrigger, delivered: false).request)
+        let repeated = UNNotificationRequest(identifier: canonical.identifier, content: canonical.content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true))
+        XCTAssertNil(UserNotificationSystemAdapterV1.observation(repeated, delivered: false).request)
+    }
+
+    @MainActor
+    func testConcreteReminderOwnerRejectsCallerProjectionAndUsesPrivateOpaqueSystemIDs() async throws {
+        let fixture = try C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        XCTAssertEqual(fixture.projection.reminders.count, 1)
+        let substituted = try ReminderProjectionV1(dueQueue: .init(workspaceID: fixture.coordinator.workspaceID,
+            evaluatedAt: fixture.projection.evaluatedAt, definitions: [], history: []),
+            localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue)
+        do { _ = try await fixture.owner.reconcile(substituted); XCTFail("caller projection replaced canonical schedules") }
+        catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        XCTAssertEqual(fixture.system.addCount, 0)
+        XCTAssertNil(try fixture.control.loadPrivateNotificationMapping())
+        let plan = try await fixture.owner.reconcile(fixture.projection)
+        XCTAssertEqual(plan.disposition, .applied)
+        XCTAssertFalse(plan.canonicalDueTruthChanged)
+        let request = try XCTUnwrap(fixture.system.requests.first)
+        XCTAssertNotNil(UUID(uuidString: request.notification.requestID))
+        XCTAssertNotEqual(request.notification.requestID, fixture.projection.reminders[0].notificationID)
+        let systemBytes = String(decoding: try CompatibilityCanonicalV1.encode(request), as: UTF8.self)
+        XCTAssertFalse(systemBytes.contains(fixture.coordinator.workspaceID.rawValue.uuidString.lowercased()))
+        XCTAssertFalse(systemBytes.contains(fixture.projection.reminders[0].occurrenceID.rawValue))
+        let retained = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+        XCTAssertEqual(retained.entries[0].reminder, fixture.projection.reminders[0])
+        XCTAssertTrue(retained.entries[0].acknowledged)
+        XCTAssertNil(retained.entries[0].admissionID)
+        let replay = try await fixture.owner.reconcile(fixture.projection)
+        XCTAssertEqual(replay.disposition, .noChange)
+        XCTAssertEqual(fixture.system.addCount, 1)
+        XCTAssertEqual(fixture.system.requests, [request])
+    }
+
+    @MainActor
+    func testConcreteReminderEraseAcrossOwnersDrainsLateAddBeforeDeletingMapping() async throws {
+        let fixture = try C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        fixture.system.pausesAdd = true
+        let scheduling = Task { @MainActor in try await fixture.owner.reconcile(fixture.projection) }
+        await fixture.system.waitForAdd()
+        let admitted = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+        XCTAssertNotNil(admitted.entries[0].admissionID)
+        XCTAssertFalse(admitted.entries[0].acknowledged)
+        let reopened = try AppLockNotificationControlStoreV1(applicationSupportURL: fixture.support,
+            preferences: PreferencesAdapterV1(defaults: fixture.defaults))
+        let eraseID = UUID()
+        _ = try reopened.beginNotificationErase(operationID: eraseID)
+        let erasing = Task { @MainActor in
+            try await DeviceLocalNotificationOwnerV1.erase(control: reopened, system: fixture.system, operationID: eraseID)
+        }
+        XCTAssertThrowsError(try fixture.control.requireNotificationPublicationAllowed())
+        XCTAssertEqual(try reopened.loadPrivateNotificationMapping(), admitted)
+        fixture.system.releaseAdd()
+        do { _ = try await scheduling.value; XCTFail("late add published through erase revocation") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        try await erasing.value
+        XCTAssertEqual(fixture.system.addCount, 1)
+        XCTAssertTrue(fixture.system.requests.isEmpty)
+        XCTAssertNil(try reopened.loadPrivateNotificationMapping())
+        XCTAssertNil(try reopened.loadControl())
+        let finalOwner = try AppLockNotificationControlStoreV1(applicationSupportURL: fixture.support,
+            preferences: PreferencesAdapterV1(defaults: fixture.defaults))
+        XCTAssertThrowsError(try finalOwner.requireNotificationPublicationAllowed())
+        do { _ = try await fixture.owner.reconcile(fixture.projection); XCTFail("reopened erase restored scheduling") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        XCTAssertEqual(fixture.system.addCount, 1)
+    }
+
     func testV23P04C22G01FixedCompletionRelativeEditorDueAndStartOnce() throws {
         let corpus = try C22RecurringRoundTestSupport.corpus()
         XCTAssertEqual(corpus.selectors, [

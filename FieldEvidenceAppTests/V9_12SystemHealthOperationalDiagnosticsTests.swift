@@ -940,7 +940,7 @@ private final class C27V912TypedLocatorAnchorTests: XCTestCase {
 extension V9_12SystemHealthOperationalDiagnosticsTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
     }
@@ -1218,7 +1218,7 @@ private actor V912ScratchStore: ScratchDataLeasePortV1 {
     func recoverScratchLeases() async throws -> ScratchDataLeaseRecoverySummaryV1 {
         recoveries += 1
         await trace?.record("scratch")
-        try ScratchDataLeaseRecoverySummaryV1(
+        return try ScratchDataLeaseRecoverySummaryV1(
             recoveredExpiredLeaseCount: 0,
             removedByteCount: 0
         )

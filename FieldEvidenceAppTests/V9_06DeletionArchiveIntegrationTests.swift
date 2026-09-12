@@ -120,8 +120,10 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
             modelContext: deletion.session.modelContext,
             generationRootURL: deletion.session.generationRootURL
         )
-        XCTAssertEqual(try await deletionRecovery.reconcile().completedCommittedCount, 1)
-        XCTAssertEqual(try await deletionRecovery.reconcile().completedCommittedCount, 0)
+        let firstRecovery = try await deletionRecovery.reconcile()
+        XCTAssertEqual(firstRecovery.completedCommittedCount, 1)
+        let repeatedRecovery = try await deletionRecovery.reconcile()
+        XCTAssertEqual(repeatedRecovery.completedCommittedCount, 0)
 
         for (offset, point) in [
             EraseAllFailurePoint.beforePreparedWrite,
@@ -469,7 +471,7 @@ extension V9_06DeletionArchiveIntegrationTests {
 extension V9_06DeletionArchiveIntegrationTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
     }

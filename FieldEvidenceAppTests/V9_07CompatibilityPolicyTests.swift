@@ -427,7 +427,7 @@ extension V9_07CompatibilityPolicyTests {
 extension V9_07CompatibilityPolicyTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
     }

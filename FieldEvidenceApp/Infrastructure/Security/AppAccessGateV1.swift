@@ -3,6 +3,16 @@ import Foundation
 actor AppAccessGateV1: AppAccessGatePortV1 {
     fileprivate final class ContentReadOwner: Sendable {}
     fileprivate final class ConfigurationAuthenticationOwner: Sendable {}
+    fileprivate final class ToggleAuthenticationOwner: Sendable {}
+
+    /// Only successful enable/disable device-owner authentication can mint this
+    /// proof. A content-read token or an ordinary unlock cannot replace it.
+    struct ToggleAuthenticationToken: Sendable {
+        fileprivate let owner: ToggleAuthenticationOwner
+        fileprivate let generation: UInt64
+        fileprivate let sessionID: UUID
+        fileprivate let targetEnabled: Bool
+    }
 
     /// A repair proof authorizes configuration completion only. It cannot be
     /// serialized or used as a content permit, including after authentication.
@@ -35,6 +45,8 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     private var configurationRecoveryRequired = false
     private let configurationAuthenticationOwner = ConfigurationAuthenticationOwner()
     private var configurationAuthentication: ConfigurationAuthenticationToken?
+    private let toggleAuthenticationOwner = ToggleAuthenticationOwner()
+    private var toggleAuthentication: ToggleAuthenticationToken?
 
     init(
         setting: DeviceLocalAppLockSettingReadV1,
@@ -104,6 +116,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     private func revokeContentReads() {
+        toggleAuthentication = nil
         guard !contentReadEpochExhausted else { return }
         let (next, overflow) = contentReadEpoch.addingReportingOverflow(1)
         if overflow {
@@ -209,6 +222,24 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         return token
     }
 
+    func toggleAuthenticationToken(targetEnabled: Bool) throws -> ToggleAuthenticationToken {
+        guard let token = toggleAuthentication else { throw AppAccessContractFailureV1.accessDenied }
+        try validateToggleAuthentication(token, targetEnabled: targetEnabled)
+        return token
+    }
+
+    func validateToggleAuthentication(_ token: ToggleAuthenticationToken, targetEnabled: Bool) throws {
+        guard sceneIsActive, !configurationRecoveryRequired,
+              token.owner === toggleAuthenticationOwner, token.generation == generation,
+              token.targetEnabled == targetEnabled,
+              let current = toggleAuthentication,
+              current.generation == token.generation, current.sessionID == token.sessionID,
+              current.targetEnabled == token.targetEnabled,
+              case .unlockedForeground(let sessionID) = state, sessionID == token.sessionID else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
+
     func validateConfigurationAuthentication(_ token: ConfigurationAuthenticationToken) throws {
         guard configurationRecoveryRequired, sceneIsActive,
               token.owner === configurationAuthenticationOwner,
@@ -222,16 +253,18 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     func setEnabledAfterAuthenticated(
-        _ value: Bool, configurationToken: ConfigurationAuthenticationToken? = nil
+        _ value: Bool, configurationToken: ConfigurationAuthenticationToken? = nil,
+        toggleToken: ToggleAuthenticationToken? = nil
     ) async throws {
         guard generation < UInt64.max else { throw AppAccessContractFailureV1.staleAttempt }
         if configurationRecoveryRequired {
-            guard let configurationToken else { throw AppAccessContractFailureV1.accessDenied }
+            guard let configurationToken, toggleToken == nil else { throw AppAccessContractFailureV1.accessDenied }
             try validateConfigurationAuthentication(configurationToken)
         } else {
-            guard configurationToken == nil, case .unlockedForeground = state else {
+            guard configurationToken == nil, let toggleToken else {
                 throw AppAccessContractFailureV1.accessDenied
             }
+            try validateToggleAuthentication(toggleToken, targetEnabled: value)
         }
         configurationRecoveryRequired = false
         enabled = value
@@ -343,6 +376,11 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
             } else {
                 state = .unlockedForeground(sessionID: sessionID)
                 privacyCover = false
+                if trigger == .enableAppLock || trigger == .disableAppLock {
+                    toggleAuthentication = ToggleAuthenticationToken(owner: toggleAuthenticationOwner,
+                        generation: capturedGeneration, sessionID: sessionID,
+                        targetEnabled: trigger == .enableAppLock)
+                }
             }
         case .userCancelled, .appCancelled, .systemCancelled:
             state = .locked(reason: .authenticationCancelled)

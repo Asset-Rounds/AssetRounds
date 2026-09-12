@@ -15,6 +15,91 @@ enum DeviceLocalAppLockSettingReadV1: Equatable, Sendable {
     case protectedDataUnavailable
 }
 
+/// Content-blind binding to the sole physical control record. The digest binds
+/// the complete immutable setting plan without exposing its storage bytes.
+struct NotificationOperationSubjectV1: Equatable, Sendable {
+    let journal: AppLockNotificationJournalV1
+    let settingWriteSHA256: String
+
+    init(control: AppLockNotificationControlV1) throws {
+        journal = control.journal
+        settingWriteSHA256 = CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(control.settingWrite))
+    }
+
+    init(journal: AppLockNotificationJournalV1, settingWriteSHA256: String) throws {
+        guard CompatibilityCanonicalV1.validSHA256(settingWriteSHA256) else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        self.journal = journal
+        self.settingWriteSHA256 = settingWriteSHA256
+    }
+
+    func hasSameImmutableSubject(as other: Self) -> Bool {
+        journal.operationID == other.journal.operationID
+            && journal.targetEnabled == other.journal.targetEnabled
+            && journal.priorPolicy == other.journal.priorPolicy
+            && journal.projections == other.journal.projections
+            && settingWriteSHA256 == other.settingWriteSHA256
+    }
+
+    func immutableSHA256() throws -> String {
+        struct Basis: Encodable {
+            let operationID: UUID
+            let targetEnabled: Bool
+            let priorPolicy: AppLockNotificationCanonicalPolicyV1
+            let projections: [AppLockGenericNotificationV1]
+            let settingWriteSHA256: String
+        }
+        return CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(Basis(
+            operationID: journal.operationID, targetEnabled: journal.targetEnabled,
+            priorPolicy: journal.priorPolicy, projections: journal.projections,
+            settingWriteSHA256: settingWriteSHA256)))
+    }
+}
+
+/// Unserializable, original-proof authorization. Ordinary content reads can
+/// schedule reminders but can never complete an AppLock setting transition.
+struct NotificationOperationAuthorizationV1: Sendable {
+    enum Proof: Sendable {
+        case content(AppAccessGateV1.ContentReadToken)
+        case toggle(AppAccessGateV1.ToggleAuthenticationToken, targetEnabled: Bool)
+        case repair(AppAccessGateV1.ConfigurationAuthenticationToken, targetEnabled: Bool)
+    }
+    let gate: AppAccessGateV1
+    let proof: Proof
+    let operationID: UUID
+    let subject: NotificationOperationSubjectV1?
+
+    func validateRead() async throws {
+        guard operationID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.invalidValue }
+        switch proof {
+        case .content(let token): try await gate.validateContentRead(token, for: .render)
+        case .toggle(let token, let target): try await gate.validateToggleAuthentication(token, targetEnabled: target)
+        case .repair(let token, _):
+            guard subject != nil else { throw AppAccessContractFailureV1.effectMismatch }
+            try await gate.validateConfigurationAuthentication(token)
+        }
+    }
+
+    func validateMutation(operationID: UUID, targetEnabled: Bool) async throws {
+        guard self.operationID == operationID else { throw AppAccessContractFailureV1.effectMismatch }
+        switch proof {
+        case .content: throw AppAccessContractFailureV1.accessDenied
+        case .toggle(_, let target), .repair(_, let target):
+            guard target == targetEnabled else { throw AppAccessContractFailureV1.effectMismatch }
+        }
+        try await validateRead()
+    }
+
+    func binding(to subject: NotificationOperationSubjectV1) throws -> Self {
+        guard subject.journal.operationID == operationID else { throw AppAccessContractFailureV1.effectMismatch }
+        if let original = self.subject, original.journal.operationID == operationID {
+            guard original.hasSameImmutableSubject(as: subject) else { throw AppAccessContractFailureV1.effectMismatch }
+        }
+        return .init(gate: gate, proof: proof, operationID: operationID, subject: subject)
+    }
+}
+
 struct DeviceLocalAppLockSettingWriteReceiptV1: Equatable, Sendable {
     let operationID: UUID
     let value: DeviceLocalAppLockSettingV1
@@ -25,7 +110,8 @@ protocol DeviceLocalAppLockSettingPortV1: Sendable {
     func readAppLockSetting() async -> DeviceLocalAppLockSettingReadV1
     func writeAppLockSetting(
         _ value: DeviceLocalAppLockSettingV1,
-        operationID: UUID
+        operationID: UUID,
+        authorization: NotificationOperationAuthorizationV1
     ) async throws -> DeviceLocalAppLockSettingWriteReceiptV1
     func eraseAppLockSetting(operationID: UUID) async throws
 }
@@ -333,18 +419,21 @@ struct AppLockNotificationJournalV1: Codable, Equatable, Sendable {
 }
 
 protocol AppLockNotificationPrivacyPortV1: Sendable {
+    func bindNotificationGate(_ gate: AppAccessGateV1) async throws
+    func loadAuthenticationSubject() async throws -> NotificationOperationSubjectV1?
+    func validatesLocalConfiguration(_ setting: DeviceLocalAppLockSettingReadV1) async throws -> Bool
     func loadJournal() async throws -> AppLockNotificationJournalV1?
-    func prepareEnable(operationID: UUID) async throws -> AppLockNotificationJournalV1
+    func prepareEnable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1
     func applyGenericProjection(
-        _ journal: AppLockNotificationJournalV1
+        _ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
     ) async throws -> AppLockNotificationPrivacyDispositionV1
-    func prepareDisable(operationID: UUID) async throws -> AppLockNotificationJournalV1
+    func prepareDisable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1
     func rebuildPriorPolicy(
-        _ journal: AppLockNotificationJournalV1
+        _ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
     ) async throws -> AppLockNotificationPrivacyDispositionV1
     func resolveOpaqueTokenAfterAuthentication(
         _ token: String,
-        now: Date
+        now: Date, authorization: NotificationOperationAuthorizationV1
     ) async throws -> String?
     func eraseNotificationsAndMappings(operationID: UUID) async throws
 }
@@ -420,22 +509,25 @@ struct AppLockNotificationControlV1: Codable, Equatable, Sendable {
 /// A disable successor retains that predecessor's priorPolicy. Failed
 /// validation or comparison leaves the original journal untouched.
 protocol AppLockNotificationEffectPortV1: Sendable {
+    func bindNotificationGateEffect(_ gate: AppAccessGateV1) async throws
+    func loadAuthenticationSubjectEffect() async throws -> NotificationOperationSubjectV1?
+    func validatesLocalConfigurationEffect(_ setting: DeviceLocalAppLockSettingReadV1) async throws -> Bool
     func loadJournalEffect() async throws -> AppLockNotificationJournalV1?
     func prepareEnableEffect(
         operationID: UUID,
-        expectedPredecessor: AppLockNotificationJournalV1?
+        expectedPredecessor: AppLockNotificationJournalV1?, authorization: NotificationOperationAuthorizationV1
     ) async throws -> AppLockNotificationJournalV1
     func publishGenericEffect(
-        expected: AppLockNotificationJournalV1
+        expected: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
     ) async throws -> AppLockNotificationJournalV1
     func prepareDisableEffect(
         operationID: UUID,
-        expectedPredecessor: AppLockNotificationJournalV1?
+        expectedPredecessor: AppLockNotificationJournalV1?, authorization: NotificationOperationAuthorizationV1
     ) async throws -> AppLockNotificationJournalV1
     func rebuildPriorPolicyEffect(
-        expected: AppLockNotificationJournalV1
+        expected: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
     ) async throws -> AppLockNotificationJournalV1
-    func resolveOpaqueTokenEffect(_ token: String, now: Date) async throws -> String?
+    func resolveOpaqueTokenEffect(_ token: String, now: Date, authorization: NotificationOperationAuthorizationV1) async throws -> String?
     func eraseNotificationsAndMappingsEffect(operationID: UUID) async throws
 }
 

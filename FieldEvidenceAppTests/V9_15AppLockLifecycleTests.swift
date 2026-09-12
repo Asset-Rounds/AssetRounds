@@ -52,6 +52,159 @@ private struct C16NotificationControlFixture {
 }
 
 extension V9_15AppLockLifecycleTests {
+    @MainActor
+    func testConcreteNotificationOwnerKeepsBootstrapLazyAndCompletesOnlyFreshToggle() async throws {
+        let fixture = try C16NotificationControlFixture()
+        // The Simulator owns final cleanup while SQLite may still be retained.
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        _ = try fixture.preferences.readReminderPolicy()
+        let session = try StoreGenerationFactory(applicationSupportURL: fixture.support).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let probe = V915NotificationSystemProbe()
+        let control = try fixture.owner()
+        let owner = DeviceLocalNotificationOwnerV1(control: control, preferences: fixture.preferences,
+            system: probe, clock: V915Clock()) { authorization in
+                probe.sourceOpenCount += 1
+                return ProductionMyDaySourceProviderV1(session: coordinator, accessGate: authorization.gate)
+            }
+        let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(setting: owner,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated]),
+            ingressStore: V915IngressStore(), notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
+            clock: V915Clock(), identifiers: V915IDs(values: (901...914).map(Self.id)))
+        XCTAssertEqual(probe.sourceOpenCount, 0)
+        XCTAssertEqual(probe.observationCount, 0)
+        XCTAssertNil(try control.loadPrivateNotificationMapping())
+        let receipt = try await lifecycle.enable(operationID: Self.id(915))
+        XCTAssertTrue(receipt.enabled)
+        XCTAssertGreaterThan(probe.sourceOpenCount, 0)
+        XCTAssertGreaterThan(probe.observationCount, 0)
+        let completed = try XCTUnwrap(control.loadControl())
+        XCTAssertEqual(completed.phase, .settingCommitted)
+        XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot(), completed.settingWrite.successor)
+        let gate = await lifecycle.accessGate()
+        let state = await gate.currentState()
+        XCTAssertEqual(state, .locked(reason: .coldLaunch))
+        _ = await gate.authenticate(trigger: .unlock)
+        let ordinary = NotificationOperationAuthorizationV1(gate: gate,
+            proof: .content(try await gate.beginContentRead(for: .render)), operationID: Self.id(916),
+            subject: try NotificationOperationSubjectV1(control: completed))
+        let beforeOpens = probe.sourceOpenCount
+        do {
+            _ = try await owner.prepareDisableEffect(operationID: Self.id(916),
+                expectedPredecessor: completed.journal, authorization: ordinary)
+            XCTFail("ordinary content proof prepared a setting mutation")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        XCTAssertEqual(probe.sourceOpenCount, beforeOpens)
+        XCTAssertEqual(try control.loadControl(), completed)
+        XCTAssertTrue(probe.requests.isEmpty)
+    }
+
+    @MainActor
+    func testConcreteNotificationRepairReadsCanonicalSchedulesWhileOrdinaryContentStaysCovered() async throws {
+        let fixture = try C16NotificationControlFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        _ = try fixture.preferences.readReminderPolicy()
+        let session = try StoreGenerationFactory(applicationSupportURL: fixture.support).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let probe = V915NotificationSystemProbe()
+        let control = try fixture.owner()
+        let owner = DeviceLocalNotificationOwnerV1(control: control, preferences: fixture.preferences,
+            system: probe, clock: V915Clock()) { authorization in
+                probe.sourceOpenCount += 1
+                return ProductionMyDaySourceProviderV1(session: coordinator, accessGate: authorization.gate)
+            }
+        let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(setting: owner,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated]),
+            ingressStore: V915IngressStore(), notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
+            clock: V915Clock(), identifiers: V915IDs(values: (921...938).map(Self.id)))
+        let gate = await lifecycle.accessGate()
+        probe.beforeObservation = { await gate.lock(reason: .returnedFromBackground) }
+        do { _ = try await lifecycle.enable(operationID: Self.id(939)); XCTFail("revoked OS read published setting") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        XCTAssertNil(try fixture.preferences.readAppLockSettingSnapshot().setting)
+        XCTAssertEqual(try control.loadControl()?.phase, .prepared)
+        let original = try XCTUnwrap(control.loadControl())
+        probe.beforeObservation = {
+            do { _ = try await gate.beginContentRead(for: .render); XCTFail("repair opened ordinary content") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            let covered = await gate.privacyCoverRequired()
+            XCTAssertTrue(covered)
+        }
+        let result = try await lifecycle.recoverAfterAuthentication()
+        XCTAssertEqual(result, .resumedToLocked)
+        let repaired = try XCTUnwrap(control.loadControl())
+        XCTAssertEqual(repaired.journal.operationID, original.journal.operationID)
+        XCTAssertEqual(repaired.settingWrite, original.settingWrite)
+        XCTAssertEqual(repaired.phase, .settingCommitted)
+        XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot(), repaired.settingWrite.successor)
+        let finalState = await gate.currentState()
+        XCTAssertEqual(finalState, .locked(reason: .coldLaunch))
+    }
+
+    @MainActor
+    func testConcreteNotificationColdRepairRebindsOnlyEphemeralSourceIdentity() async throws {
+        let fixture = try C16NotificationControlFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        _ = try fixture.preferences.readReminderPolicy()
+        let probe = V915NotificationSystemProbe()
+        do {
+            let session = try StoreGenerationFactory(applicationSupportURL: fixture.support).openOrBootstrapCurrent()
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            let owner = DeviceLocalNotificationOwnerV1(control: try fixture.owner(), preferences: fixture.preferences,
+                system: probe, clock: V915Clock()) { authorization in
+                    ProductionMyDaySourceProviderV1(session: coordinator, accessGate: authorization.gate)
+                }
+            let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(setting: owner,
+                authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+                ingressStore: V915IngressStore(), notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
+                clock: V915Clock(), identifiers: V915IDs(values: (941...955).map(Self.id)))
+            let gate = await lifecycle.accessGate()
+            probe.beforeObservation = { await gate.lock(reason: .returnedFromBackground) }
+            do { _ = try await lifecycle.enable(operationID: Self.id(956)); XCTFail("revoked read completed toggle") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            probe.beforeObservation = nil
+        }
+        let reopenedControl = try fixture.owner()
+        let original = try XCTUnwrap(reopenedControl.loadControl())
+        let oldMapping = try XCTUnwrap(reopenedControl.loadPrivateNotificationMapping())
+        XCTAssertEqual(original.phase, .prepared)
+        let session = try StoreGenerationFactory(applicationSupportURL: fixture.support).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let owner = DeviceLocalNotificationOwnerV1(control: reopenedControl, preferences: fixture.preferences,
+            system: probe, clock: V915Clock()) { authorization in
+                probe.sourceOpenCount += 1
+                return ProductionMyDaySourceProviderV1(session: coordinator, accessGate: authorization.gate)
+            }
+        let reopened = try await AppLockLifecycleCoordinatorV1.bootstrap(setting: owner,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+            ingressStore: V915IngressStore(), notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
+            clock: V915Clock(), identifiers: V915IDs(values: (961...975).map(Self.id)))
+        XCTAssertEqual(probe.sourceOpenCount, 0)
+        let gate = await reopened.accessGate()
+        probe.beforeObservation = {
+            do { _ = try await gate.beginContentRead(for: .render); XCTFail("cold repair exposed ordinary content") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        }
+        let result = try await reopened.recoverAfterAuthentication()
+        XCTAssertEqual(result, .resumedToLocked)
+        let repaired = try XCTUnwrap(reopenedControl.loadControl())
+        let mapping = try XCTUnwrap(reopenedControl.loadPrivateNotificationMapping())
+        XCTAssertEqual(repaired.phase, .settingCommitted)
+        XCTAssertEqual(repaired.settingWrite, original.settingWrite)
+        XCTAssertEqual(mapping.operationID, oldMapping.operationID)
+        XCTAssertEqual(mapping.controlSubjectSHA256, oldMapping.controlSubjectSHA256)
+        XCTAssertEqual(mapping.source.projection, oldMapping.source.projection)
+        XCTAssertEqual(mapping.source.sourceClosureSHA256, oldMapping.source.sourceClosureSHA256)
+        XCTAssertEqual(mapping.source.generationID, oldMapping.source.generationID)
+        XCTAssertEqual(mapping.source.rootDevice, oldMapping.source.rootDevice)
+        XCTAssertEqual(mapping.source.rootInode, oldMapping.source.rootInode)
+        XCTAssertEqual(mapping.source.writerRevision.revision, oldMapping.source.writerRevision.revision)
+        XCTAssertEqual(mapping.source.writerRevision.entityRevisions, oldMapping.source.writerRevision.entityRevisions)
+        XCTAssertNotEqual(mapping.source.writerRevision.writerInstanceID, oldMapping.source.writerRevision.writerInstanceID)
+        XCTAssertNotEqual(mapping.source.uiGenerationToken, oldMapping.source.uiGenerationToken)
+        XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot(), repaired.settingWrite.successor)
+    }
+
     func testNotificationControlPersistsBeforeProjectionAndCompletesAfterPhysicalReopen() throws {
         let fixture = try C16NotificationControlFixture()
         defer { fixture.remove() }
@@ -1576,7 +1729,7 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         let absent = await setting.readAppLockSetting()
         XCTAssertEqual(absent, .absentDisabled)
         XCTAssertNil(defaults.object(forKey: key))
-        _ = try await setting.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(960))
+        _ = try await setting.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(960), authorization: try await v915Authorization(operationID: Self.id(960), targetEnabled: false))
         let bytes = try XCTUnwrap(defaults.data(forKey: key))
         let reopenedPreferences = PreferencesAdapterV1(defaults: try XCTUnwrap(UserDefaults(suiteName: suiteName)))
         let reopenedSetting = try DeviceLocalAppLockSettingAdapterV1(preferences: reopenedPreferences, registry: registry)
@@ -1601,7 +1754,7 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         let original = try DeviceLocalAppLockSettingAdapterV1(
             preferences: PreferencesAdapterV1(defaults: defaults), registry: registry
         )
-        _ = try await original.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(961))
+        _ = try await original.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(961), authorization: try await v915Authorization(operationID: Self.id(961), targetEnabled: false))
         var envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(defaults.data(forKey: key))) as? [String: Any])
         let wrongType = Data("\"false\"".utf8)
         envelope["canonicalValue"] = wrongType.base64EncodedString()
@@ -1634,7 +1787,7 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
             let preferences = PreferencesAdapterV1(defaults: try XCTUnwrap(UserDefaults(suiteName: suiteName)))
             let setting = try DeviceLocalAppLockSettingAdapterV1(preferences: preferences, registry: registry)
             if explicit {
-                _ = try await setting.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(962))
+                _ = try await setting.writeAppLockSetting(.init(isEnabled: false), operationID: Self.id(962), authorization: try await v915Authorization(operationID: Self.id(962), targetEnabled: false))
             }
             let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
                 setting: setting, authentication: auth, ingressStore: V915IngressStore(),
@@ -1721,6 +1874,69 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         XCTAssertFalse(revealed)
     }
 
+    func testToggleProofBindsFreshAuthenticationOwnerTargetAndSingleCompletion() async throws {
+        for enabled in [false, true] {
+            let gate = AppAccessGateV1(setting: .value(.init(isEnabled: !enabled)),
+                authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+                clock: V915Clock(), identifiers: V915IDs(values: [Self.id(801), Self.id(802)]))
+            let outcome = await gate.authenticate(trigger: enabled ? .enableAppLock : .disableAppLock)
+            XCTAssertEqual(outcome, .authenticated)
+            let proof = try await gate.toggleAuthenticationToken(targetEnabled: enabled)
+            try await gate.validateToggleAuthentication(proof, targetEnabled: enabled)
+            do {
+                try await gate.validateToggleAuthentication(proof, targetEnabled: !enabled)
+                XCTFail("toggle proof crossed its target")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            let other = AppAccessGateV1(setting: .value(.init(isEnabled: !enabled)),
+                authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+                clock: V915Clock(), identifiers: V915IDs(values: [Self.id(801), Self.id(802)]))
+            _ = await other.authenticate(trigger: enabled ? .enableAppLock : .disableAppLock)
+            do {
+                try await other.setEnabledAfterAuthenticated(enabled, toggleToken: proof)
+                XCTFail("matching session identifiers accepted another gate's proof")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            do {
+                try await gate.setEnabledAfterAuthenticated(enabled)
+                XCTFail("an unlocked state replaced fresh toggle proof")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+            try await gate.setEnabledAfterAuthenticated(enabled, toggleToken: proof)
+            do {
+                try await gate.setEnabledAfterAuthenticated(enabled, toggleToken: proof)
+                XCTFail("completed toggle proof replayed")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        }
+    }
+
+    func testToggleProofRevocationAndOrdinaryUnlockCannotAuthorizeConfiguration() async throws {
+        for boundary in 0..<5 {
+            let gate = AppAccessGateV1(setting: .absentDisabled,
+                authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated]),
+                clock: V915Clock(), identifiers: V915IDs(values: (811...818).map(Self.id)))
+            _ = await gate.authenticate(trigger: .enableAppLock)
+            let proof = try await gate.toggleAuthenticationToken(targetEnabled: true)
+            switch boundary {
+            case 0: await gate.sceneBecameInactive(); await gate.sceneBecameActive()
+            case 1: await gate.lock(reason: .returnedFromBackground)
+            case 2: await gate.markConfigurationUnknown()
+            case 3: _ = await gate.authenticate(trigger: .enableAppLock)
+            default: await gate.eraseAccessState()
+            }
+            do {
+                try await gate.validateToggleAuthentication(proof, targetEnabled: true)
+                XCTFail("revoked toggle proof survived boundary \(boundary)")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        }
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+            clock: V915Clock(), identifiers: V915IDs(values: [Self.id(821), Self.id(822)]))
+        _ = await gate.authenticate(trigger: .unlock)
+        _ = try await gate.beginContentRead(for: .render)
+        do {
+            _ = try await gate.toggleAuthenticationToken(targetEnabled: false)
+            XCTFail("ordinary unlock minted a disable proof")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+    }
+
     func testV9_15G01OptInAccessGateUsesFreshDeviceOwnerAuthentication() async throws {
         let corpus = try Self.corpus()
         XCTAssertEqual(corpus.string("authority.cardID"), "V23-P02-C11")
@@ -1752,7 +1968,8 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
 
         var outcome = await gate.authenticate(trigger: .enableAppLock)
         XCTAssertEqual(outcome, .authenticated)
-        try await gate.setEnabledAfterAuthenticated(true)
+        let toggleProof = try await gate.toggleAuthenticationToken(targetEnabled: true)
+        try await gate.setEnabledAfterAuthenticated(true, toggleToken: toggleProof)
         try await gate.markRecoveryComplete(enabled: true)
         observedState = await gate.currentState()
         XCTAssertEqual(observedState, .locked(reason: .coldLaunch))
@@ -1895,12 +2112,12 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         ).validate()) { XCTAssertEqual($0 as? AppAccessContractFailureV1, .invalidValue) }
 
         let notifications = V915NotificationStore(journal: journal)
-        let lockedResolution = try await notifications.resolveOpaqueTokenAfterAuthentication(Self.digest(8), now: now)
+        let lockedResolution = try await notifications.resolveOpaqueTokenAfterAuthentication(Self.digest(8), now: now, authorization: try await v915ContentAuthorization())
         XCTAssertNil(lockedResolution)
         await notifications.markAuthenticated()
-        let unlockedResolution = try await notifications.resolveOpaqueTokenAfterAuthentication(Self.digest(8), now: now)
-        let applied = try await notifications.applyGenericProjection(journal)
-        let adopted = try await notifications.applyGenericProjection(journal)
+        let unlockedResolution = try await notifications.resolveOpaqueTokenAfterAuthentication(Self.digest(8), now: now, authorization: try await v915ContentAuthorization())
+        let applied = try await notifications.applyGenericProjection(journal, authorization: try await v915Authorization(notifications: notifications, operationID: journal.operationID, targetEnabled: journal.targetEnabled))
+        let adopted = try await notifications.applyGenericProjection(journal, authorization: try await v915Authorization(notifications: notifications, operationID: journal.operationID, targetEnabled: journal.targetEnabled))
         let mixed = await notifications.mixedPrivateAndGeneric
         XCTAssertEqual(unlockedResolution, "opaque-route")
         XCTAssertEqual(applied, .genericProjectionApplied)
@@ -1909,9 +2126,9 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
 
         let notificationEffects = V915NotificationEffects(policy: policy, projection: projection)
         let productionNotifications = AppLockNotificationPrivacyCoordinatorV1(effects: notificationEffects)
-        let productionPrepared = try await productionNotifications.prepareEnable(operationID: Self.id(97))
-        let productionApplied = try await productionNotifications.applyGenericProjection(productionPrepared)
-        let productionAdopted = try await productionNotifications.applyGenericProjection(productionPrepared)
+        let productionPrepared = try await productionNotifications.prepareEnable(operationID: Self.id(97), authorization: try await v915Authorization(notifications: productionNotifications, operationID: Self.id(97), targetEnabled: true))
+        let productionApplied = try await productionNotifications.applyGenericProjection(productionPrepared, authorization: try await v915Authorization(notifications: productionNotifications, operationID: productionPrepared.operationID, targetEnabled: productionPrepared.targetEnabled))
+        let productionAdopted = try await productionNotifications.applyGenericProjection(productionPrepared, authorization: try await v915Authorization(notifications: productionNotifications, operationID: productionPrepared.operationID, targetEnabled: productionPrepared.targetEnabled))
         XCTAssertEqual(productionApplied, .genericProjectionApplied)
         XCTAssertEqual(productionAdopted, .genericProjectionAdopted)
         let wrongSubject = try AppLockNotificationJournalV1(
@@ -1921,20 +2138,20 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
                 requestID: "wrong-subject", opaqueCorrelationToken: Self.digest(98)
             )], disposition: .enablingPrepared
         )
-        do { _ = try await productionNotifications.applyGenericProjection(wrongSubject); XCTFail("terminal journal adopted the wrong subject") }
+        do { _ = try await productionNotifications.applyGenericProjection(wrongSubject, authorization: try await v915Authorization(notifications: productionNotifications, operationID: wrongSubject.operationID, targetEnabled: wrongSubject.targetEnabled)); XCTFail("terminal journal adopted the wrong subject") }
         catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
         let completedEnableReadback = try await productionNotifications.loadJournal()
         let completedEnable = try XCTUnwrap(completedEnableReadback)
-        let enableRetry = try await productionNotifications.prepareEnable(operationID: Self.id(97))
+        let enableRetry = try await productionNotifications.prepareEnable(operationID: Self.id(97), authorization: try await v915Authorization(notifications: productionNotifications, operationID: Self.id(97), targetEnabled: true))
         XCTAssertEqual(enableRetry, completedEnable)
-        let disablePrepared = try await productionNotifications.prepareDisable(operationID: Self.id(100))
+        let disablePrepared = try await productionNotifications.prepareDisable(operationID: Self.id(100), authorization: try await v915Authorization(notifications: productionNotifications, operationID: Self.id(100), targetEnabled: false))
         XCTAssertEqual(disablePrepared.priorPolicy, policy)
         XCTAssertTrue(disablePrepared.projections.isEmpty)
-        let disableRetry = try await productionNotifications.prepareDisable(operationID: Self.id(100))
+        let disableRetry = try await productionNotifications.prepareDisable(operationID: Self.id(100), authorization: try await v915Authorization(notifications: productionNotifications, operationID: Self.id(100), targetEnabled: false))
         XCTAssertEqual(disableRetry, disablePrepared)
-        let rebuilt = try await productionNotifications.rebuildPriorPolicy(disablePrepared)
+        let rebuilt = try await productionNotifications.rebuildPriorPolicy(disablePrepared, authorization: try await v915Authorization(notifications: productionNotifications, operationID: disablePrepared.operationID, targetEnabled: disablePrepared.targetEnabled))
         XCTAssertEqual(rebuilt, .priorPolicyRebuilt)
-        let completedDisable = try await productionNotifications.prepareDisable(operationID: Self.id(100))
+        let completedDisable = try await productionNotifications.prepareDisable(operationID: Self.id(100), authorization: try await v915Authorization(notifications: productionNotifications, operationID: Self.id(100), targetEnabled: false))
         XCTAssertEqual(completedDisable.disposition, .priorPolicyRebuilt)
         XCTAssertEqual(completedDisable.priorPolicy, policy)
         let updatedPolicy = AppLockNotificationCanonicalPolicyV1(
@@ -1942,9 +2159,9 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
             canonicalDigest: Self.digest(101)
         )
         await notificationEffects.setCanonicalPolicy(updatedPolicy)
-        let nextEnable = try await productionNotifications.prepareEnable(operationID: Self.id(101))
+        let nextEnable = try await productionNotifications.prepareEnable(operationID: Self.id(101), authorization: try await v915Authorization(notifications: productionNotifications, operationID: Self.id(101), targetEnabled: true))
         XCTAssertEqual(nextEnable.priorPolicy, updatedPolicy)
-        let nextApplied = try await productionNotifications.applyGenericProjection(nextEnable)
+        let nextApplied = try await productionNotifications.applyGenericProjection(nextEnable, authorization: try await v915Authorization(notifications: productionNotifications, operationID: nextEnable.operationID, targetEnabled: nextEnable.targetEnabled))
         XCTAssertEqual(nextApplied, .genericProjectionApplied)
         let prepareCounts = await notificationEffects.prepareCounts
         XCTAssertEqual(prepareCounts, [2, 1])
@@ -1962,35 +2179,35 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         )
         let effects = V915NotificationEffects(policy: policy, projection: projection)
         let coordinator = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
-        let enable = try await coordinator.prepareEnable(operationID: Self.id(104))
-        let enableRetry = try await coordinator.prepareEnable(operationID: Self.id(104))
+        let enable = try await coordinator.prepareEnable(operationID: Self.id(104), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(104), targetEnabled: true))
+        let enableRetry = try await coordinator.prepareEnable(operationID: Self.id(104), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(104), targetEnabled: true))
         XCTAssertEqual(enableRetry, enable)
         for operation in [Self.id(104), Self.id(105)] {
-            do { _ = try await coordinator.prepareDisable(operationID: operation); XCTFail("replaced unfinished enable") }
+            do { _ = try await coordinator.prepareDisable(operationID: operation, authorization: try await v915Authorization(notifications: coordinator, operationID: operation, targetEnabled: false)); XCTFail("replaced unfinished enable") }
             catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
         }
-        do { _ = try await coordinator.prepareEnable(operationID: Self.id(105)); XCTFail("replaced original enable operation") }
+        do { _ = try await coordinator.prepareEnable(operationID: Self.id(105), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(105), targetEnabled: true)); XCTFail("replaced original enable operation") }
         catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
         let retainedEnable = try await coordinator.loadJournal()
         let enableCounts = await effects.prepareCounts
         XCTAssertEqual(retainedEnable, enable)
         XCTAssertEqual(enableCounts, [1, 0])
-        _ = try await coordinator.applyGenericProjection(enable)
-        let disable = try await coordinator.prepareDisable(operationID: Self.id(105))
-        let disableRetry = try await coordinator.prepareDisable(operationID: Self.id(105))
+        _ = try await coordinator.applyGenericProjection(enable, authorization: try await v915Authorization(notifications: coordinator, operationID: enable.operationID, targetEnabled: enable.targetEnabled))
+        let disable = try await coordinator.prepareDisable(operationID: Self.id(105), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(105), targetEnabled: false))
+        let disableRetry = try await coordinator.prepareDisable(operationID: Self.id(105), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(105), targetEnabled: false))
         XCTAssertEqual(disableRetry, disable)
         for operation in [Self.id(105), Self.id(106)] {
-            do { _ = try await coordinator.prepareEnable(operationID: operation); XCTFail("replaced unfinished disable") }
+            do { _ = try await coordinator.prepareEnable(operationID: operation, authorization: try await v915Authorization(notifications: coordinator, operationID: operation, targetEnabled: true)); XCTFail("replaced unfinished disable") }
             catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
         }
-        do { _ = try await coordinator.prepareDisable(operationID: Self.id(106)); XCTFail("replaced original disable operation") }
+        do { _ = try await coordinator.prepareDisable(operationID: Self.id(106), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(106), targetEnabled: false)); XCTFail("replaced original disable operation") }
         catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
         let retainedDisable = try await coordinator.loadJournal()
         let disableCounts = await effects.prepareCounts
         XCTAssertEqual(retainedDisable, disable)
         XCTAssertEqual(disableCounts, [1, 1])
-        _ = try await coordinator.rebuildPriorPolicy(disable)
-        let nextEnable = try await coordinator.prepareEnable(operationID: Self.id(106))
+        _ = try await coordinator.rebuildPriorPolicy(disable, authorization: try await v915Authorization(notifications: coordinator, operationID: disable.operationID, targetEnabled: disable.targetEnabled))
+        let nextEnable = try await coordinator.prepareEnable(operationID: Self.id(106), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(106), targetEnabled: true))
         XCTAssertEqual(nextEnable.disposition, .enablingPrepared)
     }
 
@@ -2007,22 +2224,22 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
             disablePolicyOverride: replacement
         )
         let coordinator = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
-        let enable = try await coordinator.prepareEnable(operationID: Self.id(110))
-        _ = try await coordinator.applyGenericProjection(enable)
+        let enable = try await coordinator.prepareEnable(operationID: Self.id(110), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(110), targetEnabled: true))
+        _ = try await coordinator.applyGenericProjection(enable, authorization: try await v915Authorization(notifications: coordinator, operationID: enable.operationID, targetEnabled: enable.targetEnabled))
         let original = try await coordinator.loadJournal()
-        do { _ = try await coordinator.prepareDisable(operationID: Self.id(111)); XCTFail("admitted substituted detail policy") }
+        do { _ = try await coordinator.prepareDisable(operationID: Self.id(111), authorization: try await v915Authorization(notifications: coordinator, operationID: Self.id(111), targetEnabled: false)); XCTFail("admitted substituted detail policy") }
         catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
         let reopened = AppLockNotificationPrivacyCoordinatorV1(effects: effects)
-        do { _ = try await reopened.prepareDisable(operationID: Self.id(111)); XCTFail("reopened retry admitted substituted detail policy") }
+        do { _ = try await reopened.prepareDisable(operationID: Self.id(111), authorization: try await v915Authorization(notifications: reopened, operationID: Self.id(111), targetEnabled: false)); XCTFail("reopened retry admitted substituted detail policy") }
         catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
         let retained = try await reopened.loadJournal()
         XCTAssertEqual(retained, original)
         let rebuildCount = await effects.rebuildCount
         XCTAssertEqual(rebuildCount, 0)
         await effects.setDisablePolicyOverride(nil)
-        let validRetry = try await reopened.prepareDisable(operationID: Self.id(111))
+        let validRetry = try await reopened.prepareDisable(operationID: Self.id(111), authorization: try await v915Authorization(notifications: reopened, operationID: Self.id(111), targetEnabled: false))
         XCTAssertEqual(validRetry.priorPolicy, policy)
-        let rebuilt = try await reopened.rebuildPriorPolicy(validRetry)
+        let rebuilt = try await reopened.rebuildPriorPolicy(validRetry, authorization: try await v915Authorization(notifications: reopened, operationID: validRetry.operationID, targetEnabled: validRetry.targetEnabled))
         XCTAssertEqual(rebuilt, .priorPolicyRebuilt)
     }
 
@@ -2240,10 +2457,10 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
             )], disposition: .interruptedRecoveryRequired
         )
         let first = V915NotificationStore(journal: journal)
-        let firstEffect = try await first.applyGenericProjection(journal)
+        let firstEffect = try await first.applyGenericProjection(journal, authorization: try await v915Authorization(notifications: first, operationID: journal.operationID, targetEnabled: journal.targetEnabled))
         XCTAssertEqual(firstEffect, .genericProjectionApplied)
         let recovered = V915NotificationStore(journal: try await first.loadJournal(), applied: true)
-        let recoveredEffect = try await recovered.applyGenericProjection(journal)
+        let recoveredEffect = try await recovered.applyGenericProjection(journal, authorization: try await v915Authorization(notifications: recovered, operationID: journal.operationID, targetEnabled: journal.targetEnabled))
         let recoveredMixed = await recovered.mixedPrivateAndGeneric
         let recoveredJournal = try await recovered.loadJournal()
         XCTAssertEqual(recoveredEffect, .genericProjectionAdopted)
@@ -2347,7 +2564,7 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         let erasedSetting = await settings.readAppLockSetting()
         let erasedIntents = try await ingress.pendingIntents()
         let erasedJournal = try await notifications.loadJournal()
-        let erasedResolution = try await notifications.resolveOpaqueTokenAfterAuthentication(Self.digest(162), now: now)
+        let erasedResolution = try await notifications.resolveOpaqueTokenAfterAuthentication(Self.digest(162), now: now, authorization: try await v915ContentAuthorization())
         XCTAssertEqual(erasedSetting, .absentDisabled)
         XCTAssertEqual(erasedIntents, [])
         XCTAssertNil(erasedJournal)
@@ -2641,6 +2858,62 @@ private actor V915ResumeGatedIngressStore: ProtectedIngressStoreV1 {
     func releasePendingRead() { readContinuation?.resume(); readContinuation = nil }
 }
 
+@MainActor private final class V915NotificationSystemProbe: NotificationSystemPortV1 {
+    var requests: [NotificationSystemRequestV1] = []
+    var sourceOpenCount = 0
+    var observationCount = 0
+    var beforeObservation: (@MainActor () async -> Void)?
+    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+    func observations() async throws -> [NotificationSystemObservationV1] {
+        observationCount += 1
+        await beforeObservation?()
+        return requests.map { .init(requestID: $0.notification.requestID, request: $0, delivered: false) }
+    }
+    func add(_ request: NotificationSystemRequestV1) async throws { requests.append(request) }
+    func remove(_ requestIDs: [String]) async throws { requests.removeAll { requestIDs.contains($0.notification.requestID) } }
+}
+
+// Legacy coordinator probes model control subjects; concrete owner tests use
+// the actual descriptor-pinned control store and incumbent canonical reader.
+nonisolated private func v915Subject(_ journal: AppLockNotificationJournalV1?) throws -> NotificationOperationSubjectV1? {
+    try journal.map { try .init(journal: $0,
+        settingWriteSHA256: CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode($0.priorPolicy))) }
+}
+
+nonisolated private func v915LocalConfiguration(_ journal: AppLockNotificationJournalV1?,
+                                               _ setting: DeviceLocalAppLockSettingReadV1) -> Bool {
+    guard let journal else { return setting == .absentDisabled || setting == .value(.init(isEnabled: false)) }
+    guard case .value(let value) = setting, value.isEnabled == journal.targetEnabled else { return false }
+    return journal.targetEnabled
+        ? journal.disposition == .genericProjectionApplied || journal.disposition == .genericProjectionAdopted
+        : journal.disposition == .priorPolicyRebuilt
+}
+
+@MainActor private func v915Authorization(notifications: any AppLockNotificationPrivacyPortV1,
+                                        operationID: UUID, targetEnabled: Bool) async throws -> NotificationOperationAuthorizationV1 {
+    try await v915Authorization(operationID: operationID, targetEnabled: targetEnabled,
+        subject: notifications.loadAuthenticationSubject())
+}
+
+@MainActor private func v915Authorization(operationID: UUID, targetEnabled: Bool,
+                                        subject: NotificationOperationSubjectV1? = nil) async throws -> NotificationOperationAuthorizationV1 {
+    let gate = AppAccessGateV1(setting: .value(.init(isEnabled: !targetEnabled)),
+        authentication: V915AuthenticationClient(outcomes: [.authenticated]), clock: V915Clock(),
+        identifiers: V915IDs(values: [UUID(), UUID()]))
+    guard await gate.authenticate(trigger: targetEnabled ? .enableAppLock : .disableAppLock) == .authenticated else {
+        throw AppAccessContractFailureV1.accessDenied
+    }
+    return .init(gate: gate, proof: .toggle(try await gate.toggleAuthenticationToken(targetEnabled: targetEnabled),
+        targetEnabled: targetEnabled), operationID: operationID, subject: subject)
+}
+
+@MainActor private func v915ContentAuthorization() async throws -> NotificationOperationAuthorizationV1 {
+    let gate = AppAccessGateV1(setting: .absentDisabled, authentication: V915AuthenticationClient(outcomes: []),
+        clock: V915Clock(), identifiers: V915IDs(values: []))
+    return .init(gate: gate, proof: .content(try await gate.beginContentRead(for: .render)),
+        operationID: UUID(), subject: nil)
+}
+
 private actor V915NotificationStore: AppLockNotificationPrivacyPortV1 {
     private var journal: AppLockNotificationJournalV1?
     private var applied = false
@@ -2651,11 +2924,14 @@ private actor V915NotificationStore: AppLockNotificationPrivacyPortV1 {
         self.applied = applied
     }
     func loadJournal() -> AppLockNotificationJournalV1? { journal }
-    func prepareEnable(operationID: UUID) throws -> AppLockNotificationJournalV1 { guard let journal else { throw AppAccessContractFailureV1.notificationReconciliationRequired }; return journal }
-    func applyGenericProjection(_ journal: AppLockNotificationJournalV1) -> AppLockNotificationPrivacyDispositionV1 { defer { applied = true }; return applied ? .genericProjectionAdopted : .genericProjectionApplied }
-    func prepareDisable(operationID: UUID) throws -> AppLockNotificationJournalV1 { guard let journal else { throw AppAccessContractFailureV1.notificationReconciliationRequired }; return journal }
-    func rebuildPriorPolicy(_ journal: AppLockNotificationJournalV1) -> AppLockNotificationPrivacyDispositionV1 { .priorPolicyRebuilt }
-    func resolveOpaqueTokenAfterAuthentication(_ token: String, now: Date) -> String? { authenticated && journal?.projections.contains(where: { $0.opaqueCorrelationToken == token }) == true ? "opaque-route" : nil }
+    func bindNotificationGate(_ gate: AppAccessGateV1) {}
+    func loadAuthenticationSubject() throws -> NotificationOperationSubjectV1? { try v915Subject(journal) }
+    func validatesLocalConfiguration(_ setting: DeviceLocalAppLockSettingReadV1) -> Bool { v915LocalConfiguration(journal, setting) }
+    func prepareEnable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) throws -> AppLockNotificationJournalV1 { guard let journal else { throw AppAccessContractFailureV1.notificationReconciliationRequired }; return journal }
+    func applyGenericProjection(_ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1) -> AppLockNotificationPrivacyDispositionV1 { defer { applied = true }; return applied ? .genericProjectionAdopted : .genericProjectionApplied }
+    func prepareDisable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) throws -> AppLockNotificationJournalV1 { guard let journal else { throw AppAccessContractFailureV1.notificationReconciliationRequired }; return journal }
+    func rebuildPriorPolicy(_ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1) -> AppLockNotificationPrivacyDispositionV1 { .priorPolicyRebuilt }
+    func resolveOpaqueTokenAfterAuthentication(_ token: String, now: Date, authorization: NotificationOperationAuthorizationV1) -> String? { authenticated && journal?.projections.contains(where: { $0.opaqueCorrelationToken == token }) == true ? "opaque-route" : nil }
     func eraseNotificationsAndMappings(operationID: UUID) { if journal != nil { eraseEffectCount += 1 }; journal = nil; authenticated = false }
     func markAuthenticated() { authenticated = true }
     var mixedPrivateAndGeneric: Bool { false }
@@ -2691,6 +2967,9 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
         disablePolicyOverride = value
     }
     func loadJournalEffect() -> AppLockNotificationJournalV1? { loadCount += 1; return journal }
+    func bindNotificationGateEffect(_ gate: AppAccessGateV1) {}
+    func loadAuthenticationSubjectEffect() throws -> NotificationOperationSubjectV1? { try v915Subject(journal) }
+    func validatesLocalConfigurationEffect(_ setting: DeviceLocalAppLockSettingReadV1) -> Bool { v915LocalConfiguration(journal, setting) }
     func replaceJournalForAuthenticationRace(_ value: AppLockNotificationJournalV1?) { journal = value }
     func waitUntilPublicationStarted() async {
         if publicationStarted { return }
@@ -2698,19 +2977,20 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
     }
     func releasePublication() { publicationContinuation?.resume(); publicationContinuation = nil }
     func prepareEnableEffect(operationID: UUID,
-                             expectedPredecessor: AppLockNotificationJournalV1?) throws
+                             expectedPredecessor: AppLockNotificationJournalV1?, authorization: NotificationOperationAuthorizationV1) throws
         -> AppLockNotificationJournalV1 {
-        enablePrepareCount += 1
         guard journal == expectedPredecessor else {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
+        if let journal, journal.operationID == operationID { return journal }
+        enablePrepareCount += 1
         let value = try AppLockNotificationJournalV1(
             operationID: operationID, targetEnabled: true, priorPolicy: policy,
             projections: [projection], disposition: .enablingPrepared
         )
         journal = value; return value
     }
-    func publishGenericEffect(expected: AppLockNotificationJournalV1) async throws -> AppLockNotificationJournalV1 {
+    func publishGenericEffect(expected: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1 {
         publishCount += 1
         if pausesPublication {
             publicationStarted = true
@@ -2721,17 +3001,18 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
         let value = try AppLockNotificationJournalV1(
             operationID: expected.operationID, targetEnabled: true,
             priorPolicy: expected.priorPolicy, projections: expected.projections,
-            disposition: .genericProjectionApplied
+            disposition: expected.disposition == .enablingPrepared ? .genericProjectionApplied : .genericProjectionAdopted
         )
         journal = value; return value
     }
     func prepareDisableEffect(operationID: UUID,
-                              expectedPredecessor: AppLockNotificationJournalV1?) throws
+                              expectedPredecessor: AppLockNotificationJournalV1?, authorization: NotificationOperationAuthorizationV1) throws
         -> AppLockNotificationJournalV1 {
-        disablePrepareCount += 1
         guard journal == expectedPredecessor else {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
+        if let journal, journal.operationID == operationID { return journal }
+        disablePrepareCount += 1
         let priorPolicy = disablePolicyOverride ?? expectedPredecessor?.priorPolicy ?? policy
         if let expectedPredecessor {
             guard priorPolicy == expectedPredecessor.priorPolicy else {
@@ -2744,7 +3025,7 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
         )
         journal = value; return value
     }
-    func rebuildPriorPolicyEffect(expected: AppLockNotificationJournalV1) throws -> AppLockNotificationJournalV1 {
+    func rebuildPriorPolicyEffect(expected: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1) throws -> AppLockNotificationJournalV1 {
         rebuildCount += 1
         guard journal == expected else { throw AppAccessContractFailureV1.effectMismatch }
         let value = try AppLockNotificationJournalV1(
@@ -2754,7 +3035,7 @@ private actor V915NotificationEffects: AppLockNotificationEffectPortV1 {
         )
         journal = value; return value
     }
-    func resolveOpaqueTokenEffect(_ token: String, now: Date) -> String? {
+    func resolveOpaqueTokenEffect(_ token: String, now: Date, authorization: NotificationOperationAuthorizationV1) -> String? {
         token == projection.opaqueCorrelationToken ? "opaque-route" : nil
     }
     func eraseNotificationsAndMappingsEffect(operationID: UUID) { eraseCallCount += 1; eraseEffectCount += 1; journal = nil }
@@ -2768,17 +3049,20 @@ private actor V915GatedNotificationStore: AppLockNotificationPrivacyPortV1 {
     init(enableJournal: AppLockNotificationJournalV1) { journal = nil; self.enableJournal = enableJournal }
     private let enableJournal: AppLockNotificationJournalV1
     func loadJournal() -> AppLockNotificationJournalV1? { journal }
-    func prepareEnable(operationID: UUID) async throws -> AppLockNotificationJournalV1 {
+    func bindNotificationGate(_ gate: AppAccessGateV1) {}
+    func loadAuthenticationSubject() throws -> NotificationOperationSubjectV1? { try v915Subject(journal) }
+    func validatesLocalConfiguration(_ setting: DeviceLocalAppLockSettingReadV1) -> Bool { v915LocalConfiguration(journal, setting) }
+    func prepareEnable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1 {
         guard operationID == enableJournal.operationID else { throw AppAccessContractFailureV1.effectMismatch }
         didPrepare = true; prepareWaiter?.resume(); prepareWaiter = nil
         await withCheckedContinuation { prepareContinuation = $0 }
         journal = enableJournal
         return enableJournal
     }
-    func applyGenericProjection(_ journal: AppLockNotificationJournalV1) -> AppLockNotificationPrivacyDispositionV1 { .genericProjectionApplied }
-    func prepareDisable(operationID: UUID) throws -> AppLockNotificationJournalV1 { throw AppAccessContractFailureV1.invalidTransition }
-    func rebuildPriorPolicy(_ journal: AppLockNotificationJournalV1) -> AppLockNotificationPrivacyDispositionV1 { .priorPolicyRebuilt }
-    func resolveOpaqueTokenAfterAuthentication(_ token: String, now: Date) -> String? { nil }
+    func applyGenericProjection(_ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1) -> AppLockNotificationPrivacyDispositionV1 { .genericProjectionApplied }
+    func prepareDisable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) throws -> AppLockNotificationJournalV1 { throw AppAccessContractFailureV1.invalidTransition }
+    func rebuildPriorPolicy(_ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1) -> AppLockNotificationPrivacyDispositionV1 { .priorPolicyRebuilt }
+    func resolveOpaqueTokenAfterAuthentication(_ token: String, now: Date, authorization: NotificationOperationAuthorizationV1) -> String? { nil }
     func eraseNotificationsAndMappings(operationID: UUID) { journal = nil }
     func waitUntilEnablePrepared() async {
         if didPrepare { return }
@@ -2797,7 +3081,7 @@ private actor V915SettingStore: DeviceLocalAppLockSettingPortV1 {
         self.value = value; self.readOverride = readOverride
     }
     func readAppLockSetting() -> DeviceLocalAppLockSettingReadV1 { readOverride ?? value.map(DeviceLocalAppLockSettingReadV1.value) ?? .absentDisabled }
-    func writeAppLockSetting(_ value: DeviceLocalAppLockSettingV1, operationID: UUID) -> DeviceLocalAppLockSettingWriteReceiptV1 { writeEffectCount += 1; self.value = value; return .init(operationID: operationID, value: value, adoptedExistingEffect: false) }
+    func writeAppLockSetting(_ value: DeviceLocalAppLockSettingV1, operationID: UUID, authorization: NotificationOperationAuthorizationV1) -> DeviceLocalAppLockSettingWriteReceiptV1 { writeEffectCount += 1; self.value = value; return .init(operationID: operationID, value: value, adoptedExistingEffect: false) }
     func eraseAppLockSetting(operationID: UUID) { eraseCallCount += 1; if value != nil { eraseEffectCount += 1 }; value = nil }
 }
 

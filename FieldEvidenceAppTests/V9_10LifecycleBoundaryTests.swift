@@ -950,18 +950,18 @@ final class V9_10LifecycleBoundaryTests: XCTestCase {
             maximumConcurrency: 1
         )
         let escapedEffects = V910IntBox(0)
-        await runner.register(.thumbnail) { context in
+        await runner.register(.mediaProcessing) { context in
             try await context.checkpoint(Self.checkpoint(job: context.job, completed: 1, total: 1))
             return .init(outputSHA256: Self.digest("f"), completedUnitCount: 1)
         }
-        await runner.registerPublisher(.thumbnail) { _ in
+        await runner.registerPublisher(.mediaProcessing) { _ in
             try Data("retained-canonical".utf8).write(to: canonicalURL, options: .atomic)
             _ = escapedEffects.increment()
             throw V910Failure.effectBeforeReceipt
         }
         let job = try makeJob(
             rootLabel: eraseAll ? "eraseAll" : "removeJobs",
-            kind: .thumbnail,
+            kind: .mediaProcessing,
             units: 1,
             seed: eraseAll ? 92 : 91
         )
@@ -976,7 +976,7 @@ final class V9_10LifecycleBoundaryTests: XCTestCase {
             stagingRootURL: stagingRoot,
             maximumConcurrency: 1
         )
-        await relaunched.registerPublisher(.thumbnail) { context in
+        await relaunched.registerPublisher(.mediaProcessing) { context in
             XCTAssertEqual(context.mode, .adoptOnly)
             guard try Data(contentsOf: canonicalURL) == Data("retained-canonical".utf8) else {
                 return .absent

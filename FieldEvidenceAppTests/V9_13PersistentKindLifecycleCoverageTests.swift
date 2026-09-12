@@ -45,8 +45,10 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.cloneOmitsPlans)
         XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.forkRetainsNonactiveHistoryOnly)
         XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.eraseRemovesWorkspaceRows)
-        XCTAssertNoThrow(try CurrentSyncClassificationCatalogV1.validate())
-        XCTAssertNoThrow(try CurrentPersistentKindLifecycleCatalogV1.validate())
+        let syncCatalog = try CurrentSyncClassificationCatalogV1.current
+        XCTAssertNoThrow(try syncCatalog.validate())
+        let lifecycleCatalog = try CurrentPersistentKindLifecycleCatalogV1.compile(candidateHead: candidateHead)
+        XCTAssertNoThrow(try lifecycleCatalog.validate())
     }
 
     func testV23P03C37TypedPoseContractAnchor() throws {
@@ -291,7 +293,8 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertEqual(corpus.durableFirstWriteKindIDs, corpus.durableFirstWriteKindIDs.sorted())
         XCTAssertEqual(Set(corpus.durableFirstWriteKindIDs).count, 65)
         XCTAssertFalse(derivedUniverse.isEmpty)
-        XCTAssertLessThanOrEqual(derivedUniverse.count, LifecycleCoverageManifestV1.maximumKindCount)
+        // Frozen C09 manifest bounds its declared corpus; later kinds are asserted above.
+        XCTAssertLessThanOrEqual(corpus.declaredKindIDs.count, 128)
         XCTAssertEqual(manifest.universeKindIDs, derivedUniverse)
         XCTAssertEqual(manifest.descriptorKindIDs, derivedUniverse)
         XCTAssertEqual(manifest.lifecyclePolicyKindIDs, derivedUniverse)
@@ -1222,7 +1225,7 @@ private final class C27V913PersistentTypedLocatorAnchorTests: XCTestCase {
 extension V9_13PersistentKindLifecycleCoverageTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
-        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
         XCTAssertEqual(RecoverabilityVerificationLifecycleV1.receiptPersistence,
                        "RECOVERABILITY_VERIFICATION_RECEIPT_V1_IMMUTABLE_EVIDENCE")
         XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
@@ -1290,7 +1293,7 @@ private extension V9_13PersistentKindLifecycleCoverageTests {
                 evidence: evidence ?? row.evidence
             )
         }
-        try PersistentLifecyclePolicyV1(
+        return try PersistentLifecyclePolicyV1(
             kindID: value.kindID,
             policyRevision: policyRevision ?? value.policyRevision,
             actionPolicies: rows

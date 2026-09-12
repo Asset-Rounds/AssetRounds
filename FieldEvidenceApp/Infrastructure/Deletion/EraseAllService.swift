@@ -529,6 +529,7 @@ final class EraseAllService {
     private let failureInjection: EraseAllFailureInjection?
     private let sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)?
     private let privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)?
+    private let notificationSystem: any NotificationSystemPortV1
 
     init(
         applicationSupportURL: URL,
@@ -543,7 +544,8 @@ final class EraseAllService {
         sleeper: any ApplicationSleeper = SystemApplicationSleeper(),
         failureInjection: EraseAllFailureInjection? = nil,
         sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)? = nil,
-        privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)? = PrivateSystemDiscoveryIndexRuntimeV1.shared
+        privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)? = PrivateSystemDiscoveryIndexRuntimeV1.shared,
+        notificationSystem: any NotificationSystemPortV1 = UserNotificationSystemAdapterV1()
     ) {
         let support = applicationSupportURL.standardizedFileURL
         self.applicationSupportURL = support
@@ -568,6 +570,7 @@ final class EraseAllService {
         self.failureInjection = failureInjection
         self.sceneNavigationStatePort = sceneNavigationStatePort
         self.privateSystemDiscoveryIndex = privateSystemDiscoveryIndex
+        self.notificationSystem = notificationSystem
     }
 
     func erase(
@@ -1474,6 +1477,14 @@ private extension EraseAllService {
         if value.phase != .cleanupComplete {
             try inject(.beforeCleanup)
         }
+        // This source-free path uses the same physical owner as scheduling.
+        // Revocation is persisted before the first suspension in erase(), and
+        // no generation, mapping, or preference cleanup can pass its drain.
+        let notificationPreferences = PreferencesAdapterV1(defaults: userDefaults)
+        let notificationControl = try AppLockNotificationControlStoreV1(
+            applicationSupportURL: applicationSupportURL, preferences: notificationPreferences)
+        try await DeviceLocalNotificationOwnerV1.erase(control: notificationControl,
+            system: notificationSystem, operationID: activated.eraseID)
         try cleanupGenerations(activated, authority: authority)
         try requireCleanupPresence(
             activated.advancing(to: .cleanupComplete),
@@ -1506,12 +1517,19 @@ private extension EraseAllService {
         // C45 render attempts live under each generation's jobs directory.
         // `cleanupGenerations` above removes that complete generation-owned
         // scratch namespace; there is no application-support-level C45 root.
-        try auxiliary.removeFrozenTargets()
         let ratingStore = PreferencesAdapterV1(defaults: userDefaults)
-        try ratingStore.preparePreferencesForCompletedErase(
-            operationID: activated.eraseID,
-            persistentDomainName: defaultsDomainName
-        )
+        try AppLockNotificationTransactionFenceV1.perform {
+            try notificationControl.verifyNotificationStorage()
+            guard try notificationControl.loadControl() == nil,
+                  try notificationControl.loadPrivateNotificationMapping() == nil else {
+                throw EraseAllServiceError.recoveryRequired
+            }
+            try auxiliary.removeFrozenTargets()
+            try ratingStore.preparePreferencesForCompletedErase(
+                operationID: activated.eraseID,
+                persistentDomainName: defaultsDomainName
+            )
+        }
         // The one post-wipe Defaults value is an installation-only cooldown,
         // written through the sole preferences owner. Its CAS receipt and
         // read-back are required before Erase may publish cleanupComplete.

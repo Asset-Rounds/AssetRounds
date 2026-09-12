@@ -120,7 +120,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
     func testWrongResourceValuesAreRepairedAndVerified() throws {
         let root = try makeTemporaryRoot("repair")
         defer { try? fileManager.removeItem(at: root) }
-        let file = root.appendingPathComponent("model.sqlite")
+        var file = root.appendingPathComponent("model.sqlite")
         XCTAssertTrue(fileManager.createFile(atPath: file.path, contents: Data("old".utf8)))
 
         try fileManager.setAttributes(
@@ -348,12 +348,12 @@ final class V9_02FileAuthorityTests: XCTestCase {
         )
         XCTAssertTrue(
             ProtectedFilePolicyV1.isProtectedDataUnavailable(
-                NSError(domain: NSPOSIXErrorDomain, code: EACCES)
+                NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES))
             )
         )
         XCTAssertFalse(
             ProtectedFilePolicyV1.isProtectedDataUnavailable(
-                NSError(domain: NSPOSIXErrorDomain, code: ENOENT)
+                NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT))
             )
         )
     }

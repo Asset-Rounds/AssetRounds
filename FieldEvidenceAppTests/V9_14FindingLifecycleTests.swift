@@ -355,10 +355,10 @@ final class V9_14FindingLifecycleTests: XCTestCase {
         XCTAssertEqual(try roundTrip([confirm, notRelated, remove]), [confirm, notRelated, remove])
 
         XCTAssertThrowsError(try relatedSuggestion(source: "work.001", target: "work.001"))
-        let reverse = try relationship(id: "relationship.reverse", source: "work.002", target: "work.001")
+        let reverse = try self.relationship(id: "relationship.reverse", source: "work.002", target: "work.001")
         assertFailure(.reverseRelationship) { try WorkRelationshipValidatorV1.validate([relationship, reverse]) }
-        let edgeBC = try relationship(id: "relationship.bc", source: "work.002", target: "work.003")
-        let edgeCA = try relationship(id: "relationship.ca", source: "work.003", target: "work.001")
+        let edgeBC = try self.relationship(id: "relationship.bc", source: "work.002", target: "work.003")
+        let edgeCA = try self.relationship(id: "relationship.ca", source: "work.003", target: "work.001")
         assertFailure(.relationshipCycle) { try WorkRelationshipValidatorV1.validate([relationship, edgeBC, edgeCA]) }
 
         let untouchedLifecycle = try FindingLifecycleV1(findingID: "finding.001")

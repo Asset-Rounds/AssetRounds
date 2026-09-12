@@ -11,6 +11,18 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
         self.effects = effects
     }
 
+    func bindNotificationGate(_ gate: AppAccessGateV1) async throws {
+        try await effects.bindNotificationGateEffect(gate)
+    }
+
+    func loadAuthenticationSubject() async throws -> NotificationOperationSubjectV1? {
+        try await effects.loadAuthenticationSubjectEffect()
+    }
+
+    func validatesLocalConfiguration(_ setting: DeviceLocalAppLockSettingReadV1) async throws -> Bool {
+        try await effects.validatesLocalConfigurationEffect(setting)
+    }
+
     func loadJournal() async throws -> AppLockNotificationJournalV1? {
         let journal = try await effects.loadJournalEffect()
         try journal?.priorPolicy.validate()
@@ -18,7 +30,8 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
         return journal
     }
 
-    func prepareEnable(operationID: UUID) async throws -> AppLockNotificationJournalV1 {
+    func prepareEnable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1 {
+        try await authorization.validateMutation(operationID: operationID, targetEnabled: true)
         try claim()
         defer { mutationInProgress = false }
         let existing = try await loadJournal()
@@ -30,15 +43,14 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
                         || existing.disposition == .genericProjectionAdopted else {
                     throw AppAccessContractFailureV1.notificationReconciliationRequired
                 }
-                return existing
             }
-            guard !existing.targetEnabled,
-                  existing.disposition == .priorPolicyRebuilt else {
+            guard existing.operationID == operationID || (!existing.targetEnabled &&
+                  existing.disposition == .priorPolicyRebuilt) else {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
         }
         let result = try await effects.prepareEnableEffect(
-            operationID: operationID, expectedPredecessor: existing
+            operationID: operationID, expectedPredecessor: existing, authorization: authorization
         )
         guard result.operationID == operationID, result.targetEnabled,
               result.disposition == .enablingPrepared
@@ -49,24 +61,23 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
         guard try await loadJournal() == result else {
             throw AppAccessContractFailureV1.effectMismatch
         }
+        try await authorization.validateMutation(operationID: operationID, targetEnabled: true)
         return result
     }
 
     func applyGenericProjection(
-        _ journal: AppLockNotificationJournalV1
+        _ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
     ) async throws -> AppLockNotificationPrivacyDispositionV1 {
         try claim()
         defer { mutationInProgress = false }
+        try await authorization.validateMutation(operationID: journal.operationID, targetEnabled: true)
         guard journal.targetEnabled else {
             throw AppAccessContractFailureV1.invalidTransition
         }
-        if let current = try await loadJournal(),
-           Self.sameSubject(current, journal),
-           current.disposition == .genericProjectionApplied
-            || current.disposition == .genericProjectionAdopted {
-            return .genericProjectionAdopted
+        guard let current = try await loadJournal(), Self.sameSubject(current, journal) else {
+            throw AppAccessContractFailureV1.effectMismatch
         }
-        let result = try await effects.publishGenericEffect(expected: journal)
+        let result = try await effects.publishGenericEffect(expected: current, authorization: authorization)
         guard result.operationID == journal.operationID, result.targetEnabled,
               result.priorPolicy == journal.priorPolicy,
               result.projections == journal.projections,
@@ -75,10 +86,12 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
               try await loadJournal() == result else {
             throw AppAccessContractFailureV1.effectMismatch
         }
+        try await authorization.validateMutation(operationID: journal.operationID, targetEnabled: true)
         return result.disposition
     }
 
-    func prepareDisable(operationID: UUID) async throws -> AppLockNotificationJournalV1 {
+    func prepareDisable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1 {
+        try await authorization.validateMutation(operationID: operationID, targetEnabled: false)
         try claim()
         defer { mutationInProgress = false }
         let existing = try await loadJournal()
@@ -89,16 +102,15 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
                         || existing.disposition == .priorPolicyRebuilt else {
                     throw AppAccessContractFailureV1.notificationReconciliationRequired
                 }
-                return existing
             }
-            guard existing.targetEnabled,
-                  existing.disposition == .genericProjectionApplied
-                    || existing.disposition == .genericProjectionAdopted else {
+            guard existing.operationID == operationID || (existing.targetEnabled &&
+                  (existing.disposition == .genericProjectionApplied
+                    || existing.disposition == .genericProjectionAdopted)) else {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
         }
         let result = try await effects.prepareDisableEffect(
-            operationID: operationID, expectedPredecessor: existing
+            operationID: operationID, expectedPredecessor: existing, authorization: authorization
         )
         guard result.operationID == operationID, !result.targetEnabled,
               result.disposition == .disablingPrepared
@@ -113,23 +125,23 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
         guard try await loadJournal() == result else {
             throw AppAccessContractFailureV1.effectMismatch
         }
+        try await authorization.validateMutation(operationID: operationID, targetEnabled: false)
         return result
     }
 
     func rebuildPriorPolicy(
-        _ journal: AppLockNotificationJournalV1
+        _ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
     ) async throws -> AppLockNotificationPrivacyDispositionV1 {
         try claim()
         defer { mutationInProgress = false }
+        try await authorization.validateMutation(operationID: journal.operationID, targetEnabled: false)
         guard !journal.targetEnabled else {
             throw AppAccessContractFailureV1.invalidTransition
         }
-        if let current = try await loadJournal(),
-           Self.sameSubject(current, journal),
-           current.disposition == .priorPolicyRebuilt {
-            return .priorPolicyRebuilt
+        guard let current = try await loadJournal(), Self.sameSubject(current, journal) else {
+            throw AppAccessContractFailureV1.effectMismatch
         }
-        let result = try await effects.rebuildPriorPolicyEffect(expected: journal)
+        let result = try await effects.rebuildPriorPolicyEffect(expected: current, authorization: authorization)
         guard result.operationID == journal.operationID, !result.targetEnabled,
               result.priorPolicy == journal.priorPolicy,
               result.projections == journal.projections,
@@ -137,14 +149,18 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
               try await loadJournal() == result else {
             throw AppAccessContractFailureV1.effectMismatch
         }
+        try await authorization.validateMutation(operationID: journal.operationID, targetEnabled: false)
         return .priorPolicyRebuilt
     }
 
     func resolveOpaqueTokenAfterAuthentication(
         _ token: String,
-        now: Date
+        now: Date, authorization: NotificationOperationAuthorizationV1
     ) async throws -> String? {
-        try await effects.resolveOpaqueTokenEffect(token, now: now)
+        try await authorization.validateRead()
+        let result = try await effects.resolveOpaqueTokenEffect(token, now: now, authorization: authorization)
+        try await authorization.validateRead()
+        return result
     }
 
     func eraseNotificationsAndMappings(operationID: UUID) async throws {
@@ -209,9 +225,10 @@ actor DeviceLocalAppLockSettingAdapterV1: DeviceLocalAppLockSettingPortV1 {
 
     func writeAppLockSetting(
         _ value: DeviceLocalAppLockSettingV1,
-        operationID: UUID
+        operationID: UUID, authorization: NotificationOperationAuthorizationV1
     ) async throws -> DeviceLocalAppLockSettingWriteReceiptV1 {
         try value.validate()
+        try await authorization.validateMutation(operationID: operationID, targetEnabled: value.isEnabled)
         guard operationID != SettingsValidationV1.zeroUUID else {
             throw AppAccessContractFailureV1.invalidValue
         }
@@ -224,6 +241,7 @@ actor DeviceLocalAppLockSettingAdapterV1: DeviceLocalAppLockSettingPortV1 {
         )
         let after = try preferences.readCanonicalValue(for: descriptor)
         guard after == bytes else { throw AppAccessContractFailureV1.effectMismatch }
+        try await authorization.validateMutation(operationID: operationID, targetEnabled: value.isEnabled)
         return DeviceLocalAppLockSettingWriteReceiptV1(
             operationID: operationID,
             value: value,
@@ -302,6 +320,7 @@ actor AppLockLifecycleCoordinatorV1 {
             clock: clock,
             identifiers: identifiers
         )
+        try await notifications.bindNotificationGate(gate)
         let ingress = ProtectedIngressCoordinatorV1(
             gate: gate,
             store: ingressStore,
@@ -316,8 +335,8 @@ actor AppLockLifecycleCoordinatorV1 {
             startupSettingUnresolved: Self.settingIsUnresolved(settingRead),
             startupHygieneRequiresRecovery: hygiene.requiresAuthenticatedRecovery
         )
-        if let journal = try await notifications.loadJournal(),
-           !Self.completedJournal(journal, matches: settingRead) {
+        let localConfigurationValid = try await notifications.validatesLocalConfiguration(settingRead)
+        if !localConfigurationValid {
             await gate.markConfigurationUnknown()
         }
         if hygiene.requiresAuthenticatedRecovery {
@@ -387,13 +406,16 @@ actor AppLockLifecycleCoordinatorV1 {
         now: Date
     ) async throws -> String? {
         let sessionID = try await unlockedSessionID()
+        let proof = try await gate.beginContentRead(for: .render)
+        let authorization = NotificationOperationAuthorizationV1(gate: gate, proof: .content(proof),
+            operationID: identifiers.makeID(), subject: nil)
         guard CompatibilityCanonicalV1.validSHA256(token),
               now.timeIntervalSinceReferenceDate.isFinite else {
             throw AppAccessContractFailureV1.invalidValue
         }
         let result = try await notifications.resolveOpaqueTokenAfterAuthentication(
             token,
-            now: now
+            now: now, authorization: authorization
         )
         try await requireSameUnlockedSession(sessionID)
         return result
@@ -409,16 +431,21 @@ actor AppLockLifecycleCoordinatorV1 {
             throw AppAccessContractFailureV1.accessDenied
         }
         let sessionID = try await unlockedSessionID()
+        let proof = try await gate.toggleAuthenticationToken(targetEnabled: true)
         do {
-            let journal = try await notifications.prepareEnable(operationID: operationID)
+            let subject = try await notifications.loadAuthenticationSubject()
+            let initialAuthorization = NotificationOperationAuthorizationV1(gate: gate,
+                proof: .toggle(proof, targetEnabled: true), operationID: operationID, subject: subject)
+            let journal = try await notifications.prepareEnable(operationID: operationID, authorization: initialAuthorization)
             try await requireSameUnlockedSession(sessionID)
+            let authorization = try await bind(initialAuthorization, to: journal)
             guard journal.operationID == operationID, journal.targetEnabled,
                   journal.disposition == .enablingPrepared
                     || journal.disposition == .genericProjectionApplied
                     || journal.disposition == .genericProjectionAdopted else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
-            let notification = try await notifications.applyGenericProjection(journal)
+            let notification = try await notifications.applyGenericProjection(journal, authorization: authorization)
             try await requireSameUnlockedSession(sessionID)
             guard notification == .genericProjectionApplied
                     || notification == .genericProjectionAdopted else {
@@ -426,13 +453,13 @@ actor AppLockLifecycleCoordinatorV1 {
             }
             let write = try await setting.writeAppLockSetting(
                 DeviceLocalAppLockSettingV1(isEnabled: true),
-                operationID: operationID
+                operationID: operationID, authorization: authorization
             )
             try await requireSameUnlockedSession(sessionID)
             guard write.operationID == operationID, write.value.isEnabled else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
-            try await gate.setEnabledAfterAuthenticated(true)
+            try await gate.setEnabledAfterAuthenticated(true, toggleToken: proof)
             try await gate.markRecoveryComplete(enabled: true)
             return try AppLockConfigurationReceiptV1(
                 operationID: operationID,
@@ -457,9 +484,14 @@ actor AppLockLifecycleCoordinatorV1 {
             throw AppAccessContractFailureV1.accessDenied
         }
         let sessionID = try await unlockedSessionID()
+        let proof = try await gate.toggleAuthenticationToken(targetEnabled: false)
         do {
-            let journal = try await notifications.prepareDisable(operationID: operationID)
+            let subject = try await notifications.loadAuthenticationSubject()
+            let initialAuthorization = NotificationOperationAuthorizationV1(gate: gate,
+                proof: .toggle(proof, targetEnabled: false), operationID: operationID, subject: subject)
+            let journal = try await notifications.prepareDisable(operationID: operationID, authorization: initialAuthorization)
             try await requireSameUnlockedSession(sessionID)
+            let authorization = try await bind(initialAuthorization, to: journal)
             guard journal.operationID == operationID, !journal.targetEnabled,
                   journal.disposition == .disablingPrepared
                     || journal.disposition == .priorPolicyRebuilt else {
@@ -467,7 +499,7 @@ actor AppLockLifecycleCoordinatorV1 {
             }
             let write = try await setting.writeAppLockSetting(
                 DeviceLocalAppLockSettingV1(isEnabled: false),
-                operationID: operationID
+                operationID: operationID, authorization: authorization
             )
             try await requireSameUnlockedSession(sessionID)
             guard write.operationID == operationID, !write.value.isEnabled else {
@@ -476,12 +508,12 @@ actor AppLockLifecycleCoordinatorV1 {
             // Persist the disabled setting before detailed notification state
             // can be restored. A rebuild failure therefore cannot expose
             // details while the durable lock setting is still enabled.
-            let notification = try await notifications.rebuildPriorPolicy(journal)
+            let notification = try await notifications.rebuildPriorPolicy(journal, authorization: authorization)
             try await requireSameUnlockedSession(sessionID)
             guard notification == .priorPolicyRebuilt else {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
-            try await gate.setEnabledAfterAuthenticated(false)
+            try await gate.setEnabledAfterAuthenticated(false, toggleToken: proof)
             return try AppLockConfigurationReceiptV1(
                 operationID: operationID,
                 enabled: false,
@@ -518,14 +550,22 @@ actor AppLockLifecycleCoordinatorV1 {
             }
             let currentSetting = await setting.readAppLockSetting()
             let gateRequiresRecovery = await gate.requiresConfigurationRecovery()
-            if !startupSettingUnresolved, !gateRequiresRecovery,
-               Self.completedJournal(journal, matches: currentSetting) {
+            let localConfigurationValid = try await notifications.validatesLocalConfiguration(currentSetting)
+            if !startupSettingUnresolved, !gateRequiresRecovery, localConfigurationValid {
+                // This is local configuration readiness only. It does not
+                // assert OS reconciliation; that still requires an original
+                // authenticated source read on the scheduling/replay route.
                 return .noRecoveryRequired
             }
+            let subject = try await notifications.loadAuthenticationSubject()
+            guard subject?.journal == journal else { throw AppAccessContractFailureV1.effectMismatch }
             await gate.markConfigurationUnknown()
             let outcome = await gate.authenticate(trigger: .repairConfiguration)
             guard outcome == .authenticated else { return .ambiguousStateLocked }
             let proof = try await gate.configurationAuthenticationToken()
+            let authorization = NotificationOperationAuthorizationV1(gate: gate,
+                proof: .repair(proof, targetEnabled: journal.targetEnabled),
+                operationID: journal.operationID, subject: subject)
             // This rejects a journal replaced during authentication before a
             // preference write. The durable effect still needs its own shared
             // journal/setting transaction fence for cross-instance publication.
@@ -534,9 +574,13 @@ actor AppLockLifecycleCoordinatorV1 {
             guard afterAuthentication == journal else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
+            guard try await notifications.loadAuthenticationSubject() == subject else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            try await authorization.validateRead()
             let notification: AppLockNotificationPrivacyDispositionV1
             if journal.targetEnabled {
-                notification = try await notifications.applyGenericProjection(journal)
+                notification = try await notifications.applyGenericProjection(journal, authorization: authorization)
                 try await gate.validateConfigurationAuthentication(proof)
                 guard notification == .genericProjectionApplied
                         || notification == .genericProjectionAdopted else {
@@ -545,13 +589,13 @@ actor AppLockLifecycleCoordinatorV1 {
             } else {
                 let write = try await setting.writeAppLockSetting(
                     DeviceLocalAppLockSettingV1(isEnabled: false),
-                    operationID: journal.operationID
+                    operationID: journal.operationID, authorization: authorization
                 )
                 try await gate.validateConfigurationAuthentication(proof)
                 guard write.operationID == journal.operationID, !write.value.isEnabled else {
                     throw AppAccessContractFailureV1.effectMismatch
                 }
-                notification = try await notifications.rebuildPriorPolicy(journal)
+                notification = try await notifications.rebuildPriorPolicy(journal, authorization: authorization)
                 try await gate.validateConfigurationAuthentication(proof)
                 guard notification == .priorPolicyRebuilt else {
                     throw AppAccessContractFailureV1.notificationReconciliationRequired
@@ -563,7 +607,7 @@ actor AppLockLifecycleCoordinatorV1 {
             }
             let write = try await setting.writeAppLockSetting(
                 DeviceLocalAppLockSettingV1(isEnabled: journal.targetEnabled),
-                operationID: journal.operationID
+                operationID: journal.operationID, authorization: authorization
             )
             try await gate.validateConfigurationAuthentication(proof)
             guard write.operationID == journal.operationID,
@@ -581,6 +625,15 @@ actor AppLockLifecycleCoordinatorV1 {
             await gate.markConfigurationUnknown()
             throw error
         }
+    }
+
+    private func bind(_ authorization: NotificationOperationAuthorizationV1,
+                      to journal: AppLockNotificationJournalV1) async throws -> NotificationOperationAuthorizationV1 {
+        guard let subject = try await notifications.loadAuthenticationSubject(), subject.journal == journal else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try await authorization.validateMutation(operationID: journal.operationID, targetEnabled: journal.targetEnabled)
+        return try authorization.binding(to: subject)
     }
 
     @discardableResult
