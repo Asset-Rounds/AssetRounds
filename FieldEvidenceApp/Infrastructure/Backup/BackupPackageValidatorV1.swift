@@ -1533,6 +1533,31 @@ private extension BackupPackageValidatorV1 {
                     && Set(assuranceSnapshots.map(\.workflowRecordID)).count
                         == assuranceSnapshots.count),
               records.workflowRecords.allSatisfy({ $0.schemaVersion == 1 }) else {
+#if DEBUG
+            // Failure-only aggregate facts identify the rejecting predicate;
+            // package row contents and identifiers are never logged.
+            let badSiteSchema = records.sites.filter { $0.schemaVersion != 1 }.count
+            let badSiteTimes = records.sites.filter { !($0.updatedAt >= $0.createdAt) }.count
+            let badSiteLabels = records.sites.filter { !validRequiredTrimmed($0.label, maximum: .max) }.count
+            let badSiteAddresses = records.sites.filter {
+                !($0.address.map { validRequiredTrimmed($0, maximum: .max) } ?? true)
+            }.count
+            let siteZones = records.sites.compactMap(\.timeZoneID)
+            let untrimmedZones = siteZones.filter { $0 != $0.trimmingCharacters(in: .whitespacesAndNewlines) }.count
+            let unknownListedZones = siteZones.filter { !TimeZone.knownTimeZoneIdentifiers.contains($0) }.count
+            let unresolvableZones = siteZones.filter { TimeZone(identifier: $0) == nil }.count
+            print("BackupPackageValidatorV1 recordGuard recordsSchema=\(records.recordsSchemaVersion) sites=\(records.sites.count) badSiteSchema=\(badSiteSchema) badSiteTimes=\(badSiteTimes) badSiteLabels=\(badSiteLabels) badSiteAddresses=\(badSiteAddresses) untrimmedZones=\(untrimmedZones) unknownListedZones=\(unknownListedZones) unresolvableZones=\(unresolvableZones)")
+            let badEvidenceSchemas = records.evidenceFiles.filter { $0.schemaVersion != 1 }.count
+            let badIssueSchemas = records.issues.filter { $0.schemaVersion != 1 }.count
+            let badPacketSchemas = records.packets.filter { $0.schemaVersion != 1 }.count
+            let badReportSchemas = records.reports.filter { $0.schemaVersion != 1 }.count
+            let badWorkflowSchemas = records.workflowRecords.filter { $0.schemaVersion != 1 }.count
+            let badAssuranceWorkspaces = assuranceSnapshots.filter { $0.workspaceID != manifest.source.workspaceID }.count
+            let missingAssuranceWorkflows = assuranceSnapshots.filter { workflow[$0.workflowRecordID] == nil }.count
+            let assuranceCoverage = Set(assuranceSnapshots.map(\.workflowRecordID)) == Set(records.workflowRecords.map(\.id))
+            let uniqueAssuranceWorkflows = Set(assuranceSnapshots.map(\.workflowRecordID)).count == assuranceSnapshots.count
+            print("BackupPackageValidatorV1 recordGuard badEvidenceSchemas=\(badEvidenceSchemas) badIssueSchemas=\(badIssueSchemas) badPacketSchemas=\(badPacketSchemas) badReportSchemas=\(badReportSchemas) badWorkflowSchemas=\(badWorkflowSchemas) assuranceCount=\(assuranceSnapshots.count) badAssuranceWorkspaces=\(badAssuranceWorkspaces) missingAssuranceWorkflows=\(missingAssuranceWorkflows) assuranceCoverage=\(assuranceCoverage) uniqueAssuranceWorkflows=\(uniqueAssuranceWorkflows)")
+#endif
             throw invalid()
         }
 
