@@ -279,12 +279,13 @@ struct StreamingArchiveService: Sendable {
                 .stagingDirectory,
                 at: operationURL
             ) {
-                guard try Self.snapshotDirectory(operationDescriptor)
-                    == operationSnapshot,
-                      Self.sameIdentity(
-                        try Self.snapshotDirectory(stagingRootDescriptor),
-                        stagingRootSnapshot
-                      ) else {
+                guard Self.sameDirectoryAuthority(
+                    try Self.snapshotDirectory(operationDescriptor),
+                    operationSnapshot
+                ), Self.sameDirectoryAuthority(
+                    try Self.snapshotDirectory(stagingRootDescriptor),
+                    stagingRootSnapshot
+                ) else {
                     throw StreamingArchiveFailureV1.sourceChanged
                 }
             }
@@ -325,8 +326,10 @@ struct StreamingArchiveService: Sendable {
                         .stagingFile,
                         at: stagedURL
                     ) {
-                        guard try Self.snapshotRegularFile(stagedDescriptor)
-                            == stagedSnapshot else {
+                        guard Self.sameCreatedFileAuthority(
+                            try Self.snapshotRegularFile(stagedDescriptor),
+                            stagedSnapshot
+                        ) else {
                             throw StreamingArchiveFailureV1.sourceChanged
                         }
                     }
@@ -790,8 +793,10 @@ struct StreamingArchiveService: Sendable {
                         .stagingFile,
                         at: outputURL
                     ) {
-                        guard try Self.snapshotRegularFile(outputDescriptor)
-                            == initialOutput else {
+                        guard Self.sameCreatedFileAuthority(
+                            try Self.snapshotRegularFile(outputDescriptor),
+                            initialOutput
+                        ) else {
                             throw StreamingArchiveFailureV1.sourceChanged
                         }
                     }
@@ -1314,7 +1319,10 @@ private extension StreamingArchiveService {
         do {
             let snapshot = try Self.snapshotDirectory(descriptor)
             try ProtectedFilePolicyV1.applyAndVerify(.restoreStaging, at: root) {
-                guard try Self.snapshotDirectory(descriptor) == snapshot else {
+                guard Self.sameDirectoryAuthority(
+                    try Self.snapshotDirectory(descriptor),
+                    snapshot
+                ) else {
                     throw StreamingArchiveFailureV1.sourceChanged
                 }
             }
@@ -1340,7 +1348,7 @@ private extension StreamingArchiveService {
         extraction: inout CreatedExtraction
     ) throws {
         let components=path.split(separator:"/").dropLast().map(String.init);guard !components.isEmpty else{return};var parent=Darwin.dup(extraction.rootDescriptor);guard parent>=0 else{throw Self.mapOpenFailure()};defer{Darwin.close(parent)};var relative=""
-        for component in components{relative=relative.isEmpty ? component:"\(relative)/\(component)";if !extraction.directories.contains(relative){guard Darwin.mkdirat(parent,component,0o700)==0 else{throw Self.mapWriteFailure()};extraction.directories.append(relative)};let next=Darwin.openat(parent,component,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);guard next>=0 else{throw Self.mapOpenFailure()};Darwin.close(parent);parent=next;let url=extraction.rootURL.appendingPathComponent(relative,isDirectory:true),snapshot=try Self.snapshotDirectory(parent);try ProtectedFilePolicyV1.applyAndVerify(.restoreStaging,at:url){guard try Self.snapshotDirectory(parent)==snapshot else{throw StreamingArchiveFailureV1.sourceChanged}}}
+        for component in components{relative=relative.isEmpty ? component:"\(relative)/\(component)";if !extraction.directories.contains(relative){guard Darwin.mkdirat(parent,component,0o700)==0 else{throw Self.mapWriteFailure()};extraction.directories.append(relative)};let next=Darwin.openat(parent,component,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);guard next>=0 else{throw Self.mapOpenFailure()};Darwin.close(parent);parent=next;let url=extraction.rootURL.appendingPathComponent(relative,isDirectory:true),snapshot=try Self.snapshotDirectory(parent);try ProtectedFilePolicyV1.applyAndVerify(.restoreStaging,at:url){guard Self.sameDirectoryAuthority(try Self.snapshotDirectory(parent),snapshot) else{throw StreamingArchiveFailureV1.sourceChanged}}}
         guard Darwin.fsync(extraction.rootDescriptor)==0 else{throw Self.mapWriteFailure()}
     }
 
@@ -1372,7 +1380,7 @@ private extension StreamingArchiveService {
             ) != 0 { success = false }
         }
         if let current = try? Self.snapshotDirectory(extraction.rootDescriptor) {
-            if !Self.sameIdentity(current, extraction.rootSnapshot) {
+            if !Self.sameDirectoryAuthority(current, extraction.rootSnapshot) {
                 success = false
             }
         } else {
@@ -1622,6 +1630,24 @@ private extension StreamingArchiveService {
             return false
         }
         return Darwin.fsync(parent) == 0
+    }
+
+    static func sameDirectoryAuthority(
+        _ lhs: StreamingArchiveSourceSnapshotV1,
+        _ rhs: StreamingArchiveSourceSnapshotV1
+    ) -> Bool {
+        lhs.device == rhs.device && lhs.inode == rhs.inode
+    }
+
+    static func sameCreatedFileAuthority(
+        _ lhs: StreamingArchiveSourceSnapshotV1,
+        _ rhs: StreamingArchiveSourceSnapshotV1
+    ) -> Bool {
+        lhs.device == rhs.device
+            && lhs.inode == rhs.inode
+            && lhs.linkCount == 1
+            && rhs.linkCount == 1
+            && lhs.byteCount == rhs.byteCount
     }
 
     static func sameIdentity(
