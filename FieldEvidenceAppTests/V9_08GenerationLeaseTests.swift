@@ -2152,7 +2152,36 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             now: { Date(timeIntervalSinceReferenceDate: 900_030) },
             makeUUID: { restoreUUIDs.next() }
         )
-        let currentRecords = try restoreService.records(in: destination.modelContext)
+        // Obtain the destination projection through the same public package
+        // boundary as the incoming records; retain the direct-plan assertions.
+        let currentExportDirectory = root.appendingPathComponent("current-records-export",
+            isDirectory: true)
+        try fileManager.createDirectory(at: currentExportDirectory,
+            withIntermediateDirectories: false)
+        let currentExportUUIDs = UUIDCursor((2_700...2_729).map(makeUUID))
+        let currentExporter = BackupExportService(
+            modelContext: destination.modelContext,
+            generationRootURL: destination.generationRootURL,
+            storagePreflight: makeUnlimitedStoragePreflight(),
+            now: { Date(timeIntervalSinceReferenceDate: 900_025) },
+            makeUUID: { currentExportUUIDs.next() }
+        )
+        diagnosticBoundary = "current-records-export"
+        let currentPreview = try currentExporter.prepareStreaming()
+        let currentArchive = try currentExporter.exportStreaming(
+            previewID: currentPreview.id, to: currentExportDirectory)
+        let currentImportUUIDs = UUIDCursor((2_730...2_759).map(makeUUID))
+        let currentImporter = try BackupImportService(
+            generationRootURL: destination.generationRootURL,
+            storagePreflight: makeUnlimitedStoragePreflight(),
+            makeUUID: { currentImportUUIDs.next() },
+            scopedAccess: .alreadyAuthorized
+        )
+        diagnosticBoundary = "current-records-validate"
+        let currentPackage = try currentImporter.stageAndValidate(
+            selectedPackageURL: currentArchive)
+        let currentRecords = currentPackage.records
+        try currentImporter.discard(currentPackage)
         XCTAssertEqual(
             currentRecords.recordsSchemaVersion,
             LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
