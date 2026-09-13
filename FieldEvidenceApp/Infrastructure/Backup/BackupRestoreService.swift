@@ -60,7 +60,7 @@ enum IntegrationProjectionBackupRestoreExclusionV1 {
         try coverage.validate()
         guard !coverage.backupIncluded, !coverage.restoreIncluded,
               IntegrationProjectionSchemaV1.downgradeDisposition == "DROP_AND_REBUILD"
-        else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        else { throw attributedRestoreAuthorityFailureV1(line: #line) }
     }
 }
 
@@ -76,7 +76,7 @@ enum C30EvidenceContextBackupRestorePolicyV1 {
         guard persistentSchemaVersion == 30, recordsSchemaVersion == 29,
               restoresCanonicalRowsBeforeDerivedState,
               cloneForkRequiresHistoricRebind, sourceBytesRemainImmutable else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         _ = C30EvidenceContextRestoreIdentityPolicyV1.disposition(for: mode)
         _ = try EvidenceContextBackupRecordSetV1.decode(rows)
@@ -105,13 +105,13 @@ enum C31LightingBackupRestorePolicyV1 {
               sourceBytesRemainImmutable,
               !sourceClaimAutomaticallyActive,
               !licensedCriterionTextIncluded else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         do {
             _ = try LightingBackupRecordSetV1.decode(rows)
             try C31LightingRestoreIdentityPolicyV1.validate(rows, mode: mode)
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -127,7 +127,7 @@ enum C31LightingBackupRestorePolicyV1 {
             try validate(records.lighting, mode: mode)
             try records.validateC31LightingClosure()
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 }
@@ -138,9 +138,9 @@ enum C32AssistanceBackupRestorePolicyV1 {
 
     static func validate(_ records: V4BackupRecordsV1, mode: BackupRestoreMode) throws {
         do { try records.validateC32AssistanceAcceptanceReceipts() }
-        catch { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        catch { throw attributedRestoreAuthorityFailureV1(line: #line) }
         guard !proposalsRestored, cloneForkPreservesTransitiveHistoricSourceProvenance else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         do {
             try C32AssistanceRestoreIdentityPolicyV1.validate(
@@ -148,7 +148,7 @@ enum C32AssistanceBackupRestorePolicyV1 {
                 mode: mode
             )
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 }
@@ -227,7 +227,7 @@ private struct EntityIdentityResolutionPackageResolverV1:
             + snapshot.consolidationReceipts.flatMap { [$0.source, $0.survivor] }
         let uniqueRequired = Dictionary(grouping: required, by: { $0.identity }).values
         guard uniqueRequired.allSatisfy({ Set($0).count == 1 }) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
 
         var journalImages: [JournalImage] = []
@@ -251,16 +251,16 @@ private struct EntityIdentityResolutionPackageResolverV1:
 
         let resolved = try uniqueRequired.map { group -> EntityIdentitySnapshotV1 in
             guard let expected = group.first else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let terminals = history.entityRevisions.filter { $0.identity == expected.identity }
             guard terminals.count == 1, let terminal = terminals.first,
                   terminal.revision == expected.revision else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let identityImages = journalImages.filter { $0.identity == expected.identity }
             guard identityImages.allSatisfy({ $0.revision <= terminal.revision }) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let exact = identityImages.filter { $0.revision == terminal.revision }
             let digest: String
@@ -271,7 +271,7 @@ private struct EntityIdentityResolutionPackageResolverV1:
                       MutationEnvelopeV1.isSHA256(external) {
                 digest = external
             } else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let value = try EntityIdentitySnapshotV1(
                 workspaceID: snapshot.workspaceID,
@@ -280,7 +280,7 @@ private struct EntityIdentityResolutionPackageResolverV1:
                 entitySHA256: digest
             )
             guard value == expected else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             return value
         }.sorted { $0.stableKey < $1.stableKey }
@@ -424,7 +424,7 @@ final class BackupRestoreService {
                   snapshot.sessions.allSatisfy({
                       $0.workspaceID == nil || $0.workspaceID == targetWorkspaceID
                   }) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
     }
@@ -441,7 +441,7 @@ final class BackupRestoreService {
 
         func validate() throws {
             guard schemaVersion == 1 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try receipt.validate()
         }
@@ -809,7 +809,7 @@ final class BackupRestoreService {
                 validatedPackage.manifest.source
             )
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let initialIsEmpty = Self.isEmptyCurrent(currentModelContext)
         let frozenCurrentRecords: V4BackupRecordsV1?
@@ -904,7 +904,7 @@ final class BackupRestoreService {
             )
         case .clone, .fork:
             guard uniqueModelIDs(in: validatedPackage.records) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         var expectedRecords: V4BackupRecordsV1
@@ -920,7 +920,7 @@ final class BackupRestoreService {
                 )
             ).recordsAfter
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         if validatedPackage.records.recordsSchemaVersion
             >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
@@ -948,7 +948,7 @@ final class BackupRestoreService {
                 workspaceID:expectedReliabilityWorkspaceID
             )
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         do {
             let metadata = try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(
@@ -965,7 +965,7 @@ final class BackupRestoreService {
             try C05EvidenceMetadataBackupEnrollmentV1.validate(expectedRecords)
             try C04ShopReportProfileBackupEnrollmentV1.validate(expectedRecords)
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         if validatedPackage.manifest.source.recordsSchemaVersion <= 2,
            expectedRecords.mutationHistory == nil {
@@ -988,7 +988,7 @@ final class BackupRestoreService {
             validatedPackage.records.lightingDayInventoryWorkflows
         expectedRecords.lightingNightWorkflows = validatedPackage.records.lightingNightWorkflows
         guard uniqueModelIDs(in: expectedRecords) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
 
         let newGenerationID = makeUUID()
@@ -997,7 +997,7 @@ final class BackupRestoreService {
               restoreID != currentGenerationID,
               restoreID != newGenerationID,
               !initialRetiredIDs.contains(newGenerationID) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
 
         do {
@@ -1058,7 +1058,7 @@ final class BackupRestoreService {
             expectedRecords.lightingDayInventoryWorkflows = lightingDayInventoryWorkflows
             expectedRecords.lightingNightWorkflows = lightingNightWorkflows
             guard uniqueModelIDs(in: expectedRecords) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try materialize(
                 validatedPackage,
@@ -1088,7 +1088,7 @@ final class BackupRestoreService {
                     expectedGenerationID: currentGenerationID,
                     authority: generationAuthority
                   ) == frozenCurrentIdentity else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let identityDecision = try makeIdentityDecision(
                 package: validatedPackage,
@@ -1113,10 +1113,10 @@ final class BackupRestoreService {
             case (let preliminary?, let final?):
                 guard try workspaceIdentity(preliminary)
                         == workspaceIdentity(final) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
             default:
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try validateStagingGeneration(
                 id: newGenerationID,
@@ -1157,7 +1157,7 @@ final class BackupRestoreService {
                 )
             }
             guard RestoreIntentCodecV1.valid(intent) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try inject(.beforePreparedWrite)
             try Task.checkCancellation()
@@ -1199,7 +1199,7 @@ final class BackupRestoreService {
                   Set(try generationAuthority.restoreGenerationNames())
                     == [canonical(newGenerationID)],
                   try generationAuthority.importStagingNames().isEmpty else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
 
             try inject(.beforeGenerationInstall)
@@ -1239,14 +1239,14 @@ final class BackupRestoreService {
                 applicationSupportURL: applicationSupportURL,
                 fileManager: fileManager
             ) == persistedPortableExchangeSidecar.expectedBeforeEnvelopeSHA256 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try protectDataPointer(named: "current.json")
             guard try generationFactory.currentWorkspaceIdentity(
                     expectedGenerationID: currentGenerationID,
                     authority: generationAuthority
                   ) == frozenCurrentIdentity else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             if let identityDecision {
                 let expectedCurrentPointer = try currentPointer(
@@ -1393,11 +1393,11 @@ final class BackupRestoreService {
         guard let intent = try intentStore.load(),
               intent.phase == .newGenerationValidated,
               intent.newGenerationID == session.generationID else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         if let identity = intent.identity {
             guard try workspaceIdentity(identity.targetPointer).workspaceID == session.workspaceID else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         try await searchIndexLifecycle.dropProjection(workspaceID: session.workspaceID.rawValue)
@@ -1416,7 +1416,7 @@ final class BackupRestoreService {
             guard !fileManager.fileExists(
                 atPath: portableExchangeRestoreSidecarURL().path
             ) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let dataRoot = applicationSupportURL.appendingPathComponent(
                 "FieldEvidenceData",
@@ -1431,7 +1431,7 @@ final class BackupRestoreService {
         }
         try ensureGenerationAuthority()
         guard RestoreIntentCodecV1.valid(intent) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let currentID = try generationFactory.currentGenerationID(
             authority: generationAuthority
@@ -1461,7 +1461,7 @@ final class BackupRestoreService {
                         try workspaceIdentity($0.targetPointer)
                     }
                   ) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let packageURL = applicationSupportURL
                 .appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
@@ -1506,7 +1506,7 @@ final class BackupRestoreService {
               Set(try generationAuthority.restoreGenerationNames())
                 == expectedStagingNames,
               try generationAuthority.importStagingNames().isEmpty else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         guard let oldSession = try validInstalledGeneration(
             id: intent.oldGenerationID,
@@ -1516,17 +1516,17 @@ final class BackupRestoreService {
             requireExportReconciliation:
                 currentID == intent.oldGenerationID
         ), let oldRecords = try? records(in: oldSession.modelContext) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         switch intent.phase {
         case .prepared, .generationInstalled, .pointerSwitched:
             guard !retiredIDs.contains(intent.oldGenerationID),
                   !retiredIDs.contains(intent.newGenerationID) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         case .newGenerationValidated:
             guard !retiredIDs.contains(intent.newGenerationID) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         if intent.schemaVersion == 2,
@@ -1534,7 +1534,7 @@ final class BackupRestoreService {
            currentID == intent.oldGenerationID {
             guard !presence.staging,
                   let identity = intent.identity else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try removePreparedRestoreManifestBeforeDiscard(
                 expectedOldID: intent.oldGenerationID,
@@ -1553,7 +1553,7 @@ final class BackupRestoreService {
             )
             guard !discardedPresence.staging,
                   !discardedPresence.installed else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try removePortableExchangeRestoreSidecar(matching: intent)
             try intentStore.remove(expected: intent)
@@ -1598,7 +1598,7 @@ final class BackupRestoreService {
                 old: oldRecords,
                 target: newRecords
             ) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try validateDraftPublicationBinding(
                 intent: intent,
@@ -1617,7 +1617,7 @@ final class BackupRestoreService {
                old: oldRecords,
                target: stagedRecords
             ) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try validateDraftPublicationBinding(
                 intent: intent,
@@ -1635,12 +1635,12 @@ final class BackupRestoreService {
                 return try finishValidatedNew(switched, session: newSession)
             }
             guard currentID == intent.oldGenerationID else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             if presence.installed {
                 guard installedNewSession != nil,
                       !presence.staging else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 try removePreparedRestoreManifestBeforeDiscard(
                     expectedOldID: intent.oldGenerationID,
@@ -1670,7 +1670,7 @@ final class BackupRestoreService {
 
         case .generationInstalled:
             guard !presence.staging, presence.installed else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let newSession = installedNewSession
             guard let newSession else {
@@ -1685,7 +1685,7 @@ final class BackupRestoreService {
                         authority: generationAuthority
                     )
                 } else if currentID != intent.oldGenerationID {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 try generationFactory.removeInstalledGeneration(
                     id: intent.newGenerationID,
@@ -1702,7 +1702,7 @@ final class BackupRestoreService {
                 try protectDataPointer(named: "current.json")
                 try publishTarget(for: intent)
             } else if currentID != intent.newGenerationID {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let switched = intent.advancing(to: .pointerSwitched)
             try intentStore.replace(expected: intent, with: switched)
@@ -1713,7 +1713,7 @@ final class BackupRestoreService {
 
         case .pointerSwitched:
             guard !presence.staging, presence.installed else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let newSession = installedNewSession
             guard let newSession else {
@@ -1721,7 +1721,7 @@ final class BackupRestoreService {
                     throw BackupRestoreServiceError.recoveryRequired
                 }
                 guard currentID == intent.newGenerationID else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 try protectDataPointer(named: "current.json")
                 try generationFactory.switchCurrentGeneration(
@@ -1741,7 +1741,7 @@ final class BackupRestoreService {
                 return nil
             }
             guard currentID == intent.newGenerationID else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             return try finishValidatedNew(intent, session: newSession)
 
@@ -1751,7 +1751,7 @@ final class BackupRestoreService {
                   presence.installed,
                   currentID == intent.newGenerationID,
                   let newSession else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             if fileManager.fileExists(atPath: portableExchangeRestoreSidecarURL().path) {
                 try applyPortableExchangeRestoreSidecar(
@@ -1796,7 +1796,7 @@ private extension BackupRestoreService {
         var object = try JSONSerialization.jsonObject(
             with: encoder.encode(records), options: []
         ) as? [String: Any] ?? [:]
-        guard !object.isEmpty else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        guard !object.isEmpty else { throw attributedRestoreAuthorityFailureV1(line: #line) }
         object["partsStockSnapshot"] = try JSONSerialization.jsonObject(
             with: encoder.encode(snapshot), options: []
         )
@@ -1895,25 +1895,25 @@ private extension BackupRestoreService {
         do {
             try IntegrationProjectionBackupRestoreExclusionV1.validate()
             guard C34SceneNavigationKernelBackupRestoreBoundaryV1.validate() else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try KernelBackupRestoreRegistryV4.validate()
             let schema = try KernelPersistenceV4Schema.descriptor()
             guard schema.runtimePosture == .dormantStatic,
                   !schema.activationEnabled else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             guard case let .live(lifecycleDependencies) = lifecycleRoute else {
                 guard case let .expiringCompatibility(posture) = lifecycleRoute,
                       posture == .frozenLegacyCallersOnly else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 return
             }
             guard lifecycleDependencies.generationID == generationID,
                   lifecycleDependencies.generationRootURL.standardizedFileURL
                     == generationRootURL.standardizedFileURL else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let assetRows = try context.fetch(FetchDescriptor<Asset>())
             let pairs: [(WorkspaceEntityKindV1, UUID)] =
@@ -1931,7 +1931,7 @@ private extension BackupRestoreService {
             let revision = try lifecycleDependencies.writer.currentRevision()
             guard revision.workspaceID == lifecycleDependencies.workspaceID,
                   revision.generationID == generationID else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             for start in stride(from: 0, to: max(identities.count, 1), by: 256) {
                 let slice = identities.isEmpty ? [] : Array(
@@ -1946,7 +1946,7 @@ private extension BackupRestoreService {
                 let result = try lifecycleDependencies.writer.query(request)
                 guard result.existingIdentities == request.identities,
                       result.revision.revision == revision.revision else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 let expectedBindings = assetRows.filter { asset in
                     slice.contains(where: { $0.kind == .asset && $0.id == asset.id })
@@ -1959,16 +1959,16 @@ private extension BackupRestoreService {
                     )
                 }.sorted { $0.assetID.uuidString < $1.assetID.uuidString }
                 guard result.packageBindings == expectedBindings else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
             }
             guard try lifecycleDependencies.writer.currentRevision() == revision else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         } catch let failure as BackupRestoreServiceError {
             throw failure
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -1983,7 +1983,7 @@ private extension BackupRestoreService {
         } else if currentID == intent.newGenerationID {
             expected = identity.targetPointer
         } else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let pointer = try generationFactory.currentGenerationPointerV3(
             expectedGenerationID: currentID,
@@ -1996,7 +1996,7 @@ private extension BackupRestoreService {
                 == expected.knownReplicaIDs.map(canonical),
               pointer.workspaceID == canonical(expected.workspaceID),
               pointer.replicaID == canonical(expected.replicaID) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -2100,14 +2100,14 @@ private extension BackupRestoreService {
                   oldGenerationID == currentGenerationID,
                   let oldWorkspaceID = UUID(uuidString: current.workspaceID),
                   let oldReplicaID = UUID(uuidString: current.replicaID) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let decodedKnownReplicaIDs = current.knownReplicaIDs.compactMap {
                 UUID(uuidString: $0)
             }
             guard decodedKnownReplicaIDs.count
                     == current.knownReplicaIDs.count else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let oldPointer = RestorePointerIdentityV1(
                 generationID: oldGenerationID,
@@ -2144,7 +2144,7 @@ private extension BackupRestoreService {
             case .replaceExisting: targetWorkspaceID = oldWorkspaceID
             case .clone, .fork:
                 guard let allocatedWorkspaceID else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 targetWorkspaceID = allocatedWorkspaceID
             }
@@ -2176,7 +2176,7 @@ private extension BackupRestoreService {
                                 generate: makeUUID
                             ).rawValue
                     } catch {
-                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                        throw attributedRestoreAuthorityFailureV1(line: #line)
                     }
                 }
             } else {
@@ -2198,7 +2198,7 @@ private extension BackupRestoreService {
                     unavailableReplicaIDs: unavailableReplicas
                 ))
             } catch {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         default:
             throw BackupRestoreServiceError.invalidPackage
@@ -2216,7 +2216,7 @@ private extension BackupRestoreService {
             let candidate = makeUUID()
             if !unavailable.contains(candidate) { return candidate }
         }
-        throw BackupRestoreServiceError.invalidRestoreAuthority
+        throw attributedRestoreAuthorityFailureV1(line: #line)
     }
 
     func currentPointer(
@@ -2270,7 +2270,7 @@ private extension BackupRestoreService {
                 replicaID: ReplicaID(rawValue: replicaID)
             )
         default:
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -2320,7 +2320,7 @@ private extension BackupRestoreService {
               try generationAuthority.restoreGenerationNames().isEmpty,
               Set(try generationAuthority.installedGenerationNames())
                 == Set((retiredIDs + [currentGenerationID]).map(canonical)) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -2619,7 +2619,7 @@ private extension BackupRestoreService {
                     $0.workspaceID == workspaceID.uuidString.lowercased()
                 }), records.evidenceSequenceRevisions.allSatisfy({
                     $0.workspaceID.rawValue == workspaceID
-                }) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                }) else { throw attributedRestoreAuthorityFailureV1(line: #line) }
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidPackage }
         } else if !records.evidenceAssociationEvents.isEmpty
@@ -2643,7 +2643,7 @@ private extension BackupRestoreService {
                 guard profiles.allSatisfy({
                     $0.workspaceID.rawValue == expectedWorkspaceID
                 }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidPackage }
@@ -2667,7 +2667,7 @@ private extension BackupRestoreService {
                 guard sessions.allSatisfy({
                     $0.workspaceID.rawValue == expectedWorkspaceID
                 }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidPackage }
@@ -2698,7 +2698,7 @@ private extension BackupRestoreService {
                       values.restorationAssertions.count == records.serviceRestorationAssertions.count,
                       values.qualifiedExposures.count == records.qualifiedServiceExposures.count,
                       values.receipts.count == records.serviceReliabilityReceipts.count else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidPackage }
@@ -2744,7 +2744,7 @@ private extension BackupRestoreService {
                 guard values.records.count == records.serviceRequests.count,
                       values.dispositions.count == records.serviceRequestDispositionEvents.count,
                       values.workLinks.count == records.serviceRequestWorkLinkEvents.count else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidPackage }
@@ -2870,7 +2870,7 @@ private extension BackupRestoreService {
            normalized.recordsSchemaVersion
             >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
             guard normalized.operationalContacts == records.operationalContacts else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             // Re-run the complete row-to-journal receipt closure after every
             // other materialization normalization has finished. A replacement
@@ -2898,7 +2898,7 @@ private extension BackupRestoreService {
                     workspaceID:expectedWorkspaceID
                 )
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            catch { throw attributedRestoreAuthorityFailureV1(line: #line) }
         }
         if normalized.recordsSchemaVersion >= C57MyDayBackupEnrollmentV1.recordsSchemaVersion {
             do {
@@ -2940,7 +2940,7 @@ private extension BackupRestoreService {
                 normalized = normalized.replacingMyDay(prepared)
                 try C57MyDayBackupEnrollmentV1.validate(normalized)
             } catch {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         if normalized.recordsSchemaVersion >= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion {
@@ -2954,7 +2954,7 @@ private extension BackupRestoreService {
                     identity: identityDecision
                 )
             } catch {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         if normalized.recordsSchemaVersion >= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion {
@@ -2971,7 +2971,7 @@ private extension BackupRestoreService {
                 normalized = normalized.replacingShopReportProfiles(profiles)
                 try C04ShopReportProfileBackupEnrollmentV1.validate(normalized)
             } catch {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         if normalized.recordsSchemaVersion >= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion {
@@ -2988,7 +2988,7 @@ private extension BackupRestoreService {
                 normalized = normalized.replacingRoundSessions(sessions)
                 try C05RoundSessionBackupEnrollmentV1.validate(normalized)
             } catch {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         // Existing normalization copies predate C10. Reattach the closed,
@@ -3076,7 +3076,7 @@ private extension BackupRestoreService {
                 recordedAt: source.recordedAt
             )
             guard rebound.disposition == .historicCloneOrFork else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             return try V34BackupAcceptedLabelSnapshotRecordV1(rebound)
         }.sorted { ($0.workspaceID.uuidString, $0.snapshotID.uuidString) < ($1.workspaceID.uuidString, $1.snapshotID.uuidString) }
@@ -6059,7 +6059,7 @@ private extension BackupRestoreService {
               sourceWorkspaceUUID != identity.targetPointer.workspaceID,
               let sourceHistory = source.mutationHistory,
               let destinationHistory = destination.mutationHistory else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let workspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
         let replicaIdentity = try workspaceIdentity(identity)
@@ -6181,7 +6181,7 @@ private extension BackupRestoreService {
         guard Set(targetMutationIDBySource.values)
                 .union(targetCompoundMutationIDBySource.values)
                 .isDisjoint(with: retainedTargetMutationIDs) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
 
         var transformedContactBySourceRevision: [String: ServiceContactPointV1] = [:]
@@ -7039,7 +7039,7 @@ private extension BackupRestoreService {
     ) throws -> [V26BackupAssetLocatorRecordV1] {
         guard !records.isEmpty else { return [] }
         guard let sourceWorkspaceUUID = identity.source.workspaceID else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let sourceWorkspaceID = WorkspaceID(rawValue: sourceWorkspaceUUID)
         var sourceLocators: [UUID: AssetLocatorV1] = [:]
@@ -7079,7 +7079,7 @@ private extension BackupRestoreService {
             locators: Array(sourceLocators.values), receipts: Array(sourceReceipts.values)
         ).validate()
         guard sourceWorkspaceID != workspaceID || identity.mode == .replaceExisting || identity.mode == .emptyInstall else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let crossWorkspace = sourceWorkspaceID != workspaceID
             || identity.assetLocatorDisposition()
@@ -7754,7 +7754,7 @@ private extension BackupRestoreService {
         // values, not archive members.  Never manufacture a replacement
         // preview merely to make the receipt appear destination-local.
         guard values.receipts.isEmpty else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
 
         try PlanLifecycleClosureV1(
@@ -7804,7 +7804,7 @@ private extension BackupRestoreService {
     }
 
     func preparedAccessibleDocumentAssessments(_ records:[V23BackupAccessibleDocumentAssessmentRecordV1],identityDecision:RestoreIdentityV1?)async throws->[V23BackupAccessibleDocumentAssessmentRecordV1]{
-        preparedAccessibleDocumentTrees=[:];guard !records.isEmpty else{return []};guard let resolver=accessibleDocumentTreeResolver else{throw BackupRestoreServiceError.invalidRestoreAuthority}
+        preparedAccessibleDocumentTrees=[:];guard !records.isEmpty else{return []};guard let resolver=accessibleDocumentTreeResolver else{throw attributedRestoreAuthorityFailureV1(line: #line)}
         var output:[V23BackupAccessibleDocumentAssessmentRecordV1]=[],trees:[UUID:AccessibleDocumentSemanticTreeV1]=[:]
         for record in records{let source=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try source.validateIntrinsic();let sourceTree=try await resolver.resolveValidatedTree(for:source);let value:AccessibleDocumentAssessmentReceiptV1;let tree:AccessibleDocumentSemanticTreeV1
             if let identityDecision,source.workspaceID.rawValue != identityDecision.targetPointer.workspaceID{let target=WorkspaceID(rawValue:identityDecision.targetPointer.workspaceID);tree=try AccessibleDocumentSemanticTreeResolverV1.rebuild(.init(workspaceID:target,audience:sourceTree.audience,publication:sourceTree.publication,nodes:sourceTree.nodes,projectionVersion:sourceTree.projectionVersion));let actor=try LocalActorReferenceV1(actorReferenceID:source.assessor.actor.actorReferenceID,workspaceID:target,partyID:source.assessor.actor.partyID,displayName:source.assessor.actor.displayName);let assessor=try ActorSnapshotV1(snapshotID:source.assessor.snapshotID,workspaceID:target,actor:actor,responsibility:source.assessor.responsibility,displayNameAtTime:source.assessor.displayNameAtTime,capturedAt:source.assessor.capturedAt);value=try source.rebound(to:target,tree:tree,assessor:assessor)}else{tree=sourceTree;try source.validate(tree:tree);value=source}
@@ -8866,7 +8866,7 @@ private extension BackupRestoreService {
                           receipt.disposition == disposition,
                           receipt.snapshotSHA256 == sourceSnapshot.snapshotSHA256,
                           receipt.effectSHA256 == materializedSnapshot.snapshotSHA256 else {
-                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                        throw attributedRestoreAuthorityFailureV1(line: #line)
                     }
                 } else if records.partsStockSnapshot != nil {
                     throw BackupRestoreServiceError.invalidPackage
@@ -9011,7 +9011,7 @@ private extension BackupRestoreService {
         let url = portableExchangeRestoreSidecarURL()
         if fileManager.fileExists(atPath: url.path) {
             guard try Data(contentsOf: url, options: [.mappedIfSafe]) == data else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         } else {
             try data.write(to: url, options: [.atomic])
@@ -9022,7 +9022,7 @@ private extension BackupRestoreService {
         )
         let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
         guard descriptor >= 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         defer { _ = Darwin.close(descriptor) }
         let directory = Darwin.open(
@@ -9030,13 +9030,13 @@ private extension BackupRestoreService {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard directory >= 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         defer { _ = Darwin.close(directory) }
         guard Darwin.fsync(descriptor) == 0,
               Darwin.fsync(directory) == 0,
               try Data(contentsOf: url, options: [.mappedIfSafe]) == data else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -9053,7 +9053,7 @@ private extension BackupRestoreService {
               byteCount.uint64Value > 0,
               byteCount.uint64Value <= UInt64(PortableExchangeBackupMemberV2.maximumByteCount) * 2
                 + 1_048_576 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let data = try Data(contentsOf: url, options: [.mappedIfSafe])
         let sidecar = try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
@@ -9064,17 +9064,17 @@ private extension BackupRestoreService {
         guard sidecar.operationID == intent.restoreID,
               sidecar.oldGenerationID == intent.oldGenerationID,
               sidecar.newGenerationID == intent.newGenerationID else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         if let identity = intent.identity {
             guard sidecar.mode == identity.mode,
                   sidecar.sourceWorkspaceID == identity.source.workspaceID,
                   sidecar.targetWorkspaceID == identity.targetPointer.workspaceID else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         } else {
             guard sidecar.mode == .emptyInstall || sidecar.mode == .replaceExisting else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         return sidecar
@@ -9092,11 +9092,11 @@ private extension BackupRestoreService {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard directory >= 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         defer { _ = Darwin.close(directory) }
         guard Darwin.fsync(directory) == 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -9106,7 +9106,7 @@ private extension BackupRestoreService {
     ) throws {
         let sidecar = try portableExchangeRestoreSidecar(matching: intent)
         guard sidecar.targetWorkspaceID == targetWorkspaceID else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let cloneOrFork = sidecar.mode == .clone || sidecar.mode == .fork
         let firstReceipt = try PortableExchangeSessionStoreV2
@@ -9133,7 +9133,7 @@ private extension BackupRestoreService {
               firstReceipt.preservedImmutableByteCount == immutableByteCount,
               firstReceipt.activeCapabilitiesPreserved == activeCapabilityCount,
               firstReceipt.completedAt == sidecar.snapshot.createdAt else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
 
         // A second application is a read/verify of the exact target image.
@@ -9160,7 +9160,7 @@ private extension BackupRestoreService {
                   applicationSupportURL: applicationSupportURL,
                   fileManager: fileManager
               ) == effectSHA256 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -9191,7 +9191,7 @@ private extension BackupRestoreService {
         let url = draftPublicationBindingURL(restoreID: receipt.restoreID)
         if fileManager.fileExists(atPath: url.path) {
             guard try Data(contentsOf: url) == data else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         } else {
             try data.write(to: url, options: [.atomic])
@@ -9199,7 +9199,7 @@ private extension BackupRestoreService {
         try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: url)
         let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
         guard descriptor >= 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         defer { _ = Darwin.close(descriptor) }
         let directory = Darwin.open(
@@ -9207,13 +9207,13 @@ private extension BackupRestoreService {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard directory >= 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         defer { _ = Darwin.close(directory) }
         guard Darwin.fsync(descriptor) == 0,
               Darwin.fsync(directory) == 0,
               try Data(contentsOf: url) == data else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -9225,7 +9225,7 @@ private extension BackupRestoreService {
         let url = draftPublicationBindingURL(restoreID: intent.restoreID)
         guard !expected.isEmpty else {
             guard !fileManager.fileExists(atPath: url.path) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             return
         }
@@ -9242,14 +9242,14 @@ private extension BackupRestoreService {
         let actual = Set(receipt.adoptedStageIDs + receipt.reusedStageIDs)
         guard let targetWorkspaceID = intent.identity?.targetPointer.workspaceID
                 ?? records.fieldDrafts.first?.workspaceID else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         guard receipt.restoreID == intent.restoreID,
               receipt.workspaceID.rawValue == targetWorkspaceID,
               actual == expected,
               receipt.adoptedStageIDs.count + receipt.reusedStageIDs.count
                 == expected.count else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -9263,11 +9263,11 @@ private extension BackupRestoreService {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard directory >= 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         defer { _ = Darwin.close(directory) }
         guard Darwin.fsync(directory) == 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -9984,7 +9984,7 @@ private extension BackupRestoreService {
             }catch{throw BackupRestoreServiceError.invalidPackage}
         }
         if records.recordsSchemaVersion >= 22 {
-            do{let rows=try records.accessibleDocumentAssessments.map{record in let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);guard let tree=preparedAccessibleDocumentTrees[value.receiptID] else{throw BackupRestoreServiceError.invalidRestoreAuthority};let row=try AccessibleDocumentAssessmentReceiptRow(value,tree:tree);_ = try row.value(tree:tree);return row};rows.forEach{context.insert($0)}}catch{throw BackupRestoreServiceError.invalidPackage}
+            do{let rows=try records.accessibleDocumentAssessments.map{record in let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);guard let tree=preparedAccessibleDocumentTrees[value.receiptID] else{throw attributedRestoreAuthorityFailureV1(line: #line)};let row=try AccessibleDocumentAssessmentReceiptRow(value,tree:tree);_ = try row.value(tree:tree);return row};rows.forEach{context.insert($0)}}catch{throw BackupRestoreServiceError.invalidPackage}
         }
         if records.recordsSchemaVersion >= 23 {
             do {
@@ -10189,7 +10189,7 @@ private extension BackupRestoreService {
                     guard let sourceWorkspaceID = workspaces.first,
                           workspaces.allSatisfy({ $0 == sourceWorkspaceID }),
                           identityDecision.map({ $0.mode == .clone || $0.mode == .fork }) == true else {
-                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                        throw attributedRestoreAuthorityFailureV1(line: #line)
                     }
                     func actor(_ source: ActorSnapshotV1) throws -> ActorSnapshotV1 {
                         let reference = try LocalActorReferenceV1(
@@ -10527,7 +10527,7 @@ private extension BackupRestoreService {
                     // `recordsForMaterialization` has already used the closed
                     // canonical rebind constructors for clone/fork. Reject any
                     // source-workspace row that survives that normalization.
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 for value in values.clips.sorted(by: { $0.clipID.uuidString < $1.clipID.uuidString }) {
                     context.insert(try TemporalEvidenceClipRow(value))
@@ -10554,7 +10554,7 @@ private extension BackupRestoreService {
                 guard values.allSatisfy({
                     $0.workspaceID.rawValue == targetWorkspaceID
                         && (!historic || $0.disposition == .historicCloneOrFork)
-                }) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                }) else { throw attributedRestoreAuthorityFailureV1(line: #line) }
                 for value in values.sorted(by: {
                     ($0.workspaceID.rawValue.uuidString, $0.snapshotID.uuidString)
                         < ($1.workspaceID.rawValue.uuidString, $1.snapshotID.uuidString)
@@ -10576,7 +10576,7 @@ private extension BackupRestoreService {
                         try records.operationalContacts.filter { $0.kind == .systemHandoffIntent }.map { try $0.intentValue() }
                     )
                     guard values.intents.allSatisfy({ $0.disposition == .historicReferenceOnly }) else {
-                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                        throw attributedRestoreAuthorityFailureV1(line: #line)
                     }
                 } else {
                     values = try records.validateC46OperationalContacts()
@@ -10585,7 +10585,7 @@ private extension BackupRestoreService {
                     ?? legacyDestinationIdentity.workspaceID.rawValue
                 guard values.contacts.allSatisfy({ $0.workspaceID.rawValue == targetWorkspaceID }),
                       values.intents.allSatisfy({ $0.workspaceID.rawValue == targetWorkspaceID }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 for value in values.contacts.sorted(by: { $0.contactPointID.uuidString < $1.contactPointID.uuidString }) {
                     context.insert(try ServiceContactPointRow(value))
@@ -10607,7 +10607,7 @@ private extension BackupRestoreService {
                         + values.taskResults.map(\.workspaceID) + values.asBuilt.map(\.workspaceID)
                         + values.punchBasis.map(\.workspaceID))
                     .allSatisfy({ $0.rawValue == targetWorkspaceID }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 for value in values.envelopes { context.insert(try ActivitySessionEnvelopeRow(value)) }
                 for value in values.transitions { context.insert(try ActivityStateTransitionRow(value)) }
@@ -10625,7 +10625,7 @@ private extension BackupRestoreService {
                 let targetWorkspaceID = identityDecision?.targetPointer.workspaceID
                     ?? legacyDestinationIdentity.workspaceID.rawValue
                 guard values.allSatisfy({ $0.workspaceID.rawValue == targetWorkspaceID }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 for value in values { context.insert(try ManualWorkResourceRecordRow(value)) }
             } catch let error as BackupRestoreServiceError { throw error }
@@ -10644,7 +10644,7 @@ private extension BackupRestoreService {
                     $0.sourcePlan.key.workspaceID.rawValue == workspaceID
                         && $0.targetPlan.key.workspaceID.rawValue == workspaceID
                 }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 for value in records.myDayPlans { context.insert(try MyDayPlanRowV1(value)) }
                 for value in records.myDayCarryoverReceipts {
@@ -10665,7 +10665,7 @@ private extension BackupRestoreService {
                     $0.workspaceID == workspaceID.uuidString.lowercased()
                 }), records.evidenceSequenceRevisions.allSatisfy({
                     $0.workspaceID.rawValue == workspaceID
-                }) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                }) else { throw attributedRestoreAuthorityFailureV1(line: #line) }
                 for value in records.evidenceAssociationEvents {
                     context.insert(try EvidenceAssociationEventRowV1(value))
                 }
@@ -10685,7 +10685,7 @@ private extension BackupRestoreService {
                     ?? legacyDestinationIdentity.workspaceID.rawValue
                 guard records.shopReportProfiles.allSatisfy({
                     $0.workspaceID.rawValue == workspaceID
-                }) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                }) else { throw attributedRestoreAuthorityFailureV1(line: #line) }
                 for value in records.shopReportProfiles {
                     context.insert(try ShopReportProfileRowV1(value))
                 }
@@ -10701,7 +10701,7 @@ private extension BackupRestoreService {
                     ?? legacyDestinationIdentity.workspaceID.rawValue
                 guard records.roundSessions.allSatisfy({
                     $0.workspaceID.rawValue == workspaceID
-                }) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                }) else { throw attributedRestoreAuthorityFailureV1(line: #line) }
                 for value in records.roundSessions {
                     context.insert(try RoundSessionRevisionRowV1(value))
                 }
@@ -10740,7 +10740,7 @@ private extension BackupRestoreService {
                       records.bulkCommitReceipts.allSatisfy({ $0.workspaceID.rawValue == workspaceID }) else {
                     // Import plans bind the original workspace revision. A clone/fork
                     // cannot activate them without a contract-owned rebind plan.
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 for value in records.importMappingProfiles { context.insert(try ImportMappingProfileRowV1(value)) }
                 for value in records.bulkSessions { context.insert(try BulkSessionRowV1(value)) }
@@ -10764,7 +10764,7 @@ private extension BackupRestoreService {
                             // Immutable C10 facts bind both workspace identity and
                             // original evidence/rule bytes. Clone/fork has no
                             // sanctioned rebinding transformation.
-                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                            throw attributedRestoreAuthorityFailureV1(line: #line)
                         }
                     case .emptyInstall, .replaceExisting:
                         break
@@ -10776,7 +10776,7 @@ private extension BackupRestoreService {
                       evidenceQuality.assessments.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
                       evidenceQuality.waivers.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
                       evidenceQuality.receipts.allSatisfy({ $0.workspaceID.rawValue == workspaceID }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 let receipts = Dictionary(uniqueKeysWithValues: evidenceQuality.receipts.map { ($0.mutationID.rawValue, $0) })
                 let writerInstances = Dictionary(uniqueKeysWithValues: evidenceQuality.effectProvenance.map {
@@ -10833,7 +10833,7 @@ private extension BackupRestoreService {
                               fastSurveyInbox.snippets.isEmpty, fastSurveyInbox.receipts.isEmpty,
                               fastSurveyInbox.snippetInsertions.isEmpty,
                               fastSurveyInbox.effectProvenance.isEmpty else {
-                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                            throw attributedRestoreAuthorityFailureV1(line: #line)
                         }
                     case .emptyInstall, .replaceExisting: break
                     }
@@ -10845,7 +10845,7 @@ private extension BackupRestoreService {
                       fastSurveyInbox.snippets.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
                       fastSurveyInbox.snippetInsertions.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
                       fastSurveyInbox.receipts.allSatisfy({ $0.workspaceID.rawValue == workspaceID }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 try FastSurveyInboxLifecycleAdapterV1(
                     modelContext: context, workspaceID: WorkspaceID(rawValue: workspaceID)
@@ -10864,7 +10864,7 @@ private extension BackupRestoreService {
                               reinspectionExceptionQueue.acknowledgements.isEmpty,
                               reinspectionExceptionQueue.receipts.isEmpty,
                               reinspectionExceptionQueue.effectProvenance.isEmpty else {
-                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                            throw attributedRestoreAuthorityFailureV1(line: #line)
                         }
                     case .emptyInstall, .replaceExisting:
                         break
@@ -10876,7 +10876,7 @@ private extension BackupRestoreService {
                       reinspectionExceptionQueue.attestations.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
                       reinspectionExceptionQueue.acknowledgements.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
                       reinspectionExceptionQueue.receipts.allSatisfy({ $0.workspaceID.rawValue == workspaceID }) else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 try ReinspectionExceptionQueueLifecycleAdapterV1(
                     modelContext: context, workspaceID: WorkspaceID(rawValue: workspaceID)
@@ -10896,7 +10896,7 @@ private extension BackupRestoreService {
                     switch identityDecision.mode {
                     case .clone, .fork:
                         guard sourceIsEmpty else {
-                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                            throw attributedRestoreAuthorityFailureV1(line: #line)
                         }
                     case .emptyInstall, .replaceExisting:
                         break
@@ -10917,7 +10917,7 @@ private extension BackupRestoreService {
                     restoredSnapshot = identityResolution
                 }
                 guard restoredSnapshot.workspaceID.rawValue == workspaceID else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 guard let mutationHistory = records.mutationHistory else {
                     throw BackupRestoreServiceError.invalidPackage
@@ -10963,7 +10963,7 @@ private extension BackupRestoreService {
                         ).validateCloneOrForkDestinationIsReal()
                     case .emptyInstall, .replaceExisting:
                         guard snapshot.provenance.workspaceID == target else {
-                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                            throw attributedRestoreAuthorityFailureV1(line: #line)
                         }
                         context.insert(try PracticeWorkspaceProvenanceRowV1(snapshot.provenance))
                     }
@@ -11307,7 +11307,7 @@ private extension BackupRestoreService {
         let relative = try relativePath(of: url, within: root)
         let components = try validatedPathComponents(relative)
         guard let finalName = components.last else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let parentRelative = components.dropLast().joined(separator: "/")
         let temporaryName = ".\(finalName).restore-next"
@@ -11363,7 +11363,7 @@ private extension BackupRestoreService {
                 guard Darwin.fstat(descriptor, &information) == 0,
                       (information.st_mode & S_IFMT) == S_IFREG,
                       information.st_nlink == 1 else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 let identity = PinnedIdentity(information)
                 temporaryIdentity = identity
@@ -11372,7 +11372,7 @@ private extension BackupRestoreService {
                     parent: parentDescriptor,
                     name: temporaryName
                 ) == identity else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
                     try ProtectedFilePolicyV1.applyAndVerify(
@@ -11385,7 +11385,7 @@ private extension BackupRestoreService {
                                 parent: parentDescriptor,
                                 name: temporaryName
                             ) == identity else {
-                                throw BackupRestoreServiceError.invalidRestoreAuthority
+                                throw attributedRestoreAuthorityFailureV1(line: #line)
                             }
                         }
                     )
@@ -11395,7 +11395,7 @@ private extension BackupRestoreService {
                     name: temporaryName
                 ) == identity,
                       try itemExists(parent: parentDescriptor, name: finalName) == false else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 guard Darwin.renameatx_np(
                     parentDescriptor,
@@ -11418,7 +11418,7 @@ private extension BackupRestoreService {
                                 parent: parentDescriptor,
                                 name: finalName
                             ) == identity else {
-                                throw BackupRestoreServiceError.invalidRestoreAuthority
+                                throw attributedRestoreAuthorityFailureV1(line: #line)
                             }
                         }
                     )
@@ -11482,7 +11482,7 @@ private extension BackupRestoreService {
         let expected = staging ? generationFactory.restoreStagingGenerationURL(id: id)
             : generationFactory.installedGenerationURL(id: id)
         guard root.standardizedFileURL == expected.standardizedFileURL else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         // Use the same descriptor inventory and closed path classification as
         // migration/open/prune. The records-based expected tree remains a
@@ -11500,7 +11500,7 @@ private extension BackupRestoreService {
         guard !relativePath.hasPrefix("/"),
               !relativePath.hasPrefix("\\"),
               !relativePath.contains("\\") else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         if relativePath.isEmpty { return [] }
         let components = relativePath.split(
@@ -11511,7 +11511,7 @@ private extension BackupRestoreService {
               components.allSatisfy({
                   !$0.isEmpty && $0 != "." && $0 != ".."
               }) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         return components
     }
@@ -11530,7 +11530,7 @@ private extension BackupRestoreService {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard rootDescriptor >= 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         var descriptors = [rootDescriptor]
         defer {
@@ -11542,7 +11542,7 @@ private extension BackupRestoreService {
         var rootInformation = stat()
         guard Darwin.fstat(rootDescriptor, &rootInformation) == 0,
               (rootInformation.st_mode & S_IFMT) == S_IFDIR else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         var pins = [PinnedDirectory(
             descriptor: rootDescriptor,
@@ -11564,7 +11564,7 @@ private extension BackupRestoreService {
                     mode_t(0o700)
                 ) == 0 || errno == EEXIST,
                       Darwin.fsync(current) == 0 else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 descriptor = Darwin.openat(
                     current,
@@ -11573,13 +11573,13 @@ private extension BackupRestoreService {
                 )
             }
             guard descriptor >= 0 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             descriptors.append(descriptor)
             var information = stat()
             guard Darwin.fstat(descriptor, &information) == 0,
                   (information.st_mode & S_IFMT) == S_IFDIR else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             pins.append(PinnedDirectory(
                 descriptor: descriptor,
@@ -11598,7 +11598,7 @@ private extension BackupRestoreService {
                     var information = stat()
                     guard Darwin.fstat(pin.descriptor, &information) == 0,
                           PinnedIdentity(information) == pin.identity else {
-                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                        throw attributedRestoreAuthorityFailureV1(line: #line)
                     }
                     if let parent = pin.parent, let name = pin.name {
                         var pathInformation = stat()
@@ -11609,7 +11609,7 @@ private extension BackupRestoreService {
                             AT_SYMLINK_NOFOLLOW
                         ) == 0,
                               PinnedIdentity(pathInformation) == pin.identity else {
-                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                            throw attributedRestoreAuthorityFailureV1(line: #line)
                         }
                     }
                 }
@@ -11630,7 +11630,7 @@ private extension BackupRestoreService {
     ) throws -> T {
         let components = try validatedPathComponents(relativePath)
         guard let name = components.last else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let parentRelative = components.dropLast().joined(separator: "/")
         return try withPinnedDirectory(
@@ -11644,12 +11644,12 @@ private extension BackupRestoreService {
                 : (O_RDONLY | O_NOFOLLOW)
             let descriptor = Darwin.openat(parentDescriptor, name, flags)
             guard descriptor >= 0 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             defer { _ = Darwin.close(descriptor) }
             var information = stat()
             guard Darwin.fstat(descriptor, &information) == 0 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let identity = PinnedIdentity(information)
             let expectedType = expectedDirectory
@@ -11657,7 +11657,7 @@ private extension BackupRestoreService {
                 : UInt32(S_IFREG)
             guard identity.type == expectedType,
                   expectedDirectory || identity.linkCount == 1 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             return try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
                 func verifyItem() throws {
@@ -11666,12 +11666,12 @@ private extension BackupRestoreService {
                         parent: parentDescriptor,
                         name: name
                     ) == identity else {
-                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                        throw attributedRestoreAuthorityFailureV1(line: #line)
                     }
                     var descriptorInformation = stat()
                     guard Darwin.fstat(descriptor, &descriptorInformation) == 0,
                           PinnedIdentity(descriptorInformation) == identity else {
-                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                        throw attributedRestoreAuthorityFailureV1(line: #line)
                     }
                 }
                 try verifyItem()
@@ -11696,7 +11696,7 @@ private extension BackupRestoreService {
             return true
         }
         if errno == ENOENT { return false }
-        throw BackupRestoreServiceError.invalidRestoreAuthority
+        throw attributedRestoreAuthorityFailureV1(line: #line)
     }
 
     nonisolated private func itemIdentity(
@@ -11710,10 +11710,10 @@ private extension BackupRestoreService {
             &information,
             AT_SYMLINK_NOFOLLOW
         ) == 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         guard (information.st_mode & S_IFMT) != S_IFLNK else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         return PinnedIdentity(information)
     }
@@ -11729,7 +11729,7 @@ private extension BackupRestoreService {
             O_RDONLY | O_NOFOLLOW
         )
         guard descriptor >= 0 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         defer { _ = Darwin.close(descriptor) }
         var before = stat()
@@ -11737,7 +11737,7 @@ private extension BackupRestoreService {
               PinnedIdentity(before) == expected,
               expected.type == UInt32(S_IFREG),
               expected.linkCount == 1 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         var data = Data()
         var buffer = [UInt8](repeating: 0, count: 16 * 1024)
@@ -11750,7 +11750,7 @@ private extension BackupRestoreService {
             } else if count == 0 {
                 break
             } else if errno != EINTR {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         var after = stat()
@@ -11758,7 +11758,7 @@ private extension BackupRestoreService {
               PinnedIdentity(after) == expected,
               data.count == Int(after.st_size),
               try itemIdentity(parent: parent, name: name) == expected else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         return data
     }
@@ -11767,7 +11767,7 @@ private extension BackupRestoreService {
         do {
             return try GenerationOwnedPathV1.classify(relativePath, nodeType: .regularFile).kind
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -11775,14 +11775,14 @@ private extension BackupRestoreService {
         let rootPath = root.standardizedFileURL.path
         let valuePath = url.standardizedFileURL.path
         guard valuePath.hasPrefix(rootPath + "/") else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let value = String(valuePath.dropFirst(rootPath.count + 1))
         guard !value.isEmpty,
               !value.contains("\\"),
               !value.split(separator: "/", omittingEmptySubsequences: false)
                 .contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         return value
     }
@@ -11865,7 +11865,7 @@ private extension BackupRestoreService {
         staging: Bool
     ) throws {
         guard !session.modelContext.hasChanges else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         try validateRows(session.modelContext, expected: expected)
         try validateFrozenFiles(
@@ -11904,7 +11904,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1?
     ) throws {
         guard !session.modelContext.hasChanges else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         if let expected {
             try validateRows(session.modelContext, expected: expected)
@@ -11939,7 +11939,7 @@ private extension BackupRestoreService {
             where failure == .protectedDataUnavailable {
             throw failure
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let frozenRecords: V4BackupRecordsV1
         if let expected {
@@ -11967,7 +11967,7 @@ private extension BackupRestoreService {
               tree.directories.isSubset(of: allowedDirectories),
               expected.files.isSubset(of: tree.files),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         try validateOptionalAssetLabelPublications(
             tree,
@@ -12006,7 +12006,7 @@ private extension BackupRestoreService {
             guard !isPresent
                     || (ownedDirectories.isSubset(of: tree.directories)
                         && ownedFiles.isSubset(of: tree.files)) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             if isPresent {
                 guard let readback = try store.readAssetLabelArtifacts(
@@ -12015,7 +12015,7 @@ private extension BackupRestoreService {
                       readback.plan == snapshot.plan,
                       readback.projection.manifest == snapshot.manifest,
                       readback.publishedArtifacts == binding.publishedArtifacts else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
             }
         }
@@ -12045,7 +12045,7 @@ private extension BackupRestoreService {
             }
             guard forbiddenDirectories.isDisjoint(with: tree.directories),
                   forbiddenFiles.isDisjoint(with: tree.files) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
     }
@@ -12068,7 +12068,7 @@ private extension BackupRestoreService {
                     .union(expected.optionalDirectories)
               ),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         try validateOptionalAssetLabelPublications(
             tree,
@@ -12095,7 +12095,7 @@ private extension BackupRestoreService {
                     .union(expected.optionalDirectories)
               ),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         try requireAbsentAssetLabelPublications(tree, records: frozenRecords)
     }
@@ -12136,7 +12136,7 @@ private extension BackupRestoreService {
             try binding.validate(manifest: snapshot.manifest)
             let workspace = snapshot.workspaceID.rawValue.uuidString.lowercased()
             guard binding.workspaceID == snapshot.workspaceID else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             optionalDirectories.insert("content")
             optionalDirectories.insert("content/\(workspace)")
@@ -12162,7 +12162,7 @@ private extension BackupRestoreService {
             }
             for key in contentKeys {
                 let components = key.split(separator: "|", maxSplits: 1).map(String.init)
-                guard components.count == 2 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                guard components.count == 2 else { throw attributedRestoreAuthorityFailureV1(line: #line) }
                 let directory = "content/\(components[0])/\(components[1])"
                 optionalDirectories.formUnion(["content", "content/\(components[0])", directory])
                 optionalFiles.insert("\(directory)/original.bin")
@@ -12356,16 +12356,16 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 22
                 || actual.recordsSchemaVersion == 23
                 || actual.recordsSchemaVersion == 24) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
             guard recordsByReplacingV7Fields(
                 actual, schemaVersion: expected.recordsSchemaVersion
             ) == expected else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         } else if try !validLegacyLocationMigration(actual, expected: expected) {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -12544,7 +12544,7 @@ private extension BackupRestoreService {
                   thumbnail.count == evidence.thumbnailByteCount,
                   CanonicalJSONV1.sha256(original) == evidence.sha256,
                   CanonicalJSONV1.sha256(thumbnail) == evidence.thumbnailSHA256 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
         for report in records.reports {
@@ -12554,7 +12554,7 @@ private extension BackupRestoreService {
                 authorityCheck: authorityCheck
             )
             guard CanonicalJSONV1.sha256(snapshot) == report.snapshotSHA256 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             if let path = report.pdfRelativePath,
                let hash = report.pdfSHA256 {
@@ -12564,7 +12564,7 @@ private extension BackupRestoreService {
                     authorityCheck: authorityCheck
                 )
                 guard CanonicalJSONV1.sha256(pdf) == hash else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
             }
         }
@@ -12578,7 +12578,7 @@ private extension BackupRestoreService {
     ) throws -> Data {
         let components = try validatedPathComponents(relativePath)
         guard let name = components.last else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         return try withPinnedExistingItem(
             root: root,
@@ -12590,7 +12590,7 @@ private extension BackupRestoreService {
             guard Darwin.fstat(descriptor, &information) == 0,
                   (information.st_mode & S_IFMT) == S_IFREG,
                   information.st_nlink == 1 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let identity = PinnedIdentity(information)
             try verifyItem()
@@ -12806,7 +12806,7 @@ private extension BackupRestoreService {
         }
         let privacyPolicies = try Dictionary(uniqueKeysWithValues: privacyTransformPolicies.map { let value = try $0.value(); return (value.policyID, value) })
         let privacyManifests = try Dictionary(uniqueKeysWithValues: privacyTransformManifests.map { row in
-            guard let policy = privacyPolicies[row.policyID] else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            guard let policy = privacyPolicies[row.policyID] else { throw attributedRestoreAuthorityFailureV1(line: #line) }
             let value = try row.value(policy: policy); return (value.manifestID, value)
         })
         let privacyTransformRecords: [V19BackupPrivacyTransformRecordV1] = mutationHistory == nil ? [] : try (
@@ -12814,20 +12814,20 @@ private extension BackupRestoreService {
             + privacyRegions.map { let v=try $0.value(); return .init(kind:.region,id:v.regionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
             + privacyManifests.values.map { v in .init(kind:.manifest,id:v.manifestID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try PrivacyTransformCanonicalCodecV1.encode(v)) }
             + privacyReviewReceipts.map { row in
-                guard let manifest = privacyManifests[row.manifestID], let policy = privacyPolicies[row.policyID] else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                guard let manifest = privacyManifests[row.manifestID], let policy = privacyPolicies[row.policyID] else { throw attributedRestoreAuthorityFailureV1(line: #line) }
                 let v = try row.value(manifest: manifest, policy: policy)
                 return .init(kind:.reviewReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try PrivacyTransformCanonicalCodecV1.encode(v))
             }
         ).sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
         let capabilityReleases=try Dictionary(uniqueKeysWithValues:promotedPackageReleases.map{let v=try $0.value();return(v.packageRelease.packageReleaseID,v.packageRelease)})
         let capabilityProfiles=try Dictionary(uniqueKeysWithValues:clientCapabilityProfiles.map{let v=try $0.value();return(v.profileID,v)})
-        let capabilityPolicies=try Dictionary(uniqueKeysWithValues:packageLifecyclePolicies.map{row in guard let release=capabilityReleases[row.packageReleaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let v=try row.value(release:release);return(v.policyID,v)})
-        let capabilityDispositions=try Dictionary(uniqueKeysWithValues:packageLifecycleDispositions.map{row in guard let release=capabilityReleases[row.packageReleaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let v=try row.value(release:release);return(v.dispositionID,v)})
+        let capabilityPolicies=try Dictionary(uniqueKeysWithValues:packageLifecyclePolicies.map{row in guard let release=capabilityReleases[row.packageReleaseID]else{throw attributedRestoreAuthorityFailureV1(line: #line)};let v=try row.value(release:release);return(v.policyID,v)})
+        let capabilityDispositions=try Dictionary(uniqueKeysWithValues:packageLifecycleDispositions.map{row in guard let release=capabilityReleases[row.packageReleaseID]else{throw attributedRestoreAuthorityFailureV1(line: #line)};let v=try row.value(release:release);return(v.dispositionID,v)})
         var clientCapabilityRecords:[V20BackupClientCapabilityRecordV1]=[]
-        if mutationHistory != nil{clientCapabilityRecords=try capabilityProfiles.values.map{.init(kind:.profile,id:$0.profileID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+capabilityPolicies.values.map{.init(kind:.policy,id:$0.policyID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+capabilityDispositions.values.map{.init(kind:.disposition,id:$0.dispositionID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))};clientCapabilityRecords += try clientCapabilityAdmissionDecisions.map{row in guard let profile=capabilityProfiles[row.profileID],let policy=capabilityPolicies[row.policyID],let disposition=capabilityDispositions[row.dispositionID],let release=capabilityReleases[row.packageReleaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let v=try row.value(profile:profile,policy:policy,disposition:disposition,release:release);return .init(kind:.admissionDecision,id:v.decisionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode(v))};clientCapabilityRecords.sort{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}}
+        if mutationHistory != nil{clientCapabilityRecords=try capabilityProfiles.values.map{.init(kind:.profile,id:$0.profileID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+capabilityPolicies.values.map{.init(kind:.policy,id:$0.policyID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+capabilityDispositions.values.map{.init(kind:.disposition,id:$0.dispositionID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))};clientCapabilityRecords += try clientCapabilityAdmissionDecisions.map{row in guard let profile=capabilityProfiles[row.profileID],let policy=capabilityPolicies[row.policyID],let disposition=capabilityDispositions[row.dispositionID],let release=capabilityReleases[row.packageReleaseID]else{throw attributedRestoreAuthorityFailureV1(line: #line)};let v=try row.value(profile:profile,policy:policy,disposition:disposition,release:release);return .init(kind:.admissionDecision,id:v.decisionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode(v))};clientCapabilityRecords.sort{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}}
         let recoverabilityReceiptRecords:[V21BackupRecoverabilityReceiptRecordV1]=mutationHistory == nil ? [] : try recoverabilityVerificationReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try RecoverabilityVerificationCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
         let fieldReferenceReleaseValues=try Dictionary(uniqueKeysWithValues:fieldReferenceReleases.map{let value=try $0.value();return(value.releaseID,value)})
-        let fieldReferenceRecords:[V22BackupFieldReferenceRecordV1]=mutationHistory == nil ? [] : try (fieldReferenceReleaseValues.values.map{.init(kind:.release,id:$0.releaseID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}+fieldReferenceBindings.map{row in guard let release=fieldReferenceReleaseValues[row.releaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let value=try row.value(release:release);return .init(kind:.binding,id:value.bindingID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+        let fieldReferenceRecords:[V22BackupFieldReferenceRecordV1]=mutationHistory == nil ? [] : try (fieldReferenceReleaseValues.values.map{.init(kind:.release,id:$0.releaseID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}+fieldReferenceBindings.map{row in guard let release=fieldReferenceReleaseValues[row.releaseID]else{throw attributedRestoreAuthorityFailureV1(line: #line)};let value=try row.value(release:release);return .init(kind:.binding,id:value.bindingID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
         let accessibleDocumentAssessmentRecords:[V23BackupAccessibleDocumentAssessmentRecordV1]=mutationHistory == nil ? [] : try accessibleDocumentAssessmentReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try AccessibleDocumentCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
         let surveyDefinitionRecords:[V24BackupSurveyDefinitionRecordV1]=mutationHistory == nil ? [] : try (
             surveyDefinitionIdentities.map{let value=try $0.value();return .init(kind:.identity,id:value.definitionID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try SurveyDefinitionCanonicalCodecV1.encode(value))}
@@ -12856,7 +12856,7 @@ private extension BackupRestoreService {
                         definitions: definitions, history: history
                     ).validate()
                 } catch {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 scheduleRecords = try definitions.map {
                     .init(kind: .scheduleRelease, id: $0.releaseID,
@@ -12921,7 +12921,7 @@ private extension BackupRestoreService {
         )
         guard mutationHistory != nil
                 || (poseEventRows.isEmpty && spatialAnchorObservationRows.isEmpty) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let placementPoseRecords: [V29BackupPlacementPoseRecordV1] =
             mutationHistory == nil ? [] : try (
@@ -13140,7 +13140,7 @@ private extension BackupRestoreService {
                 + partsStockAbandonmentRows.map(\.workspaceUUID)
         )
         guard partsStockWorkspaceIDs.count <= 1 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let partsStockSnapshot = try partsStockWorkspaceIDs.first.map {
             try PartsStockLifecycleAdapterV1(modelContext: context).snapshotForBackup(
@@ -13476,7 +13476,7 @@ private extension BackupRestoreService {
                     return workflowDTO(record)
                 }
                 guard let companion = observationAndTime[record.id] else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted { canonical($0.id) < canonical($1.id) },
@@ -13520,7 +13520,7 @@ private extension BackupRestoreService {
             || !placementRows.isEmpty || !receiptRows.isEmpty
         guard hasRows else { return [] }
         guard mutationHistory != nil else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         let documents = try documentRows.map { try $0.value() }
         let revisions = try revisionRows.map { try $0.value() }
@@ -13537,7 +13537,7 @@ private extension BackupRestoreService {
         for revision in revisions {
             for frame in revision.spatialFrames {
                 if let existing = frames[frame.frameID], existing.value != frame {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 frames[frame.frameID] = (frame, revision.revision)
             }
@@ -13657,7 +13657,7 @@ private extension BackupRestoreService {
         descriptor.fetchLimit = 2
         let states = try context.fetch(descriptor)
         guard states.count <= 1 else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         guard let state = states.first else {
             let receiptCount = try context.fetchCount(
@@ -13672,7 +13672,7 @@ private extension BackupRestoreService {
             guard receiptCount == 0,
                   quarantineCount == 0,
                   revisionCount == 0 else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             return nil
         }
@@ -13687,7 +13687,7 @@ private extension BackupRestoreService {
                 generationID: state.generationID
             ).exportSnapshot()
         } catch {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            throw attributedRestoreAuthorityFailureV1(line: #line)
         }
     }
 
@@ -13714,7 +13714,7 @@ private extension BackupRestoreService {
         )
         for name in try generationAuthority.restoreGenerationNames() {
             guard let id = UUID(uuidString: name), canonical(id) == name else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             let digest = try generationFactory
                 .prepareRestoreStagingGenerationManifest(
@@ -13733,7 +13733,7 @@ private extension BackupRestoreService {
             guard url.pathExtension == "fieldrecordbackup",
                   let id = UUID(uuidString: canonicalName),
                   canonical(id) == canonicalName else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try generationAuthority.removeImportStagingPackage(name: name)
         }
@@ -13756,7 +13756,7 @@ private extension BackupRestoreService {
             let end = name.index(name.endIndex, offsetBy: -".json".count)
             let rawID = String(name[start..<end])
             guard let id = UUID(uuidString: rawID), canonical(id) == rawID else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try ProtectedFilePolicyV1.verify(.stagingFile, at: url)
             try fileManager.removeItem(at: url)
@@ -13779,7 +13779,7 @@ private extension BackupRestoreService {
                     authority: generationAuthority
                 )
             guard observed == expectedDigest else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
+                throw attributedRestoreAuthorityFailureV1(line: #line)
             }
             try removePreparedRestoreManifestBeforeDiscard(
                 expectedOldID: currentID,
@@ -13870,4 +13870,11 @@ enum C52ServiceRequestReplaceRestoreBoundaryV1 {
     static let preservesImmutableAcceptedSourceBytes = true
     static let invalidatesOutstandingCapabilities = true
     static let rebuildsSearchAndDuplicateProjections = true
+}
+
+private func attributedRestoreAuthorityFailureV1(line: UInt) -> BackupRestoreServiceError {
+    #if DEBUG
+    print("BackupRestoreService invalidRestoreAuthorityLine=\(line)")
+    #endif
+    return .invalidRestoreAuthority
 }
