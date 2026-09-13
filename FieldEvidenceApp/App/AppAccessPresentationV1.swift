@@ -265,6 +265,7 @@ final class AppAccessPresentationV1: ObservableObject {
             fileprivate let publicationEvidence: ProductionOfflineReadinessPublicationEvidenceV1
         }
 
+        @MainActor
         struct RepetitiveCaptureLaunchV2 {
             fileprivate let write: PreparedRepetitiveCaptureSourceV2
             fileprivate let readiness: RoundReadinessReadV1
@@ -272,6 +273,7 @@ final class AppAccessPresentationV1: ObservableObject {
             var attemptState: RepetitiveCaptureCheckpointAttemptStateV2 { write.attemptState }
         }
 
+        @MainActor
         struct RepetitiveCaptureStepV2 {
             fileprivate let write: PreparedRepetitiveCaptureStepV2
             fileprivate let readiness: RoundReadinessReadV1

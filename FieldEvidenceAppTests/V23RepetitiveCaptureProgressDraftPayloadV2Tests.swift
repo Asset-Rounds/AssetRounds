@@ -439,7 +439,7 @@ private final class ProgressDisk {
     }
     func withSession<T>(_ body: (Session) throws -> T) throws -> T {
         try autoreleasepool {
-            let schema = Schema(PersistentSchemaV54.models, version: PersistentSchemaV54.versionIdentifier)
+            let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
             let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
                 ModelConfiguration("ProgressV2", schema: schema, url: root.appendingPathComponent("progress.store"),
                                    allowsSave: true, cloudKitDatabase: .none)

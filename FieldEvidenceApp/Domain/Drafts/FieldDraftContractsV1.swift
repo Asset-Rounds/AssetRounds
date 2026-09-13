@@ -34,6 +34,7 @@ enum DraftPurposeV1:String,CaseIterable,Codable,Hashable,Sendable{
     /// it does not introduce a second service-request draft family.
     case serviceRequest="SERVICE_REQUEST"
     case myDayPlanning="MY_DAY_PLANNING"
+    case repetitiveCapture="REPETITIVE_CAPTURE"
 }
 enum DraftPrivacyClassV1:String,Codable,Hashable,Sendable{case workspacePrivate="WORKSPACE_PRIVATE",restrictedEvidence="RESTRICTED_EVIDENCE"}
 enum DraftRetentionPolicyV1:String,Codable,Hashable,Sendable{case explicitDiscardOnly="EXPLICIT_DISCARD_ONLY",retireAfterCommit="RETIRE_AFTER_COMMIT"}
