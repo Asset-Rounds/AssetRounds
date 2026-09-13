@@ -704,9 +704,18 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
                       && $0.state == .committed
               }), removalIndex > originalCommit else { return operationID }
         let removal = value.journal[removalIndex]
+        guard let removalPriorStateSHA256 = removal.expectedPriorStateSHA256 else {
+            throw PrivateSystemDiscoveryFailureV1.invalidValue
+        }
+        let removalOperationID = try PrivateSystemDiscoveryOperationIDV1(
+            rawValue: removal.operationID,
+            operation: removal.operation,
+            workspaceID: removal.workspaceID,
+            inputSHA256: removalPriorStateSHA256
+        )
         let digest = CompatibilityCanonicalV1.sha256(Data(
             ("PRIVATE_SYSTEM_DISCOVERY_REENROLL_V1|" + operationID.bindingSHA256
-                + "|" + removal.operationID.bindingSHA256).utf8
+                + "|" + removalOperationID.bindingSHA256).utf8
         ))
         let compact = String(digest.prefix(32))
         let text = "\(compact.prefix(8))-\(compact.dropFirst(8).prefix(4))-\(compact.dropFirst(12).prefix(4))-\(compact.dropFirst(16).prefix(4))-\(compact.dropFirst(20).prefix(12))"

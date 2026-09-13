@@ -2314,11 +2314,26 @@ actor SearchIndexRebuildCoordinatorV1 {
             journal = try await privateSystemDiscoveryIndex.journalEntries()
             try await validateAccess(authorization)
         }
-        let lastRemovalBinding = journal.last(where: {
+        let lastCommittedRemoval = journal.last(where: {
             $0.operation == .removal
                 && $0.workspaceID == payload.request.workspaceID
                 && $0.state == .committed
-        })?.operationID.bindingSHA256
+        })
+        let lastRemovalBinding: String?
+        if let lastCommittedRemoval {
+            guard let removalPriorStateSHA256 = lastCommittedRemoval.expectedPriorStateSHA256 else {
+                throw PrivateSystemDiscoveryFailureV1.invalidValue
+            }
+            let removalOperationID = try PrivateSystemDiscoveryOperationIDV1(
+                rawValue: lastCommittedRemoval.operationID,
+                operation: lastCommittedRemoval.operation,
+                workspaceID: lastCommittedRemoval.workspaceID,
+                inputSHA256: removalPriorStateSHA256
+            )
+            lastRemovalBinding = removalOperationID.bindingSHA256
+        } else {
+            lastRemovalBinding = nil
+        }
         let reboundRawID = operationRawID == nil
             ? try deterministicDiscoveryOperationID(
                 inputSHA256: inputSHA256,

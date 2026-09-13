@@ -65,6 +65,10 @@ struct SceneNavigationSnapshotV1: Codable, Equatable, Sendable {
         }
     }
 
+    func path(for root: AppRootV1) -> SceneRootPathV1? {
+        paths.first(where: { $0.root == root })
+    }
+
     var selectedTarget: NavigationTargetV1? {
         paths.first(where: { $0.root == selectedRoot })?.targets.last
     }
