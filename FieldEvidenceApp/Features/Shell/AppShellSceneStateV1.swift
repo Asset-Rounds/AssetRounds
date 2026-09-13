@@ -26,6 +26,19 @@ final class AppShellSceneStateV1: ObservableObject {
         }
     }
 
+    /// Checks an operation's original device-local intent without resolving an
+    /// expected revision that its own unacknowledged write may have advanced.
+    /// This is read-only and never replaces a newer saved root or path.
+    func validatePersistedIntent(_ target: NavigationTargetV1,
+                                 expectedSnapshot: SceneNavigationSnapshotV1) throws {
+        guard let snapshot, snapshot == expectedSnapshot, snapshot.selectedRoot == target.root,
+              snapshot.path(for: target.root)?.targets == [target],
+              case let .restored(persisted) = try access.load(),
+              persisted == expectedSnapshot else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+    }
+
     func select(_ root: AppRootV1) throws {
         try update {
             let current = try currentSnapshot()

@@ -170,7 +170,7 @@
         "V23MyDayPlanningEditorTests",
         "V23SearchReconciliationTests"
       ],
-      "methodCount": 13
+      "methodCount": 20
     },
     {
       "id": "mutation-command-codec",
@@ -178,7 +178,92 @@
         "V10_02MutationEnvelopeReceiptTests",
         "V23FirstSignReceiptClockTests"
       ],
-      "methodCount": 13
+      "methodCount": 14
+    },
+    {
+      "id": "work-asset-production",
+      "classes": [
+        "V23ProductionWorkAssetTests"
+      ],
+      "methodCount": 5
+    },
+    {
+      "id": "round-readiness-production",
+      "classes": [
+        "V23ProductionRoundReadinessTests"
+      ],
+      "methodCount": 5
+    },
+    {
+      "id": "round-draft-ordering",
+      "classes": [
+        "V23ProductionRoundDraftOrderingTests"
+      ],
+      "methodCount": 7
+    },
+    {
+      "id": "round-draft-ordering-presentation",
+      "classes": [
+        "V23ProductionRoundDraftOrderingPresentationTests"
+      ],
+      "methodCount": 8
+    },
+    {
+      "id": "round-session-transition",
+      "classes": [
+        "V23ProductionRoundSessionTransitionTests"
+      ],
+      "methodCount": 8
+    },
+    {
+      "id": "round-session-transition-presentation",
+      "classes": [
+        "V23ProductionRoundSessionTransitionPresentationTests"
+      ],
+      "methodCount": 6
+    },
+    {
+      "id": "round-item-production",
+      "classes": [
+        "V23ProductionRoundItemTests"
+      ],
+      "methodCount": 8
+    },
+    {
+      "id": "capture-progress-production",
+      "classes": [
+        "V23ProductionCaptureProgressTests"
+      ],
+      "methodCount": 7
+    },
+    {
+      "id": "capture-recovery-production",
+      "classes": [
+        "V23ProductionCaptureRecoveryTests"
+      ],
+      "methodCount": 7
+    },
+    {
+      "id": "scene-navigation-production",
+      "classes": [
+        "V23ProductionSceneNavigationTests"
+      ],
+      "methodCount": 12
+    },
+    {
+      "id": "capture-payload-codec",
+      "classes": [
+        "V23RepetitiveCaptureDraftPayloadTests",
+        "V23RepetitiveCaptureProgressDraftPayloadV2Tests"
+      ],
+      "methodCount": 20
+    },
+    {
+      "id": "store-control-descriptor-ownership",
+      "classes": [
+        "V23StoreControlDescriptorOwnershipTests"
+      ],
+      "methodCount": 6
     }
   ]
 }

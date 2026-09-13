@@ -53,6 +53,154 @@ private struct ProductionSceneShellContentV1<Content: View>: View {
     var body: some View { content(scene) }
 }
 
+@MainActor
+struct WorkAssetPreflightRouteAdmissionV1 {
+    let target: NavigationTargetV1
+    let workflow: ProductionSignWorkflow
+    let scene: AppShellSceneStateV1
+    let contentAccess: AppAccessPresentationV1.ContentAccess
+
+    func isActiveWorkRoute() -> Bool {
+        isAssetTarget
+            && scene.snapshot?.selectedRoot == .work
+            && scene.snapshot?.path(for: .work)?.targets == [target]
+    }
+
+    func loadForActivePresentation() throws -> FirstSignSnapshot {
+        guard isActiveWorkRoute() else { throw AppAccessContractFailureV1.accessDenied }
+        return try loadCurrentSnapshot(matching: nil, clearsRouteOnFactChange: false)
+    }
+
+    func validateBeforeBegin(displayedSnapshot: FirstSignSnapshot) throws {
+        _ = try loadCurrentSnapshot(
+            matching: displayedSnapshot,
+            clearsRouteOnFactChange: true
+        )
+    }
+
+    func cancel() throws {
+        guard isActiveWorkRoute() else { return }
+        workflow.checkRunner.clearPendingRecheckRequest()
+        try scene.setPath([], for: .work)
+    }
+
+    private func loadCurrentSnapshot(
+        matching displayed: FirstSignSnapshot?,
+        clearsRouteOnFactChange: Bool
+    ) throws -> FirstSignSnapshot {
+        guard isAssetTarget else { throw AppAccessContractFailureV1.accessDenied }
+        try scene.restore()
+        guard let restoration = scene.lastRestoration,
+              restoration.receipt.source == .sceneSnapshot,
+              restoration.receipt.result.disposition == .resolved,
+              restoration.receipt.result.target == target,
+              isActiveWorkRoute() else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        let fresh = try contentAccess.withRead {
+            let matches = try workflow.firstSign.loadAll().filter { snapshot in
+                snapshot.assetID == target.stableEntityID
+            }
+            guard matches.count == 1, let snapshot = matches.first else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            return snapshot
+        }
+        guard displayed == nil || displayed == fresh else {
+            if clearsRouteOnFactChange { try scene.setPath([], for: .work) }
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        return fresh
+    }
+
+    private var isAssetTarget: Bool {
+        target.destination == .work
+            && target.root == .work
+            && target.requestedMode == .read
+            && target.stableEntityID != nil
+            && target.stableScheduleDefinitionID == nil
+            && target.stableScheduleReleaseID == nil
+            && target.stableSessionID == nil
+            && target.stableOccurrenceID == nil
+            && target.stableLocationID == nil
+            && target.packageSurfaceID == nil
+            && target.draftResumeAnchor == nil
+            && target.fieldPosition == nil
+            && target.searchAnchor == nil
+            && target.fallback.root == .work
+            && target.fallback.destination == .work
+    }
+}
+
+private struct WorkAssetPreflightTaskIdentityV1: Hashable {
+    let target: NavigationTargetV1
+    let isWorkSelected: Bool
+}
+
+@MainActor
+private struct WorkAssetPreflightDestinationV1: View {
+    let admission: WorkAssetPreflightRouteAdmissionV1
+    @ObservedObject var scene: AppShellSceneStateV1
+    let pack: SignPack
+    let generationRootURL: URL
+    let usesImportedCaptureFixturesForUITest: Bool
+    let cameraAdapter: CameraAdapter
+
+    @State private var displayedSnapshot: FirstSignSnapshot?
+    @State private var isUnavailable = false
+
+    var body: some View {
+        Group {
+            if let displayedSnapshot {
+                PreflightView(
+                    snapshot: displayedSnapshot,
+                    pack: pack,
+                    coordinator: admission.workflow.checkRunner,
+                    generationRootURL: generationRootURL,
+                    usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
+                    cameraAdapter: cameraAdapter,
+                    beforeBeginRouteValidation: {
+                        try admission.validateBeforeBegin(displayedSnapshot: displayedSnapshot)
+                    },
+                    cannotComplete: {
+                        admission.workflow.checkRunner.clearPendingRecheckRequest()
+                    },
+                    cancel: cancel
+                )
+            } else if isUnavailable {
+                AssetRoundsEmptyState(
+                    title: Text("Work unavailable"),
+                    message: Text("Your current work could not be opened. Try again.")
+                )
+            } else {
+                ProgressView("Opening work")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: WorkAssetPreflightTaskIdentityV1(
+            target: admission.target,
+            isWorkSelected: scene.snapshot?.selectedRoot == .work
+        )) {
+            guard admission.isActiveWorkRoute() else { return }
+            displayedSnapshot = nil
+            isUnavailable = false
+            do {
+                displayedSnapshot = try admission.loadForActivePresentation()
+            } catch {
+                isUnavailable = true
+            }
+        }
+    }
+
+    private func cancel() {
+        do {
+            try admission.cancel()
+        } catch {
+            admission.scene.discardPresentation()
+        }
+    }
+}
+
 struct ReportsNavigationPresentationV1: Equatable {
     private var transientAnchor: [ReportHistoryRoute] = []
     private var transientRoutes: [ReportHistoryRoute] = []
@@ -137,6 +285,7 @@ struct AppShellView: View {
     let contentAccess: AppAccessPresentationV1.ContentAccess
     let sceneNavigationAccess: AppAccessPresentationV1.SceneNavigationAccess
     let myDayAccess: AppAccessPresentationV1.MyDayAccess
+    let roundAccess: AppAccessPresentationV1.RoundAccess?
     let diagnosticsStore: DiagnosticsStore
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
     let feedbackConfiguration: FeedbackConfigurationV1
@@ -152,6 +301,8 @@ struct AppShellView: View {
     #if DEBUG
     /// Observes actual native tab binding; cannot supply composition or state.
     var onNativeTabsBoundForTesting: (@MainActor (UITabBar) -> Void)?
+    /// Observes the established production scene; cannot supply composition or state.
+    var onProductionSceneBoundForTesting: (@MainActor (AppShellSceneStateV1) -> Void)?
     #endif
 
     @StateObject private var purchaseCoordinator: StoreKitPurchaseCoordinator
@@ -172,6 +323,7 @@ struct AppShellView: View {
         contentAccess: AppAccessPresentationV1.ContentAccess,
         sceneNavigationAccess: AppAccessPresentationV1.SceneNavigationAccess,
         myDayAccess: AppAccessPresentationV1.MyDayAccess,
+        roundAccess: AppAccessPresentationV1.RoundAccess? = nil,
         diagnosticsStore: DiagnosticsStore,
         metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
         feedbackConfiguration: FeedbackConfigurationV1,
@@ -192,6 +344,7 @@ struct AppShellView: View {
         self.contentAccess = contentAccess
         self.sceneNavigationAccess = sceneNavigationAccess
         self.myDayAccess = myDayAccess
+        self.roundAccess = roundAccess
         self.diagnosticsStore = diagnosticsStore
         self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
         self.feedbackConfiguration = feedbackConfiguration
@@ -292,9 +445,36 @@ struct AppShellView: View {
             }
 
             SwiftUI.Tab(value: AppRootV1.work) {
-                NavigationStack {
-                    ProductionWorkRootViewV1(source: sources)
+                NavigationStack(path: workPath(scene)) {
+                    ProductionWorkRootViewV1(source: sources, openRound: roundAccess.map { _ in
+                        { reference in openRound(reference, in: scene) }
+                    })
                         .toolbar { settingsToolbar }
+                        .navigationDestination(for: NavigationTargetV1.self) { target in
+                            if ProductionRoundSessionPresentationV1.accepts(target), let roundAccess {
+                                ProductionRoundSessionDestinationV1(target: target, scene: scene,
+                                    access: roundAccess)
+                                    .id(target)
+                            } else if isWorkAssetPreflightTarget(target) {
+                            WorkAssetPreflightDestinationV1(
+                                admission: WorkAssetPreflightRouteAdmissionV1(
+                                    target: target,
+                                    workflow: workflow,
+                                    scene: scene,
+                                    contentAccess: contentAccess
+                                ),
+                                scene: scene,
+                                pack: pack,
+                                generationRootURL: generationRootURL,
+                                usesImportedCaptureFixturesForUITest:
+                                    usesImportedCaptureFixturesForUITest,
+                                cameraAdapter: cameraAdapter
+                            )
+                            } else {
+                                AssetRoundsEmptyState(title: Text("Work unavailable"),
+                                    message: Text("Your current work could not be opened. Try again."))
+                            }
+                        }
                 }
             } label: {
                 Label("Work", systemImage: "checklist")
@@ -404,6 +584,77 @@ struct AppShellView: View {
             get: { reportHistoryRoutes(in: scene) },
             set: { routes in persistReportHistory(routes, in: scene) }
         )
+    }
+
+    private func workPath(
+        _ scene: AppShellSceneStateV1
+    ) -> Binding<[NavigationTargetV1]> {
+        Binding(
+            get: {
+                guard let targets = scene.snapshot?.path(for: .work)?.targets,
+                      targets.count == 1, let target = targets.first,
+                      isSupportedWorkTarget(target) else { return [] }
+                return [target]
+            },
+            set: { targets in persistWorkPath(targets, in: scene) }
+        )
+    }
+
+    private func persistWorkPath(
+        _ targets: [NavigationTargetV1],
+        in scene: AppShellSceneStateV1
+    ) {
+        guard targets.count <= 1,
+              targets.allSatisfy(isSupportedWorkTarget) else { return }
+        let current = scene.snapshot?.path(for: .work)?.targets ?? []
+        let presented = current.count == 1 && current.allSatisfy(isSupportedWorkTarget)
+            ? current : []
+        guard presented != targets else { return }
+        do {
+            if current.isEmpty, let target = targets.first {
+                try scene.open(target)
+            } else {
+                try scene.setPath(targets, for: .work)
+            }
+        } catch {
+            productionCompositionErrorMessage = "Navigation could not be restored safely."
+        }
+    }
+
+    private func isSupportedWorkTarget(_ target: NavigationTargetV1) -> Bool {
+        isWorkAssetPreflightTarget(target) || ProductionRoundSessionPresentationV1.accepts(target)
+    }
+
+    private func openRound(_ reference: MyDayEligibleReferenceV1, in scene: AppShellSceneStateV1) {
+        guard case let .roundSession(workspaceID, sessionID, revision, _) = reference else { return }
+        do {
+            let target = try NavigationTargetV1(workspaceID: workspaceID, destination: .work,
+                stableSessionID: sessionID, requestedMode: .read, expectedRevision: revision,
+                fallback: NavigationFallbackV1(root: .work, destination: .work))
+            try scene.open(target)
+        } catch {
+            productionCompositionErrorMessage = "Navigation could not be restored safely."
+        }
+    }
+
+    private func isWorkAssetPreflightTarget(
+        _ target: NavigationTargetV1
+    ) -> Bool {
+        target.destination == .work
+            && target.root == .work
+            && target.requestedMode == .read
+            && target.stableEntityID != nil
+            && target.stableScheduleDefinitionID == nil
+            && target.stableScheduleReleaseID == nil
+            && target.stableSessionID == nil
+            && target.stableOccurrenceID == nil
+            && target.stableLocationID == nil
+            && target.packageSurfaceID == nil
+            && target.draftResumeAnchor == nil
+            && target.fieldPosition == nil
+            && target.searchAnchor == nil
+            && target.fallback.root == .work
+            && target.fallback.destination == .work
     }
 
     private func reportHistoryRoutes(
@@ -552,6 +803,9 @@ struct AppShellView: View {
                 productionComposition = ProductionShellComposition(root: composed.root,
                     workflow: composed.workflow, scene: scene, myDaySources: sources)
             }
+            #if DEBUG
+            onProductionSceneBoundForTesting?(scene)
+            #endif
         } catch {
             productionCompositionErrorMessage =
                 "Your workspace could not be opened safely."

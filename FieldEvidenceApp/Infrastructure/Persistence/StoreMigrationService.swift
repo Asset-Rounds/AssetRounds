@@ -1,6 +1,42 @@
 import Darwin
 import Foundation
 
+/// Per-instance regression observations. Normal callers use nil; release
+/// builds never invoke a boundary or cleanup callback.
+struct StoreControlInitializationTestHooksV1 {
+    enum Boundary: CaseIterable, Equatable { case beforeOwnershipTransfer, afterOwnershipTransfer, beforeCompletion }
+    enum CleanupOwner: Equatable { case local, object }
+    enum DescriptorRole: Equatable {
+        case applicationSupport, operations, migration, lease, owners, mutationLock, ownerLock
+    }
+    enum Cleanup: Equatable {
+        case closed(DescriptorRole, CleanupOwner, succeeded: Bool)
+        case ownerUnlocked(CleanupOwner, succeeded: Bool)
+        case ownerGuardCleanupRequested
+    }
+    var boundary: (Boundary) throws -> Void = { _ in }
+    var cleanup: (Cleanup) -> Void = { _ in }
+
+    static func close(_ descriptor: Int32, role: DescriptorRole, owner: CleanupOwner,
+                      testing: Self?) {
+        let succeeded = Darwin.close(descriptor) == 0
+        #if DEBUG
+        testing?.cleanup(.closed(role, owner, succeeded: succeeded))
+        #else
+        _ = succeeded
+        #endif
+    }
+
+    static func unlockOwner(_ descriptor: Int32, owner: CleanupOwner, testing: Self?) {
+        let succeeded = flock(descriptor, LOCK_UN) == 0
+        #if DEBUG
+        testing?.cleanup(.ownerUnlocked(owner, succeeded: succeeded))
+        #else
+        _ = succeeded
+        #endif
+    }
+}
+
 /// The one aggregate control reader is also used by lease admission/owner
 /// cleanup. Opening it never creates paths; its caller owns the mutation lock.
 final class StoreAggregateMigrationControlV1 {
@@ -571,8 +607,10 @@ final class StoreMigrationJournalStoreV1 {
     private let applicationSupportIdentity: Identity
     private let operationsIdentity: Identity
     private let migrationIdentity: Identity
+    private let initializationTesting: StoreControlInitializationTestHooksV1?
 
-    init(applicationSupportURL: URL) throws {
+    init(applicationSupportURL: URL,
+         initializationTesting: StoreControlInitializationTestHooksV1? = nil) throws {
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else {
             throw StoreMigrationFailure.invalidPath
@@ -587,10 +625,15 @@ final class StoreMigrationJournalStoreV1 {
         }
 
         var retained = [rootDescriptor]
-        var succeeded = false
+        var ownershipTransferred = false
         defer {
-            if !succeeded {
-                retained.reversed().forEach { _ = Darwin.close($0) }
+            if !ownershipTransferred {
+                let roles: [StoreControlInitializationTestHooksV1.DescriptorRole] =
+                    [.applicationSupport, .operations, .migration]
+                for (index, descriptor) in retained.enumerated().reversed() {
+                    StoreControlInitializationTestHooksV1.close(descriptor, role: roles[index],
+                        owner: .local, testing: initializationTesting)
+                }
             }
         }
         do {
@@ -612,6 +655,9 @@ final class StoreMigrationJournalStoreV1 {
                 migrationDescriptor
             )
 
+            #if DEBUG
+            try initializationTesting?.boundary(.beforeOwnershipTransfer)
+            #endif
             self.applicationSupportURL = root
             self.operationsURL = root.appendingPathComponent(
                 Self.operationsName,
@@ -627,6 +673,14 @@ final class StoreMigrationJournalStoreV1 {
             self.applicationSupportIdentity = rootIdentity
             self.operationsIdentity = operationsIdentity
             self.migrationIdentity = migrationIdentity
+            self.initializationTesting = initializationTesting
+            // From this point the fully initialized object is the sole owner,
+            // including when any subsequent validation throws.
+            ownershipTransferred = true
+            retained.removeAll()
+            #if DEBUG
+            try initializationTesting?.boundary(.afterOwnershipTransfer)
+            #endif
             try protectDirectory(.stagingDirectory, at: self.operationsURL)
             try protectDirectory(.stagingDirectory, at: self.migrationURL)
             guard Darwin.fsync(migrationDescriptor) == 0,
@@ -639,17 +693,21 @@ final class StoreMigrationJournalStoreV1 {
             try requireOnlyOwnedNames(validateManifests: false)
             try reconcilePreparedEnvelopeIfPresent()
             try requireOnlyOwnedNames()
-            succeeded = true
-            retained.removeAll()
+            #if DEBUG
+            try initializationTesting?.boundary(.beforeCompletion)
+            #endif
         } catch {
             throw error
         }
     }
 
     deinit {
-        _ = Darwin.close(migrationDescriptor)
-        _ = Darwin.close(operationsDescriptor)
-        _ = Darwin.close(applicationSupportDescriptor)
+        StoreControlInitializationTestHooksV1.close(migrationDescriptor, role: .migration,
+            owner: .object, testing: initializationTesting)
+        StoreControlInitializationTestHooksV1.close(operationsDescriptor, role: .operations,
+            owner: .object, testing: initializationTesting)
+        StoreControlInitializationTestHooksV1.close(applicationSupportDescriptor, role: .applicationSupport,
+            owner: .object, testing: initializationTesting)
     }
 
     func loadJournal() throws -> StoreMigrationJournalV1? {
@@ -2074,12 +2132,15 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     private let makeLeaseID: @Sendable () -> UUID
     private let now: @Sendable () -> Date
     private var generationMutationLockDepth = 0
+    private let initializationTesting: StoreControlInitializationTestHooksV1?
+    private var didCompleteInitialization = false
 
     init(
         applicationSupportURL: URL,
         ownerID: UUID = UUID(),
         makeLeaseID: @escaping @Sendable () -> UUID = UUID.init,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        initializationTesting: StoreControlInitializationTestHooksV1? = nil
     ) throws {
         guard applicationSupportURL.isFileURL,
               ownerID != GenerationEpochV1.zeroUUID else {
@@ -2095,13 +2156,19 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         }
         var retained = [rootDescriptor]
         var ownerLockWasAcquired = false
-        var succeeded = false
+        var ownershipTransferred = false
         defer {
-            if !succeeded {
+            if !ownershipTransferred {
                 if ownerLockWasAcquired, let descriptor = retained.last {
-                    _ = flock(descriptor, LOCK_UN)
+                    StoreControlInitializationTestHooksV1.unlockOwner(descriptor,
+                        owner: .local, testing: initializationTesting)
                 }
-                retained.reversed().forEach { _ = Darwin.close($0) }
+                let roles: [StoreControlInitializationTestHooksV1.DescriptorRole] =
+                    [.applicationSupport, .operations, .lease, .owners, .mutationLock, .ownerLock]
+                for (index, descriptor) in retained.enumerated().reversed() {
+                    StoreControlInitializationTestHooksV1.close(descriptor, role: roles[index],
+                        owner: .local, testing: initializationTesting)
+                }
             }
         }
 
@@ -2142,6 +2209,9 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         }
         ownerLockWasAcquired = true
 
+        #if DEBUG
+        try initializationTesting?.boundary(.beforeOwnershipTransfer)
+        #endif
         self.ownerID = ownerID
         self.applicationSupportURL = root
         self.operationsURL = root.appendingPathComponent(
@@ -2170,6 +2240,14 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         self.ownerLockIdentity = owner.identity
         self.makeLeaseID = makeLeaseID
         self.now = now
+        self.initializationTesting = initializationTesting
+        // Post-initialization failures unwind through deinit, so the local
+        // construction scope relinquishes every descriptor before validation.
+        ownershipTransferred = true
+        retained.removeAll()
+        #if DEBUG
+        try initializationTesting?.boundary(.afterOwnershipTransfer)
+        #endif
 
         try protectDirectory(.generationLeaseDirectory, at: self.operationsURL)
         try protectDirectory(.generationLeaseDirectory, at: self.leaseURL)
@@ -2193,19 +2271,33 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             try ensureRegistryLocked()
             _ = try loadStateLocked()
         }
-        succeeded = true
-        retained.removeAll()
+        #if DEBUG
+        try initializationTesting?.boundary(.beforeCompletion)
+        #endif
+        didCompleteInitialization = true
     }
 
     deinit {
-        try? removeOwnerGuardIfUnused()
-        _ = flock(ownerLockDescriptor, LOCK_UN)
-        _ = Darwin.close(ownerLockDescriptor)
-        _ = Darwin.close(mutationLockDescriptor)
-        _ = Darwin.close(ownersDescriptor)
-        _ = Darwin.close(leaseDescriptor)
-        _ = Darwin.close(operationsDescriptor)
-        _ = Darwin.close(rootDescriptor)
+        if didCompleteInitialization {
+            #if DEBUG
+            initializationTesting?.cleanup(.ownerGuardCleanupRequested)
+            #endif
+            try? removeOwnerGuardIfUnused()
+        }
+        StoreControlInitializationTestHooksV1.unlockOwner(ownerLockDescriptor,
+            owner: .object, testing: initializationTesting)
+        StoreControlInitializationTestHooksV1.close(ownerLockDescriptor, role: .ownerLock,
+            owner: .object, testing: initializationTesting)
+        StoreControlInitializationTestHooksV1.close(mutationLockDescriptor, role: .mutationLock,
+            owner: .object, testing: initializationTesting)
+        StoreControlInitializationTestHooksV1.close(ownersDescriptor, role: .owners,
+            owner: .object, testing: initializationTesting)
+        StoreControlInitializationTestHooksV1.close(leaseDescriptor, role: .lease,
+            owner: .object, testing: initializationTesting)
+        StoreControlInitializationTestHooksV1.close(operationsDescriptor, role: .operations,
+            owner: .object, testing: initializationTesting)
+        StoreControlInitializationTestHooksV1.close(rootDescriptor, role: .applicationSupport,
+            owner: .object, testing: initializationTesting)
     }
 
     func acquire(

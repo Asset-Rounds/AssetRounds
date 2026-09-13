@@ -228,6 +228,51 @@ final class StoreSessionCoordinator: ObservableObject {
         )
     }
 
+    /// Uses the app publication's single ledger for a derived round-readiness
+    /// observation. Construction neither reads canonical rows nor reserves
+    /// storage, and the authority retains no writer capability.
+    func makeRoundReadinessAuthority(
+        accessGate: AppAccessGateV1,
+        ownedStorageLedger: OwnedStorageLedgerV1
+    ) -> ProductionOfflineReadinessAuthorityV1 {
+        ProductionOfflineReadinessAuthorityV1(
+            session: self,
+            accessGate: accessGate,
+            clock: clock,
+            ownedStorageLedger: ownedStorageLedger,
+            expectedApplicationSupportURL: Self.applicationSupportURL(for: session)
+        )
+    }
+
+    /// Constructs the one app-lifetime storage observer only when an
+    /// authorized publication has supplied this exact active store.
+    func makeRoundReadinessLedger() throws -> OwnedStorageLedgerV1 {
+        try OwnedStorageLedgerV1(
+            applicationSupportURL: Self.applicationSupportURL(for: session)
+        )
+    }
+
+    /// C07's manual draft-ordering capability shares this exact active
+    /// session, writer, clock and ID source. Construction grants no generic
+    /// writer access and performs no canonical read or write.
+    func makeRoundDraftOrderingService(accessGate: AppAccessGateV1) throws -> ProductionRoundDraftOrderingServiceV1 {
+        try ProductionRoundDraftOrderingServiceV1(session: self, accessGate: accessGate,
+            clock: clock, idSource: idSource)
+    }
+
+    /// C07's explicit start/pause/resume capability shares the active
+    /// session's writer, clock and ID source; construction reads no rows.
+    func makeRoundSessionTransitionService(accessGate: AppAccessGateV1) throws -> ProductionRoundSessionTransitionServiceV1 {
+        try ProductionRoundSessionTransitionServiceV1(session: self, accessGate: accessGate,
+            clock: clock, idSource: idSource)
+    }
+
+    func makeRepetitiveCaptureProgressService(
+        transitions: ProductionRoundSessionTransitionServiceV1
+    ) throws -> ProductionRepetitiveCaptureProgressServiceV2 {
+        try .init(session: self, transitions: transitions, clock: clock, idSource: idSource)
+    }
+
     func dropSearchProjectionForRebuild() async throws {
         try await searchIndexStore.dropProjection(workspaceID: workspaceID.rawValue)
     }

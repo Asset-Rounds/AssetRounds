@@ -924,9 +924,6 @@ final class ReportRenderService {
         do {
             return .ready(try renderPendingReport(id: reportID))
         } catch {
-            #if DEBUG
-            print("V23 Reports attempt errorType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
-            #endif
             guard Self.isRetryableRenderFailure(error) else { throw error }
             try persistFailed(failedMutation)
             return .failed(reportID: reportID)
@@ -1023,13 +1020,6 @@ final class ReportRenderService {
         id reportID: UUID,
         practiceShareConfirmation: PracticeShareConfirmationV1? = nil
     ) throws -> ReportRenderResult {
-        #if DEBUG
-        var diagnosticPhase = "admit-report"
-        var diagnosticCompleted = false
-        defer {
-            print("V23 Reports render exit phase=\(diagnosticPhase) finished=\(diagnosticCompleted)")
-        }
-        #endif
         guard !modelContext.hasChanges else {
             throw ReportRenderServiceError.contextHasChanges
         }
@@ -1060,9 +1050,6 @@ final class ReportRenderService {
         let reportBefore = Self.reportPayload(report)
         try requireAttemptPathsAbsent(for: reportID)
 
-        #if DEBUG
-        diagnosticPhase = "validate-snapshot"
-        #endif
         let validated = try validator(for: report).validate(report: report)
         if let practice = validated.snapshot.practiceWorkspace {
             try practice.validate()
@@ -1078,9 +1065,6 @@ final class ReportRenderService {
         } else if practiceShareConfirmation != nil {
             throw ReportRenderServiceError.invalidStorageAuthority
         }
-        #if DEBUG
-        diagnosticPhase = "storage-preflight"
-        #endif
         try storagePreflight.checkPDFGeneration(
             referencedImageByteCount: validated.referencedImageByteCount,
             onVolumeContaining: generationRootURL
@@ -1089,9 +1073,6 @@ final class ReportRenderService {
             failNextRenderAttempt = false
             throw ReportRenderServiceError.injectedFailure
         }
-        #if DEBUG
-        diagnosticPhase = "render"
-        #endif
         let rendered = try renderer.render(validated)
         guard !rendered.data.isEmpty,
               rendered.pageCount > 0,
@@ -1099,9 +1080,6 @@ final class ReportRenderService {
               Self.sha256(rendered.data) == rendered.sha256 else {
             throw ReportRenderServiceError.bytesMismatch
         }
-        #if DEBUG
-        diagnosticPhase = "prepare-paths"
-        #endif
         let paths = try preparePaths(for: reportID)
         let publication = try ReportPDFTransitionMutationV1.make(
             workspaceID: attemptRevision.workspaceID, generationID: attemptRevision.generationID,
@@ -1113,9 +1091,6 @@ final class ReportRenderService {
         var ownsFinal = false
         do {
             do {
-        #if DEBUG
-        diagnosticPhase = "stage-file"
-        #endif
                 try ReportPDFAnchoredFile.createRegularFile(
                     rendered.data,
                     at: paths.stageURL,
@@ -1142,9 +1117,6 @@ final class ReportRenderService {
                 if failureInjection?.consume(.promotion) == true {
                     throw ReportRenderServiceError.writeFailed
                 }
-        #if DEBUG
-        diagnosticPhase = "promote-file"
-        #endif
                 try ReportPDFAnchoredFile.promoteNoReplace(
                     from: paths.stageURL,
                     to: paths.finalURL,
@@ -1159,9 +1131,6 @@ final class ReportRenderService {
             if failureInjection?.consume(.reread) == true {
                 throw ReportRenderServiceError.bytesMismatch
             }
-        #if DEBUG
-        diagnosticPhase = "verify-pdf"
-        #endif
             try applyPolicy(.reportPDF, at: paths.finalURL)
             try verify(
                 paths.finalURL,
@@ -1173,17 +1142,11 @@ final class ReportRenderService {
                 if failureInjection?.consume(.readySave) == true {
                     throw ReportRenderServiceError.saveFailed
                 }
-        #if DEBUG
-        diagnosticPhase = "commit-ready"
-        #endif
                 _ = try workspaceWriter.commitReportPDFTransition(publication)
                 if failureInjection?.consume(.readyCommitAcknowledgement) == true {
                     throw ReportRenderServiceError.saveFailed
                 }
             } catch {
-                #if DEBUG
-                print("V23 Reports ready-commit errorType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
-                #endif
                 let committed: MutationReceiptV1?
                 do {
                     committed = try workspaceWriter.reportPDFTransitionReceipt(for: publication)
@@ -1204,9 +1167,6 @@ final class ReportRenderService {
                 }
             }
             ownsFinal = false
-        #if DEBUG
-        diagnosticCompleted = true
-        #endif
             return ReportRenderResult(
                 reportID: report.id,
                 pdfRelativePath: paths.finalRelativePath,

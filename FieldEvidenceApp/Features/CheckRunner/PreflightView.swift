@@ -1,6 +1,38 @@
 import Foundation
 import SwiftUI
 
+enum PreflightBeginOperationFailureV1: Error, Equatable {
+    case routeValidationDenied
+}
+
+@MainActor
+struct PreflightBeginOperationV1 {
+    static func begin(
+        coordinator: CheckRunnerCoordinator,
+        snapshot: FirstSignSnapshot,
+        timeZoneID: String?,
+        isTimeZoneConfirmed: Bool,
+        afterDarkAccepted: Bool,
+        safePositionAccepted: Bool,
+        observedAt: Date,
+        beforeBeginRouteValidation: (() throws -> Void)?
+    ) throws -> WorkflowRecord {
+        do {
+            try beforeBeginRouteValidation?()
+        } catch {
+            throw PreflightBeginOperationFailureV1.routeValidationDenied
+        }
+        return try coordinator.beginCheck(
+            assetID: snapshot.assetID,
+            timeZoneID: timeZoneID,
+            isTimeZoneConfirmed: isTimeZoneConfirmed,
+            afterDarkAccepted: afterDarkAccepted,
+            safePositionAccepted: safePositionAccepted,
+            observedAt: observedAt
+        )
+    }
+}
+
 struct PreflightView: View {
     static let screenAccessibilityIdentifier = "s3.preflight.screen"
     static let timeZoneAccessibilityIdentifier = "s3.preflight.time-zone"
@@ -16,6 +48,7 @@ struct PreflightView: View {
     let generationRootURL: URL
     let usesImportedCaptureFixturesForUITest: Bool
     let cameraAdapter: CameraAdapter
+    let beforeBeginRouteValidation: (() throws -> Void)?
     let cannotComplete: () -> Void
     let cancel: () -> Void
 
@@ -45,6 +78,7 @@ struct PreflightView: View {
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
+        beforeBeginRouteValidation: (() throws -> Void)? = nil,
         cannotComplete: @escaping () -> Void,
         cancel: @escaping () -> Void
     ) {
@@ -55,6 +89,7 @@ struct PreflightView: View {
         self.usesImportedCaptureFixturesForUITest =
             usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
+        self.beforeBeginRouteValidation = beforeBeginRouteValidation
         self.cannotComplete = cannotComplete
         self.cancel = cancel
         _timeZoneID = State(initialValue: snapshot.timeZoneID ?? "")
@@ -309,15 +344,19 @@ struct PreflightView: View {
         focusedField = nil
 
         do {
-            _ = try coordinator.beginCheck(
-                assetID: snapshot.assetID,
+            _ = try PreflightBeginOperationV1.begin(
+                coordinator: coordinator,
+                snapshot: snapshot,
                 timeZoneID: confirmedTimeZoneID ?? normalizedTimeZoneID,
                 isTimeZoneConfirmed: confirmedTimeZoneID != nil || isTimeZoneConfirmed,
                 afterDarkAccepted: afterDarkAccepted,
                 safePositionAccepted: safePositionAccepted,
-                observedAt: Date()
+                observedAt: Date(),
+                beforeBeginRouteValidation: beforeBeginRouteValidation
             )
             hasDraft = true
+        } catch PreflightBeginOperationFailureV1.routeValidationDenied {
+            errorMessage = "The check could not be started. Try again."
         } catch {
             errorMessage = "The check could not be started. Try again."
             if let preparation = try? coordinator.prepare(assetID: snapshot.assetID) {

@@ -93,6 +93,21 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
     }
 }
 
+/// Immutable evidence retained only by one returned derived-read result. It
+/// never grants access, reserves storage, or carries content bytes.
+struct ProductionOfflineReadinessPublicationEvidenceV1 {
+    let authorityID: UUID
+    let operationToken: AppAccessGateV1.ContentReadToken
+    let writerRevision: WorkspaceRevisionV1
+    let sourceClosureSHA256: String
+    let completionRootIdentity: ReportPDFAnchoredFile.RootIdentity?
+}
+
+struct ProductionOfflineReadinessReadResultV1 {
+    let manifest: OfflineReadinessManifestV1
+    let publicationEvidence: ProductionOfflineReadinessPublicationEvidenceV1
+}
+
 /// Concrete async readback of the incumbent round readiness owner. It does
 /// not authenticate, admit work, reserve storage, or expose a cached permit.
 @MainActor final class ProductionOfflineReadinessAuthorityV1 {
@@ -106,6 +121,18 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
     private let ledger: OwnedStorageLedgerV1
     private let applicationSupportURL: URL
     private let content: EvidenceBundleStore
+    /// Per-authority identity binds an immutable returned proof to this exact
+    /// publication's readback owner, even when source rows remain unchanged.
+    private let publicationAuthorityID = UUID()
+
+    #if DEBUG
+    /// Race-only boundary after canonical source observation and before the
+    /// original access token is revalidated.
+    var afterRoundSessionSourceObservationForTesting: (@MainActor () async throws -> Void)?
+    /// Race-only boundary after readiness materialization and before its
+    /// final original-token publication validation.
+    var afterRoundReadinessMaterializationForTesting: (@MainActor () async throws -> Void)?
+    #endif
 
     init(session: StoreSessionCoordinator, accessGate: AppAccessGateV1,
          clock: any ApplicationClock, ownedStorageLedger: OwnedStorageLedgerV1,
@@ -116,6 +143,194 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
         self.clock = clock; ledger = ownedStorageLedger
         applicationSupportURL = expectedApplicationSupportURL
         content = EvidenceBundleStore(generationRootURL: session.generationRootURL)
+    }
+
+    /// Resolves an exact current session frontier using a fresh operation
+    /// token. The caller's visible publication is fenced independently.
+    func readSession(
+        sessionID: UUID,
+        expectedRevision: UInt64?
+    ) async throws -> RoundSessionV1 {
+        let token = try await accessGate.beginContentRead(for: .render)
+        try Task.checkCancellation()
+        let current = try currentSession()
+        let writerRevision = try current.workspaceWriter.currentRevision()
+        let initial = try ProductionOfflineReadinessSourceClosureV1(
+            context: current.modelContext,
+            workspaceID: workspaceID
+        )
+        let initialSHA = try initial.sha256()
+        #if DEBUG
+        if let afterRoundSessionSourceObservationForTesting {
+            try await afterRoundSessionSourceObservationForTesting()
+        }
+        #endif
+        guard let round = try RoundSessionHistoryValidatorV1.validate(
+            initial.rounds.filter { $0.sessionID == sessionID },
+            workspaceID: workspaceID,
+            sessionID: sessionID
+        ), expectedRevision.map({ $0 == round.revision }) ?? true else {
+            throw OfflineReadinessPreflightCoordinatorFailureV1.currentSessionUnavailable
+        }
+        try await accessGate.validateContentRead(token, for: .render)
+        try Task.checkCancellation()
+        let reread = try currentSession()
+        guard try reread.workspaceWriter.currentRevision() == writerRevision,
+              try ProductionOfflineReadinessSourceClosureV1(
+                context: reread.modelContext,
+                workspaceID: workspaceID
+              ).sha256() == initialSHA else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        return round
+    }
+
+    /// Rebuilds the incumbent derived C19 manifest for an exact current
+    /// frontier. It never creates a session successor or readiness record.
+    func rebuildReadiness(
+        for session: RoundSessionV1,
+        previous: OfflineReadinessManifestV1?
+    ) async throws -> ProductionOfflineReadinessReadResultV1 {
+        try session.validateIntrinsic()
+        guard session.workspaceID == workspaceID else {
+            throw MyDayFailureV1.wrongWorkspace
+        }
+        let token = try await accessGate.beginContentRead(for: .render)
+        try Task.checkCancellation()
+        let current = try currentSession()
+        let writerRevision = try current.workspaceWriter.currentRevision()
+        let initial = try ProductionOfflineReadinessSourceClosureV1(
+            context: current.modelContext,
+            workspaceID: workspaceID
+        )
+        let initialSHA = try initial.sha256()
+        guard let initialRound = try RoundSessionHistoryValidatorV1.validate(
+            initial.rounds.filter { $0.sessionID == session.sessionID },
+            workspaceID: workspaceID,
+            sessionID: session.sessionID
+        ), try initialRound.reference == session.reference else {
+            throw OfflineReadinessPreflightCoordinatorFailureV1.frontierChangedDuringReadback
+        }
+        let readback = RoundReadback(owner: self, token: token)
+        let coordinator = OfflineReadinessPreflightCoordinatorV1(
+            sessionReader: readback,
+            authority: readback
+        )
+        let manifest = try await coordinator.rebuild(
+            sessionID: session.sessionID,
+            previous: previous
+        )
+        guard manifest.session == (try session.reference) else {
+            throw OfflineReadinessPreflightCoordinatorFailureV1.frontierChangedDuringReadback
+        }
+        let reference = MyDayEligibleReferenceV1.roundSession(
+            workspaceID: session.workspaceID,
+            sessionID: session.sessionID,
+            revision: session.revision,
+            sessionSHA256: session.sessionSHA256
+        )
+        let assessment = MyDaySourceReadinessAssessmentV1(
+            reference: reference,
+            assessment: .roundManifest(manifest)
+        )
+        let completionRoot = try await validateCompletionsForPublication(
+            [assessment],
+            token: token
+        )
+        #if DEBUG
+        if let afterRoundReadinessMaterializationForTesting {
+            try await afterRoundReadinessMaterializationForTesting()
+        }
+        #endif
+        try await accessGate.validateContentRead(token, for: .render)
+        try Task.checkCancellation()
+        let reread = try currentSession()
+        guard try reread.workspaceWriter.currentRevision() == writerRevision,
+              try ProductionOfflineReadinessSourceClosureV1(
+                context: reread.modelContext,
+                workspaceID: workspaceID
+              ).sha256() == initialSHA else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        try validateStorageForPublication(
+            [assessment],
+            expectedGenerationRootIdentity: completionRoot
+        )
+        return .init(
+            manifest: manifest,
+            publicationEvidence: .init(
+                authorityID: publicationAuthorityID,
+                operationToken: token,
+                writerRevision: writerRevision,
+                sourceClosureSHA256: initialSHA,
+                completionRootIdentity: completionRoot
+            )
+        )
+    }
+
+    /// Synchronous final read fence used immediately before a caller exposes
+    /// an already-read round frontier. It has no access-token hold of its own:
+    /// the publication boundary owns that original hold.
+    func validateSessionForPublication(_ expected: RoundSessionV1) throws {
+        try expected.validateIntrinsic()
+        guard expected.workspaceID == workspaceID else {
+            throw MyDayFailureV1.wrongWorkspace
+        }
+        let current = try currentSession()
+        _ = try current.workspaceWriter.currentRevision()
+        let sources = try ProductionOfflineReadinessSourceClosureV1(
+            context: current.modelContext,
+            workspaceID: workspaceID
+        )
+        guard let actual = try RoundSessionHistoryValidatorV1.validate(
+            sources.rounds.filter { $0.sessionID == expected.sessionID },
+            workspaceID: workspaceID,
+            sessionID: expected.sessionID
+        ), try actual.reference == expected.reference else {
+            throw OfflineReadinessPreflightCoordinatorFailureV1.frontierChangedDuringReadback
+        }
+    }
+
+    /// Synchronous post-await fence for one returned readiness value. The
+    /// caller supplies the original visible publication hold; this method
+    /// only rechecks canonical/store/root/storage facts and never starts a
+    /// second read or nests a content hold.
+    func validateReadinessForPublication(
+        _ evidence: ProductionOfflineReadinessPublicationEvidenceV1,
+        manifest: OfflineReadinessManifestV1
+    ) throws {
+        guard evidence.authorityID == publicationAuthorityID else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        let current = try currentSession()
+        guard try current.workspaceWriter.currentRevision() == evidence.writerRevision else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        let sources = try ProductionOfflineReadinessSourceClosureV1(
+            context: current.modelContext,
+            workspaceID: workspaceID
+        )
+        guard try sources.sha256() == evidence.sourceClosureSHA256,
+              let actual = try RoundSessionHistoryValidatorV1.validate(
+                sources.rounds.filter { $0.sessionID == manifest.session.sessionID },
+                workspaceID: workspaceID,
+                sessionID: manifest.session.sessionID
+              ), try actual.reference == manifest.session else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        let assessment = MyDaySourceReadinessAssessmentV1(
+            reference: .roundSession(
+                workspaceID: workspaceID,
+                sessionID: manifest.session.sessionID,
+                revision: manifest.session.revision,
+                sessionSHA256: manifest.session.sessionSHA256
+            ),
+            assessment: .roundManifest(manifest)
+        )
+        try validateStorageForPublication(
+            [assessment],
+            expectedGenerationRootIdentity: evidence.completionRootIdentity
+        )
     }
 
     func assess(_ reference: MyDayEligibleReferenceV1) async throws -> MyDaySourceReadinessAssessmentV1 {
@@ -186,6 +401,17 @@ struct ProductionOfflineReadinessSourceClosureV1: Encodable {
         sources: ProductionOfflineReadinessSourceClosureV1
     ) throws -> Bool {
         let session = try currentSession()
+        return try Self.completedItemsMatch(round, sources: sources, session: session)
+    }
+
+    /// Shared, exact Finalization readback proof used by readiness and the
+    /// explicit round transition boundary. It deliberately validates every
+    /// resolvable package group before reporting an unavailable sibling.
+    static func completedItemsMatch(
+        _ round: RoundSessionV1,
+        sources: ProductionOfflineReadinessSourceClosureV1,
+        session: StoreSessionCoordinator
+    ) throws -> Bool {
         guard round.items.count <= RoundSessionLimitsV1.maximumItems else {
             throw MyDaySourceReadFailureV1.corruptSourceClosure
         }

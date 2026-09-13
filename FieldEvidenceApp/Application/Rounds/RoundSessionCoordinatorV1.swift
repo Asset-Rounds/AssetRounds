@@ -30,12 +30,23 @@ import Foundation
     func history(sessionID: UUID) throws -> [RoundSessionV1] { try validatedHistory(sessionID: sessionID) }
     func current(sessionID: UUID) throws -> RoundSessionV1? { try validatedHistory(sessionID: sessionID).last }
 
-    func save(_ mutation: RoundSessionMutationV1) throws -> RoundSessionMutationReceiptV1 {
+    func save(_ mutation: RoundSessionMutationV1,
+              beforeCanonicalWrite: (() throws -> Void)? = nil) throws -> RoundSessionMutationReceiptV1 {
         try mutation.validate(); guard mutation.workspaceID == workspaceID else { throw RoundSessionFailureV1.authorityMismatch }
         let history = try validatedHistory(sessionID: mutation.session.sessionID)
-        if let prior = history.last { try mutation.session.validateSuccessor(of: prior); guard mutation.expectedRevision == prior.revision else { throw RoundSessionFailureV1.staleRevision } }
+        if history.last == mutation.session {
+            // The exact durable successor may be retried only through the
+            // incumbent writer's receipt/effect readback. A different tip is
+            // still stale and cannot reuse this command.
+            try validateLiveAuthority(for: mutation.session, predecessor: nil, validatingStoredFrontier: true)
+            try beforeCanonicalWrite?()
+            let receipt = try writer.commitRoundSession(mutation)
+            guard receipt.sessionFrontier == (try mutation.session.reference) else { throw RoundSessionFailureV1.authorityMismatch }
+            return receipt
+        } else if let prior = history.last { try mutation.session.validateSuccessor(of: prior); guard mutation.expectedRevision == prior.revision else { throw RoundSessionFailureV1.staleRevision } }
         else { guard mutation.expectedRevision == 0, mutation.session.revision == 1, mutation.session.predecessor == nil else { throw RoundSessionFailureV1.staleRevision } }
         try validateLiveAuthority(for: mutation.session, predecessor: history.last, validatingStoredFrontier: false)
+        try beforeCanonicalWrite?()
         let receipt = try writer.commitRoundSession(mutation)
         guard receipt.sessionFrontier == (try mutation.session.reference) else { throw RoundSessionFailureV1.authorityMismatch }
         return receipt

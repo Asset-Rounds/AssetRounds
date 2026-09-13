@@ -814,9 +814,10 @@ enum ProductionSceneNavigationSourceV1 {
         var retired = false
         var previous: AssetLifecycleEventV1?
         var mutationIDs = Set<MutationIDV1>()
-        for (index, event) in ordered.enumerated() {
+        for event in ordered {
             let record = event.record
-            guard record.revision == UInt64(index + 1),
+            guard record.revision > 0,
+                  previous.map({ record.revision > $0.record.revision }) ?? true,
                   record.predecessorEventID == previous?.record.eventID,
                   mutationIDs.insert(record.mutationID).inserted,
                   previous.map({ record.recordedAt >= $0.record.recordedAt }) ?? true else {

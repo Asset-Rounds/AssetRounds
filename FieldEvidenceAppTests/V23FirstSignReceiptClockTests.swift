@@ -112,6 +112,107 @@ final class V23FirstSignReceiptClockTests: XCTestCase {
     }
 
     @MainActor
+    func testCanonicalDateReplayUsesExactEnvelopeBytesAndChangedBytesStillQuarantine() throws {
+        let sourceDate = Date(timeIntervalSince1970: 1_789_344_000.079_157_6)
+        let harness = try FirstSignReceiptClockHarness(
+            clockInstant: Date(timeIntervalSince1970: 1_789_344_010.125)
+        )
+        defer { harness.removeFiles() }
+        let scenario = try harness.makeScenario(createdAt: sourceDate)
+        let envelope = try MutationEnvelopeV1(
+            request: scenario.request,
+            identity: harness.identity
+        )
+        let envelopeBytes = try envelope.canonicalData()
+        let decodedEnvelope = try MutationEnvelopeV1.decodeCanonical(from: envelopeBytes)
+        guard case let .createFirstSign(originalCommand) = envelope.command,
+              case let .createFirstSign(decodedCommand) = decodedEnvelope.command else {
+            return XCTFail("Expected the actual First Sign command")
+        }
+
+        XCTAssertNotEqual(decodedCommand.createdAt, originalCommand.createdAt)
+        XCTAssertNotEqual(decodedEnvelope, envelope)
+        XCTAssertEqual(try decodedEnvelope.canonicalData(), envelopeBytes)
+        XCTAssertEqual(try decodedEnvelope.canonicalSHA256(), try envelope.canonicalSHA256())
+
+        _ = try harness.writer.execute(scenario.request)
+        let receipt = try XCTUnwrap(
+            harness.store.receipt(mutationID: scenario.mutationID)
+        )
+        let beforeReplay = try harness.writer.currentRevision()
+        let countsBeforeReplay = try harness.rowCounts(in: harness.context)
+        XCTAssertEqual(
+            try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()),
+            0
+        )
+
+        let replay = try XCTUnwrap(harness.store.resolveReplay(
+            envelope: envelope,
+            detectedAt: Date(timeIntervalSince1970: 1_789_344_011.125)
+        ))
+        XCTAssertEqual(try replay.canonicalData(), try receipt.canonicalData())
+        XCTAssertEqual(try harness.writer.currentRevision(), beforeReplay)
+        XCTAssertEqual(try harness.rowCounts(in: harness.context), countsBeforeReplay)
+        XCTAssertEqual(
+            try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()),
+            0
+        )
+        XCTAssertFalse(harness.context.hasChanges)
+
+        let changedCommand = WorkspaceCommandV1.createFirstSign(FirstSignMutationV1(
+            siteID: originalCommand.siteID,
+            newSite: originalCommand.newSite,
+            assetID: originalCommand.assetID,
+            assetLabel: originalCommand.assetLabel + " changed",
+            packID: originalCommand.packID,
+            packSchemaVersion: originalCommand.packSchemaVersion,
+            packContentVersion: originalCommand.packContentVersion,
+            createdAt: originalCommand.createdAt,
+            initialPlacementMutationID: originalCommand.initialPlacementMutationID,
+            initialPlacementEventID: originalCommand.initialPlacementEventID,
+            initialPhysicalEpisodeID: originalCommand.initialPhysicalEpisodeID
+        ))
+        let changedEnvelope = try MutationEnvelopeV1(
+            request: WorkspaceMutationRequestV1(
+                mutationID: scenario.mutationID,
+                expectedRevision: scenario.request.expectedRevision,
+                command: changedCommand
+            ),
+            identity: harness.identity
+        )
+        XCTAssertNotEqual(try changedEnvelope.canonicalData(), envelopeBytes)
+        XCTAssertNotEqual(try changedEnvelope.canonicalSHA256(), try envelope.canonicalSHA256())
+        XCTAssertThrowsError(try harness.store.resolveReplay(
+            envelope: changedEnvelope,
+            detectedAt: Date(timeIntervalSince1970: 1_789_344_012.125)
+        )) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        XCTAssertEqual(try harness.writer.currentRevision(), beforeReplay)
+        XCTAssertEqual(try harness.rowCounts(in: harness.context), countsBeforeReplay)
+        XCTAssertEqual(
+            try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()),
+            1
+        )
+        let matchingRows = try harness.context.fetch(FetchDescriptor<MutationReceiptRow>())
+            .filter {
+                $0.workspaceID == harness.identity.workspaceID.rawValue
+                    && $0.mutationID == scenario.mutationID.rawValue
+            }
+        XCTAssertEqual(matchingRows.count, 1)
+        let storedOriginal = try XCTUnwrap(matchingRows.first)
+        XCTAssertEqual(storedOriginal.envelopeData, envelopeBytes)
+        XCTAssertEqual(storedOriginal.receiptData, try receipt.canonicalData())
+        XCTAssertFalse(harness.context.hasChanges)
+        XCTAssertThrowsError(try harness.store.resolveReplay(
+            envelope: envelope,
+            detectedAt: Date(timeIntervalSince1970: 1_789_344_013.125)
+        )) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+    }
+
+    @MainActor
     func testLocalFirstSignRejectsInvalidGeneratedClockWithoutCanonicalEffect() throws {
         let invalidInstants = [
             Date(timeIntervalSince1970: .nan),
@@ -308,12 +409,13 @@ private final class FirstSignReceiptClockHarness {
         )
     }
 
-    func makeScenario() throws -> Scenario {
+    func makeScenario(
+        createdAt: Date = Date(timeIntervalSince1970: 1_700_000_000.375)
+    ) throws -> Scenario {
         let siteID = UUID()
         let mutationID = try MutationIDV1(rawValue: UUID())
         let placementEventID = UUID()
         let physicalEpisodeID = try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
-        let createdAt = Date(timeIntervalSince1970: 1_700_000_000.375)
         let assetID = UUID()
         let command = WorkspaceCommandV1.createFirstSign(FirstSignMutationV1(
             siteID: siteID,

@@ -108,6 +108,19 @@ final class V23ProductionSceneNavigationTests: XCTestCase {
         XCTAssertGreaterThan(before.revision, assetRevision)
         let live = try NavigationTargetV1(workspaceID: store.workspaceID,
             destination: .assets, stableEntityID: first.assetID, expectedRevision: assetRevision)
+        let workAsset = try NavigationTargetV1(workspaceID: store.workspaceID,
+            destination: .work, stableEntityID: first.assetID, requestedMode: .read,
+            expectedRevision: assetRevision,
+            fallback: try NavigationFallbackV1(root: .work, destination: .work))
+        let currentWorkAsset = try NavigationTargetV1(workspaceID: store.workspaceID,
+            destination: .work, stableEntityID: first.assetID, requestedMode: .read,
+            fallback: try NavigationFallbackV1(root: .work, destination: .work))
+        let liveSource = try ProductionSceneNavigationSourceV1.context(
+            for: [workAsset, currentWorkAsset], in: store, registry: try RouteRegistryV1())
+        XCTAssertEqual(try RouteRegistryV1().resolve(workAsset, context: liveSource).target, workAsset)
+        XCTAssertEqual(try RouteRegistryV1().resolve(currentWorkAsset, context: liveSource).target,
+            currentWorkAsset)
+        XCTAssertNil(currentWorkAsset.expectedRevision)
         let missing = try NavigationTargetV1(workspaceID: store.workspaceID,
             destination: .assets, stableEntityID: UUID())
         let wrongKind = try NavigationTargetV1(workspaceID: store.workspaceID,
@@ -285,6 +298,57 @@ final class V23ProductionSceneNavigationTests: XCTestCase {
         }
     }
 
+    func testWorkAssetReadTargetPreservesNilRevisionAndFailsClosedForOtherWorkFamilies() throws {
+        let workspace = WorkspaceID()
+        let assetID = UUID()
+        let revisionBound = try NavigationTargetV1(
+            workspaceID: workspace, destination: .work, stableEntityID: assetID,
+            requestedMode: .read, expectedRevision: 7,
+            fallback: try NavigationFallbackV1(root: .work, destination: .work)
+        )
+        let currentAvailability = try NavigationTargetV1(
+            workspaceID: workspace, destination: .work, stableEntityID: assetID,
+            requestedMode: .read,
+            fallback: try NavigationFallbackV1(root: .work, destination: .work)
+        )
+        let registry = try RouteRegistryV1()
+        for target in [revisionBound, currentAvailability] {
+            let resolved = try registry.resolve(target, context: .init(
+                currentWorkspaceID: workspace, currentRevision: 31,
+                sourceAvailability: [target: .available]
+            ))
+            XCTAssertEqual(resolved.disposition, .resolved)
+            XCTAssertEqual(resolved.target, target)
+            XCTAssertEqual(resolved.canonicalMutationCount, 0)
+            XCTAssertFalse(resolved.startsAutomaticWork)
+        }
+        XCTAssertNil(currentAvailability.expectedRevision)
+        XCTAssertEqual(try registry.resolve(revisionBound, context: .init(
+            currentWorkspaceID: workspace, currentRevision: 31,
+            sourceAvailability: [revisionBound: .fallback(.staleRevision)]
+        )).reason, .staleRevision)
+        let session = try NavigationTargetV1(
+            workspaceID: workspace, destination: .work, stableSessionID: UUID(),
+            requestedMode: .read,
+            fallback: try NavigationFallbackV1(root: .work, destination: .work)
+        )
+        let location = try NavigationTargetV1(
+            workspaceID: workspace, destination: .work, stableLocationID: UUID(),
+            requestedMode: .read,
+            fallback: try NavigationFallbackV1(root: .work, destination: .work)
+        )
+        for target in [session, location] {
+            let fallback = try registry.resolve(target, context: .init(
+                currentWorkspaceID: workspace, currentRevision: 31,
+                sourceAvailability: [target: .fallback(.invalidTarget)]
+            ))
+            XCTAssertEqual(fallback.disposition, .safeFallback)
+            XCTAssertEqual(fallback.target.destination, .work)
+            XCTAssertEqual(fallback.canonicalMutationCount, 0)
+            XCTAssertFalse(fallback.startsAutomaticWork)
+        }
+    }
+
     func testSourceAvailabilityCannotOverrideWorkspaceOrAccessRevocation() throws {
         let workspace = WorkspaceID()
         let target = try NavigationTargetV1(workspaceID: workspace, destination: .assets)
@@ -329,5 +393,234 @@ private actor SceneNavigationAuthentication: LocalAuthenticationClient {
     func add(_ request: NotificationSystemRequestV1) async throws { requests.append(request) }
     func remove(_ requestIDs: [String]) async throws {
         requests.removeAll { requestIDs.contains($0.notification.requestID) }
+    }
+}
+
+extension V23ProductionSceneNavigationTests {
+    @MainActor
+    func testWorkAssetRouteFallsBackForFirstWriterProducedRetirementAtRevisionTwo() async throws {
+        let fixture = try await V23ProductionMyDayPresentationHarness.start(
+            testCase: self, name: "work-retirement-first"
+        )
+        defer { fixture.cleanUp() }
+        let route = try await V23WorkRouteHarness.make(in: fixture, label: "retirement-first")
+        let initialRevision = try route.assetRevision()
+        XCTAssertEqual(initialRevision, 1)
+
+        let mutationID = MutationIDV1(rawValue: UUID())
+        let record = try AssetLifecycleEventRecordV1.canonical(
+            for: .retiredRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
+            assetID: route.sign.assetID, predecessorEventID: nil, revision: initialRevision + 1,
+            mutationID: mutationID, recordedAt: Date()
+        )
+        let mutation = try AssetSemanticsMutationV1(
+            workspaceID: route.store.workspaceID, assetID: route.sign.assetID,
+            expectedAssetRevision: initialRevision, mutationID: mutationID,
+            operation: .appendLifecycle,
+            lifecycleEvent: .retiredRecorded(record)
+        )
+        _ = try route.store.workspaceWriter.execute(
+            .applyAssetSemantics(mutation), mutationID: mutationID
+        )
+        XCTAssertEqual(try route.assetRevision(), 2)
+
+        let target = try route.target(expectedRevision: nil)
+        let beforeRead = try route.store.workspaceWriter.currentRevision()
+        let registry = try RouteRegistryV1()
+        let source = try ProductionSceneNavigationSourceV1.context(
+            for: [target], in: route.store, registry: registry
+        )
+        let resolution = try registry.resolve(target, context: source)
+        XCTAssertEqual(resolution.disposition, .safeFallback)
+        XCTAssertEqual(resolution.reason, .deletedOrTombstoned)
+        XCTAssertEqual(resolution.canonicalMutationCount, 0)
+        XCTAssertFalse(resolution.startsAutomaticWork)
+        XCTAssertEqual(try route.store.workspaceWriter.currentRevision(), beforeRead)
+        XCTAssertFalse(route.store.modelContext.hasChanges)
+    }
+
+    @MainActor
+    func testWorkAssetRouteAcceptsWriterProducedLifecycleGapAndStillFallsBackWhenRetired() async throws {
+        let fixture = try await V23ProductionMyDayPresentationHarness.start(
+            testCase: self, name: "work-retirement-gap"
+        )
+        defer { fixture.cleanUp() }
+        let route = try await V23WorkRouteHarness.make(in: fixture, label: "retirement-gap")
+        XCTAssertEqual(try route.assetRevision(), 1)
+
+        let activeID = MutationIDV1(rawValue: UUID())
+        let activeRecord = try AssetLifecycleEventRecordV1.canonical(
+            for: .activeRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
+            assetID: route.sign.assetID, predecessorEventID: nil, revision: 2,
+            mutationID: activeID, recordedAt: Date()
+        )
+        let active = try AssetSemanticsMutationV1(
+            workspaceID: route.store.workspaceID, assetID: route.sign.assetID,
+            expectedAssetRevision: 1, mutationID: activeID, operation: .appendLifecycle,
+            lifecycleEvent: .activeRecorded(activeRecord)
+        )
+        _ = try route.store.workspaceWriter.execute(.applyAssetSemantics(active), mutationID: activeID)
+        XCTAssertEqual(try route.assetRevision(), 2)
+
+        let productID = MutationIDV1(rawValue: UUID())
+        let identifier = AssetProductIdentifierV1(
+            kind: .serial, value: "WORK-RETIRE-GAP", normalizedComparisonValue: "work-retire-gap",
+            issuer: "test", provenance: .humanRecorded, reviewState: .reviewedAsRecorded,
+            effectiveFrom: Date(), effectiveUntil: nil
+        )
+        let product = try AssetProductIdentityV1(
+            identityID: UUID(), workspaceID: route.store.workspaceID, assetID: route.sign.assetID,
+            identifiers: [identifier], predecessorIdentityID: nil, revision: 3,
+            mutationID: productID, recordedAt: Date()
+        )
+        let productMutation = try AssetSemanticsMutationV1(
+            workspaceID: route.store.workspaceID, assetID: route.sign.assetID,
+            expectedAssetRevision: 2, mutationID: productID, operation: .appendProductIdentity,
+            productIdentity: product
+        )
+        _ = try route.store.workspaceWriter.execute(
+            .applyAssetSemantics(productMutation), mutationID: productID
+        )
+        XCTAssertEqual(try route.assetRevision(), 3)
+
+        let retirementID = MutationIDV1(rawValue: UUID())
+        let retirementRecord = try AssetLifecycleEventRecordV1.canonical(
+            for: .retiredRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
+            assetID: route.sign.assetID, predecessorEventID: activeRecord.eventID, revision: 4,
+            mutationID: retirementID, recordedAt: Date().addingTimeInterval(1)
+        )
+        let retirement = try AssetSemanticsMutationV1(
+            workspaceID: route.store.workspaceID, assetID: route.sign.assetID,
+            expectedAssetRevision: 3, mutationID: retirementID, operation: .appendLifecycle,
+            lifecycleEvent: .retiredRecorded(retirementRecord)
+        )
+        _ = try route.store.workspaceWriter.execute(
+            .applyAssetSemantics(retirement), mutationID: retirementID
+        )
+        XCTAssertEqual(try route.assetRevision(), 4)
+
+        let target = try route.target(expectedRevision: nil)
+        let beforeRead = try route.store.workspaceWriter.currentRevision()
+        let registry = try RouteRegistryV1()
+        let source = try ProductionSceneNavigationSourceV1.context(
+            for: [target], in: route.store, registry: registry
+        )
+        let resolution = try registry.resolve(target, context: source)
+        XCTAssertEqual(resolution.reason, .deletedOrTombstoned)
+        XCTAssertEqual(resolution.canonicalMutationCount, 0)
+        XCTAssertEqual(try route.store.workspaceWriter.currentRevision(), beforeRead)
+        XCTAssertFalse(route.store.modelContext.hasChanges)
+    }
+
+    @MainActor
+    func testWorkAssetRouteRejectsDeliberatelyInsertedDuplicateLifecycleRevisionAsCorruptSource() async throws {
+        let fixture = try await V23ProductionMyDayPresentationHarness.start(
+            testCase: self, name: "work-retirement-malformed"
+        )
+        defer { fixture.cleanUp() }
+        let route = try await V23WorkRouteHarness.make(in: fixture, label: "retirement-malformed")
+        let activeID = MutationIDV1(rawValue: UUID())
+        let active = try AssetLifecycleEventV1.activeRecorded(
+            AssetLifecycleEventRecordV1.canonical(
+                for: .activeRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
+                assetID: route.sign.assetID, predecessorEventID: nil, revision: 2,
+                mutationID: activeID, recordedAt: Date()
+            )
+        )
+        let duplicateID = MutationIDV1(rawValue: UUID())
+        let duplicate = try AssetLifecycleEventV1.retiredRecorded(
+            AssetLifecycleEventRecordV1.canonical(
+                for: .retiredRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
+                assetID: route.sign.assetID, predecessorEventID: active.record.eventID, revision: 2,
+                mutationID: duplicateID, recordedAt: Date().addingTimeInterval(1)
+            )
+        )
+        // These rows intentionally bypass the writer to model hostile durable input.  Each
+        // row is individually canonical; only their duplicated aggregate revision is invalid.
+        route.store.modelContext.insert(try AssetLifecycleEventRow(active))
+        route.store.modelContext.insert(try AssetLifecycleEventRow(duplicate))
+        try route.store.modelContext.save()
+
+        let target = try route.target(expectedRevision: nil)
+        XCTAssertThrowsError(try ProductionSceneNavigationSourceV1.context(
+            for: [target], in: route.store, registry: try RouteRegistryV1()
+        )) { error in
+            XCTAssertEqual(error as? ProductionSceneNavigationSourceFailureV1, .corruptSource)
+        }
+        XCTAssertFalse(route.store.modelContext.hasChanges)
+    }
+}
+
+extension V23ProductionSceneNavigationTests {
+    @MainActor
+    func testActualRoundMissingAndDamagedHistoryDeniesReadsWithoutNewReceipts() async throws {
+        let fixture = try await V23ProductionMyDayPresentationHarness.start(
+            testCase: self, name: "round-missing-corrupt")
+        defer { fixture.cleanUp() }
+        let context = try await V23RoundRouteHarness.make(in: fixture, label: "corrupt")
+        let missing = try NavigationTargetV1(workspaceID: context.work.store.workspaceID,
+            destination: .work, stableSessionID: UUID(), requestedMode: .read,
+            fallback: NavigationFallbackV1(root: .work, destination: .work))
+        let before = try context.work.store.workspaceWriter.currentRevision()
+        try context.work.scene.open(missing)
+        XCTAssertEqual(context.work.scene.lastRestoration?.receipt.result.disposition, .safeFallback)
+        XCTAssertEqual(context.work.scene.lastRestoration?.receipt.result.reason, .deletedOrTombstoned)
+        XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), before)
+        let beforeReceipts = try context.work.store.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>())
+        let row = try XCTUnwrap(context.work.store.modelContext.fetch(
+            FetchDescriptor<RoundSessionRevisionRowV1>()).first)
+        // Deliberate durable corruption is confined to this negative fixture.
+        // Every positive Round above was created through commitRoundSession.
+        row.canonicalData = Data("invalid round bytes".utf8)
+        try context.work.store.modelContext.save()
+        do {
+            _ = try await context.access.readSession(sessionID: context.round.sessionID,
+                expectedRevision: context.round.revision)
+            XCTFail("A canonical read cannot publish damaged Round history")
+        } catch {}
+        let target = try context.target(for: context.round)
+        XCTAssertThrowsError(try ProductionSceneNavigationSourceV1.context(
+            for: [target], in: context.work.store, registry: RouteRegistryV1()))
+        XCTAssertEqual(try context.work.store.modelContext.fetchCount(
+            FetchDescriptor<MutationReceiptRow>()), beforeReceipts)
+        XCTAssertEqual(try context.work.store.modelContext.fetchCount(
+            FetchDescriptor<RoundSessionRevisionRowV1>()), 1)
+        XCTAssertFalse(context.work.store.modelContext.hasChanges)
+    }
+
+    @MainActor
+    func testActualRoundStaleLeaveCannotReplaceAnotherSessionOrSelectedRoot() async throws {
+        let fixture = try await V23ProductionMyDayPresentationHarness.start(
+            testCase: self, name: "round-stale-leave")
+        defer { fixture.cleanUp() }
+        let first = try await V23RoundRouteHarness.make(in: fixture, label: "first")
+        let second = try await V23RoundRouteHarness.make(in: fixture, label: "second")
+        let firstTarget = try first.target(for: first.round)
+        let secondTarget = try second.target(for: second.round)
+        let scene = first.work.scene
+        try scene.open(firstTarget)
+        let firstState = ProductionRoundSessionPresentationV1(target: firstTarget,
+            scene: scene, access: first.access)
+        await firstState.refresh()
+        XCTAssertEqual(firstState.session, first.round)
+        try scene.open(secondTarget)
+        let before = try first.work.store.workspaceWriter.currentRevision()
+        firstState.leave()
+        XCTAssertEqual(scene.snapshot?.path(for: .work)?.targets, [secondTarget])
+        let secondState = ProductionRoundSessionPresentationV1(target: secondTarget,
+            scene: scene, access: second.access)
+        await secondState.refresh()
+        XCTAssertEqual(secondState.session, second.round)
+        try scene.select(.reports)
+        secondState.leave()
+        XCTAssertEqual(scene.snapshot?.selectedRoot, .reports)
+        XCTAssertEqual(scene.snapshot?.path(for: .work)?.targets, [secondTarget])
+        try scene.select(.work)
+        secondState.leave()
+        XCTAssertEqual(scene.snapshot?.path(for: .work)?.targets, [])
+        XCTAssertEqual(try first.work.store.workspaceWriter.currentRevision(), before)
+        XCTAssertEqual(try first.work.store.modelContext.fetchCount(
+            FetchDescriptor<RoundSessionRevisionRowV1>()), 2)
+        XCTAssertFalse(first.work.store.modelContext.hasChanges)
     }
 }

@@ -6,6 +6,7 @@ import SwiftUI
 struct ProductionWorkRootViewV1: View {
     static let screenAccessibilityIdentifier = "v23.shell.work.screen"
     @ObservedObject var source: ProductionMyDaySourceStateV1
+    var openRound: ((MyDayEligibleReferenceV1) -> Void)? = nil
 
     var body: some View {
         List {
@@ -15,11 +16,17 @@ struct ProductionWorkRootViewV1: View {
                         message: Text("Work packets, rounds, scheduled work and saved drafts will appear here."))
                 } else {
                     ForEach(snapshot.sources, id: \.reference) { item in
-                        AssetRoundsEvidenceCard {
-                            ProductionWorkSourceRowV1(source: item,
-                                readiness: snapshot.readinessAssessments.first {
-                                    $0.reference == item.reference
-                                })
+                        let readiness = snapshot.readinessAssessments.first {
+                            $0.reference == item.reference
+                        }
+                        if case let .roundSession(_, sessionID, _, _) = item.reference, let openRound {
+                            Button { openRound(item.reference) } label: {
+                                sourceRow(item, readiness: readiness)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("v23.work.round." + sessionID.uuidString.lowercased())
+                        } else {
+                            sourceRow(item, readiness: readiness)
                         }
                     }
                 }
@@ -43,5 +50,12 @@ struct ProductionWorkRootViewV1: View {
         .navigationTitle("Work")
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .task { await source.refresh() }
+    }
+
+    private func sourceRow(_ item: MyDayLiveSourceV1,
+                           readiness: MyDaySourceReadinessAssessmentV1?) -> some View {
+        AssetRoundsEvidenceCard {
+            ProductionWorkSourceRowV1(source: item, readiness: readiness)
+        }
     }
 }

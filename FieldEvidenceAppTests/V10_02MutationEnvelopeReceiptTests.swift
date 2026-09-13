@@ -2038,8 +2038,40 @@ extension V10_02MutationEnvelopeReceiptTests {
             }
             let authority = try XCTUnwrap(command.writerAuthority)
             let bytes = try envelope.canonicalData()
-            XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes), envelope)
-            XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes).canonicalData(), bytes)
+            let decoded = try MutationEnvelopeV1.decodeCanonical(from: bytes)
+            XCTAssertEqual(try decoded.canonicalData(), bytes)
+            XCTAssertEqual(try decoded.canonicalSHA256(), try envelope.canonicalSHA256())
+            XCTAssertEqual(decoded.schemaVersion, envelope.schemaVersion)
+            XCTAssertEqual(decoded.workspaceID, envelope.workspaceID)
+            XCTAssertEqual(decoded.replicaID, envelope.replicaID)
+            XCTAssertEqual(decoded.generationID, envelope.generationID)
+            XCTAssertEqual(decoded.mutationID, envelope.mutationID)
+            XCTAssertEqual(decoded.commandKind, envelope.commandKind)
+            XCTAssertEqual(decoded.expectedRevision, envelope.expectedRevision)
+            XCTAssertEqual(decoded.contentDependencyIDs, envelope.contentDependencyIDs)
+            XCTAssertEqual(decoded.sourceKind, envelope.sourceKind)
+            XCTAssertEqual(decoded.causationMutationID, envelope.causationMutationID)
+            XCTAssertEqual(decoded.correlationID, envelope.correlationID)
+            XCTAssertEqual(decoded.reversalPlanDigest, envelope.reversalPlanDigest)
+            XCTAssertEqual(
+                decoded.semanticReversalReplayIdentitySHA256,
+                envelope.semanticReversalReplayIdentitySHA256
+            )
+            XCTAssertEqual(decoded.semanticReversalExecution, envelope.semanticReversalExecution)
+            XCTAssertEqual(decoded.commandBodySHA256, envelope.commandBodySHA256)
+            guard case let .recordWork(decodedCommand) = decoded.command else {
+                return XCTFail("Expected the decoded real work writer receipt")
+            }
+            XCTAssertEqual(decodedCommand.workMutationID, command.workMutationID)
+            XCTAssertEqual(decodedCommand.assetID, command.assetID)
+            XCTAssertEqual(decodedCommand.issueID, command.issueID)
+            XCTAssertEqual(decodedCommand.recordID, command.recordID)
+            XCTAssertEqual(decodedCommand.evidenceIDs, command.evidenceIDs)
+            XCTAssertEqual(decodedCommand.semanticDigest, command.semanticDigest)
+            XCTAssertEqual(
+                try WorkspaceMutationCanonicalV1.data(decodedCommand.writerAuthority),
+                try WorkspaceMutationCanonicalV1.data(command.writerAuthority)
+            )
             XCTAssertEqual(try MutationReceiptV1.decodeCanonical(from: receipt.canonicalData()), receipt)
             XCTAssertFalse(String(decoding: bytes, as: UTF8.self).contains("writerInstanceID"))
             XCTAssertEqual(envelope.contentDependencyIDs, authority.contentDigests)

@@ -401,6 +401,7 @@ private struct ReadyAppView: View {
                 contentAccess: contentAccess,
                 sceneNavigationAccess: sceneNavigationAccess,
                 myDayAccess: myDayAccess,
+                roundAccess: access.roundAccess,
                 diagnosticsStore: diagnosticsStore,
                 metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
                 feedbackConfiguration: feedbackConfiguration,

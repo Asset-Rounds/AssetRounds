@@ -253,6 +253,359 @@ final class AppAccessPresentationV1: ObservableObject {
         #endif
     }
 
+    /// Round reads retain the visible render publication while the underlying
+    /// authority performs its own operation-scoped source validation.
+    @MainActor
+    struct RoundAccess {
+        /// A single derived readiness result and its non-forgeable, per-read
+        /// publication evidence. Consumers expose only `manifest` and must
+        /// validate the value synchronously before visible assignment.
+        struct RoundReadinessReadV1 {
+            let manifest: OfflineReadinessManifestV1
+            fileprivate let publicationEvidence: ProductionOfflineReadinessPublicationEvidenceV1
+        }
+
+        struct RepetitiveCaptureLaunchV2 {
+            fileprivate let write: PreparedRepetitiveCaptureSourceV2
+            fileprivate let readiness: RoundReadinessReadV1
+            var checkpoint: FieldDraftCheckpointV1 { write.checkpoint }
+            var attemptState: RepetitiveCaptureCheckpointAttemptStateV2 { write.attemptState }
+        }
+
+        struct RepetitiveCaptureStepV2 {
+            fileprivate let write: PreparedRepetitiveCaptureStepV2
+            fileprivate let readiness: RoundReadinessReadV1
+            var checkpoint: FieldDraftCheckpointV1 { write.checkpoint }
+            var step: RepetitiveCaptureProgressStepV2 { write.step }
+            var attemptState: RepetitiveCaptureCheckpointAttemptStateV2 { write.attemptState }
+        }
+
+        struct RepetitiveCaptureProgressResultV2 {
+            let progress: ProductionRepetitiveCaptureReadV2
+            fileprivate let readiness: RoundReadinessReadV1
+        }
+
+        private let publicationAccess: ContentAccess
+        private let readinessAuthority: ProductionOfflineReadinessAuthorityV1
+        private let draftOrdering: ProductionRoundDraftOrderingServiceV1?
+        private let sessionTransitions: ProductionRoundSessionTransitionServiceV1?
+        private let repetitiveCapture: ProductionRepetitiveCaptureProgressServiceV2?
+
+        #if DEBUG
+        private final class DraftOrderingDebugHooks {
+            var afterReceipt: (@MainActor () throws -> Void)?
+        }
+        private let draftOrderingDebugHooks = DraftOrderingDebugHooks()
+        private final class SessionTransitionDebugHooks {
+            var afterReceipt: (@MainActor () throws -> Void)?
+        }
+        private let sessionTransitionDebugHooks = SessionTransitionDebugHooks()
+        private final class RepetitiveCaptureDebugHooks {
+            var afterSourceReceipt: (@MainActor () throws -> Void)?
+            var afterStepReceipt: (@MainActor () throws -> Void)?
+        }
+        private let repetitiveCaptureDebugHooks = RepetitiveCaptureDebugHooks()
+        #endif
+
+        fileprivate init(
+            publicationAccess: ContentAccess,
+            readinessAuthority: ProductionOfflineReadinessAuthorityV1,
+            draftOrdering: ProductionRoundDraftOrderingServiceV1?,
+            sessionTransitions: ProductionRoundSessionTransitionServiceV1?,
+            repetitiveCapture: ProductionRepetitiveCaptureProgressServiceV2?
+        ) {
+            self.publicationAccess = publicationAccess
+            self.readinessAuthority = readinessAuthority
+            self.draftOrdering = draftOrdering
+            self.sessionTransitions = sessionTransitions
+            self.repetitiveCapture = repetitiveCapture
+        }
+
+        /// Presentation availability only. Every command remains fenced by
+        /// the original publication at invocation time.
+        var supportsDraftOrdering: Bool { draftOrdering != nil }
+        var supportsSessionTransitions: Bool { sessionTransitions != nil }
+        var supportsRepetitiveCaptureProgress: Bool { repetitiveCapture != nil }
+
+        func prepareRepetitiveCaptureLaunch(round: RoundSessionV1, readiness: RoundReadinessReadV1) throws
+            -> RepetitiveCaptureLaunchV2 {
+            try validateReadinessForPublication(readiness)
+            return try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                try readinessAuthority.validateSessionForPublication(round)
+                return .init(write: try repetitiveCapture.prepareSource(round: round, manifest: readiness.manifest),
+                             readiness: readiness)
+            }
+        }
+
+        /// Exact receipt replay acknowledges a source checkpoint; it does not
+        /// re-grant entry using the now-stale pre-checkpoint readiness evidence.
+        func persistRepetitiveCaptureLaunch(_ launch: RepetitiveCaptureLaunchV2,
+                                            validateIntent: @MainActor () throws -> Void) throws
+            -> ProductionRepetitiveCaptureReadV2 {
+            guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            try Task.checkCancellation(); try validateIntent()
+            if let committed = try publicationAccess.withRead({ try repetitiveCapture.committedSource(launch.write) }) {
+                return committed
+            }
+            try validateReadinessForPublication(launch.readiness)
+            let result = try publicationAccess.withRead { try repetitiveCapture.persistSource(launch.write) }
+            #if DEBUG
+            try repetitiveCaptureDebugHooks.afterSourceReceipt?()
+            #endif
+            try validateIntent()
+            try publicationAccess.withRead { try repetitiveCapture.validateForPublication(result) }
+            return result
+        }
+
+        func readRepetitiveCaptureProgress(sourceDraftID: UUID) throws -> ProductionRepetitiveCaptureReadV2 {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try repetitiveCapture.read(sourceDraftID: sourceDraftID)
+            }
+        }
+
+        func prepareRepetitiveCaptureStep(read: ProductionRepetitiveCaptureReadV2,
+            readiness: RoundReadinessReadV1, action: RepetitiveCaptureProgressActionV2,
+            focus: RepetitiveCaptureRequirementFocusV1, completionRecordID: UUID? = nil,
+            recordedByName: String) throws -> RepetitiveCaptureStepV2 {
+            try requireRepetitiveCaptureReadiness(readiness, round: read.chain.currentRound)
+            return try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return .init(write: try repetitiveCapture.prepareStep(read: read, action: action, focus: focus,
+                    completionRecordID: completionRecordID, recordedByName: recordedByName), readiness: readiness)
+            }
+        }
+
+        func executeRepetitiveCaptureStep(_ prepared: RepetitiveCaptureStepV2,
+                                         validateIntent: @MainActor () throws -> Void) async throws
+            -> RepetitiveCaptureProgressResultV2 {
+            guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            try Task.checkCancellation(); try validateIntent()
+            let committed = try publicationAccess.withRead { try repetitiveCapture.committedStep(prepared.write) }
+            if committed == nil {
+                try requireRepetitiveCaptureReadiness(prepared.readiness, round: prepared.step.expectedRound)
+                _ = try publicationAccess.withRead { try repetitiveCapture.persistStep(prepared.write) }
+                #if DEBUG
+                try repetitiveCaptureDebugHooks.afterStepReceipt?()
+                #endif
+            }
+            return try await resumeRepetitiveCaptureProgress(sourceDraftID: prepared.step.source.draftID,
+                stepDraftID: prepared.checkpoint.draftID, validateIntent: validateIntent)
+        }
+
+        /// An explicit action. Merely reading a cold chain never calls this.
+        func resumeRepetitiveCaptureProgress(sourceDraftID: UUID, stepDraftID: UUID,
+                                             validateIntent: @MainActor () throws -> Void) async throws
+            -> RepetitiveCaptureProgressResultV2 {
+            guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            try Task.checkCancellation(); try validateIntent()
+            let initial = try readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID)
+            guard let tip = initial.chain.nodes.last, tip.checkpoint.draftID == stepDraftID else {
+                throw ScanToWorkFailureV1.stale
+            }
+            let beforeReadiness = try await rebuildReadiness(for: initial.chain.currentRound, previous: nil)
+            try requireRepetitiveCaptureReadiness(beforeReadiness, round: initial.chain.currentRound)
+            try publicationAccess.withRead { try repetitiveCapture.validateForPublication(initial) }
+            try Task.checkCancellation(); try validateIntent()
+            if tip.isPendingRoundEffect {
+                let transition = try publicationAccess.withRead {
+                    try repetitiveCapture.pendingTransition(sourceDraftID: sourceDraftID, stepDraftID: stepDraftID)
+                }
+                let receipt = try await executeSessionTransition(transition) {
+                    try requireRepetitiveCaptureReadiness(beforeReadiness, round: initial.chain.currentRound)
+                    try publicationAccess.withRead { try repetitiveCapture.validateForPublication(initial) }
+                    try validateIntent()
+                }
+                let after = try readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID)
+                guard after.chain.nodes.last?.checkpoint.draftID == stepDraftID,
+                      after.chain.nodes.last?.roundReceipt == receipt else { throw ScanToWorkFailureV1.authorityMismatch }
+                let afterReadiness = try await rebuildReadiness(for: after.chain.currentRound, previous: nil)
+                let result = RepetitiveCaptureProgressResultV2(progress: after, readiness: afterReadiness)
+                try Task.checkCancellation(); try validateIntent()
+                try validateRepetitiveCaptureProgressForPublication(result)
+                return result
+            }
+            let result = RepetitiveCaptureProgressResultV2(progress: initial, readiness: beforeReadiness)
+            try Task.checkCancellation(); try validateIntent()
+            try validateRepetitiveCaptureProgressForPublication(result)
+            return result
+        }
+
+        func validateRepetitiveCaptureProgressForPublication(_ result: RepetitiveCaptureProgressResultV2) throws {
+            try requireRepetitiveCaptureReadiness(result.readiness, round: result.progress.chain.currentRound)
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                try repetitiveCapture.validateForPublication(result.progress)
+            }
+        }
+
+        private func requireRepetitiveCaptureReadiness(_ read: RoundReadinessReadV1, round: RoundSessionV1) throws {
+            try validateReadinessForPublication(read)
+            guard read.manifest.session == (try round.reference) else { throw ScanToWorkFailureV1.stale }
+            for item in round.items { _ = try read.manifest.scanToWorkProof(assetID: item.selection.assetID) }
+        }
+
+        func prepareSessionTransition(expected: RoundSessionV1, transition: RoundSessionTransitionV1,
+                                      recordedByName: String) throws -> PreparedRoundSessionTransitionV1 {
+            try publicationAccess.withRead {
+                guard let sessionTransitions else { throw AppAccessContractFailureV1.accessDenied }
+                return try sessionTransitions.prepare(expected: expected, transition: transition,
+                                                      recordedByName: recordedByName)
+            }
+        }
+
+        func prepareItemTransition(expected: RoundSessionV1, itemID: UUID,
+                                   transition: RoundSessionTransitionV1, reason: RoundItemReasonV1? = nil,
+                                   completion: RoundItemCompletionReferenceV1? = nil,
+                                   recordedByName: String) throws -> PreparedRoundSessionTransitionV1 {
+            try publicationAccess.withRead {
+                guard let sessionTransitions else { throw AppAccessContractFailureV1.accessDenied }
+                return try sessionTransitions.prepareItem(expected: expected, itemID: itemID,
+                    transition: transition, reason: reason, completion: completion,
+                    recordedByName: recordedByName)
+            }
+        }
+
+        func executeSessionTransition(_ write: PreparedRoundSessionTransitionV1,
+                                      validateIntent: @MainActor () throws -> Void) async throws -> RoundSessionMutationReceiptV1 {
+            guard let sessionTransitions else { throw AppAccessContractFailureV1.accessDenied }
+            let result = try await sessionTransitions.execute(write, authorizing: publicationAccess,
+                                                              validateIntent: validateIntent)
+            #if DEBUG
+            try sessionTransitionDebugHooks.afterReceipt?()
+            #endif
+            try sessionTransitions.validateForPublication(result, authorizing: publicationAccess)
+            return result.receipt
+        }
+
+        func prepareDraftReorder(expected: RoundSessionV1, itemID: UUID, delta: Int,
+                                 recordedByName: String) throws -> PreparedRoundDraftReorderV1 {
+            try publicationAccess.withRead {
+                guard let draftOrdering else { throw AppAccessContractFailureV1.accessDenied }
+                return try draftOrdering.prepare(expected: expected, itemID: itemID, delta: delta,
+                                          recordedByName: recordedByName)
+            }
+        }
+
+        func executeDraftReorder(_ write: PreparedRoundDraftReorderV1,
+                                 validateIntent: @MainActor () throws -> Void) async throws -> RoundSessionMutationReceiptV1 {
+            guard let draftOrdering else { throw AppAccessContractFailureV1.accessDenied }
+            let result = try await draftOrdering.execute(write, authorizing: publicationAccess,
+                                                         validateIntent: validateIntent)
+            #if DEBUG
+            try draftOrderingDebugHooks.afterReceipt?()
+            #endif
+            try draftOrdering.validateForPublication(result, authorizing: publicationAccess)
+            return result.receipt
+        }
+
+        func readSession(
+            sessionID: UUID,
+            expectedRevision: UInt64?
+        ) async throws -> RoundSessionV1 {
+            try publicationAccess.withRead {}
+            let session = try await readinessAuthority.readSession(
+                sessionID: sessionID,
+                expectedRevision: expectedRevision
+            )
+            try publicationAccess.withRead {}
+            return session
+        }
+
+        func rebuildReadiness(
+            for session: RoundSessionV1,
+            previous: OfflineReadinessManifestV1?
+        ) async throws -> RoundReadinessReadV1 {
+            try publicationAccess.withRead {}
+            let result = try await readinessAuthority.rebuildReadiness(
+                for: session,
+                previous: previous
+            )
+            try publicationAccess.withRead {}
+            return .init(
+                manifest: result.manifest,
+                publicationEvidence: result.publicationEvidence
+            )
+        }
+
+        /// Final synchronous frontier fence for a caller that is about to
+        /// assign a read session or its derived readiness to visible state.
+        /// This retains the original publication access while the authority
+        /// proves the complete canonical session reference is still current.
+        func validateSessionForPublication(_ expected: RoundSessionV1) throws {
+            try publicationAccess.withRead {
+                try readinessAuthority.validateSessionForPublication(expected)
+            }
+        }
+
+        #if DEBUG
+        /// Runs after the real writer receipt returns and outside the store
+        /// content hold, so a test can model lost acknowledgement without
+        /// reentering an original token.
+        func setAfterDraftReorderReceiptForTesting(_ hook: (@MainActor () throws -> Void)?) {
+            draftOrderingDebugHooks.afterReceipt = hook
+        }
+
+        func setAfterDraftReorderContentResolutionForTesting(
+            _ hook: (@MainActor () async throws -> Void)?
+        ) { draftOrdering?.afterContentResolutionForTesting = hook }
+
+        func setAfterDraftReorderContentMaterializationForTesting(
+            _ hook: (@MainActor () async throws -> Void)?
+        ) { draftOrdering?.afterContentMaterializationForTesting = hook }
+
+        func setAfterSessionTransitionReceiptForTesting(_ hook: (@MainActor () throws -> Void)?) {
+            sessionTransitionDebugHooks.afterReceipt = hook
+        }
+        func setAfterRepetitiveCaptureSourceReceiptForTesting(_ hook: (@MainActor () throws -> Void)?) {
+            repetitiveCaptureDebugHooks.afterSourceReceipt = hook
+        }
+        func setAfterRepetitiveCaptureStepReceiptForTesting(_ hook: (@MainActor () throws -> Void)?) {
+            repetitiveCaptureDebugHooks.afterStepReceipt = hook
+        }
+        func setAfterSessionTransitionContentResolutionForTesting(
+            _ hook: (@MainActor () async throws -> Void)?
+        ) { sessionTransitions?.afterContentResolutionForTesting = hook }
+        func setAfterSessionTransitionContentMaterializationForTesting(
+            _ hook: (@MainActor () async throws -> Void)?
+        ) { sessionTransitions?.afterContentMaterializationForTesting = hook }
+        #endif
+
+        /// Final synchronous derived-read fence immediately before assigning
+        /// this readiness result to visible state.
+        func validateReadinessForPublication(_ read: RoundReadinessReadV1) throws {
+            // Validate the original operation token before acquiring the
+            // distinct visible-publication hold. These scopes must remain
+            // sequential: neither holds the other's nonrecursive reference.
+            try read.publicationEvidence.operationToken.withContentRead(for: .render) {}
+            try publicationAccess.withRead {
+                try readinessAuthority.validateReadinessForPublication(
+                    read.publicationEvidence,
+                    manifest: read.manifest
+                )
+            }
+        }
+
+        #if DEBUG
+        /// Test-only suspension at the real source/read fence; it cannot
+        /// supply source values or bypass the authority's final validation.
+        func setAfterRoundSessionSourceObservationForTesting(
+            _ hook: (@MainActor () async throws -> Void)?
+        ) {
+            readinessAuthority.afterRoundSessionSourceObservationForTesting = hook
+        }
+
+        /// Test-only suspension after materialization and before the original
+        /// read token is revalidated for publication.
+        func setAfterRoundReadinessMaterializationForTesting(
+            _ hook: (@MainActor () async throws -> Void)?
+        ) {
+            readinessAuthority.afterRoundReadinessMaterializationForTesting = hook
+        }
+        #endif
+    }
+
     /// Captures only device state and value identities, never a store context
     /// that could keep the old generation alive during Erase.
     @MainActor
@@ -311,6 +664,11 @@ final class AppAccessPresentationV1: ObservableObject {
     private var publishedRenderAccess: ContentAccess?
     private var publishedSceneNavigationAccess: SceneNavigationAccess?
     private var publishedMyDayAccess: MyDayAccess?
+    private var publishedRoundAccess: RoundAccess?
+    /// Created once only after a store has reached an authorized render
+    /// publication. A failed attempt remains unavailable for that publication
+    /// and may be retried by a later eligible publication.
+    private var roundReadinessLedger: OwnedStorageLedgerV1?
     private final class ContentPublication {}
     private var contentPublication: ContentPublication?
     var backupPreviewAccess: BackupPreviewAccess? {
@@ -324,6 +682,9 @@ final class AppAccessPresentationV1: ObservableObject {
     }
     var myDayAccess: MyDayAccess? {
         permitsContentPresentation ? publishedMyDayAccess : nil
+    }
+    var roundAccess: RoundAccess? {
+        permitsContentPresentation ? publishedRoundAccess : nil
     }
 
     private struct QueuedLifecycleEvent {
@@ -397,6 +758,7 @@ final class AppAccessPresentationV1: ObservableObject {
         defaults: UserDefaults = .standard
     ) {
         self.startupRouter = startupRouter
+        roundReadinessLedger = nil
         restoreServiceFactory = { try BackupRestoreService(applicationSupportURL: $0) }
         eraseServiceFactory = { admission, completion, aborted, sceneState in
             EraseAllService(applicationSupportURL: applicationSupportURL,
@@ -417,6 +779,7 @@ final class AppAccessPresentationV1: ObservableObject {
          restoreServiceFactory: @escaping RestoreServiceFactory = { try BackupRestoreService(applicationSupportURL: $0) },
          sessionFactory: @escaping SessionFactory) {
         self.startupRouter = startupRouter
+        roundReadinessLedger = nil
         self.eraseServiceFactory = eraseServiceFactory
         self.restoreServiceFactory = restoreServiceFactory
         self.sessionFactory = sessionFactory
@@ -444,6 +807,7 @@ final class AppAccessPresentationV1: ObservableObject {
     func receive(_ event: AppLockLifecycleEventV1) {
         presentationRevision = PresentationRevision()
         publishedMyDayAccess = nil
+        publishedRoundAccess = nil
         switch event {
         case .sceneInactive:
             sceneIsActive = false
@@ -515,6 +879,7 @@ final class AppAccessPresentationV1: ObservableObject {
                 // manufactures a content presentation permit.
                 permitsContentPresentation = false
                 publishedMyDayAccess = nil
+                publishedRoundAccess = nil
             } else {
                 _ = try await session.lifecycle.disable(operationID: UUID())
             }
@@ -546,6 +911,7 @@ final class AppAccessPresentationV1: ObservableObject {
             } catch {
                 permitsContentPresentation = false
                 publishedMyDayAccess = nil
+                publishedRoundAccess = nil
                 failure = .startup
             }
             return
@@ -585,6 +951,7 @@ final class AppAccessPresentationV1: ObservableObject {
             }
             permitsContentPresentation = false
             publishedMyDayAccess = nil
+            publishedRoundAccess = nil
             let restored = try await restoreServiceFactory(applicationSupportURL)
                 .restore(validatedPackage: package, currentModelContext: sourceModelContext,
                     currentGenerationID: sourceGenerationID,
@@ -625,6 +992,7 @@ final class AppAccessPresentationV1: ObservableObject {
         pendingErase = pending
         permitsContentPresentation = false
         publishedMyDayAccess = nil
+        publishedRoundAccess = nil
         failure = nil
         let admission: EraseAdmission = { [weak self, weak pending] subject in
             guard let self, let pending, self.pendingErase === pending else {
@@ -691,6 +1059,7 @@ final class AppAccessPresentationV1: ObservableObject {
             // retry. A retry never starts another physical Erase operation.
             permitsContentPresentation = false
             publishedMyDayAccess = nil
+            publishedRoundAccess = nil
             if let receipt = pending.abortedAdmission {
                 do {
                     try await session.lifecycle.abandonEraseAdmission(receipt)
@@ -764,6 +1133,7 @@ final class AppAccessPresentationV1: ObservableObject {
             failure = .bootstrap
             permitsContentPresentation = false
             publishedMyDayAccess = nil
+            publishedRoundAccess = nil
         }
     }
 
@@ -793,6 +1163,7 @@ final class AppAccessPresentationV1: ObservableObject {
                 failure = .lifecycle(queued.event)
                 permitsContentPresentation = false
                 publishedMyDayAccess = nil
+                publishedRoundAccess = nil
             }
         }
         // Startup can be long-running. Release this serial short-event drain
@@ -807,6 +1178,7 @@ final class AppAccessPresentationV1: ObservableObject {
         retriesStartup: Bool = false
     ) async {
         publishedMyDayAccess = nil
+        publishedRoundAccess = nil
         do {
             // This concrete token spans the startup awaits and prevents a
             // relock/unlock ABA from publishing an old authorized action.
@@ -863,15 +1235,56 @@ final class AppAccessPresentationV1: ObservableObject {
                 let myDayProvider = store.makeMyDaySourceProvider(accessGate: session.gate)
                 publishedMyDayAccess = MyDayAccess(publicationAccess: renderAccess, provider: myDayProvider,
                     planning: store.makeMyDayPlanningCommitService(sourceProvider: myDayProvider))
+                if roundReadinessLedger == nil {
+                    // This is the first app-lifetime ledger only after the
+                    // exact store and render publication have been admitted.
+                    // Failure leaves Round unavailable without disturbing the
+                    // established app access publication, and a later
+                    // eligible publication retries this narrow construction.
+                    guard isCurrent(action),
+                          action.revision === presentationRevision,
+                          contentPublication === publication,
+                          sceneIsActive,
+                          queuedLifecycleEvents.isEmpty else { return }
+                    roundReadinessLedger = try? token.withContentRead(for: .render) {
+                        try store.makeRoundReadinessLedger()
+                    }
+                }
+                let draftOrdering = try? token.withContentRead(for: .render) {
+                    try store.makeRoundDraftOrderingService(accessGate: session.gate)
+                }
+                let sessionTransitions = try? token.withContentRead(for: .render) {
+                    try store.makeRoundSessionTransitionService(accessGate: session.gate)
+                }
+                let repetitiveCapture = try? token.withContentRead(for: .render) {
+                    guard let sessionTransitions else { throw AppAccessContractFailureV1.accessDenied }
+                    return try store.makeRepetitiveCaptureProgressService(transitions: sessionTransitions)
+                }
+                if let roundReadinessLedger {
+                    publishedRoundAccess = RoundAccess(
+                        publicationAccess: renderAccess,
+                        readinessAuthority: store.makeRoundReadinessAuthority(
+                            accessGate: session.gate,
+                            ownedStorageLedger: roundReadinessLedger
+                        ),
+                        draftOrdering: draftOrdering,
+                        sessionTransitions: sessionTransitions,
+                        repetitiveCapture: repetitiveCapture
+                    )
+                } else {
+                    publishedRoundAccess = nil
+                }
             } else {
                 publishedSceneNavigationAccess = nil
                 publishedMyDayAccess = nil
+                publishedRoundAccess = nil
             }
             permitsContentPresentation = true
         } catch {
             guard isCurrent(action) else { return }
             permitsContentPresentation = false
             publishedMyDayAccess = nil
+            publishedRoundAccess = nil
             if action.resumesAfterInactive,
                (!sceneIsActive || action.revision !== presentationRevision
                     || !queuedLifecycleEvents.isEmpty) {
@@ -907,6 +1320,7 @@ final class AppAccessPresentationV1: ObservableObject {
         if !state.permitsContentAccess {
             permitsContentPresentation = false
             publishedMyDayAccess = nil
+            publishedRoundAccess = nil
         }
         return true
     }
