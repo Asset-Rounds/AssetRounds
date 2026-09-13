@@ -43,12 +43,16 @@ final class V23ProductionAppAccessTests: XCTestCase {
     func testRestorePreviewRetainsOriginalAccessAcrossLifecycleAndRejectsStaleCallbacks() async throws {
         let suiteName = "V23.ProductionAppAccess.preview.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        let support = FileManager.default.temporaryDirectory
+        let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("V23-ProductionAppAccess-preview-\(UUID().uuidString)")
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Library/Caches", isDirectory: true),
+            withIntermediateDirectories: true)
         defer {
             defaults.removePersistentDomain(forName: suiteName)
-            try? FileManager.default.removeItem(at: support)
+            try? FileManager.default.removeItem(at: root)
         }
         let router = StartupRouter(applicationSupportURL: support)
         let session = try await ProductionCompositionRoot.makeAppAccessSession(
@@ -187,6 +191,9 @@ final class V23ProductionAppAccessTests: XCTestCase {
         let support = root.appendingPathComponent("Library/Application Support")
         let exportRoot = root.appendingPathComponent("export")
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Library/Caches", isDirectory: true),
+            withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
         defer {
             defaults.removePersistentDomain(forName: suiteName)
@@ -583,10 +590,17 @@ final class V23ProductionAppAccessTests: XCTestCase {
     func testFactorySettingTransactionsCompleteAndReopenWithoutRepair() async throws {
         let suiteName = "V23.ProductionAppAccess.transactions.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        let support = FileManager.default.temporaryDirectory
+        let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("V23-ProductionAppAccess-transactions-\(UUID().uuidString)")
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Library/Caches", isDirectory: true),
+            withIntermediateDirectories: true)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: root)
+        }
         let system = ProductionAccessNotificationSystem()
         let router = StartupRouter(applicationSupportURL: support)
         let session = try await ProductionCompositionRoot.makeAppAccessSession(

@@ -181,6 +181,7 @@ final class V23ProductionMyDayPresentationTests: XCTestCase {
 struct V23ProductionMyDayPresentationHarness {
     let suiteName: String
     let defaults: UserDefaults
+    let root: URL
     let support: URL
     let router: StartupRouter
     let session: ProductionAppAccessSessionV1
@@ -191,9 +192,13 @@ struct V23ProductionMyDayPresentationHarness {
     static func start(testCase: XCTestCase, name: String) async throws -> Self {
         let suiteName = "V23.ProductionMyDay.\(name).\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        let support = FileManager.default.temporaryDirectory
+        let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("V23-ProductionMyDay-\(name)-\(UUID().uuidString)")
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Library/Caches", isDirectory: true),
+            withIntermediateDirectories: true)
         let router = StartupRouter(applicationSupportURL: support)
         let session = try await ProductionCompositionRoot.makeAppAccessSession(
             applicationSupportURL: support,
@@ -219,14 +224,14 @@ struct V23ProductionMyDayPresentationHarness {
         guard case .ready(let coordinator, let diagnostics, _) = router.route else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        return .init(suiteName: suiteName, defaults: defaults, support: support,
+        return .init(suiteName: suiteName, defaults: defaults, root: root, support: support,
                      router: router, session: session, presentation: presentation,
                      coordinator: coordinator, diagnostics: diagnostics)
     }
 
     func cleanUp() {
         defaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: support)
+        try? FileManager.default.removeItem(at: root)
     }
 }
 
