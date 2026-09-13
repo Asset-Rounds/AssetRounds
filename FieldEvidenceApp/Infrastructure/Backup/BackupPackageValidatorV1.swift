@@ -1501,7 +1501,7 @@ private extension BackupPackageValidatorV1 {
                     && (site.timeZoneID.map({ value in
                         value == value.trimmingCharacters(
                             in: .whitespacesAndNewlines
-                        ) && TimeZone.knownTimeZoneIdentifiers.contains(value)
+                        ) && TimeZone(identifier: value) != nil
                     }) ?? true)
               }),
               records.evidenceFiles.allSatisfy({ $0.schemaVersion == 1 }),

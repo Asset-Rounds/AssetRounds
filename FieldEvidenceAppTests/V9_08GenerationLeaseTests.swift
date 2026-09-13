@@ -1795,6 +1795,109 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             XCTAssertFalse(destination.modelContext.hasChanges)
         }
 
+        // Each variant starts from the genuine staged export. Re-encode through
+        // the records and manifest contracts so validation sees a checksummed package.
+        let originalRecordsURL = validated.stagedPackageURL.appendingPathComponent("records.json")
+        let originalRecordsBytes = try Data(contentsOf: originalRecordsURL)
+        let originalRecords = try BackupCanonicalDecoderV1().decodeRecords(originalRecordsBytes)
+        XCTAssertEqual(try XCTUnwrap(originalRecords.sites.first).timeZoneID, "UTC")
+
+        func canonicalSiteVariant(timeZoneID: String) throws -> Data {
+            var object = try XCTUnwrap(
+                try JSONSerialization.jsonObject(with: originalRecordsBytes) as? [String: Any]
+            )
+            var sites = try XCTUnwrap(object["sites"] as? [[String: Any]])
+            XCTAssertEqual(sites.count, 1)
+            sites[0]["timeZoneID"] = timeZoneID
+            object["sites"] = sites
+            let looseRecords = try JSONSerialization.data(withJSONObject: object)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let string = try container.decode(String.self)
+                guard let date = formatter.date(from: string) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container,
+                        debugDescription: "Invalid staged-package date"
+                    )
+                }
+                return date
+            }
+            let records = try decoder.decode(V4BackupRecordsV1.self, from: looseRecords)
+            let canonical = try BackupCanonicalEncoderV1().encodeRecords(records).data
+            let decoded = try BackupCanonicalDecoderV1().decodeRecords(canonical)
+            XCTAssertEqual(try XCTUnwrap(decoded.sites.first).timeZoneID, timeZoneID)
+            return canonical
+        }
+
+        func rewriteManifest(at packageURL: URL) throws {
+            let manifestURL = packageURL.appendingPathComponent("manifest.json")
+            let old = try BackupCanonicalDecoderV1().decodeManifest(
+                Data(contentsOf: manifestURL)
+            )
+            let entries = try old.entries.map { entry -> V4BackupEntryV1 in
+                let data = try Data(contentsOf: packageURL.appendingPathComponent(entry.path))
+                return V4BackupEntryV1(
+                    byteCount: data.count,
+                    mimeType: entry.mimeType,
+                    path: entry.path,
+                    sha256: data.sha256
+                )
+            }
+            let manifest = V4BackupManifestV1(
+                backupSchemaVersion: old.backupSchemaVersion,
+                consumedEvaluationRootIDs: old.consumedEvaluationRootIDs,
+                declaredPayloadByteCount: entries.reduce(0) { $0 + $1.byteCount },
+                entries: entries,
+                exportedAt: old.exportedAt,
+                packs: old.packs,
+                source: old.source
+            )
+            try overwriteFilePreservingIdentity(
+                try BackupCanonicalEncoderV1().encodeManifest(manifest).data,
+                at: manifestURL
+            )
+        }
+
+        let timeZoneVariants: [(String, Bool)] = [
+            ("America/New_York", true),
+            ("", false),
+            ("Mars/Olympus", false),
+            ("UTC ", false),
+        ]
+        for (index, variant) in timeZoneVariants.enumerated() {
+            let variantRoot = root.appendingPathComponent(
+                "site-time-zone-\(index).fieldrecordbackup",
+                isDirectory: true
+            )
+            try fileManager.copyItem(at: validated.stagedPackageURL, to: variantRoot)
+            try overwriteFilePreservingIdentity(
+                try canonicalSiteVariant(timeZoneID: variant.0),
+                at: variantRoot.appendingPathComponent("records.json")
+            )
+            try rewriteManifest(at: variantRoot)
+            let validator = try BackupPackageValidatorV1(
+                profileRegistry: WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
+            )
+            if variant.1 {
+                let variantValidated = try validator.validate(stagedPackageURL: variantRoot)
+                XCTAssertEqual(
+                    try XCTUnwrap(variantValidated.records.sites.first).timeZoneID,
+                    variant.0
+                )
+            } else {
+                XCTAssertThrowsError(try validator.validate(stagedPackageURL: variantRoot)) {
+                    XCTAssertEqual($0 as? BackupPackageValidationErrorV1, .invalidPackage)
+                }
+            }
+            XCTAssertEqual(try Data(contentsOf: originalRecordsURL), originalRecordsBytes)
+            XCTAssertEqual(try Data(contentsOf: originalManifestURL), originalManifestBytes)
+            XCTAssertEqual(try destinationFactory.currentGenerationID(), destinationOldID)
+            XCTAssertFalse(destination.modelContext.hasChanges)
+        }
         func manifest(replacingPortableExchangeEntry entry: V4BackupEntryV1) -> V4BackupManifestV1 {
             V4BackupManifestV1(
                 backupSchemaVersion: validated.manifest.backupSchemaVersion,
