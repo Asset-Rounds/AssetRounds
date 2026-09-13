@@ -123,11 +123,25 @@ final class V9_02FileAuthorityTests: XCTestCase {
         defer { try? fileManager.removeItem(at: root) }
         var file = root.appendingPathComponent("model.sqlite")
         XCTAssertTrue(fileManager.createFile(atPath: file.path, contents: Data("old".utf8)))
+        var tracePhase = "wrongProtectionSet"
+        var traceCompleted = false
+        defer {
+            if !traceCompleted {
+                traceResourceReadback(
+                    test: "wrongResourceValuesAreRepairedAndVerified",
+                    phase: tracePhase,
+                    at: file
+                )
+            }
+        }
 
+        tracePhase = "wrongProtectionSet"
         try setFileProtection(.completeUntilFirstUserAuthentication, at: file)
         var wrongValues = URLResourceValues()
         wrongValues.isExcludedFromBackup = true
+        tracePhase = "wrongBackupSet"
         try file.setResourceValues(wrongValues)
+        tracePhase = "wrongAttributeAssert"
         try assertResourceValues(
             .database,
             at: file,
@@ -135,6 +149,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
             isExcludedFromBackup: true
         )
 
+        tracePhase = "wrongAttributeVerify"
         XCTAssertThrowsError(
             try ProtectedFilePolicyV1.verify(.database, at: file)
         ) { error in
@@ -144,8 +159,11 @@ final class V9_02FileAuthorityTests: XCTestCase {
             )
         }
 
+        tracePhase = "repairedApply"
         try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
+        tracePhase = "repairedAttributeAssert"
         try assertResourceValues(.database, at: file)
+        traceCompleted = true
     }
 
     func testCachedValidResourceValuesCannotHideLaterPhysicalAttributeChanges() throws {
@@ -153,37 +171,63 @@ final class V9_02FileAuthorityTests: XCTestCase {
         defer { try? fileManager.removeItem(at: root) }
         let file = root.appendingPathComponent("model.sqlite")
         XCTAssertTrue(fileManager.createFile(atPath: file.path, contents: Data("protected".utf8)))
+        var tracePhase = "initialApply"
+        var traceCompleted = false
+        defer {
+            if !traceCompleted {
+                traceResourceReadback(
+                    test: "cachedValidResourceValuesCannotHideLaterPhysicalAttributeChanges",
+                    phase: tracePhase,
+                    at: file
+                )
+            }
+        }
+        tracePhase = "initialApply"
         try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
+        tracePhase = "initialReadback"
         _ = try file.resourceValues(forKeys: [.fileProtectionKey, .isExcludedFromBackupKey])
+        tracePhase = "wrongProtectionSet"
         try setFileProtection(.completeUntilFirstUserAuthentication, at: file)
+        tracePhase = "wrongProtectionAssert"
         try assertResourceValues(
             .database,
             at: file,
             protection: .completeUntilFirstUserAuthentication,
             isExcludedFromBackup: false
         )
+        tracePhase = "wrongProtectionVerify"
         XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.database, at: file)) { error in
             XCTAssertEqual(error as? ProtectedFilePolicyError, .resourceValueMismatch)
         }
+        tracePhase = "repairedApplyAfterProtection"
         try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
+        tracePhase = "repairedAssertAfterProtection"
         try assertResourceValues(.database, at: file)
+        tracePhase = "secondReadback"
         _ = try file.resourceValues(forKeys: [.fileProtectionKey, .isExcludedFromBackupKey])
         var anotherURL = URL(fileURLWithPath: file.path)
         var wrongValues = URLResourceValues()
         wrongValues.isExcludedFromBackup = true
+        tracePhase = "wrongBackupSet"
         try anotherURL.setResourceValues(wrongValues)
+        tracePhase = "wrongBackupAssert"
         try assertResourceValues(
             .database,
             at: file,
             protection: .complete,
             isExcludedFromBackup: true
         )
+        tracePhase = "wrongBackupVerify"
         XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.database, at: file)) { error in
             XCTAssertEqual(error as? ProtectedFilePolicyError, .resourceValueMismatch)
         }
+        tracePhase = "repairedApplyAfterBackup"
         try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
+        tracePhase = "repairedAssertAfterBackup"
         try assertResourceValues(.database, at: file)
+        tracePhase = "contentIntegrityRead"
         XCTAssertEqual(try Data(contentsOf: file), Data("protected".utf8))
+        traceCompleted = true
     }
 
     func testRelativePathTraversalAndLinkEscapesFailClosed() throws {
@@ -488,6 +532,26 @@ final class V9_02FileAuthorityTests: XCTestCase {
 }
 
 private extension V9_02FileAuthorityTests {
+    func traceResourceReadback(test: String, phase: String, at url: URL) {
+        var freshURL = URL(fileURLWithPath: url.path)
+        freshURL.removeAllCachedResourceValues()
+        do {
+            let values = try freshURL.resourceValues(forKeys: [
+                .fileProtectionKey,
+                .isExcludedFromBackupKey,
+            ])
+            print(
+                "V9_02_FILE_AUTHORITY_TRACE test=\(test) phase=\(phase) "
+                    + "protectionComplete=\(values.fileProtection == .complete) "
+                    + "protectionKnown=\(values.fileProtection != nil) "
+                    + "backupExcluded=\(values.isExcludedFromBackup == true) "
+                    + "backupKnown=\(values.isExcludedFromBackup != nil)"
+            )
+        } catch {
+            print("V9_02_FILE_AUTHORITY_TRACE test=\(test) phase=\(phase) readbackUnavailable")
+        }
+    }
+
     func setFileProtection(
         _ protection: URLFileProtection,
         at url: URL

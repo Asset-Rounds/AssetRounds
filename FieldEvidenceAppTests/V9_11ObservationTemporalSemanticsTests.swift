@@ -569,6 +569,13 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             in: deletion.session.modelContext
         )
         try V906Integration.adoptSeededDeletionBaseline(deletion.session)
+        let deletionAssurances = try deletion.session.modelContext.fetch(
+            FetchDescriptor<RequirementAssuranceRow>()
+        )
+        XCTAssertEqual(deletionAssurances.count, 1)
+        XCTAssertEqual(deletionAssurances.map(\.workflowRecordID), [deletionRecordID])
+        let deletionAssurance = try XCTUnwrap(deletionAssurances.first)
+        XCTAssertEqual(try deletionAssurance.snapshot().workflowRecordID, deletionRecordID)
         let persistedDeletionPair = try ObservationAndTimeRowStoreV1.requireRow(
             recordID: deletionRecordID,
             in: deletion.session.modelContext
@@ -616,6 +623,13 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             in: erase.session.modelContext
         )
         try V906Integration.adoptSeededDeletionBaseline(erase.session)
+        let eraseAssurances = try erase.session.modelContext.fetch(
+            FetchDescriptor<RequirementAssuranceRow>()
+        )
+        XCTAssertEqual(eraseAssurances.count, 1)
+        XCTAssertEqual(eraseAssurances.map(\.workflowRecordID), [eraseRecordID])
+        let eraseAssurance = try XCTUnwrap(eraseAssurances.first)
+        XCTAssertEqual(try eraseAssurance.snapshot().workflowRecordID, eraseRecordID)
         XCTAssertEqual(
             try erase.session.modelContext.fetchCount(FetchDescriptor<ObservationAndTimeRow>()),
             1
@@ -981,6 +995,21 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             recordID: id,
             observationBasisV1Data: basisData,
             temporalContextV1Data: temporalData
+        ))
+        let states = try context.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first else {
+            throw V911TestFailure.unknownFixtureValue("expected one workspace mutation state")
+        }
+        context.insert(try RequirementAssuranceRow.blockingUnknownBackfill(
+            workflowRecordID: id,
+            workspaceID: state.workspaceID,
+            evaluatedRevision: 1,
+            requirementID: "backfill-required",
+            requirementVersion: 1,
+            requirementTypeID: "response",
+            policySHA256: String(repeating: "a", count: 64),
+            mutationID: Self.id(127),
+            timestamp: recordedAt
         ))
     }
 }

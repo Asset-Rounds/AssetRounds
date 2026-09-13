@@ -618,6 +618,15 @@ private extension BackupPackageValidatorV1 {
         stagedPackageURL: URL,
         cancellation: StreamingArchiveCancellationV1
     ) throws -> ValidatedV4BackupPackageV1 {
+#if DEBUG
+        var validationPhase = "root"
+        var validationCompleted = false
+        defer {
+            if !validationCompleted {
+                print("BackupPackageValidatorV1 lastPhase=\(validationPhase)")
+            }
+        }
+#endif
         try cancellation.checkpoint()
         let root = stagedPackageURL.standardizedFileURL
         guard stagedPackageURL.isFileURL,
@@ -628,6 +637,9 @@ private extension BackupPackageValidatorV1 {
         }
         let rootIdentity = try BackupPackageAnchoredFile.rootIdentity(at: root)
         let decoder = BackupCanonicalDecoderV1()
+#if DEBUG
+        validationPhase = "manifest-read-decode"
+#endif
         let manifestValue: (
             manifest: V4BackupManifestV1,
             descriptor: ValidatedV4BackupMembersV1.Descriptor
@@ -648,11 +660,17 @@ private extension BackupPackageValidatorV1 {
             )
         }()
         let manifest = manifestValue.manifest
+#if DEBUG
+        validationPhase = "manifest-bounds"
+#endif
         try validateManifestBounds(manifest)
         let expectedFiles = Set(["manifest.json"] + manifest.entries.map(\.path))
         let expectedDirectories = Set(manifest.entries.compactMap { entry in
             entry.path == "records.json" ? nil : entry.path.split(separator: "/").first.map(String.init)
         })
+#if DEBUG
+        validationPhase = "member-enumeration"
+#endif
         let enumerated = try enumerate(root: root)
         guard enumerated.files == expectedFiles,
               enumerated.directories == expectedDirectories,
@@ -660,6 +678,9 @@ private extension BackupPackageValidatorV1 {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
 
+#if DEBUG
+        validationPhase = "member-descriptors"
+#endif
         var descriptors = [
             "manifest.json": manifestValue.descriptor
         ]
@@ -677,6 +698,9 @@ private extension BackupPackageValidatorV1 {
             descriptors: descriptors,
             maximumMemberByteCount: limits.maximumUncompressedEntryByteCount
         )
+#if DEBUG
+        validationPhase = "member-digests"
+#endif
         for entry in manifest.entries {
             try cancellation.checkpoint()
             guard let bytes = members[entry.path] else {
@@ -690,6 +714,9 @@ private extension BackupPackageValidatorV1 {
         guard members.keys.count == expectedFiles.count else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
+#if DEBUG
+        validationPhase = "records-decode"
+#endif
         let records: V4BackupRecordsV1 = try {
             guard let recordsData = members["records.json"] else {
                 throw BackupPackageValidationErrorV1.invalidPackage
@@ -697,8 +724,14 @@ private extension BackupPackageValidatorV1 {
             return try decoder.decodeRecords(recordsData)
         }()
         try cancellation.checkpoint()
+#if DEBUG
+        validationPhase = "records-graph"
+#endif
         try validateGraph(records, manifest: manifest, members: members)
         try cancellation.checkpoint()
+#if DEBUG
+        validationPhase = "owned-members"
+#endif
         try validateOwnedMembers(
             records,
             manifest: manifest,
@@ -706,16 +739,25 @@ private extension BackupPackageValidatorV1 {
             cancellation: cancellation
         )
         try cancellation.checkpoint()
+#if DEBUG
+        validationPhase = "reports"
+#endif
         try validateReports(
             records,
             members: members,
             cancellation: cancellation
         )
         try cancellation.checkpoint()
+#if DEBUG
+        validationPhase = "final-root-identity"
+#endif
         guard try BackupPackageAnchoredFile.rootIdentity(at: root) == rootIdentity else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
 
+#if DEBUG
+        validationCompleted = true
+#endif
         let liveSlots = records.packets.filter { $0.currentRecordID != nil }.count
         let tombstones = records.packets.filter { $0.currentRecordID == nil }.count
         return ValidatedV4BackupPackageV1(
