@@ -1121,7 +1121,7 @@ final class ProductionMyDayPlanningCommitServiceV1 {
                     guard allocated.insert(id).inserted else { throw FieldDraftFailureV1.invalidValue }
                     return id
                 }
-                func nextMutation() throws -> MutationIDV1 {
+                @MainActor func nextMutation() throws -> MutationIDV1 {
                     let id = try current.workspaceWriter.makeMutationID()
                     guard allocated.insert(id.rawValue).inserted else { throw FieldDraftFailureV1.invalidValue }
                     return id
@@ -1168,7 +1168,7 @@ final class ProductionMyDayPlanningCommitServiceV1 {
                     guard allocated.insert(id).inserted else { throw FieldDraftFailureV1.invalidValue }
                     return id
                 }
-                func nextMutation() throws -> MutationIDV1 {
+                @MainActor func nextMutation() throws -> MutationIDV1 {
                     let id = try current.workspaceWriter.makeMutationID()
                     guard allocated.insert(id.rawValue).inserted else { throw FieldDraftFailureV1.invalidValue }
                     return id
@@ -1198,7 +1198,7 @@ final class ProductionMyDayPlanningCommitServiceV1 {
                     guard allocated.insert(id).inserted else { throw FieldDraftFailureV1.invalidValue }
                     return id
                 }
-                func nextMutation() throws -> MutationIDV1 {
+                @MainActor func nextMutation() throws -> MutationIDV1 {
                     let id = try current.workspaceWriter.makeMutationID()
                     guard allocated.insert(id.rawValue).inserted else { throw FieldDraftFailureV1.invalidValue }
                     return id

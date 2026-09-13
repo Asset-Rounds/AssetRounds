@@ -2331,7 +2331,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     }
 
     func pendingReviewedMyDayCarryoverConflictEvidence(draftID: UUID) throws -> PendingReviewedMyDayCarryoverConflictEvidenceV1 {
-        try ensureActive()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         return try journalStore.pendingReviewedMyDayCarryoverConflictEvidence(draftID: draftID)
     }
@@ -3972,7 +3972,7 @@ extension WorkspaceWriterV1: OperationalContactMutationCommittingV1 {
                                               expectedRevision: request.expectedRevision) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
-        return receipt
+        return try OperationalContactMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
     }
 
     func durableOperationalContactReceipt(
