@@ -2103,7 +2103,7 @@ extension V23ProductionMyDayCommitTests {
         XCTAssertEqual(write.review, review)
         XCTAssertEqual(write.resolution.reviewedTargetBasis, review.capturedTargetBasis)
         XCTAssertEqual(write.resolution.successorCheckpoint.payloadData,
-                       MyDayPlanningDraftCodecV1.encode(.init(editing: request.confirmedContext,
+                       try MyDayPlanningDraftCodecV1.encode(.init(editing: request.confirmedContext,
                                                                intent: review.reviewRequest.editingIntent)))
         fixture.presentation.receive(.sceneInactive)
         XCTAssertThrowsError(try access.prepareReviewedPlanRebase(review, editedDraft: request.draft)) { error in

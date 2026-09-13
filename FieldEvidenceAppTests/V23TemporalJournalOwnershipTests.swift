@@ -392,7 +392,7 @@ final class V23TemporalJournalOwnershipTests: XCTestCase {
 
     private func inode(of url: URL) throws -> ino_t {
         var info = stat()
-        guard url.path.withCString({ Darwin.stat($0, &info) }) == 0 else {
+        guard url.path.withCString({ Darwin.fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else {
             throw TemporalEvidenceContractFailureV1.interruption
         }
         return info.st_ino
