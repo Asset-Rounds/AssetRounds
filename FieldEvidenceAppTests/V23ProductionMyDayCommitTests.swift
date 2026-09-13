@@ -1244,6 +1244,18 @@ private enum V23MyDayCommitTestFailure: Error {
     case missingInterruption
 }
 
+private enum V23ProductionReviewedResolutionHistoryFixtureV1 {
+    static func next(_ previous: FieldDraftCheckpointV1, state: FieldDraftStateV1 = .active,
+                     anchor: DraftResumeAnchorV1? = nil) throws -> FieldDraftCheckpointV1 {
+        try .init(draftID: previous.draftID, workspaceID: previous.workspaceID,
+            scope: previous.scope, purpose: previous.purpose, codec: previous.codec,
+            baseCanonicalRevision: previous.baseCanonicalRevision,
+            draftRevision: previous.draftRevision + 1, payloadData: previous.payloadData,
+            stageIDs: previous.stageIDs, resumeAnchor: anchor ?? previous.resumeAnchor,
+            state: state, updatedAt: previous.updatedAt, mutationID: .init(rawValue: UUID()))
+    }
+}
+
 @MainActor
 private final class V23MyDayPromotionProbe {
     var callCount = 0
@@ -1357,7 +1369,7 @@ extension V23ProductionMyDayCommitTests {
         let committing = try checkpoint(draftID: draftID, in: fixture.coordinator.modelContext)
         XCTAssertEqual(committing.state, .committing)
         let attempt = try preparedAttempt(in: committing)
-        let classified = try ReviewedResolutionHistoryFixtureV1.next(
+        let classified = try V23ProductionReviewedResolutionHistoryFixtureV1.next(
             committing, state: .conflicted
         )
         let classification = try FieldDraftMutationV1(
@@ -1441,7 +1453,7 @@ extension V23ProductionMyDayCommitTests {
 
             let committing = try checkpoint(draftID: draftID, in: fixture.coordinator.modelContext)
             let attempt = try preparedAttempt(in: committing)
-            let classified = try ReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
+            let classified = try V23ProductionReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
             let classification = try FieldDraftMutationV1(workspaceID: committing.workspaceID,
                 expectedRevision: committing.draftRevision,
                 expectedBaseCanonicalRevision: committing.baseCanonicalRevision,
@@ -1524,7 +1536,7 @@ extension V23ProductionMyDayCommitTests {
             .filter { $0.draftID == draftID }
             .sorted { $0.revision < $1.revision }
         XCTAssertEqual(priorSagas.map(\.state), [.prepared, .contentPromotedUnbound, .targetCommitted])
-        let classified = try ReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
+        let classified = try V23ProductionReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
         _ = try writer.commitFieldDraft(FieldDraftMutationV1(workspaceID: committing.workspaceID,
             expectedRevision: committing.draftRevision,
             expectedBaseCanonicalRevision: committing.baseCanonicalRevision,
@@ -1623,7 +1635,7 @@ extension V23ProductionMyDayCommitTests {
         XCTAssertTrue(injected)
         access.setPlanningEffectHookForTesting(nil)
         let committing = try checkpoint(draftID: draftID, in: fixture.coordinator.modelContext)
-        let classified = try ReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
+        let classified = try V23ProductionReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
         _ = try writer.commitFieldDraft(FieldDraftMutationV1(workspaceID: committing.workspaceID,
             expectedRevision: committing.draftRevision,
             expectedBaseCanonicalRevision: committing.baseCanonicalRevision,
@@ -1690,7 +1702,7 @@ extension V23ProductionMyDayCommitTests {
         XCTAssertEqual(try writer.currentPlan(for: request.confirmedContext.key), target)
         XCTAssertEqual(try fixture.coordinator.modelContext.fetchCount(
             FetchDescriptor<DraftCommitSagaRow>()), 2)
-        let classified = try ReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
+        let classified = try V23ProductionReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
         _ = try writer.commitFieldDraft(FieldDraftMutationV1(workspaceID: committing.workspaceID,
             expectedRevision: committing.draftRevision,
             expectedBaseCanonicalRevision: committing.baseCanonicalRevision,
@@ -1741,7 +1753,7 @@ extension V23ProductionMyDayCommitTests {
             XCTAssertTrue(injected)
             access.setPlanningEffectHookForTesting(nil)
             let committing = try checkpoint(draftID: draftID, in: context)
-            let classified = try ReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
+            let classified = try V23ProductionReviewedResolutionHistoryFixtureV1.next(committing, state: .conflicted)
             _ = try writer.commitFieldDraft(FieldDraftMutationV1(workspaceID: committing.workspaceID,
                 expectedRevision: committing.draftRevision,
                 expectedBaseCanonicalRevision: committing.baseCanonicalRevision,
@@ -2026,7 +2038,7 @@ extension V23ProductionMyDayCommitTests {
         let committing = try XCTUnwrap(try writer.fieldDraftEvidence(
             mutationID: committingCheckpoint.mutationID
         ))
-        let classified = try ReviewedResolutionHistoryFixtureV1.next(
+        let classified = try V23ProductionReviewedResolutionHistoryFixtureV1.next(
             committingCheckpoint, state: .conflicted
         )
         let receipt = try writer.commitFieldDraft(FieldDraftMutationV1(
@@ -2054,7 +2066,7 @@ extension V23ProductionMyDayCommitTests {
         let fixture = try await makeFixture("review-ordinary-capture")
         defer { fixture.cleanUp() }
         let access = try XCTUnwrap(fixture.presentation.myDayAccess)
-        let request = try makeRequest(workspaceID: fixture.coordinator.workspaceID)
+        let request = try makeRequest(workspaceID: try fixture.coordinator.workspaceID)
         let conflict = try classifyOrdinaryPlanningConflict(access: access, coordinator: fixture.coordinator,
                                                             request: request)
         let writer = fixture.coordinator.workspaceWriter
@@ -2205,7 +2217,7 @@ extension V23ProductionMyDayCommitTests {
                        conflict.checkpoint)
         XCTAssertEqual(try reviewedSaveRowCounts(in: fixture.coordinator.modelContext), afterTargetRows)
 
-        let successor = try ReviewedResolutionHistoryFixtureV1.next(conflict.checkpoint, state: .active)
+        let successor = try V23ProductionReviewedResolutionHistoryFixtureV1.next(conflict.checkpoint, state: .active)
         _ = try writer.commitFieldDraft(FieldDraftMutationV1(workspaceID: successor.workspaceID,
             expectedRevision: conflict.checkpoint.draftRevision,
             expectedBaseCanonicalRevision: conflict.checkpoint.baseCanonicalRevision,
@@ -2229,7 +2241,7 @@ extension V23ProductionMyDayCommitTests {
         let write = try access.prepareEditingWrite(request, replacing: nil,
             resumeAnchor: try DraftResumeAnchorV1())
         let active = try access.persistEditingWrite(write).checkpoint
-        let conflict = try ReviewedResolutionHistoryFixtureV1.next(active, state: .conflicted)
+        let conflict = try V23ProductionReviewedResolutionHistoryFixtureV1.next(active, state: .conflicted)
         _ = try coordinator.workspaceWriter.commitFieldDraft(FieldDraftMutationV1(
             workspaceID: active.workspaceID, expectedRevision: active.draftRevision,
             expectedBaseCanonicalRevision: active.baseCanonicalRevision,

@@ -626,7 +626,8 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
         )
         let first = try harness.writer.commitServiceReliability(fixture.bundle)
         let afterFirst = try harness.writer.currentRevision()
-        XCTAssertEqual(first.mutationReceipt.expectedRevision, fixture.bundle.expectedRevision)
+        XCTAssertEqual(first.mutationReceipt.expectedRevision,
+                       try MutationPortableExpectedRevisionV1(fixture.bundle.expectedRevision))
         XCTAssertEqual(afterFirst.revision, before.revision + 1)
         XCTAssertEqual(try harness.writer.commitServiceReliability(fixture.bundle), first)
         let cold = try harness.reopenWriter()
@@ -3325,7 +3326,7 @@ private extension CarryoverEvidenceBoundaryFixtureV1 {
         let payload = try MyDayPlanningDraftPayloadV1(editing: context,
             intent: .carryover(sourcePlan: source, selectedMembershipIDs: selected,
                 targetKey: base.key, targetPredecessor: MyDayPlanReferenceV1(target)))
-        let mutationID = MutationIDV1(rawValue: UUID())
+        let mutationID = try MutationIDV1(rawValue: UUID())
         let successor = try FieldDraftCheckpointV1(draftID: conflict.draftID, workspaceID: conflict.workspaceID,
             scope: conflict.scope, purpose: conflict.purpose, codec: conflict.codec,
             baseCanonicalRevision: target.revision, draftRevision: conflict.draftRevision + 1,

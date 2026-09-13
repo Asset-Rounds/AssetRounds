@@ -320,8 +320,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     @MainActor
     func testRolledBackPreparationAbortsExactGateReservationButDurableIntentDoesNot() async throws {
         for (point, expectsAbort) in [
-            (.afterEmptyGenerationDirectoryCreate, true),
-            (.afterPreparedWrite, false),
+            (EraseAllFailurePoint.afterEmptyGenerationDirectoryCreate, true),
+            (EraseAllFailurePoint.afterPreparedWrite, false),
         ] {
             let harness = try await makeHarness("abort-\(point)")
             defer { cleanup(harness) }
