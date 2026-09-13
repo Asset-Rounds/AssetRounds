@@ -1134,50 +1134,176 @@ private extension BackupPackageValidatorV1 {
         manifest: V4BackupManifestV1,
         members: ValidatedV4BackupMembersV1
     ) throws {
+#if DEBUG
+        var graphPhase = "kernel-registry"
+        var graphCompleted = false
+        defer {
+            if !graphCompleted {
+                print("BackupPackageValidatorV1 graphPhase=\(graphPhase)")
+            }
+        }
+#endif
+#if DEBUG
+        graphPhase = "kernel-registry"
+#endif
         try KernelBackupRestoreRegistryV4.validate()
+#if DEBUG
+        graphPhase = "descriptor"
+#endif
         let kernelSchema = try KernelPersistenceV4Schema.descriptor()
         guard kernelSchema.runtimePosture == .dormantStatic,
               !kernelSchema.activationEnabled else { throw invalid() }
+#if DEBUG
+        graphPhase = "validate-deletion-ledger"
+#endif
         try validateDeletionLedger(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-observation-and-time"
+#endif
         try validateObservationAndTime(records)
+#if DEBUG
+        graphPhase = "validate-location-records"
+#endif
         try validateLocationRecords(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-party-accountability"
+#endif
         try validatePartyAccountability(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-package-evolution"
+#endif
         try validatePackageEvolution(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-measurement-integrity"
+#endif
         try validateMeasurementIntegrity(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-privacy-transforms"
+#endif
         try validatePrivacyTransforms(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-client-capabilities"
+#endif
         try validateClientCapabilities(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-recoverability-receipts"
+#endif
         try validateRecoverabilityReceipts(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-field-references"
+#endif
         try validateFieldReferences(records,manifest:manifest)
+#if DEBUG
+        graphPhase = "validate-accessible-document-assessments"
+#endif
         try validateAccessibleDocumentAssessments(records,manifest:manifest,members:members)
+#if DEBUG
+        graphPhase = "validate-survey-definitions"
+#endif
         try validateSurveyDefinitions(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-guided-surveys"
+#endif
         try validateGuidedSurveys(records,manifest:manifest)
+#if DEBUG
+        graphPhase = "validate-asset-locators"
+#endif
         try validateAssetLocators(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-schedules"
+#endif
         try validateSchedules(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-plans"
+#endif
         try validatePlans(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-placement-poses"
+#endif
         try validatePlacementPoses(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-lighting"
+#endif
         try validateLighting(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c30-evidence-context"
+#endif
         try C30EvidenceContextPackageValidationV1.validate(records)
+#if DEBUG
+        graphPhase = "c31-lighting"
+#endif
         try C31LightingPackageValidationV1.validate(records)
+#if DEBUG
+        graphPhase = "c32-assistance"
+#endif
         try C32AssistancePackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c33-temporal-evidence"
+#endif
         try C33TemporalEvidencePackageValidationV1.validate(
             records, manifest: manifest, members: members
         )
+#if DEBUG
+        graphPhase = "c45-asset-label"
+#endif
         try C45AssetLabelPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c46-operational-contact"
+#endif
         try C46OperationalContactPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c47-activity-contract"
+#endif
         try C47ActivityContractPackageValidationV2.validate(
             records, manifest: manifest, members: members
         )
+#if DEBUG
+        graphPhase = "c49-work-resource"
+#endif
         try C49WorkResourcePackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c52-service-request"
+#endif
         try C52ServiceRequestBackupDecodingBoundaryV1.validate(records)
+#if DEBUG
+        graphPhase = "c53-service-reliability"
+#endif
         try C53ServiceReliabilityBackupPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c55-parts-stock"
+#endif
         try C55PartsStockBackupPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c57-my-day"
+#endif
         try C57MyDayBackupPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c05-evidence-metadata"
+#endif
         try C05EvidenceMetadataBackupPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c04-shop-report-profile"
+#endif
         try C04ShopReportProfileBackupPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c05-round-session"
+#endif
         try C05RoundSessionBackupPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "c08-import-bulk"
+#endif
         try C08ImportBulkBackupPackageValidationV1.validate(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "evidence-quality-enrollment"
+#endif
         try EvidenceQualityBackupEnrollmentV1.validate(records)
+#if DEBUG
+        graphPhase = "fast-survey-inbox-enrollment"
+#endif
         try FastSurveyInboxBackupEnrollmentV1.validate(records)
+#if DEBUG
+        graphPhase = "evidence-quality-workspace"
+#endif
         if let snapshot = records.evidenceQuality {
             guard let sourceWorkspaceID = manifest.source.workspaceID,
                   snapshot.ruleSets.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
@@ -1187,6 +1313,9 @@ private extension BackupPackageValidatorV1 {
                 throw invalid()
             }
         }
+#if DEBUG
+        graphPhase = "fast-survey-inbox-workspace"
+#endif
         if let snapshot = records.fastSurveyInbox {
             guard let sourceWorkspaceID = manifest.source.workspaceID,
                   snapshot.inboxItems.allSatisfy({ $0.workspaceID.rawValue == sourceWorkspaceID }),
@@ -1197,39 +1326,105 @@ private extension BackupPackageValidatorV1 {
                 throw invalid()
             }
         }
+#if DEBUG
+        graphPhase = "fast-survey-inbox-kernel"
+#endif
         try FastSurveyInboxKernelBackupRestoreEnrollmentV1.validate()
+#if DEBUG
+        graphPhase = "reinspection-exception-queue"
+#endif
         try ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)
+#if DEBUG
+        graphPhase = "reinspection-exception-kernel"
+#endif
         try ReinspectionExceptionKernelBackupRestoreEnrollmentV1.validate()
+#if DEBUG
+        graphPhase = "entity-identity-resolution"
+#endif
         try EntityIdentityResolutionBackupEnrollmentV1.validate(records)
+#if DEBUG
+        graphPhase = "entity-identity-kernel"
+#endif
         try EntityIdentityResolutionKernelBackupRestoreEnrollmentV1.validate()
+#if DEBUG
+        graphPhase = "practice-workspace"
+#endif
         try PracticeWorkspaceBackupEnrollmentV1.validate(records)
+#if DEBUG
+        graphPhase = "lighting-day-inventory"
+#endif
         try LightingDayInventoryBackupEnrollmentV1.validate(records)
+#if DEBUG
+        graphPhase = "c17-lighting-day-closure"
+#endif
         try records.validateC17LightingDayInventoryClosure()
+#if DEBUG
+        graphPhase = "lighting-night-workflow"
+#endif
         try LightingNightWorkflowBackupEnrollmentV1.validate(records)
+#if DEBUG
+        graphPhase = "c18-lighting-night-closure"
+#endif
         try records.validateC18LightingNightWorkflowClosure()
+#if DEBUG
+        graphPhase = "practice-workspace-kernel"
+#endif
         try PracticeWorkspaceKernelBackupRestoreEnrollmentV1.validate()
+#if DEBUG
+        graphPhase = "entity-identity-workspace"
+#endif
         if let snapshot = records.entityIdentityResolution {
             guard snapshot.workspaceID.rawValue == manifest.source.workspaceID,
                   snapshot.generationID == manifest.source.sourceGenerationID else {
                 throw invalid()
             }
         }
+#if DEBUG
+        graphPhase = "practice-workspace-provenance"
+#endif
         if let snapshot = records.practiceWorkspaceProvenance {
             guard snapshot.provenance.workspaceID.rawValue == manifest.source.workspaceID else {
                 throw invalid()
             }
         }
+#if DEBUG
+        graphPhase = "c48-portable-exchange"
+#endif
         _ = try C48PortableExchangeBackupPackageValidationV2.snapshot(
             manifest: manifest,
             members: members
         )
+#if DEBUG
+        graphPhase = "validate-asset-semantics"
+#endif
         try validateAssetSemantics(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-authority-criterion"
+#endif
         try validateAuthorityCriterion(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-functional-relationships"
+#endif
         try validateFunctionalRelationships(records, manifest: manifest)
+#if DEBUG
+        graphPhase = "validate-evidence-assurance"
+#endif
         try validateEvidenceAssurance(records, manifest: manifest, members: members)
+#if DEBUG
+        graphPhase = "validate-inspection-review"
+#endif
         try validateInspectionReview(records, manifest: manifest, members: members)
+#if DEBUG
+        graphPhase = "validate-work-packets"
+#endif
         try validateWorkPackets(records, manifest: manifest, members: members)
+#if DEBUG
+        graphPhase = "validate-field-drafts"
+#endif
         try validateFieldDrafts(records, manifest: manifest, members: members)
+#if DEBUG
+        graphPhase = "saved-smart-views"
+#endif
         let savedSmartViews: [SavedSmartViewDescriptorV1]
         do {
             savedSmartViews = try records.savedSmartViews.map { try $0.descriptor() }
@@ -1259,10 +1454,16 @@ private extension BackupPackageValidatorV1 {
                     })) else {
             throw invalid()
         }
+#if DEBUG
+        graphPhase = "requirement-assurance"
+#endif
         let assuranceSnapshots: [RequirementAssuranceSnapshotV1]
         do {
             assuranceSnapshots = try records.requirementAssurance.map { try $0.snapshot() }
         } catch { throw invalid() }
+#if DEBUG
+        graphPhase = "record-identifiers"
+#endif
         let allIDs = records.sites.map(\.id) + records.assets.map(\.id)
             + records.workflowRecords.map(\.id) + records.evidenceFiles.map(\.id)
             + records.issues.map(\.id) + records.packets.map(\.id)
@@ -1274,6 +1475,9 @@ private extension BackupPackageValidatorV1 {
             + records.locationNodes.map(\.id)
             + records.savedSmartViews.map(\.id)
         guard Set(allIDs).count == allIDs.count else { throw invalid() }
+#if DEBUG
+        graphPhase = "record-indexes"
+#endif
         let sites = Dictionary(uniqueKeysWithValues: records.sites.map { ($0.id, $0) })
         let assets = Dictionary(uniqueKeysWithValues: records.assets.map { ($0.id, $0) })
         let workflow = Dictionary(uniqueKeysWithValues: records.workflowRecords.map { ($0.id, $0) })
@@ -1284,6 +1488,9 @@ private extension BackupPackageValidatorV1 {
         guard Set(declaredProfiles.map(\.release)).count == declaredProfiles.count else {
             throw invalid()
         }
+#if DEBUG
+        graphPhase = "record-schema-and-profiles"
+#endif
         guard records.sites.allSatisfy({ site in
                   site.schemaVersion == 1
                     && site.updatedAt >= site.createdAt
@@ -1329,6 +1536,9 @@ private extension BackupPackageValidatorV1 {
             throw invalid()
         }
 
+#if DEBUG
+        graphPhase = "assets"
+#endif
         for asset in records.assets {
             _ = try profile(
                 packageID: asset.packID,
@@ -1341,6 +1551,9 @@ private extension BackupPackageValidatorV1 {
                   sites[asset.siteID] != nil else { throw invalid() }
         }
 
+#if DEBUG
+        graphPhase = "workflow-records"
+#endif
         for record in records.workflowRecords {
             guard let asset = assets[record.assetID] else { throw invalid() }
             let lifecycle = try profile(for: record)
@@ -1398,6 +1611,9 @@ private extension BackupPackageValidatorV1 {
                 }
             }
         }
+#if DEBUG
+        graphPhase = "workflow-acyclicity"
+#endif
         try requireAcyclic(records.workflowRecords, id: \.id, next: \.parentRecordID)
         try requireAcyclic(records.workflowRecords, id: \.id, next: \.revisesRecordID)
         guard unique(records.workflowRecords.compactMap(\.revisesRecordID)),
@@ -1411,6 +1627,9 @@ private extension BackupPackageValidatorV1 {
             throw invalid()
         }
 
+#if DEBUG
+        graphPhase = "evidence-files"
+#endif
         for evidence in records.evidenceFiles {
             let id = uuid(evidence.id)
             guard let owner = workflow[evidence.recordID] else { throw invalid() }
@@ -1429,6 +1648,9 @@ private extension BackupPackageValidatorV1 {
                 throw invalid()
             }
         }
+#if DEBUG
+        graphPhase = "workflow-evidence-ownership"
+#endif
         for record in records.workflowRecords {
             let owned = records.evidenceFiles.filter { $0.recordID == record.id }
             guard unique(owned.map(\.purposeKey)) else { throw invalid() }
@@ -1467,6 +1689,9 @@ private extension BackupPackageValidatorV1 {
                 }
             }
         }
+#if DEBUG
+        graphPhase = "issues"
+#endif
         for issue in records.issues {
             guard let asset = assets[issue.assetID] else { throw invalid() }
             let lifecycle = try profile(for: asset)
@@ -1504,6 +1729,9 @@ private extension BackupPackageValidatorV1 {
         }) else {
             throw invalid()
         }
+#if DEBUG
+        graphPhase = "packets"
+#endif
         for packet in records.packets {
             let ownedRecords = records.workflowRecords.filter { $0.packetID == packet.id }
             let ownedReports = records.reports.filter { $0.packetID == packet.id }
@@ -1562,6 +1790,9 @@ private extension BackupPackageValidatorV1 {
                       ownedRecords.isEmpty, ownedReports.isEmpty else { throw invalid() }
             }
         }
+#if DEBUG
+        graphPhase = "reports"
+#endif
         for report in records.reports {
             guard let packet = packets[report.packetID],
                   let source = workflow[report.sourceRecordID],
@@ -1580,9 +1811,15 @@ private extension BackupPackageValidatorV1 {
                       replaced.createdAt < report.createdAt else { throw invalid() }
             }
         }
+#if DEBUG
+        graphPhase = "report-acyclicity"
+#endif
         try requireAcyclic(records.reports, id: \.id, next: \.replacesReportID)
         guard unique(records.reports.compactMap(\.replacesReportID)) else { throw invalid() }
 
+#if DEBUG
+        graphPhase = "manifest-pack-consistency"
+#endif
         let counted = records.packets.filter(\.evaluationCounted)
             .map(\.stableRootID).sorted { uuid($0) < uuid($1) }
         let expectedPacks = Set(
@@ -1598,6 +1835,9 @@ private extension BackupPackageValidatorV1 {
         guard unique(records.packets.map(\.stableRootID)),
               counted == manifest.consumedEvaluationRootIDs,
               manifest.packs == expectedPacks else { throw invalid() }
+#if DEBUG
+        graphCompleted = true
+#endif
     }
 
     func validateObservationAndTime(_ records: V4BackupRecordsV1) throws {
