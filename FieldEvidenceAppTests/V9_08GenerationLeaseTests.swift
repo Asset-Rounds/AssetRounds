@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Darwin
 import SwiftData
 import XCTest
@@ -1811,11 +1812,11 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             sites[0]["timeZoneID"] = timeZoneID
             object["sites"] = sites
             let looseRecords = try JSONSerialization.data(withJSONObject: object)
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .custom { decoder in
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                formatter.timeZone = TimeZone(secondsFromGMT: 0)
                 let container = try decoder.singleValueContainer()
                 let string = try container.decode(String.self)
                 guard let date = formatter.date(from: string) else {
@@ -1844,7 +1845,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                     byteCount: data.count,
                     mimeType: entry.mimeType,
                     path: entry.path,
-                    sha256: data.sha256
+                    sha256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
                 )
             }
             let manifest = V4BackupManifestV1(
