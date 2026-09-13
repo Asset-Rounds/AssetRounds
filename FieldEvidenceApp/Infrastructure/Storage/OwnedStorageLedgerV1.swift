@@ -691,6 +691,19 @@ actor OwnedStorageLedgerProtectedIngressEffectV1: ProtectedIngressDurableEffectP
             ingressMutationFailureInjection: failureInjection)
     }
 
+    #if DEBUG
+    init(applicationSupportURL: URL, clock: @escaping ScratchDataLeaseStoreV1.Clock = { Date() },
+         failureInjection: C16IngressMutationFailureInjectionV1 = .none,
+         testingIngressControlInventoryObserver: @escaping ScratchDataLeaseStoreV1.IngressControlInventoryObserver,
+         testingBeforeIngressControlFinalInventory: @escaping ScratchDataLeaseStoreV1.BeforeIngressControlFinalInventory) throws {
+        ledger = nil
+        scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: applicationSupportURL, clock: clock,
+            ingressMutationFailureInjection: failureInjection,
+            testingIngressControlInventoryObserver: testingIngressControlInventoryObserver,
+            testingBeforeIngressControlFinalInventory: testingBeforeIngressControlFinalInventory)
+    }
+    #endif
+
     private func scratchOwner() throws -> ScratchDataLeaseStoreV1 {
         if let scratch { return scratch }
         guard let ledger else { throw AppAccessContractFailureV1.configurationUnknown }
@@ -1631,6 +1644,10 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private let ingressHygieneFailureInjection: C16IngressHygieneFailureInjectionV1
     private let ingressMutationFailureInjection: C16IngressMutationFailureInjectionV1
     typealias Clock = @Sendable () -> Date
+    #if DEBUG
+    typealias IngressControlInventoryObserver = @Sendable () -> Void
+    typealias BeforeIngressControlFinalInventory = @Sendable () throws -> Void
+    #endif
 
     private static let rootName = "ScratchDataV1"
     private static let metadataName = "lease.json"
@@ -1641,6 +1658,10 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private let clock: Clock
     private let storagePreflight: StoragePreflightService
     private let authority: PinnedScratchRootV1
+    #if DEBUG
+    private var ingressControlInventoryObserver: IngressControlInventoryObserver = {}
+    private var beforeIngressControlFinalInventory: BeforeIngressControlFinalInventory = {}
+    #endif
     private var active: [UUID: ScratchDataLeaseV1] = [:]
     private var ingressControlAuthority: PinnedScratchRootV1?
 
@@ -1682,6 +1703,30 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             }
         )
     }
+
+    #if DEBUG
+    convenience init(
+        applicationSupportURL: URL,
+        fileManager: FileManager = .default,
+        clock: @escaping Clock,
+        capacityProvider: @escaping StoragePreflightService.CapacityProvider = {
+            try $0.resourceValues(
+                forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+            ).volumeAvailableCapacityForImportantUsage
+        },
+        ingressHygieneFailureInjection: C16IngressHygieneFailureInjectionV1 = .none,
+        ingressMutationFailureInjection: C16IngressMutationFailureInjectionV1 = .none,
+        testingIngressControlInventoryObserver: @escaping IngressControlInventoryObserver,
+        testingBeforeIngressControlFinalInventory: @escaping BeforeIngressControlFinalInventory
+    ) throws {
+        try self.init(applicationSupportURL: applicationSupportURL, fileManager: fileManager,
+            clock: clock, capacityProvider: capacityProvider,
+            ingressHygieneFailureInjection: ingressHygieneFailureInjection,
+            ingressMutationFailureInjection: ingressMutationFailureInjection)
+        ingressControlInventoryObserver = testingIngressControlInventoryObserver
+        beforeIngressControlFinalInventory = testingBeforeIngressControlFinalInventory
+    }
+    #endif
 
     /// C16 pre-authentication cleanup reads only immediate directory metadata
     /// under the sole scratch root. It never opens `lease.json` or any payload
@@ -1853,6 +1898,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         // Settle the existing no-replace publisher's temporary hard link before
         // opening a completed control file; this reads metadata only.
+        observeIngressControlInventoryForTesting()
         try removeInterruptedPublications(directoryDescriptor: ingressControlAuthority.rootDescriptor)
         try ingressControlAuthority.verify(rootName: "ProtectedIngressReceiptsV1")
         return ingressControlAuthority.rootDescriptor
@@ -2075,6 +2121,15 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         let unresolvedPreparations: [C16IngressPreparedStageV1]
     }
 
+    /// One complete control-root admission owns this inventory only while the
+    /// process-wide filesystem lock is held. Individual file reads still pin
+    /// and recheck file identity; the final name comparison proves membership,
+    /// not unchanged contents or metadata.
+    private struct C16IngressControlInventoryV1 {
+        let descriptor: Int32
+        var expectedNames: Set<String>
+    }
+
     func pendingProtectedIngress() throws -> [PendingLockedExternalIntentV1] {
         try Self.filesystemLock.withLock { try pendingIngressPublications().map(\.intent) }
     }
@@ -2090,17 +2145,23 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func validatedIngressSnapshot(
         frozenEraseTargets: [UUID: C16IngressPublicationV1]? = nil
     ) throws -> C16ValidatedIngressSnapshotV1 {
-        let preparations = try ingressPreparations()
+        var inventory = try beginIngressControlInventory()
+        let preparations = try ingressPreparations(inventory: &inventory)
         var pending: [C16IngressPublicationV1] = []
         var unresolvedPreparations: [C16IngressPreparedStageV1] = []
         var preparedCount = 0
         for preparation in preparations {
             let id = preparation.intent.intentID
-            let claim = try readIngressControl(C16IngressDirectoryClaimV1.self, at: ingressControlURL(id, ".claim.json"))
-            let published = try readIngressControl(C16IngressPublicationV1.self, at: ingressControlURL(id, ".published.json"))
-            let current = try readIngressControl(C16IngressPublicationV1.self, at: ingressControlURL(id, ".pending.json"))
-            let terminal = try readIngressControl(C16IngressRemovalV1.self, at: ingressControlURL(id, ".terminal.json"))
-            if let aborted = try readIngressControl(C16IngressAbortedStageV1.self, at: ingressControlURL(id, ".aborted.json")) {
+            let claim = try readIngressControl(C16IngressDirectoryClaimV1.self,
+                at: ingressControlURL(id, ".claim.json"), inventory: &inventory)
+            let published = try readIngressControl(C16IngressPublicationV1.self,
+                at: ingressControlURL(id, ".published.json"), inventory: &inventory)
+            let current = try readIngressControl(C16IngressPublicationV1.self,
+                at: ingressControlURL(id, ".pending.json"), inventory: &inventory)
+            let terminal = try readIngressControl(C16IngressRemovalV1.self,
+                at: ingressControlURL(id, ".terminal.json"), inventory: &inventory)
+            if let aborted = try readIngressControl(C16IngressAbortedStageV1.self,
+                at: ingressControlURL(id, ".aborted.json"), inventory: &inventory) {
                 guard published == nil, current == nil, terminal == nil else {
                     throw AppAccessContractFailureV1.configurationUnknown
                 }
@@ -2146,21 +2207,32 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                     guard terminal == expectedRemoval else { throw AppAccessContractFailureV1.effectMismatch }
                 }
                 try settleIngressRemoval(terminal)
+                inventory.expectedNames.remove(try ingressControlName(id, ".pending.json"))
                 continue
             }
             let value = current ?? published
             guard try published.replacingIntent(value.intent) == value else { throw AppAccessContractFailureV1.configurationUnknown }
-            if try adoptCompletedIngressHygieneRemoval(value) { continue }
+            if try adoptCompletedIngressHygieneRemoval(value) {
+                guard inventory.expectedNames.insert(try ingressControlName(id, ".terminal.json")).inserted else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+                inventory.expectedNames.remove(try ingressControlName(id, ".pending.json"))
+                continue
+            }
             try validateIngressPublication(value, hashPayload: false)
             if current == nil {
                 // Exact publication is durable; only its pending pointer was interrupted.
                 try validateIngressPublication(value, hashPayload: true)
                 try writeProtectedIngressCanonical(try CompatibilityCanonicalV1.encode(value),
                     to: ingressControlURL(id, ".pending.json"))
+                guard inventory.expectedNames.insert(try ingressControlName(id, ".pending.json")).inserted else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
             }
             pending.append(value)
             unresolvedPreparations.append(preparation)
         }
+        try finishIngressControlInventory(&inventory)
         return .init(preparations: preparations,
                      pending: pending.sorted { $0.intent.intentID.uuidString < $1.intent.intentID.uuidString },
                      unresolvedPreparations: unresolvedPreparations.sorted {
@@ -2630,12 +2702,72 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func ingressControlURL(_ intentID: UUID, _ suffix: String) throws -> URL {
         guard intentID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.invalidValue }
         return try protectedIngressReceiptDirectory().appendingPathComponent(
-            "ingress-" + intentID.uuidString.lowercased() + suffix)
+            try ingressControlName(intentID, suffix))
+    }
+
+    private func ingressControlName(_ intentID: UUID, _ suffix: String) throws -> String {
+        guard intentID != SettingsValidationV1.zeroUUID,
+              [".prepare.json", ".claim.json", ".published.json", ".pending.json",
+               ".terminal.json", ".aborted.json"].contains(suffix) else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        return "ingress-" + intentID.uuidString.lowercased() + suffix
     }
 
     private func readIngressControl<Value: Codable>(_ type: Value.Type, at file: URL) throws -> Value? {
         guard try ingressControlFileExists(file) else { return nil }
         return try CompatibilityCanonicalV1.decode(type, from: readIngressControlFile(file, maximumBytes: 262_144))
+    }
+
+    private func beginIngressControlInventory() throws -> C16IngressControlInventoryV1 {
+        let descriptor = try ingressControlDescriptor()
+        observeIngressControlInventoryForTesting()
+        let names = try directoryNames(descriptor)
+        return .init(descriptor: descriptor, expectedNames: Set(names))
+    }
+
+    private func finishIngressControlInventory(
+        _ inventory: inout C16IngressControlInventoryV1
+    ) throws {
+        try mutateBeforeIngressControlFinalInventoryForTesting()
+        _ = try protectedIngressReceiptDirectory()
+        observeIngressControlInventoryForTesting()
+        let finalNames = try directoryNames(inventory.descriptor)
+        // This proves exact membership only. Each descriptor-local read above
+        // retains the existing before/after file identity and metadata checks.
+        guard Set(finalNames) == inventory.expectedNames else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        _ = try protectedIngressReceiptDirectory()
+    }
+
+    private func readIngressControl<Value: Codable>(
+        _ type: Value.Type,
+        at file: URL,
+        inventory: inout C16IngressControlInventoryV1
+    ) throws -> Value? {
+        guard file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let name = file.lastPathComponent
+        guard inventory.expectedNames.contains(name) else { return nil }
+        let data = try readRegularFile(named: name, directoryDescriptor: inventory.descriptor,
+            maximumBytes: 262_144)
+        try ProtectedFilePolicyV1.verify(.temporaryFile, at: file)
+        _ = try protectedIngressReceiptDirectory()
+        return try CompatibilityCanonicalV1.decode(type, from: data)
+    }
+
+    private func observeIngressControlInventoryForTesting() {
+        #if DEBUG
+        ingressControlInventoryObserver()
+        #endif
+    }
+
+    private func mutateBeforeIngressControlFinalInventoryForTesting() throws {
+        #if DEBUG
+        try beforeIngressControlFinalInventory()
+        #endif
     }
 
     private func validateIngressPreparation(_ value: C16IngressPreparedStageV1, intentID: UUID) throws {
@@ -2645,8 +2777,10 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
               value.rootInode == authority.rootInode else { throw AppAccessContractFailureV1.configurationUnknown }
     }
 
-    private func ingressPreparations() throws -> [C16IngressPreparedStageV1] {
-        let names = try directoryNames(ingressControlDescriptor())
+    private func ingressPreparations(
+        inventory: inout C16IngressControlInventoryV1
+    ) throws -> [C16IngressPreparedStageV1] {
+        let names = inventory.expectedNames.sorted()
         guard names.count <= 100_000 else { throw AppAccessContractFailureV1.configurationUnknown }
         var ids = Set<UUID>()
         var eraseIDs = Set<UUID>()
@@ -2665,7 +2799,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         for id in eraseIDs {
             let file = try protectedIngressReceiptDirectory().appendingPathComponent("erase-" + id.uuidString.lowercased() + ".prepare.json")
-            guard let value = try readIngressControl(C16IngressEraseV1.self, at: file) else {
+            guard let value = try readIngressControl(C16IngressEraseV1.self, at: file,
+                inventory: &inventory) else {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
             try value.validate()
@@ -2673,16 +2808,26 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 throw AppAccessContractFailureV1.configurationUnknown
             }
             let complete = try protectedIngressReceiptDirectory().appendingPathComponent("erase-" + id.uuidString.lowercased() + ".complete.json")
-            if let recorded = try readIngressControl(C16IngressEraseV1.self, at: complete), recorded != value {
+            if let recorded = try readIngressControl(C16IngressEraseV1.self, at: complete,
+                inventory: &inventory), recorded != value {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
         }
         return try ids.sorted { $0.uuidString < $1.uuidString }.map { id in
             guard let value = try readIngressControl(C16IngressPreparedStageV1.self,
-                at: ingressControlURL(id, ".prepare.json")) else { throw AppAccessContractFailureV1.configurationUnknown }
+                at: ingressControlURL(id, ".prepare.json"), inventory: &inventory) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
             try validateIngressPreparation(value, intentID: id)
             return value
         }
+    }
+
+    private func ingressPreparations() throws -> [C16IngressPreparedStageV1] {
+        var inventory = try beginIngressControlInventory()
+        let result = try ingressPreparations(inventory: &inventory)
+        try finishIngressControlInventory(&inventory)
+        return result
     }
 
     private func ingressControlIdentifier(_ name: String, prefix: String, suffixes: [String]) throws -> UUID {

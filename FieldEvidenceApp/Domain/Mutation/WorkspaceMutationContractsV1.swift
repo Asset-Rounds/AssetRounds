@@ -3080,7 +3080,7 @@ private enum WorkspaceCommandPayloadDecoderV1 {
     }
 }
 
-enum WorkspaceCommandV1: Codable, Equatable, Sendable {
+indirect enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
     case acceptCheckEvidence(CheckEvidenceMutationV1)

@@ -231,7 +231,9 @@ struct V23ProductionMyDayPresentationHarness {
 
     func cleanUp() {
         defaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: root)
+        // This harness still owns the live SwiftData coordinator and container.
+        // Unlinking its store here can mask the test result with SQLite and
+        // lease failures. The disposable hosted Simulator owns this temp root.
     }
 }
 

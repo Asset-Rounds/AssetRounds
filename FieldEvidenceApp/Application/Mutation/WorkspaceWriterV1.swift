@@ -1861,7 +1861,19 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             throw WorkspaceMutationFailureV1.invalidCommand
         }
 
-        let occurredAt = occurredAtOverride ?? clock.now()
+        let occurredAt: Date
+        if occurredAtOverride == nil, sourceKind != .importedHistory,
+           case .applyMyDay = request.command {
+            // The canonical My Day receipt requires millisecond precision.
+            // Freeze that same instant before persistence so its result and
+            // every replay retain the exact journal timestamp.
+            let milliseconds = (clock.now().timeIntervalSince1970 * 1_000)
+                .rounded(.toNearestOrAwayFromZero)
+            occurredAt = Date(timeIntervalSince1970: milliseconds / 1_000)
+            try MyDayLimitsV1.millisecondInstant(occurredAt)
+        } else {
+            occurredAt = occurredAtOverride ?? clock.now()
+        }
         if let journalStore,
            let prior = try journalStore.resolveReplay(envelope: envelope, detectedAt: occurredAt) {
             return try notifyingSearchIndex(outcome(

@@ -3375,3 +3375,113 @@ extension V23ProductionMyDayCommitTests {
              context.fetchCount(FetchDescriptor<DraftContentReservationRow>())]
     }
 }
+
+
+extension V23ProductionMyDayCommitTests {
+    @MainActor
+    func testMyDayWriterQuantizesFractionalCommitClockAndReplaysExactJournalTime() throws {
+        for seconds in [1_789_084_801.123456, 1_789_084_801.987654, 1_789_084_801.125] {
+            let workspace = WorkspaceID(rawValue: UUID())
+            let harness = try MyDayReceiptTimeHarness(workspaceID: workspace, clockInstant: Date(timeIntervalSince1970: seconds))
+            defer { harness.removeFiles() }
+            let request = try makeRequest(workspaceID: workspace)
+            let plan = try MyDayPlanV1(planID: UUID(), key: request.draft.key, items: [], revision: 1,
+                mutationID: .init(rawValue: UUID()), authoredBy: request.confirmedContext.recordedBy,
+                authoredAt: request.confirmedContext.recordedBy.capturedAt)
+            let command = MyDayCommandV1.save(successor: plan, predecessor: nil)
+            let expectedTime = Date(timeIntervalSince1970: (seconds * 1_000).rounded(.toNearestOrAwayFromZero) / 1_000)
+            let result = try harness.writer.commit(command)
+            let journalReceipt = try XCTUnwrap(harness.store.receipt(mutationID: command.mutationID))
+            try result.validate()
+            XCTAssertEqual(result.plan, plan)
+            XCTAssertEqual(result.receipt.committedAt, expectedTime)
+            XCTAssertEqual(result.receipt.committedAt, journalReceipt.committedAt)
+            try MyDayLimitsV1.millisecondInstant(journalReceipt.committedAt)
+            let after = try harness.writer.currentRevision()
+            XCTAssertEqual(try harness.writer.commit(command), result)
+            XCTAssertEqual(try harness.writer.result(workspaceID: workspace, mutationID: command.mutationID), result)
+            XCTAssertEqual(try harness.writer.currentRevision(), after)
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MyDayPlanRowV1>()), 1)
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+            let reopened = try harness.reopen()
+            let reopenedBefore = try reopened.writer.currentRevision()
+            XCTAssertEqual(try reopened.writer.result(workspaceID: workspace, mutationID: command.mutationID), result)
+            XCTAssertEqual(try reopened.writer.commit(command), result)
+            XCTAssertEqual(try reopened.writer.currentRevision(), reopenedBefore)
+            XCTAssertEqual(try harness.store.receipt(mutationID: command.mutationID), journalReceipt)
+            XCTAssertFalse(harness.context.hasChanges)
+        }
+    }
+
+    @MainActor
+    func testMyDayWriterRejectsInvalidCommitClockBeforeAnyCanonicalEffect() throws {
+        for seconds in [Double.nan, Double.infinity, 10_000_000_000_000.0] {
+            let workspace = WorkspaceID(rawValue: UUID())
+            let harness = try MyDayReceiptTimeHarness(workspaceID: workspace, clockInstant: Date(timeIntervalSince1970: seconds))
+            defer { harness.removeFiles() }
+            let request = try makeRequest(workspaceID: workspace)
+            let plan = try MyDayPlanV1(planID: UUID(), key: request.draft.key, items: [], revision: 1,
+                mutationID: .init(rawValue: UUID()), authoredBy: request.confirmedContext.recordedBy,
+                authoredAt: request.confirmedContext.recordedBy.capturedAt)
+            let command = MyDayCommandV1.save(successor: plan, predecessor: nil)
+            let before = try harness.writer.currentRevision()
+            XCTAssertThrowsError(try harness.writer.commit(command))
+            XCTAssertEqual(try harness.writer.currentRevision(), before)
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MyDayPlanRowV1>()), 0)
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+            XCTAssertNil(try harness.store.receipt(mutationID: command.mutationID))
+            XCTAssertFalse(harness.context.hasChanges)
+        }
+    }
+}
+@MainActor
+private final class MyDayReceiptTimeHarness {
+    let root: URL; let container: ModelContainer; let context: ModelContext
+    let registry: GenerationLeaseRegistryV1; let fence: StaleWriterFenceV1
+    let identity: WorkspaceReplicaIdentityV1; let generationID: UUID
+    let store: MutationJournalStoreV1; let writer: WorkspaceWriterV1
+    var adapter: FieldDraftLifecycleAdapterV1 { .init(writer: writer, journal: store, modelContext: context) }
+    let clock: MyDayReceiptTimeClock
+    init(workspaceID: WorkspaceID, clockInstant: Date) throws {
+        clock = MyDayReceiptTimeClock(instant: clockInstant)
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("V23-myday-receipt-time-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+        container = try ModelContainer(for: schema, migrationPlan: nil,
+            configurations: [ModelConfiguration("MyDayReceiptTime", schema: schema,
+                isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
+        context = container.mainContext; context.autosaveEnabled = false
+        identity = try .init(workspaceID: workspaceID, replicaID: .init(rawValue: UUID()))
+        generationID = UUID()
+        let epoch = try GenerationEpochV1(generationID: generationID, generationManifestSHA256: String(repeating: "a", count: 64))
+        registry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
+        let lease = try registry.acquire(epoch: epoch, role: .writer)
+        fence = try StaleWriterFenceV1(expectedGenerationEpoch: epoch, writerLeaseToken: lease,
+                                      registry: registry, currentGenerationEpoch: { epoch })
+        store = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generationID, staleWriterFence: fence)
+        let id = UUID()
+        writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: store.currentRevision(writerInstanceID: id), clock: clock,
+            idSource: MyDayReceiptTimeIDs(value: id), fileAuthority: MyDayReceiptTimeFiles(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: store)
+    }
+    func reopen() throws -> (writer: WorkspaceWriterV1, adapter: FieldDraftLifecycleAdapterV1) {
+        let context = ModelContext(container); context.autosaveEnabled = false
+        let store = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: generationID, allowStateBootstrap: false, staleWriterFence: fence)
+        let id = UUID()
+        let writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: store.currentRevision(writerInstanceID: id), clock: clock,
+            idSource: MyDayReceiptTimeIDs(value: id), fileAuthority: MyDayReceiptTimeFiles(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: store)
+        return (writer, .init(writer: writer, journal: store, modelContext: context))
+    }
+    func removeFiles() { try? FileManager.default.removeItem(at: root) }
+}
+private struct MyDayReceiptTimeClock: ApplicationClock { let instant: Date; func now() -> Date { instant } }
+private struct MyDayReceiptTimeIDs: ApplicationIDSource { let value: UUID; func makeID() -> UUID { value } }
+private struct MyDayReceiptTimeFiles: ApplicationFileAuthorityV1 {
+    func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
+        "myday-receipt-time/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+    }
+}

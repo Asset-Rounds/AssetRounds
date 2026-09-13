@@ -1270,22 +1270,27 @@ final class WorkCanonicalOpenIssueFixtureV1 {
         assetLabel: String = "Monument Sign",
         diagnosticsStore: DiagnosticsStore? = nil
     ) async throws -> WorkCanonicalOpenIssueFixtureV1 {
+        workCanonicalFixturePhaseV1("open-store")
         let session = try StoreGenerationFactory(applicationSupportURL: applicationSupportURL)
             .openOrBootstrapCurrent()
+        workCanonicalFixturePhaseV1("profile-registry")
         let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
             package: pack
         )
         let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        workCanonicalFixturePhaseV1("open-coordinator")
         let owner = try StoreSessionCoordinator(
             validatingSession: session,
             lifecycleProfileRegistry: registry
         )
         do {
+            workCanonicalFixturePhaseV1("lifecycle")
             let lifecycle = try owner.packageLifecycleDependencies(profileRegistry: registry)
             let observedAt = Date(timeIntervalSince1970: 1_780_000_000)
             let siteID = UUID()
             let assetID = UUID()
             let placementMutationID = try MutationIDV1(rawValue: UUID())
+            workCanonicalFixturePhaseV1("create-first-sign")
             _ = try owner.workspaceWriter.execute(
                 .createFirstSign(.init(
                     siteID: siteID,
@@ -1307,6 +1312,7 @@ final class WorkCanonicalOpenIssueFixtureV1 {
                 )),
                 mutationID: placementMutationID
             )
+            workCanonicalFixturePhaseV1("check-coordinator")
             let runner = try CheckRunnerCoordinator(
                 modelContext: session.modelContext,
                 packageLifecycleDependencies: lifecycle,
@@ -1314,6 +1320,7 @@ final class WorkCanonicalOpenIssueFixtureV1 {
                 diagnosticsStore: diagnosticsStore
             )
             runner.configureCapture(generationRootURL: session.generationRootURL)
+            workCanonicalFixturePhaseV1("begin-check")
             _ = try runner.beginCheck(
                 assetID: assetID,
                 timeZoneID: "America/New_York",
@@ -1322,18 +1329,23 @@ final class WorkCanonicalOpenIssueFixtureV1 {
                 safePositionAccepted: true,
                 observedAt: observedAt
             )
+            workCanonicalFixturePhaseV1("import-wide")
             let wide = try await runner.importCandidate(
                 assetID: assetID,
                 sourceData: try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 11),
                 createdAt: observedAt.addingTimeInterval(15)
             )
+            workCanonicalFixturePhaseV1("accept-wide")
             _ = try await runner.accept(candidate: wide, assetID: assetID)
+            workCanonicalFixturePhaseV1("import-close")
             let close = try await runner.importCandidate(
                 assetID: assetID,
                 sourceData: try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 22),
                 createdAt: observedAt.addingTimeInterval(30)
             )
+            workCanonicalFixturePhaseV1("accept-close")
             _ = try await runner.accept(candidate: close, assetID: assetID)
+            workCanonicalFixturePhaseV1("finalize-opening")
             let opening = try await runner.finalize(
                 assetID: assetID,
                 selection: .visibleIssue(labelKey: "dark_section"),
@@ -1341,6 +1353,7 @@ final class WorkCanonicalOpenIssueFixtureV1 {
                 snapshotCreatedAt: observedAt.addingTimeInterval(60),
                 sourceApp: SourceAppSnapshotV1(build: "work-opening", version: "1")
             )
+            workCanonicalFixturePhaseV1("opening-complete")
             return WorkCanonicalOpenIssueFixtureV1(
                 applicationSupportURL: applicationSupportURL,
                 session: session,
@@ -1353,6 +1366,7 @@ final class WorkCanonicalOpenIssueFixtureV1 {
                 openingRecordID: opening.recordID
             )
         } catch {
+            workCanonicalFixturePhaseV1("opening-failed", error: error)
             try? owner.invalidateAndReleaseWriter()
             throw error
         }
@@ -1422,6 +1436,7 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
         workNote: String? = "Work saved.",
         diagnosticsStore: DiagnosticsStore? = nil
     ) async throws -> WorkCanonicalCurrentRouteFixtureV1 {
+        workCanonicalFixturePhaseV1("make-opening")
         let opening = try await WorkCanonicalOpenIssueFixtureV1.make(
             applicationSupportURL: applicationSupportURL,
             pack: pack,
@@ -1431,6 +1446,7 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
             diagnosticsStore: diagnosticsStore
         )
         do {
+            workCanonicalFixturePhaseV1("work-coordinator")
             let workCoordinator = try WorkCoordinator(
                 modelContext: opening.context,
                 signPack: pack,
@@ -1438,6 +1454,7 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
                 checkRunnerCoordinator: opening.runner,
                 lifecycleDependencies: opening.lifecycleDependencies
             )
+            workCanonicalFixturePhaseV1("begin-work")
             let draft = try workCoordinator.beginWork(issueID: opening.issueID)
             let workSubmission = WorkSaveSubmission(
                 performedLocalDate: workPerformedLocalDate,
@@ -1454,11 +1471,13 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
                 mutationID: UUID(),
                 evidenceID: workPhotoData == nil ? nil : UUID()
             )
+            workCanonicalFixturePhaseV1("save-work")
             let savedWork = try await workCoordinator.saveWork(
                 draftID: draft.recordID,
                 submission: workSubmission,
                 identifiers: workIdentifiers
             )
+            workCanonicalFixturePhaseV1("work-complete")
             return WorkCanonicalCurrentRouteFixtureV1(
                 applicationSupportURL: applicationSupportURL,
                 session: opening.session,
@@ -1476,6 +1495,7 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
                 savedWork: savedWork
             )
         } catch {
+            workCanonicalFixturePhaseV1("work-failed", error: error)
             try? opening.storeCoordinator.invalidateAndReleaseWriter()
             throw error
         }
@@ -1560,4 +1580,11 @@ enum WorkCanonicalIntegrationTestSupportV1 {
 private enum WorkCanonicalIntegrationFixtureFailureV1: Error {
     case invalidImage
     case invalidEnvelope
+}
+
+private func workCanonicalFixturePhaseV1(_ phase: String, error: Error? = nil) {
+    #if DEBUG
+    print("V23 Work fixture phase=\(phase) uptime=\(ProcessInfo.processInfo.systemUptime)")
+    if let error { print("V23 Work fixture error=\(String(reflecting: error))") }
+    #endif
 }

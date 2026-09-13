@@ -295,7 +295,11 @@
     "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFrozenEraseTerminalReplayNeverOpensDeletedPayload",
     "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressResumedEraseRejectsWellFormedMismatchedTerminalBeforeOtherTargetDeletion",
     "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFrozenEraseRejectsReplacedTargetPayloadBeforeDeletion",
-    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressReplaceAdmitsWholeRootBeforeTargetPayloadHash"
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressReplaceAdmitsWholeRootBeforeTargetPayloadHash",
+    "FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterQuantizesFractionalCommitClockAndReplaysExactJournalTime",
+    "FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterRejectsInvalidCommitClockBeforeAnyCanonicalEffect",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressInitialAdmissionSnapshotUsesFixedControlInventories",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFinalInventoryRejectsLateUnrelatedControlAndPreservesExistingReadyIntent"
   ],
   "uiTestSelectors": []
 }

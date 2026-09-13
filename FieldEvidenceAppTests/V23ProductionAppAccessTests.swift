@@ -630,6 +630,8 @@ final class V23ProductionAppAccessTests: XCTestCase {
         XCTAssertEqual(enabledState, .locked(reason: .coldLaunch))
         XCTAssertEqual(try control.loadControl(), enabledControl)
 
+        let unlocked = await session.gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(unlocked, .authenticated)
         let disabled = try await session.lifecycle.disable(operationID: UUID())
         XCTAssertFalse(disabled.enabled)
         let disabledControl = try XCTUnwrap(control.loadControl())

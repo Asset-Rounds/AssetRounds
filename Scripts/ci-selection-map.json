@@ -15,7 +15,7 @@
       "classes": [
         "V9_15AppLockLifecycleTests"
       ],
-      "methodCount": 68
+      "methodCount": 70
     },
     {
       "id": "notification-schedule-erase",
@@ -170,7 +170,7 @@
         "V23MyDayPlanningEditorTests",
         "V23SearchReconciliationTests"
       ],
-      "methodCount": 11
+      "methodCount": 13
     },
     {
       "id": "mutation-command-codec",

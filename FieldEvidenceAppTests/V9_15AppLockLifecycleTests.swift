@@ -1674,6 +1674,60 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
     }
 
+    #if DEBUG
+    func testPhysicalIngressInitialAdmissionSnapshotUsesFixedControlInventories() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 1)
+        defer { fixture.remove() }
+        let probe = C16IngressControlInventoryProbe()
+        let effects = try fixture.effects(testingIngressControlInventoryObserver: { probe.record() })
+        var before = probe.count
+        let empty = try await effects.loadPendingIntentsEffect()
+        XCTAssertTrue(empty.isEmpty)
+        XCTAssertEqual(probe.count - before, 3)
+        var staged: [PendingLockedExternalIntentV1] = []
+        for _ in 0..<4 {
+            staged.append(try await effects.stageContentBlindEffect(fixture.request(), source: fixture.source))
+        }
+        let ready = try staged[0].advancing(to: .readyForAuthenticatedValidation)
+        try await effects.replacePendingIntentEffect(expected: staged[0], replacement: ready)
+        before = probe.count
+        let loaded = try await effects.loadPendingIntentsEffect()
+        XCTAssertEqual(loaded.count, 4)
+        XCTAssertEqual(loaded.first(where: { $0.intentID == ready.intentID }), ready)
+        XCTAssertEqual(probe.count - before, 3)
+    }
+
+    func testPhysicalIngressFinalInventoryRejectsLateUnrelatedControlAndPreservesExistingReadyIntent() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 1)
+        defer { fixture.remove() }
+        let seedEffects = try fixture.effects()
+        let request = fixture.request()
+        let staged = try await seedEffects.stageContentBlindEffect(request, source: fixture.source)
+        let ready = try staged.advancing(to: .readyForAuthenticatedValidation)
+        try await seedEffects.replacePendingIntentEffect(expected: staged, replacement: ready)
+        let bytesBeforeDenial = try Data(contentsOf: fixture.payload(request))
+        let unexpected = fixture.controlRoot.appendingPathComponent("unexpected-final-control.json")
+        let effects = try fixture.effects(
+            testingIngressControlInventoryObserver: {},
+            testingBeforeIngressControlFinalInventory: { try Data("unrelated".utf8).write(to: unexpected) })
+        do {
+            _ = try await effects.loadPendingIntentsEffect()
+            XCTFail("late unrelated control was admitted")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .configurationUnknown)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unexpected.path))
+        let bytesAfterDenial = try Data(contentsOf: fixture.payload(request))
+        XCTAssertEqual(bytesAfterDenial, bytesBeforeDenial)
+        try FileManager.default.removeItem(at: unexpected)
+        let reopened = try fixture.effects()
+        let reopenedValues = try await reopened.loadPendingIntentsEffect()
+        let reopenedBytes = try Data(contentsOf: fixture.payload(request))
+        XCTAssertEqual(reopenedValues, [ready])
+        XCTAssertEqual(reopenedBytes, fixture.bytes)
+    }
+    #endif
+
     func testPhysicalIngressFullPublishedCapacityErasesThroughOriginalBoundedSnapshot() async throws {
         var phaseStartedAt = ProcessInfo.processInfo.systemUptime
         print("V23 ingress capacity phase=setup begin")
@@ -4349,6 +4403,18 @@ private struct C16PhysicalIngressFixture {
         return try .init(applicationSupportURL: support, clock: { instant }, failureInjection: failure)
     }
 
+    #if DEBUG
+    func effects(at date: Date? = nil, failure: C16IngressMutationFailureInjectionV1 = .none,
+                 testingIngressControlInventoryObserver: @escaping ScratchDataLeaseStoreV1.IngressControlInventoryObserver,
+                 testingBeforeIngressControlFinalInventory: @escaping ScratchDataLeaseStoreV1.BeforeIngressControlFinalInventory = {}) throws
+        -> OwnedStorageLedgerProtectedIngressEffectV1 {
+        let instant = date ?? now
+        return try .init(applicationSupportURL: support, clock: { instant }, failureInjection: failure,
+            testingIngressControlInventoryObserver: testingIngressControlInventoryObserver,
+            testingBeforeIngressControlFinalInventory: testingBeforeIngressControlFinalInventory)
+    }
+    #endif
+
     func payload(_ request: ProtectedIngressStageRequestV1) -> URL {
         support.appendingPathComponent("FieldEvidenceOperations/ScratchDataV1/import-" + request.intentID.uuidString.lowercased())
             .appendingPathComponent("opaque-data")
@@ -4401,3 +4467,22 @@ private struct C16PhysicalIngressFixture {
 
     func remove() { try? FileManager.default.removeItem(at: root) }
 }
+
+#if DEBUG
+private final class C16IngressControlInventoryProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func record() {
+        lock.lock()
+        value += 1
+        lock.unlock()
+    }
+}
+#endif
