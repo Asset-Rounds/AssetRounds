@@ -273,7 +273,20 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
               try predecessor.map(NotificationOperationSubjectV1.init(control:)) == authorization.subject else {
             throw AppAccessContractFailureV1.effectMismatch
         }
-        let policy = try currentPolicy()
+        let policy: DeviceLocalReminderPolicyV1
+        if let existing = try preferences.readStoredReminderPolicy() {
+            policy = existing
+        } else {
+            // Only the authenticated first enable may create the existing
+            // disabled generic default. Missing established policy is damage.
+            guard target, predecessor == nil,
+                  try preferences.readAppLockSettingSnapshot().setting == nil,
+                  try control.loadPrivateNotificationMapping() == nil,
+                  !NotificationAddDrainV1.isActive(root: control.notificationRootIdentity) else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            policy = try preferences.readReminderPolicy()
+        }
         // No approved detailed content has been selected. Reject before any
         // preparation or OS effect; never reinterpret saved consent as generic.
         if !target { try requireSupportedPolicy(policy, appLockEnabled: false) }

@@ -26,7 +26,7 @@ on:
           - s10-4-minimum-diagnostic-pilot
           - s10-4-focused-diagnostics-development-only
       native_selection_id:
-        description: Closed V23 N8 selection; default retains all 271 methods across 16 bounded groups
+        description: Closed V23 N8 selection; default retains all 287 methods across 17 bounded groups
         required: true
         default: default-132
         type: choice
@@ -48,6 +48,7 @@ on:
           - report-camera-recovery
           - legacy-lifecycle-recovery
           - app-myday-production
+          - mutation-command-codec
       s10_4_minimum_core_smoke_id:
         description: Explicit minimum functional smoke; none preserves full legacy behavior
         required: false

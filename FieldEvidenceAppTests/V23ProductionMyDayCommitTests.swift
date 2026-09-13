@@ -8,16 +8,30 @@ import XCTest
 final class V23ProductionMyDayCommitTests: XCTestCase {
     @MainActor
     func testProductionSavePersistsExactCommitRowsReceiptsAndNoContentReservations() async throws {
-        let fixture = try await makeFixture("complete-save")
+        let fixture = try await diagnoseMyDayFailure(phase: "fixture") {
+            try await makeFixture("complete-save")
+        }
         defer { fixture.cleanUp() }
-        let access = try XCTUnwrap(fixture.presentation.myDayAccess)
-        let request = try makeRequest(workspaceID: fixture.coordinator.workspaceID)
-        let before = try fixture.coordinator.workspaceWriter.currentRevision()
-        let beforeReceiptCount = try count(MutationReceiptRow.self, in: fixture.coordinator.modelContext)
+        let access = try diagnoseMyDayPreparation(phase: "access") {
+            try XCTUnwrap(fixture.presentation.myDayAccess)
+        }
+        let request = try diagnoseMyDayPreparation(phase: "request") {
+            try makeRequest(workspaceID: fixture.coordinator.workspaceID)
+        }
+        let before = try diagnoseMyDayPreparation(phase: "pre-save-revision") {
+            try fixture.coordinator.workspaceWriter.currentRevision()
+        }
+        let beforeReceiptCount = try diagnoseMyDayPreparation(phase: "pre-save-receipts") {
+            try count(MutationReceiptRow.self, in: fixture.coordinator.modelContext)
+        }
 
-        let outcome = try await access.savePlan(request)
+        let outcome = try await diagnoseMyDayFailure(phase: "production-save") {
+            try await access.savePlan(request)
+        }
 
-        try assertCommitted(outcome, in: fixture.coordinator)
+        try diagnoseMyDayPreparation(phase: "post-save-commit-assertions") {
+            try assertCommitted(outcome, in: fixture.coordinator)
+        }
         let after = try fixture.coordinator.workspaceWriter.currentRevision()
         XCTAssertEqual(after.revision, before.revision + 8)
         XCTAssertEqual(try count(MutationReceiptRow.self, in: fixture.coordinator.modelContext),
@@ -32,7 +46,9 @@ final class V23ProductionMyDayCommitTests: XCTestCase {
         XCTAssertFalse(fixture.coordinator.modelContext.hasChanges)
 
         let revisionBeforeReplay = try fixture.coordinator.workspaceWriter.currentRevision()
-        let replay = try await access.retryPlanSave(draftID: outcome.checkpoint.draftID)
+        let replay = try await diagnoseMyDayFailure(phase: "production-save-retry") {
+            try await access.retryPlanSave(draftID: outcome.checkpoint.draftID)
+        }
         XCTAssertEqual(replay, outcome)
         XCTAssertEqual(try fixture.coordinator.workspaceWriter.currentRevision(), revisionBeforeReplay)
     }
@@ -979,6 +995,28 @@ final class V23ProductionMyDayCommitTests: XCTestCase {
             testCase: self,
             name: "commit-\(name)"
         )
+    }
+
+    @MainActor
+    private func diagnoseMyDayPreparation<Value>(phase: String,
+                                                 _ operation: () throws -> Value) throws -> Value {
+        do {
+            return try operation()
+        } catch {
+            print("V23 My Day diagnostic phase=\(phase) error=\(String(reflecting: error))")
+            throw error
+        }
+    }
+
+    @MainActor
+    private func diagnoseMyDayFailure<Value>(phase: String,
+                                             _ operation: () async throws -> Value) async throws -> Value {
+        do {
+            return try await operation()
+        } catch {
+            print("V23 My Day diagnostic phase=\(phase) error=\(String(reflecting: error))")
+            throw error
+        }
     }
 
     @MainActor

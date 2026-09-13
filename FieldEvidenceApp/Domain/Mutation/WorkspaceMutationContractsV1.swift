@@ -3033,6 +3033,53 @@ struct ImportBulkWorkspaceMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+private struct WorkspaceCommandCodingKeyV1: CodingKey, Hashable {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        intValue = nil
+    }
+
+    init?(intValue: Int) {
+        stringValue = String(intValue)
+        self.intValue = intValue
+    }
+}
+
+private enum WorkspaceCommandPayloadDecoderV1 {
+    @inline(never)
+    static func decode<Value: Decodable>(
+        _ type: Value.Type,
+        commandKey: String,
+        from decoder: Decoder
+    ) throws -> Value {
+        let container = try decoder.container(keyedBy: WorkspaceCommandCodingKeyV1.self)
+        guard container.allKeys.count == 1,
+              let outerKey = container.allKeys.first,
+              outerKey.stringValue == commandKey else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "Expected exactly one \(commandKey) workspace command key."
+            ))
+        }
+        let payload = try container.nestedContainer(
+            keyedBy: WorkspaceCommandCodingKeyV1.self,
+            forKey: outerKey
+        )
+        guard payload.allKeys.count == 1,
+              let valueKey = payload.allKeys.first,
+              valueKey.stringValue == "_0" else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath + [outerKey],
+                debugDescription: "Expected exactly one _0 workspace command payload key."
+            ))
+        }
+        return try payload.decode(type, forKey: valueKey)
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -3097,6 +3144,529 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyReinspectionException(ReinspectionExceptionMutationCommandV1)
     case applyEntityIdentityResolution(EntityIdentityResolutionMutationCommandV1)
     case applyWorkspaceExperience(WorkspaceExperienceMutationCommandV1)
+
+    @inline(never)
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: WorkspaceCommandCodingKeyV1.self)
+        guard container.allKeys.count == 1, let commandKey = container.allKeys.first else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "Expected exactly one workspace command key."
+            ))
+        }
+        switch commandKey.stringValue {
+        case "createFirstSign": self = try Self.decodeCreateFirstSign(from: decoder)
+        case "createCheckDraft": self = try Self.decodeCreateCheckDraft(from: decoder)
+        case "acceptCheckEvidence": self = try Self.decodeAcceptCheckEvidence(from: decoder)
+        case "updateSiteTimeZone": self = try Self.decodeUpdateSiteTimeZone(from: decoder)
+        case "deleteAsset": self = try Self.decodeDeleteAsset(from: decoder)
+        case "deleteSite": self = try Self.decodeDeleteSite(from: decoder)
+        case "eraseWorkspace": self = try Self.decodeEraseWorkspace(from: decoder)
+        case "finalizeCheck": self = try Self.decodeFinalizeCheck(from: decoder)
+        case "finalizeCorrection": self = try Self.decodeFinalizeCorrection(from: decoder)
+        case "transitionReportPDF": self = try Self.decodeTransitionReportPDF(from: decoder)
+        case "recordWork": self = try Self.decodeRecordWork(from: decoder)
+        case "restoreWorkspace": self = try Self.decodeRestoreWorkspace(from: decoder)
+        case "archiveEntities": self = try Self.decodeArchiveEntities(from: decoder)
+        case "applyLocationHierarchyChange": self = try Self.decodeApplyLocationHierarchyChange(from: decoder)
+        case "applyAssetPlacementChange": self = try Self.decodeApplyAssetPlacementChange(from: decoder)
+        case "applyAssetCompositionChange": self = try Self.decodeApplyAssetCompositionChange(from: decoder)
+        case "applySavedSmartView": self = try Self.decodeApplySavedSmartView(from: decoder)
+        case "applyRequirementAssurance": self = try Self.decodeApplyRequirementAssurance(from: decoder)
+        case "applyPartyAccountability": self = try Self.decodeApplyPartyAccountability(from: decoder)
+        case "applyPartyContactSiteRoleImport": self = try Self.decodeApplyPartyContactSiteRoleImport(from: decoder)
+        case "applyAssetSemantics": self = try Self.decodeApplyAssetSemantics(from: decoder)
+        case "applyAuthorityCriterion": self = try Self.decodeApplyAuthorityCriterion(from: decoder)
+        case "applyFunctionalRelationship": self = try Self.decodeApplyFunctionalRelationship(from: decoder)
+        case "applyEvidenceAssurance": self = try Self.decodeApplyEvidenceAssurance(from: decoder)
+        case "applyInspectionReview": self = try Self.decodeApplyInspectionReview(from: decoder)
+        case "applyWorkPacket": self = try Self.decodeApplyWorkPacket(from: decoder)
+        case "applyFieldDraft": self = try Self.decodeApplyFieldDraft(from: decoder)
+        case "applyPackagePromotion": self = try Self.decodeApplyPackagePromotion(from: decoder)
+        case "applyMeasurementIntegrity": self = try Self.decodeApplyMeasurementIntegrity(from: decoder)
+        case "applyPrivacyTransform": self = try Self.decodeApplyPrivacyTransform(from: decoder)
+        case "applyEvidenceMetadata": self = try Self.decodeApplyEvidenceMetadata(from: decoder)
+        case "applyClientCapability": self = try Self.decodeApplyClientCapability(from: decoder)
+        case "applyFieldReference": self = try Self.decodeApplyFieldReference(from: decoder)
+        case "applyAccessibleDocumentAssessment": self = try Self.decodeApplyAccessibleDocumentAssessment(from: decoder)
+        case "applySurveyDefinition": self = try Self.decodeApplySurveyDefinition(from: decoder)
+        case "applySurveySession": self = try Self.decodeApplySurveySession(from: decoder)
+        case "applyAssetLocator": self = try Self.decodeApplyAssetLocator(from: decoder)
+        case "applySchedule": self = try Self.decodeApplySchedule(from: decoder)
+        case "applyPlan": self = try Self.decodeApplyPlan(from: decoder)
+        case "applyPlacementPose": self = try Self.decodeApplyPlacementPose(from: decoder)
+        case "applyEvidenceContext": self = try Self.decodeApplyEvidenceContext(from: decoder)
+        case "applyLighting": self = try Self.decodeApplyLighting(from: decoder)
+        case "applyLightingDayInventory": self = try Self.decodeApplyLightingDayInventory(from: decoder)
+        case "applyLightingNightWorkflow": self = try Self.decodeApplyLightingNightWorkflow(from: decoder)
+        case "applyAssistanceAcceptance": self = try Self.decodeApplyAssistanceAcceptance(from: decoder)
+        case "applyTemporalEvidence": self = try Self.decodeApplyTemporalEvidence(from: decoder)
+        case "applyAssetLabel": self = try Self.decodeApplyAssetLabel(from: decoder)
+        case "applyOperationalContact": self = try Self.decodeApplyOperationalContact(from: decoder)
+        case "applyActivityContract": self = try Self.decodeApplyActivityContract(from: decoder)
+        case "applyPortableReview": self = try Self.decodeApplyPortableReview(from: decoder)
+        case "applyWorkResource": self = try Self.decodeApplyWorkResource(from: decoder)
+        case "applyPartsStock": self = try Self.decodeApplyPartsStock(from: decoder)
+        case "applyMyDay": self = try Self.decodeApplyMyDay(from: decoder)
+        case "applyServiceRequest": self = try Self.decodeApplyServiceRequest(from: decoder)
+        case "applyServiceReliability": self = try Self.decodeApplyServiceReliability(from: decoder)
+        case "applyShopReportProfile": self = try Self.decodeApplyShopReportProfile(from: decoder)
+        case "applyRoundSession": self = try Self.decodeApplyRoundSession(from: decoder)
+        case "applyImportBulk": self = try Self.decodeApplyImportBulk(from: decoder)
+        case "applyEvidenceQuality": self = try Self.decodeApplyEvidenceQuality(from: decoder)
+        case "applyFastSurveyInbox": self = try Self.decodeApplyFastSurveyInbox(from: decoder)
+        case "applyReinspectionException": self = try Self.decodeApplyReinspectionException(from: decoder)
+        case "applyEntityIdentityResolution": self = try Self.decodeApplyEntityIdentityResolution(from: decoder)
+        case "applyWorkspaceExperience": self = try Self.decodeApplyWorkspaceExperience(from: decoder)
+        default:
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "Unknown workspace command key."
+            ))
+        }
+    }
+
+    @inline(never)
+    private static func decodeCreateFirstSign(from decoder: Decoder) throws -> Self {
+        .createFirstSign(try WorkspaceCommandPayloadDecoderV1.decode(
+            FirstSignMutationV1.self, commandKey: "createFirstSign", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeCreateCheckDraft(from decoder: Decoder) throws -> Self {
+        .createCheckDraft(try WorkspaceCommandPayloadDecoderV1.decode(
+            CheckDraftMutationV1.self, commandKey: "createCheckDraft", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeAcceptCheckEvidence(from decoder: Decoder) throws -> Self {
+        .acceptCheckEvidence(try WorkspaceCommandPayloadDecoderV1.decode(
+            CheckEvidenceMutationV1.self, commandKey: "acceptCheckEvidence", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeUpdateSiteTimeZone(from decoder: Decoder) throws -> Self {
+        .updateSiteTimeZone(try WorkspaceCommandPayloadDecoderV1.decode(
+            SiteTimeZoneMutationV1.self, commandKey: "updateSiteTimeZone", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeDeleteAsset(from decoder: Decoder) throws -> Self {
+        .deleteAsset(try WorkspaceCommandPayloadDecoderV1.decode(
+            DeleteAssetMutationV1.self, commandKey: "deleteAsset", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeDeleteSite(from decoder: Decoder) throws -> Self {
+        .deleteSite(try WorkspaceCommandPayloadDecoderV1.decode(
+            DeleteSiteMutationV1.self, commandKey: "deleteSite", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeEraseWorkspace(from decoder: Decoder) throws -> Self {
+        .eraseWorkspace(try WorkspaceCommandPayloadDecoderV1.decode(
+            EraseWorkspaceMutationV1.self, commandKey: "eraseWorkspace", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeFinalizeCheck(from decoder: Decoder) throws -> Self {
+        .finalizeCheck(try WorkspaceCommandPayloadDecoderV1.decode(
+            FinalizeCheckMutationV1.self, commandKey: "finalizeCheck", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeFinalizeCorrection(from decoder: Decoder) throws -> Self {
+        .finalizeCorrection(try WorkspaceCommandPayloadDecoderV1.decode(
+            FinalizeCorrectionMutationV1.self, commandKey: "finalizeCorrection", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeTransitionReportPDF(from decoder: Decoder) throws -> Self {
+        .transitionReportPDF(try WorkspaceCommandPayloadDecoderV1.decode(
+            ReportPDFTransitionMutationV1.self, commandKey: "transitionReportPDF", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeRecordWork(from decoder: Decoder) throws -> Self {
+        .recordWork(try WorkspaceCommandPayloadDecoderV1.decode(
+            RecordWorkMutationV1.self, commandKey: "recordWork", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeRestoreWorkspace(from decoder: Decoder) throws -> Self {
+        .restoreWorkspace(try WorkspaceCommandPayloadDecoderV1.decode(
+            RestoreWorkspaceMutationV1.self, commandKey: "restoreWorkspace", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeArchiveEntities(from decoder: Decoder) throws -> Self {
+        .archiveEntities(try WorkspaceCommandPayloadDecoderV1.decode(
+            ArchiveEntitiesMutationV1.self, commandKey: "archiveEntities", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyLocationHierarchyChange(from decoder: Decoder) throws -> Self {
+        .applyLocationHierarchyChange(try WorkspaceCommandPayloadDecoderV1.decode(
+            LocationHierarchyMutationV1.self, commandKey: "applyLocationHierarchyChange", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyAssetPlacementChange(from decoder: Decoder) throws -> Self {
+        .applyAssetPlacementChange(try WorkspaceCommandPayloadDecoderV1.decode(
+            AssetPlacementChangePlanV1.self, commandKey: "applyAssetPlacementChange", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyAssetCompositionChange(from decoder: Decoder) throws -> Self {
+        .applyAssetCompositionChange(try WorkspaceCommandPayloadDecoderV1.decode(
+            AssetCompositionChangePlanV1.self, commandKey: "applyAssetCompositionChange", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplySavedSmartView(from decoder: Decoder) throws -> Self {
+        .applySavedSmartView(try WorkspaceCommandPayloadDecoderV1.decode(
+            SavedSmartViewMutationV1.self, commandKey: "applySavedSmartView", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyRequirementAssurance(from decoder: Decoder) throws -> Self {
+        .applyRequirementAssurance(try WorkspaceCommandPayloadDecoderV1.decode(
+            RequirementAssuranceMutationV1.self, commandKey: "applyRequirementAssurance", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyPartyAccountability(from decoder: Decoder) throws -> Self {
+        .applyPartyAccountability(try WorkspaceCommandPayloadDecoderV1.decode(
+            PartyAccountabilityMutationV1.self, commandKey: "applyPartyAccountability", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyPartyContactSiteRoleImport(from decoder: Decoder) throws -> Self {
+        .applyPartyContactSiteRoleImport(try WorkspaceCommandPayloadDecoderV1.decode(
+            PartyContactSiteRoleImportMutationV1.self, commandKey: "applyPartyContactSiteRoleImport", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyAssetSemantics(from decoder: Decoder) throws -> Self {
+        .applyAssetSemantics(try WorkspaceCommandPayloadDecoderV1.decode(
+            AssetSemanticsMutationV1.self, commandKey: "applyAssetSemantics", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyAuthorityCriterion(from decoder: Decoder) throws -> Self {
+        .applyAuthorityCriterion(try WorkspaceCommandPayloadDecoderV1.decode(
+            AuthorityCriterionMutationV1.self, commandKey: "applyAuthorityCriterion", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyFunctionalRelationship(from decoder: Decoder) throws -> Self {
+        .applyFunctionalRelationship(try WorkspaceCommandPayloadDecoderV1.decode(
+            FunctionalRelationshipMutationV1.self, commandKey: "applyFunctionalRelationship", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyEvidenceAssurance(from decoder: Decoder) throws -> Self {
+        .applyEvidenceAssurance(try WorkspaceCommandPayloadDecoderV1.decode(
+            EvidenceAssuranceMutationV1.self, commandKey: "applyEvidenceAssurance", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyInspectionReview(from decoder: Decoder) throws -> Self {
+        .applyInspectionReview(try WorkspaceCommandPayloadDecoderV1.decode(
+            InspectionReviewMutationV1.self, commandKey: "applyInspectionReview", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyWorkPacket(from decoder: Decoder) throws -> Self {
+        .applyWorkPacket(try WorkspaceCommandPayloadDecoderV1.decode(
+            WorkPacketMutationV1.self, commandKey: "applyWorkPacket", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyFieldDraft(from decoder: Decoder) throws -> Self {
+        .applyFieldDraft(try WorkspaceCommandPayloadDecoderV1.decode(
+            FieldDraftMutationV1.self, commandKey: "applyFieldDraft", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyPackagePromotion(from decoder: Decoder) throws -> Self {
+        .applyPackagePromotion(try WorkspaceCommandPayloadDecoderV1.decode(
+            PackagePromotionMutationV1.self, commandKey: "applyPackagePromotion", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyMeasurementIntegrity(from decoder: Decoder) throws -> Self {
+        .applyMeasurementIntegrity(try WorkspaceCommandPayloadDecoderV1.decode(
+            MeasurementIntegrityMutationV1.self, commandKey: "applyMeasurementIntegrity", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyPrivacyTransform(from decoder: Decoder) throws -> Self {
+        .applyPrivacyTransform(try WorkspaceCommandPayloadDecoderV1.decode(
+            PrivacyTransformMutationV1.self, commandKey: "applyPrivacyTransform", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyEvidenceMetadata(from decoder: Decoder) throws -> Self {
+        .applyEvidenceMetadata(try WorkspaceCommandPayloadDecoderV1.decode(
+            EvidenceMetadataMutationV1.self, commandKey: "applyEvidenceMetadata", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyClientCapability(from decoder: Decoder) throws -> Self {
+        .applyClientCapability(try WorkspaceCommandPayloadDecoderV1.decode(
+            ClientCapabilityMutationV1.self, commandKey: "applyClientCapability", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyFieldReference(from decoder: Decoder) throws -> Self {
+        .applyFieldReference(try WorkspaceCommandPayloadDecoderV1.decode(
+            FieldReferenceMutationV1.self, commandKey: "applyFieldReference", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyAccessibleDocumentAssessment(from decoder: Decoder) throws -> Self {
+        .applyAccessibleDocumentAssessment(try WorkspaceCommandPayloadDecoderV1.decode(
+            AccessibleDocumentMutationV1.self, commandKey: "applyAccessibleDocumentAssessment", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplySurveyDefinition(from decoder: Decoder) throws -> Self {
+        .applySurveyDefinition(try WorkspaceCommandPayloadDecoderV1.decode(
+            SurveyDefinitionMutationV1.self, commandKey: "applySurveyDefinition", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplySurveySession(from decoder: Decoder) throws -> Self {
+        .applySurveySession(try WorkspaceCommandPayloadDecoderV1.decode(
+            SurveySessionMutationV1.self, commandKey: "applySurveySession", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyAssetLocator(from decoder: Decoder) throws -> Self {
+        .applyAssetLocator(try WorkspaceCommandPayloadDecoderV1.decode(
+            AssetLocatorMutationV1.self, commandKey: "applyAssetLocator", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplySchedule(from decoder: Decoder) throws -> Self {
+        .applySchedule(try WorkspaceCommandPayloadDecoderV1.decode(
+            ScheduleMutationV1.self, commandKey: "applySchedule", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyPlan(from decoder: Decoder) throws -> Self {
+        .applyPlan(try WorkspaceCommandPayloadDecoderV1.decode(
+            PlanMutationV1.self, commandKey: "applyPlan", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyPlacementPose(from decoder: Decoder) throws -> Self {
+        .applyPlacementPose(try WorkspaceCommandPayloadDecoderV1.decode(
+            PlacementPoseMutationV1.self, commandKey: "applyPlacementPose", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyEvidenceContext(from decoder: Decoder) throws -> Self {
+        .applyEvidenceContext(try WorkspaceCommandPayloadDecoderV1.decode(
+            EvidenceContextWriteOperationV1.self, commandKey: "applyEvidenceContext", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyLighting(from decoder: Decoder) throws -> Self {
+        .applyLighting(try WorkspaceCommandPayloadDecoderV1.decode(
+            LightingWriteOperationV1.self, commandKey: "applyLighting", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyLightingDayInventory(from decoder: Decoder) throws -> Self {
+        .applyLightingDayInventory(try WorkspaceCommandPayloadDecoderV1.decode(
+            LightingDayInventoryWriteOperationV1.self, commandKey: "applyLightingDayInventory", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyLightingNightWorkflow(from decoder: Decoder) throws -> Self {
+        .applyLightingNightWorkflow(try WorkspaceCommandPayloadDecoderV1.decode(
+            LightingNightWorkflowWriteOperationV1.self, commandKey: "applyLightingNightWorkflow", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyAssistanceAcceptance(from decoder: Decoder) throws -> Self {
+        .applyAssistanceAcceptance(try WorkspaceCommandPayloadDecoderV1.decode(
+            AssistanceAcceptanceRequestV1.self, commandKey: "applyAssistanceAcceptance", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyTemporalEvidence(from decoder: Decoder) throws -> Self {
+        .applyTemporalEvidence(try WorkspaceCommandPayloadDecoderV1.decode(
+            TemporalEvidenceMutationV1.self, commandKey: "applyTemporalEvidence", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyAssetLabel(from decoder: Decoder) throws -> Self {
+        .applyAssetLabel(try WorkspaceCommandPayloadDecoderV1.decode(
+            AssetLabelMutationV1.self, commandKey: "applyAssetLabel", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyOperationalContact(from decoder: Decoder) throws -> Self {
+        .applyOperationalContact(try WorkspaceCommandPayloadDecoderV1.decode(
+            OperationalContactMutationV1.self, commandKey: "applyOperationalContact", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyActivityContract(from decoder: Decoder) throws -> Self {
+        .applyActivityContract(try WorkspaceCommandPayloadDecoderV1.decode(
+            ActivityContractMutationV2.self, commandKey: "applyActivityContract", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyPortableReview(from decoder: Decoder) throws -> Self {
+        .applyPortableReview(try WorkspaceCommandPayloadDecoderV1.decode(
+            PortableReviewMutationV1.self, commandKey: "applyPortableReview", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyWorkResource(from decoder: Decoder) throws -> Self {
+        .applyWorkResource(try WorkspaceCommandPayloadDecoderV1.decode(
+            WorkResourceMutationV1.self, commandKey: "applyWorkResource", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyPartsStock(from decoder: Decoder) throws -> Self {
+        .applyPartsStock(try WorkspaceCommandPayloadDecoderV1.decode(
+            PartsStockMutationV1.self, commandKey: "applyPartsStock", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyMyDay(from decoder: Decoder) throws -> Self {
+        .applyMyDay(try WorkspaceCommandPayloadDecoderV1.decode(
+            MyDayMutationV1.self, commandKey: "applyMyDay", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyServiceRequest(from decoder: Decoder) throws -> Self {
+        .applyServiceRequest(try WorkspaceCommandPayloadDecoderV1.decode(
+            ServiceRequestMutationV1.self, commandKey: "applyServiceRequest", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyServiceReliability(from decoder: Decoder) throws -> Self {
+        .applyServiceReliability(try WorkspaceCommandPayloadDecoderV1.decode(
+            ServiceReliabilityAtomicBundleV1.self, commandKey: "applyServiceReliability", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyShopReportProfile(from decoder: Decoder) throws -> Self {
+        .applyShopReportProfile(try WorkspaceCommandPayloadDecoderV1.decode(
+            ShopReportProfileMutationV1.self, commandKey: "applyShopReportProfile", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyRoundSession(from decoder: Decoder) throws -> Self {
+        .applyRoundSession(try WorkspaceCommandPayloadDecoderV1.decode(
+            RoundSessionMutationV1.self, commandKey: "applyRoundSession", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyImportBulk(from decoder: Decoder) throws -> Self {
+        .applyImportBulk(try WorkspaceCommandPayloadDecoderV1.decode(
+            ImportBulkWorkspaceMutationV1.self, commandKey: "applyImportBulk", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyEvidenceQuality(from decoder: Decoder) throws -> Self {
+        .applyEvidenceQuality(try WorkspaceCommandPayloadDecoderV1.decode(
+            EvidenceQualityMutationCommandV1.self, commandKey: "applyEvidenceQuality", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyFastSurveyInbox(from decoder: Decoder) throws -> Self {
+        .applyFastSurveyInbox(try WorkspaceCommandPayloadDecoderV1.decode(
+            FastSurveyInboxMutationCommandV1.self, commandKey: "applyFastSurveyInbox", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyReinspectionException(from decoder: Decoder) throws -> Self {
+        .applyReinspectionException(try WorkspaceCommandPayloadDecoderV1.decode(
+            ReinspectionExceptionMutationCommandV1.self, commandKey: "applyReinspectionException", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyEntityIdentityResolution(from decoder: Decoder) throws -> Self {
+        .applyEntityIdentityResolution(try WorkspaceCommandPayloadDecoderV1.decode(
+            EntityIdentityResolutionMutationCommandV1.self, commandKey: "applyEntityIdentityResolution", from: decoder
+        ))
+    }
+
+    @inline(never)
+    private static func decodeApplyWorkspaceExperience(from decoder: Decoder) throws -> Self {
+        .applyWorkspaceExperience(try WorkspaceCommandPayloadDecoderV1.decode(
+            WorkspaceExperienceMutationCommandV1.self, commandKey: "applyWorkspaceExperience", from: decoder
+        ))
+    }
+
 
     var kind: WorkspaceCommandKindV1 {
         switch self {

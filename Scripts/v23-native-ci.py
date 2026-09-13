@@ -105,7 +105,7 @@ def resolve_selection(default, selection_map, selection_id):
     require(isinstance(selection_id, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", selection_id),
             "selection ID")
     groups = selection_map["groups"]
-    require(isinstance(groups, list) and len(groups) == 16, "selection group count")
+    require(isinstance(groups, list) and len(groups) == 17, "selection group count")
     defaults = set(default["unitTestSelectors"])
     default_classes = {selection_class(item) for item in defaults}
     covered = set()

@@ -3164,12 +3164,26 @@ extension V10_02MutationEnvelopeReceiptTests {
         let boundFixture = try FinalizationCodecAdmissionFixtureV1.make(inspectionRelease: binding)
         let envelope = try boundFixture.boundFinalizationEnvelope()
         let bytes = try envelope.canonicalData()
-        XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes), envelope)
+        let decodedEnvelope = try MutationEnvelopeV1.decodeCanonical(from: bytes)
+        XCTAssertEqual(decodedEnvelope, envelope)
+        XCTAssertEqual(try decodedEnvelope.canonicalData(), bytes)
+        let commandObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: WorkspaceMutationCanonicalV1.data(envelope.command))
+                as? [String: Any]
+        )
+        XCTAssertEqual(Set(commandObject.keys), Set(["finalizeCheck"]))
+        let payloadObject = try XCTUnwrap(commandObject["finalizeCheck"] as? [String: Any])
+        XCTAssertEqual(Set(payloadObject.keys), Set(["_0"]))
         XCTAssertNotEqual(bytes, try fixture.boundFinalizationEnvelope().canonicalData())
         let intent = boundFixture.intent(schemaVersion: 2, writerCommitBinding: .init(
             envelopeData: bytes, occurredAt: boundFixture.occurredAt))
         let intentBytes = try FinalizationContractEncoderV1().encodeIntent(intent).data
-        XCTAssertEqual(try FinalizationContractDecoderV1().decodeIntent(intentBytes), intent)
+        let decodedIntent = try FinalizationContractDecoderV1().decodeIntent(intentBytes)
+        XCTAssertEqual(decodedIntent, intent)
+        XCTAssertEqual(
+            try XCTUnwrap(decodedIntent.writerCommitBinding).envelope().canonicalData(),
+            bytes
+        )
         XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(
             boundFixture.history(envelope: envelope, postImages: boundFixture.finalizationPostImages),
             sourcePersistentSchemaVersion: PersistentSchemaV53.versionIdentifier.major))
@@ -3450,6 +3464,46 @@ extension V10_02MutationEnvelopeReceiptTests {
         ))
     }
 
+    func testFinalizationCorrectionBindingPreservesCanonicalDecodeAndEncoderReentry() throws {
+        let fixture = try FinalizationCodecAdmissionFixtureV1.make()
+        let correction = try fixture.boundCorrectionEnvelopeAndIntent()
+        let envelopeBytes = try correction.envelope.canonicalData()
+        let decodedEnvelope = try MutationEnvelopeV1.decodeCanonical(from: envelopeBytes)
+
+        XCTAssertEqual(decodedEnvelope, correction.envelope)
+        XCTAssertEqual(try decodedEnvelope.canonicalData(), envelopeBytes)
+        guard case let .finalizeCorrection(command) = decodedEnvelope.command else {
+            return XCTFail("Expected the correction command family")
+        }
+        XCTAssertEqual(command.correctionRecordID, correction.intent.recordID)
+        XCTAssertEqual(command.reportID, correction.intent.reportID)
+        XCTAssertEqual(command.revisesRecordID, fixture.recordID)
+        XCTAssertEqual(command.replacesReportID, fixture.reportID)
+        let authority = try XCTUnwrap(command.writerAuthority)
+        XCTAssertEqual(authority.payload, correction.intent.finalizationPayload)
+        XCTAssertEqual(authority.payloadSHA256, correction.intent.finalizationPayloadSHA256)
+        let commandObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: WorkspaceMutationCanonicalV1.data(decodedEnvelope.command))
+                as? [String: Any]
+        )
+        XCTAssertEqual(Set(commandObject.keys), Set(["finalizeCorrection"]))
+        let payloadObject = try XCTUnwrap(commandObject["finalizeCorrection"] as? [String: Any])
+        XCTAssertEqual(Set(payloadObject.keys), Set(["_0"]))
+
+        let binding = try XCTUnwrap(correction.intent.writerCommitBinding)
+        XCTAssertEqual(try binding.envelope(), correction.envelope)
+        XCTAssertEqual(try binding.envelope().canonicalData(), envelopeBytes)
+
+        let intentBytes = try FinalizationContractEncoderV1().encodeIntent(correction.intent).data
+        let decodedIntent = try FinalizationContractDecoderV1().decodeIntent(intentBytes)
+        XCTAssertEqual(decodedIntent, correction.intent)
+        XCTAssertEqual(
+            try XCTUnwrap(decodedIntent.writerCommitBinding).envelope().canonicalData(),
+            envelopeBytes
+        )
+        XCTAssertEqual(try FinalizationContractEncoderV1().encodeIntent(decodedIntent).data, intentBytes)
+    }
+
     func testOriginalSourceV53AdmitsBoundFinalizationAndPDFButV52RejectsBoth() throws {
         let fixture = try FinalizationCodecAdmissionFixtureV1.make()
         let finalizationEnvelope = try fixture.boundFinalizationEnvelope()
@@ -3715,6 +3769,149 @@ private struct FinalizationCodecAdmissionFixtureV1 {
 
     func boundFinalizationEnvelope() throws -> MutationEnvelopeV1 {
         try finalizationEnvelope(writerAuthority: authority)
+    }
+
+    func boundCorrectionEnvelopeAndIntent() throws -> (
+        envelope: MutationEnvelopeV1,
+        intent: FinalizationIntentV1
+    ) {
+        let originalRecord = payload.workflowRecordAfter
+        let correctionMutationID = try MutationIDV1(rawValue: id(80))
+        let correctionRecordID = id(81)
+        let correctionReportID = id(82)
+        let correctionCompletedAt = completedAt.addingTimeInterval(10)
+        let correctionSnapshotCreatedAt = snapshotCreatedAt.addingTimeInterval(10)
+        let correctionSnapshotSHA256 = digest("d")
+        let correctionRecord = WorkflowRecordPayloadV1(
+            id: correctionRecordID, schemaVersion: originalRecord.schemaVersion,
+            assetID: originalRecord.assetID, packetID: originalRecord.packetID,
+            issueID: originalRecord.issueID, parentRecordID: originalRecord.parentRecordID,
+            recordRevisionRootID: originalRecord.recordRevisionRootID,
+            revisesRecordID: originalRecord.id, evidenceSourceRecordID: originalRecord.id,
+            revisionKind: WorkflowRevisionKind.clericalCorrection.rawValue,
+            stage: originalRecord.stage, state: originalRecord.state,
+            draftStepKey: originalRecord.draftStepKey, startedAt: originalRecord.startedAt,
+            completedAt: correctionCompletedAt, observedAtUTC: originalRecord.observedAtUTC,
+            timeZoneID: originalRecord.timeZoneID,
+            utcOffsetMinutes: originalRecord.utcOffsetMinutes,
+            localDate: originalRecord.localDate, localTime: originalRecord.localTime,
+            afterDarkAcknowledgementKey: originalRecord.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: originalRecord.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: originalRecord.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: originalRecord.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: originalRecord.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: originalRecord.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: originalRecord.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: originalRecord.safePositionAcknowledgementAccepted,
+            packID: originalRecord.packID, packSchemaVersion: originalRecord.packSchemaVersion,
+            packContentVersion: originalRecord.packContentVersion,
+            pdfTemplateID: originalRecord.pdfTemplateID,
+            pdfTemplateVersion: originalRecord.pdfTemplateVersion,
+            outcomeKey: originalRecord.outcomeKey,
+            couldNotVerifyKey: originalRecord.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: originalRecord.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: originalRecord.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: originalRecord.workPerformedLocalDate,
+            workDescription: originalRecord.workDescription, note: "Clerical correction",
+            finalizationMutationID: correctionMutationID.rawValue
+        )
+        let packetBefore = payload.packetAfter
+        let packetAfter = PacketPayloadV1(
+            id: packetBefore.id, schemaVersion: packetBefore.schemaVersion,
+            stableRootID: packetBefore.stableRootID, currentRecordID: correctionRecordID,
+            evaluationCounted: packetBefore.evaluationCounted,
+            contentDeletedAt: packetBefore.contentDeletedAt, createdAt: packetBefore.createdAt
+        )
+        let correctionReport = ReportPayloadV1(
+            id: correctionReportID, schemaVersion: report.schemaVersion, packetID: packetID,
+            sourceRecordID: correctionRecordID,
+            snapshotSchemaVersion: report.snapshotSchemaVersion,
+            snapshotRelativePath: "snapshots/\(correctionReportID.uuidString.lowercased()).json",
+            snapshotSHA256: correctionSnapshotSHA256,
+            pdfState: ReportPDFState.pending.rawValue,
+            pdfRelativePath: nil, pdfSHA256: nil, createdAt: correctionSnapshotCreatedAt,
+            replacesReportID: reportID
+        )
+        let correctionPayload = FinalizationPayloadV1(
+            issueInsert: nil, issueTransition: nil, packetAfter: packetAfter,
+            packetBefore: packetBefore, reportInsert: correctionReport,
+            workflowRecordAfter: correctionRecord
+        )
+        let correctionPayloadSHA256 = try FinalizationContractEncoderV1()
+            .encodePayload(correctionPayload).sha256
+        let correctionSourceBinding = FinalizationWriterSourceBindingV1(
+            sourceRecordID: originalRecord.id,
+            observationBasisV1Data: sourceBinding.observationBasisV1Data,
+            temporalContextV1Data: sourceBinding.temporalContextV1Data,
+            requirementAssurance: nil, inspectionRelease: sourceBinding.inspectionRelease
+        )
+        let correctionAuthority = FinalizationWriterAuthorityV1(
+            workspaceID: workspaceID, generationID: generationID, payload: correctionPayload,
+            payloadSHA256: correctionPayloadSHA256,
+            snapshotRelativePath: correctionReport.snapshotRelativePath,
+            snapshotSHA256: correctionSnapshotSHA256, contentDigests: contentDigests,
+            sourceBinding: correctionSourceBinding
+        )
+        try correctionAuthority.validate()
+        let command = WorkspaceCommandV1.finalizeCorrection(.init(
+            finalizationMutationID: correctionMutationID.rawValue, assetID: assetID,
+            correctionRecordID: correctionRecordID, revisesRecordID: originalRecord.id,
+            packetID: packetID, reportID: correctionReportID, replacesReportID: reportID,
+            semanticDigest: correctionPayloadSHA256, writerAuthority: correctionAuthority
+        ))
+        let revisions = try [
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 7
+            ),
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .workflowRecord, id: originalRecord.id),
+                revision: 2
+            ),
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .workflowRecord, id: correctionRecordID),
+                revision: 0
+            ),
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .packet, id: packetID), revision: 1
+            ),
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .report, id: reportID), revision: 1
+            ),
+            WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .report, id: correctionReportID),
+                revision: 0
+            ),
+        ].sorted { $0.identity.stableKey < $1.identity.stableKey }
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: workspaceID, generationID: generationID, writerInstanceID: id(83),
+            workspaceRevision: 1, entityRevisions: revisions
+        )
+        let request = WorkspaceMutationRequestV1(
+            mutationID: correctionMutationID, expectedRevision: expected, command: command
+        )
+        let envelope = try MutationEnvelopeV1(
+            request: request,
+            identity: WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: replicaID),
+            contentDependencyIDs: contentDigests
+        )
+        try correctionAuthority.validate(envelope: envelope)
+        let binding = FinalizationWriterCommitBindingV1(
+            envelopeData: try envelope.canonicalData(), occurredAt: occurredAt.addingTimeInterval(10)
+        )
+        let intent = FinalizationIntentV1(
+            completedAt: correctionCompletedAt,
+            finalizationMutationID: correctionMutationID.rawValue,
+            finalizationPayload: correctionPayload,
+            finalizationPayloadSHA256: correctionPayloadSHA256,
+            generationID: generationID, packetID: packetID, phase: .prepared,
+            recordID: correctionRecordID, reportID: correctionReportID, schemaVersion: 2,
+            snapshotCreatedAt: correctionSnapshotCreatedAt,
+            snapshotFinalRelativePath: correctionReport.snapshotRelativePath,
+            snapshotSHA256: correctionSnapshotSHA256,
+            snapshotStagingRelativePath: ".staging/\(correctionReportID.uuidString.lowercased()).json",
+            stableRootID: stableRootID, writerCommitBinding: binding
+        )
+        return (envelope, intent)
     }
 
     func hostileFinalizationEnvelope(
@@ -3983,6 +4180,63 @@ extension V10_02MutationEnvelopeReceiptTests {
             }
         }
     }
+
+    func testWorkspaceCommandDecoderDispatchesEveryCaseAndRejectsHostileGrammar() throws {
+        let commandKeys = [
+            "createFirstSign", "createCheckDraft", "acceptCheckEvidence", "updateSiteTimeZone",
+            "deleteAsset", "deleteSite", "eraseWorkspace", "finalizeCheck",
+            "finalizeCorrection", "transitionReportPDF", "recordWork", "restoreWorkspace",
+            "archiveEntities", "applyLocationHierarchyChange", "applyAssetPlacementChange", "applyAssetCompositionChange",
+            "applySavedSmartView", "applyRequirementAssurance", "applyPartyAccountability", "applyPartyContactSiteRoleImport",
+            "applyAssetSemantics", "applyAuthorityCriterion", "applyFunctionalRelationship", "applyEvidenceAssurance",
+            "applyInspectionReview", "applyWorkPacket", "applyFieldDraft", "applyPackagePromotion",
+            "applyMeasurementIntegrity", "applyPrivacyTransform", "applyEvidenceMetadata", "applyClientCapability",
+            "applyFieldReference", "applyAccessibleDocumentAssessment", "applySurveyDefinition", "applySurveySession",
+            "applyAssetLocator", "applySchedule", "applyPlan", "applyPlacementPose",
+            "applyEvidenceContext", "applyLighting", "applyLightingDayInventory", "applyLightingNightWorkflow",
+            "applyAssistanceAcceptance", "applyTemporalEvidence", "applyAssetLabel", "applyOperationalContact",
+            "applyActivityContract", "applyPortableReview", "applyWorkResource", "applyPartsStock",
+            "applyMyDay", "applyServiceRequest", "applyServiceReliability", "applyShopReportProfile",
+            "applyRoundSession", "applyImportBulk", "applyEvidenceQuality", "applyFastSurveyInbox",
+            "applyReinspectionException", "applyEntityIdentityResolution", "applyWorkspaceExperience"
+        ]
+        XCTAssertEqual(commandKeys.count, 63)
+        XCTAssertEqual(Set(commandKeys).count, commandKeys.count)
+
+        func codingPath(_ error: Error) -> [String] {
+            guard let decodingError = error as? DecodingError else { return [] }
+            switch decodingError {
+            case let .typeMismatch(_, context), let .valueNotFound(_, context):
+                return context.codingPath.map(\.stringValue)
+            case let .keyNotFound(key, context):
+                return context.codingPath.map(\.stringValue) + [key.stringValue]
+            case let .dataCorrupted(context):
+                return context.codingPath.map(\.stringValue)
+            @unknown default:
+                return []
+            }
+        }
+
+        for commandKey in commandKeys {
+            let bytes = Data(("{\"\(commandKey)\":{\"_0\":null}}").utf8)
+            XCTAssertThrowsError(try JSONDecoder().decode(WorkspaceCommandV1.self, from: bytes), commandKey) {
+                XCTAssertEqual(Array(codingPath($0).suffix(2)), [commandKey, "_0"], commandKey)
+            }
+        }
+
+        let hostile = [
+            "{}",
+            "{\"unknownCommand\":{\"_0\":{}}}",
+            "{\"createFirstSign\":{\"_0\":{}},\"deleteAsset\":{\"_0\":{}}}",
+            "{\"createFirstSign\":{}}",
+            "{\"createFirstSign\":{\"value\":{}}}",
+            "{\"createFirstSign\":{\"_0\":{},\"value\":{}}}",
+        ]
+        for bytes in hostile.map({ Data($0.utf8) }) {
+            XCTAssertThrowsError(try JSONDecoder().decode(WorkspaceCommandV1.self, from: bytes))
+        }
+    }
+
 
     func testMutationEnvelopeByteGateRejectsOversizeBeforeDecodeAndAdmitsBoundaryToDecoder() throws {
         // Whitespace is deliberately not a valid envelope. At the bound it

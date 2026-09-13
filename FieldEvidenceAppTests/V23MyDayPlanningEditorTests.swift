@@ -90,6 +90,11 @@ final class V23MyDayPlanningEditorTests: XCTestCase {
         let finalEstimate = await editor.estimate(membershipID: secondMembership, wholeMinutes: 45)
         XCTAssertTrue(finalEstimate)
         let saved = await editor.save()
+        #if DEBUG
+        if !saved {
+            print("V23 My Day editor diagnostic phase=today-editor-save error=\(editor.lastOperationFailureForTesting ?? "missing")")
+        }
+        #endif
         XCTAssertTrue(saved)
         let outcome = try XCTUnwrap(editor.outcome)
         XCTAssertEqual(outcome.targetResult.plan.items.map(\.membershipID), [secondMembership])
@@ -191,6 +196,9 @@ final class V23MyDayPlanningEditorTests: XCTestCase {
             }
         }
         let firstSave = await editor.save()
+        if !firstSave {
+            print("V23 My Day editor diagnostic phase=post-effect-save error=\(editor.lastOperationFailureForTesting ?? "missing")")
+        }
         XCTAssertFalse(firstSave)
         XCTAssertTrue(interrupted)
         XCTAssertNil(editor.outcome)
@@ -666,15 +674,23 @@ final class V23MyDayPlanningEditorTests: XCTestCase {
     private func seedCarryoverEditorSource(_ fixture: V23ProductionMyDayPresentationHarness,
                                            access: AppAccessPresentationV1.MyDayAccess) async throws
         -> (work: [FieldDraftCheckpointV1], source: MyDayPlanV1) {
-        let work = try [seedSource(fixture), seedSource(fixture)]
-        let key = try day(fixture)
-        let context = try access.captureConfirmedPlanningContext(for: key, recordedByName: "Source recorder")
-        let items = try work.enumerated().map { index, checkpoint in
-            try MyDayDraftItemV1(membershipID: UUID(), reference: reference(checkpoint),
-                estimate: .init(wholeMinutes: 15 * (index + 1)))
+        let work = try diagnoseMyDayPreparation(phase: "carryover-source-records") {
+            try [seedSource(fixture), seedSource(fixture)]
         }
-        let outcome = try await access.savePlan(.init(confirmedContext: context,
-            draft: .init(key: key, items: items, eligibleReferences: work.map(reference)), predecessor: nil))
+        let key = try diagnoseMyDayPreparation(phase: "carryover-source-key") { try day(fixture) }
+        let context = try diagnoseMyDayPreparation(phase: "carryover-source-context") {
+            try access.captureConfirmedPlanningContext(for: key, recordedByName: "Source recorder")
+        }
+        let items = try diagnoseMyDayPreparation(phase: "carryover-source-items") {
+            try work.enumerated().map { index, checkpoint in
+                try MyDayDraftItemV1(membershipID: UUID(), reference: reference(checkpoint),
+                    estimate: .init(wholeMinutes: 15 * (index + 1)))
+            }
+        }
+        let outcome = try await diagnoseMyDayFailure(phase: "carryover-source-save") {
+            try await access.savePlan(.init(confirmedContext: context,
+                draft: .init(key: key, items: items, eligibleReferences: work.map(reference)), predecessor: nil))
+        }
         return (work, outcome.targetResult.plan)
     }
 
@@ -2058,6 +2074,28 @@ final class V23MyDayPlanningEditorTests: XCTestCase {
             try? FileManager.default.removeItem(at: support)
         }
         return fixture
+    }
+
+    @MainActor
+    private func diagnoseMyDayPreparation<Value>(phase: String,
+                                                 _ operation: () throws -> Value) throws -> Value {
+        do {
+            return try operation()
+        } catch {
+            print("V23 My Day diagnostic phase=\(phase) error=\(String(reflecting: error))")
+            throw error
+        }
+    }
+
+    @MainActor
+    private func diagnoseMyDayFailure<Value>(phase: String,
+                                             _ operation: () async throws -> Value) async throws -> Value {
+        do {
+            return try await operation()
+        } catch {
+            print("V23 My Day diagnostic phase=\(phase) error=\(String(reflecting: error))")
+            throw error
+        }
     }
 
     @MainActor

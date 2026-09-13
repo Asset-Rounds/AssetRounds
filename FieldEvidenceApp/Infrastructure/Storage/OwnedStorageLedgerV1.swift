@@ -2069,14 +2069,32 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
     }
 
+    private struct C16ValidatedIngressSnapshotV1 {
+        let preparations: [C16IngressPreparedStageV1]
+        let pending: [C16IngressPublicationV1]
+        let unresolvedPreparations: [C16IngressPreparedStageV1]
+    }
+
     func pendingProtectedIngress() throws -> [PendingLockedExternalIntentV1] {
         try Self.filesystemLock.withLock { try pendingIngressPublications().map(\.intent) }
     }
 
     private func pendingIngressPublications() throws -> [C16IngressPublicationV1] {
+        try validatedIngressSnapshot().pending
+    }
+
+    /// Reconstructs the complete ingress control state under the caller's
+    /// filesystem lock. The classification is intentionally post-hygiene: a
+    /// completed hygiene removal is terminal before a later stage/erase uses
+    /// the result for admission.
+    private func validatedIngressSnapshot(
+        frozenEraseTargets: [UUID: C16IngressPublicationV1]? = nil
+    ) throws -> C16ValidatedIngressSnapshotV1 {
+        let preparations = try ingressPreparations()
         var pending: [C16IngressPublicationV1] = []
+        var unresolvedPreparations: [C16IngressPreparedStageV1] = []
         var preparedCount = 0
-        for preparation in try ingressPreparations() {
+        for preparation in preparations {
             let id = preparation.intent.intentID
             let claim = try readIngressControl(C16IngressDirectoryClaimV1.self, at: ingressControlURL(id, ".claim.json"))
             let published = try readIngressControl(C16IngressPublicationV1.self, at: ingressControlURL(id, ".published.json"))
@@ -2100,6 +2118,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                       try directoryInformationIfPresent(named: preparation.lease.relativeDirectory) == nil else {
                     throw AppAccessContractFailureV1.configurationUnknown
                 }
+                if terminal == nil { unresolvedPreparations.append(preparation) }
                 continue // Prepared only: no file effect was published.
             }
             guard claim.preparation == preparation, claim.device == authority.rootDevice else {
@@ -2109,6 +2128,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 guard current == nil, terminal == nil else { throw AppAccessContractFailureV1.configurationUnknown }
                 let descriptor = try validateIngressClaim(claim)
                 _ = Darwin.close(descriptor)
+                unresolvedPreparations.append(preparation)
                 continue // Claimed incomplete copy remains owned, but is not a pending intent.
             }
             try published.validate()
@@ -2119,6 +2139,11 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 try terminal.validate()
                 guard try published.replacingIntent(terminal.expected.intent) == terminal.expected else {
                     throw AppAccessContractFailureV1.configurationUnknown
+                }
+                if let frozenTarget = frozenEraseTargets?[id] {
+                    let expectedRemoval = C16IngressRemovalV1(expected: frozenTarget, disposition: .erased)
+                    try expectedRemoval.validate()
+                    guard terminal == expectedRemoval else { throw AppAccessContractFailureV1.effectMismatch }
                 }
                 try settleIngressRemoval(terminal)
                 continue
@@ -2134,8 +2159,13 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                     to: ingressControlURL(id, ".pending.json"))
             }
             pending.append(value)
+            unresolvedPreparations.append(preparation)
         }
-        return pending.sorted { $0.intent.intentID.uuidString < $1.intent.intentID.uuidString }
+        return .init(preparations: preparations,
+                     pending: pending.sorted { $0.intent.intentID.uuidString < $1.intent.intentID.uuidString },
+                     unresolvedPreparations: unresolvedPreparations.sorted {
+                         $0.intent.intentID.uuidString < $1.intent.intentID.uuidString
+                     })
     }
 
     private func adoptCompletedIngressHygieneRemoval(_ value: C16IngressPublicationV1) throws -> Bool {
@@ -2195,7 +2225,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             let preparation = C16IngressPreparedStageV1(intent: intent, lease: lease,
                 rootDevice: authority.rootDevice, rootInode: authority.rootInode)
             try validateIngressPreparation(preparation, intentID: request.intentID)
-            let pending = try pendingIngressPublications()
+            let snapshot = try validatedIngressSnapshot()
+            let pending = snapshot.pending
             if let existing = pending.first(where: { $0.intent.intentID == request.intentID }) {
                 guard existing.claim.preparation == preparation else { throw AppAccessContractFailureV1.effectMismatch }
                 try validateIngressPublication(existing, hashPayload: true)
@@ -2210,11 +2241,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             if let existing = try readIngressControl(C16IngressPreparedStageV1.self, at: prepareFile) {
                 guard existing == preparation else { throw AppAccessContractFailureV1.effectMismatch }
             } else {
-                let unresolved = try ingressPreparations().filter {
-                    try !ingressControlFileExists(ingressControlURL($0.intent.intentID, ".terminal.json"))
-                        && !ingressControlFileExists(ingressControlURL($0.intent.intentID, ".aborted.json"))
-                }
-                guard unresolved.count < ProtectedIngressCoordinatorV1.maximumPendingIntentCount else {
+                guard snapshot.unresolvedPreparations.count < ProtectedIngressCoordinatorV1.maximumPendingIntentCount else {
                     throw AppAccessContractFailureV1.ingressLimitExceeded
                 }
                 try storagePreflight.checkScratchLease(requestedByteCount: request.byteCount, onVolumeContaining: rootURL)
@@ -2501,41 +2528,103 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             let file = directory.appendingPathComponent("erase-" + operationID.uuidString.lowercased() + ".prepare.json")
             let complete = directory.appendingPathComponent("erase-" + operationID.uuidString.lowercased() + ".complete.json")
             let erase: C16IngressEraseV1
+            let frozenEraseTargets: [UUID: C16IngressPublicationV1]?
             if let existing = try readIngressControl(C16IngressEraseV1.self, at: file) {
                 try existing.validate()
                 guard existing.operationID == operationID, existing.rootDevice == authority.rootDevice,
                       existing.rootInode == authority.rootInode else { throw AppAccessContractFailureV1.configurationUnknown }
                 erase = existing
+                var targets: [UUID: C16IngressPublicationV1] = [:]
+                for target in existing.targets {
+                    guard targets.updateValue(target, forKey: target.intent.intentID) == nil else {
+                        throw AppAccessContractFailureV1.configurationUnknown
+                    }
+                }
+                frozenEraseTargets = targets
             } else {
                 guard try !ingressControlFileExists(complete) else { throw AppAccessContractFailureV1.configurationUnknown }
-                let published = try pendingIngressPublications()
+                let entry = try validatedIngressSnapshot()
+                let published = entry.pending
                 let publishedIDs = Set(published.map { $0.intent.intentID })
-                let unfinished = try ingressPreparations().filter {
-                    try !publishedIDs.contains($0.intent.intentID)
-                        && !ingressControlFileExists(ingressControlURL($0.intent.intentID, ".terminal.json"))
-                        && !ingressControlFileExists(ingressControlURL($0.intent.intentID, ".aborted.json"))
+                let unfinished = entry.unresolvedPreparations.filter {
+                    !publishedIDs.contains($0.intent.intentID)
                 }
                 erase = .init(operationID: operationID, rootDevice: authority.rootDevice, rootInode: authority.rootInode,
                     targets: published, unpublishedTargets: try unfinished.map(makeUnpublishedIngressEraseTarget))
                 try erase.validate()
                 try writeProtectedIngressCanonical(try CompatibilityCanonicalV1.encode(erase), to: file)
                 try ingressMutationFailureInjection.interruptIfTriggered(.afterErasePrepare)
+                frozenEraseTargets = nil
             }
             if let recorded = try readIngressControl(C16IngressEraseV1.self, at: complete) {
                 guard recorded == erase else { throw AppAccessContractFailureV1.effectMismatch }
                 return
             }
+            // Every incomplete erase must admit the whole root before the first
+            // target effect. A resumed record is immutable, but unrelated
+            // malformed control state must still fail before deletion.
+            _ = try validatedIngressSnapshot(frozenEraseTargets: frozenEraseTargets)
             for target in erase.unpublishedTargets {
                 try removeUnpublishedIngress(target, operationID: operationID)
             }
             for target in erase.targets {
-                try removeProtectedIngress(expected: target.intent, disposition: .erased)
+                try removeFrozenIngressTarget(target)
             }
+            // This is a distinct post-effect proof. It validates later intents
+            // without adding them to the immutable erase target set.
+            _ = try validatedIngressSnapshot()
             try writeProtectedIngressCanonical(try CompatibilityCanonicalV1.encode(erase), to: complete)
             guard try readIngressControl(C16IngressEraseV1.self, at: complete) == erase else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
         }
+    }
+
+    /// Settles one target from an already durable erase record. This helper is
+    /// called only while eraseProtectedIngress holds filesystemLock after a
+    /// complete root admission. It never supplies a cache to another operation.
+    private func removeFrozenIngressTarget(_ target: C16IngressPublicationV1) throws {
+        try target.validate()
+        let id = target.intent.intentID
+        let prepareFile = try ingressControlURL(id, ".prepare.json")
+        let claimFile = try ingressControlURL(id, ".claim.json")
+        let publishedFile = try ingressControlURL(id, ".published.json")
+        let pendingFile = try ingressControlURL(id, ".pending.json")
+        let terminalFile = try ingressControlURL(id, ".terminal.json")
+        let abortedFile = try ingressControlURL(id, ".aborted.json")
+        guard try readIngressControl(C16IngressPreparedStageV1.self, at: prepareFile)
+                == target.claim.preparation,
+              try readIngressControl(C16IngressDirectoryClaimV1.self, at: claimFile) == target.claim,
+              let published = try readIngressControl(C16IngressPublicationV1.self, at: publishedFile),
+              try readIngressControl(C16IngressAbortedStageV1.self, at: abortedFile) == nil else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try published.validate()
+        guard published.claim == target.claim,
+              published.intent == target.claim.preparation.intent,
+              try published.replacingIntent(target.intent) == target else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        let removal = C16IngressRemovalV1(expected: target, disposition: .erased)
+        try removal.validate()
+        if let terminal = try readIngressControl(C16IngressRemovalV1.self, at: terminalFile) {
+            try terminal.validate()
+            guard terminal == removal else { throw AppAccessContractFailureV1.effectMismatch }
+            // A terminal replay can legitimately have no payload directory.
+            // Settle it before any publication/payload validation.
+            try settleIngressRemoval(terminal)
+            return
+        }
+        guard try readIngressControl(C16IngressPublicationV1.self, at: pendingFile) == target else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try validateIngressPublication(target, hashPayload: false)
+        try writeProtectedIngressCanonical(try CompatibilityCanonicalV1.encode(removal), to: terminalFile)
+        guard try readIngressControl(C16IngressRemovalV1.self, at: terminalFile) == removal else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try ingressMutationFailureInjection.interruptIfTriggered(.afterRemovalPrepare)
+        try settleIngressRemoval(removal)
     }
 
     private func ingressControlURL(_ intentID: UUID, _ suffix: String) throws -> URL {

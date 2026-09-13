@@ -355,7 +355,7 @@ class WorkflowWiringTests(unittest.TestCase):
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         groups = [CI.resolve_selection(default, mapping, group["id"])
                   for group in mapping["groups"]]
-        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 271)
+        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 287)
         self.assertEqual({item for group in groups for item in group["unitTestSelectors"]},
                          set(default["unitTestSelectors"]))
         self.assertEqual(CI.resolve_selection(default, mapping, CI.DEFAULT_SELECTION_ID), default)
@@ -383,10 +383,13 @@ class WorkflowWiringTests(unittest.TestCase):
         location = 'FieldEvidenceAppTests/V9_08GenerationLeaseTests/testReplacementLocationHistoryRetainsCurrentSchemaValidationAndRejectsInvalidReferences'
         self.assertEqual(selected["unitTestSelectors"], expected)
         self.assertEqual(default["unitTestSelectors"][259:270], expected)
-        self.assertEqual(default["unitTestSelectors"][270:], [location])
+        self.assertEqual(default["unitTestSelectors"][270:271], [location])
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:259])),
                          "E8F942EDCE2B513FFC66A01BF5D7003FDD885CD8B1F9EDF7F6D38426E1031400")
         historical_groups = copy.deepcopy(mapping["groups"][:15])
+        owner = next(group for group in historical_groups if group["id"] == "notification-owner")
+        self.assertEqual(owner["methodCount"], 68)
+        owner["methodCount"] = 63
         generation = next(group for group in historical_groups
                           if group["id"] == "generation-leases-migration")
         self.assertEqual(generation["methodCount"], 5)
@@ -397,7 +400,7 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertEqual(resolved_generation["unitTestSelectors"], original_generation + [location])
         self.assertEqual(CI.sha256(CI.canonical(historical_groups)),
                          "9CFA63307F86B2F88570672F8C4D35348CB97357893F68A37B3A70859224D66D")
-        self.assertEqual(len(mapping["groups"]), 16)
+        self.assertEqual(len(mapping["groups"]), 17)
         for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
             self.assertEqual(selected[key], default[key])
         for selector in expected + [location]:
@@ -408,6 +411,48 @@ class WorkflowWiringTests(unittest.TestCase):
         duplicate["groups"].append(copy.deepcopy(duplicate["groups"][-1]))
         with self.assertRaisesRegex(ValueError, "selection group count"):
             CI.resolve_selection(default, duplicate, "app-myday-production")
+
+    def test_command_codec_selection_retains_original_pool_and_closed_partition(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected = CI.resolve_selection(default, mapping, "mutation-command-codec")
+        names = ['testV10_02G01CanonicalEnvelopeReceiptBytesAndAtomicCommit', 'testCanonicalWorkAuthorityRoundTripsAndRequiresOriginalV53Source', 'testCanonicalWorkImportRejectsResealedEnvelopeAndUnchangedSourceRevisionForgery', 'testCanonicalWorkRejectsHostileCommandAndAuthorityBytes', 'testFinalizationLegacyEnvelopeAndSchemaOneIntentRoundTripWithoutWriterBinding', 'testFinalizationSchemaTwoAdmitsMigratedBaselineAndRejectsHostileBindings', 'testReviewedDraftEnvelopeRetainsExactPortableLocksAndCanonicalBytes', 'testMutationEnvelopeByteGateRejectsOversizeBeforeDecodeAndAdmitsBoundaryToDecoder', 'testFinalizationInspectionBindingPreservesAbsentBytesAndRejectsHostileCoding', 'testWorkspaceCommandDecoderDispatchesEveryCaseAndRejectsHostileGrammar', 'testFinalizationCorrectionBindingPreservesCanonicalDecodeAndEncoderReentry']
+        expected = ["FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/" + name for name in names]
+        self.assertEqual(selected["unitTestSelectors"], expected)
+        self.assertEqual(default["unitTestSelectors"][271:282], expected)
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:271])), "FEDC559AC2140B8C69C4B37F09E921FCDB60292263969A5E65558AE647647DC5")
+        original_groups = copy.deepcopy(mapping["groups"][:16])
+        owner = next(group for group in original_groups if group["id"] == "notification-owner")
+        self.assertEqual(owner["methodCount"], 68)
+        owner["methodCount"] = 63
+        self.assertEqual(CI.sha256(CI.canonical(original_groups)), "A347A6AFB64B7E532720C87FFE17363E3396AC42AC1FB87497BC8647CBA5AF95")
+        for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
+            self.assertEqual(selected[key], default[key])
+        source = (ROOT / "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests.swift").read_text()
+        for name in names:
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(name) + r"\s*\(", source)), 1)
+
+    def test_ingress_regressions_extend_exact_owner_and_preserve_prior_pool(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        names = ['testPhysicalIngressResumedEraseRejectsUnrelatedControlBeforeFrozenEffects', 'testPhysicalIngressFrozenEraseTerminalReplayNeverOpensDeletedPayload', 'testPhysicalIngressResumedEraseRejectsWellFormedMismatchedTerminalBeforeOtherTargetDeletion', 'testPhysicalIngressFrozenEraseRejectsReplacedTargetPayloadBeforeDeletion', 'testPhysicalIngressReplaceAdmitsWholeRootBeforeTargetPayloadHash']
+        appended = ["FieldEvidenceAppTests/V9_15AppLockLifecycleTests/" + name for name in names]
+        self.assertEqual(default["unitTestSelectors"][282:], appended)
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:282])), "28FC5CB6FBA869E43A6BEB6F7080486039AA07DF56AFE1729B146F2E4A02F620")
+        selected = CI.resolve_selection(default, mapping, "notification-owner")
+        self.assertEqual(len(selected["unitTestSelectors"]), 68)
+        self.assertEqual(selected["unitTestSelectors"][63:], appended)
+        self.assertEqual(CI.sha256(CI.canonical(selected["unitTestSelectors"][:63])), "778C7B884583C58410EAC2DA4CC6D462824F01E8AAD72B6E218B0A606509FC4B")
+        original_groups = copy.deepcopy(mapping["groups"])
+        owner = next(group for group in original_groups if group["id"] == "notification-owner")
+        self.assertEqual(owner["methodCount"], 68)
+        owner["methodCount"] = 63
+        self.assertEqual(CI.sha256(CI.canonical(original_groups)), "BE3B0FDB49FA19ADF3B3ADDED0CE809B9C6961F36180D1C416C5BEB551E0C027")
+        for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
+            self.assertEqual(selected[key], default[key])
+        source = (ROOT / "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift").read_text()
+        for name in names:
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(name) + r"\s*\(", source)), 1)
 
     def test_closed_map_rejects_unselected_classes_and_workflow_choices_match(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")

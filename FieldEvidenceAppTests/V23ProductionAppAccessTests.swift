@@ -612,8 +612,14 @@ final class V23ProductionAppAccessTests: XCTestCase {
         let control = try AppLockNotificationControlStoreV1(
             applicationSupportURL: support, preferences: preferences)
 
+        XCTAssertNil(try preferences.readStoredReminderPolicy())
+
         let enabled = try await session.lifecycle.enable(operationID: UUID())
         XCTAssertTrue(enabled.enabled)
+        let initialPolicy = try XCTUnwrap(preferences.readStoredReminderPolicy())
+        XCTAssertFalse(initialPolicy.isEnabled)
+        XCTAssertEqual(initialPolicy.detail, .generic)
+        XCTAssertEqual(initialPolicy.revision, 1)
         let enabledControl = try XCTUnwrap(control.loadControl())
         XCTAssertEqual(enabledControl.phase, .settingCommitted)
         XCTAssertEqual(try preferences.readAppLockSettingSnapshot(), enabledControl.settingWrite.successor)
@@ -635,6 +641,21 @@ final class V23ProductionAppAccessTests: XCTestCase {
         let disabledState = await reopenedDisabled.gate.currentState()
         XCTAssertEqual(disabledState, .disabled)
         XCTAssertEqual(try control.loadControl(), disabledControl)
+        XCTAssertEqual(try preferences.readStoredReminderPolicy(), initialPolicy)
+
+        // A missing policy after a real completed configuration is not a
+        // fresh-install default, and must not be silently recreated.
+        defaults.removeObject(forKey: PreferencesAdapterV1.storagePrefix + DeviceLocalReminderPolicyV1.key)
+        do {
+            _ = try await session.lifecycle.enable(operationID: UUID())
+            XCTFail("Expected missing established reminder policy to deny enable")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired)
+        }
+        XCTAssertNil(try preferences.readStoredReminderPolicy())
+        XCTAssertEqual(try control.loadControl(), disabledControl)
+        let remainingRequests = try await system.observations()
+        XCTAssertTrue(remainingRequests.isEmpty)
     }
 
     @MainActor

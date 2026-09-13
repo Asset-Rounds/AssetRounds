@@ -18,6 +18,9 @@ final class ProductionMyDayPlanningEditorStateV1: ObservableObject, Identifiable
     private var invalidated = false
     private(set) var isBusy = false
     private(set) var errorMessage: String?
+    #if DEBUG
+    private(set) var lastOperationFailureForTesting: String?
+    #endif
     private(set) var context: MyDayPlanningContextSnapshotV1?
     private(set) var checkpoints: [FieldDraftCheckpointV1] = []
     private(set) var sources: MyDaySourceSnapshotV1?
@@ -994,12 +997,18 @@ final class ProductionMyDayPlanningEditorStateV1: ObservableObject, Identifiable
                 operationID = operation
                 isBusy = true
                 errorMessage = nil
+                #if DEBUG
+                lastOperationFailureForTesting = nil
+                #endif
             }
             try await body(operation)
             try Task.checkCancellation()
             try publish(operation) { isBusy = false }
             return true
         } catch {
+            #if DEBUG
+            lastOperationFailureForTesting = String(reflecting: error)
+            #endif
             do {
                 try publish(operation) { isBusy = false; errorMessage = failure }
             } catch {
