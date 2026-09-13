@@ -355,7 +355,7 @@ class WorkflowWiringTests(unittest.TestCase):
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         groups = [CI.resolve_selection(default, mapping, group["id"])
                   for group in mapping["groups"]]
-        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 291)
+        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 298)
         self.assertEqual({item for group in groups for item in group["unitTestSelectors"]},
                          set(default["unitTestSelectors"]))
         self.assertEqual(CI.resolve_selection(default, mapping, CI.DEFAULT_SELECTION_ID), default)
@@ -388,7 +388,7 @@ class WorkflowWiringTests(unittest.TestCase):
                          "E8F942EDCE2B513FFC66A01BF5D7003FDD885CD8B1F9EDF7F6D38426E1031400")
         historical_groups = copy.deepcopy(mapping["groups"][:15])
         owner = next(group for group in historical_groups if group["id"] == "notification-owner")
-        self.assertEqual(owner["methodCount"], 70)
+        self.assertEqual(owner["methodCount"], 75)
         owner["methodCount"] = 63
         generation = next(group for group in historical_groups
                           if group["id"] == "generation-leases-migration")
@@ -418,12 +418,12 @@ class WorkflowWiringTests(unittest.TestCase):
         selected = CI.resolve_selection(default, mapping, "mutation-command-codec")
         names = ['testV10_02G01CanonicalEnvelopeReceiptBytesAndAtomicCommit', 'testCanonicalWorkAuthorityRoundTripsAndRequiresOriginalV53Source', 'testCanonicalWorkImportRejectsResealedEnvelopeAndUnchangedSourceRevisionForgery', 'testCanonicalWorkRejectsHostileCommandAndAuthorityBytes', 'testFinalizationLegacyEnvelopeAndSchemaOneIntentRoundTripWithoutWriterBinding', 'testFinalizationSchemaTwoAdmitsMigratedBaselineAndRejectsHostileBindings', 'testReviewedDraftEnvelopeRetainsExactPortableLocksAndCanonicalBytes', 'testMutationEnvelopeByteGateRejectsOversizeBeforeDecodeAndAdmitsBoundaryToDecoder', 'testFinalizationInspectionBindingPreservesAbsentBytesAndRejectsHostileCoding', 'testWorkspaceCommandDecoderDispatchesEveryCaseAndRejectsHostileGrammar', 'testFinalizationCorrectionBindingPreservesCanonicalDecodeAndEncoderReentry']
         expected = ["FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/" + name for name in names]
-        self.assertEqual(selected["unitTestSelectors"], expected)
+        self.assertEqual(selected["unitTestSelectors"][:11], expected)
         self.assertEqual(default["unitTestSelectors"][271:282], expected)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:271])), "FEDC559AC2140B8C69C4B37F09E921FCDB60292263969A5E65558AE647647DC5")
         original_groups = copy.deepcopy(mapping["groups"][:16])
         owner = next(group for group in original_groups if group["id"] == "notification-owner")
-        self.assertEqual(owner["methodCount"], 70)
+        self.assertEqual(owner["methodCount"], 75)
         owner["methodCount"] = 63
         app = next(group for group in original_groups if group["id"] == "app-myday-production")
         self.assertEqual(app["methodCount"], 13)
@@ -443,16 +443,21 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertEqual(default["unitTestSelectors"][282:287], appended)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:282])), "28FC5CB6FBA869E43A6BEB6F7080486039AA07DF56AFE1729B146F2E4A02F620")
         selected = CI.resolve_selection(default, mapping, "notification-owner")
-        self.assertEqual(len(selected["unitTestSelectors"]), 70)
+        self.assertEqual(len(selected["unitTestSelectors"]), 75)
         self.assertEqual(selected["unitTestSelectors"][63:68], appended)
         self.assertEqual(CI.sha256(CI.canonical(selected["unitTestSelectors"][:63])), "778C7B884583C58410EAC2DA4CC6D462824F01E8AAD72B6E218B0A606509FC4B")
         original_groups = copy.deepcopy(mapping["groups"])
         owner = next(group for group in original_groups if group["id"] == "notification-owner")
-        self.assertEqual(owner["methodCount"], 70)
+        self.assertEqual(owner["methodCount"], 75)
         owner["methodCount"] = 63
         app = next(group for group in original_groups if group["id"] == "app-myday-production")
         self.assertEqual(app["methodCount"], 13)
         app["methodCount"] = 11
+        codec = next(group for group in original_groups if group["id"] == "mutation-command-codec")
+        self.assertEqual(codec["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests"])
+        self.assertEqual(codec["methodCount"], 13)
+        codec["classes"] = ["V10_02MutationEnvelopeReceiptTests"]
+        codec["methodCount"] = 11
         self.assertEqual(CI.sha256(CI.canonical(original_groups)), "BE3B0FDB49FA19ADF3B3ADDED0CE809B9C6961F36180D1C416C5BEB551E0C027")
         for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
             self.assertEqual(selected[key], default[key])
@@ -464,20 +469,53 @@ class WorkflowWiringTests(unittest.TestCase):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         appended = ['FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterQuantizesFractionalCommitClockAndReplaysExactJournalTime', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterRejectsInvalidCommitClockBeforeAnyCanonicalEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressInitialAdmissionSnapshotUsesFixedControlInventories', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFinalInventoryRejectsLateUnrelatedControlAndPreservesExistingReadyIntent']
-        self.assertEqual(default["unitTestSelectors"][287:], appended)
+        self.assertEqual(default["unitTestSelectors"][287:291], appended)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:287])), "89A305B5914EA4747B0FF7D992BF976BF99B6A4B502419A2B020079DDDBDE29E")
         original_groups = copy.deepcopy(mapping["groups"])
         for group_id, old_count, suffix in (("app-myday-production", 11, appended[:2]),
                                             ("notification-owner", 68, appended[2:])):
             group = next(item for item in original_groups if item["id"] == group_id)
-            self.assertEqual(group["methodCount"], old_count + 2)
+            self.assertEqual(group["methodCount"], old_count + (7 if group_id == "notification-owner" else 2))
             group["methodCount"] = old_count
             selected = CI.resolve_selection(default, mapping, group_id)
             original = [item for item in default["unitTestSelectors"][:287]
                         if CI.selection_class(item) in group["classes"]]
+            self.assertEqual(selected["unitTestSelectors"][:old_count + 2], original + suffix)
+            self.assertEqual(len(original), old_count)
+        codec = next(group for group in original_groups if group["id"] == "mutation-command-codec")
+        self.assertEqual(codec["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests"])
+        self.assertEqual(codec["methodCount"], 13)
+        codec["classes"] = ["V10_02MutationEnvelopeReceiptTests"]
+        codec["methodCount"] = 11
+        self.assertEqual(CI.sha256(CI.canonical(original_groups)), "7FC16500C4791E32D5869140D6B86E08E4ACF514F0CE4920A91205D9ED810FBB")
+        for selector in appended:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def test_first_sign_and_unpublished_recovery_extend_exact_f4_pool(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        appended = ['FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignQuantizesGeneratedClockAndColdReplayPreservesExactBytes', 'FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignRejectsInvalidGeneratedClockWithoutCanonicalEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressMissingClaimedDirectoryWithoutEraseRecordRemainsDenied', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressInterruptedUnpublishedEraseRejectsReplacementOriginalDirectory', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressMalformedUnrelatedControlBlocksResumedEraseBeforeFirstEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressChangedFrozenPublicationBlocksBeforeUnpublishedEraseEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFrozenMismatchPreflightDoesNotSettleEarlierRecoverableStates']
+        self.assertEqual(default["unitTestSelectors"][291:], appended)
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:291])), "F3207A7DE463625F01D239D2F2AAE394F31880AB12A2E089C3881FF46B6AC0CA")
+        self.assertEqual(CI.sha256(CI.canonical({k: v for k, v in default.items() if k != "unitTestSelectors"})), "B13327745368CB0A522E9C3DFE13A99F555F686C7D35B11C1E0B4EE1FBAE0555")
+        original_mapping = copy.deepcopy(mapping)
+        for group_id, old_count, suffix in (("mutation-command-codec", 11, appended[:2]),
+                                            ("notification-owner", 70, appended[2:])):
+            group = next(item for item in original_mapping["groups"] if item["id"] == group_id)
+            self.assertEqual(group["methodCount"], old_count + len(suffix))
+            selected = CI.resolve_selection(default, mapping, group_id)
+            original = [item for item in default["unitTestSelectors"][:291]
+                        if CI.selection_class(item) in group["classes"]]
             self.assertEqual(selected["unitTestSelectors"], original + suffix)
             self.assertEqual(len(original), old_count)
-        self.assertEqual(CI.sha256(CI.canonical(original_groups)), "7FC16500C4791E32D5869140D6B86E08E4ACF514F0CE4920A91205D9ED810FBB")
+            group["methodCount"] = old_count
+            if group_id == "mutation-command-codec":
+                self.assertEqual(group["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests"])
+                group["classes"] = ["V10_02MutationEnvelopeReceiptTests"]
+        self.assertEqual(CI.sha256(CI.canonical(original_mapping)), "4D2BB00E3151DE86EF6C2033A4951974E47E5043692F8CACE385DE5BA100904F")
+        self.assertEqual(len(mapping["groups"]), 17)
         for selector in appended:
             bundle, klass, method = selector.split("/")
             source = (ROOT / bundle / (klass + ".swift")).read_text()

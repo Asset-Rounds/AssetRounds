@@ -1157,6 +1157,212 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: sentinel), Data("preserve".utf8))
     }
 
+    func testPhysicalIngressMissingClaimedDirectoryWithoutEraseRecordRemainsDenied() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        do {
+            _ = try await fixture.effects(failure: .afterClaim)
+                .stageContentBlindEffect(request, source: fixture.source)
+            XCTFail("claim interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let claimedDirectory = fixture.payload(request).deletingLastPathComponent()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: claimedDirectory.path))
+        try FileManager.default.removeItem(at: claimedDirectory)
+        let controlBefore = try fixture.fileBytes(in: fixture.controlRoot)
+        do {
+            _ = try await fixture.effects().loadPendingIntentsEffect()
+            XCTFail("ordinary pending load accepted an unrecorded missing claimed directory")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .configurationUnknown) }
+        do {
+            try await fixture.effects().erasePendingIntentsEffect(operationID: UUID())
+            XCTFail("a new erase accepted an unrecorded missing claimed directory")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .configurationUnknown) }
+        XCTAssertEqual(try fixture.fileBytes(in: fixture.controlRoot), controlBefore)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: claimedDirectory.path))
+    }
+
+    func testPhysicalIngressInterruptedUnpublishedEraseRejectsReplacementOriginalDirectory() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let request = fixture.request()
+        do {
+            _ = try await fixture.effects(failure: .afterOpaqueCopy)
+                .stageContentBlindEffect(request, source: fixture.source)
+            XCTFail("opaque-copy interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let operationID = UUID()
+        do {
+            try await fixture.effects(failure: .afterUnpublishedRemoval)
+                .erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("unpublished deletion interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let originalDirectory = fixture.payload(request).deletingLastPathComponent()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: originalDirectory.path))
+        try FileManager.default.createDirectory(at: originalDirectory, withIntermediateDirectories: false)
+        let sentinel = originalDirectory.appendingPathComponent("later-owner")
+        let sentinelBytes = Data("preserve replacement".utf8)
+        try sentinelBytes.write(to: sentinel)
+        let controlBefore = try fixture.fileBytes(in: fixture.controlRoot)
+        do {
+            try await fixture.effects().erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("resumed erase accepted a replacement at the removed original directory name")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .configurationUnknown) }
+        XCTAssertEqual(try Data(contentsOf: sentinel), sentinelBytes)
+        XCTAssertEqual(try fixture.fileBytes(in: fixture.controlRoot), controlBefore)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.controlRoot
+            .appendingPathComponent("ingress-" + request.intentID.uuidString.lowercased() + ".aborted.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.controlRoot
+            .appendingPathComponent("erase-" + operationID.uuidString.lowercased() + ".complete.json").path))
+    }
+
+    func testPhysicalIngressMalformedUnrelatedControlBlocksResumedEraseBeforeFirstEffect() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let frozenRequest = fixture.request()
+        do {
+            _ = try await fixture.effects(failure: .afterOpaqueCopy)
+                .stageContentBlindEffect(frozenRequest, source: fixture.source)
+            XCTFail("opaque-copy interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let operationID = UUID()
+        do {
+            try await fixture.effects(failure: .afterErasePrepare)
+                .erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("erase preparation interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let laterRequest = fixture.request()
+        let later = try await fixture.effects().stageContentBlindEffect(laterRequest, source: fixture.source)
+        let malformed = fixture.controlRoot.appendingPathComponent("unrelated-malformed-control")
+        let malformedBytes = Data("retain hostile control".utf8)
+        try malformedBytes.write(to: malformed)
+        let controlBefore = try fixture.fileBytes(in: fixture.controlRoot)
+        do {
+            try await fixture.effects().erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("resumed erase performed effects before rejecting unrelated malformed control")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .configurationUnknown) }
+        XCTAssertEqual(try fixture.fileBytes(in: fixture.controlRoot), controlBefore)
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(frozenRequest)), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(laterRequest)), fixture.bytes)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.controlRoot
+            .appendingPathComponent("ingress-" + frozenRequest.intentID.uuidString.lowercased() + ".aborted.json").path))
+        try FileManager.default.removeItem(at: malformed)
+        try await fixture.effects().erasePendingIntentsEffect(operationID: operationID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.payload(frozenRequest)
+            .deletingLastPathComponent().path))
+        let retained = try await fixture.effects().loadPendingIntentsEffect()
+        XCTAssertEqual(retained, [later])
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(laterRequest)), fixture.bytes)
+    }
+
+    func testPhysicalIngressChangedFrozenPublicationBlocksBeforeUnpublishedEraseEffect() async throws {
+        let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+        defer { fixture.remove() }
+        let unpublishedRequest = fixture.request()
+        do {
+            _ = try await fixture.effects(failure: .afterOpaqueCopy)
+                .stageContentBlindEffect(unpublishedRequest, source: fixture.source)
+            XCTFail("opaque-copy interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let publishedRequest = fixture.request()
+        let effects = try fixture.effects()
+        let staged = try await effects.stageContentBlindEffect(publishedRequest, source: fixture.source)
+        let operationID = UUID()
+        do {
+            try await fixture.effects(failure: .afterErasePrepare)
+                .erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("erase preparation interruption was not reached")
+        } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+        let ready = try staged.advancing(to: .readyForAuthenticatedValidation)
+        try await effects.replacePendingIntentEffect(expected: staged, replacement: ready)
+        let controlBefore = try fixture.fileBytes(in: fixture.controlRoot)
+        do {
+            try await fixture.effects().erasePendingIntentsEffect(operationID: operationID)
+            XCTFail("resumed erase removed an unpublished sibling before rejecting a changed frozen publication")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+        XCTAssertEqual(try fixture.fileBytes(in: fixture.controlRoot), controlBefore)
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(unpublishedRequest)), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: fixture.payload(publishedRequest)), fixture.bytes)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.controlRoot
+            .appendingPathComponent("ingress-" + unpublishedRequest.intentID.uuidString.lowercased() + ".aborted.json").path))
+        let pending = try await fixture.effects().loadPendingIntentsEffect()
+        XCTAssertEqual(pending, [ready])
+    }
+
+    func testPhysicalIngressFrozenMismatchPreflightDoesNotSettleEarlierRecoverableStates() async throws {
+        do {
+            let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+            defer { fixture.remove() }
+            let earlierID = try XCTUnwrap(UUID(uuidString: "10000000-0000-4000-8000-000000000001"))
+            let laterID = try XCTUnwrap(UUID(uuidString: "f0000000-0000-4000-8000-000000000002"))
+            let earlierRequest = ProtectedIngressStageRequestV1(intentID: earlierID, operationID: UUID(), kind: .document,
+                byteCount: UInt64(fixture.bytes.count), receivedAt: fixture.now,
+                expiresAt: fixture.now.addingTimeInterval(3_600))
+            let laterRequest = ProtectedIngressStageRequestV1(intentID: laterID, operationID: UUID(), kind: .document,
+                byteCount: UInt64(fixture.bytes.count), receivedAt: fixture.now,
+                expiresAt: fixture.now.addingTimeInterval(3_600))
+            let effects = try fixture.effects()
+            let earlier = try await effects.stageContentBlindEffect(earlierRequest, source: fixture.source)
+            let later = try await effects.stageContentBlindEffect(laterRequest, source: fixture.source)
+            let operationID = UUID()
+            do {
+                try await fixture.effects(failure: .afterErasePrepare)
+                    .erasePendingIntentsEffect(operationID: operationID)
+                XCTFail("erase preparation interruption was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let laterReady = try later.advancing(to: .readyForAuthenticatedValidation)
+            try await effects.replacePendingIntentEffect(expected: later, replacement: laterReady)
+            do {
+                try await fixture.effects(failure: .afterRemovalPrepare)
+                    .removePendingIntentEffect(expected: earlier, disposition: .erased)
+                XCTFail("terminal preparation interruption was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let controlBefore = try fixture.fileBytes(in: fixture.controlRoot)
+            do {
+                try await fixture.effects().erasePendingIntentsEffect(operationID: operationID)
+                XCTFail("later frozen mismatch was not rejected after read-only terminal admission")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+            XCTAssertEqual(try fixture.fileBytes(in: fixture.controlRoot), controlBefore)
+            XCTAssertEqual(try Data(contentsOf: fixture.payload(earlierRequest)), fixture.bytes)
+            XCTAssertEqual(try Data(contentsOf: fixture.payload(laterRequest)), fixture.bytes)
+        }
+        do {
+            let fixture = try C16PhysicalIngressFixture(byteCount: 64)
+            defer { fixture.remove() }
+            let earlierID = try XCTUnwrap(UUID(uuidString: "10000000-0000-4000-8000-000000000003"))
+            let laterID = try XCTUnwrap(UUID(uuidString: "f0000000-0000-4000-8000-000000000004"))
+            let earlierRequest = ProtectedIngressStageRequestV1(intentID: earlierID, operationID: UUID(), kind: .document,
+                byteCount: UInt64(fixture.bytes.count), receivedAt: fixture.now,
+                expiresAt: fixture.now.addingTimeInterval(3_600))
+            let laterRequest = ProtectedIngressStageRequestV1(intentID: laterID, operationID: UUID(), kind: .document,
+                byteCount: UInt64(fixture.bytes.count), receivedAt: fixture.now,
+                expiresAt: fixture.now.addingTimeInterval(3_600))
+            let effects = try fixture.effects()
+            _ = try await effects.stageContentBlindEffect(earlierRequest, source: fixture.source)
+            let later = try await effects.stageContentBlindEffect(laterRequest, source: fixture.source)
+            let operationID = UUID()
+            do {
+                try await fixture.effects(failure: .afterErasePrepare)
+                    .erasePendingIntentsEffect(operationID: operationID)
+                XCTFail("erase preparation interruption was not reached")
+            } catch { XCTAssertEqual(error as? OwnedStorageLedgerFailureV1, .attemptCollision) }
+            let laterReady = try later.advancing(to: .readyForAuthenticatedValidation)
+            try await effects.replacePendingIntentEffect(expected: later, replacement: laterReady)
+            let earlierPending = fixture.controlRoot.appendingPathComponent(
+                "ingress-" + earlierID.uuidString.lowercased() + ".pending.json")
+            try FileManager.default.removeItem(at: earlierPending)
+            let controlBefore = try fixture.fileBytes(in: fixture.controlRoot)
+            do {
+                try await fixture.effects().erasePendingIntentsEffect(operationID: operationID)
+                XCTFail("later frozen mismatch was not rejected after read-only publication admission")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .effectMismatch) }
+            XCTAssertEqual(try fixture.fileBytes(in: fixture.controlRoot), controlBefore)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: earlierPending.path))
+            XCTAssertEqual(try Data(contentsOf: fixture.payload(earlierRequest)), fixture.bytes)
+            XCTAssertEqual(try Data(contentsOf: fixture.payload(laterRequest)), fixture.bytes)
+        }
+    }
+
     func testPhysicalIngressRecognizesOnlyCompletedHygieneForExpiredPublication() async throws {
         let fixture = try C16PhysicalIngressFixture(byteCount: 64)
         defer { fixture.remove() }

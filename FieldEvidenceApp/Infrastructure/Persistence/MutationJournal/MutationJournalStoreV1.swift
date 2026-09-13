@@ -281,6 +281,9 @@ final class MutationJournalStoreV1 {
     }
 
     private let modelContext: ModelContext
+#if DEBUG
+    private var debugValidationPhaseV1: String?
+#endif
     /// Exposed only to the opaque same-file proof; no caller receives the context.
     fileprivate var proofContext: ModelContext { modelContext }
     private let identity: WorkspaceReplicaIdentityV1
@@ -4285,10 +4288,24 @@ final class MutationJournalStoreV1 {
     }
 
     func validateAll() throws {
+#if DEBUG
+        debugValidationPhaseV1 = "entry"
+        defer { debugValidationPhaseV1 = nil }
+        do {
+            _ = try validateAll(
+                release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                historicalAuthority: nil
+            )
+        } catch {
+            print("V23 journal validation failure phase=\(debugValidationPhaseV1 ?? "unknown") errorType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+            throw error
+        }
+#else
         _ = try validateAll(
             release: PersistentSchemaReleaseRegistryV1.activeRelease,
             historicalAuthority: nil
         )
+#endif
     }
 
     private func validateAll(
@@ -4324,7 +4341,16 @@ final class MutationJournalStoreV1 {
         var rowsByMutation: [String: MutationReceiptRow] = [:]
         var assistanceMutationKeys = Set<String>()
         for row in rows {
+#if DEBUG
+            if debugValidationPhaseV1 != nil {
+                let kind = WorkspaceCommandKindV1(rawValue: row.commandKind)?.rawValue ?? "unknown"
+                debugValidationPhaseV1 = "receipt-row:\(kind):\(row.mutationID.uuidString.lowercased())"
+            }
+#endif
             let receipt = try validate(row: row, expectedEnvelope: nil, release: release)
+#if DEBUG
+            if debugValidationPhaseV1 != nil { debugValidationPhaseV1 = "receipt-collection-invariants" }
+#endif
             guard identities.insert(row.receiptIdentity).inserted,
                   mutations.insert(row.workspaceMutationKey).inserted else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -4373,6 +4399,9 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
+#if DEBUG
+        if debugValidationPhaseV1 != nil { debugValidationPhaseV1 = "inter-receipt-history" }
+#endif
         var assistanceReceiptMutationKeys = Set<String>()
         if releaseVersion >= 32 {
             let assistanceRows = try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>())
@@ -4460,12 +4489,18 @@ final class MutationJournalStoreV1 {
               try domainRevision(state.workspaceRevision) >= maximumWorkspaceRevision else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+#if DEBUG
+        if debugValidationPhaseV1 != nil { debugValidationPhaseV1 = "mutable-checkpoint" }
+#endif
         if let checkpoint = state.mutableSemanticSHA256 {
             guard MutationEnvelopeV1.isSHA256(checkpoint) else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let releasedCheckpoint = try mutableSemanticSHA256(release: release)
             if checkpoint != releasedCheckpoint {
+#if DEBUG
+                if debugValidationPhaseV1 != nil { debugValidationPhaseV1 = "mutable-checkpoint:equal=false" }
+#endif
                 guard releaseVersion >= 10,
                       let historicalAuthority,
                       releasedCheckpoint == (try mutableSemanticSHA256(release: .v10)),
@@ -4477,6 +4512,9 @@ final class MutationJournalStoreV1 {
         } else if releaseVersion >= 8 {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+#if DEBUG
+        if debugValidationPhaseV1 != nil { debugValidationPhaseV1 = "terminal-frontier" }
+#endif
         var balanceStreamFrontier: [WorkspaceEntityIdentityV1: UInt64] = [:]
         let orderedReceipts = receiptsByMutation.values.filter {
             $0.identity.workspaceID == identity.workspaceID
@@ -4549,6 +4587,9 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
+#if DEBUG
+        if debugValidationPhaseV1 != nil { debugValidationPhaseV1 = "terminal-rows" }
+#endif
         return try validateTerminalRows(
             revisionRows: revisionRows,
             revisionIdentities: revisionIdentities,
@@ -5951,7 +5992,15 @@ final class MutationJournalStoreV1 {
         guard Self.minimumPersistentSchemaVersion(for: envelope.command) <= releaseVersion else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+#if DEBUG
+        if debugValidationPhaseV1 != nil {
+            debugValidationPhaseV1 = "finalization-envelope:\(envelope.commandKind.rawValue):\(row.mutationID.uuidString.lowercased())"
+        }
+#endif
         try Self.validateFinalizationAndPDFEnvelope(envelope)
+#if DEBUG
+        if debugValidationPhaseV1 != nil { debugValidationPhaseV1 = "receipt-command-references:\(envelope.commandKind.rawValue)" }
+#endif
         if case let .applySurveySession(mutation) = envelope.command {
             try validateSurveySessionReferences(mutation)
         }
@@ -5981,7 +6030,15 @@ final class MutationJournalStoreV1 {
         if case let .applyFastSurveyInbox(mutation)=envelope.command{try mutation.validate()}
         if case let .applyReinspectionException(mutation)=envelope.command{try mutation.validate()}
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
+#if DEBUG
+        if debugValidationPhaseV1 != nil {
+            debugValidationPhaseV1 = "finalization-receipt:\(envelope.commandKind.rawValue):\(row.mutationID.uuidString.lowercased())"
+        }
+#endif
         try Self.validateFinalizationReceipt(receipt, envelope: envelope)
+#if DEBUG
+        if debugValidationPhaseV1 != nil { debugValidationPhaseV1 = "receipt-invariants:\(envelope.commandKind.rawValue)" }
+#endif
         try Self.validateReportPDFReceipt(receipt, envelope: envelope)
         try Self.validateWorkReceipt(receipt, envelope: envelope)
         let receiptIdentities = receipt.expectedRevision.entityRevisions.map(\.identity)

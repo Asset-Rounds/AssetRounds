@@ -1446,6 +1446,10 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
             diagnosticsStore: diagnosticsStore
         )
         do {
+#if DEBUG
+            workCanonicalFixturePhaseV1("validate-opening-history")
+            _ = try opening.lifecycleDependencies.writer.sourceMutationHistorySnapshot()
+#endif
             workCanonicalFixturePhaseV1("work-coordinator")
             let workCoordinator = try WorkCoordinator(
                 modelContext: opening.context,
@@ -1456,6 +1460,10 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
             )
             workCanonicalFixturePhaseV1("begin-work")
             let draft = try workCoordinator.beginWork(issueID: opening.issueID)
+#if DEBUG
+            workCanonicalFixturePhaseV1("validate-post-begin-work-history")
+            _ = try opening.lifecycleDependencies.writer.sourceMutationHistorySnapshot()
+#endif
             let workSubmission = WorkSaveSubmission(
                 performedLocalDate: workPerformedLocalDate,
                 description: workDescription,

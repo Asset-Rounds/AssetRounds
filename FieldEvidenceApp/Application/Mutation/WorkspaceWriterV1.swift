@@ -1862,15 +1862,25 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         }
 
         let occurredAt: Date
+        let normalizesGeneratedPlacementTime = request.command.kind == .createFirstSign
+            && envelope.sourceKind == .localUser
         if occurredAtOverride == nil, sourceKind != .importedHistory,
-           case .applyMyDay = request.command {
-            // The canonical My Day receipt requires millisecond precision.
-            // Freeze that same instant before persistence so its result and
-            // every replay retain the exact journal timestamp.
+           request.command.kind == .applyMyDay || normalizesGeneratedPlacementTime {
+            // My Day receipts and newly generated First Sign placement rows
+            // must retain one exact instant across canonical bytes and scalar
+            // readback. Freeze that precision before any persistence effect.
             let milliseconds = (clock.now().timeIntervalSince1970 * 1_000)
                 .rounded(.toNearestOrAwayFromZero)
             occurredAt = Date(timeIntervalSince1970: milliseconds / 1_000)
-            try MyDayLimitsV1.millisecondInstant(occurredAt)
+            if case .applyMyDay = request.command {
+                try MyDayLimitsV1.millisecondInstant(occurredAt)
+            } else {
+                guard milliseconds.isFinite,
+                      abs(milliseconds) <= 9_007_199_254_740_991.0,
+                      occurredAt.timeIntervalSinceReferenceDate.isFinite else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
         } else {
             occurredAt = occurredAtOverride ?? clock.now()
         }
