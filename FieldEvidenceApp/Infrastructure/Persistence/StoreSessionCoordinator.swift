@@ -198,6 +198,15 @@ final class StoreSessionCoordinator: ObservableObject {
         ProductionMyDaySourceProviderV1(session: self, accessGate: accessGate)
     }
 
+    /// The planning executor shares this session's existing clock, ID source
+    /// and writer identity. It acquires no context or access at construction.
+    func makeMyDayPlanningCommitService(
+        sourceProvider: ProductionMyDaySourceProviderV1
+    ) -> ProductionMyDayPlanningCommitServiceV1 {
+        ProductionMyDayPlanningCommitServiceV1(session: self, sourceProvider: sourceProvider,
+            clock: clock, idSource: idSource)
+    }
+
     /// Assessed round reads use this session's clock and exact generation root.
     /// The caller supplies the existing ledger so active reservations are not
     /// lost in a separate, empty admission ledger. Construction grants no access.

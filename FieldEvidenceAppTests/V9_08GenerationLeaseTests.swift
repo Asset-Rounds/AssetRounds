@@ -1584,6 +1584,148 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         XCTAssertTrue(relaunchReceipt.prunedEpochs.isEmpty)
     }
 
+    func testReplacementLocationHistoryRetainsCurrentSchemaValidationAndRejectsInvalidReferences() throws {
+        let siteID = makeUUID(2_350)
+        let assetID = makeUUID(2_351)
+        let placementID = makeUUID(2_352)
+        let workspaceID = WorkspaceID(rawValue: makeUUID(2_353))
+        let mutationID = try MutationIDV1(rawValue: makeUUID(2_354))
+        let episodeID = try PhysicalPlacementEpisodeIDV1(rawValue: makeUUID(2_355))
+        let date = Date(timeIntervalSinceReferenceDate: 900_000)
+
+        func records(
+            schema: Int,
+            assetSiteID: UUID,
+            placementAssetID: UUID
+        ) throws -> V4BackupRecordsV1 {
+            let path = try LocationPathSnapshotV1(
+                siteID: siteID,
+                siteDisplay: "Replacement site",
+                nodes: []
+            )
+            let placement = try AssetPlacementEventV1(
+                id: placementID,
+                workspaceID: workspaceID,
+                assetID: placementAssetID,
+                siteID: siteID,
+                locationNodeID: nil,
+                predecessorEventID: nil,
+                source: .migratedBaseline,
+                physicalEpisodeID: episodeID,
+                continuity: .samePhysicalInstallation,
+                pathSnapshot: path,
+                mutationID: mutationID,
+                occurredAt: date
+            )
+            let placementRecord = V5BackupLocationRecordV1(
+                id: placement.id,
+                canonicalData: try LocationPersistenceCodecV1.encode(placement)
+            )
+            return V4BackupRecordsV1(
+                assetPlacementEvents: [placementRecord],
+                assets: [.init(
+                    id: assetID,
+                    schemaVersion: 1,
+                    siteID: assetSiteID,
+                    packID: SignPack.illuminatedSignV1.packID,
+                    packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                    packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                    label: "Replacement asset",
+                    createdAt: date,
+                    updatedAt: date
+                )],
+                deletionLedger: .empty,
+                evidenceFiles: [],
+                issues: [],
+                mutationHistory: .init(
+                    workspaceRevision: 0,
+                    lastLocalSequence: 0,
+                    receipts: [],
+                    quarantines: [],
+                    entityRevisions: []
+                ),
+                packets: [],
+                recordsSchemaVersion: schema,
+                reports: [],
+                sites: [.init(
+                    id: siteID,
+                    schemaVersion: 1,
+                    label: "Replacement site",
+                    address: nil,
+                    timeZoneID: "UTC",
+                    createdAt: date,
+                    updatedAt: date
+                )],
+                workflowRecords: []
+            )
+        }
+
+        for schema in [24, 25] {
+            let valid = try records(
+                schema: schema,
+                assetSiteID: siteID,
+                placementAssetID: assetID
+            )
+            let plan = try ReplacementRestoreRule.makeDeletionWinningPlan(
+                .init(
+                    currentRecords: valid,
+                    incomingRecords: valid,
+                    mode: .replaceExisting,
+                    replacementAt: date
+                )
+            )
+            XCTAssertEqual(plan.recordsAfter.assetPlacementEvents, valid.assetPlacementEvents)
+        }
+
+        let orphanAsset = try records(
+            schema: 25,
+            assetSiteID: makeUUID(2_356),
+            placementAssetID: assetID
+        )
+        XCTAssertThrowsError(try ReplacementRestoreRule.makeDeletionWinningPlan(
+            .init(
+                currentRecords: orphanAsset,
+                incomingRecords: orphanAsset,
+                mode: .replaceExisting,
+                replacementAt: date
+            )
+        )) {
+            XCTAssertEqual($0 as? ReplacementRestoreRuleError, .invalidAuthority)
+        }
+
+        let orphanPlacement = try records(
+            schema: 25,
+            assetSiteID: siteID,
+            placementAssetID: makeUUID(2_357)
+        )
+        XCTAssertThrowsError(try ReplacementRestoreRule.makeDeletionWinningPlan(
+            .init(
+                currentRecords: orphanPlacement,
+                incomingRecords: orphanPlacement,
+                mode: .replaceExisting,
+                replacementAt: date
+            )
+        )) {
+            XCTAssertEqual($0 as? ReplacementRestoreRuleError, .invalidAuthority)
+        }
+
+        let futureSchema = try records(
+            schema: LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion + 1,
+            assetSiteID: siteID,
+            placementAssetID: assetID
+        )
+        XCTAssertThrowsError(try ReplacementRestoreRule.makeDeletionWinningPlan(
+            .init(
+                currentRecords: futureSchema,
+                incomingRecords: futureSchema,
+                mode: .replaceExisting,
+                replacementAt: date
+            )
+        )) {
+            XCTAssertEqual($0 as? ReplacementRestoreRuleError, .invalidAuthority)
+        }
+    }
+
     @MainActor
     func testV9_08R01BackupReplaceRestoreAndRelaunchReconciliation() async throws {
         var diagnosticBoundary = "fixture-directories"
@@ -1828,6 +1970,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         )
         XCTAssertEqual(validated.records.recordsSchemaVersion,
                        LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+        XCTAssertFalse(validated.records.assetPlacementEvents.isEmpty)
         XCTAssertEqual(validated.manifest.source.persistentSchemaVersion,
                        LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)
         let originalManifestURL = validated.stagedPackageURL.appendingPathComponent("manifest.json")
@@ -2008,6 +2151,25 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             storagePreflight: makeUnlimitedStoragePreflight(),
             now: { Date(timeIntervalSinceReferenceDate: 900_030) },
             makeUUID: { restoreUUIDs.next() }
+        )
+        let currentRecords = try restoreService.records(in: destination.modelContext)
+        XCTAssertEqual(
+            currentRecords.recordsSchemaVersion,
+            LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
+        )
+        XCTAssertFalse(currentRecords.assetPlacementEvents.isEmpty)
+        let directPlan = try ReplacementRestoreRule.makeDeletionWinningPlan(
+            DeletionWinningRestoreInputV2(
+                currentRecords: currentRecords,
+                currentIdentity: destination.workspaceIdentity,
+                incomingRecords: validated.records,
+                mode: .replaceExisting,
+                replacementAt: Date(timeIntervalSinceReferenceDate: 900_030)
+            )
+        )
+        XCTAssertEqual(
+            directPlan.recordsAfter.assetPlacementEvents,
+            validated.records.assetPlacementEvents
         )
         diagnosticBoundary = "restore-apply"
         var restoredSession: StoreGenerationSession? = try await restoreService.restore(

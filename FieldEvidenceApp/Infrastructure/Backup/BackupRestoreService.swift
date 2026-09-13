@@ -373,6 +373,9 @@ private struct EntityIdentityResolutionPackageResolverV1:
 
 @MainActor
 final class BackupRestoreService {
+    private struct RestoreAccessValidationFailure: Error {
+        let underlying: any Error
+    }
     private struct PortableExchangeRestoreSidecarV1: Codable, Equatable {
         static let schemaVersion = 1
 
@@ -769,6 +772,29 @@ final class BackupRestoreService {
         currentGenerationRootURL: URL,
         mode: BackupRestoreMode = .emptyInstall
     ) async throws -> StoreGenerationSession {
+        try await restore(
+            validatedPackage: validatedPackage,
+            currentModelContext: currentModelContext,
+            currentGenerationID: currentGenerationID,
+            currentGenerationRootURL: currentGenerationRootURL,
+            mode: mode,
+            validateAccess: {}
+        )
+    }
+
+    @MainActor
+    func restore(
+        validatedPackage: ValidatedV4BackupPackageV1,
+        currentModelContext: ModelContext,
+        currentGenerationID: UUID,
+        currentGenerationRootURL: URL,
+        mode: BackupRestoreMode = .emptyInstall,
+        validateAccess: @MainActor () async throws -> Void
+    ) async throws -> StoreGenerationSession {
+        // The caller's permit guards every private restore read.  Wrap its
+        // failure so the generic recovery path cannot turn an initial denial
+        // into a recovery attempt.
+        try await validateRestoreAccess(validateAccess)
         try C34SceneNavigationBackupRestoreBoundaryV1.validate()
         try Task.checkCancellation()
         guard !currentModelContext.hasChanges else {
@@ -907,6 +933,13 @@ final class BackupRestoreService {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
+        guard let replacementTimestampMilliseconds =
+                RestoreIntentV1.canonicalReplacementTimestampMilliseconds(now()),
+              let replacementAt = RestoreIntentV1.date(
+                replacementTimestampMilliseconds
+              ) else {
+            throw attributedRestoreAuthorityFailureV1(line: #line)
+        }
         var expectedRecords: V4BackupRecordsV1
         do {
             expectedRecords = try ReplacementRestoreRule.makeDeletionWinningPlan(
@@ -916,7 +949,7 @@ final class BackupRestoreService {
                     incomingRecords: validatedPackage.records,
                     incomingIdentity: incomingIdentity,
                     mode: mode,
-                    replacementAt: now()
+                    replacementAt: replacementAt
                 )
             ).recordsAfter
         } catch {
@@ -1049,7 +1082,12 @@ final class BackupRestoreService {
             }
             let lightingDayInventoryWorkflows = expectedRecords.lightingDayInventoryWorkflows
             let lightingNightWorkflows = expectedRecords.lightingNightWorkflows
-            let accessibleDocumentAssessments=try await preparedAccessibleDocumentAssessments(expectedRecords.accessibleDocumentAssessments,identityDecision:preliminaryIdentityDecision)
+            let accessibleDocumentAssessments = try await preparedAccessibleDocumentAssessments(
+                expectedRecords.accessibleDocumentAssessments,
+                identityDecision: preliminaryIdentityDecision,
+                validateAccess: validateAccess
+            )
+            try await validateRestoreAccess(validateAccess)
             expectedRecords=expectedRecords.replacingAccessibleDocumentAssessments(accessibleDocumentAssessments)
             // The incumbent C22 copy helper predates the independent C17
             // archive family. Preserve that family until materialization,
@@ -1138,7 +1176,8 @@ final class BackupRestoreService {
             if let identityDecision {
                 intent = RestoreIntentV1(
                     identity: identityDecision,
-                    restoreID: restoreID
+                    restoreID: restoreID,
+                    replacementTimestampMilliseconds: replacementTimestampMilliseconds
                 )
             } else {
                 guard mode == .emptyInstall || mode == .replaceExisting else {
@@ -1151,9 +1190,10 @@ final class BackupRestoreService {
                     oldGenerationID: currentGenerationID,
                     phase: .prepared,
                     restoreID: restoreID,
-                    schemaVersion: 1,
+                    schemaVersion: 3,
                     stagingGenerationRelativePath:
-                        "FieldEvidenceRestore/generations/\(canonical(newGenerationID))"
+                        "FieldEvidenceRestore/generations/\(canonical(newGenerationID))",
+                    replacementTimestampMilliseconds: replacementTimestampMilliseconds
                 )
             }
             guard RestoreIntentCodecV1.valid(intent) else {
@@ -1319,10 +1359,12 @@ final class BackupRestoreService {
             try await searchIndexLifecycle.dropProjection(
                 workspaceID: session.workspaceID.rawValue
             )
+            try await validateRestoreAccess(validateAccess)
             try await dropPrivateSystemDiscoveryAfterRestore(
                 restoreID: restoreID,
                 session: session
             )
+            try await validateRestoreAccess(validateAccess)
             try intentStore.remove(expected: validated)
             try removeDraftPublicationBinding(validated)
             try cleanupEmptyRestoreDirectories()
@@ -1333,11 +1375,19 @@ final class BackupRestoreService {
         } catch let error as BackupRestoreServiceError
             where error == .injectedFailure {
             throw error
+        } catch let failure as RestoreAccessValidationFailure {
+            throw failure.underlying
         } catch {
             do {
-                if let recovered = try await reconcileRestoreAndPrivateSystemDiscoveryAtStartup() {
+                try await validateRestoreAccess(validateAccess)
+                if let recovered = try await reconcileRestoreAndPrivateSystemDiscoveryAtStartup(
+                    validateAccess: validateAccess
+                ) {
+                    try await validateRestoreAccess(validateAccess)
                     return recovered
                 }
+            } catch let failure as RestoreAccessValidationFailure {
+                throw failure.underlying
             } catch let failure as ProtectedFilePolicyError
                 where failure == .protectedDataUnavailable {
                 throw failure
@@ -1389,6 +1439,15 @@ final class BackupRestoreService {
     /// StartupRouter must call this async entry point instead of the synchronous
     /// `reconcileAtStartup()` bridge.
     func reconcileRestoreAndPrivateSystemDiscoveryAtStartup() async throws -> StoreGenerationSession? {
+        try await reconcileRestoreAndPrivateSystemDiscoveryAtStartup(
+            validateAccess: {}
+        )
+    }
+
+    private func reconcileRestoreAndPrivateSystemDiscoveryAtStartup(
+        validateAccess: @MainActor () async throws -> Void
+    ) async throws -> StoreGenerationSession? {
+        try await validateRestoreAccess(validateAccess)
         guard let session = try reconcileAtStartup() else { return nil }
         guard let intent = try intentStore.load(),
               intent.phase == .newGenerationValidated,
@@ -1401,7 +1460,12 @@ final class BackupRestoreService {
             }
         }
         try await searchIndexLifecycle.dropProjection(workspaceID: session.workspaceID.rawValue)
-        try await dropPrivateSystemDiscoveryAfterRestore(restoreID: intent.restoreID, session: session)
+        try await validateRestoreAccess(validateAccess)
+        try await dropPrivateSystemDiscoveryAfterRestore(
+            restoreID: intent.restoreID,
+            session: session
+        )
+        try await validateRestoreAccess(validateAccess)
         try intentStore.remove(expected: intent)
         try removeDraftPublicationBinding(intent)
         try cleanupEmptyRestoreDirectories()
@@ -1529,7 +1593,7 @@ final class BackupRestoreService {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
-        if intent.schemaVersion == 2,
+        if intent.identity != nil,
            intent.phase == .generationInstalled,
            currentID == intent.oldGenerationID {
             guard !presence.staging,
@@ -1563,7 +1627,7 @@ final class BackupRestoreService {
         }
         if presence.installed {
             try requireNoUnexpectedInstalledBytes(id: intent.newGenerationID)
-            if intent.schemaVersion == 2,
+            if intent.identity != nil,
                currentID == intent.newGenerationID,
                let identity = intent.identity {
                 try generationFactory.requireInstalledRestoreGenerationSnapshot(
@@ -1627,7 +1691,7 @@ final class BackupRestoreService {
 
         switch intent.phase {
         case .prepared:
-            if intent.schemaVersion == 2,
+            if intent.identity != nil,
                currentID == intent.newGenerationID,
                let newSession = installedNewSession {
                 let switched = intent.advancing(to: .pointerSwitched)
@@ -1674,7 +1738,7 @@ final class BackupRestoreService {
             }
             let newSession = installedNewSession
             guard let newSession else {
-                if intent.schemaVersion == 2 {
+                if intent.identity != nil {
                     throw BackupRestoreServiceError.recoveryRequired
                 }
                 if currentID == intent.newGenerationID {
@@ -1717,7 +1781,7 @@ final class BackupRestoreService {
             }
             let newSession = installedNewSession
             guard let newSession else {
-                if intent.schemaVersion == 2 {
+                if intent.identity != nil {
                     throw BackupRestoreServiceError.recoveryRequired
                 }
                 guard currentID == intent.newGenerationID else {
@@ -2032,8 +2096,13 @@ private extension BackupRestoreService {
         old: V4BackupRecordsV1,
         target: V4BackupRecordsV1
     ) -> Bool {
+        guard let replacementAt = intent.replacementAt else { return false }
         guard let identity = intent.identity else {
-            return validMonotonicUnion(from: old, to: target)
+            return validMonotonicUnion(
+                from: old,
+                to: target,
+                replacementAt: replacementAt
+            )
         }
         guard let plan = try? ReplacementRestoreRule.makeDeletionWinningPlan(
             DeletionWinningRestoreInputV2(
@@ -2042,7 +2111,7 @@ private extension BackupRestoreService {
                 incomingRecords: target,
                 incomingIdentity: try? sourceWorkspaceIdentity(identity.source),
                 mode: identity.mode,
-                replacementAt: now()
+                replacementAt: replacementAt
             )
         ) else { return false }
         // `target` is the already normalized, installed generation whose
@@ -7803,16 +7872,26 @@ private extension BackupRestoreService {
         return reboundRecords
     }
 
-    func preparedAccessibleDocumentAssessments(_ records:[V23BackupAccessibleDocumentAssessmentRecordV1],identityDecision:RestoreIdentityV1?)async throws->[V23BackupAccessibleDocumentAssessmentRecordV1]{
+    func preparedAccessibleDocumentAssessments(_ records:[V23BackupAccessibleDocumentAssessmentRecordV1],identityDecision:RestoreIdentityV1?,validateAccess:@MainActor () async throws -> Void)async throws->[V23BackupAccessibleDocumentAssessmentRecordV1]{
         preparedAccessibleDocumentTrees=[:];guard !records.isEmpty else{return []};guard let resolver=accessibleDocumentTreeResolver else{throw attributedRestoreAuthorityFailureV1(line: #line)}
         var output:[V23BackupAccessibleDocumentAssessmentRecordV1]=[],trees:[UUID:AccessibleDocumentSemanticTreeV1]=[:]
-        for record in records{let source=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try source.validateIntrinsic();let sourceTree=try await resolver.resolveValidatedTree(for:source);let value:AccessibleDocumentAssessmentReceiptV1;let tree:AccessibleDocumentSemanticTreeV1
+        for record in records{let source=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try source.validateIntrinsic();let sourceTree=try await resolver.resolveValidatedTree(for:source);try await validateRestoreAccess(validateAccess);let value:AccessibleDocumentAssessmentReceiptV1;let tree:AccessibleDocumentSemanticTreeV1
             if let identityDecision,source.workspaceID.rawValue != identityDecision.targetPointer.workspaceID{let target=WorkspaceID(rawValue:identityDecision.targetPointer.workspaceID);tree=try AccessibleDocumentSemanticTreeResolverV1.rebuild(.init(workspaceID:target,audience:sourceTree.audience,publication:sourceTree.publication,nodes:sourceTree.nodes,projectionVersion:sourceTree.projectionVersion));let actor=try LocalActorReferenceV1(actorReferenceID:source.assessor.actor.actorReferenceID,workspaceID:target,partyID:source.assessor.actor.partyID,displayName:source.assessor.actor.displayName);let assessor=try ActorSnapshotV1(snapshotID:source.assessor.snapshotID,workspaceID:target,actor:actor,responsibility:source.assessor.responsibility,displayNameAtTime:source.assessor.displayNameAtTime,capturedAt:source.assessor.capturedAt);value=try source.rebound(to:target,tree:tree,assessor:assessor)}else{tree=sourceTree;try source.validate(tree:tree);value=source}
             guard value.externalProof==source.externalProof,value.outputSHA256==source.outputSHA256,value.outputByteCount==source.outputByteCount,value.outputMediaType==source.outputMediaType,trees.updateValue(tree,forKey:value.receiptID)==nil else{throw BackupRestoreServiceError.invalidPackage};output.append(.init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try AccessibleDocumentCanonicalCodecV1.encode(value)))}
         let values=try Dictionary(uniqueKeysWithValues:output.map{let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:$0.canonicalData);return(value.receiptID,value)})
         var childCounts:[UUID:Int]=[:]
         for value in values.values{guard let tree=trees[value.receiptID]else{throw BackupRestoreServiceError.invalidPackage};if let predecessorID=value.supersedesReceiptID{guard let predecessor=values[predecessorID]else{throw BackupRestoreServiceError.invalidPackage};try value.validateSuccessor(of:predecessor,tree:tree);childCounts[predecessorID,default:0]+=1;guard childCounts[predecessorID]==1 else{throw BackupRestoreServiceError.invalidPackage}}else if value.revision != 1{throw BackupRestoreServiceError.invalidPackage}}
         preparedAccessibleDocumentTrees=trees;return output.sorted{$0.id.uuidString<$1.id.uuidString}
+    }
+
+    func validateRestoreAccess(
+        _ validateAccess: @MainActor () async throws -> Void
+    ) async throws {
+        do {
+            try await validateAccess()
+        } catch {
+            throw RestoreAccessValidationFailure(underlying: error)
+        }
     }
 
     func rebindingAssetSemantics(
@@ -8125,6 +8204,9 @@ private extension BackupRestoreService {
         _ records: [V16BackupFieldDraftRecordV1],
         identity: RestoreIdentityV1
     ) throws -> [V16BackupFieldDraftRecordV1] {
+        // C36 configuration clone excludes the complete operational draft
+        // family; source validation precedes this target transformation.
+        if identity.mode == .clone { return [] }
         guard !records.isEmpty else { return [] }
         if identity.mode == .emptyInstall || identity.mode == .replaceExisting,
            records.allSatisfy({ $0.workspaceID == identity.targetPointer.workspaceID }) {
@@ -8922,6 +9004,14 @@ private extension BackupRestoreService {
         identityDecision: RestoreIdentityV1?,
         restoreID: UUID
     ) throws -> DraftAttachmentRestorePublicationReceiptV1? {
+        // Configuration clone intentionally has no target draft authority or
+        // published staging bytes. A nonempty target is a transform failure.
+        if identityDecision?.mode == .clone {
+            guard records.fieldDrafts.isEmpty else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return nil
+        }
         let sourceItems = try package.records.fieldDrafts.compactMap { record -> AttachmentStagingItemV1? in
             guard record.kind == .stagingItem else { return nil }
             return try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
@@ -12313,14 +12403,15 @@ private extension BackupRestoreService {
 
     func validMonotonicUnion(
         from current: V4BackupRecordsV1,
-        to replacement: V4BackupRecordsV1
+        to replacement: V4BackupRecordsV1,
+        replacementAt: Date
     ) -> Bool {
         guard let plan = try? ReplacementRestoreRule.makeDeletionWinningPlan(
             DeletionWinningRestoreInputV2(
                 currentRecords: current,
                 incomingRecords: replacement,
                 mode: .replaceExisting,
-                replacementAt: now()
+                replacementAt: replacementAt
             )
         ) else {
             return false

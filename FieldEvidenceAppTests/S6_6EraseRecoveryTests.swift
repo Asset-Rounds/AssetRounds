@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SwiftData
 import XCTest
@@ -9,6 +10,29 @@ private enum C52ServiceRequestBoundary_S6_6EraseRecoveryTests {
 
 private enum C53AssetServiceReliabilityBoundary_S6_6EraseRecoveryTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
+private struct S66EraseReceiptClock: ApplicationClock {
+    func now() -> Date { Date(timeIntervalSince1970: 1_800_000_000) }
+}
+
+private final class S66EraseReceiptIDs: ApplicationIDSource, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [UUID]
+    init(_ values: [UUID]) { self.values = values }
+    func makeID() -> UUID {
+        lock.lock()
+        defer { lock.unlock() }
+        return values.isEmpty ? UUID() : values.removeFirst()
+    }
+}
+
+private actor S66EraseReceiptAuthentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 { .unavailable }
+    func cancel(attemptID: UUID) {}
 }
 
 private final class C45EraseRecoveryCompatibilityTests: XCTestCase {
@@ -170,6 +194,174 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     }
     private let fileManager = FileManager.default
     private let bundleID = "com.palatis3.fieldrecord"
+
+    @MainActor
+    func testCompletedEraseReceiptUsesActualIDsAndOnlyPublishesAfterEraseRootRemoval() async throws {
+        let harness = try await makeHarness("completed-receipt")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let newGenerationID = uuid("66000000-0000-0000-0000-000000000701")
+        let eraseID = uuid("66000000-0000-0000-0000-000000000702")
+        var supportStatus = stat()
+        XCTAssertEqual(harness.support.path.withCString {
+            lstat($0, &supportStatus)
+        }, 0)
+        var received: CompletedEraseReceiptV1?
+        let service = EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            makeUUID: sequence([newGenerationID, eraseID]),
+            didCompleteErase: { receipt in
+                XCTAssertFalse(self.fileManager.fileExists(atPath: harness.support
+                    .appendingPathComponent("FieldEvidenceErase").path))
+                XCTAssertNil(try? EraseIntentStore(applicationSupportURL: harness.support).load())
+                received = receipt
+            }
+        )
+
+        _ = try await service.erase(
+            confirmation: "ERASE",
+            coordinator: coordinator,
+            diagnosticsStore: harness.diagnostics
+        ) { coordinator.activate(session: $0) }
+
+        let receipt = try XCTUnwrap(received)
+        XCTAssertEqual(receipt.subject.eraseID, eraseID)
+        XCTAssertEqual(receipt.subject.newGenerationID, newGenerationID)
+        XCTAssertEqual(receipt.subject.applicationSupportURL, harness.support.standardizedFileURL)
+        XCTAssertEqual(receipt.subject.applicationSupportDevice, Int64(supportStatus.st_dev))
+        XCTAssertEqual(receipt.subject.applicationSupportInode, UInt64(supportStatus.st_ino))
+        XCTAssertNil(receipt.reservation)
+    }
+
+    @MainActor
+    func testFaultedEraseNeverPublishesCompletedReceipt() async throws {
+        let harness = try await makeHarness("faulted-receipt")
+        defer { cleanup(harness) }
+        var completionCount = 0
+        let service = EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            failureInjection: EraseAllFailureInjection(failOnceAt: .beforeJournalRemoval),
+            didCompleteErase: { _ in completionCount += 1 }
+        )
+
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.erase(
+                confirmation: "ERASE",
+                coordinator: try XCTUnwrap(harness.coordinator),
+                diagnosticsStore: harness.diagnostics
+            ) { harness.coordinator?.activate(session: $0) }
+        } verify: { error in
+            XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+        }
+        XCTAssertEqual(completionCount, 0)
+        XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: harness.support).load())
+    }
+
+    @MainActor
+    func testAdmissionRevalidationFailureAbortsExactGateReservationWithoutEraseEffect() async throws {
+        let harness = try await makeHarness("abort-revalidation")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let oldID = coordinator.generationID
+        let gate = AppAccessGateV1(
+            setting: .absentDisabled,
+            authentication: S66EraseReceiptAuthentication(),
+            clock: S66EraseReceiptClock(),
+            identifiers: S66EraseReceiptIDs([])
+        )
+        let authorization = try await gate.beginContentRead(for: .startupRecovery)
+        var reservation: AppAccessGateV1.EraseAdoptionToken?
+        var aborts = [AbortedEraseAdmissionReceiptV1]()
+        var completions = 0
+        let service = EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            admitErase: { subject in
+                let token = try await gate.reserveEraseAdoption(
+                    subject: subject, authorization: authorization
+                )
+                reservation = token
+                coordinator.modelContext.insert(Site(label: "admission changed"))
+                return token
+            },
+            didCompleteErase: { _ in completions += 1 },
+            didAbortEraseAdmission: { aborts.append($0) }
+        )
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.erase(
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: harness.diagnostics, activate: { _ in }
+            )
+        } verify: { error in
+            XCTAssertEqual(error as? EraseAllServiceError, .contextHasChanges)
+        }
+        XCTAssertEqual(aborts.count, 1)
+        let abort = try XCTUnwrap(aborts.first)
+        XCTAssertEqual(abort.reservation, reservation)
+        XCTAssertEqual(abort.originalGenerationID, oldID)
+        XCTAssertEqual(completions, 0)
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: harness.support).load())
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: harness.support).loadPreparation())
+        XCTAssertEqual(try harness.factory.currentGenerationID(), oldID)
+        coordinator.modelContext.rollback()
+    }
+
+    @MainActor
+    func testRolledBackPreparationAbortsExactGateReservationButDurableIntentDoesNot() async throws {
+        for (point, expectsAbort) in [
+            (.afterEmptyGenerationDirectoryCreate, true),
+            (.afterPreparedWrite, false),
+        ] {
+            let harness = try await makeHarness("abort-\(point)")
+            defer { cleanup(harness) }
+            let coordinator = try XCTUnwrap(harness.coordinator)
+            let gate = AppAccessGateV1(
+                setting: .absentDisabled,
+                authentication: S66EraseReceiptAuthentication(),
+                clock: S66EraseReceiptClock(), identifiers: S66EraseReceiptIDs([])
+            )
+            let authorization = try await gate.beginContentRead(for: .startupRecovery)
+            var reservation: AppAccessGateV1.EraseAdoptionToken?
+            var aborts = [AbortedEraseAdmissionReceiptV1]()
+            let service = EraseAllService(
+                applicationSupportURL: harness.support, cachesDirectoryURL: harness.caches,
+                temporaryDirectoryURL: harness.temporary, userDefaults: harness.defaults,
+                bundleIdentifier: bundleID,
+                failureInjection: EraseAllFailureInjection(failOnceAt: point),
+                admitErase: { subject in
+                    let token = try await gate.reserveEraseAdoption(
+                        subject: subject, authorization: authorization
+                    )
+                    reservation = token
+                    return token
+                },
+                didAbortEraseAdmission: { aborts.append($0) }
+            )
+            await XCTAssertThrowsErrorAsync {
+                _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                    diagnosticsStore: harness.diagnostics, activate: { coordinator.activate(session: $0) })
+            } verify: { error in XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure) }
+            XCTAssertEqual(aborts.count, expectsAbort ? 1 : 0)
+            if expectsAbort {
+                XCTAssertEqual(aborts.first?.reservation, reservation)
+                XCTAssertNil(try EraseIntentStore(applicationSupportURL: harness.support).load())
+                XCTAssertNil(try EraseIntentStore(applicationSupportURL: harness.support).loadPreparation())
+            } else {
+                XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: harness.support).load())
+            }
+        }
+    }
 
     @MainActor
     func testAbsentApplicationSupportHasNoEraseAuthority() async throws {
@@ -449,6 +641,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         let oldID = coordinator.generationID
         let newID = uuid("66000000-0000-0000-0000-000000000111")
         var retainedContext: ModelContext? = coordinator.modelContext
+        var initialCompletionCount = 0
         let service = EraseAllService(
             applicationSupportURL: harness.support,
             cachesDirectoryURL: harness.caches,
@@ -458,7 +651,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             makeUUID: sequence([
                 newID,
                 uuid("66000000-0000-0000-0000-000000000112"),
-            ])
+            ]),
+            didCompleteErase: { _ in initialCompletionCount += 1 }
         )
 
         let outcome = try await service.erase(
@@ -479,19 +673,24 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             applicationSupportURL: harness.support
         ).load())
         XCTAssertEqual(pending.phase, .sessionActivated)
+        XCTAssertEqual(initialCompletionCount, 0)
 
         retainedContext = nil
         _ = retainedContext
         await Task.yield()
+        var recoveryReceipts = [CompletedEraseReceiptV1]()
         let recovered = try await EraseAllService(
             applicationSupportURL: harness.support,
             cachesDirectoryURL: harness.caches,
             temporaryDirectoryURL: harness.temporary,
             userDefaults: harness.defaults,
-            bundleIdentifier: bundleID
+            bundleIdentifier: bundleID,
+            didCompleteErase: { recoveryReceipts.append($0) }
         ).reconcileAtStartup(diagnosticsStore: harness.diagnostics)
 
         XCTAssertEqual(recovered?.generationID, newID)
+        XCTAssertEqual(recoveryReceipts.map(\.subject.eraseID), [pending.eraseID])
+        XCTAssertEqual(recoveryReceipts.map(\.subject.newGenerationID), [newID])
         XCTAssertFalse(fileManager.fileExists(atPath:
             harness.factory.installedGenerationURL(id: oldID).path
         ))

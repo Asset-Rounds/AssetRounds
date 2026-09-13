@@ -398,6 +398,8 @@ private extension RestoreIntentStore {
             && lhs.schemaVersion == rhs.schemaVersion
             && lhs.stagingGenerationRelativePath == rhs.stagingGenerationRelativePath
             && lhs.identity == rhs.identity
+            && lhs.replacementTimestampMilliseconds
+                == rhs.replacementTimestampMilliseconds
     }
 
     func nextPhase(after phase: RestoreIntentPhaseV1) -> RestoreIntentPhaseV1? {

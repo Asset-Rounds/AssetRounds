@@ -414,7 +414,9 @@ struct SignReportHistoryView: View {
     }
 }
 
-private enum ReportHistoryRoute: Hashable {
+// The shell binds only the canonical report case to its device-local scene
+// path. Comparison remains an incumbent, transient Reports presentation.
+enum ReportHistoryRoute: Hashable {
     case report(UUID)
     case comparison(UUID)
 }

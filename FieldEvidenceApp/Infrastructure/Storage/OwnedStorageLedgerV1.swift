@@ -1139,6 +1139,25 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         try AppLockNotificationTransactionFenceV1.perform { try verifyRoot() }
     }
 
+    func requireEmptyForCompletedErase(subject: EraseAllOperationSubjectV1) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard subject.applicationSupportURL.standardizedFileURL == supportURL,
+                  let expectedDevice = UInt64(exactly: subject.applicationSupportDevice),
+                  expectedDevice == supportDevice,
+                  subject.applicationSupportInode == supportInode else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            try verifyRoot()
+            for name in [Self.recordName, Self.pendingName, Self.mappingName,
+                         Self.mappingPendingName, Self.eraseName, Self.erasePendingName] {
+                guard try information(name) == nil else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+            }
+            try verifyRoot()
+        }
+    }
+
     func requireNotificationPublicationAllowed() throws {
         try AppLockNotificationTransactionFenceV1.perform {
             try verifyRoot()

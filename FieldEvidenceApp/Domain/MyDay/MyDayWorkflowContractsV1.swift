@@ -150,8 +150,11 @@ struct MyDaySummaryItemV1: Codable, Equatable, Hashable, Sendable {
         dueCue = Self.cue(dueReason)
         let exactCurrentReference = frontier.currentReference == item.reference
         status = Self.status(state: frontier.state, reference: item.reference, exact: exactCurrentReference)
-        let mayAct = exactCurrentReference
-            && MyDaySourceSemanticsV1.isSelectable(frontier.state, reference: item.reference)
+        let mayAct = Self.isCarryoverEligible(
+            plannedReference: item.reference,
+            currentReference: frontier.currentReference,
+            state: frontier.state
+        )
         if mayAct, let current = frontier.currentReference {
             let resumes = MyDaySourceSemanticsV1.resumes(frontier.state, reference: current,
                                                         occurrenceStarted: dueReason == .started)
@@ -171,8 +174,11 @@ struct MyDaySummaryItemV1: Codable, Equatable, Hashable, Sendable {
         try routeIntent?.reference.validate()
         let exactCurrentReference = currentReference == item.reference
         let expectedStatus = Self.status(state: sourceState, reference: item.reference, exact: exactCurrentReference)
-        let expectedEligible = exactCurrentReference
-            && MyDaySourceSemanticsV1.isSelectable(sourceState, reference: item.reference)
+        let expectedEligible = Self.isCarryoverEligible(
+            plannedReference: item.reference,
+            currentReference: currentReference,
+            state: sourceState
+        )
         let expectedAction: MyDayExistingRouteActionV1 = MyDaySourceSemanticsV1.resumes(
             sourceState, reference: item.reference, occurrenceStarted: dueCue == .started) ? .resume : .start
         guard status == expectedStatus,
@@ -184,6 +190,15 @@ struct MyDaySummaryItemV1: Codable, Equatable, Hashable, Sendable {
               (!expectedEligible || routeIntent?.action == expectedAction) else {
             throw MyDayWorkflowFailureV1.staleProjection
         }
+    }
+
+    static func isCarryoverEligible(
+        plannedReference: MyDayEligibleReferenceV1,
+        currentReference: MyDayEligibleReferenceV1?,
+        state: MyDaySourceStateV1
+    ) -> Bool {
+        currentReference == plannedReference
+            && MyDaySourceSemanticsV1.isSelectable(state, reference: plannedReference)
     }
 
     private static func status(state: MyDaySourceStateV1, reference: MyDayEligibleReferenceV1,

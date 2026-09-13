@@ -404,6 +404,11 @@ struct RouteDescriptorV1: Codable, Equatable, Hashable, Sendable {
     let packageID: String?
 }
 
+enum RouteTargetAvailabilityV1: Equatable, Sendable {
+    case available
+    case fallback(RouteFallbackReasonV1)
+}
+
 struct RouteResolutionContextV1: Equatable, Sendable {
     let currentWorkspaceID: WorkspaceID
     let currentRevision: UInt64
@@ -415,8 +420,11 @@ struct RouteResolutionContextV1: Equatable, Sendable {
     let currentOccurrenceRevisions: [OccurrenceIDV1: UInt64]
     let protectedDataAvailable: Bool
     let availabilityRevoked: Bool
+    /// When present, this is an exhaustive runtime projection of actual
+    /// source-owner checks. An absent entry cannot imply availability.
+    let sourceAvailability: [NavigationTargetV1: RouteTargetAvailabilityV1]?
 
-    init(currentWorkspaceID: WorkspaceID, currentRevision: UInt64, availablePackageIDs: Set<String> = [], unavailableStableIDs: Set<UUID> = [], unavailableOccurrenceIDs: Set<OccurrenceIDV1> = [], currentScheduleRevisions: [UUID: UInt64] = [:], currentScheduleReleaseIDs: [UUID: UUID] = [:], currentOccurrenceRevisions: [OccurrenceIDV1: UInt64] = [:], protectedDataAvailable: Bool = true, availabilityRevoked: Bool = false) {
+    init(currentWorkspaceID: WorkspaceID, currentRevision: UInt64, availablePackageIDs: Set<String> = [], unavailableStableIDs: Set<UUID> = [], unavailableOccurrenceIDs: Set<OccurrenceIDV1> = [], currentScheduleRevisions: [UUID: UInt64] = [:], currentScheduleReleaseIDs: [UUID: UUID] = [:], currentOccurrenceRevisions: [OccurrenceIDV1: UInt64] = [:], protectedDataAvailable: Bool = true, availabilityRevoked: Bool = false, sourceAvailability: [NavigationTargetV1: RouteTargetAvailabilityV1]? = nil) {
         self.currentWorkspaceID = currentWorkspaceID
         self.currentRevision = currentRevision
         self.availablePackageIDs = availablePackageIDs
@@ -427,6 +435,7 @@ struct RouteResolutionContextV1: Equatable, Sendable {
         self.currentOccurrenceRevisions = currentOccurrenceRevisions
         self.protectedDataAvailable = protectedDataAvailable
         self.availabilityRevoked = availabilityRevoked
+        self.sourceAvailability = sourceAvailability
     }
 }
 
@@ -484,6 +493,22 @@ struct RouteRegistryV1: Sendable {
         if target.workspaceID != context.currentWorkspaceID { reason = .wrongWorkspace }
         else if !context.protectedDataAvailable { reason = .protectedDataUnavailable }
         else if context.availabilityRevoked { reason = .revokedAvailability }
+        else if let surface = target.packageSurfaceID,
+                !context.availablePackageIDs.contains(where: { packageID in
+                    manifests.contains(where: { manifest in
+                        manifest.packageID == packageID && manifest.routes.contains(where: { $0.routeID == surface && $0.root == target.root })
+                    })
+                }) { reason = .retiredOrMissingPackage }
+        else if let sourceAvailability = context.sourceAvailability {
+            if let source = sourceAvailability[target] {
+                switch source {
+                case .available: reason = nil
+                case .fallback(let sourceReason): reason = sourceReason
+                }
+            } else {
+                reason = .invalidTarget
+            }
+        }
         else if let revision = target.expectedRevision, revision != context.currentRevision { reason = .staleRevision }
         else if let scheduleID = target.stableScheduleDefinitionID,
                 context.currentScheduleRevisions[scheduleID] == nil { reason = .deletedOrTombstoned }
@@ -499,12 +524,6 @@ struct RouteRegistryV1: Sendable {
                 context.currentOccurrenceRevisions[occurrenceID] != revision { reason = .staleRevision }
         else if [target.stableEntityID, target.stableScheduleDefinitionID, target.stableScheduleReleaseID, target.stableSessionID, target.stableLocationID].compactMap({ $0 }).contains(where: context.unavailableStableIDs.contains)
                     || target.stableOccurrenceID.map(context.unavailableOccurrenceIDs.contains) == true { reason = .deletedOrTombstoned }
-        else if let surface = target.packageSurfaceID,
-                !context.availablePackageIDs.contains(where: { packageID in
-                    manifests.contains(where: { manifest in
-                        manifest.packageID == packageID && manifest.routes.contains(where: { $0.routeID == surface && $0.root == target.root })
-                    })
-                }) { reason = .retiredOrMissingPackage }
         else { reason = nil }
         if let reason { return try fallback(for: target, context: context, reason: reason) }
         return RouteResolutionResultV1(disposition: .resolved, target: target, reason: nil, canonicalMutationCount: 0, startsAutomaticWork: false)

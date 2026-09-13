@@ -44,6 +44,14 @@ private final class C30EvidenceContextAnchorV9_03MigrationRecovery: XCTestCase {
 
 @MainActor
 final class V9_03MigrationRecoveryTests: XCTestCase {
+    func testAggregateStartupRecoveryContinuationRejectsOriginalReadTokenAfterRecoveryCallbackRelock() async throws {
+        try await assertStartupRecoveryContinuationRevocation(revokeAtValidationCall: 2)
+    }
+
+    func testAggregateStartupRecoveryContinuationRejectsOriginalReadTokenAfterYieldRelock() async throws {
+        try await assertStartupRecoveryContinuationRevocation(revokeAtValidationCall: 3)
+    }
+
     func testAggregatePopulatedLegacyPublishesOnlyActiveThenRequiresIndependentProcessAndPreservesSource() async throws {
         let fixture = try makeLegacyFixture(suffix: "aggregate-full-golden-\(UUID().uuidString)")
         defer { try? fileManager.removeItem(at: fixture.root) }
@@ -2003,6 +2011,96 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertTrue(factorySource.contains("PersistentSchemaV11"))
     }
 
+    private func assertStartupRecoveryContinuationRevocation(
+        revokeAtValidationCall: Int
+    ) async throws {
+        XCTAssertTrue([2, 3].contains(revokeAtValidationCall))
+        let fixture = try makeLegacyFixture(
+            suffix: "startup-continuation-\(revokeAtValidationCall)-\(UUID().uuidString)"
+        )
+        defer { try? fileManager.removeItem(at: fixture.root) }
+
+        let authentication = V903StartupAuthentication(
+            outcomes: [.authenticated, .authenticated]
+        )
+        let gate = AppAccessGateV1(
+            setting: .value(.init(isEnabled: true)),
+            authentication: authentication,
+            clock: V903StartupClock(),
+            identifiers: V903StartupIDs()
+        )
+        let initialUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(initialUnlock, .authenticated)
+        let originalToken = try await gate.beginContentRead(for: .startupRecovery)
+        try await gate.validateContentRead(originalToken, for: .startupRecovery)
+
+        let factory = StoreGenerationFactory(applicationSupportURL: fixture.root)
+        let pointerURL = fixture.root.appendingPathComponent("FieldEvidenceData/current.json")
+        let originalPointer = try Data(contentsOf: pointerURL)
+        var validationCalls = 0
+        var recoveryRan = false
+        var ordinaryUnlock: LocalAuthenticationOutcomeV1?
+
+        do {
+            _ = try await factory.openForStartup(
+                validateContinuation: {
+                    validationCalls += 1
+                    try await gate.validateContentRead(originalToken, for: .startupRecovery)
+                    guard validationCalls == revokeAtValidationCall else { return }
+
+                    await gate.lock(reason: .lockNow)
+                    let outcome = await gate.authenticate(trigger: .unlock)
+                    ordinaryUnlock = outcome
+                    XCTAssertEqual(outcome, .authenticated)
+                    do {
+                        try await gate.validateContentRead(originalToken, for: .startupRecovery)
+                        XCTFail("ordinary unlock revived the original startup token")
+                    } catch {
+                        XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+                    }
+                    try await gate.validateContentRead(originalToken, for: .startupRecovery)
+                },
+                recoverOriginalSource: { authority in
+                    XCTAssertEqual(authority.sourceRelease, .v1)
+                    XCTAssertEqual(authority.sourceGenerationID, fixture.sourceID)
+                    do {
+                        let context = try authority.recoveryContext()
+                        let sites = try context.fetch(FetchDescriptor<Site>())
+                        XCTAssertEqual(sites.map(\.id), [fixture.siteID])
+                    }
+                    recoveryRan = true
+                }
+            )
+            XCTFail("revoked startup continuation proceeded")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+
+        XCTAssertTrue(recoveryRan)
+        XCTAssertEqual(ordinaryUnlock, .authenticated)
+        XCTAssertEqual(validationCalls, revokeAtValidationCall)
+        let authenticationCalls = await authentication.callCount
+        XCTAssertEqual(authenticationCalls, 2)
+        XCTAssertEqual(try Data(contentsOf: pointerURL), originalPointer)
+        let control = try XCTUnwrap(
+            StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root)
+        )
+        let journal = try XCTUnwrap(control.load())
+        XCTAssertEqual(journal.phase, .recoveringSource)
+        XCTAssertNil(journal.sourceCheckpoint)
+        XCTAssertNil(journal.candidateRootInode)
+        XCTAssertFalse(fileManager.fileExists(
+            atPath: factory.restoreStagingGenerationURL(id: journal.targetGenerationID).path
+        ))
+        XCTAssertEqual(try Data(contentsOf: pointerURL), originalPointer)
+        let pointer = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+            LegacyCurrentPointer.self,
+            from: originalPointer
+        )
+        XCTAssertEqual(pointer.generationID, fixture.sourceID.uuidString.lowercased())
+        XCTAssertEqual(pointer.schemaVersion, 1)
+    }
+
     private func makeLegacyFixture(suffix: String) throws -> LegacyFixture {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "V9_03MigrationRecoveryTests-\(suffix)",
@@ -2563,6 +2661,35 @@ private final class C33TemporalEvidenceAnchorV903MigrationRecovery: XCTestCase {
         XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
         XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
     }
+}
+
+private struct V903StartupClock: ApplicationClock {
+    func now() -> Date { Date(timeIntervalSince1970: 1_800_000_000) }
+}
+
+private final class V903StartupIDs: ApplicationIDSource, @unchecked Sendable {
+    func makeID() -> UUID { UUID() }
+}
+
+private actor V903StartupAuthentication: LocalAuthenticationClient {
+    private var outcomes: [LocalAuthenticationOutcomeV1]
+    private(set) var callCount = 0
+
+    init(outcomes: [LocalAuthenticationOutcomeV1]) {
+        self.outcomes = outcomes
+    }
+
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        callCount += 1
+        guard !outcomes.isEmpty else { return .unavailable }
+        return outcomes.removeFirst()
+    }
+
+    func cancel(attemptID: UUID) {}
 }
 
 private final class C32AssistanceAnchorV903MigrationRecovery: XCTestCase {

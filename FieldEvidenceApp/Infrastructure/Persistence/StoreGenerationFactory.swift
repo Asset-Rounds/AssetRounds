@@ -11674,8 +11674,10 @@ struct StoreGenerationFactory {
 
     @MainActor
     func openForStartup(
+        validateContinuation: @MainActor () async throws -> Void = {},
         recoverOriginalSource: @MainActor (StoreMigrationSourceRecoveryAuthorityV1) async throws -> Void
     ) async throws -> StoreStartupOpenResultV1 {
+        try await validateContinuation()
         try PersistentSchemaReleaseRegistryV1.validate()
         for (id, proof) in Self.aggregateSourceDrains where proof.isDrained { Self.aggregateSourceDrains.removeValue(forKey: id) }
         if try itemType(at: dataRootURL) == nil { return .ready(try openOrBootstrapCurrent()) }
@@ -11734,8 +11736,10 @@ struct StoreGenerationFactory {
         defer { Self.runningAggregateRecoveries.remove(journal.upgradeID) }
         if journal.phase == .recoveringSource {
             try await recoverAggregateOriginal(journal, registry: registry, control: control,
+                                               validateContinuation: validateContinuation,
                                                recoverOriginalSource: recoverOriginalSource)
             await Task.yield()
+            try await validateContinuation()
             guard let proof = Self.aggregateSourceDrains[journal.upgradeID], proof.isDrained else {
                 throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
             }
@@ -11805,6 +11809,7 @@ struct StoreGenerationFactory {
     @MainActor
     private func recoverAggregateOriginal(_ journal: StoreAggregateMigrationJournalV1,
                                           registry: GenerationLeaseRegistryV1, control: StoreAggregateMigrationControlV1,
+                                          validateContinuation: @MainActor () async throws -> Void,
                                           recoverOriginalSource: @MainActor (StoreMigrationSourceRecoveryAuthorityV1) async throws -> Void) async throws {
         var container: ModelContainer? = try registry.withMigrationReservation(expected: journal) {
             try control.withOriginalSource(journal) {
@@ -11821,6 +11826,7 @@ struct StoreGenerationFactory {
             journal: journal, generationRootURL: installedGenerationURL(id: journal.sourceGenerationID), container: opened, mutationGuard: guardValue)
         do {
             try await recoverOriginalSource(authority!)
+            try await validateContinuation()
             try Task.checkCancellation()
             guard try !authority!.recoveryContext().hasChanges else { throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch) }
             try authority?.revokeAndRelease()

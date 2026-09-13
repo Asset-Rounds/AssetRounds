@@ -3940,3 +3940,107 @@ private struct FinalizationCodecWorkflowRecordPostImageV8: Codable {
     let record: V4BackupWorkflowRecordDTO
     let requirementAssurance: RequirementAssuranceSnapshotV1?
 }
+
+
+extension V10_02MutationEnvelopeReceiptTests {
+    func testReviewedDraftEnvelopeRetainsExactPortableLocksAndCanonicalBytes() throws {
+        let fixture = try ReviewedResolutionTestFixtureV1()
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: fixture.workspaceID,
+            replicaID: .init(rawValue: UUID()))
+        for existing in [false, true] {
+            let mutation = try fixture.resolution(target: existing ? fixture.target : nil,
+                workspaceRevision: 9)
+            let expected = try fixture.expected(mutation, workspaceRevision: 9)
+            let request = try WorkspaceMutationRequestV1(mutationID: mutation.mutationID,
+                expectedRevision: expected, command: .applyFieldDraft(mutation))
+            let envelope = try MutationEnvelopeV1(request: request, identity: identity)
+            let bytes = try envelope.canonicalData()
+            XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes), envelope)
+            XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(envelope), bytes)
+            XCTAssertEqual(try envelope.canonicalSHA256(),
+                SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined())
+            let extra = try WorkspaceEntityRevisionV1(
+                identity: .init(kind: .myDayPlan, id: UUID()), revision: 0)
+            let substituted = expected.entityRevisions.map {
+                WorkspaceEntityRevisionV1(identity: $0.identity, revision: $0.revision + 1)
+            }
+            for locks in [Array(expected.entityRevisions.dropLast()),
+                          expected.entityRevisions + [extra], substituted] {
+                let hostileExpected = try WorkspaceExpectedRevisionV1(
+                    workspaceID: fixture.workspaceID, generationID: expected.generationID,
+                    writerInstanceID: expected.writerInstanceID, workspaceRevision: 9,
+                    entityRevisions: locks)
+                XCTAssertThrowsError(try MutationEnvelopeV1(request: .init(
+                    mutationID: mutation.mutationID, expectedRevision: hostileExpected,
+                    command: .applyFieldDraft(mutation)), identity: identity))
+            }
+            if !existing {
+                let staleWorkspace = try fixture.expected(mutation, workspaceRevision: 10,
+                    generationID: expected.generationID, writerInstanceID: expected.writerInstanceID)
+                XCTAssertThrowsError(try MutationEnvelopeV1(request: .init(
+                    mutationID: mutation.mutationID, expectedRevision: staleWorkspace,
+                    command: .applyFieldDraft(mutation)), identity: identity))
+            }
+        }
+    }
+
+    func testMutationEnvelopeByteGateRejectsOversizeBeforeDecodeAndAdmitsBoundaryToDecoder() throws {
+        // Whitespace is deliberately not a valid envelope. At the bound it
+        // reaches JSON decoding; one byte over is rejected by the byte gate.
+        let limit = MutationEnvelopeV1.maximumCanonicalByteCount
+        let atLimit = Data(repeating: 0x20, count: limit)
+        XCTAssertThrowsError(try MutationEnvelopeV1.decodeCanonical(from: atLimit)) {
+            XCTAssertTrue($0 is DecodingError)
+        }
+        XCTAssertThrowsError(try MutationEnvelopeV1.decodeCanonical(from: atLimit + Data([0x20]))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertThrowsError(try MutationEnvelopeV1.decodeCanonical(from: Data())) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+    }
+}
+
+
+extension V10_02MutationEnvelopeReceiptTests {
+    func testReviewedResolutionEvidenceRequiresResolutionAndRetainsOriginalCanonicalReceipt() throws {
+        let fixture = try ReviewedResolutionTestFixtureV1()
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: fixture.workspaceID,
+            replicaID: .init(rawValue: UUID()))
+        func original(_ mutation: FieldDraftMutationV1) throws -> FieldDraftCommittedEvidenceV1 {
+            let expected = try fixture.expected(mutation, workspaceRevision: 9)
+            let envelope = try MutationEnvelopeV1(request: .init(mutationID: mutation.mutationID,
+                expectedRevision: expected, command: .applyFieldDraft(mutation)), identity: identity)
+            let images = try mutation.postImage.mutationPostImages
+            let resulting = try WorkspaceExpectedRevisionV1(workspaceID: fixture.workspaceID,
+                generationID: expected.generationID, writerInstanceID: expected.writerInstanceID,
+                workspaceRevision: 10, entityRevisions: try expected.entityRevisions.map { item in
+                    let image = try images.first { try $0.identity == item.identity }
+                    return WorkspaceEntityRevisionV1(identity: item.identity,
+                        revision: image?.revision ?? item.revision)
+                })
+            let receipt = try MutationReceiptV1(identity: .init(workspaceID: fixture.workspaceID,
+                replicaID: identity.replicaID, localSequence: 1), envelope: envelope,
+                resultingRevision: MutationPortableExpectedRevisionV1(resulting),
+                postImages: images, committedAt: fixture.now)
+            return try .init(envelope: envelope, receipt: receipt)
+        }
+        for existing in [false, true] {
+            let mutation = try fixture.resolution(target: existing ? fixture.target : nil,
+                workspaceRevision: 9)
+            let source = try original(mutation)
+            let value = try ReviewedFieldDraftResolutionEvidenceV1(original: source)
+            XCTAssertEqual(value.original, source)
+            XCTAssertEqual(try value.original.envelope.canonicalData(), try source.envelope.canonicalData())
+            XCTAssertEqual(try value.original.receipt.canonicalData(), try source.receipt.canonicalData())
+            guard case let .resolveConflict(resolution) = mutation.postImage else {
+                return XCTFail("Wrong fixture command")
+            }
+            XCTAssertEqual(value.resolution, resolution)
+        }
+        let creation = try original(fixture.ordinary(fixture.initial))
+        XCTAssertThrowsError(try ReviewedFieldDraftResolutionEvidenceV1(original: creation)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReceipt)
+        }
+    }
+}

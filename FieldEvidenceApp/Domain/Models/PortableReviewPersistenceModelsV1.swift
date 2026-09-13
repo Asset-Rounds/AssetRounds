@@ -650,6 +650,11 @@ enum PortableExchangeJournalOperationV2: String, Codable, CaseIterable, Hashable
     case migrate = "MIGRATE"
 }
 
+enum PortableExchangeCleanupCompletionV2: String, Codable, CaseIterable, Hashable, Sendable {
+    case pending = "PENDING"
+    case complete = "COMPLETE"
+}
+
 struct PortableExchangeJournalEntryV2: Codable, Equatable, Sendable {
     static let schemaVersion = 2
 
@@ -661,6 +666,8 @@ struct PortableExchangeJournalEntryV2: Codable, Equatable, Sendable {
     let beforeSHA256: String
     let afterSHA256: String
     var phase: PortableExchangeJournalPhaseV2
+    let durableCleanupHoldSHA256: String?
+    let cleanupCompletion: PortableExchangeCleanupCompletionV2?
     let createdAt: Date
 
     init(
@@ -671,6 +678,8 @@ struct PortableExchangeJournalEntryV2: Codable, Equatable, Sendable {
         beforeSHA256: String,
         afterSHA256: String,
         phase: PortableExchangeJournalPhaseV2,
+        durableCleanupHoldSHA256: String? = nil,
+        cleanupCompletion: PortableExchangeCleanupCompletionV2? = nil,
         createdAt: Date
     ) throws {
         self.schemaVersion = Self.schemaVersion
@@ -681,6 +690,8 @@ struct PortableExchangeJournalEntryV2: Codable, Equatable, Sendable {
         self.beforeSHA256 = beforeSHA256
         self.afterSHA256 = afterSHA256
         self.phase = phase
+        self.durableCleanupHoldSHA256 = durableCleanupHoldSHA256
+        self.cleanupCompletion = cleanupCompletion
         self.createdAt = createdAt
         try validate()
     }
@@ -696,6 +707,27 @@ struct PortableExchangeJournalEntryV2: Codable, Equatable, Sendable {
             guard namespace == nil, sessionID == nil else {
                 throw PortableExchangePersistenceFailureV2.invalidJournal
             }
+        }
+        switch (durableCleanupHoldSHA256, cleanupCompletion) {
+        case (nil, nil):
+            break
+        case let (.some(digest), .some(completion)):
+            guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(digest),
+                  (operation == .cloneOrFork || operation == .purge || operation == .erase) else {
+                throw PortableExchangePersistenceFailureV2.invalidJournal
+            }
+            switch phase {
+            case .prepared:
+                guard completion == .pending else {
+                    throw PortableExchangePersistenceFailureV2.invalidJournal
+                }
+            case .committed:
+                break
+            case .rolledBack:
+                throw PortableExchangePersistenceFailureV2.invalidJournal
+            }
+        default:
+            throw PortableExchangePersistenceFailureV2.invalidJournal
         }
     }
 }

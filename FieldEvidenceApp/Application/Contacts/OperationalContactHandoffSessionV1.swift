@@ -175,6 +175,12 @@ final class OperationalContactHandoffSessionV1 {
                 restorationToken: restorationToken
             ))
         }
+        guard !Task.isCancelled else {
+            return .unavailable(.init(
+                disposition: .cancelledBeforeHandoff,
+                restorationToken: restorationToken
+            ))
+        }
         do {
             guard let snapshot = try await query.currentHandoffPresentationSnapshot(
                 workspaceID: workspaceID,
@@ -182,6 +188,18 @@ final class OperationalContactHandoffSessionV1 {
             ) else {
                 return .unavailable(.init(
                     disposition: .targetMissing,
+                    restorationToken: restorationToken
+                ))
+            }
+            guard !Task.isCancelled else {
+                return .unavailable(.init(
+                    disposition: .cancelledBeforeHandoff,
+                    restorationToken: restorationToken
+                ))
+            }
+            guard snapshot.subject == subject else {
+                return .unavailable(.init(
+                    disposition: .targetInvalid,
                     restorationToken: restorationToken
                 ))
             }
@@ -310,31 +328,41 @@ final class OperationalContactHandoffSessionV1 {
                 disposition: .cancelledBeforeHandoff,
                 revision: action.intent.target.expectedRevision
             )
-        } else if let disposition = await currentSubjectDisposition(
-            draft.presentation.snapshot.subject,
-            action: action
-        ) {
-            result = try makeResult(intent: action.intent, disposition: disposition)
         } else {
-            switch await query.resolveForHandoff(action.intent) {
-            case .targetMissing:
-                result = try makeResult(intent: action.intent, disposition: .targetMissing)
-            case .targetStale:
-                result = try makeResult(intent: action.intent, disposition: .targetStale)
-            case .targetInvalid:
-                result = try makeResult(intent: action.intent, disposition: .targetInvalid)
-            case let .resolved(request):
-                if Task.isCancelled {
-                    result = try makeResult(
-                        intent: action.intent,
-                        disposition: .cancelledBeforeHandoff,
-                        revision: request.currentTarget.expectedRevision
-                    )
-                } else {
-                    result = await system.handOff(request)
-                    if result.disposition == .systemUnavailable
-                        || result.disposition == .systemRejected {
-                        copyFallbackValue = Self.copyValue(for: request.destination)
+            let disposition = await currentSubjectDisposition(
+                draft.presentation.snapshot.subject,
+                action: action
+            )
+            guard isCurrent(sessionID: sessionID, actionID: actionID, action: action) else {
+                throw OperationalContactHandoffSessionFailureV1.sessionUnavailable
+            }
+            if let disposition {
+                result = try makeResult(intent: action.intent, disposition: disposition)
+            } else {
+                let resolution = await query.resolveForHandoff(action.intent)
+                guard isCurrent(sessionID: sessionID, actionID: actionID, action: action) else {
+                    throw OperationalContactHandoffSessionFailureV1.sessionUnavailable
+                }
+                switch resolution {
+                case .targetMissing:
+                    result = try makeResult(intent: action.intent, disposition: .targetMissing)
+                case .targetStale:
+                    result = try makeResult(intent: action.intent, disposition: .targetStale)
+                case .targetInvalid:
+                    result = try makeResult(intent: action.intent, disposition: .targetInvalid)
+                case let .resolved(request):
+                    if Task.isCancelled {
+                        result = try makeResult(
+                            intent: action.intent,
+                            disposition: .cancelledBeforeHandoff,
+                            revision: request.currentTarget.expectedRevision
+                        )
+                    } else {
+                        result = await system.handOff(request)
+                        if result.disposition == .systemUnavailable
+                            || result.disposition == .systemRejected {
+                            copyFallbackValue = Self.copyValue(for: request.destination)
+                        }
                     }
                 }
             }
@@ -431,6 +459,14 @@ final class OperationalContactHandoffSessionV1 {
             throw OperationalContactHandoffSessionFailureV1.invalidEphemeralIdentifier
         }
         return value
+    }
+
+    private func isCurrent(
+        sessionID: UUID,
+        actionID: UUID,
+        action: DraftAction
+    ) -> Bool {
+        drafts[sessionID]?.actions[actionID]?.intent == action.intent
     }
 
     private func makeResult(

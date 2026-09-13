@@ -20,6 +20,26 @@ private func fieldDraftDomainRevision(_ value: Int64) throws -> UInt64 {
     init(_ value: FieldDraftCheckpointV1) throws { try value.validate(); draftID=value.draftID; workspaceID=value.workspaceID.rawValue; revision=try fieldDraftStoredRevision(value.draftRevision); mutationID=value.mutationID.rawValue; canonicalSHA256=value.checkpointSHA256; canonicalData=try FieldDraftCanonicalCodecV1.encode(value) }
     func value() throws -> FieldDraftCheckpointV1 { let value=try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,from:canonicalData); guard value.draftID==draftID,value.workspaceID.rawValue==workspaceID,value.draftRevision==(try fieldDraftDomainRevision(revision)),value.mutationID.rawValue==mutationID,value.checkpointSHA256==canonicalSHA256 else{throw FieldDraftFailureV1.digestMismatch};return value }
     func replace(with value:FieldDraftCheckpointV1,expectedRevision:UInt64)throws{let prior=try self.value();try value.validateSuccessor(of:prior,expectedDraftRevision:expectedRevision,expectedBaseRevision:prior.baseCanonicalRevision);workspaceID=value.workspaceID.rawValue;revision=try fieldDraftStoredRevision(value.draftRevision);mutationID=value.mutationID.rawValue;canonicalSHA256=value.checkpointSHA256;canonicalData=try FieldDraftCanonicalCodecV1.encode(value)}
+    /// Reviewed base changes have a separate exact-predecessor operation.
+    /// Compute every throwing result before changing any persisted field.
+    func replace(withReviewedResolution resolution: ReviewedDraftConflictResolutionV1) throws {
+        try resolution.validate()
+        let prior = try value()
+        guard prior == resolution.expectedCheckpoint,
+              canonicalData == (try FieldDraftCanonicalCodecV1.encode(resolution.expectedCheckpoint)),
+              canonicalSHA256 == resolution.expectedCheckpointSHA256 else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let successor = resolution.successorCheckpoint
+        let storedRevision = try fieldDraftStoredRevision(successor.draftRevision)
+        let storedData = try FieldDraftCanonicalCodecV1.encode(successor)
+        workspaceID = successor.workspaceID.rawValue
+        revision = storedRevision
+        mutationID = successor.mutationID.rawValue
+        canonicalSHA256 = successor.checkpointSHA256
+        canonicalData = storedData
+    }
+
 }
 
 @Model final class AttachmentStagingItemRow {

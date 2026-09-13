@@ -132,7 +132,14 @@ protocol PrivateSystemDiscoveryGlobalJournalStoreV1: Sendable {
     func saveGlobal(_ journal: PrivateSystemDiscoveryGlobalJournalV1) throws
 }
 
-final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryProtectedIndexClientV1, @unchecked Sendable {
+protocol PrivateSystemDiscoveryContentGuardedIndexClientV1: PrivateSystemDiscoveryProtectedIndexClientV1 {
+    func replaceItems(
+        deleting identifiers: [String], with items: [PrivateSystemDiscoveryIndexItemV1],
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) async throws
+}
+
+final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryContentGuardedIndexClientV1, @unchecked Sendable {
     static let indexName = PrivateSystemDiscoveryLifecycleV1.namedIndex
     private let index = CSSearchableIndex(name: PrivateSystemDiscoveryCoreSpotlightClientV1.indexName, protectionClass: .complete)
 
@@ -148,6 +155,29 @@ final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryP
             index.indexSearchableItems(values) { error in
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
+        }
+    }
+
+    func replaceItems(
+        deleting identifiers: [String], with items: [PrivateSystemDiscoveryIndexItemV1],
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) async throws {
+        try await deleteItems(withIdentifiers: identifiers)
+        let values = items.map { item -> CSSearchableItem in
+            let attributes = CSSearchableItemAttributeSet(contentType: .data)
+            attributes.title = item.titleKey; attributes.contentDescription = item.actionToken
+            return CSSearchableItem(uniqueIdentifier: item.uniqueIdentifier,
+                domainIdentifier: item.domainIdentifier, attributeSet: attributes)
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            do {
+                try contentReadToken.withContentRead(for: .searchRebuild) {
+                    index.indexSearchableItems(values) { error in
+                        if let error { continuation.resume(throwing: error) }
+                        else { continuation.resume() }
+                    }
+                }
+            } catch { continuation.resume(throwing: error) }
         }
     }
 
@@ -230,8 +260,10 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
                  availability: [AppIntentAvailabilityV1], now: Date) async throws {
         try await serialized {
             try await recoverGlobal(); try await recover(); try operationID.validate(); try manifest.validate(); try optIn.validate()
-            if try committed(operationID, .rebuild, workspaceID) { return }
             try descriptors.forEach { try $0.validate() }; try availability.forEach { try $0.validate() }
+            let effectiveOperationID = try currentRebuildOperationID(
+                operationID, workspaceID: workspaceID
+            )
             guard operationID.operation == .rebuild, operationID.workspaceID == workspaceID,
                   optIn.contains(workspaceID), workspaceRevision >= deletionFrontier,
                   descriptors == descriptors.sorted(by: { $0.stableKey < $1.stableKey }),
@@ -239,14 +271,30 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
               availability.count == PrivateSystemDiscoveryActionV1.allCases.count,
                   Set(availability.map(\.action)) == Set(PrivateSystemDiscoveryActionV1.allCases),
                   availability.allSatisfy({ $0.workspaceID == workspaceID && $0.optedIn && $0.available }) else {
-                let child = try childOperation(parent: operationID, workspaceID: workspaceID,
+                let child = try childOperation(parent: effectiveOperationID, workspaceID: workspaceID,
                     domain: "UNAVAILABLE_REBUILD_REMOVAL_V1")
                 if try committed(child, .removal, workspaceID) { return }
                 let request = try PrivateSystemDiscoveryRemovalRequestV1(operationRawID: child.rawValue,
                     workspaceID: workspaceID, priorStateSHA256: child.inputSHA256, requestedAt: now)
                 try await removePrepared(request); return
             }
-            let request = try PrivateSystemDiscoveryRebuildRequestV1(operationRawID: operationID.rawValue,
+            // A completed journal entry is idempotent only when the current
+            // enrollment still permits every action and the active derived
+            // workspace state is the exact state this request would publish.
+            // A prior opt-out removes that state, so it cannot turn a later
+            // opt-in of the same canonical source into a no-op.
+            if try committed(effectiveOperationID, .rebuild, workspaceID) {
+                guard activeWorkspaceIndexMatches(
+                    workspaceID: workspaceID,
+                    workspaceRevision: workspaceRevision,
+                    deletionFrontier: deletionFrontier,
+                    descriptors: descriptors
+                ) else {
+                    throw PrivateSystemDiscoveryFailureV1.unavailable
+                }
+                return
+            }
+            let request = try PrivateSystemDiscoveryRebuildRequestV1(operationRawID: effectiveOperationID.rawValue,
                 workspaceID: workspaceID, workspaceRevision: workspaceRevision,
                 deletionFrontier: deletionFrontier, sourceStateSHA256: operationID.inputSHA256,
                 requestedAt: now)
@@ -256,9 +304,101 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
             let workspace = try PrivateSystemDiscoveryWorkspaceStateV1(workspaceID: workspaceID,
                 workspaceRevision: workspaceRevision, projections: descriptors,
                 deletionFrontier: deletionFrontier, rebuiltAt: now)
-            try prepare(operationID, resulting: try replacing(workspace), payload: payload,
+            try prepare(effectiveOperationID, resulting: try replacing(workspace), payload: payload,
                 logicallyBlock: false, at: now)
             try await recover()
+        }
+    }
+
+    /// A live caller may mark its pending rebuild as authority-bound. The
+    /// token guards durable preparation and the actual Spotlight submission;
+    /// callback completion remains an already-admitted pending operation.
+    func rebuild(operationID: PrivateSystemDiscoveryOperationIDV1, workspaceID: WorkspaceID,
+                 workspaceRevision: UInt64, deletionFrontier: UInt64,
+                 descriptors: [PrivateSystemDiscoveryProjectionDescriptorV1],
+                 manifest: PrivateSystemDiscoveryManifestV1, optIn: PrivateSystemDiscoveryOptInV1,
+                 availability: [AppIntentAvailabilityV1], now: Date,
+        contentReadToken: AppAccessGateV1.ContentReadToken) async throws {
+        try await serialized {
+            // Reject unsupported clients before preparing or replaying any work.
+            guard index is any PrivateSystemDiscoveryContentGuardedIndexClientV1 else {
+                throw PrivateSystemDiscoveryFailureV1.unavailable
+            }
+            try contentReadToken.withContentRead(for: .searchRebuild) {}
+            // Do not recover a global legacy operation through this guarded route.
+            guard globalJournal.entries.isEmpty || globalJournal.entries.last?.state == .committed else {
+                throw PrivateSystemDiscoveryFailureV1.unavailable
+            }
+            try operationID.validate(); try manifest.validate(); try optIn.validate()
+            try descriptors.forEach { try $0.validate() }; try availability.forEach { try $0.validate() }
+            guard operationID.operation == .rebuild, operationID.workspaceID == workspaceID,
+                  workspaceRevision >= deletionFrontier,
+                  descriptors == descriptors.sorted(by: { $0.stableKey < $1.stableKey }),
+                  Set(descriptors.map(\.domain)) == Set(PrivateSystemDiscoveryProjectionDomainV1.allCases),
+                  availability.count == PrivateSystemDiscoveryActionV1.allCases.count,
+                  Set(availability.map(\.action)) == Set(PrivateSystemDiscoveryActionV1.allCases),
+                  availability.allSatisfy({ $0.workspaceID == workspaceID }) else {
+                throw PrivateSystemDiscoveryFailureV1.invalidValue
+            }
+            let effectiveOperationID = try currentRebuildOperationID(
+                operationID, workspaceID: workspaceID
+            )
+            if !optIn.contains(workspaceID)
+                || !availability.allSatisfy({ $0.optedIn && $0.available }) {
+                // A previously submitted rebuild retains its original owner.
+                // Removing a completed enrollment must not replay or discard
+                // an uncertain marked operation just to manufacture cleanup.
+                guard value.pendingOperation == nil else {
+                    throw PrivateSystemDiscoveryFailureV1.unavailable
+                }
+                if !value.knownWorkspaceIDs.contains(workspaceID),
+                   value.stateMap.workspaces.allSatisfy({ $0.workspaceID != workspaceID }) {
+                    return
+                }
+                let child = try childOperation(parent: effectiveOperationID, workspaceID: workspaceID,
+                    domain: "UNAVAILABLE_REBUILD_REMOVAL_V1")
+                if try committed(child, .removal, workspaceID) { return }
+                let map = try PrivateSystemDiscoveryStateMapV1(
+                    workspaces: value.stateMap.workspaces.filter { $0.workspaceID != workspaceID })
+                try contentReadToken.withContentRead(for: .searchRebuild) {
+                    try prepare(child, resulting: map, payload: nil, logicallyBlock: true, at: now)
+                }
+                try await recover()
+                return
+            }
+            if let pending = value.pendingOperation {
+                guard pending.requiresContentAuthority == true,
+                      pending.operationID == effectiveOperationID,
+                      let payload = pending.rebuild,
+                      payload.request.workspaceRevision == workspaceRevision,
+                      payload.request.deletionFrontier == deletionFrontier,
+                      payload.request.sourceStateSHA256 == effectiveOperationID.inputSHA256,
+                      payload.descriptors == descriptors,
+                      payload.manifest == manifest,
+                      payload.optIn == optIn,
+                      availabilitySemanticallyMatches(payload.availability, availability) else {
+                    throw PrivateSystemDiscoveryFailureV1.unavailable
+                }
+                try await recover(contentReadToken: contentReadToken)
+                return
+            }
+            if try committed(effectiveOperationID, .rebuild, workspaceID) {
+                guard activeWorkspaceIndexMatches(workspaceID: workspaceID, workspaceRevision: workspaceRevision, deletionFrontier: deletionFrontier, descriptors: descriptors) else { throw PrivateSystemDiscoveryFailureV1.unavailable }
+                return
+            }
+            let request = try PrivateSystemDiscoveryRebuildRequestV1(operationRawID: effectiveOperationID.rawValue,
+                workspaceID: workspaceID, workspaceRevision: workspaceRevision,
+                deletionFrontier: deletionFrontier, sourceStateSHA256: effectiveOperationID.inputSHA256, requestedAt: now)
+            let payload = PrivateSystemDiscoveryIndexRebuildPayloadV1(request: request,
+                descriptors: descriptors, manifest: manifest, optIn: optIn, availability: availability, requestedAt: now)
+            let workspace = try PrivateSystemDiscoveryWorkspaceStateV1(workspaceID: workspaceID,
+                workspaceRevision: workspaceRevision, projections: descriptors,
+                deletionFrontier: deletionFrontier, rebuiltAt: now)
+            try contentReadToken.withContentRead(for: .searchRebuild) {
+                try prepare(effectiveOperationID, resulting: try replacing(workspace), payload: payload,
+                    logicallyBlock: false, at: now, requiresContentAuthority: true)
+            }
+            try await recover(contentReadToken: contentReadToken)
         }
     }
 
@@ -278,6 +418,9 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
 
     func eraseAll(operationID: PrivateSystemDiscoveryOperationIDV1, now: Date) async throws {
         try await serialized {
+            guard value.pendingOperation?.requiresContentAuthority != true else {
+                throw PrivateSystemDiscoveryFailureV1.unavailable
+            }
             try await recoverGlobal(); try operationID.validate()
             guard operationID.operation == .removal else {
                 throw PrivateSystemDiscoveryFailureV1.invalidValue
@@ -290,6 +433,9 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
 
     func dropAndRebuild() async throws {
         try await serialized {
+            guard value.pendingOperation?.requiresContentAuthority != true else {
+                throw PrivateSystemDiscoveryFailureV1.unavailable
+            }
             try await recoverGlobal(); try await index.deleteAllItems(); try store.clear(); value = .empty
         }
     }
@@ -311,13 +457,14 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
     private func prepare(_ operationID: PrivateSystemDiscoveryOperationIDV1,
                          resulting: PrivateSystemDiscoveryStateMapV1,
                          payload: PrivateSystemDiscoveryIndexRebuildPayloadV1?,
-                         logicallyBlock: Bool, at: Date) throws {
+                         logicallyBlock: Bool, at: Date,
+                         requiresContentAuthority: Bool? = nil) throws {
         guard value.pendingOperation == nil else { throw PrivateSystemDiscoveryFailureV1.unavailable }
         let prior = operationID.inputSHA256; let result = try digest(resulting)
         let pending = PrivateSystemDiscoveryPendingOperationV1(operationID: operationID,
             operation: operationID.operation, workspaceID: operationID.workspaceID,
             expectedPriorStateSHA256: prior, resultingStateSHA256: result,
-            rebuild: payload, preparedAt: at)
+            rebuild: payload, preparedAt: at, requiresContentAuthority: requiresContentAuthority)
         let entry = try PrivateSystemDiscoveryJournalEntryV1(operationID: operationID,
             expectedPriorStateSHA256: prior, resultingStateSHA256: nil,
             state: .prepared, recordedAt: at)
@@ -339,8 +486,13 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
         value = candidate
     }
 
-    private func recover() async throws {
+    private func recover(
+        contentReadToken: AppAccessGateV1.ContentReadToken? = nil
+    ) async throws {
         guard let pending = value.pendingOperation else { return }
+        if pending.requiresContentAuthority == true, contentReadToken == nil {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
         let entries = value.journal.filter { $0.operationID == pending.operationID.rawValue }
         if entries.last?.state == .prepared {
             var candidate = value
@@ -354,8 +506,17 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
                     projections: payload.descriptors,
                     deletionFrontier: payload.request.deletionFrontier,
                     rebuiltAt: payload.requestedAt)
-                try await index.replaceItems(deleting: identifiers(pending.workspaceID),
-                    with: payload.manifest.actions.map { item(pending.workspaceID, $0) })
+                if let contentReadToken {
+                    guard let guarded = index as? any PrivateSystemDiscoveryContentGuardedIndexClientV1 else {
+                        throw PrivateSystemDiscoveryFailureV1.unavailable
+                    }
+                    try await guarded.replaceItems(deleting: identifiers(pending.workspaceID),
+                        with: payload.manifest.actions.map { item(pending.workspaceID, $0) },
+                        contentReadToken: contentReadToken)
+                } else {
+                    try await index.replaceItems(deleting: identifiers(pending.workspaceID),
+                        with: payload.manifest.actions.map { item(pending.workspaceID, $0) })
+                }
                 candidate.stateMap = try replacing(workspace)
             case .removal:
                 try await index.deleteItems(withIdentifiers: identifiers(pending.workspaceID))
@@ -364,8 +525,13 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
                 throw PrivateSystemDiscoveryFailureV1.corruptDigest
             }
             candidate.journal.append(try transition(pending, .effectApplied))
-            try candidate.validate(); try store.save(candidate)
-            value = candidate
+            if let contentReadToken, pending.requiresContentAuthority == true {
+                try contentReadToken.withContentRead(for: .searchRebuild) {
+                    try candidate.validate(); try store.save(candidate); value = candidate
+                }
+            } else {
+                try candidate.validate(); try store.save(candidate); value = candidate
+            }
         }
         guard value.journal.last(where: { $0.operationID == pending.operationID.rawValue })?.state == .effectApplied else {
             throw PrivateSystemDiscoveryFailureV1.invalidValue
@@ -377,8 +543,13 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
             candidate.workspaceInventory.removeAll { $0.workspaceID == pending.workspaceID }
         }
         candidate.pendingOperation = nil
-        try candidate.validate(); try store.save(candidate)
-        value = candidate
+        if let contentReadToken, pending.requiresContentAuthority == true {
+            try contentReadToken.withContentRead(for: .searchRebuild) {
+                try candidate.validate(); try store.save(candidate); value = candidate
+            }
+        } else {
+            try candidate.validate(); try store.save(candidate); value = candidate
+        }
     }
 
     private func beginGlobal(_ operationID: PrivateSystemDiscoveryOperationIDV1, at: Date) throws {
@@ -491,6 +662,68 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
     private func replacing(_ workspace: PrivateSystemDiscoveryWorkspaceStateV1) throws -> PrivateSystemDiscoveryStateMapV1 {
         try .init(workspaces: (value.stateMap.workspaces.filter { $0.workspaceID != workspace.workspaceID } + [workspace])
             .sorted { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString })
+    }
+
+    private func activeWorkspaceIndexMatches(
+        workspaceID: WorkspaceID,
+        workspaceRevision: UInt64,
+        deletionFrontier: UInt64,
+        descriptors: [PrivateSystemDiscoveryProjectionDescriptorV1]
+    ) -> Bool {
+        value.stateMap.workspaces.first(where: { $0.workspaceID == workspaceID }).map {
+            $0.workspaceRevision == workspaceRevision
+                && $0.deletionFrontier == deletionFrontier
+                && $0.projections == descriptors
+        } ?? false
+    }
+
+    private func availabilitySemanticallyMatches(
+        _ left: [AppIntentAvailabilityV1], _ right: [AppIntentAvailabilityV1]
+    ) -> Bool {
+        guard left.count == right.count else { return false }
+        let keys: (AppIntentAvailabilityV1) -> String = {
+            "\($0.action.rawValue)|\($0.workspaceID.rawValue.uuidString)|\($0.optedIn)|\($0.featureReason.rawValue)|\($0.appAccessPermitsContent)|\($0.protectedDataAvailable)|\($0.available)"
+        }
+        return left.map(keys).sorted() == right.map(keys).sorted()
+    }
+
+    /// A removal after this operation's commit starts a new enrollment. Keep
+    /// that identity even once its effectApplied state becomes active, so a
+    /// cold retry can finish the same pending operation without resubmission.
+    private func currentRebuildOperationID(
+        _ operationID: PrivateSystemDiscoveryOperationIDV1,
+        workspaceID: WorkspaceID
+    ) throws -> PrivateSystemDiscoveryOperationIDV1 {
+        guard operationID.operation == .rebuild,
+              try committed(operationID, .rebuild, workspaceID),
+              let originalCommit = value.journal.lastIndex(where: {
+                  $0.operationID == operationID.rawValue && $0.state == .committed
+              }),
+              let removalIndex = value.journal.lastIndex(where: {
+                  $0.operation == .removal && $0.workspaceID == workspaceID
+                      && $0.state == .committed
+              }), removalIndex > originalCommit else { return operationID }
+        let removal = value.journal[removalIndex]
+        let digest = CompatibilityCanonicalV1.sha256(Data(
+            ("PRIVATE_SYSTEM_DISCOVERY_REENROLL_V1|" + operationID.bindingSHA256
+                + "|" + removal.operationID.bindingSHA256).utf8
+        ))
+        let compact = String(digest.prefix(32))
+        let text = "\(compact.prefix(8))-\(compact.dropFirst(8).prefix(4))-\(compact.dropFirst(12).prefix(4))-\(compact.dropFirst(16).prefix(4))-\(compact.dropFirst(20).prefix(12))"
+        guard let rawValue = UUID(uuidString: text) else {
+            throw PrivateSystemDiscoveryFailureV1.corruptDigest
+        }
+        let rebound = try PrivateSystemDiscoveryOperationIDV1(rawValue: rawValue, operation: .rebuild,
+            workspaceID: workspaceID, inputSHA256: operationID.inputSHA256)
+        // An unrelated newer enrollment may already own the active workspace.
+        // Only this rebound's pending/committed lineage can resume over it;
+        // the caller still checks that its exact source state matches.
+        if value.stateMap.workspaces.contains(where: { $0.workspaceID == workspaceID }),
+           value.pendingOperation?.operationID != rebound,
+           try !committed(rebound, .rebuild, workspaceID) {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        return rebound
     }
 
     private func identifiers(_ workspaceID: WorkspaceID) -> [String] {

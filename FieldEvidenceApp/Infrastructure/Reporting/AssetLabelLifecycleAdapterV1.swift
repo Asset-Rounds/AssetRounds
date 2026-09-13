@@ -449,7 +449,6 @@ private final class AssetLabelArtifactScratchStoreV1: @unchecked Sendable {
               ) else { throw AssetLabelLifecycleFailureV1.publicationMismatch }
         let plan = published.plan
         let projection = published.projection
-        try await authority.validateCurrent(plan)
         try projection.validate(plan: plan)
         guard plan.planSHA256 == job.immutableInputSHA256,
               projection.manifest.manifestSHA256 == outputSHA256,

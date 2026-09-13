@@ -19,11 +19,7 @@ struct EraseAllView: View {
     @ObservedObject var coordinator: StoreSessionCoordinator
     let diagnosticsStore: DiagnosticsStore
     let applicationSupportURL: URL
-    let onBegin: @MainActor () -> Void
-    let onActivate: @MainActor (StoreGenerationSession) async -> Void
-    let onDeferred: @MainActor (StoreGenerationSession) async -> Void
-    let onFinished: @MainActor (StoreGenerationSession) async -> Void
-    let onFailure: @MainActor () -> Void
+    let performErase: @MainActor (String) async throws -> Void
 
     @State private var confirmation = ""
     @State private var isErasing = false
@@ -141,41 +137,15 @@ struct EraseAllView: View {
         confirmationFocused = false
         isErasing = true
         errorMessage = nil
-        let coordinator = coordinator
-        let diagnosticsStore = diagnosticsStore
-        let applicationSupportURL = applicationSupportURL
-        let onActivate = onActivate
-        let onDeferred = onDeferred
-        let onFinished = onFinished
-        let onFailure = onFailure
-        onBegin()
-        dismiss()
-        Task { @MainActor [
-            coordinator,
-            diagnosticsStore,
-            applicationSupportURL,
-            onActivate,
-            onDeferred,
-            onFinished,
-            onFailure
-        ] in
-            await Task.yield()
+        let performErase = performErase
+        let confirmedText = confirmation
+        Task { @MainActor in
             do {
-                let outcome = try await EraseAllService(
-                    applicationSupportURL: applicationSupportURL
-                ).erase(
-                    confirmation: confirmation,
-                    coordinator: coordinator,
-                    diagnosticsStore: diagnosticsStore,
-                    activate: onActivate
-                )
-                if outcome.cleanupDeferred {
-                    await onDeferred(outcome.session)
-                } else {
-                    await onFinished(outcome.session)
-                }
+                try await performErase(confirmedText)
+                dismiss()
             } catch {
-                onFailure()
+                isErasing = false
+                errorMessage = "Erase could not be completed"
             }
         }
     }

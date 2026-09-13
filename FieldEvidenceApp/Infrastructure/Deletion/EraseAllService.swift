@@ -434,6 +434,57 @@ struct EraseAllOutcome {
     let cleanupDeferred: Bool
 }
 
+struct EraseAllOperationSubjectV1: Equatable, Sendable {
+    let eraseID: UUID
+    let newGenerationID: UUID
+    let applicationSupportURL: URL
+    let applicationSupportDevice: Int64
+    let applicationSupportInode: UInt64
+
+    fileprivate init(
+        eraseID: UUID,
+        newGenerationID: UUID,
+        applicationSupportURL: URL,
+        applicationSupportDevice: Int64,
+        applicationSupportInode: UInt64
+    ) {
+        self.eraseID = eraseID
+        self.newGenerationID = newGenerationID
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        self.applicationSupportDevice = applicationSupportDevice
+        self.applicationSupportInode = applicationSupportInode
+    }
+}
+
+struct CompletedEraseReceiptV1: Sendable {
+    let subject: EraseAllOperationSubjectV1
+    let reservation: AppAccessGateV1.EraseAdoptionToken?
+
+    fileprivate init(
+        subject: EraseAllOperationSubjectV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken?
+    ) {
+        self.subject = subject
+        self.reservation = reservation
+    }
+}
+
+struct AbortedEraseAdmissionReceiptV1: Sendable {
+    let subject: EraseAllOperationSubjectV1
+    let reservation: AppAccessGateV1.EraseAdoptionToken
+    let originalGenerationID: UUID
+
+    fileprivate init(
+        subject: EraseAllOperationSubjectV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken,
+        originalGenerationID: UUID
+    ) {
+        self.subject = subject
+        self.reservation = reservation
+        self.originalGenerationID = originalGenerationID
+    }
+}
+
 enum EraseAllFailurePoint: CaseIterable, Equatable, Sendable {
     case afterEmptyGenerationDirectoryCreate
     case beforePreparedWrite
@@ -530,6 +581,11 @@ final class EraseAllService {
     private let sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)?
     private let privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)?
     private let notificationSystem: any NotificationSystemPortV1
+    private let admitErase: (@MainActor (EraseAllOperationSubjectV1) async throws -> AppAccessGateV1.EraseAdoptionToken)?
+    private let didCompleteErase: (@MainActor (CompletedEraseReceiptV1) -> Void)?
+    private let didAbortEraseAdmission: (@MainActor (AbortedEraseAdmissionReceiptV1) -> Void)?
+    private var admittedSubject: EraseAllOperationSubjectV1?
+    private var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
 
     init(
         applicationSupportURL: URL,
@@ -545,7 +601,10 @@ final class EraseAllService {
         failureInjection: EraseAllFailureInjection? = nil,
         sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)? = nil,
         privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)? = PrivateSystemDiscoveryIndexRuntimeV1.shared,
-        notificationSystem: (any NotificationSystemPortV1)? = nil
+        notificationSystem: (any NotificationSystemPortV1)? = nil,
+        admitErase: (@MainActor (EraseAllOperationSubjectV1) async throws -> AppAccessGateV1.EraseAdoptionToken)? = nil,
+        didCompleteErase: (@MainActor (CompletedEraseReceiptV1) -> Void)? = nil,
+        didAbortEraseAdmission: (@MainActor (AbortedEraseAdmissionReceiptV1) -> Void)? = nil
     ) {
         let support = applicationSupportURL.standardizedFileURL
         self.applicationSupportURL = support
@@ -571,6 +630,9 @@ final class EraseAllService {
         self.sceneNavigationStatePort = sceneNavigationStatePort
         self.privateSystemDiscoveryIndex = privateSystemDiscoveryIndex
         self.notificationSystem = notificationSystem ?? UserNotificationSystemAdapterV1()
+        self.admitErase = admitErase
+        self.didCompleteErase = didCompleteErase
+        self.didAbortEraseAdmission = didAbortEraseAdmission
     }
 
     func erase(
@@ -707,6 +769,39 @@ final class EraseAllService {
             targetReplicaID: targetIdentity.replicaID.rawValue,
             targetPointer: nil
         )
+        let subject = makeOperationSubject(
+            eraseID: eraseID,
+            newGenerationID: newGenerationID,
+            auxiliary: auxiliary
+        )
+        let reservation: AppAccessGateV1.EraseAdoptionToken?
+        do {
+            reservation = try await admit(subject)
+            try revalidateAdmission(
+                subject: subject,
+                auxiliary: auxiliary,
+                coordinator: coordinator,
+                oldGenerationID: oldGenerationID,
+                oldGenerationRootURL: oldGenerationRootURL,
+                priorRetired: priorRetired,
+                oldPointer: oldPointer,
+                sourceLedger: sourceLedger,
+                lifecycleRoute: lifecycleRoute,
+                lifecycleCheckpoint: lifecycleCheckpoint
+            )
+        } catch {
+            emitAbortedAdmissionIfProven(
+                subject: subject,
+                reservation: admittedReservation,
+                originalGenerationID: oldGenerationID,
+                auxiliary: auxiliary,
+                priorRetired: priorRetired,
+                oldPointer: oldPointer,
+                sourceLedger: sourceLedger,
+                targetGenerationID: newGenerationID
+            )
+            throw error
+        }
 
         var createdIntent = false
         var frozenIntent: EraseIntentV1?
@@ -857,7 +952,9 @@ final class EraseAllService {
                 authority: generationAuthority,
                 auxiliary: auxiliary,
                 diagnosticsStore: diagnosticsStore,
-                intentStore: intentStore
+                intentStore: intentStore,
+                subject: subject,
+                reservation: reservation
             )
             return EraseAllOutcome(
                 session: completed,
@@ -895,6 +992,16 @@ final class EraseAllService {
                     }
                     if ownsUnjournaledGeneration {
                         try auxiliary.removeEraseRootIfEmpty()
+                        emitAbortedAdmissionIfProven(
+                            subject: subject,
+                            reservation: reservation,
+                            originalGenerationID: oldGenerationID,
+                            auxiliary: auxiliary,
+                            priorRetired: priorRetired,
+                            oldPointer: oldPointer,
+                            sourceLedger: sourceLedger,
+                            targetGenerationID: newGenerationID
+                        )
                     }
                 } catch {
                     throw EraseAllServiceError.recoveryRequired
@@ -966,6 +1073,19 @@ final class EraseAllService {
         )
         try auxiliary.verifyTargets()
         try requireRecoveryPresence(intent, authority: authority)
+        let subject = makeOperationSubject(
+            eraseID: intent.eraseID,
+            newGenerationID: intent.newGenerationID,
+            auxiliary: auxiliary
+        )
+        let reservation = try await admit(subject)
+        try revalidateRecoveryAdmission(
+            subject: subject,
+            intent: intent,
+            preparation: preparation,
+            auxiliary: auxiliary,
+            intentStore: intentStore
+        )
 
         let session: StoreGenerationSession
         switch intent.phase {
@@ -1012,7 +1132,9 @@ final class EraseAllService {
             authority: authority,
             auxiliary: auxiliary,
             diagnosticsStore: diagnosticsStore,
-            intentStore: intentStore
+            intentStore: intentStore,
+            subject: subject,
+            reservation: reservation
         )
     }
 
@@ -1041,6 +1163,201 @@ final class EraseAllService {
 }
 
 private extension EraseAllService {
+    func makeOperationSubject(
+        eraseID: UUID,
+        newGenerationID: UUID,
+        auxiliary: EraseAuxiliaryAuthority
+    ) -> EraseAllOperationSubjectV1 {
+        let identity = auxiliary.applicationSupportRootIdentity
+        return EraseAllOperationSubjectV1(
+            eraseID: eraseID,
+            newGenerationID: newGenerationID,
+            applicationSupportURL: applicationSupportURL,
+            applicationSupportDevice: Int64(identity.device),
+            applicationSupportInode: UInt64(identity.inode)
+        )
+    }
+
+    func admit(
+        _ subject: EraseAllOperationSubjectV1
+    ) async throws -> AppAccessGateV1.EraseAdoptionToken? {
+        guard admittedSubject == nil, admittedReservation == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let reservation = try await admitErase?(subject)
+        admittedSubject = subject
+        admittedReservation = reservation
+        return reservation
+    }
+
+    func completedReceipt(
+        subject: EraseAllOperationSubjectV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken?,
+        eraseID: UUID,
+        newGenerationID: UUID
+    ) -> CompletedEraseReceiptV1? {
+        guard didCompleteErase != nil else { return nil }
+        guard admittedSubject == subject,
+              admittedReservation == reservation,
+              admittedReservation?.subject == subject || reservation == nil,
+              subject.eraseID == eraseID,
+              subject.newGenerationID == newGenerationID else {
+            return nil
+        }
+        return CompletedEraseReceiptV1(
+            subject: subject,
+            reservation: reservation
+        )
+    }
+
+    func emitAbortedAdmissionIfProven(
+        subject: EraseAllOperationSubjectV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken?,
+        originalGenerationID: UUID,
+        auxiliary: EraseAuxiliaryAuthority,
+        priorRetired: [UUID],
+        oldPointer: RestorePointerIdentityV1,
+        sourceLedger: DeletionLedgerProofV2,
+        targetGenerationID: UUID
+    ) {
+        guard let reservation,
+              didAbortEraseAdmission != nil,
+              admittedSubject == subject,
+              admittedReservation == reservation,
+              reservation.subject == subject else { return }
+        do {
+            guard makeOperationSubject(
+                eraseID: subject.eraseID,
+                newGenerationID: subject.newGenerationID,
+                auxiliary: auxiliary
+            ) == subject else { return }
+            let store = try EraseIntentStore(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager,
+                expectedApplicationSupportIdentity: auxiliary.applicationSupportRootIdentity
+            )
+            guard try store.load() == nil,
+                  try store.loadPreparation() == nil else { return }
+            try auxiliary.verifyTargets()
+            try auxiliary.requireNoEraseIntent()
+            try auxiliary.requireNoRestoreIntent()
+            let authority = try generationFactory.makeRestoreGenerationAuthority(
+                expectedApplicationSupportIdentity: auxiliary.applicationSupportRootIdentity
+            )
+            guard try frozenCurrentPointer(
+                expectedGenerationID: originalGenerationID,
+                authority: authority
+            ) == oldPointer,
+            try generationFactory.currentGenerationDeletionLedgerProof(
+                expectedPointer: oldPointer,
+                authority: authority
+            ) == sourceLedger,
+            try authority.retiredGenerationIDs() == priorRetired,
+            !(try authority.installedGenerationNames()).contains(
+                Self.canonical(targetGenerationID)
+            ) else { return }
+            didAbortEraseAdmission?(AbortedEraseAdmissionReceiptV1(
+                subject: subject,
+                reservation: reservation,
+                originalGenerationID: originalGenerationID
+            ))
+        } catch {
+            return
+        }
+    }
+
+    func revalidateAdmission(
+        subject: EraseAllOperationSubjectV1,
+        auxiliary: EraseAuxiliaryAuthority,
+        coordinator: StoreSessionCoordinator,
+        oldGenerationID: UUID,
+        oldGenerationRootURL: URL,
+        priorRetired: [UUID],
+        oldPointer: RestorePointerIdentityV1,
+        sourceLedger: DeletionLedgerProofV2,
+        lifecycleRoute: EraseAllLifecycleRouteV1,
+        lifecycleCheckpoint: EraseAllLifecycleCheckpointV1
+    ) throws {
+        guard makeOperationSubject(
+            eraseID: subject.eraseID,
+            newGenerationID: subject.newGenerationID,
+            auxiliary: auxiliary
+        ) == subject else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try auxiliary.verifyTargets()
+        try auxiliary.requireNoEraseIntent()
+        try auxiliary.requireNoRestoreIntent()
+        let authority = try generationFactory.makeRestoreGenerationAuthority(
+            expectedApplicationSupportIdentity: auxiliary.applicationSupportRootIdentity
+        )
+        try validateCurrentAuthority(
+            coordinator: coordinator,
+            expectedID: oldGenerationID,
+            expectedRootURL: oldGenerationRootURL,
+            retiredIDs: priorRetired,
+            authority: authority
+        )
+        guard try frozenCurrentPointer(
+            expectedGenerationID: oldGenerationID,
+            authority: authority
+        ) == oldPointer,
+        try generationFactory.currentGenerationDeletionLedgerProof(
+            expectedPointer: oldPointer,
+            authority: authority
+        ) == sourceLedger else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try lifecycleRoute.validate(
+            generationRootURL: coordinator.generationRootURL,
+            generationID: coordinator.generationID
+        )
+        switch (lifecycleRoute, lifecycleCheckpoint) {
+        case let (.live(dependencies), .live(expectedRevision)):
+            guard try validatePackageLifecycleScope(
+                dependencies: dependencies,
+                coordinator: coordinator
+            ) == expectedRevision else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        case (.expiringCompatibility, .compatibility):
+            break
+        default:
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func revalidateRecoveryAdmission(
+        subject: EraseAllOperationSubjectV1,
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2?,
+        auxiliary: EraseAuxiliaryAuthority,
+        intentStore: EraseIntentStore
+    ) throws {
+        guard makeOperationSubject(
+            eraseID: intent.eraseID,
+            newGenerationID: intent.newGenerationID,
+            auxiliary: auxiliary
+        ) == subject,
+        try intentStore.load() == intent,
+        try intentStore.loadPreparation() == preparation else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if intent.schemaVersion == 2 {
+            guard preparation?.matches(intent) == true || intent.phase == .cleanupComplete,
+                  preparation != nil || intent.phase == .cleanupComplete else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } else if preparation != nil {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try auxiliary.verifyTargets()
+        let authority = try generationFactory.makeRestoreGenerationAuthority(
+            expectedApplicationSupportIdentity: auxiliary.applicationSupportRootIdentity
+        )
+        try requireRecoveryPresence(intent, authority: authority)
+    }
+
     func validateKernelEraseMappings() throws {
         do {
             try KernelDeletionEraseRegistryV4.validate()
@@ -1451,7 +1768,9 @@ private extension EraseAllService {
         authority: StoreRestoreGenerationAuthority,
         auxiliary: EraseAuxiliaryAuthority,
         diagnosticsStore: DiagnosticsStore,
-        intentStore: EraseIntentStore
+        intentStore: EraseIntentStore,
+        subject: EraseAllOperationSubjectV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken?
     ) async throws -> StoreGenerationSession {
         let activated: EraseIntentV1
         if value.phase == .cleanupComplete {
@@ -1612,6 +1931,14 @@ private extension EraseAllService {
         try inject(.beforeJournalRemoval)
         try intentStore.remove(expected: completed)
         try auxiliary.removeEraseRootIfEmpty()
+        if let receipt = completedReceipt(
+            subject: subject,
+            reservation: reservation,
+            eraseID: completed.eraseID,
+            newGenerationID: completed.newGenerationID
+        ) {
+            didCompleteErase?(receipt)
+        }
         return session
     }
 

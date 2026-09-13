@@ -170,8 +170,95 @@ struct SearchCoordinatorV1: Sendable {
         registry: SearchableFieldRegistryV1,
         accessGate: any AppAccessGatePortV1
     ) async throws -> SearchResponseV1 {
-        _ = try await accessGate.requireContentAccess(for: .search)
-        return try await search(plan, source: source, registry: registry)
+        // A port permit is only a point-in-time admission decision. Keep the
+        // concrete gate's original epoch so a lock/unlock ABA cannot publish
+        // a response after the awaited projection read.
+        guard let gate = accessGate as? AppAccessGateV1 else {
+            _ = try await accessGate.requireContentAccess(for: .search)
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let token = try await gate.beginContentRead(for: .search)
+        return try await search(
+            plan, source: source, registry: registry,
+            accessGate: gate, token: token
+        )
+    }
+
+    private func search(
+        _ plan: SearchQueryPlanV1,
+        source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1,
+        accessGate: AppAccessGateV1,
+        token: AppAccessGateV1.ContentReadToken
+    ) async throws -> SearchResponseV1 {
+        try Task.checkCancellation()
+        try plan.validate()
+        try registry.validate()
+        guard plan.sourceRevision == source.commitRevision else {
+            throw SearchContractFailureV1.staleIndex
+        }
+
+        let projection: SearchIndexProjectionV1
+        if let localStore = index as? LocalSearchIndexStoreV1 {
+            projection = try await localStore.projection(
+                for: source, registry: registry, contentReadToken: token
+            )
+        } else {
+            projection = try await index.projection(for: source, registry: registry)
+        }
+        try await accessGate.validateContentRead(token, for: .search)
+        try Task.checkCancellation()
+
+        var bestByCanonicalIdentity: [String: Candidate] = [:]
+        var inspected = 0
+        for record in projection.records {
+            inspected += 1
+            if inspected.isMultiple(of: 128) { try Task.checkCancellation() }
+            guard plan.scope.contains(record.sourceKind),
+                  Self.passes(plan.filters, record: record),
+                  let tier = Self.matchTier(plan: plan, record: record) else { continue }
+
+            let identity = record.sourceKind.rawValue + ":" + record.sourceStableID
+            let candidate = Candidate(record: record, tier: tier)
+            if let prior = bestByCanonicalIdentity[identity] {
+                if Self.isBetter(candidate, than: prior) {
+                    bestByCanonicalIdentity[identity] = candidate
+                }
+            } else {
+                bestByCanonicalIdentity[identity] = candidate
+            }
+        }
+
+        var results = try bestByCanonicalIdentity.values.map { candidate in
+            try SearchResultContextV1(
+                workspaceID: source.workspaceID,
+                sourceKind: candidate.record.sourceKind,
+                stableID: candidate.record.sourceStableID,
+                displayIdentity: candidate.record.displayIdentity,
+                locationBreadcrumb: candidate.record.locationBreadcrumb,
+                status: candidate.record.status,
+                openWorkStableIDs: candidate.record.openWorkStableIDs,
+                snippet: candidate.record.permittedSnippet,
+                dueAt: candidate.record.dueAt,
+                rankingKey: SearchRankingKeyV1(
+                    tier: candidate.tier,
+                    stableID: candidate.record.sourceStableID,
+                    timestamp: candidate.record.sourceTimestamp
+                ),
+                sourceRevision: source.commitRevision,
+                indexRevision: projection.index.indexedCommitRevision
+            )
+        }
+        results.sort { Self.resultPrecedes($0, $1, sort: plan.sort) }
+        if results.count > plan.maximumResults {
+            results.removeLast(results.count - plan.maximumResults)
+        }
+
+        let suggestions = plan.permitsTypoSuggestions
+            ? try Self.suggestions(plan: plan, records: projection.records)
+            : []
+        try await accessGate.validateContentRead(token, for: .search)
+        return SearchResponseV1(plan: plan, results: results, suggestions: suggestions)
     }
 
     /// Locale-independent normalization used both by canonical projectors and

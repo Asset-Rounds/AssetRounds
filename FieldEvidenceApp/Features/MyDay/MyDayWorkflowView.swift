@@ -19,6 +19,7 @@ struct MyDayWorkflowView: View {
     let summary: MyDaySummaryProjectionV1?
     let savePreview: MyDaySavePreviewV1?
     let carryoverPreview: MyDayCarryoverPreviewV1?
+    let sourceSnapshot: MyDaySourceSnapshotV1?
     let onSelectEligible: @MainActor (MyDayEligibleReferenceV1) -> Void
     let onMove: @MainActor (MyDayAccessibleMoveV1) -> Void
     let onRequestRoute: @MainActor (MyDayExistingRouteIntentV1) -> Void
@@ -42,6 +43,7 @@ struct MyDayWorkflowView: View {
         summary: MyDaySummaryProjectionV1?,
         savePreview: MyDaySavePreviewV1? = nil,
         carryoverPreview: MyDayCarryoverPreviewV1? = nil,
+        sourceSnapshot: MyDaySourceSnapshotV1? = nil,
         onSelectEligible: @escaping @MainActor (MyDayEligibleReferenceV1) -> Void,
         onMove: @escaping @MainActor (MyDayAccessibleMoveV1) -> Void,
         onRequestRoute: @escaping @MainActor (MyDayExistingRouteIntentV1) -> Void,
@@ -53,6 +55,7 @@ struct MyDayWorkflowView: View {
         self.summary = summary
         self.savePreview = savePreview
         self.carryoverPreview = carryoverPreview
+        self.sourceSnapshot = sourceSnapshot
         self.onSelectEligible = onSelectEligible
         self.onMove = onMove
         self.onRequestRoute = onRequestRoute
@@ -60,8 +63,21 @@ struct MyDayWorkflowView: View {
         self.onRefreshSummary = onRefreshSummary
     }
 
+    /// Current-source presentation has no planning or mutation callbacks.
+    /// Full planning callers retain the original initializer and behavior.
+    init(sourceSnapshot: MyDaySourceSnapshotV1,
+         onRefresh: @escaping @MainActor () -> Void) {
+        self.init(eligibleReferences: sourceSnapshot.eligibleReferences,
+            draft: nil, summary: nil, sourceSnapshot: sourceSnapshot,
+            onSelectEligible: { _ in }, onMove: { _ in }, onRequestRoute: { _ in },
+            onPreviewCarryover: {}, onRefreshSummary: onRefresh)
+    }
+
     var body: some View {
         List {
+            if let sourceSnapshot {
+                currentSourceSections(sourceSnapshot)
+            } else {
             Section {
                 heading
             }
@@ -102,6 +118,7 @@ struct MyDayWorkflowView: View {
             } header: {
                 sectionHeading("Reconciliation and boundaries", identifier: Self.reconciliationAccessibilityIdentifier)
             }
+            }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -114,7 +131,45 @@ struct MyDayWorkflowView: View {
             if reduceMotion { transaction.animation = nil }
         }
         .onAppear {
-            accessibilityFocus = draft == nil ? .plan : .heading
+            accessibilityFocus = sourceSnapshot != nil || draft != nil ? .heading : .plan
+        }
+    }
+
+    @ViewBuilder
+    private func currentSourceSections(_ snapshot: MyDaySourceSnapshotV1) -> some View {
+        Section {
+            Text("My Day")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($accessibilityFocus, equals: .heading)
+            Text("Available work and its current status.")
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        Section {
+            let available = snapshot.sources.filter(\.isSelectable)
+            if available.isEmpty {
+                Text("No work is currently available for planning.")
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(available, id: \.reference) { source in
+                    AssetRoundsEvidenceCard {
+                        ProductionWorkSourceRowV1(source: source,
+                            readiness: snapshot.readinessAssessments.first {
+                                $0.reference == source.reference
+                            })
+                    }
+                }
+            }
+        } header: {
+            sectionHeading("Available work", identifier: Self.eligibleWorkAccessibilityIdentifier)
+        }
+        Section {
+            Button("Refresh work", action: onRefreshSummary)
+                .buttonStyle(WorklightSecondaryButtonStyle())
+                .keyboardShortcut("r", modifiers: [.command])
         }
     }
 

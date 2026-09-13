@@ -1030,7 +1030,7 @@ extension WorkPacketMutationPayloadV1 {
         }
     }
 }
-extension FieldDraftMutationPayloadV1{var mutationPostImages:[MutationPostImageV1]{get throws{let images:[MutationPostImageV1];switch self{case let .createCheckpoint(v),let .reviseCheckpoint(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.fieldDraftCheckpoint(id:v.draftID,concurrencyIdentity:c,revision:v.draftRevision,semanticSHA256:v.checkpointSHA256)];case let .appendStagingItem(v),let .reviseStagingItem(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.attachmentStagingItem(id:v.stageID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.stageSHA256)];case let .appendCommitSaga(v),let .advanceCommitSaga(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.draftCommitSaga(id:v.sagaID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.sagaSHA256)];case let .appendContentReservation(v),let .reviseContentReservation(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.draftContentReservation(id:v.reservationID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.reservationSHA256)];case let .applyCommitTerminal(v,_):guard let predecessor=v.retiredSaga.predecessorSagaID else{throw WorkspaceMutationFailureV1.invalidCommand};images=[.draftCommitSaga(id:v.retiredSaga.sagaID,concurrencyIdentity:try .init(kind:.draftCommitSaga,id:predecessor),revision:v.retiredSaga.revision,semanticSHA256:v.retiredSaga.sagaSHA256),.fieldDraftCheckpoint(id:v.committedCheckpoint.draftID,concurrencyIdentity:try .init(kind:.fieldDraftCheckpoint,id:v.committedCheckpoint.draftID),revision:v.committedCheckpoint.draftRevision,semanticSHA256:v.committedCheckpoint.checkpointSHA256),.draftCommitReceipt(id:v.receipt.receiptID,concurrencyIdentity:try .init(kind:.draftCommitReceipt,id:v.receipt.receiptID),revision:v.receipt.revision,semanticSHA256:v.receipt.receiptSHA256)];case let .applyDiscardTerminal(v):images=[.fieldDraftCheckpoint(id:v.discardedCheckpoint.draftID,concurrencyIdentity:try .init(kind:.fieldDraftCheckpoint,id:v.discardedCheckpoint.draftID),revision:v.discardedCheckpoint.draftRevision,semanticSHA256:v.discardedCheckpoint.checkpointSHA256),.draftDiscardReceipt(id:v.receipt.receiptID,concurrencyIdentity:try .init(kind:.draftDiscardReceipt,id:v.receipt.receiptID),revision:v.receipt.revision,semanticSHA256:v.receipt.receiptSHA256)]};return try images.sorted{try $0.identity.stableKey<$1.identity.stableKey}}};var mutationPostImage:MutationPostImageV1{get throws{let values=try mutationPostImages;guard values.count==1,let value=values.first else{throw WorkspaceMutationFailureV1.invalidCommand};return value}}}
+extension FieldDraftMutationPayloadV1{var mutationPostImages:[MutationPostImageV1]{get throws{let images:[MutationPostImageV1];switch self{case let .resolveConflict(v):let value=v.successorCheckpoint;images=[.fieldDraftCheckpoint(id:value.draftID,concurrencyIdentity:try .init(kind:.fieldDraftCheckpoint,id:value.draftID),revision:value.draftRevision,semanticSHA256:value.checkpointSHA256)];case let .createCheckpoint(v),let .reviseCheckpoint(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.fieldDraftCheckpoint(id:v.draftID,concurrencyIdentity:c,revision:v.draftRevision,semanticSHA256:v.checkpointSHA256)];case let .appendStagingItem(v),let .reviseStagingItem(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.attachmentStagingItem(id:v.stageID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.stageSHA256)];case let .appendCommitSaga(v),let .advanceCommitSaga(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.draftCommitSaga(id:v.sagaID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.sagaSHA256)];case let .appendContentReservation(v),let .reviseContentReservation(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.draftContentReservation(id:v.reservationID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.reservationSHA256)];case let .applyCommitTerminal(v,_):guard let predecessor=v.retiredSaga.predecessorSagaID else{throw WorkspaceMutationFailureV1.invalidCommand};images=[.draftCommitSaga(id:v.retiredSaga.sagaID,concurrencyIdentity:try .init(kind:.draftCommitSaga,id:predecessor),revision:v.retiredSaga.revision,semanticSHA256:v.retiredSaga.sagaSHA256),.fieldDraftCheckpoint(id:v.committedCheckpoint.draftID,concurrencyIdentity:try .init(kind:.fieldDraftCheckpoint,id:v.committedCheckpoint.draftID),revision:v.committedCheckpoint.draftRevision,semanticSHA256:v.committedCheckpoint.checkpointSHA256),.draftCommitReceipt(id:v.receipt.receiptID,concurrencyIdentity:try .init(kind:.draftCommitReceipt,id:v.receipt.receiptID),revision:v.receipt.revision,semanticSHA256:v.receipt.receiptSHA256)];case let .applyDiscardTerminal(v):images=[.fieldDraftCheckpoint(id:v.discardedCheckpoint.draftID,concurrencyIdentity:try .init(kind:.fieldDraftCheckpoint,id:v.discardedCheckpoint.draftID),revision:v.discardedCheckpoint.draftRevision,semanticSHA256:v.discardedCheckpoint.checkpointSHA256),.draftDiscardReceipt(id:v.receipt.receiptID,concurrencyIdentity:try .init(kind:.draftDiscardReceipt,id:v.receipt.receiptID),revision:v.receipt.revision,semanticSHA256:v.receipt.receiptSHA256)]};return try images.sorted{try $0.identity.stableKey<$1.identity.stableKey}}};var mutationPostImage:MutationPostImageV1{get throws{let values=try mutationPostImages;guard values.count==1,let value=values.first else{throw WorkspaceMutationFailureV1.invalidCommand};return value}}}
 extension PackagePromotionMutationV1{var mutationPostImages:[MutationPostImageV1]{get throws{let identities=try affectedIdentities,concurrency=try concurrencyIdentities;func c(_ kind:WorkspaceEntityKindV1)throws->WorkspaceEntityIdentityV1{guard let value=concurrency.first(where:{$0.kind==kind})else{throw WorkspaceMutationFailureV1.invalidCommand};return value};let values:[MutationPostImageV1]=[.promotedPackageRelease(id:promotedRelease.releaseRecordID,concurrencyIdentity:try c(.promotedPackageRelease),revision:promotedRelease.revision,semanticSHA256:promotedRelease.releaseRecordSHA256),.packageSandboxRun(id:sandboxRun.runID,concurrencyIdentity:try c(.packageSandboxRun),revision:sandboxRun.revision,semanticSHA256:sandboxRun.runSHA256),.packagePromotionReceipt(id:receipt.receiptID,concurrencyIdentity:try c(.packagePromotionReceipt),revision:receipt.revision,semanticSHA256:receipt.receiptSHA256),.activePackageRegistryPointer(id:resultingPointer.pointerID,concurrencyIdentity:try c(.activePackageRegistryPointer),revision:resultingPointer.revision,semanticSHA256:resultingPointer.pointerSHA256)];guard try values.map({try $0.identity})==identities else{throw WorkspaceMutationFailureV1.invalidCommand};return values}}}
 extension MeasurementIntegrityMutationPayloadV1{var mutationPostImage:MutationPostImageV1{get throws{let c=try predecessorIdentity ?? identity;switch self{case let .instrument(v):return .instrumentReference(id:v.referenceID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.referenceSHA256);case let .calibration(v):return .calibrationStatusSnapshot(id:v.snapshotID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.snapshotSHA256);case let .capture(v):return .measurementCapture(id:v.captureID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.captureSHA256);case let .series(v):return .measurementSeries(id:v.snapshotID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.seriesSHA256);case let .quality(v):return .measurementQualityAssessment(id:v.assessmentID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.assessmentSHA256)}}}}
 extension MeasurementIntegrityMutationV1{var mutationPostImages:[MutationPostImageV1]{get throws{try bundle.mutationPayloads.map{try $0.mutationPostImage}.sorted{try $0.identity.stableKey<$1.identity.stableKey}}}}
@@ -1515,10 +1515,371 @@ struct FieldDraftMutationReceiptV1: Codable, Equatable, Sendable {
               try images.allSatisfy({ resulting[try $0.identity] == $0.revision }) else {
             throw WorkspaceMutationFailureV1.invalidReceipt
         }
+        if case let .resolveConflict(value) = mutation.postImage {
+            try mutation.validateReviewedTargetWorkspaceRevision(
+                mutationReceipt.expectedRevision.workspaceRevision
+            )
+            guard Set(expected.keys) == Set(concurrency) else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            if let target = value.reviewedTargetBasis.existingIdentity {
+                guard resulting[target] == value.reviewedTargetBasis.targetRevision else {
+                    throw WorkspaceMutationFailureV1.invalidReceipt
+                }
+            }
+        }
         mutationSHA256 = try mutation.canonicalSHA256(); self.mutationReceipt = mutationReceipt
         affectedIdentities = affected; concurrencyIdentities = concurrency
     }
 }
+
+/// Authenticated original field-draft command evidence. The journal supplies
+/// these values from its canonical envelope and receipt bytes, never a live
+/// checkpoint reconstruction.
+struct FieldDraftCommittedEvidenceV1: Equatable, Sendable {
+    let envelope: MutationEnvelopeV1
+    let mutation: FieldDraftMutationV1
+    let receipt: MutationReceiptV1
+    let envelopeSHA256: String
+
+    init(envelope: MutationEnvelopeV1, receipt: MutationReceiptV1) throws {
+        try envelope.validate()
+        try receipt.validate()
+        guard case let .applyFieldDraft(mutation) = envelope.command,
+              envelope.workspaceID == mutation.workspaceID,
+              envelope.mutationID == mutation.mutationID,
+              receipt.mutationID == envelope.mutationID,
+              receipt.expectedRevision == envelope.expectedRevision,
+              receipt.identity.workspaceID == envelope.workspaceID,
+              receipt.identity.replicaID == envelope.replicaID,
+              receipt.envelopeSHA256 == (try envelope.canonicalSHA256()) else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        _ = try FieldDraftMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+        self.envelope = envelope
+        self.mutation = mutation
+        self.receipt = receipt
+        envelopeSHA256 = receipt.envelopeSHA256
+    }
+}
+
+/// The original reviewed command, returned by specialized journal recovery
+/// only after its receipt-backed draft and target history has been checked.
+struct ReviewedFieldDraftResolutionEvidenceV1: Equatable, Sendable {
+    let original: FieldDraftCommittedEvidenceV1
+    let resolution: ReviewedDraftConflictResolutionV1
+
+    init(original: FieldDraftCommittedEvidenceV1) throws {
+        let rebuilt = try FieldDraftCommittedEvidenceV1(
+            envelope: original.envelope, receipt: original.receipt
+        )
+        guard rebuilt == original,
+              case let .resolveConflict(resolution) = original.mutation.postImage else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        try resolution.validate()
+        self.original = original
+        self.resolution = resolution
+    }
+}
+
+/// Historical originals returned by a complete local journal read. This value
+/// carries no pending-write proof, current-target promise or persistence owner.
+struct PendingReviewedMyDayPreparedEpochEvidenceV1: Equatable, Sendable {
+    let committing: FieldDraftCommittedEvidenceV1
+    let committingCheckpoint: FieldDraftCheckpointV1
+    let sagaPrefix: [FieldDraftCommittedEvidenceV1]
+
+    init(committing: FieldDraftCommittedEvidenceV1,
+         sagaPrefix: [FieldDraftCommittedEvidenceV1]) throws {
+        guard try FieldDraftCommittedEvidenceV1(envelope: committing.envelope,
+                receipt: committing.receipt) == committing,
+              case let .reviseCheckpoint(checkpoint) = committing.mutation.postImage,
+              checkpoint.state == .committing, checkpoint.purpose == .myDayPlanning,
+              checkpoint.stageIDs.isEmpty, sagaPrefix.count <= 4 else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        let reconstruction = try MyDayPlanningDraftCodecV1.reconstructCommit(from: checkpoint)
+        guard reconstruction.plan.stageDigests.isEmpty,
+              reconstruction.rowMutationIDs.reservationByStageID.isEmpty else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        var previousReceipt = committing.receipt
+        for (index, evidence) in sagaPrefix.enumerated() {
+            let saga = reconstruction.sagas[index]
+            let expected = try FieldDraftMutationV1(
+                workspaceID: checkpoint.workspaceID,
+                expectedRevision: index == 0 ? 0 : reconstruction.sagas[index - 1].revision,
+                expectedBaseCanonicalRevision: reconstruction.plan.baseCanonicalRevision,
+                mutationID: saga.mutationID,
+                postImage: index == 0 ? .appendCommitSaga(saga) : .advanceCommitSaga(saga)
+            )
+            guard try FieldDraftCommittedEvidenceV1(envelope: evidence.envelope,
+                    receipt: evidence.receipt) == evidence,
+                  evidence.mutation == expected,
+                  evidence.receipt.resultingRevision.workspaceRevision
+                    > previousReceipt.resultingRevision.workspaceRevision else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            previousReceipt = evidence.receipt
+        }
+        self.committing = committing
+        committingCheckpoint = checkpoint
+        self.sagaPrefix = sagaPrefix
+    }
+}
+
+/// Shape validation binds the original receipt values. Only the canonical
+/// journal query establishes their complete local history and physical tip.
+struct PendingReviewedMyDayConflictEvidenceV1: Equatable, Sendable {
+    let conflict: FieldDraftCommittedEvidenceV1
+    let conflictedCheckpoint: FieldDraftCheckpointV1
+    let editing: FieldDraftCommittedEvidenceV1
+    let editingCheckpoint: FieldDraftCheckpointV1
+    let preparedEpoch: PendingReviewedMyDayPreparedEpochEvidenceV1?
+
+    init(conflict: FieldDraftCommittedEvidenceV1, editing: FieldDraftCommittedEvidenceV1,
+         preparedEpoch: PendingReviewedMyDayPreparedEpochEvidenceV1?) throws {
+        guard try FieldDraftCommittedEvidenceV1(envelope: conflict.envelope,
+                receipt: conflict.receipt) == conflict,
+              try FieldDraftCommittedEvidenceV1(envelope: editing.envelope,
+                receipt: editing.receipt) == editing,
+              case let .reviseCheckpoint(conflicted) = conflict.mutation.postImage,
+              conflicted.state == .conflicted, conflicted.purpose == .myDayPlanning,
+              conflicted.stageIDs.isEmpty else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        let editable: FieldDraftCheckpointV1
+        switch editing.mutation.postImage {
+        case let .createCheckpoint(checkpoint), let .reviseCheckpoint(checkpoint):
+            editable = checkpoint
+        case let .resolveConflict(resolution):
+            editable = resolution.successorCheckpoint
+        default:
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        let payload = try MyDayPlanningDraftCodecV1.validateCheckpointPayload(editable)
+        guard editable.state == .active, editable.purpose == .myDayPlanning,
+              editable.stageIDs.isEmpty, payload.phase == .editing,
+              payload.confirmedContext != nil, payload.commitAttempt == nil,
+              case .plan? = payload.editingIntent,
+              editable.draftID == conflicted.draftID,
+              editable.workspaceID == conflicted.workspaceID,
+              editable.scope == conflicted.scope,
+              editing.receipt.resultingRevision.workspaceRevision
+                < conflict.receipt.resultingRevision.workspaceRevision else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        let predecessor: FieldDraftCheckpointV1
+        let previousReceipt: MutationReceiptV1
+        if let preparedEpoch {
+            let rebuilt = try PendingReviewedMyDayPreparedEpochEvidenceV1(
+                committing: preparedEpoch.committing, sagaPrefix: preparedEpoch.sagaPrefix)
+            guard rebuilt == preparedEpoch,
+                  preparedEpoch.committing.receipt.resultingRevision.workspaceRevision
+                    > editing.receipt.resultingRevision.workspaceRevision else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            try preparedEpoch.committingCheckpoint.validateSuccessor(of: editable,
+                expectedDraftRevision: preparedEpoch.committing.mutation.expectedRevision,
+                expectedBaseRevision: preparedEpoch.committing.mutation.expectedBaseCanonicalRevision)
+            predecessor = preparedEpoch.committingCheckpoint
+            previousReceipt = preparedEpoch.sagaPrefix.last?.receipt ?? preparedEpoch.committing.receipt
+        } else {
+            predecessor = editable
+            previousReceipt = editing.receipt
+        }
+        try conflicted.validateSuccessor(of: predecessor,
+            expectedDraftRevision: conflict.mutation.expectedRevision,
+            expectedBaseRevision: conflict.mutation.expectedBaseCanonicalRevision)
+        guard conflicted.payloadData == predecessor.payloadData,
+              conflicted.stageIDs == predecessor.stageIDs,
+              conflicted.resumeAnchor == predecessor.resumeAnchor,
+              conflicted.lastDurableMutationID == predecessor.lastDurableMutationID,
+              conflicted.lastReceiptSHA256 == predecessor.lastReceiptSHA256,
+              conflict.receipt.resultingRevision.workspaceRevision
+                > previousReceipt.resultingRevision.workspaceRevision else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        self.conflict = conflict
+        conflictedCheckpoint = conflicted
+        self.editing = editing
+        editingCheckpoint = editable
+        self.preparedEpoch = preparedEpoch
+    }
+}
+
+/// Shape validation binds a local carryover conflict to the same immutable
+/// source/selection epoch. The canonical journal establishes complete history
+/// and source/target lineage with the current source tip before returning this value.
+struct PendingReviewedMyDayCarryoverConflictEvidenceV1: Equatable, Sendable {
+    let conflict: FieldDraftCommittedEvidenceV1
+    let conflictedCheckpoint: FieldDraftCheckpointV1
+    let editing: FieldDraftCommittedEvidenceV1
+    let editingCheckpoint: FieldDraftCheckpointV1
+    let preparedEpoch: PendingReviewedMyDayPreparedEpochEvidenceV1?
+
+    init(conflict: FieldDraftCommittedEvidenceV1, editing: FieldDraftCommittedEvidenceV1,
+         preparedEpoch: PendingReviewedMyDayPreparedEpochEvidenceV1?) throws {
+        let classifiable = try ClassifiableMyDayCarryoverEvidenceV1(
+            editing: editing, preparedEpoch: preparedEpoch)
+        guard try FieldDraftCommittedEvidenceV1(envelope: conflict.envelope,
+                receipt: conflict.receipt) == conflict,
+              case let .reviseCheckpoint(conflicted) = conflict.mutation.postImage,
+              conflicted.state == .conflicted,
+              conflicted.purpose == .myDayPlanning,
+              conflicted.stageIDs.isEmpty,
+              conflicted.draftID == classifiable.currentCheckpoint.draftID,
+              conflicted.workspaceID == classifiable.currentCheckpoint.workspaceID,
+              conflicted.scope == classifiable.currentCheckpoint.scope else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        try conflicted.validateSuccessor(of: classifiable.currentCheckpoint,
+            expectedDraftRevision: conflict.mutation.expectedRevision,
+            expectedBaseRevision: conflict.mutation.expectedBaseCanonicalRevision)
+        let previousReceipt = preparedEpoch?.sagaPrefix.last?.receipt
+            ?? preparedEpoch?.committing.receipt
+            ?? classifiable.editing.receipt
+        guard conflicted.payloadData == classifiable.currentCheckpoint.payloadData,
+              conflicted.stageIDs == classifiable.currentCheckpoint.stageIDs,
+              conflicted.resumeAnchor == classifiable.currentCheckpoint.resumeAnchor,
+              conflicted.lastDurableMutationID == classifiable.currentCheckpoint.lastDurableMutationID,
+              conflicted.lastReceiptSHA256 == classifiable.currentCheckpoint.lastReceiptSHA256,
+              conflict.receipt.resultingRevision.workspaceRevision
+                > previousReceipt.resultingRevision.workspaceRevision else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        self.conflict = conflict
+        conflictedCheckpoint = conflicted
+        self.editing = editing
+        editingCheckpoint = classifiable.editingCheckpoint
+        self.preparedEpoch = preparedEpoch
+    }
+}
+
+/// Historical inputs for a possible local plan conflict. The journal establishes
+/// complete history and target-effect absence; the service decides staleness.
+struct ClassifiableMyDayPlanEvidenceV1: Equatable, Sendable {
+    let editing: FieldDraftCommittedEvidenceV1
+    let editingCheckpoint: FieldDraftCheckpointV1
+    let preparedEpoch: PendingReviewedMyDayPreparedEpochEvidenceV1?
+    let currentCheckpoint: FieldDraftCheckpointV1
+
+    init(editing: FieldDraftCommittedEvidenceV1,
+         preparedEpoch: PendingReviewedMyDayPreparedEpochEvidenceV1?) throws {
+        guard try FieldDraftCommittedEvidenceV1(envelope: editing.envelope,
+            receipt: editing.receipt) == editing else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        let editable: FieldDraftCheckpointV1
+        switch editing.mutation.postImage {
+        case let .createCheckpoint(checkpoint), let .reviseCheckpoint(checkpoint):
+            editable = checkpoint
+        case let .resolveConflict(resolution):
+            editable = resolution.successorCheckpoint
+        default:
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        let payload = try MyDayPlanningDraftCodecV1.validateCheckpointPayload(editable)
+        guard editable.state == .active, editable.purpose == .myDayPlanning,
+              editable.stageIDs.isEmpty, payload.phase == .editing,
+              payload.confirmedContext != nil, payload.commitAttempt == nil,
+              case .plan? = payload.editingIntent else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        if let preparedEpoch {
+            guard try PendingReviewedMyDayPreparedEpochEvidenceV1(
+                    committing: preparedEpoch.committing, sagaPrefix: preparedEpoch.sagaPrefix) == preparedEpoch,
+                  preparedEpoch.sagaPrefix.count <= 2,
+                  preparedEpoch.committing.receipt.resultingRevision.workspaceRevision
+                    > editing.receipt.resultingRevision.workspaceRevision else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            try preparedEpoch.committingCheckpoint.validateSuccessor(of: editable,
+                expectedDraftRevision: preparedEpoch.committing.mutation.expectedRevision,
+                expectedBaseRevision: preparedEpoch.committing.mutation.expectedBaseCanonicalRevision)
+            currentCheckpoint = preparedEpoch.committingCheckpoint
+        } else {
+            currentCheckpoint = editable
+        }
+        self.editing = editing
+        editingCheckpoint = editable
+        self.preparedEpoch = preparedEpoch
+    }
+}
+
+/// Historical inputs for a possible local carryover conflict. The journal
+/// establishes complete history and source/target lineage; this value binds
+/// only the retained original and an optional pre-target prepared epoch.
+struct ClassifiableMyDayCarryoverEvidenceV1: Equatable, Sendable {
+    let editing: FieldDraftCommittedEvidenceV1
+    let editingCheckpoint: FieldDraftCheckpointV1
+    let preparedEpoch: PendingReviewedMyDayPreparedEpochEvidenceV1?
+    let currentCheckpoint: FieldDraftCheckpointV1
+
+    init(editing: FieldDraftCommittedEvidenceV1,
+         preparedEpoch: PendingReviewedMyDayPreparedEpochEvidenceV1?) throws {
+        guard try FieldDraftCommittedEvidenceV1(envelope: editing.envelope,
+            receipt: editing.receipt) == editing else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        let editable: FieldDraftCheckpointV1
+        switch editing.mutation.postImage {
+        case let .createCheckpoint(checkpoint), let .reviseCheckpoint(checkpoint):
+            editable = checkpoint
+        case let .resolveConflict(resolution):
+            editable = resolution.successorCheckpoint
+        default:
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        let payload = try MyDayPlanningDraftCodecV1.validateCheckpointPayload(editable)
+        guard editable.state == .active, editable.purpose == .myDayPlanning,
+              editable.stageIDs.isEmpty, payload.phase == .editing,
+              let context = payload.confirmedContext, payload.commitAttempt == nil,
+              case let .carryover(sourcePlan, selectedMembershipIDs, targetKey, targetPredecessor)? = payload.editingIntent,
+              context.key == targetKey else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        if let preparedEpoch {
+            guard try PendingReviewedMyDayPreparedEpochEvidenceV1(
+                    committing: preparedEpoch.committing, sagaPrefix: preparedEpoch.sagaPrefix) == preparedEpoch,
+                  preparedEpoch.sagaPrefix.count <= 2,
+                  preparedEpoch.committing.receipt.resultingRevision.workspaceRevision
+                    > editing.receipt.resultingRevision.workspaceRevision else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            try preparedEpoch.committingCheckpoint.validateSuccessor(of: editable,
+                expectedDraftRevision: preparedEpoch.committing.mutation.expectedRevision,
+                expectedBaseRevision: preparedEpoch.committing.mutation.expectedBaseCanonicalRevision)
+            let reconstruction = try MyDayPlanningDraftCodecV1.reconstructCommit(
+                from: preparedEpoch.committingCheckpoint)
+            guard case let .carryover(plan, source, target, receipt) = reconstruction.command,
+                  plan.sourcePlan == sourcePlan,
+                  plan.membershipIDs == selectedMembershipIDs,
+                  plan.targetKey == targetKey,
+                  plan.expectedTargetPlan == targetPredecessor,
+                  (try MyDayPlanReferenceV1(source)) == sourcePlan,
+                  target.key == targetKey,
+                  target.authoredBy == context.recordedBy,
+                  target.authoredAt == preparedEpoch.committingCheckpoint.updatedAt,
+                  receipt.sourcePlan == sourcePlan,
+                  receipt.targetPlan == (try MyDayPlanReferenceV1(target)),
+                  receipt.carriedMembershipIDs == selectedMembershipIDs,
+                  receipt.mutationID == reconstruction.command.mutationID,
+                  receipt.committedAt == target.authoredAt else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            try receipt.validate(plan: plan, source: source, target: target)
+            currentCheckpoint = preparedEpoch.committingCheckpoint
+        } else {
+            currentCheckpoint = editable
+        }
+        self.editing = editing
+        editingCheckpoint = editable
+        self.preparedEpoch = preparedEpoch
+    }
+}
+
 
 struct PackagePromotionMutationReceiptV1: Codable, Equatable, Sendable {
     let mutationSHA256: String

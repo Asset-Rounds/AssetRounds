@@ -2965,3 +2965,28 @@ extension V10_01WorkspaceWriterTests {
         XCTAssertEqual(try writer.currentRevision().revision, 3)
     }
 }
+
+
+extension V10_01WorkspaceWriterTests {
+    func testReviewedDraftCommandLocksRealTargetButProducesOnlyCheckpointImage() throws {
+        let fixture = try ReviewedResolutionTestFixtureV1()
+        for existing in [false, true] {
+            let mutation = try fixture.resolution(target: existing ? fixture.target : nil, workspaceRevision: 7)
+            let checkpoint = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: fixture.initial.draftID)
+            let target = try WorkspaceEntityIdentityV1(kind: .myDayPlan, id: fixture.target.planID)
+            XCTAssertEqual(try mutation.affectedIdentities, [checkpoint])
+            XCTAssertEqual(Set(try mutation.concurrencyIdentities), existing ? Set([checkpoint, target]) : Set([checkpoint]))
+            XCTAssertEqual(try mutation.expectedRevision(for: checkpoint), 2)
+            if existing { XCTAssertEqual(try mutation.expectedRevision(for: target), 1) }
+            XCTAssertThrowsError(try mutation.expectedRevision(for: .init(kind: .myDayPlan, id: UUID())))
+            let images = try mutation.postImage.mutationPostImages
+            XCTAssertEqual(images.count, 1)
+            XCTAssertEqual(try images[0].identity, checkpoint)
+            XCTAssertEqual(images[0].revision, 3)
+            try mutation.validateReviewedTargetWorkspaceRevision(7)
+            if !existing { XCTAssertThrowsError(try mutation.validateReviewedTargetWorkspaceRevision(8)) }
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(FieldDraftMutationV1.self,
+                from: FieldDraftCanonicalCodecV1.encode(mutation)), mutation)
+        }
+    }
+}

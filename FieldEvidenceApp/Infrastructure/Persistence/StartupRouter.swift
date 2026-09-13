@@ -74,6 +74,8 @@ final class StartupRouter: ObservableObject {
     private let fileManager: FileManager
     private let entitlementRuntime: StoreKitEntitlementRuntimeV1
     private let didBeginStep: (StartupStep) -> Void
+    private let beforePostAdoptionContentRead: @MainActor (UUID) async -> Void
+    private let willReadPostAdoptionCanonicalContent: @MainActor (UUID) -> Void
     private let beforeCommerceActivation: @MainActor (UUID) async -> Void
     private let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?
     private let startupPreparationFailure: StartupMaintenanceReason?
@@ -86,6 +88,43 @@ final class StartupRouter: ObservableObject {
     private var operationID: UUID?
     private enum OperationKind { case startup, restored, erase }
     private var operationKind: OperationKind?
+    /// A router-owned capability for an already admitted external operation.
+    /// It deliberately has no serializable identity: a callback can continue
+    /// only the operation which minted this exact value.
+    struct OriginalOperationTicket: Sendable {
+        fileprivate let owner: OriginalOperationOwner
+        fileprivate let mint: OriginalOperationMint
+        fileprivate let operationID: UUID
+    }
+    fileprivate final class OriginalOperationOwner: @unchecked Sendable {}
+    fileprivate final class OriginalOperationMint: @unchecked Sendable {}
+    private enum OriginalOperationKind: Equatable { case restore, erase }
+    /// Tickets must never keep an old SwiftData context alive: Erase drain is
+    /// precisely the proof that the old context has gone away.
+    private final class OriginalOperationSourceReference {
+        weak var coordinator: StoreSessionCoordinator?
+        weak var modelContext: ModelContext?
+
+        init(coordinator: StoreSessionCoordinator?, modelContext: ModelContext) {
+            self.coordinator = coordinator
+            self.modelContext = modelContext
+        }
+    }
+    private struct OriginalOperationState {
+        let kind: OriginalOperationKind
+        let owner: OriginalOperationOwner
+        let mint: OriginalOperationMint
+        let sourceGenerationID: UUID
+        let source: OriginalOperationSourceReference
+        let authorization: StartupAuthorization
+        var eraseSubject: EraseAllOperationSubjectV1?
+        var eraseAuthorizationIssued = false
+        var acknowledgedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var postAdoptionStartup = false
+        var postAdoptionExecutionID: UUID?
+    }
+    private let originalOperationOwner = OriginalOperationOwner()
+    private var originalOperations: [UUID: OriginalOperationState] = [:]
     private struct OwnedWriter {
         let coordinator: StoreSessionCoordinator
         let writer: WorkspaceWriterV1
@@ -100,7 +139,41 @@ final class StartupRouter: ObservableObject {
     private enum OperationFailure: Error { case superseded }
     private var operationOwnedWriter: OwnedWriter?
     private var publishedWriter: OwnedWriter?
+    private enum StartupAuthorization {
+        case content(AppAccessGateV1, AppAccessGateV1.ContentReadToken)
+        case configuration(NotificationOperationAuthorizationV1)
+
+        var permitsPublication: Bool {
+            if case .content = self { return true }
+            return false
+        }
+
+        func validate() async throws {
+            switch self {
+            case .content(let gate, let token):
+                try await gate.validateContentRead(token, for: .startupRecovery)
+            case .configuration(let authorization):
+                try await authorization.validateStartupRecovery()
+            }
+        }
+    }
+    private struct PostAdoptionExecution {
+        let ticket: OriginalOperationTicket
+        let executionID: UUID
+        let contentReadToken: AppAccessGateV1.ContentReadToken
+    }
+    private struct PreparedStartup {
+        let owner: OwnedWriter
+        let recovery: ReportRecoveryService
+    }
+    private var startupAccessGate: AppAccessGateV1?
+    private var operationAuthorization: StartupAuthorization?
+    private var preparedStartup: PreparedStartup?
+    private(set) var lastStartupAccessFailure: Error?
     private var pendingEraseDrainProof: EraseGenerationDrainProof?
+    // Deferred cleanup still has a live-process drain obligation. Keep its
+    // non-content route owner independently of the writer retired on locking.
+    private var deferredEraseCoordinator: StoreSessionCoordinator?
     private var pendingErasedActivation: (owner: OwnedWriter, session: StoreGenerationSession, operationID: UUID)?
     private var retainsGenerationsUntilColdLaunch = false
     private var pendingWriterLeaseReleases: [StoreSessionWriterCleanupFailureV1] = []
@@ -132,9 +205,103 @@ final class StartupRouter: ObservableObject {
         try await coordinator.restore(request, accessGate: accessGate)
     }
 
+    /// The original presentation token fences both live store identity and
+    /// reconciliation. Call the pure coordinator inside this one hold; nesting
+    /// another token hold would reacquire the same nonrecursive lock.
+    func restoreSceneNavigationState(
+        _ request: RouteRestorationRequestV1,
+        using coordinator: RouteCoordinatorV1,
+        workspaceID: WorkspaceID,
+        generationID: UUID,
+        authorization: AppAccessGateV1.ContentReadToken
+    ) throws -> SceneNavigationRestorationResultV1 {
+        guard startupAccessGate?.issuedContentReadToken(authorization) == true else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        return try authorization.withContentRead(for: .sceneRestoration) {
+            guard case .ready(let store, _, _) = route,
+                  store.workspaceID == workspaceID,
+                  store.generationID == generationID,
+                  request.context.currentWorkspaceID == workspaceID else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            let revision = try store.workspaceWriter.currentRevision()
+            guard request.context.currentRevision == revision.revision else {
+                throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+            }
+            return try restoreSceneFromCanonicalSource(request, using: coordinator, store: store)
+        }
+    }
+
+    /// UI supplies navigation values only. Workspace revision and target
+    /// availability are read from the current canonical owner in the same hold.
+    func restoreSceneNavigationState(
+        loaded: SceneNavigationLoadResultV1,
+        explicitIngressTarget: NavigationTargetV1?,
+        using coordinator: RouteCoordinatorV1,
+        workspaceID: WorkspaceID,
+        generationID: UUID,
+        authorization: AppAccessGateV1.ContentReadToken,
+        evidenceKind: RouteEvidenceKindV1,
+        receiptID: UUID
+    ) throws -> SceneNavigationRestorationResultV1 {
+        guard startupAccessGate?.issuedContentReadToken(authorization) == true else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        return try authorization.withContentRead(for: .sceneRestoration) {
+            guard case .ready(let store, _, _) = route,
+                  store.workspaceID == workspaceID,
+                  store.generationID == generationID else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            let snapshot: SceneNavigationSnapshotV1?
+            let discardReason: RouteFallbackReasonV1?
+            switch loaded {
+            case .absent: snapshot = nil; discardReason = nil
+            case .restored(let value): snapshot = value; discardReason = nil
+            case .discarded(let reason): snapshot = nil; discardReason = reason
+            }
+            let revision = try store.workspaceWriter.currentRevision()
+            let request = RouteRestorationRequestV1(
+                context: .init(currentWorkspaceID: workspaceID, currentRevision: revision.revision),
+                startupMaintenanceTarget: nil, incompleteMutationRecoveryTarget: nil,
+                explicitIngressTarget: explicitIngressTarget, sceneSnapshot: snapshot,
+                discardedSnapshotReason: discardReason, evidenceKind: evidenceKind, receiptID: receiptID)
+            return try restoreSceneFromCanonicalSource(request, using: coordinator, store: store)
+        }
+    }
+
+    /// Caller owns the single scene token hold. Invalid snapshots retain the
+    /// coordinator's discard behavior and cannot expand canonical lookups.
+    private func restoreSceneFromCanonicalSource(
+        _ request: RouteRestorationRequestV1,
+        using coordinator: RouteCoordinatorV1,
+        store: StoreSessionCoordinator
+    ) throws -> SceneNavigationRestorationResultV1 {
+        var targets = [request.startupMaintenanceTarget,
+                       request.incompleteMutationRecoveryTarget,
+                       request.explicitIngressTarget].compactMap { $0 }
+        if let snapshot = request.sceneSnapshot,
+           snapshot.workspaceID == store.workspaceID,
+           (try? snapshot.validate()) != nil {
+            targets.append(contentsOf: snapshot.paths.flatMap(\.targets))
+        }
+        let context = try ProductionSceneNavigationSourceV1.context(
+            for: targets, in: store, registry: coordinator.registry)
+        let canonicalRequest = RouteRestorationRequestV1(
+            context: context, startupMaintenanceTarget: request.startupMaintenanceTarget,
+            incompleteMutationRecoveryTarget: request.incompleteMutationRecoveryTarget,
+            explicitIngressTarget: request.explicitIngressTarget, sceneSnapshot: request.sceneSnapshot,
+            discardedSnapshotReason: request.discardedSnapshotReason,
+            evidenceKind: request.evidenceKind, receiptID: request.receiptID)
+        return try coordinator.restoreScene(canonicalRequest)
+    }
+
     func retryChecks(accessGate: any AppAccessGatePortV1) async throws {
-        _ = try await accessGate.requireContentAccess(for: .startupRecovery)
-        await retryChecks()
+        let authorization = try await startupAuthorization(accessGate)
+        await runStartup(authorization: authorization)
+        try await authorization.validate()
+        if let lastStartupAccessFailure { throw lastStartupAccessFailure }
     }
 
     /// The sole startup operation allowed before an app-access permit. The
@@ -164,6 +331,8 @@ final class StartupRouter: ObservableObject {
         startupPreparationFailure: StartupMaintenanceReason? = nil,
         didBeginStep: @escaping (StartupStep) -> Void = { _ in },
         lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1? = nil,
+        beforePostAdoptionContentRead: @escaping @MainActor (UUID) async -> Void = { _ in },
+        willReadPostAdoptionCanonicalContent: @escaping @MainActor (UUID) -> Void = { _ in },
         beforeCommerceActivation: @escaping @MainActor (UUID) async -> Void = { _ in }
     ) {
         self.applicationSupportURL = applicationSupportURL
@@ -181,10 +350,17 @@ final class StartupRouter: ObservableObject {
         self.didBeginStep = didBeginStep
         self.startupPreparationFailure = startupPreparationFailure
         self.lifecycleProfileRegistry = lifecycleProfileRegistry
+        self.beforePostAdoptionContentRead = beforePostAdoptionContentRead
+        self.willReadPostAdoptionCanonicalContent = willReadPostAdoptionCanonicalContent
         self.beforeCommerceActivation = beforeCommerceActivation
     }
 
     func startIfNeeded() async {
+        if let startupAccessGate {
+            do { try await startIfNeeded(accessGate: startupAccessGate) }
+            catch { lastStartupAccessFailure = error }
+            return
+        }
         guard !hasStarted else {
             return
         }
@@ -194,16 +370,271 @@ final class StartupRouter: ObservableObject {
     }
 
     func startIfNeeded(accessGate: any AppAccessGatePortV1) async throws {
+        let authorization = try await startupAuthorization(accessGate)
+        if let preparedStartup {
+            try await publishPreparedStartup(preparedStartup, authorization: authorization)
+            hasStarted = true
+            return
+        }
         guard !hasStarted else { return }
-        _ = try await accessGate.requireContentAccess(for: .startupRecovery)
         hasStarted = true
-        await retryChecks()
+        await runStartup(authorization: authorization)
+        try await authorization.validate()
+        if let lastStartupAccessFailure { throw lastStartupAccessFailure }
     }
 
     func retryChecks() async {
+        if let startupAccessGate {
+            do { try await retryChecks(accessGate: startupAccessGate) }
+            catch { lastStartupAccessFailure = error }
+            return
+        }
+        await runStartup(authorization: nil)
+    }
+
+    func bindStartupAccessGate(_ gate: AppAccessGateV1) throws {
+        if let startupAccessGate {
+            guard startupAccessGate === gate else { throw AppAccessContractFailureV1.accessDenied }
+        } else {
+            guard !hasStarted, !isRunning, publishedWriter == nil, preparedStartup == nil else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            startupAccessGate = gate
+        }
+    }
+
+    /// Admit Restore before the service can inspect or mutate an original
+    /// generation.  The ticket retains the concrete content-read epoch; a
+    /// later unlock must never substitute a new permit for this operation.
+    func beginRestoreOperation(
+        sourceModelContext: ModelContext,
+        sourceGenerationID: UUID,
+        coordinator: StoreSessionCoordinator?,
+        accessGate: AppAccessGateV1
+    ) async throws -> OriginalOperationTicket {
+        guard pendingEraseDrainProof == nil, !isRunning,
+              originalOperations.isEmpty else {
+            throw AppAccessContractFailureV1.invalidTransition
+        }
+        let authorization = try await startupAuthorization(accessGate)
+        guard pendingEraseDrainProof == nil, !isRunning,
+              originalOperations.isEmpty else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        if let coordinator {
+            guard coordinator.modelContext === sourceModelContext,
+                  coordinator.generationID == sourceGenerationID else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        }
+        guard try generationFactory.currentGenerationID() == sourceGenerationID else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        // This retention is an admission property, not a post-service
+        // cleanup detail.  It therefore survives every suspended callback.
+        retainsGenerationsUntilColdLaunch = true
+        let operation = beginOperation(.restored, authorization: authorization)
+        let mint = OriginalOperationMint()
+        originalOperations[operation] = OriginalOperationState(
+            kind: .restore, owner: originalOperationOwner, mint: mint,
+            sourceGenerationID: sourceGenerationID,
+            source: OriginalOperationSourceReference(
+                coordinator: coordinator, modelContext: sourceModelContext
+            ), authorization: authorization
+        )
+        return OriginalOperationTicket(owner: originalOperationOwner, mint: mint,
+                                       operationID: operation)
+    }
+
+    func validateRestoreOperation(_ ticket: OriginalOperationTicket) async throws {
+        let state = try await validateOriginalOperation(ticket, kind: .restore)
+        try await state.authorization.validate()
+    }
+
+    /// Admission is intentionally separate from the service subject.  The
+    /// service mints that subject immediately before its first effect; root
+    /// passes this original token to the lifecycle exactly once at that edge.
+    func beginEraseOperation(
+        coordinator: StoreSessionCoordinator,
+        accessGate: AppAccessGateV1
+    ) async throws -> OriginalOperationTicket {
+        guard !isRunning, pendingEraseDrainProof == nil,
+              originalOperations.isEmpty, resolvePendingWriterCleanup(),
+              publishedWriter.map({ $0.coordinator === coordinator &&
+                  $0.writer === coordinator.workspaceWriter }) ?? true else {
+            throw AppAccessContractFailureV1.invalidTransition
+        }
+        let authorization = try await startupAuthorization(accessGate)
+        guard !isRunning, pendingEraseDrainProof == nil,
+              originalOperations.isEmpty, resolvePendingWriterCleanup(),
+              publishedWriter.map({ $0.coordinator === coordinator &&
+                  $0.writer === coordinator.workspaceWriter }) ?? true else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        let operation = beginOperation(.erase, authorization: authorization)
+        operationOwnedWriter = publishedWriter
+        publishedWriter = nil
+        pendingEraseDrainProof = EraseGenerationDrainProof(
+            priorContext: coordinator.modelContext
+        )
+        let mint = OriginalOperationMint()
+        originalOperations[operation] = OriginalOperationState(
+            kind: .erase, owner: originalOperationOwner, mint: mint,
+            sourceGenerationID: coordinator.generationID,
+            source: OriginalOperationSourceReference(
+                coordinator: coordinator, modelContext: coordinator.modelContext
+            ), authorization: authorization
+        )
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .checking
+        return OriginalOperationTicket(owner: originalOperationOwner, mint: mint,
+                                       operationID: operation)
+    }
+
+    /// Returns the original permit once.  It does not reserve at the gate:
+    /// the lifecycle owns that atomic reservation and exact-subject resume.
+    func eraseAdmissionAuthorization(
+        _ ticket: OriginalOperationTicket,
+        subject: EraseAllOperationSubjectV1
+    ) async throws -> AppAccessGateV1.ContentReadToken? {
+        var state = try await validateOriginalOperation(ticket, kind: .erase)
+        if let bound = state.eraseSubject {
+            guard bound == subject else { throw AppAccessContractFailureV1.staleAttempt }
+            // The lifecycle reservation legitimately revoked the original
+            // read token.  Exact-subject recovery continues under that
+            // retained reservation and must not mint a replacement permit.
+            return nil
+        }
+        try await state.authorization.validate()
+        guard case let .content(_, token) = state.authorization else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        state.eraseSubject = subject
+        state.eraseAuthorizationIssued = true
+        originalOperations[ticket.operationID] = state
+        return token
+    }
+
+    /// The lifecycle, not the router, owns gate reservation.  Once it has
+    /// atomically accepted the original token, bind that exact reservation so
+    /// a later failure cannot pretend the pre-effect admission was absent.
+    func recordEraseReservation(
+        _ ticket: OriginalOperationTicket,
+        reservation: AppAccessGateV1.EraseAdoptionToken
+    ) throws {
+        guard ticket.owner === originalOperationOwner,
+              var state = originalOperations[ticket.operationID],
+              state.owner === ticket.owner, state.mint === ticket.mint,
+              state.kind == .erase, operationID == ticket.operationID,
+              state.eraseSubject == reservation.subject,
+              state.acknowledgedReservation == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        state.acknowledgedReservation = reservation
+        originalOperations[ticket.operationID] = state
+    }
+
+    private func validateOriginalOperation(
+        _ ticket: OriginalOperationTicket,
+        kind: OriginalOperationKind
+    ) async throws -> OriginalOperationState {
+        let matchesOperationKind: Bool
+        switch (kind, operationKind) {
+        case (.restore, .restored), (.erase, .erase): matchesOperationKind = true
+        default: matchesOperationKind = false
+        }
+        guard ticket.owner === originalOperationOwner,
+              let state = originalOperations[ticket.operationID],
+              state.owner === ticket.owner, state.mint === ticket.mint,
+              state.kind == kind, operationID == ticket.operationID,
+              matchesOperationKind, isRunning else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        return state
+    }
+
+    private func removeOriginalOperation(_ operation: UUID) {
+        originalOperations.removeValue(forKey: operation)
+    }
+
+    /// A stale or foreign completion cannot tear down the operation which
+    /// replaced it.  Only the exact current ticket may close this route.
+    func failExternalOperation(_ ticket: OriginalOperationTicket) {
+        guard ticket.owner === originalOperationOwner,
+              let state = originalOperations[ticket.operationID],
+              state.mint === ticket.mint,
+              operationID == ticket.operationID || operationID == nil else { return }
+        removeOriginalOperation(ticket.operationID)
+        if state.kind == .erase {
+            // No service subject means no physical effect and no lifecycle
+            // reservation.  Release the pre-effect drain hold rather than
+            // stranding a weak old-context obligation on cancellation.
+            if state.acknowledgedReservation == nil {
+                pendingEraseDrainProof = nil
+                deferredEraseCoordinator = nil
+            }
+            failClosedErase()
+        }
+        else {
+            invalidateOperationAndPublishedWriter()
+            route = .maintenance(.restoreInconsistent)
+        }
+    }
+
+    /// The lifecycle may release a reservation only after the service's real
+    /// no-effect proof.  This router consumes that service-issued receipt and
+    /// clears only its exact original operation, never a newer ticket.
+    func cancelAbortedErase(
+        _ ticket: OriginalOperationTicket,
+        receipt: AbortedEraseAdmissionReceiptV1
+    ) throws {
+        guard ticket.owner === originalOperationOwner,
+              let state = originalOperations[ticket.operationID],
+              state.owner === ticket.owner, state.mint === ticket.mint,
+              state.kind == .erase,
+              state.eraseSubject == receipt.subject,
+              state.acknowledgedReservation == receipt.reservation,
+              state.sourceGenerationID == receipt.originalGenerationID,
+              operationID == ticket.operationID || operationID == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        removeOriginalOperation(ticket.operationID)
+        pendingEraseDrainProof = nil
+        deferredEraseCoordinator = nil
+        if operationID == ticket.operationID {
+            operationID = nil
+            operationKind = nil
+            operationAuthorization = nil
+            isRunning = false
+        }
+        retainOwnedWriter(operationOwnedWriter)
+        operationOwnedWriter = nil
+        pendingErasedActivation = nil
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .checking
+    }
+
+    private func startupAuthorization(_ accessGate: any AppAccessGatePortV1) async throws -> StartupAuthorization {
+        // A point-in-time port permit cannot fence relock/unlock ABA. Production
+        // startup must capture the concrete gate's original read epoch.
+        guard let gate = accessGate as? AppAccessGateV1 else {
+            _ = try await accessGate.requireContentAccess(for: .startupRecovery)
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try bindStartupAccessGate(gate)
+        return .content(gate, try await gate.beginContentRead(for: .startupRecovery))
+    }
+
+    private func runStartup(authorization: StartupAuthorization?) async {
         guard !isRunning else {
             return
         }
+        lastStartupAccessFailure = nil
+        do { try await authorization?.validate() }
+        catch { lastStartupAccessFailure = error; return }
+        guard !isRunning else { return }
         invalidateOperationAndPublishedWriter()
         guard resolvePendingWriterCleanup() else {
             enterWriterCleanupMaintenance(.dataPointerInvalid)
@@ -214,14 +645,27 @@ final class StartupRouter: ObservableObject {
             return
         }
         if let pendingEraseDrainProof {
+            if originalOperations.values.contains(where: { $0.kind == .erase }) {
+                if let deferredEraseCoordinator {
+                    route = .eraseCleanupPending(deferredEraseCoordinator)
+                } else {
+                    route = .maintenance(.eraseInconsistent)
+                }
+                return
+            }
             guard pendingEraseDrainProof.isDrained else {
-                route = .maintenance(.eraseInconsistent)
+                if let deferredEraseCoordinator {
+                    route = .eraseCleanupPending(deferredEraseCoordinator)
+                } else {
+                    route = .maintenance(.eraseInconsistent)
+                }
                 return
             }
             self.pendingEraseDrainProof = nil
+            deferredEraseCoordinator = nil
         }
 
-        let operation = beginOperation(.startup)
+        let operation = beginOperation(.startup, authorization: authorization)
         maintenanceRestoreSession = nil
         maintenanceEraseSession = nil
         route = .checking
@@ -230,6 +674,7 @@ final class StartupRouter: ObservableObject {
         var unpublishedOwner: OwnedWriter?
 
         do {
+            try await requireCurrentOperationAndAccess(operation)
             // The aggregate already proved the ordinary restore/erase owners
             // clear before reservation. Their abandoned-staging cleanup must
             // not mistake its bound candidate for an ordinary restore.
@@ -247,7 +692,7 @@ final class StartupRouter: ObservableObject {
             } catch {
                 throw StartupMaintenanceReason.eraseInconsistent
             }
-            try requireCurrentOperation(operation)
+            try await requireCurrentOperationAndAccess(operation)
 
             didBeginStep(.restore)
             let restoredSession: StoreGenerationSession?
@@ -262,7 +707,7 @@ final class StartupRouter: ObservableObject {
             } catch {
                 throw StartupMaintenanceReason.restoreInconsistent
             }
-            try requireCurrentOperation(operation)
+            try await requireCurrentOperationAndAccess(operation)
 
             didBeginStep(.currentOpen)
             let session: StoreGenerationSession
@@ -271,12 +716,14 @@ final class StartupRouter: ObservableObject {
             } else if let erasedSession {
                 session = erasedSession
             } else {
-                let result = try await generationFactory.openForStartup(recoverOriginalSource: { authority in
-                    try self.requireCurrentOperation(operation)
+                let result = try await generationFactory.openForStartup(validateContinuation: {
+                    try await self.requireCurrentOperationAndAccess(operation)
+                }, recoverOriginalSource: { authority in
+                    try await self.requireCurrentOperationAndAccess(operation)
                     try await self.recoverOriginalSource(authority, operation: operation)
-                    try self.requireCurrentOperation(operation)
+                    try await self.requireCurrentOperationAndAccess(operation)
                 })
-                try requireCurrentOperation(operation)
+                try await requireCurrentOperationAndAccess(operation)
                 switch result {
                 case .ready(let current): session = current
                 case .awaitingIndependentValidation(let pending):
@@ -320,7 +767,7 @@ final class StartupRouter: ObservableObject {
             } catch {
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
-            try requireCurrentOperation(operation, owner: owner)
+            try await requireCurrentOperationAndAccess(operation, owner: owner)
 
             didBeginStep(.deletion)
             do {
@@ -332,7 +779,7 @@ final class StartupRouter: ObservableObject {
             } catch {
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
-            try requireCurrentOperation(operation, owner: owner)
+            try await requireCurrentOperationAndAccess(operation, owner: owner)
 
             didBeginStep(.media)
             do {
@@ -359,7 +806,7 @@ final class StartupRouter: ObservableObject {
             } catch {
                 throw StartupMaintenanceReason.mediaInconsistent
             }
-            try requireCurrentOperation(operation, owner: owner)
+            try await requireCurrentOperationAndAccess(operation, owner: owner)
 
             didBeginStep(.pdf)
             let reportRecoveryService: ReportRecoveryService
@@ -377,14 +824,20 @@ final class StartupRouter: ObservableObject {
             }
 
             _ = try coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+            try await requireCurrentOperationAndAccess(operation, owner: owner)
+            if authorization?.permitsPublication == false {
+                preparedStartup = PreparedStartup(owner: owner, recovery: reportRecoveryService)
+                operationOwnedWriter = nil
+                return
+            }
             await diagnosticsStore.prepare()
-            try requireCurrentOperation(operation, owner: owner)
+            try await requireCurrentOperationAndAccess(operation, owner: owner)
             do {
                 try await installCommerceProcessor(operation: operation, owner: owner)
             } catch {
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
-            try requireCurrentOperation(operation, owner: owner)
+            try await requireCurrentOperationAndAccess(operation, owner: owner)
             publishedWriter = owner
             operationOwnedWriter = nil
             route = .ready(
@@ -403,6 +856,13 @@ final class StartupRouter: ObservableObject {
                 enterWriterCleanupMaintenance(.dataPointerInvalid)
                 return
             }
+            if lastStartupAccessFailure != nil {
+                maintenanceRestoreSession = nil
+                maintenanceEraseSession = nil
+                hasStarted = false
+                route = .checking
+                return
+            }
             if let reason = error as? StartupMaintenanceReason {
                 maintenanceRestoreSession = openedSession.flatMap {
                     eligibleMaintenanceRestoreSession($0)
@@ -419,15 +879,168 @@ final class StartupRouter: ObservableObject {
         }
     }
 
+    /// Notification repair uses its separate startup-only capability to finish
+    /// canonical recovery. The resulting sole owner stays covered and cannot
+    /// activate commerce or publish a content route through that capability.
+    func notificationSource(authorization: NotificationOperationAuthorizationV1) async throws -> ProductionMyDaySourceProviderV1 {
+        guard startupAccessGate === authorization.gate else { throw AppAccessContractFailureV1.accessDenied }
+        try await authorization.validateRead()
+        let owner: OwnedWriter
+        switch authorization.proof {
+        case .content:
+            guard let publishedWriter,
+                  case .ready(let coordinator, _, _) = route,
+                  coordinator === publishedWriter.coordinator else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            owner = publishedWriter
+        case .toggle:
+            if let publishedWriter,
+               case .ready(let coordinator, _, _) = route,
+               coordinator === publishedWriter.coordinator {
+                owner = publishedWriter
+            } else if let preparedStartup,
+                      publishedWriter == nil,
+                      !isRunning,
+                      case .checking = route {
+                owner = preparedStartup.owner
+            } else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+        case .repair:
+            try await authorization.validateStartupRecovery()
+            if preparedStartup == nil {
+                guard publishedWriter == nil, !isRunning else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+                await runStartup(authorization: .configuration(authorization))
+            }
+            try await authorization.validateStartupRecovery()
+            if let lastStartupAccessFailure { throw lastStartupAccessFailure }
+            guard let preparedStartup else { throw AppAccessContractFailureV1.configurationUnknown }
+            owner = preparedStartup.owner
+        }
+        try requireCurrentOwner(owner)
+        let source = ProductionMyDaySourceProviderV1(session: owner.coordinator, accessGate: authorization.gate)
+        try await authorization.validateRead()
+        try requireCurrentOwner(owner)
+        return source
+    }
+
+    private func publishPreparedStartup(_ prepared: PreparedStartup, authorization: StartupAuthorization) async throws {
+        guard authorization.permitsPublication, !isRunning,
+              preparedStartup?.owner.writer === prepared.owner.writer else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        try await authorization.validate()
+        guard !isRunning, preparedStartup?.owner.writer === prepared.owner.writer else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        let operation = beginOperation(.startup, authorization: authorization)
+        operationOwnedWriter = prepared.owner
+        defer { endOperation(operation) }
+        do {
+            try await requireCurrentOperationAndAccess(operation, owner: prepared.owner)
+            await diagnosticsStore.prepare()
+            try await requireCurrentOperationAndAccess(operation, owner: prepared.owner)
+            try await installCommerceProcessor(operation: operation, owner: prepared.owner)
+            try await requireCurrentOperationAndAccess(operation, owner: prepared.owner)
+            publishedWriter = prepared.owner
+            operationOwnedWriter = nil
+            preparedStartup = nil
+            lastStartupAccessFailure = nil
+            route = .ready(prepared.owner.coordinator, diagnosticsStore, prepared.recovery)
+        } catch {
+            guard operationID == operation else { throw error }
+            invalidateOperationAndPublishedWriter()
+            _ = resolvePendingWriterCleanup()
+            hasStarted = false
+            route = .checking
+            throw error
+        }
+    }
+
+    /// The caller raises its visual cover synchronously before forwarding the
+    /// lifecycle event to the actor gate. Retain a settled owner only for a
+    /// transient cover or completed repair; real revocation retires its lease.
+    func pauseForAppAccess(discardPrepared: Bool = true) {
+        stopCommerce()
+        if let originalErase = originalOperations.first(where: { $0.value.kind == .erase }) {
+            if originalErase.value.postAdoptionStartup,
+               operationID == nil || operationID == originalErase.key,
+               let activation = pendingErasedActivation,
+               activation.operationID == originalErase.key,
+               activation.owner.coordinator === originalErase.value.source.coordinator,
+               operationOwnedWriter?.writer === activation.owner.writer {
+                // The receipt-backed replacement stays privately owned after
+                // the first revocation. Repeated inactive/background events
+                // must be idempotent rather than retiring its only activation.
+                if operationID == originalErase.key {
+                    operationID = nil
+                    operationKind = nil
+                    operationAuthorization = nil
+                    isRunning = false
+                }
+                maintenanceRestoreSession = nil
+                maintenanceEraseSession = nil
+                route = .checking
+                return
+            }
+            if operationID == originalErase.key, isRunning {
+                // An admitted service may be suspended in its lifecycle hook.
+                // The gate has already covered and revoked content; retiring
+                // this private owner would make its exact revalidation fail
+                // before any durable Erase intent exists.  Keep the original
+                // operation/owner/activation until that service transfers or
+                // reports its own ticketed failure.
+                maintenanceRestoreSession = nil
+                maintenanceEraseSession = nil
+                route = .checking
+                return
+            }
+            // A background transition revokes content, but it must not erase
+            // the original physical-cleanup identity or its weak drain proof.
+            // Retire writers while leaving the ticket available for the
+            // service's exact failure/deferred continuation.
+            retainOwnedWriter(operationOwnedWriter)
+            retainOwnedWriter(pendingErasedActivation?.owner)
+            retainOwnedWriter(publishedWriter)
+            operationOwnedWriter = nil
+            pendingErasedActivation = nil
+            publishedWriter = nil
+            if operationID == originalErase.key { operationID = nil }
+            operationKind = nil
+            operationAuthorization = nil
+            isRunning = false
+            maintenanceRestoreSession = nil
+            maintenanceEraseSession = nil
+            route = deferredEraseCoordinator.map(Route.eraseCleanupPending) ?? .checking
+            return
+        }
+        if isRunning || discardPrepared {
+            invalidateOperationAndPublishedWriter()
+            _ = resolvePendingWriterCleanup()
+        } else if case .ready(let coordinator, _, let recovery) = route,
+                  let publishedWriter, publishedWriter.coordinator === coordinator {
+            preparedStartup = PreparedStartup(owner: publishedWriter, recovery: recovery)
+            self.publishedWriter = nil
+        }
+        hasStarted = false
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .checking
+    }
+
     private func stopCommerce() {
         entitlementProcessor?.stop()
         entitlementProcessor = nil
     }
 
-    private func beginOperation(_ kind: OperationKind) -> UUID {
+    private func beginOperation(_ kind: OperationKind, authorization: StartupAuthorization? = nil) -> UUID {
         let id = UUID()
         operationID = id
         operationKind = kind
+        operationAuthorization = authorization
         isRunning = true
         stopCommerce()
         return id
@@ -435,22 +1048,147 @@ final class StartupRouter: ObservableObject {
 
     private func endOperation(_ id: UUID) {
         guard operationID == id else { return }
+        if originalOperations[id]?.kind == .restore {
+            removeOriginalOperation(id)
+        }
         operationID = nil
         operationKind = nil
+        operationAuthorization = nil
         operationOwnedWriter = nil
         isRunning = false
     }
 
     private func requireCurrentOperation(_ id: UUID, owner: OwnedWriter? = nil) throws {
         guard operationID == id, isRunning else { throw OperationFailure.superseded }
-        if let owner {
-            guard owner.coordinator.workspaceWriter === owner.writer,
-                  owner.coordinator.generationID == owner.generationID,
-                  try generationFactory.currentGenerationID() == owner.generationID else {
-                throw OperationFailure.superseded
-            }
-            _ = try owner.writer.sourceMutationHistorySnapshot()
+        if let owner { try requireCurrentOwner(owner) }
+    }
+
+    private func requireCurrentOwner(_ owner: OwnedWriter) throws {
+        guard owner.coordinator.workspaceWriter === owner.writer,
+              owner.coordinator.generationID == owner.generationID,
+              try generationFactory.currentGenerationID() == owner.generationID else {
+            throw OperationFailure.superseded
         }
+        _ = try owner.writer.sourceMutationHistorySnapshot()
+    }
+
+    private func requireCurrentOperationAndAccess(_ id: UUID, owner: OwnedWriter? = nil) async throws {
+        try requireCurrentOperation(id)
+        if let authorization = operationAuthorization {
+            do { try await authorization.validate() }
+            catch {
+                if operationID == id { lastStartupAccessFailure = error }
+                throw error
+            }
+        }
+        try requireCurrentOperation(id, owner: owner)
+    }
+
+    private func requireCurrentPostAdoptionExecution(
+        operation: UUID,
+        execution: PostAdoptionExecution?
+    ) throws {
+        guard let execution else { return }
+        try requireCurrentPostAdoptionClaim(
+            operation: operation,
+            ticket: execution.ticket,
+            executionID: execution.executionID
+        )
+    }
+
+    private func requireCurrentPostAdoptionClaim(
+        operation: UUID,
+        ticket: OriginalOperationTicket,
+        executionID: UUID
+    ) throws {
+        guard ticket.owner === originalOperationOwner,
+              ticket.operationID == operation,
+              let state = originalOperations[operation],
+              state.owner === ticket.owner,
+              state.mint === ticket.mint,
+              state.postAdoptionStartup,
+              state.postAdoptionExecutionID == executionID else {
+            throw OperationFailure.superseded
+        }
+    }
+
+    private func suspendPostAdoptionExecutionIfCurrent(
+        operation: UUID,
+        ticket: OriginalOperationTicket,
+        executionID: UUID
+    ) {
+        guard operationID == operation, isRunning else { return }
+        do {
+            try requireCurrentPostAdoptionClaim(
+                operation: operation, ticket: ticket, executionID: executionID
+            )
+        } catch {
+            return
+        }
+        operationID = nil
+        operationKind = nil
+        operationAuthorization = nil
+        isRunning = false
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .checking
+    }
+
+    private func isCurrentPostAdoptionExecution(
+        operation: UUID,
+        execution: PostAdoptionExecution?
+    ) -> Bool {
+        guard operationID == operation, isRunning else { return false }
+        do {
+            try requireCurrentPostAdoptionExecution(operation: operation, execution: execution)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func requireCurrentOperationAndContent(
+        _ operation: UUID,
+        owner: OwnedWriter,
+        execution: PostAdoptionExecution?
+    ) throws {
+        let validate: () throws -> Void = {
+            try requireCurrentPostAdoptionExecution(
+                operation: operation, execution: execution
+            )
+            if let execution {
+                willReadPostAdoptionCanonicalContent(execution.executionID)
+            }
+            try requireCurrentOperation(operation, owner: owner)
+        }
+        if let execution {
+            try execution.contentReadToken.withContentRead(
+                for: .startupRecovery, validate
+            )
+        } else {
+            try validate()
+        }
+    }
+
+    private func requireCurrentOperationAccessAndContent(
+        _ operation: UUID,
+        owner: OwnedWriter,
+        execution: PostAdoptionExecution?
+    ) async throws {
+        try requireCurrentOperation(operation)
+        if let authorization = operationAuthorization {
+            do { try await authorization.validate() }
+            catch {
+                guard isCurrentPostAdoptionExecution(
+                    operation: operation, execution: execution
+                ) else { throw error }
+                lastStartupAccessFailure = error
+                throw error
+            }
+        }
+        try requireCurrentOperationAndContent(
+            operation, owner: owner, execution: execution
+        )
     }
 
     private func retainOwnedWriter(_ owner: OwnedWriter?) {
@@ -465,8 +1203,10 @@ final class StartupRouter: ObservableObject {
     /// A suspended continuation cannot reclaim a newer binding in the same
     /// mutable coordinator when its own operation resumes.
     private func invalidateOperationAndPublishedWriter() {
+        if let operationID { removeOriginalOperation(operationID) }
         operationID = nil
         operationKind = nil
+        operationAuthorization = nil
         isRunning = false
         stopCommerce()
         maintenanceRestoreSession = nil
@@ -474,9 +1214,11 @@ final class StartupRouter: ObservableObject {
         retainOwnedWriter(operationOwnedWriter)
         retainOwnedWriter(pendingErasedActivation?.owner)
         retainOwnedWriter(publishedWriter)
+        retainOwnedWriter(preparedStartup?.owner)
         operationOwnedWriter = nil
         pendingErasedActivation = nil
         publishedWriter = nil
+        preparedStartup = nil
     }
 
     private func retainWriterCleanup(_ error: Error, owner: OwnedWriter?) {
@@ -562,7 +1304,8 @@ final class StartupRouter: ObservableObject {
     }
 
     func beginEraseBlocking(coordinator: StoreSessionCoordinator) {
-        guard !isRunning else {
+        guard startupAccessGate == nil else { return }
+        guard !isRunning, pendingEraseDrainProof == nil else {
             failClosedErase()
             return
         }
@@ -589,6 +1332,44 @@ final class StartupRouter: ObservableObject {
         _ session: StoreGenerationSession,
         coordinator: StoreSessionCoordinator
     ) async {
+        guard startupAccessGate == nil else { return }
+        await beginErasedSessionActivationCore(session, coordinator: coordinator)
+    }
+
+    func beginErasedSessionActivation(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator,
+        ticket: OriginalOperationTicket
+    ) async throws {
+        let state = try await validateOriginalOperation(ticket, kind: .erase)
+        guard state.source.coordinator === coordinator,
+              state.sourceGenerationID != session.generationID else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        // The admission token is expected to be revoked by the lifecycle
+        // reservation.  Its identity remains bound in state; no replacement
+        // permit is minted here.
+        if let deferredEraseCoordinator {
+            guard deferredEraseCoordinator === coordinator else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            // Consume only the exact deferred-owner marker. This is not a
+            // fresh activation: ticket and drain proof remain continuous.
+            self.deferredEraseCoordinator = nil
+        }
+        await beginErasedSessionActivationCore(session, coordinator: coordinator)
+        _ = try await validateOriginalOperation(ticket, kind: .erase)
+    }
+
+    private func beginErasedSessionActivationCore(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator
+    ) async {
+        guard deferredEraseCoordinator == nil,
+              operationID != nil || pendingEraseDrainProof == nil else {
+            failClosedErase()
+            return
+        }
         guard pendingErasedActivation == nil else {
             failClosedErase()
             return
@@ -643,63 +1424,277 @@ final class StartupRouter: ObservableObject {
         _ session: StoreGenerationSession,
         coordinator: StoreSessionCoordinator
     ) async {
-        guard let activation = pendingErasedActivation else { failClosedErase(); return }
+        guard startupAccessGate == nil else { return }
+        _ = await finishErasedSessionActivationCore(
+            session, coordinator: coordinator, postStartupCompletion: nil
+        )
+    }
+
+    func finishErasedSessionActivation(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator,
+        ticket: OriginalOperationTicket,
+        accessGate: AppAccessGateV1
+    ) async throws {
+        var state: OriginalOperationState
+        if operationID == nil,
+           let retained = originalOperations[ticket.operationID],
+           ticket.owner === originalOperationOwner,
+           retained.owner === ticket.owner, retained.mint === ticket.mint,
+           retained.kind == .erase, retained.postAdoptionStartup,
+           pendingErasedActivation?.owner.coordinator === coordinator {
+            operationID = ticket.operationID
+            operationKind = .erase
+            operationAuthorization = nil
+            isRunning = true
+            state = retained
+        } else {
+            state = try awaitlessValidateEraseTicket(ticket)
+        }
+        guard state.source.coordinator === coordinator,
+              state.acknowledgedReservation != nil,
+              let activation = pendingErasedActivation,
+              activation.operationID == ticket.operationID,
+              activation.owner.coordinator === coordinator,
+              activation.session.generationID == session.generationID,
+              activation.session.modelContext === session.modelContext,
+              operationOwnedWriter?.writer === activation.owner.writer else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        // Claim this exact ticket execution before the first suspension. A
+        // lifecycle pause can now revoke only this execution without leaving
+        // an older running operation available to install a later token.
+        state.postAdoptionStartup = true
+        let executionID = UUID()
+        state.postAdoptionExecutionID = executionID
+        originalOperations[ticket.operationID] = state
+        do {
+            await beforePostAdoptionContentRead(executionID)
+            try requireCurrentOperation(ticket.operationID)
+            try requireCurrentPostAdoptionClaim(
+                operation: ticket.operationID, ticket: ticket, executionID: executionID
+            )
+            let recoveryToken = try await accessGate.beginContentRead(for: .startupRecovery)
+            try requireCurrentOperation(ticket.operationID)
+            try requireCurrentPostAdoptionClaim(
+                operation: ticket.operationID, ticket: ticket, executionID: executionID
+            )
+            try await accessGate.validateContentRead(recoveryToken, for: .startupRecovery)
+            let execution = PostAdoptionExecution(
+                ticket: ticket, executionID: executionID, contentReadToken: recoveryToken
+            )
+            try recoveryToken.withContentRead(for: .startupRecovery) {
+                try requireCurrentPostAdoptionExecution(
+                    operation: ticket.operationID, execution: execution
+                )
+                willReadPostAdoptionCanonicalContent(execution.executionID)
+                try requireCurrentOperation(ticket.operationID, owner: activation.owner)
+                operationAuthorization = .content(accessGate, recoveryToken)
+            }
+            let completed = await finishErasedSessionActivationCore(
+                session, coordinator: coordinator, postAdoptionExecution: execution
+            ) {
+                try await accessGate.completePostEraseStartup(recoveryToken)
+            }
+            guard completed,
+                  case let .ready(readyCoordinator, _, _) = route,
+                  readyCoordinator === coordinator,
+                  originalOperations[ticket.operationID] == nil else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        } catch {
+            suspendPostAdoptionExecutionIfCurrent(
+                operation: ticket.operationID, ticket: ticket, executionID: executionID
+            )
+            throw error
+        }
+    }
+
+    private func finishErasedSessionActivationCore(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator,
+        postAdoptionExecution: PostAdoptionExecution? = nil,
+        postStartupCompletion: (@MainActor () async throws -> Void)?
+    ) async -> Bool {
+        guard let activation = pendingErasedActivation else {
+            if let postAdoptionExecution,
+               !isCurrentPostAdoptionExecution(
+                operation: postAdoptionExecution.ticket.operationID,
+                execution: postAdoptionExecution
+               ) {
+                return false
+            }
+            failClosedErase()
+            return false
+        }
         let operation = activation.operationID
         let owner = activation.owner
-        defer { endOperation(operation) }
+        var endsOperation = true
+        defer {
+            if endsOperation,
+               isCurrentPostAdoptionExecution(
+                operation: operation, execution: postAdoptionExecution
+               ) {
+                endOperation(operation)
+            }
+        }
+        guard isCurrentPostAdoptionExecution(
+            operation: operation, execution: postAdoptionExecution
+        ) else { return false }
         guard resolvePendingWriterCleanup() else {
             enterWriterCleanupMaintenance(.eraseInconsistent)
-            return
+            return false
         }
         let ownsActivatedWriter = owner.coordinator === coordinator
             && owner.writer === coordinator.workspaceWriter
             && activation.session.generationID == session.generationID
             && activation.session.modelContext === session.modelContext
         do {
-            try requireCurrentOperation(operation, owner: owner)
-            guard ownsActivatedWriter,
-                  pendingEraseDrainProof?.isDrained == true,
-                  coordinator.generationID == session.generationID,
-                  try generationFactory.currentGenerationID()
-                    == session.generationID,
-                  BackupRestoreService.isEmptyCurrent(session.modelContext),
-                  noActiveJournal(
-                    at: applicationSupportURL.appendingPathComponent(
-                        "FieldEvidenceErase/erase.json"
-                    )
-                  ) else {
-                throw StartupMaintenanceReason.eraseInconsistent
-            }
-            try reconcileGenerationLeasesForStartup()
-            let recovery = try makeActiveReportRecovery(
-                session: session,
-                coordinator: coordinator
+            try requireCurrentOperationAndContent(
+                operation, owner: owner, execution: postAdoptionExecution
             )
-            try recovery.reconcileAtStartup()
-            _ = try coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+            let recoverCanonicalContent: () throws -> ReportRecoveryService = {
+                try requireCurrentPostAdoptionExecution(
+                    operation: operation, execution: postAdoptionExecution
+                )
+                if let postAdoptionExecution {
+                    willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
+                }
+                try requireCurrentOperation(operation, owner: owner)
+                guard ownsActivatedWriter,
+                      pendingEraseDrainProof?.isDrained == true,
+                      coordinator.generationID == session.generationID,
+                      try generationFactory.currentGenerationID()
+                        == session.generationID,
+                      BackupRestoreService.isEmptyCurrent(session.modelContext),
+                      noActiveJournal(
+                        at: applicationSupportURL.appendingPathComponent(
+                            "FieldEvidenceErase/erase.json"
+                        )
+                      ) else {
+                    throw StartupMaintenanceReason.eraseInconsistent
+                }
+                try reconcileGenerationLeasesForStartup()
+                let recovery = try makeActiveReportRecovery(
+                    session: session,
+                    coordinator: coordinator
+                )
+                try recovery.reconcileAtStartup()
+                _ = try coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+                return recovery
+            }
+            let recovery: ReportRecoveryService
+            if let postAdoptionExecution {
+                recovery = try postAdoptionExecution.contentReadToken.withContentRead(
+                    for: .startupRecovery, recoverCanonicalContent
+                )
+            } else {
+                recovery = try recoverCanonicalContent()
+            }
             await diagnosticsStore.prepare()
-            try requireCurrentOperation(operation, owner: owner)
+            try requireCurrentOperationAndContent(
+                operation, owner: owner, execution: postAdoptionExecution
+            )
             let diagnosticsAreZero = await diagnosticsStore.isExactlyZero()
-            try requireCurrentOperation(operation, owner: owner)
+            try requireCurrentOperationAndContent(
+                operation, owner: owner, execution: postAdoptionExecution
+            )
             guard diagnosticsAreZero else {
                 throw StartupMaintenanceReason.eraseInconsistent
             }
-            try await installCommerceProcessor(operation: operation, owner: owner)
-            try requireCurrentOperation(operation, owner: owner)
-            pendingEraseDrainProof = nil
-            pendingErasedActivation = nil
-            operationOwnedWriter = nil
-            publishedWriter = owner
-            route = .ready(coordinator, diagnosticsStore, recovery)
+            if let postStartupCompletion {
+                try await postStartupCompletion()
+                try await requireCurrentOperationAccessAndContent(
+                    operation, owner: owner, execution: postAdoptionExecution
+                )
+            }
+            try await installCommerceProcessor(
+                operation: operation, owner: owner,
+                postAdoptionExecution: postAdoptionExecution
+            )
+            let publishReady: () throws -> Void = {
+                try requireCurrentPostAdoptionExecution(
+                    operation: operation, execution: postAdoptionExecution
+                )
+                if let postAdoptionExecution {
+                    willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
+                }
+                try requireCurrentOperation(operation, owner: owner)
+                pendingEraseDrainProof = nil
+                deferredEraseCoordinator = nil
+                pendingErasedActivation = nil
+                operationOwnedWriter = nil
+                publishedWriter = owner
+                removeOriginalOperation(operation)
+                endsOperation = false
+                endOperation(operation)
+                route = .ready(coordinator, diagnosticsStore, recovery)
+            }
+            if let postAdoptionExecution {
+                try postAdoptionExecution.contentReadToken.withContentRead(
+                    for: .startupRecovery, publishReady
+                )
+            } else {
+                try publishReady()
+            }
+            return true
         } catch {
+            guard isCurrentPostAdoptionExecution(
+                operation: operation, execution: postAdoptionExecution
+            ) else { return false }
+            if originalOperations[operation]?.postAdoptionStartup == true {
+                // Adoption has an authentic receipt and may be retried after
+                // inactive/protected-data access settles.  Keep its original
+                // ticket, writer and activation unpublished; failing closed
+                // here would discard the only truthful continuation.
+                endsOperation = false
+                stopCommerce()
+                route = .checking
+                return false
+            }
             retainWriterCleanup(error, owner: owner)
             _ = resolvePendingWriterCleanup()
-            guard operationID == operation else { return }
+            guard isCurrentPostAdoptionExecution(
+                operation: operation, execution: postAdoptionExecution
+            ) else { return false }
             failClosedErase()
+            return false
         }
     }
 
     func deferErasedSessionCleanup(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator
+    ) {
+        guard startupAccessGate == nil else { return }
+        deferErasedSessionCleanupCore(session, coordinator: coordinator)
+    }
+
+    func deferErasedSessionCleanup(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator,
+        ticket: OriginalOperationTicket
+    ) throws {
+        _ = try awaitlessValidateEraseTicket(ticket)
+        deferErasedSessionCleanupCore(session, coordinator: coordinator)
+    }
+
+    private func awaitlessValidateEraseTicket(
+        _ ticket: OriginalOperationTicket
+    ) throws -> OriginalOperationState {
+        let matchesOperationKind: Bool
+        switch operationKind { case .erase: matchesOperationKind = true; default: matchesOperationKind = false }
+        guard ticket.owner === originalOperationOwner,
+              let state = originalOperations[ticket.operationID],
+              state.owner === ticket.owner, state.mint === ticket.mint,
+              state.kind == .erase, operationID == ticket.operationID,
+              matchesOperationKind, isRunning else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        return state
+    }
+
+    private func deferErasedSessionCleanupCore(
         _ session: StoreGenerationSession,
         coordinator: StoreSessionCoordinator
     ) {
@@ -734,17 +1729,52 @@ final class StartupRouter: ObservableObject {
                 retainWriterCleanup(StartupMaintenanceReason.eraseInconsistent, owner: activation.owner)
                 _ = resolvePendingWriterCleanup()
             }
-            pendingEraseDrainProof = nil
             failClosedErase()
             return
         }
-        pendingEraseDrainProof = nil
+        deferredEraseCoordinator = coordinator
         pendingErasedActivation = nil
         operationOwnedWriter = nil
         publishedWriter = activation.owner
         maintenanceRestoreSession = nil
         maintenanceEraseSession = nil
         route = .eraseCleanupPending(coordinator)
+    }
+
+    /// Same-process recovery must continue the original erase subject through
+    /// its lifecycle hook.  The caller supplies that real service route; this
+    /// method never falls back to generic startup, which would manufacture a
+    /// cold recovery while the old context is still live.
+    func resumeDeferredErase(
+        _ ticket: OriginalOperationTicket,
+        reconcile: @escaping @MainActor () async throws -> StoreGenerationSession?
+    ) async throws -> StoreGenerationSession? {
+        guard let state = originalOperations[ticket.operationID],
+              ticket.owner === originalOperationOwner,
+              state.owner === ticket.owner, state.mint === ticket.mint,
+              state.kind == .erase, deferredEraseCoordinator != nil,
+              pendingEraseDrainProof?.isDrained == true,
+              !isRunning else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        operationID = ticket.operationID
+        operationKind = .erase
+        // The lifecycle has already consumed the original read token.  Its
+        // exact reservation, rather than a fresh token, admits this cleanup.
+        operationAuthorization = nil
+        isRunning = true
+        do {
+            let session = try await reconcile()
+            guard operationID == ticket.operationID else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            // Keep this original operation active so the returned session can
+            // only reach the ticketed activation/finish edge.
+            return session
+        } catch {
+            if operationID == ticket.operationID { endOperation(ticket.operationID) }
+            throw error
+        }
     }
 
     func failClosedErase() {
@@ -755,16 +1785,43 @@ final class StartupRouter: ObservableObject {
         route = .maintenance(.eraseInconsistent)
     }
 
+    /// Compatibility entry for isolated, unbound tests.  A production-bound
+    /// router requires the ticketed overload below.
     func activateRestoredSession(
         _ session: StoreGenerationSession,
         coordinator: StoreSessionCoordinator?
     ) async {
-        guard !isRunning else { return }
+        guard startupAccessGate == nil else { return }
+        try? await activateRestoredSessionCore(session, coordinator: coordinator, ticket: nil)
+    }
+
+    func activateRestoredSession(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator?,
+        ticket: OriginalOperationTicket
+    ) async throws {
+        try await activateRestoredSessionCore(session, coordinator: coordinator, ticket: ticket)
+    }
+
+    private func activateRestoredSessionCore(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator?,
+        ticket: OriginalOperationTicket?
+    ) async throws {
+        if let ticket {
+            let state = try await validateOriginalOperation(ticket, kind: .restore)
+            try await state.authorization.validate()
+        }
+        guard pendingEraseDrainProof == nil else {
+            failClosedErase()
+            return
+        }
+        guard ticket != nil || !isRunning else { return }
         guard resolvePendingWriterCleanup() else {
             enterWriterCleanupMaintenance(.restoreInconsistent)
             return
         }
-        let operation = beginOperation(.restored)
+        let operation = ticket?.operationID ?? beginOperation(.restored)
         if let publishedWriter {
             if let coordinator, publishedWriter.coordinator === coordinator {
                 operationOwnedWriter = publishedWriter
@@ -814,13 +1871,13 @@ final class StartupRouter: ObservableObject {
                     workspaceWriter: owner.writer,
                     lifecycleProfileRegistry: activeCoordinator.lifecycleProfileRegistry
                 ).reconcile()
-                try requireCurrentOperation(operation, owner: owner)
+                try await requireCurrentOperationAndAccess(operation, owner: owner)
                 _ = try await WholeSignDeletionService(
                     modelContext: session.modelContext,
                     generationRootURL: session.generationRootURL,
                     fileManager: fileManager
                 ).reconcile()
-                try requireCurrentOperation(operation, owner: owner)
+                try await requireCurrentOperationAndAccess(operation, owner: owner)
                 let authorities = try session.modelContext.fetch(
                     FetchDescriptor<EvidenceFile>()
                 ).map {
@@ -842,7 +1899,7 @@ final class StartupRouter: ObservableObject {
                     generationRootURL: session.generationRootURL,
                     fileManager: fileManager
                 ).reconcile(authorities: authorities)
-                try requireCurrentOperation(operation, owner: owner)
+                try await requireCurrentOperationAndAccess(operation, owner: owner)
                 let recovery = try makeActiveReportRecovery(
                     session: session,
                     coordinator: activeCoordinator
@@ -850,7 +1907,7 @@ final class StartupRouter: ObservableObject {
                 try recovery.reconcileAtStartup()
                 _ = try activeCoordinator.workspaceWriter.sourceMutationHistorySnapshot()
                 await diagnosticsStore.prepare()
-                try requireCurrentOperation(operation, owner: owner)
+                try await requireCurrentOperationAndAccess(operation, owner: owner)
                 try await installCommerceProcessor(operation: operation, owner: owner)
                 try requireCurrentOperation(operation, owner: owner)
                 operationOwnedWriter = nil
@@ -888,9 +1945,10 @@ final class StartupRouter: ObservableObject {
         _ authority: StoreMigrationSourceRecoveryAuthorityV1,
         operation: UUID
     ) async throws {
+        try await requireCurrentOperationAndAccess(operation)
         let finalization = try FinalizationRecoveryService(sourceRecoveryAuthority: authority)
         _ = try await finalization.reconcile()
-        try requireCurrentOperation(operation)
+        try await requireCurrentOperationAndAccess(operation)
         _ = try WholeSignDeletionService.reconcileOriginalSource(authority: authority)
         func survivingMedia() throws -> [EvidenceBundleAuthority] {
             let context = try authority.recoveryContext()
@@ -909,15 +1967,15 @@ final class StartupRouter: ObservableObject {
         }
         let media = try EvidenceBundleStore(sourceRecoveryAuthority: authority)
         try await media.reconcile(authorities: survivingMedia())
-        try requireCurrentOperation(operation)
+        try await requireCurrentOperationAndAccess(operation)
         try ReportRecoveryService.settleOriginalSourcePDFs(authority: authority)
         // Re-enumerate original authorities after all effects. This callback
         // returns no context, writer or service to the aggregate engine.
         try await finalization.verifyOriginalRecoverySettled()
-        try requireCurrentOperation(operation)
+        try await requireCurrentOperationAndAccess(operation)
         try WholeSignDeletionService.verifyOriginalRecoverySettled(authority: authority)
         try await media.verifyOriginalRecoverySettled(authorities: survivingMedia())
-        try requireCurrentOperation(operation)
+        try await requireCurrentOperationAndAccess(operation)
         try ReportRecoveryService.verifyOriginalRecoverySettled(authority: authority)
     }
 
@@ -952,27 +2010,65 @@ final class StartupRouter: ObservableObject {
         }
     }
 
-    private func installCommerceProcessor(operation: UUID, owner: OwnedWriter) async throws {
-        try requireCurrentOperation(operation, owner: owner)
-        await beforeCommerceActivation(try owner.writer.currentRevision().writerInstanceID)
-        try requireCurrentOperation(operation, owner: owner)
-        stopCommerce()
-        let store = try EntitlementStore(
-            applicationSupportURL: applicationSupportURL,
-            fileManager: fileManager
+    private func installCommerceProcessor(
+        operation: UUID,
+        owner: OwnedWriter,
+        postAdoptionExecution: PostAdoptionExecution? = nil
+    ) async throws {
+        try await requireCurrentOperationAccessAndContent(
+            operation, owner: owner, execution: postAdoptionExecution
         )
+        let readCommerceInputs: () throws -> (UUID, EntitlementStore) = {
+            let writerID = try owner.writer.currentRevision().writerInstanceID
+            let store = try EntitlementStore(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager
+            )
+            return (writerID, store)
+        }
+        let inputs: (UUID, EntitlementStore)
+        if let postAdoptionExecution {
+            inputs = try postAdoptionExecution.contentReadToken.withContentRead(
+                for: .startupRecovery, readCommerceInputs
+            )
+        } else {
+            inputs = try readCommerceInputs()
+        }
+        await beforeCommerceActivation(inputs.0)
+        try await requireCurrentOperationAccessAndContent(
+            operation, owner: owner, execution: postAdoptionExecution
+        )
+        stopCommerce()
         let processor = StoreKitTransactionProcessor(
-            store: store,
+            store: inputs.1,
             runtime: entitlementRuntime
         )
         do {
             try await processor.start()
-            try requireCurrentOperation(operation, owner: owner)
+            try await requireCurrentOperationAccessAndContent(
+                operation, owner: owner, execution: postAdoptionExecution
+            )
+            let publishProcessor: () throws -> Void = {
+                try requireCurrentPostAdoptionExecution(
+                    operation: operation, execution: postAdoptionExecution
+                )
+                if let postAdoptionExecution {
+                    willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
+                }
+                try requireCurrentOperation(operation, owner: owner)
+                entitlementProcessor = processor
+            }
+            if let postAdoptionExecution {
+                try postAdoptionExecution.contentReadToken.withContentRead(
+                    for: .startupRecovery, publishProcessor
+                )
+            } else {
+                try publishProcessor()
+            }
         } catch {
             processor.stop()
             throw error
         }
-        entitlementProcessor = processor
     }
 
     private func requireNoPendingJournal(

@@ -25,19 +25,20 @@ protocol DraftContentPromotionPortV1: Sendable {
 }
 
 @MainActor final class FieldDraftCoordinatorV1 {
-    private let registry:DraftPurposeRegistryV1
+    private let purposeAuthority:any DraftPurposeDefinitionResolvingV1
     private let writer:any FieldDraftWritingV1
     private let content:any DraftContentPromotionPortV1
     private let target:any DraftCanonicalCommitPortV1
-    init(registry:DraftPurposeRegistryV1,writer:any FieldDraftWritingV1,content:any DraftContentPromotionPortV1,target:any DraftCanonicalCommitPortV1){self.registry=registry;self.writer=writer;self.content=content;self.target=target}
+    init(registry:DraftPurposeRegistryV1,writer:any FieldDraftWritingV1,content:any DraftContentPromotionPortV1,target:any DraftCanonicalCommitPortV1){self.purposeAuthority=registry;self.writer=writer;self.content=content;self.target=target}
+    init(purposeAuthority:any DraftPurposeDefinitionResolvingV1,writer:any FieldDraftWritingV1,content:any DraftContentPromotionPortV1,target:any DraftCanonicalCommitPortV1){self.purposeAuthority=purposeAuthority;self.writer=writer;self.content=content;self.target=target}
 
     func checkpoint(_ value:FieldDraftCheckpointV1,expectedDraftRevision:UInt64,expectedBaseRevision:UInt64)throws->MutationReceiptV1{
-        try value.validate(registry:registry)
+        try value.validate(authority:purposeAuthority)
         if let prior=try writer.currentCheckpoint(workspaceID:value.workspaceID,draftID:value.draftID){try value.validateSuccessor(of:prior,expectedDraftRevision:expectedDraftRevision,expectedBaseRevision:expectedBaseRevision)}else{guard expectedDraftRevision==0,value.draftRevision==1,value.baseCanonicalRevision==expectedBaseRevision else{throw FieldDraftFailureV1.staleDraftRevision}}
         return try writer.compareAndSwap(checkpoint:value,expectedDraftRevision:expectedDraftRevision,expectedBaseRevision:expectedBaseRevision)
     }
 
-    func append(_ item:AttachmentStagingItemV1,checkpoint:FieldDraftCheckpointV1,expectedRevision:UInt64)throws->MutationReceiptV1{try item.validate();try checkpoint.validate(registry:registry);guard item.workspaceID==checkpoint.workspaceID,item.draftID==checkpoint.draftID,checkpoint.stageIDs.contains(item.stageID)else{throw FieldDraftFailureV1.wrongWorkspace};return try writer.append(stagingItem:item,expectedRevision:expectedRevision)}
+    func append(_ item:AttachmentStagingItemV1,checkpoint:FieldDraftCheckpointV1,expectedRevision:UInt64)throws->MutationReceiptV1{try item.validate();try checkpoint.validate(authority:purposeAuthority);guard item.workspaceID==checkpoint.workspaceID,item.draftID==checkpoint.draftID,checkpoint.stageIDs.contains(item.stageID)else{throw FieldDraftFailureV1.wrongWorkspace};return try writer.append(stagingItem:item,expectedRevision:expectedRevision)}
 
     func applyPackageUpgrade(
         plan: DraftUpgradePlanV1,
@@ -46,7 +47,7 @@ protocol DraftContentPromotionPortV1: Sendable {
         mutationID: MutationIDV1,
         updatedAt: Date
     ) throws -> MutationReceiptV1 {
-        try source.validate(registry: registry)
+        try source.validate(authority: purposeAuthority)
         try plan.validate(source: source, diff: diff)
         return try applyPackageUpgradeSuccessor(
             plan: plan, source: source, mutationID: mutationID, updatedAt: updatedAt
@@ -71,7 +72,7 @@ protocol DraftContentPromotionPortV1: Sendable {
             diff: diff,
             admittedBy: capability
         )
-        try source.validate(registry: registry)
+        try source.validate(authority: purposeAuthority)
         return try applyPackageUpgradeSuccessor(
             plan: plan, source: source, mutationID: mutationID, updatedAt: updatedAt
         )
@@ -104,7 +105,7 @@ protocol DraftContentPromotionPortV1: Sendable {
     }
 
     func commit(plan:DraftCommitPlanV1,checkpoint:FieldDraftCheckpointV1,items:[AttachmentStagingItemV1],prepared:DraftCommitSagaV1,contentPromoted:DraftCommitSagaV1,targetCommitted:DraftCommitSagaV1,retirePending:DraftCommitSagaV1,retired:DraftCommitSagaV1,commitReceiptID:UUID,terminalCheckpointUpdatedAt:Date,rowMutationIDs:DraftCommitRowMutationIDsV1)async throws->DraftCommitReceiptV1{
-        try plan.validate();try checkpoint.validate(registry:registry);try items.forEach{try $0.validate()};try prepared.validate();try contentPromoted.validateSuccessor(of:prepared);try targetCommitted.validateSuccessor(of:contentPromoted);try retirePending.validateSuccessor(of:targetCommitted);try retired.validateSuccessor(of:retirePending)
+        try plan.validate();try checkpoint.validate(authority:purposeAuthority);try items.forEach{try $0.validate()};try prepared.validate();try contentPromoted.validateSuccessor(of:prepared);try targetCommitted.validateSuccessor(of:contentPromoted);try retirePending.validateSuccessor(of:targetCommitted);try retired.validateSuccessor(of:retirePending)
         try rowMutationIDs.validate(stageIDs:items.map(\.stageID),targetMutationID:plan.mutationID,sagaMutationIDs:[prepared.mutationID,contentPromoted.mutationID,targetCommitted.mutationID,retirePending.mutationID])
         guard checkpoint.state == .committing,plan.workspaceID==checkpoint.workspaceID,plan.draftID==checkpoint.draftID,plan.draftRevision==checkpoint.draftRevision,plan.baseCanonicalRevision==checkpoint.baseCanonicalRevision,plan.payloadSHA256==checkpoint.payloadSHA256,prepared.plan==plan,prepared.state == .prepared,contentPromoted.state == .contentPromotedUnbound,targetCommitted.state == .targetCommitted,retirePending.state == .draftRetirePending,retired.state == .draftRetired,retired.mutationID==rowMutationIDs.terminalBundleMutationID,Set(items.map(\.stageID)).count==items.count,Set(items.map(\.stageSHA256)).count==items.count,items.allSatisfy({$0.workspaceID==plan.workspaceID&&$0.draftID==plan.draftID&&$0.state == .readyLocal}),Set(items.map(\.stageSHA256)).sorted()==plan.stageDigests else{throw FieldDraftFailureV1.conflictRequired}
         _ = try writer.append(saga:prepared,expectedRevision:0)
@@ -128,7 +129,7 @@ protocol DraftContentPromotionPortV1: Sendable {
     }
 
     func discard(plan:DraftDiscardPlanV1,checkpoint:FieldDraftCheckpointV1,reservations:[DraftContentReservationV1],disposedStageIDs:[UUID],discardReceiptID:UUID,at instant:Date,mutationID:MutationIDV1)async throws->DraftDiscardReceiptV1{
-        try plan.validate();try checkpoint.validate(registry:registry);try reservations.forEach{try $0.validate()};guard checkpoint.state == .discardPending,checkpoint.workspaceID==plan.workspaceID,checkpoint.draftID==plan.draftID,checkpoint.draftRevision==plan.expectedDraftRevision,Set(disposedStageIDs).count==disposedStageIDs.count,Set(reservations.map(\.reservationID)).count==reservations.count,Set(disposedStageIDs).isSubset(of:Set(plan.stageIDs)),Set(reservations.map(\.reservationID)).isSubset(of:Set(plan.reservationIDs)),reservations.allSatisfy({$0.workspaceID==plan.workspaceID&&$0.draftID==plan.draftID})else{throw FieldDraftFailureV1.invalidValue}
+        try plan.validate();try checkpoint.validate(authority:purposeAuthority);try reservations.forEach{try $0.validate()};guard checkpoint.state == .discardPending,checkpoint.workspaceID==plan.workspaceID,checkpoint.draftID==plan.draftID,checkpoint.draftRevision==plan.expectedDraftRevision,Set(disposedStageIDs).count==disposedStageIDs.count,Set(reservations.map(\.reservationID)).count==reservations.count,Set(disposedStageIDs).isSubset(of:Set(plan.stageIDs)),Set(reservations.map(\.reservationID)).isSubset(of:Set(plan.reservationIDs)),reservations.allSatisfy({$0.workspaceID==plan.workspaceID&&$0.draftID==plan.draftID})else{throw FieldDraftFailureV1.invalidValue}
         try await content.quarantine(reservations:reservations,for:plan)
         let receipt=try DraftDiscardReceiptV1(receiptID:discardReceiptID,workspaceID:plan.workspaceID,draftID:plan.draftID,planSHA256:plan.planSHA256,disposedStageIDs:disposedStageIDs,quarantinedReservationIDs:reservations.map(\.reservationID),discardedAt:instant,mutationID:mutationID)
         let revision=checkpoint.draftRevision.addingReportingOverflow(1);guard !revision.overflow else{throw FieldDraftFailureV1.staleDraftRevision}
@@ -151,7 +152,7 @@ extension FieldDraftCoordinatorV1 {
         try C21RepetitiveCaptureDraftBoundaryV1.validate(
             plan: plan,
             checkpoint: checkpoint,
-            registry: registry
+            registry: purposeAuthority
         )
         return try RepetitiveCaptureProjectionV1(plan: plan)
     }
@@ -168,7 +169,7 @@ extension FieldDraftCoordinatorV1 {
             copy,
             source: source,
             sourceCheckpoint: sourceCheckpoint,
-            registry: registry
+            registry: purposeAuthority
         )
     }
 
@@ -275,7 +276,7 @@ extension FieldDraftCoordinatorV1 {
         _ update: VoiceProposalDraftCheckpointUpdateV1,
         application: VoiceReviewedFieldDraftPayloadApplicationV1
     ) throws {
-        try update.predecessor.validate(registry: registry)
+        try update.predecessor.validate(authority: purposeAuthority)
         try application.validate(predecessor: update.predecessor)
         guard update.predecessor.state == .active,
               update.workspaceID == update.predecessor.workspaceID,

@@ -69,6 +69,21 @@ struct NotificationOperationAuthorizationV1: Sendable {
     let proof: Proof
     let operationID: UUID
     let subject: NotificationOperationSubjectV1?
+    let startupRecoveryToken: AppAccessGateV1.ConfigurationStartupRecoveryToken?
+
+    init(
+        gate: AppAccessGateV1,
+        proof: Proof,
+        operationID: UUID,
+        subject: NotificationOperationSubjectV1?,
+        startupRecoveryToken: AppAccessGateV1.ConfigurationStartupRecoveryToken? = nil
+    ) {
+        self.gate = gate
+        self.proof = proof
+        self.operationID = operationID
+        self.subject = subject
+        self.startupRecoveryToken = startupRecoveryToken
+    }
 
     func validateRead() async throws {
         guard operationID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.invalidValue }
@@ -91,12 +106,35 @@ struct NotificationOperationAuthorizationV1: Sendable {
         try await validateRead()
     }
 
+    /// Configuration repair may enter only the explicitly bound startup
+    /// recovery pipeline. Neither content nor toggle authorization can mint
+    /// this capability, and an ordinary repair authorization without it stays
+    /// content-blind.
+    func validateStartupRecovery() async throws {
+        guard case .repair(let configuration, _) = proof,
+              let startupRecoveryToken,
+              subject?.journal.operationID == operationID else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        try await gate.validateConfigurationStartupRecovery(
+            startupRecoveryToken,
+            configuration: configuration,
+            operationID: operationID
+        )
+    }
+
     func binding(to subject: NotificationOperationSubjectV1) throws -> Self {
         guard subject.journal.operationID == operationID else { throw AppAccessContractFailureV1.effectMismatch }
         if let original = self.subject, original.journal.operationID == operationID {
             guard original.hasSameImmutableSubject(as: subject) else { throw AppAccessContractFailureV1.effectMismatch }
         }
-        return .init(gate: gate, proof: proof, operationID: operationID, subject: subject)
+        return .init(
+            gate: gate,
+            proof: proof,
+            operationID: operationID,
+            subject: subject,
+            startupRecoveryToken: startupRecoveryToken
+        )
     }
 }
 

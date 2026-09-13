@@ -318,6 +318,104 @@ final class S6_1DeletionGraphTests: XCTestCase {
     }
 
     @MainActor
+    func testCommittedRecoveryRejectsCanonicalIntentPathsOwnedByLiveRows() async throws {
+        let foreignBytes = Data("foreign-evidence".utf8)
+        let foreignSnapshot = Data("foreign-snapshot".utf8)
+        let foreignPDF = Data("%PDF-foreign".utf8)
+
+        for kind in ["original", "thumbnail", "snapshot", "pdf"] {
+            let harness = try makeHarness(counted: true)
+            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+            let liveAsset = Asset(
+                siteID: try XCTUnwrap(
+                    harness.context.fetch(FetchDescriptor<Site>()).first?.id
+                ),
+                packID: SignPack.illuminatedSignV1.packID,
+                packSchemaVersion: 1,
+                packContentVersion: 1,
+                label: "Live foreign owner"
+            )
+            harness.context.insert(liveAsset)
+            try insertRoot(
+                assetID: liveAsset.id,
+                counted: true,
+                context: harness.context,
+                generationRootURL: harness.generationRootURL,
+                evidenceBytes: foreignBytes,
+                report: .ready(snapshot: foreignSnapshot, pdf: foreignPDF)
+            )
+            try harness.context.save()
+
+            let interrupted = WholeSignDeletionService(
+                modelContext: harness.context,
+                generationRootURL: harness.generationRootURL,
+                failureInjection: WholeSignDeletionFailureInjection(
+                    failOnceAt: .committedPhase
+                )
+            )
+            await assertThrows(.injectedFailure) {
+                _ = try await interrupted.delete(assetID: harness.assetID)
+            }
+
+            let evidence = try XCTUnwrap(
+                harness.context.fetch(FetchDescriptor<EvidenceFile>()).first
+            )
+            let report = try XCTUnwrap(
+                harness.context.fetch(FetchDescriptor<Report>()).first
+            )
+            let foreignPath: String
+            let expectedBytes: Data
+            switch kind {
+            case "original":
+                foreignPath = evidence.relativePath
+                expectedBytes = foreignBytes
+            case "thumbnail":
+                foreignPath = evidence.thumbnailRelativePath
+                expectedBytes = foreignBytes
+            case "snapshot":
+                foreignPath = report.snapshotRelativePath
+                expectedBytes = foreignSnapshot
+            case "pdf":
+                foreignPath = try XCTUnwrap(report.pdfRelativePath)
+                expectedBytes = foreignPDF
+            default:
+                XCTFail("Unexpected foreign path kind")
+                return
+            }
+
+            let journalURL = try XCTUnwrap(
+                deletionJournalNames(harness).first.map {
+                    deletionJournalURL(harness).appendingPathComponent($0)
+                }
+            )
+            let intent = try DeletionIntentDecoderV1().decode(
+                Data(contentsOf: journalURL)
+            )
+            let substituted = DeletionIntentV1(
+                acceptedLabelOutputCleanups: intent.acceptedLabelOutputCleanups,
+                assetID: intent.assetID,
+                countedPacketTombstones: intent.countedPacketTombstones,
+                deletionID: intent.deletionID,
+                generationID: intent.generationID,
+                ledgerEntries: intent.ledgerEntries,
+                phase: intent.phase,
+                relativePaths: [foreignPath],
+                schemaVersion: intent.schemaVersion
+            )
+            try DeletionIntentEncoderV1().encode(substituted).data.write(to: journalURL)
+
+            await assertThrows(.journalInvalid) {
+                _ = try await harness.service.reconcile()
+            }
+            XCTAssertEqual(try Data(contentsOf: harness.generationRootURL
+                .appendingPathComponent(foreignPath)), expectedBytes)
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<EvidenceFile>()), 1)
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Report>()), 1)
+            XCTAssertEqual(try deletionJournalNames(harness).count, 1)
+        }
+    }
+
+    @MainActor
     func testOrphanCleanupIsCanonicalBoundedAndPreservesTombstones() async throws {
         let harness = try makeHarness(counted: true)
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }

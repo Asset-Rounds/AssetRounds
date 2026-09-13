@@ -100,6 +100,12 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
     }
 }
 
+private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1 {
+    func materialize(_ context: ImportCommandMaterializationContextV1) throws -> WorkspaceMutationRequestV1 {
+        try WorkspaceMutationRequestV1(mutationID: context.mutationID, expectedRevision: context.expectedRevision, command: .createFirstSign(.init(siteID: C08.id(980_110), newSite: .init(id: C08.id(980_110), label: "C08 site", address: nil, timeZoneID: "UTC"), assetID: C08.id(980_112), assetLabel: "C08 mismatched asset", packID: "c08.pack", packSchemaVersion: 1, packContentVersion: 1, createdAt: C08.time)))
+    }
+}
+
 @MainActor private final class C08Stack {
     let context: ModelContext
     let adapter: C08WriterAdapter
@@ -116,7 +122,8 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
 
     init(
         atomicMaterializer: any ImportWorkspaceCommandMaterializingV1,
-        atomicAllowedWorkspaceCommandKinds: Set<WorkspaceCommandKindV1>
+        atomicAllowedWorkspaceCommandKinds: Set<WorkspaceCommandKindV1>,
+        createAssetMaterializer: any ImportWorkspaceCommandMaterializingV1 = C08CreateAssetMaterializer()
     ) throws {
         let models = PersistentSchemaV45.models + [ImportMappingProfileRowV1.self, BulkSessionRowV1.self, BulkCommitReceiptRowV1.self]
         let schema = Schema(models, version: PersistentSchemaV45.versionIdentifier)
@@ -140,7 +147,7 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
             }
             return try ImportBulkMaterializerRegistrationV1(
                 kind: kind,
-                materializer: kind == .createAsset ? C08CreateAssetMaterializer() : C08RejectingMaterializer()
+                materializer: kind == .createAsset ? createAssetMaterializer : C08RejectingMaterializer()
             )
         }
         coordinator = try ImportBulkCoordinatorV1(writer: writer, lifecycle: lifecycle, materializers: materializers)
@@ -306,6 +313,45 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
         XCTAssertEqual(coordinatorCancelled.chunkReceipts[0].disposition, .cancelledBeforeCommit)
         XCTAssertEqual(try stack.lifecycle.durableSession(sessionID: begun.sessionID), coordinatorCancelled)
         XCTAssertEqual(try stack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0)?.disposition, .cancelledBeforeCommit)
+
+        let effectStack = try c08Stack(), effectCoordinator = effectStack.coordinator
+        let effectPreview = try effectCoordinator.preview(importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let effectBegun = try effectCoordinator.begin(sessionID: C08.id(980_032), preview: effectPreview, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let effectContext = try ImportCommandMaterializationContextV1(plan: plan, rowIdentity: plan.rows[0].identity, row: plan.rows[0], command: plan.rows[0].commands[0], chunkIndex: 0, mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: .init(snapshot: try effectStack.writer.currentRevision()))
+        let effectRequest = try C08CreateAssetMaterializer().materializeValidated(effectContext)
+        _ = try effectStack.writer.execute(effectRequest)
+        XCTAssertNotNil(try effectStack.writer.durableReceipt(mutationID: bulk.chunks[0].mutationIDs[0]))
+        XCTAssertNil(try effectStack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0))
+        let recoveredEffect = try effectCoordinator.commitFirstMissingChunk(session: effectBegun, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: true)
+        XCTAssertEqual(effectStack.adapter.applyCount, 1)
+        XCTAssertEqual(recoveredEffect.state, .active)
+        XCTAssertEqual(recoveredEffect.chunkReceipts.count, 1)
+        XCTAssertEqual(recoveredEffect.chunkReceipts[0].disposition, .committed)
+        XCTAssertEqual(recoveredEffect.chunkReceipts[0].committedMutationIDs, [bulk.chunks[0].mutationIDs[0]])
+        XCTAssertEqual(try effectStack.lifecycle.durableSession(sessionID: effectBegun.sessionID), recoveredEffect)
+        XCTAssertEqual(try effectStack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0), recoveredEffect.chunkReceipts[0])
+
+        let mismatchedStack = try c08Stack(), mismatchedCoordinator = mismatchedStack.coordinator
+        let mismatchedPreview = try mismatchedCoordinator.preview(importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let mismatchedBegun = try mismatchedCoordinator.begin(sessionID: C08.id(980_033), preview: mismatchedPreview, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let mismatchedContext = try ImportCommandMaterializationContextV1(plan: plan, rowIdentity: plan.rows[0].identity, row: plan.rows[0], command: plan.rows[0].commands[0], chunkIndex: 0, mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: .init(snapshot: try mismatchedStack.writer.currentRevision()))
+        _ = try mismatchedStack.writer.execute(C08MismatchedCreateAssetMaterializer().materializeValidated(mismatchedContext))
+        XCTAssertThrowsError(try mismatchedCoordinator.commitFirstMissingChunk(session: mismatchedBegun, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: true))
+        XCTAssertEqual(mismatchedStack.adapter.applyCount, 1)
+        XCTAssertEqual(try mismatchedStack.lifecycle.durableSession(sessionID: mismatchedBegun.sessionID), mismatchedBegun)
+        XCTAssertNil(try mismatchedStack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0))
+
+        let rejectingStack = try C08Stack(atomicMaterializer: C08RejectingMaterializer(), atomicAllowedWorkspaceCommandKinds: [.applyAssetSemantics], createAssetMaterializer: C08RejectingMaterializer())
+        let rejectingPreview = try rejectingStack.coordinator.preview(importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let rejectingBegun = try rejectingStack.coordinator.begin(sessionID: C08.id(980_034), preview: rejectingPreview, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let rejectingContext = try ImportCommandMaterializationContextV1(plan: plan, rowIdentity: plan.rows[0].identity, row: plan.rows[0], command: plan.rows[0].commands[0], chunkIndex: 0, mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: .init(snapshot: try rejectingStack.writer.currentRevision()))
+        _ = try rejectingStack.writer.execute(C08CreateAssetMaterializer().materializeValidated(rejectingContext))
+        XCTAssertThrowsError(try rejectingStack.coordinator.commitFirstMissingChunk(session: rejectingBegun, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: true)) { error in
+            XCTAssertEqual(error as? ImportBulkFailureV1, .unsupportedSchema)
+        }
+        XCTAssertEqual(rejectingStack.adapter.applyCount, 1)
+        XCTAssertEqual(try rejectingStack.lifecycle.durableSession(sessionID: rejectingBegun.sessionID), rejectingBegun)
+        XCTAssertNil(try rejectingStack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0))
         let firstReceipt = try BulkCommitReceiptV1(receiptID: C08.id(980_011), workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0, expectedWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, disposition: .committed, committedMutationIDs: bulk.chunks[0].mutationIDs)
         let interrupted = try BulkSessionV1(sessionID: C08.id(980_012), workspaceID: plan.workspaceID, bulkPlan: bulk, sourceSHA256: plan.source.sourceSHA256, expectedWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, state: .cancellationRequested, chunkReceipts: [firstReceipt])
         try interrupted.validate(); XCTAssertEqual(try interrupted.firstMissingReceiptChunkIndex(in: bulk), 1)

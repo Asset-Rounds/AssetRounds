@@ -1,5 +1,8 @@
 import Foundation
+import CoreGraphics
+import ImageIO
 import SwiftData
+import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
@@ -135,11 +138,154 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     }
 
     @MainActor
+    func testRestoreAccessDenialBeforePrivateReadsLeavesImportedStateUntouched() async throws {
+        let harness = try makeHarness("restore-access-initial-denial")
+        defer { try? fileManager.removeItem(at: harness.root) }
+        let package = try makeSourcePackage(in: harness.root, name: "source")
+        let validated = try importPackage(package, into: harness.session)
+        let supportBefore = try tree(harness.support)
+        var validationCalls = 0
+        let service = try BackupRestoreService(
+            applicationSupportURL: harness.support,
+            makeUUID: sequence([UUID(), UUID()])
+        )
+
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.restore(
+                validatedPackage: validated,
+                currentModelContext: harness.session.modelContext,
+                currentGenerationID: harness.session.generationID,
+                currentGenerationRootURL: harness.session.generationRootURL,
+                validateAccess: {
+                    validationCalls += 1
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+            )
+        } verify: { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+
+        XCTAssertEqual(validationCalls, 1)
+        XCTAssertEqual(try harness.factory.currentGenerationID(), harness.session.generationID)
+        XCTAssertEqual(try tree(harness.support), supportBefore)
+        XCTAssertNil(try RestoreIntentStore(applicationSupportURL: harness.support).load())
+    }
+
+    @MainActor
+    func testRestoreAccessAuthorizedCallerCompletesPhysicalEmptyInstall() async throws {
+        let harness = try makeHarness("restore-access-authorized")
+        defer { try? fileManager.removeItem(at: harness.root) }
+        let package = try makeSourcePackage(in: harness.root, name: "source")
+        let validated = try importPackage(package, into: harness.session)
+        var validationCalls = 0
+        let newGenerationID = uuid("64000000-0000-0000-0000-000000000a11")
+        let service = try BackupRestoreService(
+            applicationSupportURL: harness.support,
+            makeUUID: sequence([newGenerationID, UUID()])
+        )
+
+        let restored = try await service.restore(
+            validatedPackage: validated,
+            currentModelContext: harness.session.modelContext,
+            currentGenerationID: harness.session.generationID,
+            currentGenerationRootURL: harness.session.generationRootURL,
+            validateAccess: { validationCalls += 1 }
+        )
+
+        XCTAssertEqual(restored.generationID, newGenerationID)
+        XCTAssertGreaterThan(validationCalls, 1)
+        XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<Site>()), 1)
+        XCTAssertNil(try RestoreIntentStore(applicationSupportURL: harness.support).load())
+    }
+
+    @MainActor
+    func testRestoreAccessRejectsRevokedAndRegrantedGateAfterSuspendedDocumentResolution() async throws {
+        let source = try makeHarness("restore-access-aba-source")
+        let target = try makeHarness("restore-access-aba-target")
+        defer {
+            try? fileManager.removeItem(at: source.root)
+            try? fileManager.removeItem(at: target.root)
+        }
+        let accessiblePackage = try await makeAccessibleDocumentPackage(in: source.root)
+        let package = accessiblePackage.package
+        let validated = try importPackage(package, into: target.session)
+        XCTAssertEqual(validated.records.accessibleDocumentAssessments.count, 1)
+
+        let fallbackBefore = try tree(target.support)
+        var fallbackValidationCalls = 0
+        let missingResolverService = try BackupRestoreService(
+            applicationSupportURL: target.support,
+            makeUUID: sequence([UUID(), UUID()])
+        )
+        await XCTAssertThrowsErrorAsync {
+            _ = try await missingResolverService.restore(
+                validatedPackage: validated,
+                currentModelContext: target.session.modelContext,
+                currentGenerationID: target.session.generationID,
+                currentGenerationRootURL: target.session.generationRootURL,
+                validateAccess: {
+                    fallbackValidationCalls += 1
+                    guard fallbackValidationCalls == 1 else {
+                        throw AppAccessContractFailureV1.accessDenied
+                    }
+                }
+            )
+        } verify: { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        XCTAssertEqual(fallbackValidationCalls, 2)
+        XCTAssertEqual(try tree(target.support), fallbackBefore)
+
+        let resolver = S64SuspendingAccessibleDocumentResolver(tree: accessiblePackage.tree)
+        let gate = AppAccessGateV1(
+            setting: .absentDisabled,
+            authentication: S64NoopAuthentication(),
+            clock: S64IdentityClock(),
+            identifiers: S64IdentityIDs()
+        )
+        let token = try await gate.beginContentRead(for: .backupImport)
+        let supportBefore = try tree(target.support)
+        let service = try BackupRestoreService(
+            applicationSupportURL: target.support,
+            makeUUID: sequence([UUID(), UUID()]),
+            accessibleDocumentTreeResolver: resolver
+        )
+        let restore = Task { @MainActor in
+            try await service.restore(
+                validatedPackage: validated,
+                currentModelContext: target.session.modelContext,
+                currentGenerationID: target.session.generationID,
+                currentGenerationRootURL: target.session.generationRootURL,
+                validateAccess: {
+                    try await gate.validateContentRead(token, for: .backupImport)
+                }
+            )
+        }
+        await resolver.waitUntilRequested()
+        await gate.sceneBecameInactive()
+        await gate.sceneBecameActive()
+        let regrantedToken = try await gate.beginContentRead(for: .backupImport)
+        try await gate.validateContentRead(regrantedToken, for: .backupImport)
+        await resolver.resume()
+
+        await XCTAssertThrowsErrorAsync {
+            _ = try await restore.value
+        } verify: { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
+        XCTAssertEqual(try tree(target.support), supportBefore)
+        XCTAssertNil(try RestoreIntentStore(applicationSupportURL: target.support).load())
+    }
+
+    @MainActor
     func testInterruptionMatrixRecoversOnlyOldOrFullyValidatedNew() async throws {
         let oldOutcome: Set<BackupRestoreFailurePoint> = [
             .beforePreparedWrite,
             .afterPreparedWrite,
             .beforeGenerationInstall,
+            .afterGenerationInstall,
+            .beforePointerSwitch,
         ]
         for (offset, point) in BackupRestoreFailurePoint.allCases.enumerated() {
             let harness = try makeHarness("phase-\(offset)")
@@ -195,7 +341,8 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 try exactSidecar.write(to: portableSidecarURL, options: .atomic)
                 try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: portableSidecarURL)
             }
-            let recoveredNew = try recovery.reconcileAtStartup()
+            let recoveredNew = try await recovery
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
             let expectedID = oldOutcome.contains(point) ? oldID : newID
             XCTAssertEqual(try harness.factory.currentGenerationID(), expectedID, "\(point)")
             if oldOutcome.contains(point) {
@@ -213,7 +360,9 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                     "\(point)"
                 )
             }
-            XCTAssertNil(try recovery.reconcileAtStartup(), "\(point)")
+            let noFurtherRecovery = try await recovery
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(noFurtherRecovery, "\(point)")
             XCTAssertFalse(fileManager.fileExists(atPath: portableSidecarURL.path), "\(point)")
             XCTAssertFalse(fileManager.fileExists(
                 atPath: harness.support.appendingPathComponent(
@@ -962,6 +1111,39 @@ private extension S6_4AtomicRestoreTests {
         UUID(uuidString: value)!
     }
 
+    func accessibleFixturePNG(seed: UInt8) throws -> Data {
+        let width = 48, height = 32
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            pixels[index] = seed &+ UInt8(truncatingIfNeeded: index / 4)
+            pixels[index + 1] = seed &+ 17
+            pixels[index + 2] = seed &+ 43
+            pixels[index + 3] = 255
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let image = CGImage(
+                width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: width * 4, space: space,
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                provider: provider, decode: nil, shouldInterpolate: false,
+                intent: .defaultIntent
+              ) else {
+            throw FixtureError.invalid
+        }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output, UTType.png.identifier as CFString, 1, nil
+        ) else {
+            throw FixtureError.invalid
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw FixtureError.invalid
+        }
+        return output as Data
+    }
+
     func tree(_ root: URL) throws -> [FileFact] {
         guard let enumerator = fileManager.enumerator(
             at: root,
@@ -980,6 +1162,148 @@ private extension S6_4AtomicRestoreTests {
             facts.append(FileFact(path: relative, bytes: try Data(contentsOf: url)))
         }
         return facts.sorted { $0.path < $1.path }
+    }
+
+    struct AccessibleDocumentPackageFixture {
+        let package: URL
+        let tree: AccessibleDocumentSemanticTreeV1
+    }
+
+    @MainActor
+    func makeAccessibleDocumentPackage(in root: URL) async throws -> AccessibleDocumentPackageFixture {
+        let support = root.appendingPathComponent("accessible-document-source", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        var writerReleased = false
+        defer {
+            if !writerReleased {
+                try? coordinator.invalidateAndReleaseWriter()
+            }
+        }
+
+        let pack = SignPack.illuminatedSignV1
+        let siteID = uuid("64000000-0000-0000-0000-000000000701")
+        let assetID = uuid("64000000-0000-0000-0000-000000000702")
+        let placementMutationID = try MutationIDV1(rawValue: uuid("64000000-0000-0000-0000-000000000703"))
+        _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID,
+            newSite: .init(id: siteID, label: "Accessible restore site", address: nil, timeZoneID: "America/New_York"),
+            assetID: assetID, assetLabel: "Accessible restore sign", packID: pack.packID,
+            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            initialPlacementMutationID: placementMutationID,
+            initialPlacementEventID: uuid("64000000-0000-0000-0000-000000000704"),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: uuid("64000000-0000-0000-0000-000000000705"))
+        )), mutationID: placementMutationID)
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let dependencies = try coordinator.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        )
+        let runner = try CheckRunnerCoordinator(
+            modelContext: session.modelContext,
+            packageLifecycleDependencies: dependencies,
+            packageLifecycleProfile: profile
+        )
+        runner.configureCapture(generationRootURL: session.generationRootURL)
+        let observedAt = Date(timeIntervalSince1970: 1_800_000_100)
+        _ = try runner.beginCheck(
+            assetID: assetID, timeZoneID: nil, isTimeZoneConfirmed: false,
+            afterDarkAccepted: true, safePositionAccepted: true, observedAt: observedAt
+        )
+        let wide = try await runner.importCandidate(
+            assetID: assetID, sourceData: try accessibleFixturePNG(seed: 31),
+            createdAt: observedAt.addingTimeInterval(1)
+        )
+        _ = try await runner.accept(candidate: wide, assetID: assetID)
+        let close = try await runner.importCandidate(
+            assetID: assetID, sourceData: try accessibleFixturePNG(seed: 71),
+            createdAt: observedAt.addingTimeInterval(2)
+        )
+        _ = try await runner.accept(candidate: close, assetID: assetID)
+        let reportID = uuid("64000000-0000-0000-0000-000000000706")
+        let result = try await runner.finalize(
+            assetID: assetID, selection: .noVisibleIssue,
+            completedAt: observedAt.addingTimeInterval(5),
+            snapshotCreatedAt: observedAt.addingTimeInterval(6),
+            sourceApp: .init(build: "42", version: "4.0"),
+            identifiers: .init(
+                mutationID: uuid("64000000-0000-0000-0000-000000000707"),
+                packetID: uuid("64000000-0000-0000-0000-000000000708"),
+                stableRootID: uuid("64000000-0000-0000-0000-000000000709"),
+                reportID: reportID, issueID: nil
+            )
+        )
+        guard case .ready = try runner.prepareReportDelivery(result: result) else {
+            throw FixtureError.invalid
+        }
+        let report = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<Report>()).first { $0.id == reportID })
+        let snapshotRelativePath = report.snapshotRelativePath
+        let pdfRelativePath = try XCTUnwrap(report.pdfRelativePath)
+        let snapshotSHA256 = report.snapshotSHA256
+        let pdfSHA256 = try XCTUnwrap(report.pdfSHA256)
+        let snapshotBytes = try Data(contentsOf: session.generationRootURL.appendingPathComponent(snapshotRelativePath))
+        let pdfBytes = try Data(contentsOf: session.generationRootURL.appendingPathComponent(pdfRelativePath))
+        guard KernelCanonicalHashV1.sha256(snapshotBytes) == snapshotSHA256,
+              KernelCanonicalHashV1.sha256(pdfBytes) == pdfSHA256,
+              !pdfBytes.isEmpty else {
+            throw FixtureError.invalid
+        }
+        let publication = try AccessibleDocumentPublicationBindingV1(
+            snapshotSHA256: snapshotSHA256, manifestID: "s64.restore.manifest", manifestVersion: 1,
+            manifestSHA256: snapshotSHA256, localeIdentifier: "en-US", profileID: "s64.restore.profile",
+            profileRelease: 1, profileSHA256: snapshotSHA256, brandProfileID: "s64.restore.brand",
+            brandProfileRelease: 1, brandProfileSHA256: snapshotSHA256
+        )
+        let tree = try AccessibleDocumentSemanticTreeResolverV1.rebuild(.init(
+            workspaceID: session.workspaceIdentity.workspaceID, audience: .internalUse,
+            publication: publication,
+            nodes: [try AccessibleDocumentNodeV1(
+                nodeID: "restore-document", role: .document, parentNodeID: nil, order: 0,
+                localizedText: "Accessible restore report", sensitivity: .customerSafe
+            )],
+            projectionVersion: "s64.restore.access"
+        ))
+        let reviewer = try ActorSnapshotV1(
+            snapshotID: uuid("64000000-0000-0000-0000-000000000710"),
+            workspaceID: session.workspaceIdentity.workspaceID,
+            actor: LocalActorReferenceV1(
+                actorReferenceID: uuid("64000000-0000-0000-0000-000000000711"),
+                workspaceID: session.workspaceIdentity.workspaceID,
+                displayName: "Accessible restore reviewer"
+            ),
+            responsibility: .reviewedBy, displayNameAtTime: "Accessible restore reviewer",
+            capturedAt: observedAt.addingTimeInterval(7)
+        )
+        let assessment = try AccessibleDocumentAssessmentReceiptV1(
+            receiptID: uuid("64000000-0000-0000-0000-000000000712"),
+            workspaceID: session.workspaceIdentity.workspaceID, tree: tree,
+            outputSHA256: pdfSHA256, outputByteCount: Int64(pdfBytes.count),
+            outputMediaType: "application/pdf", rendererID: "existing-report-renderer",
+            rendererVersion: "1", assessmentToolID: "s64.restore.assessor", assessmentToolVersion: "1",
+            assessor: reviewer, state: .internalPass, limitations: ["Local restore fixture"],
+            assessedAt: observedAt.addingTimeInterval(8),
+            mutationID: try MutationIDV1(rawValue: uuid("64000000-0000-0000-0000-000000000713"))
+        )
+        try assessment.validate(tree: tree)
+        _ = try coordinator.workspaceWriter.commitAccessibleDocumentAssessment(
+            AccessibleDocumentMutationV1(receipt: assessment), validatedAgainst: tree
+        )
+        try coordinator.invalidateAndReleaseWriter()
+        writerReleased = true
+        let journal = try MutationJournalStoreV1(
+            modelContext: session.modelContext, identity: session.workspaceIdentity,
+            generationID: session.generationID, allowStateBootstrap: false
+        )
+        try journal.validateAll()
+        let exportRoot = root.appendingPathComponent("accessible-document-export", isDirectory: true)
+        try fileManager.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        let exporter = BackupExportService(
+            modelContext: session.modelContext, generationRootURL: session.generationRootURL
+        )
+        let preview = try exporter.prepare()
+        let package = try exporter.export(previewID: preview.id, to: exportRoot)
+        return AccessibleDocumentPackageFixture(package: package, tree: tree)
     }
 }
 
@@ -2077,6 +2401,56 @@ private struct S64IdentityFiles: ApplicationFileAuthorityV1 {
         "mutation-staging/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
     }
 }
+
+private struct S64NoopAuthentication: LocalAuthenticationClient {
+    func availability() async -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .none)
+    }
+
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) async -> LocalAuthenticationOutcomeV1 {
+        .userCancelled
+    }
+
+    func cancel(attemptID: UUID) async {}
+}
+
+private actor S64SuspendingAccessibleDocumentResolver: AccessibleDocumentSemanticTreeResolvingV1 {
+    private let tree: AccessibleDocumentSemanticTreeV1
+    private var requestWaiters: [CheckedContinuation<Void, Never>] = []
+    private var resolutionWaiters: [CheckedContinuation<Void, Never>] = []
+    private var requested = false
+    private var released = false
+
+    init(tree: AccessibleDocumentSemanticTreeV1) {
+        self.tree = tree
+    }
+
+    func resolve(
+        _ request: AccessibleDocumentSemanticTreeResolutionRequestV1
+    ) async throws -> AccessibleDocumentSemanticTreeV1 {
+        requested = true
+        let waiters = requestWaiters
+        requestWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        if !released {
+            await withCheckedContinuation { resolutionWaiters.append($0) }
+        }
+        return tree
+    }
+
+    func waitUntilRequested() async {
+        guard !requested else { return }
+        await withCheckedContinuation { requestWaiters.append($0) }
+    }
+
+    func resume() {
+        released = true
+        let waiters = resolutionWaiters
+        resolutionWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+}
+
 private final class S64PackageIdentityAuthority: EntityIdentityResolutionCanonicalSourceResolvingV1 {
     let snapshots: [EntityIdentitySnapshotV1]
     let atoms: [EntityConsolidationInventoryFamilyV1: [EntityConsolidationInventoryAtomV1]]
@@ -2342,9 +2716,11 @@ extension S6_4AtomicRestoreTests {
                 XCTAssertFalse(receipt.atomicAcrossRoots)
                 XCTAssertTrue(receipt.canonicalCommitRequired)
             }
-            // This call remains synchronous and restores the old complete
-            // generation for an interrupted prepared transaction.
-            XCTAssertNil(try recovery.reconcileAtStartup())
+            // Startup owns the derived-state cleanup and intent retirement;
+            // recovery must go through the production async bridge.
+            let noFurtherRecovery = try await recovery
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(noFurtherRecovery)
             XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
             XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
             XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path))
@@ -2360,9 +2736,198 @@ extension S6_4AtomicRestoreTests {
             XCTAssertEqual(entries.first?.item.actualByteCount, Int64(bytes.count))
             XCTAssertEqual(retained, bytes)
             XCTAssertEqual(try target.session.modelContext.fetchCount(FetchDescriptor<AttachmentStagingItemRow>()), 0)
-            XCTAssertNil(try recovery.reconcileAtStartup())
+            let noFurtherRecoveryAgain = try await recovery
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(noFurtherRecoveryAgain)
             let retainedAgain = try await reopened.data(stageID: item.stageID)
             XCTAssertEqual(retainedAgain, bytes)
         }
+    }
+}
+
+extension S6_4AtomicRestoreTests {
+    @MainActor
+    func testConfigurationCloneOmitsDraftRowsAndStagedBytesWithoutChangingSource() async throws {
+        let source = try makeHarness("configuration-clone-draft-source")
+        defer { try? fileManager.removeItem(at: source.root) }
+        let draft = try await makeConfigurationCloneDraftPackage(in: source)
+        let archiveBefore = try Data(contentsOf: draft.package)
+        let target = try makeHarness("configuration-clone-draft-target")
+        defer { try? fileManager.removeItem(at: target.root) }
+        let validated = try importPackage(draft.package, into: target.session)
+        XCTAssertEqual(validated.records.fieldDrafts.count, 2)
+        XCTAssertFalse(validated.members.keys.filter { $0.hasPrefix("draft-staging/") }.isEmpty)
+        let service = try BackupRestoreService(applicationSupportURL: target.support)
+
+        let restored = try await service.restore(validatedPackage: validated,
+            currentModelContext: target.session.modelContext,
+            currentGenerationID: target.session.generationID,
+            currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+
+        XCTAssertNotEqual(restored.workspaceID, source.session.workspaceID)
+        try assertNoConfigurationCloneDraftRows(in: restored.modelContext)
+        XCTAssertFalse(fileManager.fileExists(atPath: configurationCloneDraftRoot(target.support).path))
+        XCTAssertNil(try RestoreIntentStore(applicationSupportURL: target.support).load())
+        XCTAssertEqual(try Data(contentsOf: draft.package), archiveBefore)
+        try await assertConfigurationCloneDraftSourceUnchanged(source, draft: draft)
+    }
+
+    @MainActor
+    func testEmptyInstallAndForkRetainDraftCheckpointAndOriginalBytes() async throws {
+        let source = try makeHarness("non-clone-draft-source")
+        defer { try? fileManager.removeItem(at: source.root) }
+        let draft = try await makeConfigurationCloneDraftPackage(in: source)
+        for mode in [BackupRestoreMode.emptyInstall, .fork] {
+            let target = try makeHarness("non-clone-draft-\(mode.rawValue)")
+            defer { try? fileManager.removeItem(at: target.root) }
+            let validated = try importPackage(draft.package, into: target.session)
+            let restored = try await BackupRestoreService(applicationSupportURL: target.support)
+                .restore(validatedPackage: validated,
+                    currentModelContext: target.session.modelContext,
+                    currentGenerationID: target.session.generationID,
+                    currentGenerationRootURL: target.session.generationRootURL, mode: mode)
+            let checkpoints = try restored.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
+            let stages = try restored.modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>())
+            XCTAssertEqual(checkpoints.count, 1)
+            XCTAssertEqual(stages.count, 1)
+            let checkpoint = try XCTUnwrap(checkpoints.first).value()
+            let item = try XCTUnwrap(stages.first).value()
+            XCTAssertEqual(checkpoint.workspaceID, restored.workspaceID)
+            XCTAssertEqual(item.workspaceID, restored.workspaceID)
+            XCTAssertEqual(checkpoint.stageIDs, [item.stageID])
+            XCTAssertEqual(item.draftID, checkpoint.draftID)
+            XCTAssertEqual(checkpoint.payloadData, draft.checkpoint.payloadData)
+            XCTAssertEqual(checkpoint.baseCanonicalRevision, draft.checkpoint.baseCanonicalRevision)
+            XCTAssertEqual(checkpoint.draftRevision, draft.checkpoint.draftRevision)
+            if mode == .emptyInstall {
+                XCTAssertEqual(checkpoint, draft.checkpoint)
+                XCTAssertEqual(item, draft.item)
+            } else {
+                XCTAssertNotEqual(checkpoint.draftID, draft.checkpoint.draftID)
+                XCTAssertNotEqual(item.stageID, draft.item.stageID)
+                XCTAssertEqual(checkpoint.state, .recoveryRequired)
+                XCTAssertNil(checkpoint.lastDurableMutationID)
+                XCTAssertNil(checkpoint.lastReceiptSHA256)
+            }
+            let staging = try DraftAttachmentStagingAdapterV1(
+                applicationSupportURL: target.support, workspaceID: restored.workspaceID)
+            let bytes = try await staging.data(stageID: item.stageID)
+            XCTAssertEqual(bytes, draft.bytes)
+            let entries = try await staging.entries()
+            XCTAssertEqual(entries.count, 1)
+            XCTAssertEqual(entries.first?.item, item)
+            try await assertConfigurationCloneDraftSourceUnchanged(source, draft: draft)
+        }
+    }
+
+    @MainActor
+    func testConfigurationClonePreparedRecoveryNeverPublishesOmittedDraftBytes() async throws {
+        let source = try makeHarness("configuration-clone-recovery-source")
+        defer { try? fileManager.removeItem(at: source.root) }
+        let draft = try await makeConfigurationCloneDraftPackage(in: source)
+        for point in [BackupRestoreFailurePoint.afterPreparedWrite, .beforeGenerationInstall] {
+            let target = try makeHarness("configuration-clone-recovery-\(point)")
+            defer { try? fileManager.removeItem(at: target.root) }
+            let validated = try importPackage(draft.package, into: target.session)
+            let service = try BackupRestoreService(applicationSupportURL: target.support,
+                failureInjection: BackupRestoreFailureInjection(failOnceAt: point))
+            await XCTAssertThrowsErrorAsync {
+                _ = try await service.restore(validatedPackage: validated,
+                    currentModelContext: target.session.modelContext,
+                    currentGenerationID: target.session.generationID,
+                    currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+            } verify: { error in
+                XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
+            }
+            let intents = try RestoreIntentStore(applicationSupportURL: target.support)
+            let intent = try XCTUnwrap(intents.load())
+            XCTAssertEqual(intent.phase, .prepared)
+            XCTAssertFalse(fileManager.fileExists(atPath: configurationCloneDraftRoot(target.support).path))
+            let binding = target.support.appendingPathComponent(
+                "FieldEvidenceRestore/draft-publication-\(intent.restoreID.uuidString.lowercased()).json")
+            XCTAssertFalse(fileManager.fileExists(atPath: binding.path))
+            let recovery = try BackupRestoreService(applicationSupportURL: target.support)
+            let result = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(result)
+            XCTAssertNil(try intents.load())
+            XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
+            try assertNoConfigurationCloneDraftRows(in: target.session.modelContext)
+            XCTAssertFalse(fileManager.fileExists(atPath: configurationCloneDraftRoot(target.support).path))
+            XCTAssertFalse(fileManager.fileExists(atPath: binding.path))
+            XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+            try await assertConfigurationCloneDraftSourceUnchanged(source, draft: draft)
+        }
+    }
+}
+
+private extension S6_4AtomicRestoreTests {
+    struct ConfigurationCloneDraftPackage {
+        let package: URL
+        let checkpoint: FieldDraftCheckpointV1
+        let item: AttachmentStagingItemV1
+        let bytes: Data
+    }
+
+    @MainActor
+    func makeConfigurationCloneDraftPackage(in source: Harness) async throws -> ConfigurationCloneDraftPackage {
+        let coordinator = try StoreSessionCoordinator(validatingSession: source.session)
+        defer { try? coordinator.invalidateAndReleaseWriter() }
+        let workspace = coordinator.workspaceID
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        let staging = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: source.support, workspaceID: workspace, clock: { date })
+        let bytes = Data("nonempty user draft bytes preserved at the clone boundary".utf8)
+        let item = try await staging.stage(data: bytes, draftID: UUID(),
+            workspaceID: workspace, attachmentKind: .file)
+        let checkpoint = try FieldDraftCheckpointV1(
+            draftID: item.draftID, workspaceID: workspace,
+            scope: fixture.activeCheckpoint.scope, purpose: fixture.activeCheckpoint.purpose,
+            codec: fixture.activeCheckpoint.codec, baseCanonicalRevision: 0, draftRevision: 1,
+            payloadData: fixture.activeCheckpoint.payloadData, stageIDs: [item.stageID],
+            resumeAnchor: fixture.activeCheckpoint.resumeAnchor, state: .active,
+            updatedAt: date, mutationID: MutationIDV1(rawValue: UUID()))
+        for payload in [FieldDraftMutationPayloadV1.createCheckpoint(checkpoint), .appendStagingItem(item)] {
+            let mutation = try FieldDraftMutationV1(workspaceID: workspace, expectedRevision: 0,
+                expectedBaseCanonicalRevision: 0, mutationID: payload.mutationID, postImage: payload)
+            let receipt = try coordinator.workspaceWriter.execute(
+                .applyFieldDraft(mutation), mutationID: mutation.mutationID)
+            XCTAssertEqual(receipt.mutationID, mutation.mutationID)
+        }
+        let destination = source.root.appendingPathComponent("configuration-clone-export")
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        let exporter = BackupExportService(modelContext: source.session.modelContext,
+            generationRootURL: source.session.generationRootURL, now: { date.addingTimeInterval(60) })
+        let preview = try exporter.prepare()
+        let package = try exporter.export(previewID: preview.id, to: destination)
+        return .init(package: package, checkpoint: checkpoint, item: item, bytes: bytes)
+    }
+
+    @MainActor
+    func assertNoConfigurationCloneDraftRows(in context: ModelContext) throws {
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<FieldDraftCheckpointRow>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<AttachmentStagingItemRow>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<DraftCommitSagaRow>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<DraftContentReservationRow>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<DraftCommitReceiptRow>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<DraftDiscardReceiptRow>()), 0)
+    }
+
+    func configurationCloneDraftRoot(_ support: URL) -> URL {
+        support.appendingPathComponent(OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+            .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName, isDirectory: true)
+    }
+
+    @MainActor
+    func assertConfigurationCloneDraftSourceUnchanged(_ source: Harness,
+        draft: ConfigurationCloneDraftPackage) async throws {
+        let checkpoints = try source.session.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
+        let items = try source.session.modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>())
+        XCTAssertEqual(try checkpoints.map { try $0.value() }, [draft.checkpoint])
+        XCTAssertEqual(try items.map { try $0.value() }, [draft.item])
+        let staging = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: source.support, workspaceID: source.session.workspaceID)
+        let bytes = try await staging.data(stageID: draft.item.stageID)
+        XCTAssertEqual(bytes, draft.bytes)
     }
 }

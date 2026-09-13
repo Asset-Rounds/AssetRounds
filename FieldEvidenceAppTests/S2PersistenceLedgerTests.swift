@@ -936,6 +936,426 @@ extension S2PersistenceLedgerTests {
     }
 
     @MainActor
+    func testAppAccessRevocationDuringSuspendedStartupCannotPublishOrReviveCommerce() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let pause = S2StartupPublicationPause()
+        let authentication = S2StartupAuthentication(outcomes: [.authenticated, .authenticated])
+        let gate = AppAccessGateV1(
+            setting: .value(.init(isEnabled: true)), authentication: authentication,
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        let initialUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(initialUnlock, .authenticated)
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            beforeCommerceActivation: { _ in await pause.suspend() }
+        )
+        try router.bindStartupAccessGate(gate)
+        defer { pause.resume(); router.failClosedPDFRecovery() }
+
+        let original = Task<Error?, Never> {
+            do {
+                try await router.startIfNeeded(accessGate: gate)
+                return nil
+            } catch {
+                return error
+            }
+        }
+        let paused = await XCTWaiter.fulfillment(of: [pause.reached], timeout: 20)
+        XCTAssertEqual(paused, .completed)
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+
+        await gate.lock(reason: .returnedFromBackground)
+        let renewedUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(renewedUnlock, .authenticated)
+        pause.resume()
+        let originalFailure = await original.value
+        XCTAssertNotNil(originalFailure)
+        XCTAssertEqual(router.lastStartupAccessFailure as? AppAccessContractFailureV1, .accessDenied)
+
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        guard case .checking = router.route else {
+            return XCTFail("A revoked startup continuation must remain covered")
+        }
+    }
+
+    @MainActor
+    func testToggleNotificationUsesSettledPreparedOwnerThenOrdinaryStartupAdoptsIt() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        var observedSteps: [StartupStep] = []
+        let gate = AppAccessGateV1(
+            setting: .absentDisabled,
+            authentication: S2StartupAuthentication(outcomes: [.authenticated, .authenticated]),
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            didBeginStep: { observedSteps.append($0) }
+        )
+        try router.bindStartupAccessGate(gate)
+        defer { router.failClosedPDFRecovery() }
+
+        try await router.startIfNeeded(accessGate: gate)
+        guard case let .ready(initial, _, _) = router.route else {
+            return XCTFail("Disabled startup must become ready")
+        }
+        let writerID = try initial.workspaceWriter.currentRevision().writerInstanceID
+        let startupStepCount = observedSteps.count
+        XCTAssertEqual(startupStepCount, StartupStep.allCases.count)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+
+        await gate.sceneBecameInactive()
+        router.pauseForAppAccess(discardPrepared: false)
+        await gate.sceneBecameActive()
+        XCTAssertNil(router.entitlementProcessor)
+        guard case .checking = router.route else {
+            return XCTFail("Inactive cover must retain the settled owner privately")
+        }
+
+        let enableAuthentication = await gate.authenticate(trigger: .enableAppLock)
+        XCTAssertEqual(enableAuthentication, .authenticated)
+        let toggle = try await gate.toggleAuthenticationToken(targetEnabled: true)
+        let toggleAuthorization = NotificationOperationAuthorizationV1(
+            gate: gate,
+            proof: .toggle(toggle, targetEnabled: true),
+            operationID: UUID(),
+            subject: nil
+        )
+        let toggleSource = try await router.notificationSource(authorization: toggleAuthorization)
+        let toggleSnapshot = try await toggleSource.notificationSnapshot(
+            authorization: toggleAuthorization,
+            evaluatedAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        XCTAssertEqual(toggleSnapshot.writerRevision.writerInstanceID, writerID)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+        XCTAssertNil(router.entitlementProcessor)
+        guard case .checking = router.route else {
+            return XCTFail("Toggle source must not publish or restart startup")
+        }
+
+        let content = try await gate.beginContentRead(for: .render)
+        let contentAuthorization = NotificationOperationAuthorizationV1(
+            gate: gate, proof: .content(content), operationID: UUID(), subject: nil
+        )
+        do {
+            _ = try await router.notificationSource(authorization: contentAuthorization)
+            XCTFail("Ordinary content must not open a prepared startup owner")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .configurationUnknown)
+        }
+
+        try await gate.setEnabledAfterAuthenticated(true, toggleToken: toggle)
+        try await gate.markRecoveryComplete(enabled: true)
+        let ordinaryUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(ordinaryUnlock, .authenticated)
+        try await router.startIfNeeded(accessGate: gate)
+
+        guard case let .ready(adopted, _, _) = router.route else {
+            return XCTFail("Ordinary startup must publish the prepared owner")
+        }
+        XCTAssertEqual(try adopted.workspaceWriter.currentRevision().writerInstanceID, writerID)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+    }
+
+    @MainActor
+    func testConfigurationNotificationStartupPreparesThenOrdinaryStartupAdoptsTheSameWriter() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        var observedSteps: [StartupStep] = []
+        let operationID = UUID()
+        let gate = AppAccessGateV1(
+            setting: .corruptOrAmbiguous,
+            authentication: S2StartupAuthentication(outcomes: [.authenticated, .authenticated]),
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        let repair = await gate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(repair, .authenticated)
+        let configuration = try await gate.configurationAuthenticationToken()
+        let startupRecovery = try await gate.beginConfigurationStartupRecovery(
+            configuration, operationID: operationID
+        )
+        let authorization = NotificationOperationAuthorizationV1(
+            gate: gate,
+            proof: .repair(configuration, targetEnabled: true),
+            operationID: operationID,
+            subject: try s2NotificationSubject(operationID: operationID),
+            startupRecoveryToken: startupRecovery
+        )
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            didBeginStep: { observedSteps.append($0) }
+        )
+        try router.bindStartupAccessGate(gate)
+        defer { router.failClosedPDFRecovery() }
+
+        XCTAssertFalse(fileManager.fileExists(atPath: currentPointerURL(in: root).path))
+        let source = try await router.notificationSource(authorization: authorization)
+        let preparedSnapshot = try await source.notificationSnapshot(
+            authorization: authorization,
+            evaluatedAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        XCTAssertEqual(Set(observedSteps), Set(StartupStep.allCases))
+        XCTAssertEqual(observedSteps.count, StartupStep.allCases.count)
+        XCTAssertNil(router.entitlementProcessor)
+        guard case .checking = router.route else {
+            return XCTFail("Configuration startup must keep its recovered owner unpublished")
+        }
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+
+        let preparedStepCount = observedSteps.count
+        try await gate.setEnabledAfterAuthenticated(true, configurationToken: configuration)
+        try await gate.markRecoveryComplete(enabled: true)
+        let ordinaryUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(ordinaryUnlock, .authenticated)
+        try await router.startIfNeeded(accessGate: gate)
+
+        guard case let .ready(coordinator, _, _) = router.route else {
+            return XCTFail("Ordinary startup must adopt the prepared recovery owner")
+        }
+        XCTAssertEqual(
+            try coordinator.workspaceWriter.currentRevision().writerInstanceID,
+            preparedSnapshot.writerRevision.writerInstanceID
+        )
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+        XCTAssertEqual(observedSteps.count, preparedStepCount)
+    }
+
+    @MainActor
+    func testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        var observedSteps: [StartupStep] = []
+        let authentication = S2StartupAuthentication(outcomes: [.authenticated, .authenticated])
+        let gate = AppAccessGateV1(
+            setting: .value(.init(isEnabled: true)), authentication: authentication,
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        let initialUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(initialUnlock, .authenticated)
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            didBeginStep: { observedSteps.append($0) }
+        )
+        try router.bindStartupAccessGate(gate)
+        defer { router.failClosedPDFRecovery() }
+
+        try await router.startIfNeeded(accessGate: gate)
+        guard case let .ready(coordinator, _, _) = router.route else {
+            return XCTFail("Initial startup must publish the erase owner")
+        }
+        let oldGenerationID = coordinator.generationID
+        var retainedOldContext: ModelContext? = coordinator.modelContext
+        let startupStepCount = observedSteps.count
+        XCTAssertEqual(startupStepCount, StartupStep.allCases.count)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+
+        let eraseTicket = try await router.beginEraseOperation(
+            coordinator: coordinator, accessGate: gate
+        )
+        let erasedGenerationID = UUID()
+        let eraseOperationID = UUID()
+        let erasedWorkspaceID = UUID()
+        let erasedReplicaID = UUID()
+        var eraseIdentifiers = [
+            erasedGenerationID,
+            eraseOperationID,
+            erasedWorkspaceID,
+            erasedReplicaID,
+        ]
+        let admissionPause = S2StartupPublicationPause()
+        var eraseReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedEraseReceipt: CompletedEraseReceiptV1?
+        var callbackFailure: Error?
+        let lifecycleDependencies = try coordinator.packageLifecycleDependencies()
+        let service = EraseAllService(
+            applicationSupportURL: root,
+            makeUUID: { eraseIdentifiers.removeFirst() },
+            admitErase: { subject in
+                if let authorization = try await router.eraseAdmissionAuthorization(
+                    eraseTicket, subject: subject
+                ) {
+                    let reservation = try await gate.reserveEraseAdoption(
+                        subject: subject, authorization: authorization
+                    )
+                    try router.recordEraseReservation(eraseTicket, reservation: reservation)
+                    eraseReservation = reservation
+                    // Suspend after the real reservation.  Background therefore
+                    // revokes content without invalidating the original Erase
+                    // cleanup authority which the service must revalidate.
+                    await admissionPause.suspend()
+                    return reservation
+                }
+                guard let reservation = eraseReservation,
+                      reservation.subject == subject else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+                return reservation
+            },
+            didCompleteErase: { completedEraseReceipt = $0 }
+        )
+        let eraseTask = Task {
+            try await service.erase(
+                confirmation: "ERASE",
+                coordinator: coordinator,
+                diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                activate: { session in
+                do {
+                    try await router.beginErasedSessionActivation(
+                        session, coordinator: coordinator, ticket: eraseTicket
+                    )
+                    try router.deferErasedSessionCleanup(
+                        session, coordinator: coordinator, ticket: eraseTicket
+                    )
+                } catch {
+                    callbackFailure = error
+                }
+            },
+                lifecycleDependencies: lifecycleDependencies
+            )
+        }
+        let admissionReached = await XCTWaiter.fulfillment(
+            of: [admissionPause.reached], timeout: 20
+        )
+        XCTAssertEqual(admissionReached, .completed)
+        await gate.sceneBecameInactive()
+        router.pauseForAppAccess()
+        await gate.sceneBecameActive()
+        admissionPause.resume()
+        let eraseOutcome = try await eraseTask.value
+        XCTAssertNil(callbackFailure)
+
+        XCTAssertTrue(eraseOutcome.cleanupDeferred)
+        XCTAssertEqual(eraseOutcome.session.generationID, erasedGenerationID)
+        XCTAssertNotNil(retainedOldContext)
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: generationURL(oldGenerationID, in: root)
+                .appendingPathComponent("model.sqlite", isDirectory: false).path
+        ))
+        let deferredIntent = try XCTUnwrap(
+            try EraseIntentStore(applicationSupportURL: root).load()
+        )
+        XCTAssertEqual(deferredIntent.phase, .sessionActivated)
+        guard case let .eraseCleanupPending(pendingCoordinator) = router.route else {
+            return XCTFail("Deferred erase must remain visibly pending")
+        }
+        XCTAssertTrue(pendingCoordinator === coordinator)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+
+        await gate.sceneBecameInactive()
+        router.pauseForAppAccess()
+        await gate.sceneBecameActive()
+        guard case let .eraseCleanupPending(heldCoordinator) = router.route else {
+            return XCTFail("App-access resume must not turn a live old context into cold cleanup")
+        }
+        XCTAssertTrue(heldCoordinator === coordinator)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: generationURL(oldGenerationID, in: root)
+                .appendingPathComponent("model.sqlite", isDirectory: false).path
+        ))
+        let heldIntent = try XCTUnwrap(try EraseIntentStore(applicationSupportURL: root).load())
+        XCTAssertEqual(heldIntent.phase, .sessionActivated)
+
+        do {
+            try await router.beginErasedSessionActivation(
+                eraseOutcome.session, coordinator: coordinator, ticket: eraseTicket
+            )
+            XCTFail("A deferred erase must reject a second activation")
+        } catch { }
+        do {
+            try await router.activateRestoredSession(
+                eraseOutcome.session, coordinator: coordinator, ticket: eraseTicket
+            )
+            XCTFail("A pending erase drain proof must reject restore activation")
+        } catch { }
+        guard case let .eraseCleanupPending(recoveredHeldCoordinator) = router.route else {
+            return XCTFail("Rejected alternate activation must retain the deferred cleanup hold")
+        }
+        XCTAssertTrue(recoveredHeldCoordinator === coordinator)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: generationURL(oldGenerationID, in: root)
+                .appendingPathComponent("model.sqlite", isDirectory: false).path
+        ))
+        let alternateHeldIntent = try XCTUnwrap(
+            try EraseIntentStore(applicationSupportURL: root).load()
+        )
+        XCTAssertEqual(alternateHeldIntent.phase, .sessionActivated)
+        do {
+            guard let liveOldContext = retainedOldContext else {
+                return XCTFail("The original ModelContext must remain live until explicit release")
+            }
+            let liveOldSiteCount = try liveOldContext.fetchCount(FetchDescriptor<Site>())
+            XCTAssertEqual(liveOldSiteCount, 0)
+        }
+        retainedOldContext = nil
+        await Task.yield()
+        // Recovery gets a new service instance, while its admission hook
+        // continues the exact retained subject/reservation without reminting.
+        let recoveryService = EraseAllService(
+            applicationSupportURL: root,
+            admitErase: { subject in
+                _ = try await router.eraseAdmissionAuthorization(
+                    eraseTicket, subject: subject
+                )
+                guard let reservation = eraseReservation,
+                      reservation.subject == subject else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+                return reservation
+            },
+            didCompleteErase: { completedEraseReceipt = $0 }
+        )
+        let resumed = try await router.resumeDeferredErase(eraseTicket) {
+            try await recoveryService.reconcileAtStartup(
+                diagnosticsStore: DiagnosticsStore(applicationSupportURL: root)
+            )
+        }
+        let resumedSession = try XCTUnwrap(resumed)
+        try await router.beginErasedSessionActivation(
+            resumedSession, coordinator: coordinator, ticket: eraseTicket
+        )
+        let receipt = try XCTUnwrap(completedEraseReceipt)
+        let reservation = try XCTUnwrap(eraseReservation)
+        try await gate.adoptCompletedErase(receipt, token: reservation)
+        await gate.sceneBecameInactive()
+        do {
+            try await router.finishErasedSessionActivation(
+                resumedSession, coordinator: coordinator, ticket: eraseTicket, accessGate: gate
+            )
+            XCTFail("Inactive post-adoption finish must retain its ticket for retry")
+        } catch { }
+        await gate.sceneBecameActive()
+        try await router.finishErasedSessionActivation(
+            resumedSession, coordinator: coordinator, ticket: eraseTicket, accessGate: gate
+        )
+        guard case let .ready(recoveredCoordinator, _, _) = router.route else {
+            return XCTFail("A drained deferred erase must recover through its original ticket")
+        }
+        XCTAssertEqual(recoveredCoordinator.generationID, erasedGenerationID)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+        XCTAssertFalse(fileManager.fileExists(
+            atPath: generationURL(oldGenerationID, in: root).path
+        ))
+        XCTAssertFalse(fileManager.fileExists(
+            atPath: root.appendingPathComponent("FieldEvidenceErase", isDirectory: true).path
+        ))
+    }
+
+    @MainActor
     func testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator() async throws {
         let root = try makeTemporaryApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
@@ -969,6 +1389,293 @@ extension S2PersistenceLedgerTests {
         guard case .maintenance(.finalizationInconsistent) = router.route else {
             return XCTFail("The superseded restored activation must not publish its borrowed replacement")
         }
+    }
+
+    @MainActor
+    func testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry() async throws {
+        let fixture = try await makePostAdoptionEraseFixture()
+        defer { cleanupPostAdoptionEraseFixture(fixture) }
+
+        await fixture.gate.sceneBecameInactive()
+        do {
+            try await fixture.router.finishErasedSessionActivation(
+                fixture.session, coordinator: fixture.coordinator,
+                ticket: fixture.ticket, accessGate: fixture.gate
+            )
+            XCTFail("Inactive post-adoption recovery must remain covered")
+        } catch { }
+        fixture.router.pauseForAppAccess()
+        await fixture.gate.lock(reason: .returnedFromBackground)
+        fixture.router.pauseForAppAccess()
+        XCTAssertNil(fixture.router.entitlementProcessor)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+        guard case .checking = fixture.router.route else {
+            return XCTFail("Repeated inactive/background pauses must retain the private activation")
+        }
+
+        await fixture.gate.sceneBecameActive()
+        try await fixture.router.finishErasedSessionActivation(
+            fixture.session, coordinator: fixture.coordinator,
+            ticket: fixture.ticket, accessGate: fixture.gate
+        )
+        guard case let .ready(ready, _, _) = fixture.router.route else {
+            return XCTFail("The exact retained ticket must publish after a fresh active-scene token")
+        }
+        XCTAssertTrue(ready === fixture.coordinator)
+        XCTAssertTrue(fixture.router.entitlementProcessor?.isStarted == true)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+    }
+
+    @MainActor
+    func testPostAdoptionExecutionRevokedAtFirstAwaitCannotInstallAStaleTokenOrRead() async throws {
+        let firstAwait = S2StartupPublicationPause()
+        var claimedExecutions = 0
+        var canonicalReadCount = 0
+        let fixture = try await makePostAdoptionEraseFixture(
+            beforePostAdoptionContentRead: { _ in
+                claimedExecutions += 1
+                if claimedExecutions == 1 { await firstAwait.suspend() }
+            },
+            willReadPostAdoptionCanonicalContent: { _ in canonicalReadCount += 1 }
+        )
+        defer { firstAwait.resume(); cleanupPostAdoptionEraseFixture(fixture) }
+
+        let stale = Task<Error?, Never> { @MainActor in
+            do {
+                try await fixture.router.finishErasedSessionActivation(
+                    fixture.session, coordinator: fixture.coordinator,
+                    ticket: fixture.ticket, accessGate: fixture.gate
+                )
+                return nil
+            } catch {
+                return error
+            }
+        }
+        let reached = await XCTWaiter.fulfillment(of: [firstAwait.reached], timeout: 20)
+        XCTAssertEqual(reached, .completed)
+        await fixture.gate.sceneBecameInactive()
+        fixture.router.pauseForAppAccess()
+        await fixture.gate.lock(reason: .returnedFromBackground)
+        fixture.router.pauseForAppAccess()
+        await fixture.gate.sceneBecameActive()
+        firstAwait.resume()
+
+        let staleFailure = await stale.value
+        XCTAssertNotNil(staleFailure)
+        XCTAssertEqual(canonicalReadCount, 0)
+        XCTAssertNil(fixture.router.entitlementProcessor)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+        guard case .checking = fixture.router.route else {
+            return XCTFail("The revoked pre-read execution must leave the activation unpublished")
+        }
+
+        try await fixture.router.finishErasedSessionActivation(
+            fixture.session, coordinator: fixture.coordinator,
+            ticket: fixture.ticket, accessGate: fixture.gate
+        )
+        XCTAssertEqual(claimedExecutions, 2)
+        XCTAssertGreaterThan(canonicalReadCount, 0)
+        guard case let .ready(ready, _, _) = fixture.router.route else {
+            return XCTFail("Only a newly claimed execution may recover and publish")
+        }
+        XCTAssertTrue(ready === fixture.coordinator)
+        XCTAssertTrue(fixture.router.entitlementProcessor?.isStarted == true)
+    }
+
+    @MainActor
+    func testSupersededPostAdoptionCatchCannotOverwriteNewReadyExecution() async throws {
+        let firstCommerce = S2StartupPublicationPause()
+        var commerceExecutions = 0
+        let fixture = try await makePostAdoptionEraseFixture(
+            beforeCommerceActivation: { _ in
+                commerceExecutions += 1
+                if commerceExecutions == 1 { await firstCommerce.suspend() }
+            }
+        )
+        defer { firstCommerce.resume(); cleanupPostAdoptionEraseFixture(fixture) }
+
+        let stale = Task<Error?, Never> { @MainActor in
+            do {
+                try await fixture.router.finishErasedSessionActivation(
+                    fixture.session, coordinator: fixture.coordinator,
+                    ticket: fixture.ticket, accessGate: fixture.gate
+                )
+                return nil
+            } catch {
+                return error
+            }
+        }
+        let reached = await XCTWaiter.fulfillment(of: [firstCommerce.reached], timeout: 20)
+        XCTAssertEqual(reached, .completed)
+
+        await fixture.gate.sceneBecameInactive()
+        fixture.router.pauseForAppAccess()
+        await fixture.gate.sceneBecameActive()
+        try await fixture.router.finishErasedSessionActivation(
+            fixture.session, coordinator: fixture.coordinator,
+            ticket: fixture.ticket, accessGate: fixture.gate
+        )
+        guard case let .ready(fresh, _, _) = fixture.router.route else {
+            firstCommerce.resume()
+            _ = await stale.value
+            return XCTFail("The fresh execution must reach ready while the old execution is suspended")
+        }
+        let freshProcessor = try XCTUnwrap(fixture.router.entitlementProcessor)
+        let freshLeases = try writerLeaseIDs(in: fixture.root)
+        XCTAssertEqual(commerceExecutions, 2)
+
+        firstCommerce.resume()
+        let staleFailure = await stale.value
+        XCTAssertNotNil(staleFailure)
+        guard case let .ready(stillFresh, _, _) = fixture.router.route else {
+            return XCTFail("A superseded catch must not overwrite the newer ready route")
+        }
+        XCTAssertTrue(stillFresh === fresh)
+        XCTAssertTrue(fixture.router.entitlementProcessor === freshProcessor)
+        XCTAssertTrue(freshProcessor.isStarted)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root), freshLeases)
+        XCTAssertFalse(fixture.router.hasPendingWriterCleanup)
+    }
+
+    @MainActor
+    private func makePostAdoptionEraseFixture(
+        beforePostAdoptionContentRead: @escaping @MainActor (UUID) async -> Void = { _ in },
+        willReadPostAdoptionCanonicalContent: @escaping @MainActor (UUID) -> Void = { _ in },
+        beforeCommerceActivation: @escaping @MainActor (UUID) async -> Void = { _ in }
+    ) async throws -> S2PostAdoptionEraseFixture {
+        let root = try makeTemporaryApplicationSupportURL()
+        let caches = root.deletingLastPathComponent().appendingPathComponent(
+            "S2PostAdoptionCaches-\(UUID().uuidString)", isDirectory: true
+        )
+        let temporary = root.deletingLastPathComponent().appendingPathComponent(
+            "S2PostAdoptionTemporary-\(UUID().uuidString)", isDirectory: true
+        )
+        try fileManager.createDirectory(at: caches, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: temporary, withIntermediateDirectories: true)
+        let defaultsSuiteName = "S2PostAdoptionDefaults.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
+        let gate = AppAccessGateV1(
+            setting: .absentDisabled,
+            authentication: S2StartupAuthentication(outcomes: []),
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        var forwardsPostAdoptionHooks = false
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            beforePostAdoptionContentRead: { executionID in
+                guard forwardsPostAdoptionHooks else { return }
+                await beforePostAdoptionContentRead(executionID)
+            },
+            willReadPostAdoptionCanonicalContent: willReadPostAdoptionCanonicalContent,
+            beforeCommerceActivation: { writerID in
+                guard forwardsPostAdoptionHooks else { return }
+                await beforeCommerceActivation(writerID)
+            }
+        )
+        try router.bindStartupAccessGate(gate)
+        do {
+            try await router.startIfNeeded(accessGate: gate)
+            forwardsPostAdoptionHooks = true
+            guard case let .ready(coordinator, _, _) = router.route else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            let ticket = try await router.beginEraseOperation(
+                coordinator: coordinator, accessGate: gate
+            )
+            var reservation: AppAccessGateV1.EraseAdoptionToken?
+            var receipt: CompletedEraseReceiptV1?
+            var activationFailure: Error?
+            let makeService: @MainActor () -> EraseAllService = {
+                EraseAllService(
+                    applicationSupportURL: root,
+                    cachesDirectoryURL: caches,
+                    temporaryDirectoryURL: temporary,
+                    userDefaults: defaults,
+                    bundleIdentifier: defaultsSuiteName,
+                    defaultsDomainName: defaultsSuiteName,
+                    privateSystemDiscoveryIndex: nil,
+                    notificationSystem: S2EmptyNotificationSystem(),
+                    admitErase: { subject in
+                        if let authorization = try await router.eraseAdmissionAuthorization(
+                            ticket, subject: subject
+                        ) {
+                            let token = try await gate.reserveEraseAdoption(
+                                subject: subject, authorization: authorization
+                            )
+                            try router.recordEraseReservation(ticket, reservation: token)
+                            reservation = token
+                            return token
+                        }
+                        guard let reservation, reservation.subject == subject else {
+                            throw AppAccessContractFailureV1.staleAttempt
+                        }
+                        return reservation
+                    },
+                    didCompleteErase: { completed in
+                        if receipt == nil { receipt = completed }
+                    }
+                )
+            }
+            let dependencies = try coordinator.packageLifecycleDependencies()
+            let outcome = try await makeService().erase(
+                confirmation: "ERASE",
+                coordinator: coordinator,
+                diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                activate: { session in
+                    do {
+                        try await router.beginErasedSessionActivation(
+                            session, coordinator: coordinator, ticket: ticket
+                        )
+                    } catch {
+                        activationFailure = error
+                    }
+                },
+                lifecycleDependencies: dependencies
+            )
+            if let activationFailure { throw activationFailure }
+            var session = outcome.session
+            if outcome.cleanupDeferred {
+                try router.deferErasedSessionCleanup(
+                    session, coordinator: coordinator, ticket: ticket
+                )
+                await Task.yield()
+                let resumed = try await router.resumeDeferredErase(ticket) {
+                    try await makeService().reconcileAtStartup(
+                        diagnosticsStore: DiagnosticsStore(applicationSupportURL: root)
+                    )
+                }
+                session = try XCTUnwrap(resumed)
+                try await router.beginErasedSessionActivation(
+                    session, coordinator: coordinator, ticket: ticket
+                )
+            }
+            let completed = try XCTUnwrap(receipt)
+            let adopted = try XCTUnwrap(reservation)
+            try await gate.adoptCompletedErase(completed, token: adopted)
+            return S2PostAdoptionEraseFixture(
+                root: root, caches: caches, temporary: temporary,
+                defaultsSuiteName: defaultsSuiteName, gate: gate, router: router,
+                coordinator: coordinator, session: session, ticket: ticket
+            )
+        } catch {
+            router.failClosedPDFRecovery()
+            defaults.removePersistentDomain(forName: defaultsSuiteName)
+            try? fileManager.removeItem(at: root)
+            try? fileManager.removeItem(at: caches)
+            try? fileManager.removeItem(at: temporary)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func cleanupPostAdoptionEraseFixture(_ fixture: S2PostAdoptionEraseFixture) {
+        fixture.router.failClosedPDFRecovery()
+        UserDefaults(suiteName: fixture.defaultsSuiteName)?
+            .removePersistentDomain(forName: fixture.defaultsSuiteName)
+        try? fileManager.removeItem(at: fixture.root)
+        try? fileManager.removeItem(at: fixture.caches)
+        try? fileManager.removeItem(at: fixture.temporary)
     }
 
     private var isolatedStartupRuntime: StoreKitEntitlementRuntimeV1 {
@@ -1081,4 +1788,60 @@ private final class S2StartupPublicationPause {
         continuation?.resume()
         continuation = nil
     }
+}
+
+@MainActor
+private struct S2PostAdoptionEraseFixture {
+    let root: URL
+    let caches: URL
+    let temporary: URL
+    let defaultsSuiteName: String
+    let gate: AppAccessGateV1
+    let router: StartupRouter
+    let coordinator: StoreSessionCoordinator
+    let session: StoreGenerationSession
+    let ticket: StartupRouter.OriginalOperationTicket
+}
+
+@MainActor
+private final class S2EmptyNotificationSystem: NotificationSystemPortV1 {
+    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+    func observations() async throws -> [NotificationSystemObservationV1] { [] }
+    func add(_ request: NotificationSystemRequestV1) async throws { }
+    func remove(_ requestIDs: [String]) async throws { }
+}
+
+private actor S2StartupAuthentication: LocalAuthenticationClient {
+    private var outcomes: [LocalAuthenticationOutcomeV1]
+
+    init(outcomes: [LocalAuthenticationOutcomeV1]) {
+        self.outcomes = outcomes
+    }
+
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        guard !outcomes.isEmpty else { return .unavailable }
+        return outcomes.removeFirst()
+    }
+
+    func cancel(attemptID: UUID) {}
+}
+
+private struct S2StartupClock: ApplicationClock {
+    func now() -> Date { Date(timeIntervalSince1970: 1_800_000_000) }
+}
+
+private func s2NotificationSubject(operationID: UUID) throws -> NotificationOperationSubjectV1 {
+    let digest = String(repeating: "a", count: 64)
+    let journal = try AppLockNotificationJournalV1(
+        operationID: operationID,
+        targetEnabled: true,
+        priorPolicy: .init(policyID: "s2-startup", revision: 1, canonicalDigest: digest),
+        projections: [],
+        disposition: .enablingPrepared
+    )
+    return try NotificationOperationSubjectV1(journal: journal, settingWriteSHA256: digest)
 }

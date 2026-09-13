@@ -180,6 +180,10 @@ private enum C48PortableReviewTestFailure: Error {
     case malformedHex
 }
 
+private enum C48PortableCleanupInjectedFailure: Error {
+    case requested
+}
+
 private enum C48PortableReviewTestSupport {
     static let fixedDate = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -496,6 +500,723 @@ final class V9_55PortableReviewTests: XCTestCase {
         let reopenedHistory = try await reopenedStore.session(id: primaryID)
         XCTAssertEqual(reopenedHistory, history)
         XCTAssertEqual(try readEnvelope(), invalidated)
+    }
+
+    func testV23P03C48CleanupPublishesBeforeDeletingAndReplaysPhysicalHolds() async throws {
+        enum CleanupOperation: CaseIterable { case subject, clone, purge, erase }
+        let vector = try ReviewCapabilityProofVectorV1.rv1001()
+
+        func immutableBytes(
+            at rootURL: URL,
+            for record: PortableExchangeSessionRecordV2
+        ) throws -> [String: Data] {
+            try Dictionary(uniqueKeysWithValues: record.immutableBytes.map { reference in
+                (reference.relativePath, try Data(contentsOf: rootURL.appendingPathComponent(reference.relativePath)))
+            })
+        }
+
+        func prepare(
+            root: URL,
+            suffix: String
+        ) async throws -> (UUID, WorkspaceID, PortableExchangeSessionRecordV2, Data, [String: Data], PortableExchangeQuarantineRecordV2, Data) {
+            let store = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let id = UUID()
+            let workspaceID = WorkspaceID(rawValue: UUID())
+            let record = try await store.stage(PortableExchangeSessionStageInputV2(
+                sessionID: id,
+                publicRequestID: "cleanup-\(suffix)",
+                workspaceID: workspaceID.rawValue,
+                canonicalSubjectIdentity: "cleanup-subject",
+                protocolReleaseDigest: vector.input.protocolReleaseDigest,
+                requestManifestBytes: Data("cleanup-manifest-\(suffix)".utf8),
+                requestPackageBytes: Data("cleanup-package-\(suffix)".utf8),
+                capability: vector.capability
+            ))
+            let quarantineBytes = Data("cleanup-quarantine-\(suffix)".utf8)
+            try await store.quarantineServiceRequest(quarantineBytes)
+            let rootURL = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            let envelope = try Data(contentsOf: rootURL.appendingPathComponent(
+                PortableExchangeSessionStoreLayoutV2.envelopeFileName
+            ))
+            let bytes = try immutableBytes(at: rootURL, for: record)
+            let persisted = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self,
+                from: envelope
+            )
+            let quarantine = try XCTUnwrap(persisted.quarantine.first)
+            return (id, workspaceID, record, envelope, bytes, quarantine, quarantineBytes)
+        }
+
+        func invoke(
+            _ operation: CleanupOperation,
+            store: PortableExchangeSessionStoreV2,
+            id: UUID,
+            workspaceID: WorkspaceID,
+            operationID: UUID
+        ) async throws {
+            switch operation {
+            case .subject:
+                _ = try await store.invalidateSessionsForDeletedSubject(
+                    workspaceID: workspaceID,
+                    subjectID: "cleanup-subject",
+                    operationID: operationID
+                )
+            case .clone:
+                _ = try await store.markClonedOrForked(
+                    operationID: operationID, resultGenerationID: UUID()
+                )
+            case .purge:
+                _ = try await store.purgeExpired(before: .distantFuture, operationID: operationID)
+            case .erase:
+                _ = try await store.erase(operationID: operationID)
+            }
+        }
+
+        for operation in CleanupOperation.allCases {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "V9_55-cleanup-publish-\(operation)-\(UUID().uuidString)", isDirectory: true
+            )
+            defer { try? FileManager.default.removeItem(at: root) }
+            let (id, workspaceID, original, oldEnvelope, oldImmutableBytes, quarantine, quarantineBytes) = try await prepare(
+                root: root, suffix: "\(operation)"
+            )
+            let rootURL = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            let capabilityURL = rootURL.appendingPathComponent(
+                original.protectedCapability!.relativePath
+            )
+            let oldCapabilityBytes = try Data(contentsOf: capabilityURL)
+            let blockedPublisher = try PortableExchangeSessionStoreV2(
+                applicationSupportURL: root,
+                failureInjection: { point in
+                    if case .beforeSuccessorPublication = point {
+                        throw C48PortableCleanupInjectedFailure.requested
+                    }
+                }
+            )
+            let operationID = UUID()
+            do {
+                try await invoke(operation, store: blockedPublisher, id: id, workspaceID: workspaceID, operationID: operationID)
+                XCTFail("successor publication failure must retain the predecessor")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .writeFailed)
+            }
+            XCTAssertEqual(try Data(contentsOf: rootURL.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.envelopeFileName)), oldEnvelope)
+            XCTAssertEqual(try immutableBytes(at: rootURL, for: original), oldImmutableBytes)
+            XCTAssertEqual(try Data(contentsOf: capabilityURL), oldCapabilityBytes)
+            XCTAssertEqual(try Data(contentsOf: rootURL.appendingPathComponent(quarantine.relativePath)), quarantineBytes)
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let reopenedSession = try await reopened.session(id: id)
+            XCTAssertEqual(reopenedSession, original)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: rootURL.appendingPathComponent(
+                PortableExchangeSessionStoreLayoutV2.journalFileName
+            ).path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: rootURL.appendingPathComponent(
+                ".cleanup-\(operationID.uuidString.lowercased()).json"
+            ).path))
+        }
+
+        for operation in CleanupOperation.allCases {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "V9_55-cleanup-replay-\(operation)-\(UUID().uuidString)", isDirectory: true
+            )
+            defer { try? FileManager.default.removeItem(at: root) }
+            let (id, workspaceID, original, _, _, quarantine, _) = try await prepare(root: root, suffix: "replay-\(operation)")
+            let rootURL = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            let capabilityURL = rootURL.appendingPathComponent(original.protectedCapability!.relativePath)
+            let heldCleanup = try PortableExchangeSessionStoreV2(
+                applicationSupportURL: root,
+                failureInjection: { point in
+                    if case .beforePostPublicationCleanup = point {
+                        throw C48PortableCleanupInjectedFailure.requested
+                    }
+                }
+            )
+            let operationID = UUID()
+            do {
+                try await invoke(operation, store: heldCleanup, id: id, workspaceID: workspaceID, operationID: operationID)
+                XCTFail("post-publication cleanup failure must retain its durable hold")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .writeFailed)
+            }
+            let published = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self,
+                from: Data(contentsOf: rootURL.appendingPathComponent(
+                    PortableExchangeSessionStoreLayoutV2.envelopeFileName
+                ))
+            )
+            switch operation {
+            case .subject, .clone:
+                XCTAssertNil(published.sessions.first?.protectedCapability)
+            case .purge, .erase:
+                XCTAssertTrue(published.sessions.isEmpty)
+                XCTAssertTrue(published.quarantine.isEmpty)
+            }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: capabilityURL.path))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: rootURL.appendingPathComponent(
+                ".cleanup-\(operationID.uuidString.lowercased()).json"
+            ).path))
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let recovered = try await reopened.session(id: id)
+            switch operation {
+            case .subject:
+                XCTAssertEqual(recovered?.state, .historyOnlySuperseded)
+                XCTAssertNil(recovered?.protectedCapability)
+            case .clone:
+                XCTAssertEqual(recovered?.state, .historyOnlyClonedOrForked)
+                XCTAssertNil(recovered?.protectedCapability)
+            case .purge, .erase:
+                XCTAssertNil(recovered)
+                for reference in original.immutableBytes {
+                    XCTAssertFalse(FileManager.default.fileExists(atPath: rootURL.appendingPathComponent(reference.relativePath).path))
+                }
+                XCTAssertFalse(FileManager.default.fileExists(atPath: rootURL.appendingPathComponent(quarantine.relativePath).path))
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: capabilityURL.path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: rootURL.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.journalFileName).path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: rootURL.appendingPathComponent(
+                ".cleanup-\(operationID.uuidString.lowercased()).json"
+            ).path))
+        }
+    }
+
+    func testV23P03C48CleanupHoldIntegrityAndLegacyJournalRecovery() async throws {
+        struct HoldWire: Encodable {
+            let schemaVersion: Int
+            let operationID: UUID
+            let operation: PortableExchangeJournalOperationV2
+            let afterSHA256: String
+            let artifacts: [String]
+        }
+        let vector = try ReviewCapabilityProofVectorV1.rv1001()
+        let journalDigest = String(repeating: "a", count: 64)
+        XCTAssertThrowsError(try PortableExchangeJournalEntryV2(
+            operationID: UUID(), operation: .erase, namespace: nil, sessionID: nil,
+            beforeSHA256: journalDigest, afterSHA256: journalDigest, phase: .prepared,
+            durableCleanupHoldSHA256: journalDigest, cleanupCompletion: nil,
+            createdAt: C48PortableReviewTestSupport.fixedDate
+        ))
+        XCTAssertThrowsError(try PortableExchangeJournalEntryV2(
+            operationID: UUID(), operation: .erase, namespace: nil, sessionID: nil,
+            beforeSHA256: journalDigest, afterSHA256: journalDigest, phase: .prepared,
+            durableCleanupHoldSHA256: journalDigest, cleanupCompletion: .complete,
+            createdAt: C48PortableReviewTestSupport.fixedDate
+        ))
+        XCTAssertThrowsError(try PortableExchangeJournalEntryV2(
+            operationID: UUID(), operation: .stage, namespace: nil, sessionID: nil,
+            beforeSHA256: journalDigest, afterSHA256: journalDigest, phase: .committed,
+            durableCleanupHoldSHA256: journalDigest, cleanupCompletion: .pending,
+            createdAt: C48PortableReviewTestSupport.fixedDate
+        ))
+
+        func preparedRoot(_ suffix: String) async throws -> (URL, UUID, URL) {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "V9_55-cleanup-integrity-\(suffix)-\(UUID().uuidString)", isDirectory: true
+            )
+            let store = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let record = try await store.stage(PortableExchangeSessionStageInputV2(
+                publicRequestID: "cleanup-integrity-\(suffix)",
+                workspaceID: UUID(),
+                canonicalSubjectIdentity: "cleanup-integrity-subject",
+                protocolReleaseDigest: vector.input.protocolReleaseDigest,
+                requestManifestBytes: Data("cleanup-integrity-manifest".utf8),
+                capability: vector.capability
+            ))
+            let operationID = UUID()
+            let held = try PortableExchangeSessionStoreV2(
+                applicationSupportURL: root,
+                failureInjection: { point in
+                    if case .beforePostPublicationCleanup = point {
+                        throw C48PortableCleanupInjectedFailure.requested
+                    }
+                }
+            )
+            do {
+                _ = try await held.markClonedOrForked(operationID: operationID, resultGenerationID: UUID())
+                XCTFail("cleanup hold setup must fault after publication")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .writeFailed)
+            }
+            let storeRoot = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            return (root, operationID, storeRoot.appendingPathComponent(record.protectedCapability!.relativePath))
+        }
+
+        // A new pending journal missing its recorded hold fails closed; only
+        // genuinely field-absent legacy journals may take the old branch.
+        do {
+            let (root, operationID, capabilityURL) = try await preparedRoot("missing")
+            defer { try? FileManager.default.removeItem(at: root) }
+            let storeRoot = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            try FileManager.default.removeItem(at: storeRoot.appendingPathComponent(
+                ".cleanup-\(operationID.uuidString.lowercased()).json"
+            ))
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            do {
+                _ = try await reopened.sessions(in: nil)
+                XCTFail("new pending journal missing its hold must fail closed")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .invalidJournal)
+            }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: capabilityURL.path))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: storeRoot.appendingPathComponent(
+                PortableExchangeSessionStoreLayoutV2.journalFileName
+            ).path))
+        }
+
+        // A malformed hold is not treated as legacy and leaves the held
+        // journal in place for an explicit later repair.
+        do {
+            let (root, operationID, _) = try await preparedRoot("malformed")
+            defer { try? FileManager.default.removeItem(at: root) }
+            let storeRoot = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            let holdURL = storeRoot.appendingPathComponent(".cleanup-\(operationID.uuidString.lowercased()).json")
+            try Data("not-a-cleanup-hold".utf8).write(to: holdURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.portableExchangeJournalFile, at: holdURL)
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            do {
+                _ = try await reopened.sessions(in: nil)
+                XCTFail("malformed hold must fail closed")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .invalidJournal)
+            }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: holdURL.path))
+        }
+
+        // A canonical hold whose raw digest does not match its journal also
+        // fails closed before any held byte is removed.
+        do {
+            let (root, operationID, _) = try await preparedRoot("mismatch")
+            defer { try? FileManager.default.removeItem(at: root) }
+            let storeRoot = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            let envelopeData = try Data(contentsOf: storeRoot.appendingPathComponent(
+                PortableExchangeSessionStoreLayoutV2.envelopeFileName
+            ))
+            let holdURL = storeRoot.appendingPathComponent(".cleanup-\(operationID.uuidString.lowercased()).json")
+            let mismatch = HoldWire(
+                schemaVersion: 1,
+                operationID: operationID,
+                operation: .cloneOrFork,
+                afterSHA256: StoreMigrationCanonicalJSONV1.sha256(envelopeData),
+                artifacts: []
+            )
+            try StoreMigrationCanonicalJSONV1.encode(mismatch).write(to: holdURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.portableExchangeJournalFile, at: holdURL)
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            do {
+                _ = try await reopened.sessions(in: nil)
+                XCTFail("mismatched hold must fail closed")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .invalidJournal)
+            }
+        }
+
+        // An Erase interruption after its first physical deletion retains the
+        // exact hold; reopening completes only the remaining recorded bytes.
+        do {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "V9_55-cleanup-partial-erase-\(UUID().uuidString)", isDirectory: true
+            )
+            defer { try? FileManager.default.removeItem(at: root) }
+            let initial = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let record = try await initial.stage(PortableExchangeSessionStageInputV2(
+                publicRequestID: "cleanup-partial-erase", workspaceID: UUID(),
+                canonicalSubjectIdentity: "cleanup-partial-subject",
+                protocolReleaseDigest: vector.input.protocolReleaseDigest,
+                requestManifestBytes: Data("cleanup-partial-manifest".utf8),
+                requestPackageBytes: Data("cleanup-partial-package".utf8), capability: vector.capability
+            ))
+            let quarantineBytes = Data("cleanup-partial-quarantine".utf8)
+            try await initial.quarantineServiceRequest(quarantineBytes)
+            let storeRoot = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            let before = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self,
+                from: Data(contentsOf: storeRoot.appendingPathComponent(
+                    PortableExchangeSessionStoreLayoutV2.envelopeFileName
+                ))
+            )
+            let quarantine = try XCTUnwrap(before.quarantine.first)
+            let interrupted = try PortableExchangeSessionStoreV2(
+                applicationSupportURL: root,
+                failureInjection: { point in
+                    if case .afterFirstPostPublicationCleanupArtifact = point {
+                        throw C48PortableCleanupInjectedFailure.requested
+                    }
+                }
+            )
+            do {
+                _ = try await interrupted.erase(operationID: UUID())
+                XCTFail("partial cleanup interruption must fail")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .writeFailed)
+            }
+            XCTAssertTrue(record.immutableBytes.contains { reference in
+                FileManager.default.fileExists(atPath: storeRoot.appendingPathComponent(reference.relativePath).path)
+            })
+            XCTAssertTrue(FileManager.default.fileExists(atPath: storeRoot.appendingPathComponent(quarantine.relativePath).path))
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let reopenedSessions = try await reopened.sessions(in: nil)
+            XCTAssertTrue(reopenedSessions.isEmpty)
+            for reference in record.immutableBytes {
+                XCTAssertFalse(FileManager.default.fileExists(atPath: storeRoot.appendingPathComponent(reference.relativePath).path))
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: storeRoot.appendingPathComponent(quarantine.relativePath).path))
+        }
+
+        // The new journal's three durable interruption boundaries all reopen
+        // through their recorded state: unpublished PREPARED is discarded,
+        // while COMPLETE journals may finish with or without the hold file.
+        for failurePoint in [
+            PortableExchangeCleanupFailurePointV2.afterPreparedJournalBeforeCleanupHold,
+            .beforeCleanupHoldUnlink,
+            .afterCleanupHoldUnlinkBeforeJournalUnlink,
+        ] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "V9_55-cleanup-seam-\(UUID().uuidString)", isDirectory: true
+            )
+            defer { try? FileManager.default.removeItem(at: root) }
+            let initial = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let record = try await initial.stage(PortableExchangeSessionStageInputV2(
+                publicRequestID: "cleanup-seam", workspaceID: UUID(),
+                canonicalSubjectIdentity: "cleanup-seam-subject",
+                protocolReleaseDigest: vector.input.protocolReleaseDigest,
+                requestManifestBytes: Data("cleanup-seam-manifest".utf8), capability: vector.capability
+            ))
+            let interrupted = try PortableExchangeSessionStoreV2(
+                applicationSupportURL: root,
+                failureInjection: { point in
+                    switch (point, failurePoint) {
+                    case (.afterPreparedJournalBeforeCleanupHold, .afterPreparedJournalBeforeCleanupHold),
+                         (.beforeCleanupHoldUnlink, .beforeCleanupHoldUnlink),
+                         (.afterCleanupHoldUnlinkBeforeJournalUnlink, .afterCleanupHoldUnlinkBeforeJournalUnlink):
+                        throw C48PortableCleanupInjectedFailure.requested
+                    default:
+                        break
+                    }
+                }
+            )
+            do {
+                _ = try await interrupted.erase(operationID: UUID())
+                XCTFail("selected durable cleanup seam must interrupt")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .writeFailed)
+            }
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let recovered = try await reopened.sessions(in: nil)
+            if case .afterPreparedJournalBeforeCleanupHold = failurePoint {
+                XCTAssertEqual(recovered.first?.sessionID, record.sessionID)
+                XCTAssertNotNil(recovered.first?.protectedCapability)
+            } else {
+                XCTAssertTrue(recovered.isEmpty)
+            }
+        }
+
+        func legacyRoot(_ suffix: String) async throws -> (URL, URL, Data) {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "V9_55-cleanup-legacy-\(suffix)-\(UUID().uuidString)", isDirectory: true
+            )
+            let store = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            _ = try await store.stage(PortableExchangeSessionStageInputV2(
+                publicRequestID: "cleanup-legacy-\(suffix)", workspaceID: UUID(),
+                canonicalSubjectIdentity: "cleanup-legacy-subject",
+                protocolReleaseDigest: vector.input.protocolReleaseDigest,
+                requestManifestBytes: Data("cleanup-legacy-manifest".utf8), capability: vector.capability
+            ))
+            let storeRoot = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+            return (root, storeRoot, try Data(contentsOf: storeRoot.appendingPathComponent(
+                PortableExchangeSessionStoreLayoutV2.envelopeFileName
+            )))
+        }
+
+        // Legacy PREPARED before-image journals remain rollback-safe, while a
+        // COMMITTED before-image is an impossible state and remains held.
+        do {
+            let (root, storeRoot, envelope) = try await legacyRoot("prepared-before")
+            defer { try? FileManager.default.removeItem(at: root) }
+            let journal = try PortableExchangeJournalEntryV2(
+                operationID: UUID(), operation: .cloneOrFork, namespace: nil, sessionID: nil,
+                beforeSHA256: StoreMigrationCanonicalJSONV1.sha256(envelope),
+                afterSHA256: StoreMigrationCanonicalJSONV1.sha256(Data("different-after".utf8)),
+                phase: .prepared, createdAt: C48PortableReviewTestSupport.fixedDate
+            )
+            let journalURL = storeRoot.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.journalFileName)
+            try StoreMigrationCanonicalJSONV1.encode(journal).write(to: journalURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.portableExchangeJournalFile, at: journalURL)
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let reopenedSessions = try await reopened.sessions(in: nil)
+            XCTAssertEqual(reopenedSessions.count, 1)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: journalURL.path))
+        }
+        do {
+            let (root, storeRoot, envelope) = try await legacyRoot("committed-before")
+            defer { try? FileManager.default.removeItem(at: root) }
+            let journal = try PortableExchangeJournalEntryV2(
+                operationID: UUID(), operation: .cloneOrFork, namespace: nil, sessionID: nil,
+                beforeSHA256: StoreMigrationCanonicalJSONV1.sha256(envelope),
+                afterSHA256: StoreMigrationCanonicalJSONV1.sha256(Data("different-after".utf8)),
+                phase: .committed, createdAt: C48PortableReviewTestSupport.fixedDate
+            )
+            let journalURL = storeRoot.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.journalFileName)
+            try StoreMigrationCanonicalJSONV1.encode(journal).write(to: journalURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.portableExchangeJournalFile, at: journalURL)
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            do {
+                _ = try await reopened.sessions(in: nil)
+                XCTFail("committed before-image must fail closed")
+            } catch {
+                XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .corruptStore)
+            }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: journalURL.path))
+        }
+        do {
+            let (root, storeRoot, envelope) = try await legacyRoot("committed-after")
+            defer { try? FileManager.default.removeItem(at: root) }
+            let journal = try PortableExchangeJournalEntryV2(
+                operationID: UUID(), operation: .cloneOrFork, namespace: nil, sessionID: nil,
+                beforeSHA256: StoreMigrationCanonicalJSONV1.sha256(Data("different-before".utf8)),
+                afterSHA256: StoreMigrationCanonicalJSONV1.sha256(envelope),
+                phase: .committed, createdAt: C48PortableReviewTestSupport.fixedDate
+            )
+            let journalURL = storeRoot.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.journalFileName)
+            try StoreMigrationCanonicalJSONV1.encode(journal).write(to: journalURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.portableExchangeJournalFile, at: journalURL)
+            let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+            let reopenedSessions = try await reopened.sessions(in: nil)
+            XCTAssertEqual(reopenedSessions.count, 1)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: journalURL.path))
+        }
+    }
+
+    func testV23P03C48CleanupDeduplicatesResponseAliasesForEraseAndRetainsAcknowledgedSessionsOnPurge() async throws {
+        struct HoldArtifacts: Decodable {
+            struct Artifact: Decodable {
+                let relativePath: String
+                let sha256: String
+                let byteCount: UInt64
+            }
+            let artifacts: [Artifact]
+        }
+        let vector = try ReviewCapabilityProofVectorV1.rv1001()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V9_55-cleanup-alias-\(UUID().uuidString)", isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let initial = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+        let staged = try await initial.stage(PortableExchangeSessionStageInputV2(
+            publicRequestID: "cleanup-alias-request", workspaceID: UUID(),
+            canonicalSubjectIdentity: "cleanup-alias-subject",
+            protocolReleaseDigest: vector.input.protocolReleaseDigest,
+            requestManifestBytes: Data("alias-manifest".utf8), capability: vector.capability
+        ))
+        let responseBytes = Data("same-acknowledgement-bytes".utf8)
+        _ = try await initial.recordResponse(sessionID: staged.sessionID,
+            responsePublicID: "alias-response-one", responseBytes: responseBytes,
+            disposition: .acknowledged)
+        let second = try await initial.recordResponse(sessionID: staged.sessionID,
+            responsePublicID: "alias-response-two", responseBytes: responseBytes,
+            disposition: .acknowledged)
+        XCTAssertEqual(second.responseIDs.count, 2)
+        let responses = second.immutableBytes.filter { $0.role == .acceptedResponse }
+        XCTAssertEqual(responses.count, 2)
+        XCTAssertEqual(Set(responses.map(\.relativePath)).count, 1)
+        let paths = Set(second.immutableBytes.map(\.relativePath)
+            + (second.protectedCapability.map { [$0.relativePath] } ?? []))
+        let storeRoot = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+        for path in paths {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: storeRoot.appendingPathComponent(path).path))
+        }
+        // Acknowledged sessions are retained history, never expirable scratch.
+        let purged = try await initial.purgeExpired(before: .distantFuture, operationID: UUID())
+        XCTAssertEqual(purged, 0)
+        let retained = try await initial.session(id: staged.sessionID)
+        XCTAssertEqual(retained?.immutableBytes, second.immutableBytes)
+        XCTAssertEqual(retained?.responseIDs, second.responseIDs)
+        let operationID = UUID()
+        let interrupted = try PortableExchangeSessionStoreV2(applicationSupportURL: root,
+            failureInjection: { point in
+                if case .beforePostPublicationCleanup = point {
+                    throw C48PortableCleanupInjectedFailure.requested
+                }
+            })
+        do {
+            _ = try await interrupted.eraseAll(operationID: operationID)
+            XCTFail("a valid aliased predecessor must reach the post-publication interruption")
+        } catch {
+            XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .writeFailed)
+        }
+        let holdURL = storeRoot.appendingPathComponent(".cleanup-\(operationID.uuidString.lowercased()).json")
+        let hold = try JSONDecoder().decode(HoldArtifacts.self, from: Data(contentsOf: holdURL))
+        XCTAssertEqual(hold.artifacts.count, paths.count)
+        XCTAssertEqual(Set(hold.artifacts.map(\.relativePath)), paths)
+        let responsePath = try XCTUnwrap(responses.first?.relativePath)
+        let responseArtifact = try XCTUnwrap(hold.artifacts.first { $0.relativePath == responsePath })
+        XCTAssertEqual(responseArtifact.sha256, StoreMigrationCanonicalJSONV1.sha256(responseBytes))
+        XCTAssertEqual(responseArtifact.byteCount, UInt64(responseBytes.count))
+        let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+        let sessions = try await reopened.sessions(in: nil)
+        XCTAssertTrue(sessions.isEmpty)
+        for path in paths {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: storeRoot.appendingPathComponent(path).path))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: holdURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: storeRoot.appendingPathComponent(
+            PortableExchangeSessionStoreLayoutV2.journalFileName).path))
+    }
+
+    func testV23P03C48CleanupHoldSupportsFullCapacityAndRejectsLiveSuccessorSubstitution() async throws {
+        struct ArtifactWire: Encodable {
+            let relativePath: String
+            let sha256: String
+            let byteCount: UInt64
+            let kind: String
+        }
+        struct HoldWire: Encodable {
+            let schemaVersion: Int
+            let operationID: UUID
+            let operation: PortableExchangeJournalOperationV2
+            let afterSHA256: String
+            let artifacts: [ArtifactWire]
+        }
+
+        let vector = try ReviewCapabilityProofVectorV1.rv1001()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V9_55-cleanup-capacity-\(UUID().uuidString)", isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let initial = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+        for namespace in PortableExchangeSessionNamespaceV2.allCases {
+            for index in 0..<128 {
+                _ = try await initial.stage(PortableExchangeSessionStageInputV2(
+                    namespace: namespace,
+                    publicRequestID: "capacity-\(namespace.rawValue.lowercased())-\(index)",
+                    workspaceID: UUID(),
+                    canonicalSubjectIdentity: "capacity-subject-\(namespace.rawValue)-\(index)",
+                    protocolReleaseDigest: vector.input.protocolReleaseDigest,
+                    requestManifestBytes: Data(repeating: 0x6d, count: 64),
+                    requestPackageBytes: Data(repeating: 0x70, count: 64)
+                ))
+            }
+        }
+
+        let operationID = UUID()
+        let interrupted = try PortableExchangeSessionStoreV2(
+            applicationSupportURL: root,
+            failureInjection: { point in
+                if case .beforePostPublicationCleanup = point {
+                    throw C48PortableCleanupInjectedFailure.requested
+                }
+            }
+        )
+        do {
+            _ = try await interrupted.purgeExpired(before: .distantFuture, operationID: operationID)
+            XCTFail("full valid capacity must publish the successor before its cleanup interruption")
+        } catch {
+            XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .writeFailed)
+        }
+        let storeRoot = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
+        let holdURL = storeRoot.appendingPathComponent(".cleanup-\(operationID.uuidString.lowercased()).json")
+        let holdBytes = try Data(contentsOf: holdURL)
+        XCTAssertGreaterThan(holdBytes.count, 64 * 1_024)
+        XCTAssertEqual(
+            String(decoding: holdBytes, as: UTF8.self).components(separatedBy: "\"relativePath\"").count - 1,
+            512
+        )
+        XCTAssertLessThanOrEqual(
+            holdBytes.count,
+            C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+        )
+        let reopened = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
+        let recoveredSessions = try await reopened.sessions(in: nil)
+        XCTAssertTrue(recoveredSessions.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: holdURL.path))
+
+        let substitutionRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V9_55-cleanup-live-substitution-\(UUID().uuidString)", isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: substitutionRoot) }
+        let source = try PortableExchangeSessionStoreV2(applicationSupportURL: substitutionRoot)
+        let record = try await source.stage(PortableExchangeSessionStageInputV2(
+            publicRequestID: "cleanup-live-substitution", workspaceID: UUID(),
+            canonicalSubjectIdentity: "cleanup-live-substitution-subject",
+            protocolReleaseDigest: vector.input.protocolReleaseDigest,
+            requestManifestBytes: Data("live-manifest".utf8), capability: vector.capability
+        ))
+        let substitutionOperationID = UUID()
+        let held = try PortableExchangeSessionStoreV2(
+            applicationSupportURL: substitutionRoot,
+            failureInjection: { point in
+                if case .beforePostPublicationCleanup = point {
+                    throw C48PortableCleanupInjectedFailure.requested
+                }
+            }
+        )
+        do {
+            _ = try await held.markClonedOrForked(
+                operationID: substitutionOperationID,
+                resultGenerationID: UUID()
+            )
+            XCTFail("substitution setup must retain the pending cleanup hold")
+        } catch {
+            XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .writeFailed)
+        }
+        let substitutionStoreRoot = substitutionRoot.appendingPathComponent(
+            PortableExchangeSessionStoreLayoutV2.directoryName
+        )
+        let envelopeURL = substitutionStoreRoot.appendingPathComponent(
+            PortableExchangeSessionStoreLayoutV2.envelopeFileName
+        )
+        let publishedBytes = try Data(contentsOf: envelopeURL)
+        let liveReference = try XCTUnwrap(record.immutableBytes.first)
+        let forgedHold = HoldWire(
+            schemaVersion: 1,
+            operationID: substitutionOperationID,
+            operation: .cloneOrFork,
+            afterSHA256: StoreMigrationCanonicalJSONV1.sha256(publishedBytes),
+            artifacts: [ArtifactWire(
+                relativePath: liveReference.relativePath,
+                sha256: liveReference.sha256,
+                byteCount: liveReference.byteCount,
+                kind: "sessionFile"
+            )]
+        )
+        let forgedHoldBytes = try StoreMigrationCanonicalJSONV1.encode(forgedHold)
+        let journalURL = substitutionStoreRoot.appendingPathComponent(
+            PortableExchangeSessionStoreLayoutV2.journalFileName
+        )
+        let originalJournal = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+            PortableExchangeJournalEntryV2.self,
+            from: Data(contentsOf: journalURL)
+        )
+        let forgedJournal = try PortableExchangeJournalEntryV2(
+            operationID: originalJournal.operationID,
+            operation: originalJournal.operation,
+            namespace: originalJournal.namespace,
+            sessionID: originalJournal.sessionID,
+            beforeSHA256: originalJournal.beforeSHA256,
+            afterSHA256: originalJournal.afterSHA256,
+            phase: originalJournal.phase,
+            durableCleanupHoldSHA256: StoreMigrationCanonicalJSONV1.sha256(forgedHoldBytes),
+            cleanupCompletion: originalJournal.cleanupCompletion,
+            createdAt: originalJournal.createdAt
+        )
+        let substitutionHoldURL = substitutionStoreRoot.appendingPathComponent(
+            ".cleanup-\(substitutionOperationID.uuidString.lowercased()).json"
+        )
+        try forgedHoldBytes.write(to: substitutionHoldURL, options: .atomic)
+        try ProtectedFilePolicyV1.applyAndVerify(.portableExchangeJournalFile, at: substitutionHoldURL)
+        try StoreMigrationCanonicalJSONV1.encode(forgedJournal).write(to: journalURL, options: .atomic)
+        try ProtectedFilePolicyV1.applyAndVerify(.portableExchangeJournalFile, at: journalURL)
+        let reopenedSubstitution = try PortableExchangeSessionStoreV2(applicationSupportURL: substitutionRoot)
+        do {
+            _ = try await reopenedSubstitution.sessions(in: nil)
+            XCTFail("a coherent hold naming a live successor artifact must fail closed")
+        } catch {
+            XCTAssertEqual(error as? PortableExchangePersistenceFailureV2, .invalidJournal)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: substitutionStoreRoot.appendingPathComponent(
+            liveReference.relativePath
+        ).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: substitutionHoldURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: journalURL.path))
     }
 
     func testV23P03C48G01GoldenRequestResponseAndNormativeVectorUseTypedContracts() throws {

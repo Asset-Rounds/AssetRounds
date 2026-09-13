@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
 
 @main
 @MainActor
@@ -28,6 +29,7 @@ struct FieldEvidenceAppApp: App {
         "--s8-4-ui-test-mail-unavailable"
 
     @StateObject private var startupRouter: StartupRouter
+    @StateObject private var appAccessPresentation: AppAccessPresentationV1
 
     private let applicationSupportURL: URL
     private let packLoadResult: SignPackLoadResult
@@ -67,11 +69,29 @@ struct FieldEvidenceAppApp: App {
         } else {
             mailComposerAdapter = .live
         }
-        var applicationSupportURL = FileManager.default.urls(
+        let fileManager = FileManager.default
+        var applicationSupportURL = fileManager.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         )[0]
         var startupPreparationFailure: StartupMaintenanceReason?
+        do {
+            try fileManager.createDirectory(
+                at: applicationSupportURL,
+                withIntermediateDirectories: true
+            )
+            var isDirectory: ObjCBool = false
+            guard
+                fileManager.fileExists(
+                    atPath: applicationSupportURL.path,
+                    isDirectory: &isDirectory
+                ) && isDirectory.boolValue
+            else {
+                throw StartupMaintenanceReason.dataPointerInvalid
+            }
+        } catch {
+            startupPreparationFailure = .dataPointerInvalid
+        }
 #if DEBUG
         if arguments.contains("--v23-ui-test-legacy-migration") {
             if let rawID = ProcessInfo.processInfo.environment["V23_MIGRATION_TEST_ID"],
@@ -123,13 +143,18 @@ struct FieldEvidenceAppApp: App {
         } else {
             selectedRestorePackageForUITest = nil
         }
-        _startupRouter = StateObject(
-            wrappedValue: StartupRouter(
-                applicationSupportURL: applicationSupportURL,
-                injectsReportRenderFailureOnce: arguments.contains(
-                    Self.reportRenderFailureOnceLaunchArgument
-                ),
-                startupPreparationFailure: startupPreparationFailure
+        let router = StartupRouter(
+            applicationSupportURL: applicationSupportURL,
+            injectsReportRenderFailureOnce: arguments.contains(
+                Self.reportRenderFailureOnceLaunchArgument
+            ),
+            startupPreparationFailure: startupPreparationFailure
+        )
+        _startupRouter = StateObject(wrappedValue: router)
+        _appAccessPresentation = StateObject(
+            wrappedValue: AppAccessPresentationV1(
+                startupRouter: router,
+                applicationSupportURL: applicationSupportURL
             )
         )
 
@@ -184,6 +209,7 @@ struct FieldEvidenceAppApp: App {
         WindowGroup {
             StartupRootView(
                 router: startupRouter,
+                access: appAccessPresentation,
                 packLoadResult: packLoadResult,
                 exposesColorSchemeForUITest: exposesColorSchemeForUITest,
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
@@ -204,6 +230,9 @@ struct FieldEvidenceAppApp: App {
 
 private struct StartupRootView: View {
     @ObservedObject var router: StartupRouter
+    @ObservedObject var access: AppAccessPresentationV1
+
+    @Environment(\.scenePhase) private var scenePhase
 
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
@@ -219,7 +248,8 @@ private struct StartupRootView: View {
 
     var body: some View {
         Group {
-            switch router.route {
+            if access.permitsContentPresentation {
+                switch router.route {
             case .checking:
                 AssetRoundsScreenFoundation {
                     ProgressView("Checking local data")
@@ -230,6 +260,7 @@ private struct StartupRootView: View {
             case let .maintenance(reason):
                 MaintenanceRestoreHost(
                     router: router,
+                    access: access,
                     reason: reason,
                     restoreSession: router.maintenanceRestoreSession,
                     eraseSession: router.maintenanceEraseSession,
@@ -238,7 +269,7 @@ private struct StartupRootView: View {
 
             case .awaitingIndependentValidation:
                 StartupMigrationValidationView {
-                    Task { await router.retryChecks() }
+                    Task { await access.retryStartup() }
                 }
 
             case let .ready(coordinator, diagnosticsStore, reportRecoveryService):
@@ -257,6 +288,7 @@ private struct StartupRootView: View {
                     cameraAdapter: cameraAdapter,
                     applicationSupportURL: applicationSupportURL,
                     router: router,
+                    access: access,
                     selectedRestorePackageForUITest:
                         selectedRestorePackageForUITest,
                     paywallCatalogLinks: paywallCatalogLinks,
@@ -267,10 +299,63 @@ private struct StartupRootView: View {
 
             case .eraseCleanupPending:
                 EraseCleanupPendingView()
+                }
+            } else {
+                AppLockCoverViewV1(
+                    isAuthenticating: access.isBusy,
+                    onUnlock: unlockOrRetry
+                )
+                .overlay(alignment: .bottom) {
+                    if access.failure != nil {
+                        AssetRoundsStateLabel(kind: .error, "Unavailable")
+                            .padding(DesignTokens.Spacing.space16)
+                    }
+                }
             }
         }
         .task {
-            await router.startIfNeeded()
+            access.receive(.coldLaunch)
+            access.receive(sceneEvent(for: scenePhase))
+            await access.bootstrapIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            access.receive(sceneEvent(for: phase))
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIApplication.protectedDataDidBecomeAvailableNotification
+            )
+        ) { _ in
+            access.receive(sceneEvent(for: scenePhase))
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIApplication.protectedDataWillBecomeUnavailableNotification
+            )
+        ) { _ in
+            access.receive(.protectedDataUnavailable)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+            access.receive(.termination)
+        }
+    }
+
+    private func sceneEvent(for phase: ScenePhase) -> AppLockLifecycleEventV1 {
+        switch phase {
+        case .active: .sceneActive
+        case .inactive: .sceneInactive
+        case .background: .sceneBackground
+        @unknown default: .sceneInactive
+        }
+    }
+
+    private func unlockOrRetry() {
+        Task {
+            if access.failure == .startup {
+                await access.retryStartup()
+            } else {
+                await access.unlock()
+            }
         }
     }
 }
@@ -293,6 +378,7 @@ private struct ReadyAppView: View {
     let cameraAdapter: CameraAdapter
     let applicationSupportURL: URL
     @ObservedObject var router: StartupRouter
+    @ObservedObject var access: AppAccessPresentationV1
     let selectedRestorePackageForUITest: URL?
     let paywallCatalogLinks: PaywallCatalogLinksV1?
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
@@ -305,10 +391,16 @@ private struct ReadyAppView: View {
     var body: some View {
         Group {
             if reportRecoveryService.failedReportIDs.isEmpty {
+            if let contentAccess = access.renderAccess,
+               let sceneNavigationAccess = access.sceneNavigationAccess,
+               let myDayAccess = access.myDayAccess {
             AppShellView(
                 packLoadResult: packLoadResult,
                 exposesColorSchemeForUITest: exposesColorSchemeForUITest,
                 storeSession: coordinator,
+                contentAccess: contentAccess,
+                sceneNavigationAccess: sceneNavigationAccess,
+                myDayAccess: myDayAccess,
                 diagnosticsStore: diagnosticsStore,
                 metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
                 feedbackConfiguration: feedbackConfiguration,
@@ -327,8 +419,20 @@ private struct ReadyAppView: View {
                 },
                 eraseAll: {
                     showsEraseAll = true
-                }
+                },
+                appLockSettingsSection: AppLockSettingsSectionV1(
+                    isEnabled: access.settingIsEnabled ?? false,
+                    isBusy: access.isBusy,
+                    isAvailable: access.settingIsEnabled != nil,
+                    onSetEnabled: { enabled in
+                        Task { await access.setEnabled(enabled) }
+                    },
+                    onLockNow: {
+                        access.lockNow()
+                    }
+                )
             )
+            }
             } else {
                 ReportFailureView(
                     recovery: reportRecoveryService,
@@ -339,18 +443,22 @@ private struct ReadyAppView: View {
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)
         .sheet(item: $restorePresentation) { presentation in
+            if let previewAccess = access.backupPreviewAccess {
             BackupRestoreProgressView(
                 applicationSupportURL: applicationSupportURL,
                 currentModelContext: coordinator.modelContext,
                 currentGenerationID: coordinator.generationID,
                 currentGenerationRootURL: coordinator.generationRootURL,
                 mode: presentation.mode,
-                selectedPackageForUITest: selectedRestorePackageForUITest
-            ) { session in
-                await router.activateRestoredSession(
-                    session,
-                    coordinator: coordinator
-                )
+                selectedPackageForUITest: selectedRestorePackageForUITest,
+                previewAccess: previewAccess
+            ) { package in
+                try await access.performRestore(applicationSupportURL: applicationSupportURL,
+                    package: package, sourceModelContext: coordinator.modelContext,
+                    sourceGenerationID: coordinator.generationID,
+                    sourceGenerationRootURL: coordinator.generationRootURL,
+                    mode: presentation.mode, coordinator: coordinator)
+            }
             }
         }
         .sheet(isPresented: $showsEraseAll) {
@@ -358,29 +466,10 @@ private struct ReadyAppView: View {
                 coordinator: coordinator,
                 diagnosticsStore: diagnosticsStore,
                 applicationSupportURL: applicationSupportURL,
-                onBegin: { [router, coordinator] in
-                    router.beginEraseBlocking(coordinator: coordinator)
-                },
-                onActivate: { [router, coordinator] session in
-                    await router.beginErasedSessionActivation(
-                        session,
-                        coordinator: coordinator
-                    )
-                },
-                onDeferred: { [router, coordinator] session in
-                    router.deferErasedSessionCleanup(
-                        session,
-                        coordinator: coordinator
-                    )
-                },
-                onFinished: { [router, coordinator] session in
-                    await router.finishErasedSessionActivation(
-                        session,
-                        coordinator: coordinator
-                    )
-                },
-                onFailure: { [router] in
-                    router.failClosedErase()
+                performErase: { [access, coordinator] confirmation in
+                    try await access.performErase(applicationSupportURL: applicationSupportURL,
+                        confirmation: confirmation, coordinator: coordinator,
+                        diagnosticsStore: diagnosticsStore)
                 }
             )
         }
@@ -389,6 +478,7 @@ private struct ReadyAppView: View {
 
 private struct MaintenanceRestoreHost: View {
     @ObservedObject var router: StartupRouter
+    @ObservedObject var access: AppAccessPresentationV1
 
     let reason: StartupMaintenanceReason
     let restoreSession: StoreGenerationSession?
@@ -403,23 +493,25 @@ private struct MaintenanceRestoreHost: View {
         StartupMaintenanceView(
             reason: reason,
             retryChecks: {
-                Task { await router.retryChecks() }
+                Task { await access.retryStartup() }
             },
             restoreDataBackup: restoreAction,
             eraseAll: eraseAction
         )
         .sheet(isPresented: $showsRestore) {
-            if let restoreSession {
+            if let restoreSession, let previewAccess = access.backupPreviewAccess {
                 BackupRestoreProgressView(
                     applicationSupportURL: applicationSupportURL,
                     currentModelContext: restoreSession.modelContext,
                     currentGenerationID: restoreSession.generationID,
-                    currentGenerationRootURL: restoreSession.generationRootURL
-                ) { restored in
-                    await router.activateRestoredSession(
-                        restored,
-                        coordinator: nil
-                    )
+                    currentGenerationRootURL: restoreSession.generationRootURL,
+                    previewAccess: previewAccess
+                ) { package in
+                    try await access.performRestore(applicationSupportURL: applicationSupportURL,
+                        package: package, sourceModelContext: restoreSession.modelContext,
+                        sourceGenerationID: restoreSession.generationID,
+                        sourceGenerationRootURL: restoreSession.generationRootURL,
+                        mode: .emptyInstall, coordinator: nil)
                 }
             }
         }
@@ -429,31 +521,10 @@ private struct MaintenanceRestoreHost: View {
                     coordinator: eraseCoordinator,
                     diagnosticsStore: router.maintenanceDiagnosticsStore,
                     applicationSupportURL: applicationSupportURL,
-                    onBegin: { [router, eraseCoordinator] in
-                        router.beginEraseBlocking(
-                            coordinator: eraseCoordinator
-                        )
-                    },
-                    onActivate: { [router, eraseCoordinator] session in
-                        await router.beginErasedSessionActivation(
-                            session,
-                            coordinator: eraseCoordinator
-                        )
-                    },
-                    onDeferred: { [router, eraseCoordinator] session in
-                        router.deferErasedSessionCleanup(
-                            session,
-                            coordinator: eraseCoordinator
-                        )
-                    },
-                    onFinished: { [router, eraseCoordinator] session in
-                        await router.finishErasedSessionActivation(
-                            session,
-                            coordinator: eraseCoordinator
-                        )
-                    },
-                    onFailure: { [router] in
-                        router.failClosedErase()
+                    performErase: { [access, eraseCoordinator] confirmation in
+                        try await access.performErase(applicationSupportURL: applicationSupportURL,
+                            confirmation: confirmation, coordinator: eraseCoordinator,
+                            diagnosticsStore: router.maintenanceDiagnosticsStore)
                     }
                 )
             }
@@ -482,16 +553,16 @@ private struct EraseCleanupPendingView: View {
                     AssetRoundsStateLabel(kind: .warning, "Field Evidence")
                         .accessibilityLabel("Information: Field Evidence")
                         .accessibilityValue(Text(verbatim: String()))
-                    Text("Local data erased")
+                    Text("Erase incomplete")
                         .font(DesignTokens.Typography.screenTitle)
                         .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
-                    Text("Close and reopen the app to finish secure cleanup.")
+                    Text("Secure cleanup is still pending.")
                         .font(DesignTokens.Typography.primaryBody)
                         .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
-                    ProgressView("Finishing erase")
+                    ProgressView("Secure cleanup pending")
                         .tint(DesignTokens.SemanticColors.primaryAction)
                 }
             }

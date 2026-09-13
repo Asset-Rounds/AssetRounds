@@ -67,12 +67,21 @@ actor WorkspacePrivacyTransformPublicationAuthorityV1: PrivacyTransformPublicati
     }
 
     func receipt(for mutationID: MutationIDV1) async throws -> PrivacyTransformPublicationReceiptV1? {
-        publicationReceipts[mutationID]
+        guard let receipt = publicationReceipts[mutationID] else { return nil }
+        guard let canonical = try await workspaceWriter.privacyTransformReceipt(mutationID: mutationID),
+              canonical == canonicalPublicationReceipts[mutationID] else {
+            throw PrivacyTransformFailureV1.partialEffect
+        }
+        return receipt
     }
 
     func validatePublicationReceipt(_ receipt: PrivacyTransformPublicationReceiptV1,
                                     bundle: PrivacyTransformPublicationBundleV1) async throws {
-        guard let canonical = canonicalPublicationReceipts[bundle.manifest.mutationID] else {
+        let mutation = PrivacyTransformMutationV1.publish(
+            policy: bundle.policy, regions: bundle.manifest.orderedRegions, manifest: bundle.manifest
+        )
+        guard let canonical = try await workspaceWriter.privacyTransformReceipt(for: mutation),
+              canonical == canonicalPublicationReceipts[bundle.manifest.mutationID] else {
             throw PrivacyTransformFailureV1.partialEffect
         }
         try receipt.validate(bundle: bundle, canonicalMutationReceipt: canonical)
@@ -81,10 +90,6 @@ actor WorkspacePrivacyTransformPublicationAuthorityV1: PrivacyTransformPublicati
     func publishReview(_ review: PrivacyReviewReceiptV1, manifest: PrivacyTransformManifestV1,
                        policy: PrivacyTransformPolicyV1) async throws -> PrivacyReviewReceiptV1 {
         try review.validate(manifest: manifest, policy: policy)
-        if let existing = reviewReceipts[review.mutationID] {
-            guard existing == review else { throw PrivacyTransformFailureV1.digestMismatch }
-            return existing
-        }
         let mutation = PrivacyTransformMutationV1.review(value: review, manifest: manifest, policy: policy)
         let canonicalReceipt = try await workspaceWriter.commitPrivacyTransform(mutation)
         _ = try PrivacyTransformMutationReceiptV1(mutation: mutation, mutationReceipt: canonicalReceipt)
@@ -94,7 +99,11 @@ actor WorkspacePrivacyTransformPublicationAuthorityV1: PrivacyTransformPublicati
     }
 
     func reviewReceipt(for mutationID: MutationIDV1) async throws -> PrivacyReviewReceiptV1? {
-        reviewReceipts[mutationID]
+        guard let review = reviewReceipts[mutationID] else { return nil }
+        guard try await workspaceWriter.privacyTransformReceipt(mutationID: mutationID) != nil else {
+            throw PrivacyTransformFailureV1.partialEffect
+        }
+        return review
     }
 }
 

@@ -725,6 +725,225 @@ final class V9_94OperationalHandoffExperienceTests: XCTestCase {
         )
     }
 
+    func testReturnedSubjectAndSuspendedSessionBoundariesFailClosed() async throws {
+        let workspaceID = C31TestSupport.workspace(700)
+        let partyAID = C31TestSupport.id(701)
+        let partyBID = C31TestSupport.id(702)
+        let partyA = try C31TestSupport.party(slot: 701, workspaceID: workspaceID)
+        let partyB = try C31TestSupport.party(slot: 702, workspaceID: workspaceID)
+        let contactA = try C31TestSupport.contact(
+            slot: 703,
+            party: partyA,
+            kind: .phone,
+            label: .mobile,
+            displayValue: "+1 415 555 0703",
+            preferred: true
+        )
+        let contactB = try C31TestSupport.contact(
+            slot: 704,
+            party: partyB,
+            kind: .phone,
+            label: .mobile,
+            displayValue: "+1 415 555 0704",
+            preferred: true
+        )
+        let token = OperationalContactHandoffRestorationTokenV1(
+            subject: .party(partyID: partyAID),
+            selectedStableID: contactA.contactPointID,
+            scrollAnchorID: "party.row.700",
+            focusIdentifier: "party.call"
+        )
+
+        let wrongSubjectIDs = C31SequentialIDSource(start: 1_300)
+        let wrongSubjectQuery = C31HandoffQuery(
+            workspaceID: workspaceID,
+            parties: [partyAID: partyA, partyBID: partyB],
+            contacts: [
+                contactA.contactPointID: contactA,
+                contactB.contactPointID: contactB,
+            ]
+        )
+        wrongSubjectQuery.snapshotOverride = try OperationalContactHandoffPresentationSnapshotV1(
+            subject: .party(partyID: partyBID),
+            displayName: partyB.displayName,
+            contacts: [try OperationalContactHandoffContactPresentationV1(contact: contactB)]
+        )
+        let wrongSubjectOpener = C31URLHandoffOpener(canPresent: true, accepts: true)
+        let wrongSubjectSession = OperationalContactHandoffSessionV1(
+            workspaceID: workspaceID,
+            query: wrongSubjectQuery,
+            system: SystemHandoffAdapterV1(
+                opener: wrongSubjectOpener,
+                directionsPresenter: C31DirectionsPresenter(canPresent: true, accepts: true),
+                clock: C31TestClock(value: C31TestSupport.date(700))
+            ),
+            clock: C31TestClock(value: C31TestSupport.date(700)),
+            idSource: wrongSubjectIDs,
+            clipboard: C31Clipboard()
+        )
+        guard case let .unavailable(wrongSubject) = await wrongSubjectSession.prepare(
+            subject: .party(partyID: partyAID),
+            restorationToken: token
+        ) else {
+            return XCTFail("A valid snapshot for another Party must not create a session")
+        }
+        XCTAssertEqual(wrongSubject.disposition, .targetInvalid)
+        XCTAssertEqual(wrongSubjectIDs.makeIDCalls, 0)
+        XCTAssertTrue(wrongSubjectOpener.openedURLs.isEmpty)
+
+        let snapshotGate = C31AsyncGate()
+        let cancelledIDs = C31SequentialIDSource(start: 1_400)
+        let cancelledQuery = C31HandoffQuery(
+            workspaceID: workspaceID,
+            parties: [partyAID: partyA],
+            contacts: [contactA.contactPointID: contactA]
+        )
+        cancelledQuery.snapshotGate = snapshotGate
+        let cancelledOpener = C31URLHandoffOpener(canPresent: true, accepts: true)
+        let cancelledSession = OperationalContactHandoffSessionV1(
+            workspaceID: workspaceID,
+            query: cancelledQuery,
+            system: SystemHandoffAdapterV1(
+                opener: cancelledOpener,
+                directionsPresenter: C31DirectionsPresenter(canPresent: true, accepts: true),
+                clock: C31TestClock(value: C31TestSupport.date(701))
+            ),
+            clock: C31TestClock(value: C31TestSupport.date(701)),
+            idSource: cancelledIDs,
+            clipboard: C31Clipboard()
+        )
+        let cancelledPrepare = Task { @MainActor in
+            await cancelledSession.prepare(subject: .party(partyID: partyAID), restorationToken: token)
+        }
+        await snapshotGate.waitUntilBlocked()
+        cancelledPrepare.cancel()
+        await snapshotGate.release()
+        guard case let .unavailable(cancelled) = await cancelledPrepare.value else {
+            return XCTFail("Cancelled preparation must not retain an ephemeral draft")
+        }
+        XCTAssertEqual(cancelled.disposition, .cancelledBeforeHandoff)
+        XCTAssertEqual(cancelledIDs.makeIDCalls, 0)
+        XCTAssertTrue(cancelledOpener.openedURLs.isEmpty)
+
+        let subjectGate = C31AsyncGate()
+        let subjectQuery = C31HandoffQuery(
+            workspaceID: workspaceID,
+            parties: [partyAID: partyA],
+            contacts: [contactA.contactPointID: contactA]
+        )
+        let subjectOpener = C31URLHandoffOpener(canPresent: true, accepts: true)
+        let subjectSession = OperationalContactHandoffSessionV1(
+            workspaceID: workspaceID,
+            query: subjectQuery,
+            system: SystemHandoffAdapterV1(
+                opener: subjectOpener,
+                directionsPresenter: C31DirectionsPresenter(canPresent: true, accepts: true),
+                clock: C31TestClock(value: C31TestSupport.date(701.5))
+            ),
+            clock: C31TestClock(value: C31TestSupport.date(701.5)),
+            idSource: C31SequentialIDSource(start: 1_450),
+            clipboard: C31Clipboard()
+        )
+        guard case let .ready(subjectPresentation) = await subjectSession.prepare(
+            subject: .party(partyID: partyAID),
+            restorationToken: token
+        ), let subjectAction = subjectPresentation.actions.first(where: { $0.kind == .call }) else {
+            return XCTFail("The subject-revalidation setup must prepare an exact Party action")
+        }
+        subjectQuery.snapshotGate = subjectGate
+        let subjectPerform = Task { @MainActor in
+            try await subjectSession.perform(
+                sessionID: subjectPresentation.sessionID,
+                actionID: subjectAction.actionID
+            )
+        }
+        await subjectGate.waitUntilBlocked()
+        XCTAssertEqual(subjectSession.dismiss(sessionID: subjectPresentation.sessionID), token)
+        await subjectGate.release()
+        do {
+            _ = try await subjectPerform.value
+            XCTFail("A dismissed session must stop after subject revalidation")
+        } catch {
+            XCTAssertEqual(error as? OperationalContactHandoffSessionFailureV1, .sessionUnavailable)
+        }
+        XCTAssertEqual(subjectQuery.contactReadCalls, 0)
+        XCTAssertTrue(subjectOpener.openedURLs.isEmpty)
+
+        let resolutionGate = C31AsyncGate()
+        let dismissedQuery = C31HandoffQuery(
+            workspaceID: workspaceID,
+            parties: [partyAID: partyA],
+            contacts: [contactA.contactPointID: contactA]
+        )
+        let dismissedOpener = C31URLHandoffOpener(canPresent: true, accepts: true)
+        let dismissedSession = OperationalContactHandoffSessionV1(
+            workspaceID: workspaceID,
+            query: dismissedQuery,
+            system: SystemHandoffAdapterV1(
+                opener: dismissedOpener,
+                directionsPresenter: C31DirectionsPresenter(canPresent: true, accepts: true),
+                clock: C31TestClock(value: C31TestSupport.date(702))
+            ),
+            clock: C31TestClock(value: C31TestSupport.date(702)),
+            idSource: C31SequentialIDSource(start: 1_500),
+            clipboard: C31Clipboard()
+        )
+        guard case let .ready(dismissedPresentation) = await dismissedSession.prepare(
+            subject: .party(partyID: partyAID),
+            restorationToken: token
+        ), let dismissedAction = dismissedPresentation.actions.first(where: { $0.kind == .call }) else {
+            return XCTFail("The positive setup must prepare an exact Party action")
+        }
+        dismissedQuery.contactReadGate = resolutionGate
+        let dismissedPerform = Task { @MainActor in
+            try await dismissedSession.perform(
+                sessionID: dismissedPresentation.sessionID,
+                actionID: dismissedAction.actionID
+            )
+        }
+        await resolutionGate.waitUntilBlocked()
+        XCTAssertEqual(dismissedSession.dismiss(sessionID: dismissedPresentation.sessionID), token)
+        await resolutionGate.release()
+        do {
+            _ = try await dismissedPerform.value
+            XCTFail("A dismissed session must not reach the system handoff")
+        } catch {
+            XCTAssertEqual(error as? OperationalContactHandoffSessionFailureV1, .sessionUnavailable)
+        }
+        XCTAssertTrue(dismissedOpener.openedURLs.isEmpty)
+
+        let positiveQuery = C31HandoffQuery(
+            workspaceID: workspaceID,
+            parties: [partyAID: partyA],
+            contacts: [contactA.contactPointID: contactA]
+        )
+        let positiveOpener = C31URLHandoffOpener(canPresent: true, accepts: true)
+        let positiveSession = OperationalContactHandoffSessionV1(
+            workspaceID: workspaceID,
+            query: positiveQuery,
+            system: SystemHandoffAdapterV1(
+                opener: positiveOpener,
+                directionsPresenter: C31DirectionsPresenter(canPresent: true, accepts: true),
+                clock: C31TestClock(value: C31TestSupport.date(703))
+            ),
+            clock: C31TestClock(value: C31TestSupport.date(703)),
+            idSource: C31SequentialIDSource(start: 1_600),
+            clipboard: C31Clipboard()
+        )
+        guard case let .ready(positivePresentation) = await positiveSession.prepare(
+            subject: .party(partyID: partyAID),
+            restorationToken: token
+        ), let positiveAction = positivePresentation.actions.first(where: { $0.kind == .call }) else {
+            return XCTFail("An unchanged session must retain the existing successful path")
+        }
+        let positive = try await positiveSession.perform(
+            sessionID: positivePresentation.sessionID,
+            actionID: positiveAction.actionID
+        )
+        XCTAssertEqual(positive.result.disposition, .handedOffToSystem)
+        XCTAssertEqual(positiveOpener.openedURLs.count, 1)
+    }
+
     func testProductionCompositionRequiresAccessAndUsesInjectableNativeBoundary() async throws {
         XCTAssertEqual(
             ProductionCompositionRoot.c16AccessGateProductionAdoptionComplete,
@@ -821,12 +1040,42 @@ private struct C31TestClock: ApplicationClock {
 
 private final class C31SequentialIDSource: ApplicationIDSource, @unchecked Sendable {
     private var next: Int
+    private(set) var makeIDCalls = 0
 
     init(start: Int) { next = start }
 
     func makeID() -> UUID {
+        makeIDCalls += 1
         defer { next += 1 }
         return C31TestSupport.id(next)
+    }
+}
+
+private actor C31AsyncGate {
+    private var blocked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        blocked = true
+        let pending = waiters
+        waiters.removeAll()
+        pending.forEach { $0.resume() }
+        await withCheckedContinuation { continuation in
+            releaseContinuation = continuation
+        }
+    }
+
+    func waitUntilBlocked() async {
+        guard !blocked else { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
     }
 }
 
@@ -884,6 +1133,10 @@ private final class C31HandoffQuery: OperationalContactHandoffQueryingV1 {
     var partiesByID: [UUID: ServicePartyReferenceV1]
     var contactsByID: [UUID: ServiceContactPointV1]
     private(set) var mutationCalls = 0
+    private(set) var contactReadCalls = 0
+    var snapshotOverride: OperationalContactHandoffPresentationSnapshotV1?
+    var snapshotGate: C31AsyncGate?
+    var contactReadGate: C31AsyncGate?
 
     init(
         workspaceID: WorkspaceID,
@@ -903,7 +1156,9 @@ private final class C31HandoffQuery: OperationalContactHandoffQueryingV1 {
         workspaceID: WorkspaceID,
         subject: OperationalContactHandoffSubjectV1
     ) async throws -> OperationalContactHandoffPresentationSnapshotV1? {
+        if let snapshotGate { await snapshotGate.wait() }
         guard workspaceID == self.workspaceID else { return nil }
+        if let snapshotOverride { return snapshotOverride }
         switch subject {
         case let .site(siteID):
             guard let directions = sites[siteID] else { return nil }
@@ -941,6 +1196,8 @@ private final class C31HandoffQuery: OperationalContactHandoffQueryingV1 {
         workspaceID: WorkspaceID,
         contactPointID: UUID
     ) async throws -> ServiceContactPointV1? {
+        if let contactReadGate { await contactReadGate.wait() }
+        contactReadCalls += 1
         guard workspaceID == self.workspaceID else { return nil }
         return contactsByID[contactPointID]
     }

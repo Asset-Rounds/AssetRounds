@@ -22,6 +22,40 @@ struct ProductionAssetLabelWorkflow {
     let generationEpoch: GenerationEpochV1
 }
 
+/// The complete pre-authentication access composition. This value deliberately
+/// exposes only the lifecycle's exact gate and its device-local collaborators;
+/// it neither opens a workspace nor starts startup recovery.
+@MainActor
+struct ProductionAppAccessSessionV1 {
+    let lifecycle: AppLockLifecycleCoordinatorV1
+    let gate: AppAccessGateV1
+    let setting: any DeviceLocalAppLockSettingPortV1
+    let authentication: any LocalAuthenticationClient
+    let sceneNavigationStatePort: @MainActor () -> any SceneNavigationDeviceStatePortV1
+    let completedEraseReplacement: (@MainActor (EraseAllOperationSubjectV1) throws -> CompletedEraseAccessReplacementV1)?
+
+    init(lifecycle: AppLockLifecycleCoordinatorV1, gate: AppAccessGateV1,
+         setting: any DeviceLocalAppLockSettingPortV1,
+         authentication: any LocalAuthenticationClient,
+         sceneNavigationStatePort: @escaping @MainActor () -> any SceneNavigationDeviceStatePortV1,
+         completedEraseReplacement: (@MainActor (EraseAllOperationSubjectV1) throws -> CompletedEraseAccessReplacementV1)? = nil) {
+        self.lifecycle = lifecycle
+        self.gate = gate
+        self.setting = setting
+        self.authentication = authentication
+        self.sceneNavigationStatePort = sceneNavigationStatePort
+        self.completedEraseReplacement = completedEraseReplacement
+    }
+}
+
+/// Keeps scene state on the same preferences instance as the active access
+/// configuration, including the fresh owner installed after completed Erase.
+@MainActor
+private final class ProductionPreferencesReferenceV1 {
+    var current: PreferencesAdapterV1
+    init(_ current: PreferencesAdapterV1) { self.current = current }
+}
+
 @MainActor
 final class ProductionCompositionRoot {
     /// S10.6 owns shipping UI composition. C16 provides only gated overloads;
@@ -47,6 +81,112 @@ final class ProductionCompositionRoot {
             applicationSupportURL: applicationSupportURL
         )
         return InjectedProtectedIngressStoreV1(effects: effects)
+    }
+
+    /// Composes the live device-local access boundary before any canonical
+    /// startup work. The caller must provide an existing Application Support
+    /// directory, as the descriptor-pinned notification-control owner opens
+    /// that root before it can create its own owned child. The router is only
+    /// bound to the gate; it is not started here, and the notification source
+    /// remains unopened until an authorized notification operation needs it.
+    static func makeAppAccessSession(
+        applicationSupportURL: URL,
+        startupRouter: StartupRouter,
+        defaults: UserDefaults = .standard,
+        authenticationClient: (any LocalAuthenticationClient)? = nil,
+        notificationSystem: (any NotificationSystemPortV1)? = nil
+    ) async throws -> ProductionAppAccessSessionV1 {
+        var isDirectory: ObjCBool = false
+        guard applicationSupportURL.isFileURL,
+              FileManager.default.fileExists(
+                atPath: applicationSupportURL.path,
+                isDirectory: &isDirectory
+              ),
+              isDirectory.boolValue else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let preferencesReference = ProductionPreferencesReferenceV1(preferences)
+        let control = try AppLockNotificationControlStoreV1(
+            applicationSupportURL: applicationSupportURL,
+            preferences: preferences
+        )
+        let authentication: any LocalAuthenticationClient = authenticationClient ?? SystemLocalAuthenticationClient()
+        let system: any NotificationSystemPortV1 = notificationSystem ?? UserNotificationSystemAdapterV1()
+        let clock = SystemApplicationClock()
+        let identifiers = SystemApplicationIDSource()
+        let notificationOwner = DeviceLocalNotificationOwnerV1(
+            control: control,
+            preferences: preferences,
+            system: system,
+            clock: clock
+        ) { authorization in
+            try await startupRouter.notificationSource(authorization: authorization)
+        }
+        let setting = try DeviceLocalAppLockSettingAdapterV1(
+            preferences: preferences,
+            registry: try SettingsRegistryV1.current(),
+            transactionWriter: notificationOwner
+        )
+        let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+            setting: setting,
+            authentication: authentication,
+            ingressStore: try makePreAuthenticationIngressStore(
+                applicationSupportURL: applicationSupportURL
+            ),
+            notifications: AppLockNotificationPrivacyCoordinatorV1(
+                effects: notificationOwner
+            ),
+            clock: clock,
+            identifiers: identifiers
+        )
+        let gate = await lifecycle.accessGate()
+        try startupRouter.bindStartupAccessGate(gate)
+        return ProductionAppAccessSessionV1(
+            lifecycle: lifecycle,
+            gate: gate,
+            setting: setting,
+            authentication: authentication,
+            sceneNavigationStatePort: { preferencesReference.current },
+            completedEraseReplacement: { subject in
+                let replacement = try makeCompletedEraseAccessReplacement(subject: subject,
+                    startupRouter: startupRouter, defaults: defaults,
+                    notificationSystem: system)
+                preferencesReference.current = replacement.preferences
+                return replacement.access
+            }
+        )
+    }
+
+    /// Reopens only the device metadata owners removed by the completed
+    /// service operation. The existing lifecycle validates these collaborators
+    /// against its retained reservation and keeps the same access gate.
+    static func makeCompletedEraseAccessReplacement(
+        subject: EraseAllOperationSubjectV1,
+        startupRouter: StartupRouter,
+        defaults: UserDefaults = .standard,
+        notificationSystem: (any NotificationSystemPortV1)? = nil
+    ) throws -> (access: CompletedEraseAccessReplacementV1, preferences: PreferencesAdapterV1) {
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let control = try AppLockNotificationControlStoreV1(
+            applicationSupportURL: subject.applicationSupportURL,
+            preferences: preferences
+        )
+        try control.requireEmptyForCompletedErase(subject: subject)
+        let clock = SystemApplicationClock()
+        let owner = DeviceLocalNotificationOwnerV1(control: control,
+            preferences: preferences, system: notificationSystem ?? UserNotificationSystemAdapterV1(),
+            clock: clock) { authorization in
+                try await startupRouter.notificationSource(authorization: authorization)
+            }
+        let access = CompletedEraseAccessReplacementV1(subject: subject,
+            setting: try DeviceLocalAppLockSettingAdapterV1(preferences: preferences,
+                registry: try SettingsRegistryV1.current(), transactionWriter: owner),
+            ingressStore: try makePreAuthenticationIngressStore(
+                applicationSupportURL: subject.applicationSupportURL),
+            notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
+            notificationControl: control, clock: clock)
+        return (access: access, preferences: preferences)
     }
 
     /// C31 composes only foreground, nonpersistent handoff state. The caller

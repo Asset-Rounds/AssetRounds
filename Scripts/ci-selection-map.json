@@ -74,7 +74,7 @@
         "V9_03MigrationRecoveryTests",
         "V9_08GenerationLeaseTests"
       ],
-      "methodCount": 4
+      "methodCount": 5
     },
     {
       "id": "restore-acceptance",
@@ -160,6 +160,17 @@
         "V9_98RecipientReviewWorkflowTests"
       ],
       "methodCount": 88
+    },
+    {
+      "id": "app-myday-production",
+      "classes": [
+        "V23ProductionAppAccessTests",
+        "V23ProductionFourRootShellTests",
+        "V23ProductionMyDayCommitTests",
+        "V23MyDayPlanningEditorTests",
+        "V23SearchReconciliationTests"
+      ],
+      "methodCount": 11
     }
   ]
 }

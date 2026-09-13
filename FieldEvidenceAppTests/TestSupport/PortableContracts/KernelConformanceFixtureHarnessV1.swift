@@ -6788,6 +6788,7 @@ enum C36FieldDraftTestSupportV1 {
         case .evidenceCuration: .applyEvidenceAssurance
         case .assetFieldEdit: .applyAssetSemantics
         case .serviceRequest: .applyServiceRequest
+        case .myDayPlanning: .applyMyDay
         }
     }
 

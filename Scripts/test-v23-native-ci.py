@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 import shutil
 import tempfile
@@ -354,7 +355,7 @@ class WorkflowWiringTests(unittest.TestCase):
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         groups = [CI.resolve_selection(default, mapping, group["id"])
                   for group in mapping["groups"]]
-        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 259)
+        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 271)
         self.assertEqual({item for group in groups for item in group["unitTestSelectors"]},
                          set(default["unitTestSelectors"]))
         self.assertEqual(CI.resolve_selection(default, mapping, CI.DEFAULT_SELECTION_ID), default)
@@ -373,6 +374,40 @@ class WorkflowWiringTests(unittest.TestCase):
         omission["groups"].pop()
         with self.assertRaises(ValueError):
             CI.resolve_selection(default, omission, "notification-controls")
+
+    def test_app_myday_selection_is_additive_and_preserves_original_partition(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected = CI.resolve_selection(default, mapping, "app-myday-production")
+        expected = ['FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactorySettingTransactionsCompleteAndReopenWithoutRepair', 'FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactoryKeepsStartupUnopenedAndBindsItsExactGateOnce', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testActualNativeShellRestoresEachPersistedRootAndPreservesAcceptedTabIdentities', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testActualStartupRestoresReadyReportIntoExistingDetailAndBackPersistsThroughScenePort', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testProductionSavePersistsExactCommitRowsReceiptsAndNoContentReservations', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testPlanningRequiresItsExactGateAndSessionBeforeAnyDraftWrite', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testTodayEditorAddsOrdersEstimatesRemovesAndSavesWithoutChangingSourceWork', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testPostEffectSaveFailureRetainsExactAttemptWithoutPublishingSuccessAndRetriesOnce', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testCarryoverConflictEditorReviewsActualActiveAndPreTargetSavePrefixesThenSavesSameDraft', 'FieldEvidenceAppTests/V23SearchReconciliationTests/testGuardedProjectionDropRejectsRevokedAndWrongConsumerTokensWithoutChangingBytes', 'FieldEvidenceAppTests/V23SearchReconciliationTests/testActualRebuildRevocationBeforeProjectionDropPreservesOldBytesAndFreshRetryCompletes']
+        location = 'FieldEvidenceAppTests/V9_08GenerationLeaseTests/testReplacementLocationHistoryRetainsCurrentSchemaValidationAndRejectsInvalidReferences'
+        self.assertEqual(selected["unitTestSelectors"], expected)
+        self.assertEqual(default["unitTestSelectors"][259:270], expected)
+        self.assertEqual(default["unitTestSelectors"][270:], [location])
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:259])),
+                         "E8F942EDCE2B513FFC66A01BF5D7003FDD885CD8B1F9EDF7F6D38426E1031400")
+        historical_groups = copy.deepcopy(mapping["groups"][:15])
+        generation = next(group for group in historical_groups
+                          if group["id"] == "generation-leases-migration")
+        self.assertEqual(generation["methodCount"], 5)
+        generation["methodCount"] = 4
+        resolved_generation = CI.resolve_selection(default, mapping, "generation-leases-migration")
+        original_generation = [selector for selector in default["unitTestSelectors"][:259]
+                               if selector.split("/")[1] in generation["classes"]]
+        self.assertEqual(resolved_generation["unitTestSelectors"], original_generation + [location])
+        self.assertEqual(CI.sha256(CI.canonical(historical_groups)),
+                         "9CFA63307F86B2F88570672F8C4D35348CB97357893F68A37B3A70859224D66D")
+        self.assertEqual(len(mapping["groups"]), 16)
+        for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
+            self.assertEqual(selected[key], default[key])
+        for selector in expected + [location]:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+        duplicate = copy.deepcopy(mapping)
+        duplicate["groups"].append(copy.deepcopy(duplicate["groups"][-1]))
+        with self.assertRaisesRegex(ValueError, "selection group count"):
+            CI.resolve_selection(default, duplicate, "app-myday-production")
 
     def test_closed_map_rejects_unselected_classes_and_workflow_choices_match(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")

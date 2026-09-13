@@ -1695,6 +1695,10 @@ struct PrivateSystemDiscoveryPendingOperationV1: Codable, Equatable, Sendable {
     let resultingStateSHA256: String
     let rebuild: PrivateSystemDiscoveryIndexRebuildPayloadV1?
     let preparedAt: Date
+    /// Present only for a rebuild prepared through a live content-read
+    /// authority. Absence preserves the byte-exact legacy durable form and
+    /// never grants authority during cold recovery.
+    let requiresContentAuthority: Bool?
 }
 
 struct PrivateSystemDiscoveryWorkspaceInventoryV1: Codable, Equatable, Sendable {
@@ -1753,6 +1757,12 @@ struct PrivateSystemDiscoveryClientStateV1: Codable, Equatable, Sendable {
                       rebuild.requestedAt == rebuild.request.requestedAt else {
                     throw PrivateSystemDiscoveryFailureV1.invalidValue
                 }
+            }
+            guard pendingOperation.requiresContentAuthority == nil
+                    || (pendingOperation.requiresContentAuthority == true
+                        && pendingOperation.operation == .rebuild
+                        && pendingOperation.rebuild != nil) else {
+                throw PrivateSystemDiscoveryFailureV1.invalidValue
             }
         }
         let sortedKnown = knownWorkspaceIDs.sorted {

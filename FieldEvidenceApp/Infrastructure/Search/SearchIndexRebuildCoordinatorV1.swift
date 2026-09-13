@@ -50,6 +50,22 @@ protocol SearchCanonicalProjectionSourceV1: Sendable {
     func discardCachedSearchProjectionSnapshot() async
 }
 
+/// A concrete source that can keep the original content-read reference held
+/// across its synchronous canonical reads. The guarded rebuild route refuses
+/// sources without this capability rather than falling back to a point-in-time
+/// actor validation.
+protocol SearchContentReadGuardedProjectionSourceV1: SearchCanonicalProjectionSourceV1 {
+    func currentSearchSourceRevision(
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) async throws -> SearchSourceRevisionV1
+    func searchProjectionPage(
+        at source: SearchSourceRevisionV1,
+        canonicalOffset: Int,
+        limit: Int,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) async throws -> SearchCanonicalProjectionPageV1
+}
+
 extension SearchCanonicalProjectionSourceV1 {
     func discardCachedSearchProjectionSnapshot() async {}
 }
@@ -152,7 +168,7 @@ private func authorityCriterionUniqueHeadsV1<Value, Group: Hashable>(
 /// over canonical entities (not projection rows) and is bound to the writer's
 /// exact revision before and after every fetch.
 @MainActor
-final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectionSourceV1 {
+final class SwiftDataSearchCanonicalProjectionSourceV1: SearchContentReadGuardedProjectionSourceV1 {
     private struct CanonicalValue {
         let kind: SearchSourceKindV1
         let stableID: String
@@ -355,6 +371,14 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         try validatedCurrentRevision()
     }
 
+    func currentSearchSourceRevision(
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) async throws -> SearchSourceRevisionV1 {
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try validatedCurrentRevision()
+        }
+    }
+
     func discardCachedSearchProjectionSnapshot() async {
         snapshotRevision = nil
         snapshotValues = nil
@@ -401,6 +425,57 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         }
         return page
     }
+
+    func searchProjectionPage(
+        at source: SearchSourceRevisionV1,
+        canonicalOffset: Int,
+        limit: Int,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) async throws -> SearchCanonicalProjectionPageV1 {
+        try Task.checkCancellation()
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            guard source == (try validatedCurrentRevision()),
+                  canonicalOffset >= 0,
+                  limit > 0,
+                  limit <= SearchIndexRebuildCoordinatorV1.pageSize else {
+                throw SearchIndexRebuildFailureV1.sourceChangedDuringRebuild
+            }
+        }
+        let canonical = try await canonicalValues(at: source, contentReadToken: contentReadToken)
+        guard canonical.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              canonicalOffset <= canonical.count else {
+            throw SearchIndexRebuildFailureV1.recordLimitExceeded
+        }
+        let end = min(canonical.count, canonicalOffset + limit)
+        let records = try contentReadToken.withContentRead(for: .searchRebuild) {
+            var records: [SearchIndexProjectionRecordV1] = []
+            for (index, value) in canonical[canonicalOffset..<end].enumerated() {
+                if index.isMultiple(of: 64) { try Task.checkCancellation() }
+                records.append(contentsOf: try project(value, source: source))
+            }
+            return records
+        }
+        try Task.checkCancellation()
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            guard source == (try validatedCurrentRevision()) else {
+                throw SearchIndexRebuildFailureV1.sourceChangedDuringRebuild
+            }
+        }
+        let page = try SearchCanonicalProjectionPageV1(
+            requestedCanonicalOffset: canonicalOffset,
+            nextCanonicalOffset: end,
+            isComplete: end == canonical.count,
+            records: records.sorted()
+        )
+        if page.isComplete {
+            try contentReadToken.withContentRead(for: .searchRebuild) {
+                snapshotRevision = nil
+                snapshotValues = nil
+                snapshotBackupStaleIdentities = []
+            }
+        }
+        return page
+    }
 }
 
 @MainActor
@@ -419,7 +494,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         return revision
     }
 
-    private func canonicalValues(at source: SearchSourceRevisionV1) async throws -> [CanonicalValue] {
+    private func readCanonicalValues(at source: SearchSourceRevisionV1) throws -> [CanonicalValue] {
         if snapshotRevision == source, let snapshotValues { return snapshotValues }
         var values: [CanonicalValue] = []
         let semanticByAsset = includeAssetSemantics
@@ -746,8 +821,51 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         guard source == (try validatedCurrentRevision()) else {
             throw SearchIndexRebuildFailureV1.sourceChangedDuringRebuild
         }
-        let staleIdentities = try await operationalStatusProvider?
-            .backupStaleCanonicalIdentities(at: source) ?? []
+        return values
+    }
+
+    private func canonicalValues(at source: SearchSourceRevisionV1) async throws -> [CanonicalValue] {
+        if snapshotRevision == source, let snapshotValues { return snapshotValues }
+        let values = try readCanonicalValues(at: source)
+        let staleIdentities = try await backupStaleCanonicalIdentities(at: source)
+        try completeCanonicalValues(
+            values, staleIdentities: staleIdentities, source: source
+        )
+        return values
+    }
+
+    private func canonicalValues(
+        at source: SearchSourceRevisionV1,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) async throws -> [CanonicalValue] {
+        let cached = try contentReadToken.withContentRead(for: .searchRebuild) {
+            snapshotRevision == source ? snapshotValues : nil
+        }
+        if let cached { return cached }
+        let values = try contentReadToken.withContentRead(for: .searchRebuild) {
+            try readCanonicalValues(at: source)
+        }
+        let staleIdentities = try await backupStaleCanonicalIdentities(at: source)
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try completeCanonicalValues(
+                values, staleIdentities: staleIdentities, source: source
+            )
+        }
+        return values
+    }
+
+    private func backupStaleCanonicalIdentities(
+        at source: SearchSourceRevisionV1
+    ) async throws -> Set<SearchCanonicalRecordIdentityV1> {
+        guard let operationalStatusProvider else { return [] }
+        return try await operationalStatusProvider.backupStaleCanonicalIdentities(at: source)
+    }
+
+    private func completeCanonicalValues(
+        _ values: [CanonicalValue],
+        staleIdentities: Set<SearchCanonicalRecordIdentityV1>,
+        source: SearchSourceRevisionV1
+    ) throws {
         var knownIdentities = Set<SearchCanonicalRecordIdentityV1>()
         for value in values {
             knownIdentities.insert(try SearchCanonicalRecordIdentityV1(
@@ -764,7 +882,6 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         snapshotRevision = source
         snapshotValues = values
         snapshotBackupStaleIdentities = staleIdentities
-        return values
     }
 
     private struct AssetSemanticSearchValue {
@@ -1743,9 +1860,13 @@ struct PrivateSystemDiscoveryProductionRebuildSourceV1: PrivateSystemDiscoveryRe
             throw PrivateSystemDiscoveryFailureV1.invalidValue
         }
         let manifest = try PrivateSystemDiscoveryManifestV1()
-        let setting = try await optIn()
+        _ = try await optIn()
         let requestedAt = now()
         let protected = await protectedDataAvailable()
+        // Protected-data availability is an await boundary. Re-read the
+        // device-local enrollment before publishing an availability payload;
+        // the pre-await selection cannot authorize a later rebuild.
+        let setting = try await optIn()
         let availability = try PrivateSystemDiscoveryActionV1.allCases.map {
             try AppIntentAvailabilityV1(
                 workspaceID: workspaceID, action: $0,
@@ -1819,9 +1940,17 @@ actor SearchIndexRebuildCoordinatorV1 {
         self.privateSystemDiscoverySource = privateSystemDiscoverySource
     }
 
+    #if DEBUG
+    private var beforeProjectionDropForTesting: (@Sendable () async -> Void)?
+
+    func setBeforeProjectionDropForTesting(_ operation: (@Sendable () async -> Void)?) {
+        beforeProjectionDropForTesting = operation
+    }
+    #endif
+
     func rebuildIfNeeded() async throws -> SearchIndexRebuildResultV1 {
         do {
-            return try await performRebuildIfNeeded()
+            return try await performRebuildIfNeeded(authorization: nil)
         } catch {
             await source.discardCachedSearchProjectionSnapshot()
             throw error
@@ -1831,21 +1960,177 @@ actor SearchIndexRebuildCoordinatorV1 {
     func rebuildIfNeeded(
         accessGate: any AppAccessGatePortV1
     ) async throws -> SearchIndexRebuildResultV1 {
-        _ = try await accessGate.requireContentAccess(for: .searchRebuild)
-        return try await rebuildIfNeeded()
+        // The generic port has no original epoch to revalidate after source
+        // pages or staging writes. It is deliberately not a production
+        // authority for a causal rebuild.
+        guard let gate = accessGate as? AppAccessGateV1 else {
+            _ = try await accessGate.requireContentAccess(for: .searchRebuild)
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        guard source is any SearchContentReadGuardedProjectionSourceV1 else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let token = try await gate.beginContentRead(for: .searchRebuild)
+        do {
+            return try await performRebuildIfNeeded(authorization: (gate, token))
+        } catch {
+            await source.discardCachedSearchProjectionSnapshot()
+            throw error
+        }
     }
 
-    private func performRebuildIfNeeded() async throws -> SearchIndexRebuildResultV1 {
+    private func validateAccess(
+        _ authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws {
+        if let authorization {
+            try await authorization.0.validateContentRead(
+                authorization.1, for: .searchRebuild
+            )
+        }
+    }
+
+    private func currentSourceRevision(
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws -> SearchSourceRevisionV1 {
+        if let authorization {
+            guard let guarded = source as? any SearchContentReadGuardedProjectionSourceV1 else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            return try await guarded.currentSearchSourceRevision(
+                contentReadToken: authorization.1
+            )
+        }
+        return try await source.currentSearchSourceRevision()
+    }
+
+    private func sourceProjectionPage(
+        at sourceRevision: SearchSourceRevisionV1,
+        canonicalOffset: Int,
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws -> SearchCanonicalProjectionPageV1 {
+        if let authorization {
+            guard let guarded = source as? any SearchContentReadGuardedProjectionSourceV1 else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            return try await guarded.searchProjectionPage(
+                at: sourceRevision,
+                canonicalOffset: canonicalOffset,
+                limit: Self.pageSize,
+                contentReadToken: authorization.1
+            )
+        }
+        return try await source.searchProjectionPage(
+            at: sourceRevision,
+            canonicalOffset: canonicalOffset,
+            limit: Self.pageSize
+        )
+    }
+
+    private func storeRevision(
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws -> SearchIndexRevisionV1? {
+        if let authorization {
+            return try await store.revision(contentReadToken: authorization.1)
+        }
+        return try await store.revision()
+    }
+
+    private func storeProjection(
+        source: SearchSourceRevisionV1,
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws -> SearchIndexProjectionV1 {
+        if let authorization {
+            return try await store.rebuildProjection(
+                for: source, registry: registry, contentReadToken: authorization.1
+            )
+        }
+        return try await store.projection(for: source, registry: registry)
+    }
+
+    private func storeRebuildStaging(
+        publicationToken: SearchIndexPublicationTokenV1,
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws -> SearchIndexRebuildStagingV1? {
+        if let authorization {
+            return try await store.rebuildStaging(
+                publicationToken: publicationToken, contentReadToken: authorization.1
+            )
+        }
+        return try await store.rebuildStaging(publicationToken: publicationToken)
+    }
+
+    private func saveStoreRebuildStaging(
+        checkpoint: SearchIndexRebuildCheckpointV1,
+        records: [SearchIndexProjectionRecordV1],
+        publicationToken: SearchIndexPublicationTokenV1,
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws {
+        if let authorization {
+            try await store.saveRebuildStaging(
+                checkpoint: checkpoint, records: records, registry: registry,
+                publicationToken: publicationToken, contentReadToken: authorization.1
+            )
+        } else {
+            try await store.saveRebuildStaging(
+                checkpoint: checkpoint, records: records, registry: registry,
+                publicationToken: publicationToken
+            )
+        }
+    }
+
+    private func clearStoreRebuildStaging(
+        publicationToken: SearchIndexPublicationTokenV1,
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws {
+        if let authorization {
+            try await store.clearRebuildStaging(
+                publicationToken: publicationToken, contentReadToken: authorization.1
+            )
+        } else {
+            try await store.clearRebuildStaging(publicationToken: publicationToken)
+        }
+    }
+
+    private func replaceStoreProjection(
+        source: SearchSourceRevisionV1,
+        records: [SearchIndexProjectionRecordV1],
+        publicationToken: SearchIndexPublicationTokenV1,
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws {
+        if let authorization {
+            try await store.replaceProjection(
+                source: source, records: records, registry: registry,
+                publicationToken: publicationToken, contentReadToken: authorization.1
+            )
+        } else {
+            try await store.replaceProjection(
+                source: source, records: records, registry: registry,
+                publicationToken: publicationToken
+            )
+        }
+    }
+
+    private func performRebuildIfNeeded(
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
+    ) async throws -> SearchIndexRebuildResultV1 {
         try Task.checkCancellation()
-        let target = try await source.currentSearchSourceRevision()
-        let existingRevision = try await store.revision()
+        let target = try await currentSourceRevision(authorization: authorization)
+        try await validateAccess(authorization)
+        let existingRevision = try await storeRevision(authorization: authorization)
+        try await validateAccess(authorization)
         let disposition = SearchIndexReconciliationV1.disposition(
             source: target,
             index: existingRevision
         )
         if disposition == .current {
-            let projection = try await store.projection(for: target, registry: registry)
-            try await rebuildPrivateSystemDiscovery(source: target, operationRawID: nil)
+            let projection = try await storeProjection(
+                source: target, authorization: authorization
+            )
+            try await validateAccess(authorization)
+            try await rebuildPrivateSystemDiscovery(
+                source: target, operationRawID: nil, authorization: authorization
+            )
+            try await validateAccess(authorization)
             return SearchIndexRebuildResultV1(
                 disposition: disposition,
                 source: target,
@@ -1860,15 +2145,29 @@ actor SearchIndexRebuildCoordinatorV1 {
             // A complete projection that is not current must not survive into
             // publication. In particular, an ahead watermark would otherwise
             // cause replaceProjection to reject the revision-bound rebuild.
-            try await store.dropProjection()
+            #if DEBUG
+            if let beforeProjectionDropForTesting {
+                await beforeProjectionDropForTesting()
+            }
+            #endif
+            if let authorization {
+                try await store.dropProjection(contentReadToken: authorization.1)
+            } else {
+                try await store.dropProjection()
+            }
+            try await validateAccess(authorization)
         case .absentBuild:
             break
         case .current:
             preconditionFailure("Handled above")
         }
         let publicationToken = await store.publicationToken()
+        try await validateAccess(authorization)
 
-        var staging = try await store.rebuildStaging(publicationToken: publicationToken)
+        var staging = try await storeRebuildStaging(
+            publicationToken: publicationToken, authorization: authorization
+        )
+        try await validateAccess(authorization)
         let canResume = staging.map {
             $0.checkpoint.source == target
                 && $0.checkpoint.projectionFormatVersion
@@ -1877,9 +2176,10 @@ actor SearchIndexRebuildCoordinatorV1 {
         } ?? false
         if !canResume {
             if staging != nil {
-                try await store.clearRebuildStaging(
-                    publicationToken: publicationToken
+                try await clearStoreRebuildStaging(
+                    publicationToken: publicationToken, authorization: authorization
                 )
+                try await validateAccess(authorization)
             }
             let operationID = makeOperationID()
             guard operationID != SearchContractValidationV1.zeroUUID else {
@@ -1892,12 +2192,11 @@ actor SearchIndexRebuildCoordinatorV1 {
                 projectedRecordCount: 0,
                 state: .building
             )
-            try await store.saveRebuildStaging(
-                checkpoint: checkpoint,
-                records: [],
-                registry: registry,
-                publicationToken: publicationToken
+            try await saveStoreRebuildStaging(
+                checkpoint: checkpoint, records: [], publicationToken: publicationToken,
+                authorization: authorization
             )
+            try await validateAccess(authorization)
             staging = SearchIndexRebuildStagingV1(checkpoint: checkpoint, records: [])
         }
 
@@ -1909,11 +2208,12 @@ actor SearchIndexRebuildCoordinatorV1 {
 
         while !isComplete {
             try Task.checkCancellation()
-            let page = try await source.searchProjectionPage(
+            let page = try await sourceProjectionPage(
                 at: target,
                 canonicalOffset: offset,
-                limit: Self.pageSize
+                authorization: authorization
             )
+            try await validateAccess(authorization)
             guard page.requestedCanonicalOffset == offset,
                   page.nextCanonicalOffset >= offset,
                   page.nextCanonicalOffset - offset <= Self.pageSize,
@@ -1943,30 +2243,31 @@ actor SearchIndexRebuildCoordinatorV1 {
                 projectedRecordCount: records.count,
                 state: .building
             )
-            try await store.saveRebuildStaging(
-                checkpoint: checkpoint,
-                records: records,
-                registry: registry,
-                publicationToken: publicationToken
+            try await saveStoreRebuildStaging(
+                checkpoint: checkpoint, records: records, publicationToken: publicationToken,
+                authorization: authorization
             )
+            try await validateAccess(authorization)
             active = SearchIndexRebuildStagingV1(checkpoint: checkpoint, records: records)
         }
 
         try Task.checkCancellation()
-        let finalSource = try await source.currentSearchSourceRevision()
+        let finalSource = try await currentSourceRevision(authorization: authorization)
+        try await validateAccess(authorization)
         guard finalSource == target else {
             throw SearchIndexRebuildFailureV1.sourceChangedDuringRebuild
         }
         try Task.checkCancellation()
-        try await store.replaceProjection(
-            source: target,
-            records: records,
-            registry: registry,
-            publicationToken: publicationToken
+        try await replaceStoreProjection(
+            source: target, records: records, publicationToken: publicationToken,
+            authorization: authorization
         )
+        try await validateAccess(authorization)
         try await rebuildPrivateSystemDiscovery(
-            source: target, operationRawID: active.checkpoint.operationID
+            source: target, operationRawID: active.checkpoint.operationID,
+            authorization: authorization
         )
+        try await validateAccess(authorization)
         return SearchIndexRebuildResultV1(
             disposition: disposition,
             source: target,
@@ -1977,15 +2278,16 @@ actor SearchIndexRebuildCoordinatorV1 {
 
     private func rebuildPrivateSystemDiscovery(
         source: SearchSourceRevisionV1,
-        operationRawID: UUID?
+        operationRawID: UUID?,
+        authorization: (AppAccessGateV1, AppAccessGateV1.ContentReadToken)?
     ) async throws {
         guard let privateSystemDiscoveryIndex, let privateSystemDiscoverySource else { return }
         let inputSHA256 = CompatibilityCanonicalV1.sha256(
             try CompatibilityCanonicalV1.encode(source)
         )
-        let rawID: UUID
-        if let operationRawID { rawID = operationRawID }
-        else { rawID = try deterministicDiscoveryOperationID(inputSHA256: inputSHA256) }
+        // The local checkpoint ID is not discovery identity. Source-bound identity
+        // keeps the initial absent rebuild and later current reconciliation stable.
+        let rawID = try deterministicDiscoveryOperationID(inputSHA256: inputSHA256)
         let operationID = try PrivateSystemDiscoveryOperationIDV1(
             rawValue: rawID, operation: .rebuild,
             workspaceID: WorkspaceID(rawValue: source.workspaceID),
@@ -1993,20 +2295,91 @@ actor SearchIndexRebuildCoordinatorV1 {
         )
         guard let payload = try await privateSystemDiscoverySource
             .privateSystemDiscoveryRebuildRequest(source: source, operationID: operationID) else { return }
-        try await PrivateSystemDiscoverySearchRebuildBoundaryV1.rebuild(
-            operationID: payload.request.operationID, index: privateSystemDiscoveryIndex,
+        try await validateAccess(authorization)
+        // The enrollment provider has completed its own post-await recheck.
+        // Bind its fresh payload to the removal lineage observed afterwards,
+        // so a true remove/re-enroll cannot reuse the source-only operation.
+        if authorization != nil,
+           !(privateSystemDiscoveryIndex is PrivateSystemDiscoveryIndexStoreV1) {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        let journal: [PrivateSystemDiscoveryJournalEntryV1]
+        if authorization != nil,
+           privateSystemDiscoveryIndex is PrivateSystemDiscoveryIndexStoreV1 {
+            // A marked cold pending operation rejects unguarded journal
+            // replay. Its serialized guarded store rebinds removal lineage
+            // when the fresh request enters, so do not pre-read it here.
+            journal = []
+        } else {
+            journal = try await privateSystemDiscoveryIndex.journalEntries()
+            try await validateAccess(authorization)
+        }
+        let lastRemovalBinding = journal.last(where: {
+            $0.operation == .removal
+                && $0.workspaceID == payload.request.workspaceID
+                && $0.state == .committed
+        })?.operationID.bindingSHA256
+        let reboundRawID = operationRawID == nil
+            ? try deterministicDiscoveryOperationID(
+                inputSHA256: inputSHA256,
+                enrollmentRemovalBinding: lastRemovalBinding
+            )
+            : rawID
+        let reboundRequest = try PrivateSystemDiscoveryRebuildRequestV1(
+            operationRawID: reboundRawID,
             workspaceID: payload.request.workspaceID,
             workspaceRevision: payload.request.workspaceRevision,
             deletionFrontier: payload.request.deletionFrontier,
-            descriptors: payload.descriptors, manifest: payload.manifest,
-            optIn: payload.optIn, availability: payload.availability,
-            now: payload.requestedAt
+            sourceStateSHA256: payload.request.sourceStateSHA256,
+            requestedAt: payload.request.requestedAt
         )
+        let reboundPayload = PrivateSystemDiscoveryIndexRebuildPayloadV1(
+            request: reboundRequest,
+            descriptors: payload.descriptors,
+            manifest: payload.manifest,
+            optIn: payload.optIn,
+            availability: payload.availability,
+            requestedAt: payload.requestedAt
+        )
+        if let authorization {
+            guard let concreteIndex = privateSystemDiscoveryIndex as? PrivateSystemDiscoveryIndexStoreV1 else {
+                throw PrivateSystemDiscoveryFailureV1.unavailable
+            }
+            try await concreteIndex.rebuild(
+                operationID: reboundPayload.request.operationID,
+                workspaceID: reboundPayload.request.workspaceID,
+                workspaceRevision: reboundPayload.request.workspaceRevision,
+                deletionFrontier: reboundPayload.request.deletionFrontier,
+                descriptors: reboundPayload.descriptors, manifest: reboundPayload.manifest,
+                optIn: reboundPayload.optIn, availability: reboundPayload.availability,
+                now: reboundPayload.requestedAt, contentReadToken: authorization.1
+            )
+        } else {
+            try await PrivateSystemDiscoverySearchRebuildBoundaryV1.rebuild(
+                operationID: reboundPayload.request.operationID, index: privateSystemDiscoveryIndex,
+                workspaceID: reboundPayload.request.workspaceID,
+                workspaceRevision: reboundPayload.request.workspaceRevision,
+                deletionFrontier: reboundPayload.request.deletionFrontier,
+                descriptors: reboundPayload.descriptors, manifest: reboundPayload.manifest,
+                optIn: reboundPayload.optIn, availability: reboundPayload.availability,
+                now: reboundPayload.requestedAt
+            )
+        }
+        try await validateAccess(authorization)
     }
 
-    private func deterministicDiscoveryOperationID(inputSHA256: String) throws -> UUID {
+    private func deterministicDiscoveryOperationID(
+        inputSHA256: String,
+        enrollmentRemovalBinding: String? = nil
+    ) throws -> UUID {
+        if let enrollmentRemovalBinding {
+            guard CompatibilityCanonicalV1.validSHA256(enrollmentRemovalBinding) else {
+                throw PrivateSystemDiscoveryFailureV1.corruptDigest
+            }
+        }
         let digest = CompatibilityCanonicalV1.sha256(
-            Data(("PRIVATE_SYSTEM_DISCOVERY_REBUILD_V1|" + inputSHA256).utf8)
+            Data(("PRIVATE_SYSTEM_DISCOVERY_REBUILD_V1|" + inputSHA256
+                + "|" + (enrollmentRemovalBinding ?? "INITIAL_ENROLLMENT")).utf8)
         )
         let compact = String(digest.prefix(32))
         let uuidText = "\(compact.prefix(8))-\(compact.dropFirst(8).prefix(4))-\(compact.dropFirst(12).prefix(4))-\(compact.dropFirst(16).prefix(4))-\(compact.dropFirst(20).prefix(12))"

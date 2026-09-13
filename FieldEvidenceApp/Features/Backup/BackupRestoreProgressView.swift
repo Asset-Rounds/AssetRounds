@@ -32,7 +32,8 @@ struct BackupRestoreProgressView: View {
     let currentGenerationRootURL: URL
     let mode: BackupRestoreMode
     let selectedPackageForUITest: URL?
-    let onRestored: @MainActor (StoreGenerationSession) async -> Void
+    let previewAccess: AppAccessPresentationV1.BackupPreviewAccess
+    let performRestore: @MainActor (ValidatedV4BackupPackageV1) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
 
@@ -54,7 +55,8 @@ struct BackupRestoreProgressView: View {
         currentGenerationRootURL: URL,
         mode: BackupRestoreMode = .emptyInstall,
         selectedPackageForUITest: URL? = nil,
-        onRestored: @escaping @MainActor (StoreGenerationSession) async -> Void
+        previewAccess: AppAccessPresentationV1.BackupPreviewAccess,
+        performRestore: @escaping @MainActor (ValidatedV4BackupPackageV1) async throws -> Void
     ) {
         self.applicationSupportURL = applicationSupportURL
         self.currentModelContext = currentModelContext
@@ -62,7 +64,8 @@ struct BackupRestoreProgressView: View {
         self.currentGenerationRootURL = currentGenerationRootURL
         self.mode = mode
         self.selectedPackageForUITest = selectedPackageForUITest
-        self.onRestored = onRestored
+        self.previewAccess = previewAccess
+        self.performRestore = performRestore
     }
 
     var body: some View {
@@ -150,7 +153,8 @@ struct BackupRestoreProgressView: View {
             .navigationDestination(isPresented: $showsCurrentBackup) {
                 BackupExportView(
                     modelContext: currentModelContext,
-                    generationRootURL: currentGenerationRootURL
+                    generationRootURL: currentGenerationRootURL,
+                    contentAccess: previewAccess
                 )
             }
         }
@@ -179,10 +183,12 @@ struct BackupRestoreProgressView: View {
             headingFocused = true
             if mode == .replaceExisting, currentSummary == nil {
                 do {
-                    currentSummary = try BackupRestoreService.currentSummary(
-                        modelContext: currentModelContext,
-                        generationRootURL: currentGenerationRootURL
-                    )
+                    currentSummary = try previewAccess.withRead {
+                        try BackupRestoreService.currentSummary(
+                            modelContext: currentModelContext,
+                            generationRootURL: currentGenerationRootURL
+                        )
+                    }
                 } catch {
                     errorMessage = "Current data unavailable"
                     return
@@ -271,34 +277,39 @@ struct BackupRestoreProgressView: View {
         isChecking = true
         errorMessage = nil
         defer { isChecking = false }
-        var stagedPackage: ValidatedV4BackupPackageV1?
-        var importer: BackupImportService?
         do {
-            let service = try BackupImportService(
-                generationRootURL: currentGenerationRootURL,
-                scopedAccess: alreadyAuthorized ? .alreadyAuthorized : .live
-            )
-            importer = service
-            let package = try service.stageAndValidate(
-                selectedPackageURL: url
-            )
-            stagedPackage = package
-            if mode == .replaceExisting {
-                currentSummary = try BackupRestoreService.currentSummary(
-                    modelContext: currentModelContext,
-                    generationRootURL: currentGenerationRootURL
-                )
-            }
-            validatedPackage = package
-        } catch {
-            if let stagedPackage, let importer {
+            try previewAccess.withRead {
+                var stagedPackage: ValidatedV4BackupPackageV1?
+                var importer: BackupImportService?
                 do {
-                    try importer.discard(stagedPackage)
+                    let service = try BackupImportService(
+                        generationRootURL: currentGenerationRootURL,
+                        scopedAccess: alreadyAuthorized ? .alreadyAuthorized : .live
+                    )
+                    importer = service
+                    let package = try service.stageAndValidate(selectedPackageURL: url)
+                    stagedPackage = package
+                    if mode == .replaceExisting {
+                        currentSummary = try BackupRestoreService.currentSummary(
+                            modelContext: currentModelContext,
+                            generationRootURL: currentGenerationRootURL
+                        )
+                    }
+                    validatedPackage = package
                 } catch {
-                    errorMessage = "Backup cleanup unavailable"
-                    return
+                    if let stagedPackage, let importer {
+                        do {
+                            try importer.discard(stagedPackage)
+                        } catch {
+                            errorMessage = "Backup cleanup unavailable"
+                            return
+                        }
+                    }
+                    validatedPackage = nil
+                    errorMessage = "Backup unavailable"
                 }
             }
+        } catch {
             validatedPackage = nil
             errorMessage = "Backup unavailable"
         }
@@ -310,19 +321,9 @@ struct BackupRestoreProgressView: View {
         errorMessage = nil
         Task { @MainActor in
             do {
-                let service = try BackupRestoreService(
-                    applicationSupportURL: applicationSupportURL
-                )
-                let session = try await service.restore(
-                    validatedPackage: package,
-                    currentModelContext: currentModelContext,
-                    currentGenerationID: currentGenerationID,
-                    currentGenerationRootURL: currentGenerationRootURL,
-                    mode: mode
-                )
+                try await performRestore(package)
                 validatedPackage = nil
                 didComplete = true
-                await onRestored(session)
                 dismiss()
             } catch {
                 isRestoring = false
@@ -341,10 +342,12 @@ struct BackupRestoreProgressView: View {
     private func discardValidatedPackage() -> Bool {
         guard let package = validatedPackage else { return true }
         do {
-            try BackupImportService(
-                generationRootURL: currentGenerationRootURL,
-                scopedAccess: .alreadyAuthorized
-            ).discard(package)
+            try previewAccess.withRead {
+                try BackupImportService(
+                    generationRootURL: currentGenerationRootURL,
+                    scopedAccess: .alreadyAuthorized
+                ).discard(package)
+            }
         } catch {
             errorMessage = "Backup cleanup unavailable"
             return false

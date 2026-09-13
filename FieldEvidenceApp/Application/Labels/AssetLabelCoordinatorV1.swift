@@ -77,7 +77,6 @@ extension AssetLabelCoordinatorV1 {
         try plan.validate()
         try projection.validate(plan: plan)
         try outputReceipt.validate()
-        try await authority.validateCurrent(plan)
         let snapshot = try AcceptedLabelGenerationSnapshotV1(
             snapshotID: snapshotID,
             plan: plan,
@@ -94,11 +93,11 @@ extension AssetLabelCoordinatorV1 {
 
     func accept(_ request: AssetLabelAcceptanceRequestV1) async throws -> AssetLabelAcceptanceReceiptV1 {
         try request.validate()
-        try await authority.validateCurrent(request.snapshot.plan)
         if let receipt = try await writer.acceptedReceipt(for: request.mutation) {
             try receipt.validate(snapshot: request.snapshot)
             return receipt
         }
+        try await authority.validateCurrent(request.snapshot.plan)
         let receipt = try await writer.commitAssetLabel(request.mutation)
         try receipt.validate(snapshot: request.snapshot)
         return receipt

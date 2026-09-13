@@ -67,7 +67,7 @@ struct MeasurementIntegrityAtomicBundleV1: Codable, Equatable, Sendable {
     private struct DigestBasis: Codable { let workspaceID:WorkspaceID;let mutationID:MutationIDV1;let instruments:[InstrumentReferenceV1];let calibrations:[CalibrationStatusSnapshotV1];let captures:[MeasurementCaptureV1];let series:[MeasurementSeriesV1];let assessments:[MeasurementQualityAssessmentV1] }
 }
 
-struct MeasurementIntegrityWriteReceiptV1: Codable, Equatable, Sendable {
+struct MeasurementIntegrityWriteReceiptV1: Codable, Equatable, Sendable, MeasurementIntegrityValidatableV1 {
     let workspaceID: WorkspaceID
     let mutationID: MutationIDV1
     let bundleSHA256: String
@@ -75,11 +75,15 @@ struct MeasurementIntegrityWriteReceiptV1: Codable, Equatable, Sendable {
 
     init(workspaceID: WorkspaceID, mutationID: MutationIDV1, bundleSHA256: String,
          journalReceiptSHA256: String) throws {
+        self.workspaceID = workspaceID; self.mutationID = mutationID
+        self.bundleSHA256 = bundleSHA256; self.journalReceiptSHA256 = journalReceiptSHA256
+        try validate()
+    }
+
+    func validate() throws {
         guard MutationEnvelopeV1.isSHA256(bundleSHA256), MutationEnvelopeV1.isSHA256(journalReceiptSHA256) else {
             throw MeasurementIntegrityCoordinatorFailureV1.receiptMismatch
         }
-        self.workspaceID = workspaceID; self.mutationID = mutationID
-        self.bundleSHA256 = bundleSHA256; self.journalReceiptSHA256 = journalReceiptSHA256
     }
 }
 
@@ -105,6 +109,7 @@ enum MeasurementIntegrityCoordinatorV1 {
     static func validate(_ receipt: MeasurementIntegrityWriteReceiptV1,
                          for bundle: MeasurementIntegrityAtomicBundleV1) throws {
         try bundle.validate()
+        try receipt.validate()
         guard receipt.workspaceID == bundle.workspaceID, receipt.mutationID == bundle.mutationID,
               receipt.bundleSHA256 == bundle.bundleSHA256 else {
             throw MeasurementIntegrityCoordinatorFailureV1.receiptMismatch

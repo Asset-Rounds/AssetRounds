@@ -496,6 +496,59 @@ protocol PortableExchangeSessionStorePortV2: Sendable {
     ) async throws -> PortableExchangeReviewRequestBytesV2?
 }
 
+/// A deterministic boundary for the physical cleanup regressions.  It is
+/// injected only at construction and cannot create, adopt, or alter a store
+/// artifact.
+enum PortableExchangeCleanupFailurePointV2: Sendable {
+    case afterPreparedJournalBeforeCleanupHold
+    case beforeSuccessorPublication
+    case beforePostPublicationCleanup
+    case afterFirstPostPublicationCleanupArtifact
+    case beforeCleanupHoldUnlink
+    case afterCleanupHoldUnlinkBeforeJournalUnlink
+}
+
+private enum PortableExchangeCleanupArtifactKindV2: String, Codable, Sendable {
+    case sessionFile
+    case quarantineFile
+
+    var protectedKind: OwnedFileKindV1 {
+        switch self {
+        case .sessionFile: return .portableExchangeSessionFile
+        case .quarantineFile: return .portableExchangeQuarantineFile
+        }
+    }
+}
+
+private struct PortableExchangeCleanupArtifactV2: Codable, Sendable {
+    let relativePath: String
+    let sha256: String
+    let byteCount: UInt64
+    let kind: PortableExchangeCleanupArtifactKindV2
+}
+
+private struct PortableExchangeCleanupHoldV2: Codable, Sendable {
+    static let schemaVersion = 1
+
+    /// The hold reuses the predecessor's already-bounded envelope entries.
+    /// Each cleanup artifact omits fields from its source immutable,
+    /// capability, or quarantine entry; this is the only extra canonical
+    /// wrapper retained outside the envelope's 4 MiB budget.
+    static let maximumCanonicalWrapperBytes = UInt64(
+        #"{"afterSHA256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","artifacts":[],"operation":"REPLACE_RESTORE","operationID":"ffffffff-ffff-ffff-ffff-ffffffffffff","schemaVersion":1}"#.utf8.count
+    )
+
+    static let maximumCanonicalBytes = UInt64(
+        C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+    ) + maximumCanonicalWrapperBytes
+
+    let schemaVersion: Int
+    let operationID: UUID
+    let operation: PortableExchangeJournalOperationV2
+    let afterSHA256: String
+    let artifacts: [PortableExchangeCleanupArtifactV2]
+}
+
 /// The service-request facade deliberately shares the C48 actor and journal.
 /// Its typed methods keep service proofs and dispositions out of the review
 /// response grammar while retaining the same protected backup/restore root.
@@ -569,6 +622,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
     private let clock: any ApplicationClock
     private let idSource: any ApplicationIDSource
     private let fileManager: FileManager
+    private let failureInjection: (@Sendable (PortableExchangeCleanupFailurePointV2) throws -> Void)?
 
     private var loaded = false
     private var envelope: PortableExchangeSessionEnvelopeV2?
@@ -578,7 +632,8 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         applicationSupportURL: URL,
         clock: any ApplicationClock = SystemApplicationClock(),
         idSource: any ApplicationIDSource = SystemApplicationIDSource(),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        failureInjection: (@Sendable (PortableExchangeCleanupFailurePointV2) throws -> Void)? = nil
     ) throws {
         guard applicationSupportURL.isFileURL else {
             throw PortableExchangePersistenceFailureV2.invalidRoot
@@ -615,6 +670,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         self.clock = clock
         self.idSource = idSource
         self.fileManager = fileManager
+        self.failureInjection = failureInjection
     }
 
     // MARK: - Read and stage
@@ -1295,6 +1351,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 PortableExchangeJournalEntryV2.self,
                 from: journalData
             )
+            try journal.validate()
             guard journal.operationID == operationID,
                   journal.operation == .restore,
                   journal.phase == .prepared || journal.phase == .committed else {
@@ -1994,20 +2051,28 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             next.sessions[index].pendingEffectSHA256 = nil
             next.sessions[index].pendingImportReceiptSHA256 = nil
             next.sessions[index].updatedAt = clock.now()
-            try removeCapability(for: next.sessions[index])
             next.sessions[index].protectedCapability = nil
             changed += 1
         }
         guard changed > 0 else { return 0 }
         next = try envelopeByUpdatingTimestamp(next, at: clock.now())
         next = try next.canonicalSorted()
+        let cleanupHold = try prepareCleanupHold(
+            predecessor: try envelope ?? emptyEnvelope(),
+            successor: next,
+            operation: .cloneOrFork,
+            operationID: operationID
+        )
         try publishEnvelope(
             next,
             operation: .cloneOrFork,
             operationID: operationID,
             namespace: nil,
-            sessionID: nil
+            sessionID: nil,
+            retainJournalForCleanup: true,
+            cleanupHold: cleanupHold
         )
+        try completePublishedCleanup(cleanupHold)
         envelope = next
         return changed
     }
@@ -2031,7 +2096,6 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             next.sessions[index].pendingImportReceiptSHA256 = nil
             next.sessions[index].cloneOrForkGenerationID = resultGenerationID
             next.sessions[index].updatedAt = clock.now()
-            try removeCapability(for: next.sessions[index])
             next.sessions[index].protectedCapability = nil
         }
         next = try PortableExchangeSessionEnvelopeV2(
@@ -2040,13 +2104,22 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             sessions: next.sessions,
             quarantine: next.quarantine
         )
+        let cleanupHold = try prepareCleanupHold(
+            predecessor: try envelope ?? emptyEnvelope(),
+            successor: next,
+            operation: .cloneOrFork,
+            operationID: operationID
+        )
         try publishEnvelope(
             next,
             operation: .cloneOrFork,
             operationID: operationID,
             namespace: nil,
-            sessionID: nil
+            sessionID: nil,
+            retainJournalForCleanup: true,
+            cleanupHold: cleanupHold
         )
+        try completePublishedCleanup(cleanupHold)
         envelope = next
         let receipt = try PortableExchangeCloneForkReceiptV2(
             operationID: operationID,
@@ -2079,16 +2152,24 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             // removed by subject cleanup.
             return false
         }
-        try removeSessionFiles(current)
         var next = try envelope ?? emptyEnvelope()
         next.sessions.removeAll { $0.sessionID == sessionID }
+        let cleanupHold = try prepareCleanupHold(
+            predecessor: try envelope ?? emptyEnvelope(),
+            successor: next,
+            operation: .purge,
+            operationID: operationID
+        )
         try publishEnvelope(
             try next.canonicalSorted(),
             operation: .purge,
             operationID: operationID,
             namespace: current.namespace,
-            sessionID: sessionID
+            sessionID: sessionID,
+            retainJournalForCleanup: true,
+            cleanupHold: cleanupHold
         )
+        try completePublishedCleanup(cleanupHold)
         envelope = try next.canonicalSorted()
         return true
     }
@@ -2106,23 +2187,30 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 $0.responseIDs.isEmpty &&
                 $0.acceptedResponseSHA256 == nil
         }
-        for record in discardable { try removeSessionFiles(record) }
         let oldQuarantine = next.quarantine.filter {
             $0.createdAt < cutoff &&
                 ($0.disposition == .pending || $0.disposition == .keptQuarantined)
         }
-        for entry in oldQuarantine { try removeRelativeFile(entry.relativePath, kind: .portableExchangeQuarantineFile) }
         next.sessions.removeAll { record in discardable.contains(where: { $0.sessionID == record.sessionID }) }
         next.quarantine.removeAll { entry in oldQuarantine.contains(where: { $0.quarantineID == entry.quarantineID }) }
         guard !discardable.isEmpty || !oldQuarantine.isEmpty else { return 0 }
         next = try envelopeByUpdatingTimestamp(next, at: clock.now())
+        let cleanupHold = try prepareCleanupHold(
+            predecessor: try envelope ?? emptyEnvelope(),
+            successor: next,
+            operation: .purge,
+            operationID: operationID
+        )
         try publishEnvelope(
             try next.canonicalSorted(),
             operation: .purge,
             operationID: operationID,
             namespace: nil,
-            sessionID: nil
+            sessionID: nil,
+            retainJournalForCleanup: true,
+            cleanupHold: cleanupHold
         )
+        try completePublishedCleanup(cleanupHold)
         envelope = try next.canonicalSorted()
         return discardable.count + oldQuarantine.count
     }
@@ -2145,17 +2233,22 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             sessions: [],
             quarantine: []
         )
+        let cleanupHold = try prepareCleanupHold(
+            predecessor: current,
+            successor: empty,
+            operation: .erase,
+            operationID: operationID
+        )
         try publishEnvelope(
             empty,
             operation: .erase,
             operationID: operationID,
             namespace: nil,
-            sessionID: nil
+            sessionID: nil,
+            retainJournalForCleanup: true,
+            cleanupHold: cleanupHold
         )
-        for record in current.sessions { try removeSessionFiles(record) }
-        for entry in current.quarantine {
-            try removeRelativeFile(entry.relativePath, kind: .portableExchangeQuarantineFile)
-        }
+        try completePublishedCleanup(cleanupHold)
         envelope = empty
         let receipt = try PortableExchangeEraseReceiptV2(
             operationID: operationID,
@@ -2333,6 +2426,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 PortableExchangeJournalEntryV2.self,
                 from: data
             )
+            try journal.validate()
         } catch {
             throw PortableExchangePersistenceFailureV2.invalidJournal
         }
@@ -2347,10 +2441,135 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         guard currentDigest == journal.beforeSHA256 || currentDigest == journal.afterSHA256 else {
             throw PortableExchangePersistenceFailureV2.corruptStore
         }
-        // Both PREPARED and COMMITTED are resolved by the exact digest.  A
-        // matching after-image is already complete; a matching before-image
-        // never published and is safely rolled back by removing the journal.
-        try removeJournal()
+        guard journal.phase != .committed || currentDigest == journal.afterSHA256 else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        let holdURL = cleanupHoldURL(for: journal.operationID)
+        guard let completion = journal.cleanupCompletion,
+              journal.durableCleanupHoldSHA256 != nil else {
+            // Legacy bytes have neither optional field and retain the former
+            // exact-digest resolution.
+            try removeJournal()
+            return
+        }
+        if currentDigest == journal.beforeSHA256 {
+            guard journal.phase == .prepared, completion == .pending else {
+                throw PortableExchangePersistenceFailureV2.corruptStore
+            }
+            if fileManager.fileExists(atPath: holdURL.path) {
+                let hold = try readCleanupHold(at: holdURL)
+                try validateCleanupHold(hold, against: journal)
+                try removeCleanupHold(at: holdURL)
+            }
+            try removeJournal()
+            return
+        }
+        let successor = try loadEnvelopeForCleanup()
+        switch completion {
+        case .pending:
+            guard fileManager.fileExists(atPath: holdURL.path) else {
+                throw PortableExchangePersistenceFailureV2.invalidJournal
+            }
+            let hold = try readCleanupHold(at: holdURL)
+            try validateCleanupHold(hold, against: journal, disjointFrom: successor)
+            try removeHeldArtifacts(hold)
+            let complete = try PortableExchangeJournalEntryV2(
+                operationID: journal.operationID,
+                operation: journal.operation,
+                namespace: journal.namespace,
+                sessionID: journal.sessionID,
+                beforeSHA256: journal.beforeSHA256,
+                afterSHA256: journal.afterSHA256,
+                phase: .committed,
+                durableCleanupHoldSHA256: journal.durableCleanupHoldSHA256,
+                cleanupCompletion: .complete,
+                createdAt: journal.createdAt
+            )
+            try writeJournal(complete)
+            try removeCleanupHold(at: holdURL)
+            try removeJournal()
+        case .complete:
+            if fileManager.fileExists(atPath: holdURL.path) {
+                let hold = try readCleanupHold(at: holdURL)
+                try validateCleanupHold(hold, against: journal, disjointFrom: successor)
+                try removeCleanupHold(at: holdURL)
+            }
+            try removeJournal()
+        }
+    }
+
+    private func completePublishedCleanup(_ hold: PortableExchangeCleanupHoldV2) throws {
+        do {
+            try failureInjection?(.beforePostPublicationCleanup)
+            let current = try envelopeForPublishedCleanup()
+            let durableHoldURL = cleanupHoldURL(for: hold.operationID)
+            let durableHold = try readCleanupHold(at: durableHoldURL)
+            let journal = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeJournalEntryV2.self,
+                from: readFile(journalURL, kind: .portableExchangeJournalFile, maximumByteCount: 64 * 1_024)
+            )
+            try journal.validate()
+            guard journal.cleanupCompletion == .pending else {
+                throw PortableExchangePersistenceFailureV2.invalidJournal
+            }
+            try validateCleanupHold(durableHold, against: journal, disjointFrom: current)
+            guard StoreMigrationCanonicalJSONV1.sha256(try canonicalData(current)) == durableHold.afterSHA256 else {
+                throw PortableExchangePersistenceFailureV2.corruptStore
+            }
+            try removeHeldArtifacts(durableHold, injectAfterFirstRemoval: true)
+            let complete = try PortableExchangeJournalEntryV2(
+                operationID: journal.operationID,
+                operation: journal.operation,
+                namespace: journal.namespace,
+                sessionID: journal.sessionID,
+                beforeSHA256: journal.beforeSHA256,
+                afterSHA256: journal.afterSHA256,
+                phase: .committed,
+                durableCleanupHoldSHA256: journal.durableCleanupHoldSHA256,
+                cleanupCompletion: .complete,
+                createdAt: journal.createdAt
+            )
+            try writeJournal(complete)
+            try failureInjection?(.beforeCleanupHoldUnlink)
+            try removeCleanupHold(at: cleanupHoldURL(for: hold.operationID))
+            try failureInjection?(.afterCleanupHoldUnlinkBeforeJournalUnlink)
+            try removeJournal()
+        } catch {
+            // The successor is already durable.  Do not continue serving the
+            // predecessor from memory; a later actor/reopen will use the held
+            // after-image and replay only its owned cleanup.
+            loaded = false
+            envelope = nil
+            throw Self.map(error)
+        }
+    }
+
+    private func envelopeForPublishedCleanup() throws -> PortableExchangeSessionEnvelopeV2 {
+        guard fileManager.fileExists(atPath: envelopeURL.path) else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        return try loadEnvelopeForCleanup()
+    }
+
+    private func loadEnvelopeForCleanup() throws -> PortableExchangeSessionEnvelopeV2 {
+        let data = try readFile(
+            envelopeURL,
+            kind: .portableExchangeSessionFile,
+            maximumByteCount: UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
+        )
+        do {
+            guard try Self.storeVersion(in: data) == 2 else {
+                throw PortableExchangePersistenceFailureV2.corruptStore
+            }
+            return try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self,
+                from: data
+            ).canonicalSorted()
+        } catch let failure as PortableExchangePersistenceFailureV2 {
+            throw failure
+        } catch {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
     }
 
     // MARK: - Canonical mutations
@@ -2399,7 +2618,9 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         operation: PortableExchangeJournalOperationV2,
         operationID: UUID,
         namespace: PortableExchangeSessionNamespaceV2?,
-        sessionID: UUID?
+        sessionID: UUID?,
+        retainJournalForCleanup: Bool = false,
+        cleanupHold: PortableExchangeCleanupHoldV2? = nil
     ) throws {
         let validated = try candidate.canonicalSorted().validated()
         let afterData = try canonicalData(validated)
@@ -2413,6 +2634,14 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 maximumByteCount: UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)
             ))
             : Data()
+        let cleanupHoldSHA256: String?
+        if let cleanupHold {
+            try validateCleanupHold(cleanupHold, disjointFrom: validated)
+            let data = try canonicalCleanupHoldData(cleanupHold)
+            cleanupHoldSHA256 = StoreMigrationCanonicalJSONV1.sha256(data)
+        } else {
+            cleanupHoldSHA256 = nil
+        }
         let journal = try PortableExchangeJournalEntryV2(
             operationID: operationID,
             operation: operation,
@@ -2421,10 +2650,23 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             beforeSHA256: StoreMigrationCanonicalJSONV1.sha256(beforeData),
             afterSHA256: StoreMigrationCanonicalJSONV1.sha256(afterData),
             phase: .prepared,
+            durableCleanupHoldSHA256: cleanupHoldSHA256,
+            cleanupCompletion: cleanupHold == nil ? nil : .pending,
             createdAt: clock.now()
         )
         do {
             try writeJournal(journal)
+            if retainJournalForCleanup {
+                guard let cleanupHold else {
+                    throw PortableExchangePersistenceFailureV2.invalidJournal
+                }
+                try validateCleanupHold(cleanupHold, against: journal)
+                try failureInjection?(.afterPreparedJournalBeforeCleanupHold)
+                try writeCleanupHold(cleanupHold)
+                try failureInjection?(.beforeSuccessorPublication)
+            } else if cleanupHold != nil {
+                throw PortableExchangePersistenceFailureV2.invalidJournal
+            }
             try writeAtomically(
                 afterData,
                 to: envelopeURL,
@@ -2438,10 +2680,14 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
                 beforeSHA256: journal.beforeSHA256,
                 afterSHA256: journal.afterSHA256,
                 phase: .committed,
+                durableCleanupHoldSHA256: journal.durableCleanupHoldSHA256,
+                cleanupCompletion: journal.cleanupCompletion,
                 createdAt: journal.createdAt
             )
             try writeJournal(committed)
-            try removeJournal()
+            if !retainJournalForCleanup {
+                try removeJournal()
+            }
         } catch {
             loaded = false
             envelope = nil
@@ -2598,6 +2844,180 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
     private func removeCapability(for record: PortableExchangeSessionRecordV2) throws {
         guard let capability = record.protectedCapability else { return }
         try removeRelativeFile(capability.relativePath, kind: .portableExchangeSessionFile)
+    }
+
+    private func prepareCleanupHold(
+        predecessor: PortableExchangeSessionEnvelopeV2,
+        successor: PortableExchangeSessionEnvelopeV2,
+        operation: PortableExchangeJournalOperationV2,
+        operationID: UUID
+    ) throws -> PortableExchangeCleanupHoldV2 {
+        let successorPaths = Set(successor.sessions.flatMap { record in
+            record.immutableBytes.map(\.relativePath) + (record.protectedCapability.map { [$0.relativePath] } ?? [])
+        } + successor.quarantine.map(\.relativePath))
+        var artifacts: [PortableExchangeCleanupArtifactV2] = []
+        for record in predecessor.sessions {
+            for reference in record.immutableBytes where !successorPaths.contains(reference.relativePath) {
+                artifacts.append(PortableExchangeCleanupArtifactV2(
+                    relativePath: reference.relativePath, sha256: reference.sha256,
+                    byteCount: reference.byteCount, kind: .sessionFile
+                ))
+            }
+            if let capability = record.protectedCapability,
+               !successorPaths.contains(capability.relativePath) {
+                artifacts.append(PortableExchangeCleanupArtifactV2(
+                    relativePath: capability.relativePath, sha256: capability.sha256,
+                    byteCount: capability.byteCount, kind: .sessionFile
+                ))
+            }
+        }
+        for entry in predecessor.quarantine where !successorPaths.contains(entry.relativePath) {
+            artifacts.append(PortableExchangeCleanupArtifactV2(
+                relativePath: entry.relativePath, sha256: entry.sha256,
+                byteCount: entry.byteCount, kind: .quarantineFile
+            ))
+        }
+        // Several accepted responses can reference the same immutable bytes.
+        // Cleanup owns physical files, so identical aliases have one deletion;
+        // conflicting metadata for an alias is never a deletion authority.
+        var uniqueArtifacts: [String: PortableExchangeCleanupArtifactV2] = [:]
+        for artifact in artifacts {
+            if let existing = uniqueArtifacts[artifact.relativePath] {
+                guard existing.sha256 == artifact.sha256,
+                      existing.byteCount == artifact.byteCount,
+                      existing.kind == artifact.kind else {
+                    throw PortableExchangePersistenceFailureV2.invalidJournal
+                }
+            } else {
+                uniqueArtifacts[artifact.relativePath] = artifact
+            }
+        }
+        let canonicalSuccessor = try successor.canonicalSorted().validated()
+        let afterSHA256 = StoreMigrationCanonicalJSONV1.sha256(try canonicalData(canonicalSuccessor))
+        let hold = PortableExchangeCleanupHoldV2(
+            schemaVersion: PortableExchangeCleanupHoldV2.schemaVersion,
+            operationID: operationID,
+            operation: operation,
+            afterSHA256: afterSHA256,
+            artifacts: uniqueArtifacts.values.sorted { $0.relativePath < $1.relativePath }
+        )
+        try validateCleanupHold(hold, disjointFrom: canonicalSuccessor)
+        _ = try canonicalCleanupHoldData(hold)
+        return hold
+    }
+
+    private func cleanupHoldURL(for operationID: UUID) -> URL {
+        rootURL.appendingPathComponent(".cleanup-\(operationID.uuidString.lowercased()).json")
+    }
+
+    private func writeCleanupHold(_ hold: PortableExchangeCleanupHoldV2) throws {
+        try writeAtomically(
+            try canonicalCleanupHoldData(hold), to: cleanupHoldURL(for: hold.operationID),
+            kind: .portableExchangeJournalFile
+        )
+    }
+
+    private func readCleanupHold(at url: URL) throws -> PortableExchangeCleanupHoldV2 {
+        do {
+            let hold = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeCleanupHoldV2.self,
+                from: readFile(
+                    url,
+                    kind: .portableExchangeJournalFile,
+                    maximumByteCount: PortableExchangeCleanupHoldV2.maximumCanonicalBytes
+                )
+            )
+            _ = try canonicalCleanupHoldData(hold)
+            return hold
+        } catch let failure as PortableExchangePersistenceFailureV2 {
+            throw failure
+        } catch {
+            throw PortableExchangePersistenceFailureV2.invalidJournal
+        }
+    }
+
+    private func validateCleanupHold(
+        _ hold: PortableExchangeCleanupHoldV2,
+        against journal: PortableExchangeJournalEntryV2? = nil,
+        disjointFrom successor: PortableExchangeSessionEnvelopeV2? = nil
+    ) throws {
+        guard hold.schemaVersion == PortableExchangeCleanupHoldV2.schemaVersion,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(hold.afterSHA256),
+              (hold.operation == .cloneOrFork || hold.operation == .purge || hold.operation == .erase),
+              Set(hold.artifacts.map(\.relativePath)).count == hold.artifacts.count,
+              hold.artifacts.allSatisfy({
+                  C48PortableReviewPersistenceValidationV1.validRelativePath($0.relativePath) &&
+                      StoreMigrationCanonicalJSONV1.isLowercaseSHA256($0.sha256) &&
+                      $0.byteCount <= C48PortableReviewPersistenceLimitsV1.maximumImmutableBytes &&
+                      (($0.kind == .sessionFile &&
+                        ($0.relativePath.hasPrefix("\(PortableExchangeSessionStoreLayoutV2.payloadDirectoryName)/") ||
+                         $0.relativePath.hasPrefix("\(PortableExchangeSessionStoreLayoutV2.capabilityDirectoryName)/"))) ||
+                       ($0.kind == .quarantineFile &&
+                        $0.relativePath.hasPrefix("\(PortableExchangeSessionStoreLayoutV2.quarantineDirectoryName)/")))
+              }) else {
+            throw PortableExchangePersistenceFailureV2.invalidJournal
+        }
+        if let journal {
+            guard hold.operationID == journal.operationID,
+                  hold.operation == journal.operation,
+                  hold.afterSHA256 == journal.afterSHA256,
+                  journal.durableCleanupHoldSHA256 == StoreMigrationCanonicalJSONV1.sha256(
+                    try canonicalData(hold)
+                  ) else {
+                throw PortableExchangePersistenceFailureV2.invalidJournal
+            }
+        }
+        if let successor {
+            let livePaths = Set(successor.sessions.flatMap { record in
+                record.immutableBytes.map(\.relativePath) +
+                    (record.protectedCapability.map { [$0.relativePath] } ?? [])
+            } + successor.quarantine.map(\.relativePath))
+            guard livePaths.isDisjoint(with: Set(hold.artifacts.map(\.relativePath))) else {
+                throw PortableExchangePersistenceFailureV2.invalidJournal
+            }
+        }
+    }
+
+    private func canonicalCleanupHoldData(
+        _ hold: PortableExchangeCleanupHoldV2
+    ) throws -> Data {
+        try validateCleanupHold(hold)
+        let data = try canonicalData(hold)
+        guard UInt64(data.count) <= PortableExchangeCleanupHoldV2.maximumCanonicalBytes else {
+            throw PortableExchangePersistenceFailureV2.quotaExceeded
+        }
+        return data
+    }
+
+    private func removeHeldArtifacts(
+        _ hold: PortableExchangeCleanupHoldV2,
+        injectAfterFirstRemoval: Bool = false
+    ) throws {
+        try validateCleanupHold(hold)
+        var removedArtifact = false
+        for artifact in hold.artifacts {
+            let url = try safeURL(artifact.relativePath)
+            guard fileManager.fileExists(atPath: url.path) else { continue }
+            let bytes = try readFile(
+                url, kind: artifact.kind.protectedKind,
+                maximumByteCount: C48PortableReviewPersistenceLimitsV1.maximumImmutableBytes
+            )
+            guard UInt64(bytes.count) == artifact.byteCount,
+                  StoreMigrationCanonicalJSONV1.sha256(bytes) == artifact.sha256 else {
+                throw PortableExchangePersistenceFailureV2.corruptStore
+            }
+            try removeRelativeFile(artifact.relativePath, kind: artifact.kind.protectedKind)
+            if injectAfterFirstRemoval, !removedArtifact {
+                removedArtifact = true
+                try failureInjection?(.afterFirstPostPublicationCleanupArtifact)
+            }
+        }
+    }
+
+    private func removeCleanupHold(at url: URL) throws {
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        try ProtectedFilePolicyV1.verify(.portableExchangeJournalFile, at: url)
+        try fileManager.removeItem(at: url)
     }
 
     // MARK: - Restore and validation helpers

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 enum MutationSourceKindV1: String, Codable, CaseIterable, Sendable {
     case localUser = "LOCAL_USER"
@@ -38,6 +39,7 @@ struct MutationPortableExpectedRevisionV1: Codable, Equatable, Sendable {
 struct MutationEnvelopeV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let maximumDependencyCount = 256
+    static let maximumCanonicalByteCount = 16_777_216
 
     let schemaVersion: Int
     let workspaceID: WorkspaceID
@@ -103,6 +105,20 @@ struct MutationEnvelopeV1: Codable, Equatable, Sendable {
         )) != nil else {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
+        if case let .applyFieldDraft(mutation) = command,
+           case .resolveConflict = mutation.postImage {
+            try mutation.validate()
+            try mutation.validateReviewedTargetWorkspaceRevision(expectedRevision.workspaceRevision)
+            let locks = try mutation.concurrencyIdentities
+            let expected = Dictionary(uniqueKeysWithValues: expectedRevision.entityRevisions.map {
+                ($0.identity, $0.revision)
+            })
+            guard mutation.workspaceID == workspaceID, mutation.mutationID == mutationID,
+                  Set(expected.keys) == Set(locks),
+                  try locks.allSatisfy({ expected[$0] == (try mutation.expectedRevision(for: $0)) }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
         let expectedSemanticReplayDigest: String?
         if let execution = semanticReversalExecution {
             expectedSemanticReplayDigest = try SemanticReversalReplayIdentityV1(
@@ -149,15 +165,21 @@ struct MutationEnvelopeV1: Codable, Equatable, Sendable {
 
     func canonicalData() throws -> Data {
         try validate()
-        return try WorkspaceMutationCanonicalV1.data(self)
+        let data = try WorkspaceMutationCanonicalV1.data(self)
+        guard data.count <= Self.maximumCanonicalByteCount else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return data
     }
 
     func canonicalSHA256() throws -> String {
-        try validate()
-        return try WorkspaceMutationCanonicalV1.sha256(self)
+        SHA256.hash(data: try canonicalData()).map { String(format: "%02x", $0) }.joined()
     }
 
     static func decodeCanonical(from data: Data) throws -> Self {
+        guard !data.isEmpty, data.count <= maximumCanonicalByteCount else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .millisecondsSince1970
         let value = try decoder.decode(Self.self, from: data)

@@ -1356,21 +1356,24 @@ private extension StreamingArchiveService {
         var success = true
         for path in extraction.files.reversed() {
             let components = path.split(separator: "/").map(String.init)
-            let parent: Int32
-            if components.count == 2 {
-                parent = Darwin.openat(
-                    extraction.rootDescriptor,
-                    components[0],
-                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            let parentRelative = components.dropLast().joined(separator: "/")
+            let parent: Int32?
+            do {
+                parent = try Self.openRelativeDirectory(
+                    parentRelative,
+                    rootDescriptor: extraction.rootDescriptor
                 )
-            } else {
-                parent = Darwin.dup(extraction.rootDescriptor)
+            } catch {
+                parent = nil
             }
-            if parent < 0
-                || Darwin.unlinkat(parent, components.last!, 0) != 0 {
+            guard let parent else {
+                success = false
+                continue
+            }
+            if Darwin.unlinkat(parent, components.last!, 0) != 0 {
                 success = false
             }
-            if parent >= 0 { Darwin.close(parent) }
+            Darwin.close(parent)
         }
         for directory in extraction.directories.reversed() {
             if Darwin.unlinkat(

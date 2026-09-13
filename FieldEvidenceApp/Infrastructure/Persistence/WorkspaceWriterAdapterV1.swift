@@ -170,11 +170,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
     }
 
-    func apply(
-        _ command: WorkspaceCommandV1,
-        occurredAt: Date,
-        temporaryRelativePath: String
-    ) throws -> WorkspaceMutationEffectV1 {
+    private func prepareAdapterForApply() throws {
         guard C50IncumbentFileExchangeWriterAdapterBoundaryV1.validate() else {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
@@ -191,6 +187,46 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         } catch {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
+    }
+
+    func applyPreparedReviewedFieldDraftResolution(
+        _ mutation: FieldDraftMutationV1,
+        proof: PreparedReviewedFieldDraftApplyProofV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try prepareAdapterForApply()
+        do {
+            try mutation.validate()
+            guard case let .resolveConflict(resolution) = mutation.postImage,
+                  resolution.plan == .reviewAndRebase,
+                  resolution.expectedCheckpoint.state == .conflicted,
+                  try MyDayPlanningDraftCodecV1.validateCheckpointPayload(
+                    resolution.expectedCheckpoint
+                  ).phase == .preparedCommit else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try proof.validateForApply(mutation, in: modelContext)
+            try applyReviewedFieldDraftConflictEffect(resolution)
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: mutation.affectedIdentities,
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    func apply(
+        _ command: WorkspaceCommandV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try prepareAdapterForApply()
         switch command {
         case .finalizeCheck, .finalizeCorrection:
             guard let generationRootURL, let expectedRootIdentity else {
@@ -4103,6 +4139,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private func applyFieldDraft(_ mutation:FieldDraftMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let affected=try mutation.affectedIdentities;switch mutation.postImage{
         case let .createCheckpoint(value):let identity=affected[0];guard case nil = try fieldDraftRow(identity) else{throw WorkspaceMutationFailureV1.sequenceCollision};modelContext.insert(try FieldDraftCheckpointRow(value))
         case let .reviseCheckpoint(value):let identity=affected[0];guard case let .checkpoint(row)?=try fieldDraftRow(identity)else{throw WorkspaceMutationFailureV1.staleEntityRevision(identity)};try row.replace(with:value,expectedRevision:mutation.expectedRevision)
+        case let .resolveConflict(value):try applyReviewedFieldDraftConflict(value)
         case let .appendStagingItem(value):let identity=affected[0];guard case nil = try fieldDraftRow(identity) else{throw WorkspaceMutationFailureV1.sequenceCollision};guard let checkpoint=try exactDraftCheckpoint(value.draftID,workspaceID:value.workspaceID),checkpoint.stageIDs.contains(value.stageID)else{throw WorkspaceMutationFailureV1.invalidCommand};modelContext.insert(try AttachmentStagingItemRow(value))
         case let .reviseStagingItem(value):let identity=affected[0];guard case let .stage(row)?=try fieldDraftRow(identity)else{throw WorkspaceMutationFailureV1.staleEntityRevision(identity)};try row.replace(with:value,expectedRevision:mutation.expectedRevision)
         case let .appendCommitSaga(value):let identity=affected[0];guard case nil = try fieldDraftRow(identity) else{throw WorkspaceMutationFailureV1.sequenceCollision};guard let checkpoint=try exactDraftCheckpoint(value.draftID,workspaceID:value.workspaceID),checkpoint.draftRevision==value.plan.draftRevision,checkpoint.baseCanonicalRevision==value.plan.baseCanonicalRevision,checkpoint.payloadSHA256==value.plan.payloadSHA256 else{throw WorkspaceMutationFailureV1.invalidCommand};modelContext.insert(try DraftCommitSagaRow(value))
@@ -4112,6 +4149,45 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case let .applyCommitTerminal(bundle,expectedSagaRevision):try applyFieldDraftCommitTerminal(bundle,expectedDraftRevision:mutation.expectedRevision,expectedSagaRevision:expectedSagaRevision)
         case let .applyDiscardTerminal(bundle):try applyFieldDraftDiscardTerminal(bundle,expectedDraftRevision:mutation.expectedRevision)
         };return try WorkspaceMutationEffectV1(affectedEntities:affected,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
+    private func applyReviewedFieldDraftConflict(_ resolution: ReviewedDraftConflictResolutionV1) throws {
+        try resolution.validate()
+        // Imported recovery-required checkpoints need the later authenticated
+        // provenance path; this ordinary writer slice cannot infer that proof.
+        guard resolution.plan == .reviewAndRebase,
+              resolution.expectedCheckpoint.state == .conflicted,
+              try MyDayPlanningDraftCodecV1.validateCheckpointPayload(
+                resolution.expectedCheckpoint
+              ).phase == .editing else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        try applyReviewedFieldDraftConflictEffect(resolution)
+    }
+
+    private func applyReviewedFieldDraftConflictEffect(
+        _ resolution: ReviewedDraftConflictResolutionV1
+    ) throws {
+        let currentTarget = try currentMyDayPlan(for: resolution.reviewedTargetBasis.key)
+        switch resolution.reviewedTargetBasis {
+        case let .existing(identity, key, revision, canonicalSHA256):
+            guard let target = currentTarget, target.key == key,
+                  identity.kind == .myDayPlan, target.planID == identity.id,
+                  target.revision == revision, target.planSHA256 == canonicalSHA256 else {
+                throw WorkspaceMutationFailureV1.staleEntityRevision(identity)
+            }
+        case .absent:
+            guard currentTarget == nil, resolution.expectedCheckpoint.baseCanonicalRevision == 0 else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        let identity = try WorkspaceEntityIdentityV1(
+            kind: .fieldDraftCheckpoint, id: resolution.expectedCheckpoint.draftID
+        )
+        guard case let .checkpoint(row)? = try fieldDraftRow(identity) else {
+            throw WorkspaceMutationFailureV1.staleEntityRevision(identity)
+        }
+        try row.replace(withReviewedResolution: resolution)
+    }
+
     private enum FieldDraftStoredRow{case checkpoint(FieldDraftCheckpointRow),stage(AttachmentStagingItemRow),saga(DraftCommitSagaRow),reservation(DraftContentReservationRow),commitReceipt(DraftCommitReceiptRow),discardReceipt(DraftDiscardReceiptRow)}
     private func fieldDraftRow(_ identity:WorkspaceEntityIdentityV1)throws->FieldDraftStoredRow?{let id=identity.id;switch identity.kind{case .fieldDraftCheckpoint:let rows=try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(predicate:#Predicate{$0.draftID==id}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.persistenceFailed};return rows.first.map(FieldDraftStoredRow.checkpoint);case .attachmentStagingItem:let rows=try modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>(predicate:#Predicate{$0.stageID==id}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.persistenceFailed};return rows.first.map(FieldDraftStoredRow.stage);case .draftCommitSaga:let rows=try modelContext.fetch(FetchDescriptor<DraftCommitSagaRow>(predicate:#Predicate{$0.sagaID==id}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.persistenceFailed};return rows.first.map(FieldDraftStoredRow.saga);case .draftContentReservation:let rows=try modelContext.fetch(FetchDescriptor<DraftContentReservationRow>(predicate:#Predicate{$0.reservationID==id}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.persistenceFailed};return rows.first.map(FieldDraftStoredRow.reservation);case .draftCommitReceipt:let rows=try modelContext.fetch(FetchDescriptor<DraftCommitReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.persistenceFailed};return rows.first.map(FieldDraftStoredRow.commitReceipt);case .draftDiscardReceipt:let rows=try modelContext.fetch(FetchDescriptor<DraftDiscardReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.persistenceFailed};return rows.first.map(FieldDraftStoredRow.discardReceipt);default:return nil}}
     private func exactDraftCheckpoint(_ draftID:UUID,workspaceID:WorkspaceID)throws->FieldDraftCheckpointV1?{guard case let .checkpoint(row)?=try fieldDraftRow(.init(kind:.fieldDraftCheckpoint,id:draftID))else{return nil};let value=try row.value();guard value.workspaceID==workspaceID else{throw WorkspaceMutationFailureV1.invalidCommand};return value}

@@ -19,11 +19,35 @@ final class SceneNavigationStateAdapterV1 {
 
     func save(_ snapshot: SceneNavigationSnapshotV1) throws {
         try snapshot.validate()
-        try port.saveSceneNavigationData(RouteCanonicalCodecV1.encode(snapshot))
+        let data = try RouteCanonicalCodecV1.encode(snapshot)
+        guard data.count <= SceneNavigationSnapshotV1.maximumEncodedByteCount else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+        try port.saveSceneNavigationData(data)
+    }
+
+    func save(
+        _ snapshot: SceneNavigationSnapshotV1,
+        using token: AppAccessGateV1.ContentReadToken
+    ) throws {
+        try token.withContentRead(for: .sceneRestoration) {
+            try save(snapshot)
+        }
     }
 
     func loadAndReconcile() throws -> SceneNavigationLoadResultV1 {
-        guard let data = try port.loadSceneNavigationData() else { return .absent }
+        let data: Data
+        do {
+            guard let stored = try port.loadSceneNavigationData() else { return .absent }
+            data = stored
+        } catch SceneNavigationFailureV1.invalidSnapshot {
+            try port.eraseSceneNavigationData()
+            return .discarded(.corruptSnapshot)
+        }
+        guard data.count <= SceneNavigationSnapshotV1.maximumEncodedByteCount else {
+            try port.eraseSceneNavigationData()
+            return .discarded(.corruptSnapshot)
+        }
         let version: Int
         do { version = try JSONDecoder().decode(VersionProbe.self, from: data).schemaVersion }
         catch {
@@ -49,6 +73,14 @@ final class SceneNavigationStateAdapterV1 {
     ) async throws -> SceneNavigationLoadResultV1 {
         _ = try await accessGate.requireContentAccess(for: .sceneRestoration)
         return try loadAndReconcile()
+    }
+
+    func loadAndReconcile(
+        using token: AppAccessGateV1.ContentReadToken
+    ) throws -> SceneNavigationLoadResultV1 {
+        try token.withContentRead(for: .sceneRestoration) {
+            try loadAndReconcile()
+        }
     }
 
     func erase() throws { try port.eraseSceneNavigationData() }

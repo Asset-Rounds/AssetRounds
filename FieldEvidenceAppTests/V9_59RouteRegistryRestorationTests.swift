@@ -91,6 +91,11 @@ final class V9_59RouteRegistryRestorationTests: XCTestCase {
         try port.saveSceneNavigationData(Data("not-json".utf8))
         XCTAssertEqual(try adapter.loadAndReconcile(), .discarded(.corruptSnapshot))
         XCTAssertNil(port.data)
+        try port.saveSceneNavigationData(
+            Data(repeating: 0x7b, count: SceneNavigationSnapshotV1.maximumEncodedByteCount + 1)
+        )
+        XCTAssertEqual(try adapter.loadAndReconcile(), .discarded(.corruptSnapshot))
+        XCTAssertNil(port.data)
     }
 
     func testSnapshotRoundTripIsDeviceOperationalOnly() throws {
@@ -163,7 +168,381 @@ final class V9_59RouteRegistryRestorationTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(SceneNavigationSnapshotV1.self, from: fifthRoot))
     }
 
+    func testRestoreSceneReconcilesLongestAvailablePrefixForEveryRoot() throws {
+        let destinations: [AppRootV1: NavigationDestinationV1] = [
+            .today: .startupMaintenance,
+            .work: .draftReview,
+            .assets: .searchResults,
+            .reports: .settings
+        ]
+        var unavailable: Set<UUID> = []
+        var expected: [AppRootV1: NavigationTargetV1] = [:]
+        let paths = try AppRootV1.frozenOrder.map { root -> SceneRootPathV1 in
+            let destination = try XCTUnwrap(destinations[root])
+            let rootTarget = try NavigationTargetV1(
+                workspaceID: workspace,
+                destination: RouteRegistryV1.rootDestination(for: root)
+            )
+            let retained = try NavigationTargetV1(
+                workspaceID: workspace,
+                destination: destination,
+                stableEntityID: UUID()
+            )
+            let unavailableID = UUID()
+            unavailable.insert(unavailableID)
+            let unavailableTarget = try NavigationTargetV1(
+                workspaceID: workspace,
+                destination: destination,
+                stableEntityID: unavailableID
+            )
+            let unreachableTail = try NavigationTargetV1(
+                workspaceID: workspace,
+                destination: destination,
+                stableEntityID: UUID()
+            )
+            expected[root] = retained
+            return SceneRootPathV1(
+                root: root,
+                targets: [rootTarget, retained, unavailableTarget, unreachableTail]
+            )
+        }
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspace,
+            selectedRoot: .assets,
+            paths: paths,
+            snapshotID: UUID()
+        )
+        let context = RouteResolutionContextV1(
+            currentWorkspaceID: workspace,
+            currentRevision: 0,
+            unavailableStableIDs: unavailable
+        )
+        let restored = try RouteCoordinatorV1(registry: try RouteRegistryV1()).restoreScene(
+            request(context: context, sceneSnapshot: snapshot)
+        )
+
+        XCTAssertEqual(restored.receipt.source, .sceneSnapshot)
+        XCTAssertEqual(restored.selectedRoot, .assets)
+        XCTAssertEqual(restored.paths.map(\.root), AppRootV1.frozenOrder)
+        for root in AppRootV1.frozenOrder {
+            XCTAssertEqual(restored.path(for: root)?.targets, [try XCTUnwrap(expected[root])])
+            XCTAssertFalse(restored.path(for: root)?.targets.contains(where: {
+                $0.destination == RouteRegistryV1.rootDestination(for: root)
+            }) ?? true)
+        }
+        XCTAssertEqual(restored.receipt.result.target, try XCTUnwrap(expected[.assets]))
+        XCTAssertEqual(restored.receipt.result.disposition, .safeFallback)
+        XCTAssertEqual(restored.receipt.result.reason, .deletedOrTombstoned)
+        XCTAssertEqual(restored.receipt.canonicalMutationCount, 0)
+        XCTAssertFalse(restored.receipt.startsAutomaticWork)
+    }
+
+    func testSemanticRootDestinationIsRetainedForSnapshotAndExplicitIngress() throws {
+        let marker = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .assets
+        )
+        let semanticAsset = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .assets,
+            stableEntityID: UUID()
+        )
+        XCTAssertTrue(marker.isIdentitylessSceneRootMarker)
+        XCTAssertFalse(semanticAsset.isIdentitylessSceneRootMarker)
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspace,
+            selectedRoot: .assets,
+            paths: AppRootV1.frozenOrder.map { root in
+                SceneRootPathV1(
+                    root: root,
+                    targets: root == .assets ? [marker, semanticAsset] : []
+                )
+            },
+            snapshotID: UUID()
+        )
+        let context = RouteResolutionContextV1(
+            currentWorkspaceID: workspace,
+            currentRevision: 0
+        )
+        let coordinator = RouteCoordinatorV1(registry: try RouteRegistryV1())
+
+        let restored = try coordinator.restoreScene(
+            request(context: context, sceneSnapshot: snapshot)
+        )
+        XCTAssertEqual(restored.path(for: .assets)?.targets, [semanticAsset])
+        XCTAssertEqual(restored.receipt.result.target, semanticAsset)
+        XCTAssertEqual(restored.receipt.result.disposition, .resolved)
+
+        let ingress = try coordinator.restoreScene(
+            request(context: context, explicitIngressTarget: semanticAsset)
+        )
+        XCTAssertEqual(ingress.receipt.source, .explicitIngress)
+        XCTAssertEqual(ingress.path(for: .assets)?.targets, [semanticAsset])
+        XCTAssertEqual(ingress.receipt.result.target, semanticAsset)
+        XCTAssertEqual(ingress.receipt.result.disposition, .resolved)
+        XCTAssertEqual(ingress.receipt.canonicalMutationCount, 0)
+        XCTAssertFalse(ingress.receipt.startsAutomaticWork)
+    }
+
+    func testSelectedSnapshotCutoffPreservesStaleReasonAndPriorityOverridesIt() throws {
+        let marker = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .work
+        )
+        let safeParent = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .draftReview,
+            stableSessionID: UUID()
+        )
+        let staleTarget = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .draftReview,
+            stableSessionID: UUID(),
+            expectedRevision: 2
+        )
+        let unreachableTail = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .draftReview,
+            stableSessionID: UUID()
+        )
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspace,
+            selectedRoot: .work,
+            paths: AppRootV1.frozenOrder.map { root in
+                SceneRootPathV1(
+                    root: root,
+                    targets: root == .work
+                        ? [marker, safeParent, staleTarget, unreachableTail] : []
+                )
+            },
+            snapshotID: UUID()
+        )
+        let context = RouteResolutionContextV1(
+            currentWorkspaceID: workspace,
+            currentRevision: 1
+        )
+        let coordinator = RouteCoordinatorV1(registry: try RouteRegistryV1())
+
+        let restored = try coordinator.restoreScene(
+            request(context: context, sceneSnapshot: snapshot)
+        )
+        XCTAssertEqual(restored.path(for: .work)?.targets, [safeParent])
+        XCTAssertEqual(restored.receipt.result.target, safeParent)
+        XCTAssertEqual(restored.receipt.result.disposition, .safeFallback)
+        XCTAssertEqual(restored.receipt.result.reason, .staleRevision)
+        XCTAssertEqual(restored.receipt.canonicalMutationCount, 0)
+        XCTAssertFalse(restored.receipt.startsAutomaticWork)
+
+        let maintenance = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .startupMaintenance
+        )
+        let priority = try coordinator.restoreScene(
+            request(
+                context: context,
+                startupMaintenanceTarget: maintenance,
+                sceneSnapshot: snapshot
+            )
+        )
+        XCTAssertEqual(priority.receipt.source, .startupMaintenance)
+        XCTAssertEqual(priority.receipt.result.target, maintenance)
+        XCTAssertEqual(priority.receipt.result.disposition, .resolved)
+        XCTAssertNil(priority.receipt.result.reason)
+        XCTAssertEqual(priority.path(for: .work)?.targets, [safeParent])
+        XCTAssertEqual(priority.receipt.canonicalMutationCount, 0)
+        XCTAssertFalse(priority.receipt.startsAutomaticWork)
+    }
+
+    func testRestoreSceneRetainsPriorityAndNeverPushesRootDestination() throws {
+        let snapshotTarget = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .assets
+        )
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspace,
+            selectedRoot: .assets,
+            paths: completePaths(root: .assets, target: snapshotTarget),
+            snapshotID: UUID()
+        )
+        let context = RouteResolutionContextV1(currentWorkspaceID: workspace, currentRevision: 0)
+        let coordinator = RouteCoordinatorV1(registry: try RouteRegistryV1())
+        let snapshotResult = try coordinator.restoreScene(
+            request(context: context, sceneSnapshot: snapshot)
+        )
+        XCTAssertEqual(snapshotResult.selectedRoot, .assets)
+        XCTAssertEqual(snapshotResult.path(for: .assets)?.targets, [])
+        XCTAssertEqual(snapshotResult.receipt.result.target.destination, .assets)
+
+        let maintenance = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .startupMaintenance
+        )
+        let priority = try coordinator.restoreScene(
+            request(
+                context: context,
+                startupMaintenanceTarget: maintenance,
+                sceneSnapshot: snapshot
+            )
+        )
+        XCTAssertEqual(priority.receipt.source, .startupMaintenance)
+        XCTAssertEqual(priority.selectedRoot, .today)
+        XCTAssertEqual(priority.path(for: .today)?.targets, [maintenance])
+        XCTAssertEqual(priority.path(for: .assets)?.targets, [])
+    }
+
+    func testSceneSnapshotEnforcesPerRootDepthAndStorageFailureBoundary() throws {
+        XCTAssertEqual(SceneNavigationSnapshotV1.maximumEncodedByteCount, 64 * 1024)
+        XCTAssertEqual(SceneNavigationSnapshotV1.maximumPathDepth, 32)
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .settings)
+        let overDepth = AppRootV1.frozenOrder.map { root in
+            SceneRootPathV1(
+                root: root,
+                targets: root == .reports
+                    ? Array(repeating: target, count: SceneNavigationSnapshotV1.maximumPathDepth + 1)
+                    : []
+            )
+        }
+        XCTAssertThrowsError(try SceneNavigationSnapshotV1(
+            workspaceID: workspace,
+            selectedRoot: .reports,
+            paths: overDepth,
+            snapshotID: UUID()
+        )) { error in
+            XCTAssertEqual(error as? SceneNavigationFailureV1, .invalidPath)
+        }
+
+        let corruptPort = V959ThrowingSceneNavigationPort(loadError: SceneNavigationFailureV1.invalidSnapshot)
+        XCTAssertEqual(
+            try SceneNavigationStateAdapterV1(port: corruptPort).loadAndReconcile(),
+            .discarded(.corruptSnapshot)
+        )
+        XCTAssertEqual(corruptPort.eraseCount, 1)
+
+        let failingPort = V959ThrowingSceneNavigationPort(loadError: V959ScenePortFailure.io)
+        XCTAssertThrowsError(
+            try SceneNavigationStateAdapterV1(port: failingPort).loadAndReconcile()
+        ) { error in
+            XCTAssertEqual(error as? V959ScenePortFailure, .io)
+        }
+        XCTAssertEqual(failingPort.eraseCount, 0)
+    }
+
+    @MainActor
+    func testConcreteSceneTokenFencesLoadSaveRestoreAndRejectsRevocationABA() async throws {
+        let gate = AppAccessGateV1(
+            setting: .absentDisabled,
+            authentication: V959AuthenticationClient(),
+            clock: V959Clock(),
+            identifiers: V959IDs()
+        )
+        let sceneToken = try await gate.beginContentRead(for: .sceneRestoration)
+        let wrongSurfaceToken = try await gate.beginContentRead(for: .search)
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .draftReview)
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspace,
+            selectedRoot: .work,
+            paths: completePaths(root: .work, target: target),
+            snapshotID: UUID()
+        )
+        let port = InMemorySceneNavigationDeviceStatePortV1()
+        let adapter = SceneNavigationStateAdapterV1(port: port)
+        try adapter.save(snapshot, using: sceneToken)
+        XCTAssertEqual(try adapter.loadAndReconcile(using: sceneToken), .restored(snapshot))
+        let coordinator = RouteCoordinatorV1(registry: try RouteRegistryV1())
+        let restorationRequest = request(
+            context: .init(currentWorkspaceID: workspace, currentRevision: 0),
+            sceneSnapshot: snapshot
+        )
+        XCTAssertEqual(
+            try coordinator.restoreScene(restorationRequest, using: sceneToken).receipt.source,
+            .sceneSnapshot
+        )
+        XCTAssertThrowsError(try adapter.loadAndReconcile(using: wrongSurfaceToken)) { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        XCTAssertThrowsError(
+            try coordinator.restoreScene(restorationRequest, using: wrongSurfaceToken)
+        ) { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+
+        await gate.markProtectedDataUnavailable()
+        XCTAssertThrowsError(try adapter.loadAndReconcile(using: sceneToken)) { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        XCTAssertNotNil(port.data, "denied token must not enter device-state storage")
+        let pendingRecoveryGeneration = await gate.protectedDataAvailabilityRecoveryGeneration()
+        let recoveryGeneration = try XCTUnwrap(pendingRecoveryGeneration)
+        try await gate.recoverProtectedDataAvailability(
+            setting: .absentDisabled,
+            configurationVerified: true,
+            expectedGeneration: recoveryGeneration
+        )
+        let freshToken = try await gate.beginContentRead(for: .sceneRestoration)
+        XCTAssertEqual(try adapter.loadAndReconcile(using: freshToken), .restored(snapshot))
+        XCTAssertThrowsError(try adapter.save(snapshot, using: sceneToken)) { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+    }
+
+    private func request(
+        context: RouteResolutionContextV1,
+        startupMaintenanceTarget: NavigationTargetV1? = nil,
+        incompleteMutationRecoveryTarget: NavigationTargetV1? = nil,
+        explicitIngressTarget: NavigationTargetV1? = nil,
+        sceneSnapshot: SceneNavigationSnapshotV1? = nil,
+        discardedSnapshotReason: RouteFallbackReasonV1? = nil
+    ) -> RouteRestorationRequestV1 {
+        RouteRestorationRequestV1(
+            context: context,
+            startupMaintenanceTarget: startupMaintenanceTarget,
+            incompleteMutationRecoveryTarget: incompleteMutationRecoveryTarget,
+            explicitIngressTarget: explicitIngressTarget,
+            sceneSnapshot: sceneSnapshot,
+            discardedSnapshotReason: discardedSnapshotReason,
+            evidenceKind: .golden,
+            receiptID: UUID()
+        )
+    }
+
     private func completePaths(root: AppRootV1, target: NavigationTargetV1) -> [SceneRootPathV1] {
         AppRootV1.frozenOrder.map { SceneRootPathV1(root: $0, targets: $0 == root ? [target] : []) }
     }
+}
+
+private enum V959ScenePortFailure: Error, Equatable {
+    case io
+}
+
+private final class V959ThrowingSceneNavigationPort: SceneNavigationDeviceStatePortV1 {
+    let loadError: Error
+    private(set) var eraseCount = 0
+
+    init(loadError: Error) { self.loadError = loadError }
+    func loadSceneNavigationData() throws -> Data? { throw loadError }
+    func saveSceneNavigationData(_ data: Data) throws {}
+    func eraseSceneNavigationData() throws { eraseCount += 1 }
+}
+
+private struct V959Clock: ApplicationClock {
+    func now() -> Date { Date(timeIntervalSince1970: 1_800_000_000) }
+}
+
+private struct V959IDs: ApplicationIDSource {
+    func makeID() -> UUID {
+        UUID(uuid: (0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x49, 0x59,
+                    0x89, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59))
+    }
+}
+
+private actor V959AuthenticationClient: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        .authenticated
+    }
+
+    func cancel(attemptID: UUID) {}
 }

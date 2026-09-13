@@ -40,6 +40,7 @@ final class DraftCommitSagaRecoveryV1 {
         let sagaByID = Dictionary(uniqueKeysWithValues: sagas.map { ($0.sagaID, $0) })
         let successorCounts = Dictionary(grouping: sagas.compactMap(\.predecessorSagaID), by: { $0 })
         let receiptsBySaga = Dictionary(grouping: commitReceipts, by: \.sagaID)
+        let commitReceiptsByDraft = Dictionary(grouping: commitReceipts, by: \.draftID)
         let discardReceiptsByDraft = Dictionary(grouping: discardReceipts, by: \.draftID)
         guard successorCounts.values.allSatisfy({ $0.count == 1 }),
               receiptsBySaga.values.allSatisfy({ $0.count == 1 }),
@@ -95,6 +96,25 @@ final class DraftCommitSagaRecoveryV1 {
                   checkpoint.state == .discarded,
                   checkpoint.lastDurableMutationID == receipt.mutationID,
                   checkpoint.lastReceiptSHA256 == receipt.receiptSHA256 else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+        }
+        for checkpoint in checkpoints {
+            switch checkpoint.state {
+            case .committed:
+                guard commitReceiptsByDraft[checkpoint.draftID]?.count == 1 else {
+                    throw FieldDraftFailureV1.missingReceipt
+                }
+            case .discarded:
+                guard discardReceiptsByDraft[checkpoint.draftID]?.count == 1 else {
+                    throw FieldDraftFailureV1.missingReceipt
+                }
+            default:
+                break
+            }
+        }
+        for saga in sagas where saga.state == .draftRetired {
+            guard receiptsBySaga[saga.sagaID]?.count == 1 else {
                 throw FieldDraftFailureV1.missingReceipt
             }
         }

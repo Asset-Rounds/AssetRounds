@@ -1,9 +1,471 @@
 import Foundation
 import CryptoKit
 import Darwin
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
+
+private actor V915EraseProtectedData {
+    private var available = true
+    private var shouldSuspend = false
+    private var suspendedCheck: CheckedContinuation<Void, Never>?
+    private var suspendedWaiter: CheckedContinuation<Void, Never>?
+    func setAvailable(_ value: Bool) { available = value }
+    func suspendNextCheck() { shouldSuspend = true }
+    func isAvailable() async -> Bool {
+        if shouldSuspend {
+            shouldSuspend = false
+            await withCheckedContinuation { continuation in
+                suspendedCheck = continuation
+                suspendedWaiter?.resume()
+                suspendedWaiter = nil
+            }
+        }
+        return available
+    }
+    func waitUntilSuspended() async {
+        if suspendedCheck != nil { return }
+        await withCheckedContinuation { suspendedWaiter = $0 }
+    }
+    func releaseCheck() { suspendedCheck?.resume(); suspendedCheck = nil }
+}
+
+@MainActor private final class V915CompletedEraseFixture {
+    let support: URL
+    let caches: URL
+    let temporary: URL
+    let suiteName: String
+    let defaults: UserDefaults
+    let preferences: PreferencesAdapterV1
+    let coordinator: StoreSessionCoordinator
+    let diagnostics: DiagnosticsStore
+    let system = V915NotificationSystemProbe()
+    let availability = V915EraseProtectedData()
+    let setting: DeviceLocalAppLockSettingAdapterV1
+    let originalControl: AppLockNotificationControlStoreV1
+    let lifecycle: AppLockLifecycleCoordinatorV1
+    let gate: AppAccessGateV1
+    var receipt: CompletedEraseReceiptV1?
+    var reservation: AppAccessGateV1.EraseAdoptionToken?
+    var abortedReceipt: AbortedEraseAdmissionReceiptV1?
+
+    init(authentication: any LocalAuthenticationClient = V915AuthenticationClient(outcomes: []),
+         usesNotificationSettingOwner: Bool = false) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("V915-completed-erase-" + UUID().uuidString)
+        support = root.appendingPathComponent("Library/Application Support")
+        caches = root.appendingPathComponent("Library/Caches")
+        temporary = root.appendingPathComponent("tmp")
+        for directory in [support, caches, temporary] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        suiteName = "V915.completed-erase." + UUID().uuidString
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        preferences = PreferencesAdapterV1(defaults: defaults)
+        coordinator = try StoreSessionCoordinator(validatingSession:
+            StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent())
+        diagnostics = DiagnosticsStore(applicationSupportURL: support)
+        await diagnostics.prepare()
+        let availability = self.availability
+        setting = try DeviceLocalAppLockSettingAdapterV1(preferences: preferences,
+            registry: SettingsRegistryV1.current(), protectedDataAvailable: { await availability.isAvailable() })
+        originalControl = try AppLockNotificationControlStoreV1(applicationSupportURL: support, preferences: preferences)
+        let system = self.system
+        let sourceCoordinator = coordinator
+        let owner = DeviceLocalNotificationOwnerV1(control: originalControl, preferences: preferences,
+            system: system, clock: V915Clock()) { authorization in
+                system.sourceOpenCount += 1
+                if usesNotificationSettingOwner {
+                    return ProductionMyDaySourceProviderV1(session: sourceCoordinator, accessGate: authorization.gate)
+                }
+                throw AppAccessContractFailureV1.accessDenied
+            }
+        let lifecycleSetting: any DeviceLocalAppLockSettingPortV1 = usesNotificationSettingOwner ? owner : setting
+        lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(setting: lifecycleSetting,
+            authentication: authentication,
+            ingressStore: ProductionCompositionRoot.makePreAuthenticationIngressStore(applicationSupportURL: support),
+            notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
+            clock: V915Clock(), identifiers: SystemApplicationIDSource())
+        gate = await lifecycle.accessGate()
+    }
+
+    func erase(
+        afterAdmission: @escaping @MainActor (EraseAllOperationSubjectV1, AppAccessGateV1.EraseAdoptionToken) async throws -> Void = { _, _ in }
+    ) async throws -> CompletedEraseReceiptV1 {
+        let authorization = try await gate.beginContentRead(for: .startupRecovery)
+        let service = EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
+            temporaryDirectoryURL: temporary, userDefaults: defaults, defaultsDomainName: suiteName,
+            privateSystemDiscoveryIndex: nil, notificationSystem: system,
+            admitErase: { subject in
+                let reservation = try await self.lifecycle.beginExternalErase(subject: subject, authorization: authorization)
+                self.reservation = reservation
+                try await afterAdmission(subject, reservation)
+                return reservation
+            }, didCompleteErase: { self.receipt = $0 })
+        let outcome = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+            diagnosticsStore: diagnostics) { self.coordinator.activate(session: $0) }
+        XCTAssertFalse(outcome.cleanupDeferred)
+        return try XCTUnwrap(receipt)
+    }
+
+    func failErase(
+        at point: EraseAllFailurePoint,
+        initialIDs: [UUID] = [],
+        afterAdmission: @escaping @MainActor () async throws -> Void = {}
+    ) async throws -> AbortedEraseAdmissionReceiptV1? {
+        abortedReceipt = nil
+        let authorization = try await gate.beginContentRead(for: .startupRecovery)
+        var identifiers = initialIDs
+        let service = EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
+            temporaryDirectoryURL: temporary, userDefaults: defaults, defaultsDomainName: suiteName,
+            makeUUID: { identifiers.isEmpty ? UUID() : identifiers.removeFirst() },
+            failureInjection: EraseAllFailureInjection(failOnceAt: point),
+            privateSystemDiscoveryIndex: nil, notificationSystem: system,
+            admitErase: { subject in
+                let reservation = try await self.lifecycle.beginExternalErase(subject: subject, authorization: authorization)
+                self.reservation = reservation
+                try await afterAdmission()
+                return reservation
+            }, didCompleteErase: { self.receipt = $0 }, didAbortEraseAdmission: { self.abortedReceipt = $0 })
+        do {
+            _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: diagnostics) { self.coordinator.activate(session: $0) }
+            XCTFail("The selected physical failure point did not interrupt Erase")
+        } catch {
+            XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+        }
+        return abortedReceipt
+    }
+
+    func replacement(for receipt: CompletedEraseReceiptV1) throws -> CompletedEraseAccessReplacementV1 {
+        let control = try AppLockNotificationControlStoreV1(applicationSupportURL: support, preferences: preferences)
+        let system = self.system
+        let owner = DeviceLocalNotificationOwnerV1(control: control, preferences: preferences,
+            system: system, clock: V915Clock()) { _ in
+                system.sourceOpenCount += 1
+                throw AppAccessContractFailureV1.accessDenied
+            }
+        return CompletedEraseAccessReplacementV1(subject: receipt.subject,
+            setting: try DeviceLocalAppLockSettingAdapterV1(preferences: preferences,
+                registry: try SettingsRegistryV1.current(), protectedDataAvailable: { true },
+                transactionWriter: owner),
+            ingressStore: try ProductionCompositionRoot.makePreAuthenticationIngressStore(applicationSupportURL: support),
+            notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
+            notificationControl: control, clock: V915Clock())
+    }
+
+    func finishStartup() async throws {
+        let token = try await gate.beginContentRead(for: .startupRecovery)
+        try await gate.completePostEraseStartup(token)
+        try await gate.validateContentRead(token, for: .startupRecovery)
+    }
+}
+
+@MainActor private func v915ExpectAccessFailure(
+    _ body: () async throws -> Void, file: StaticString = #filePath, line: UInt = #line
+) async {
+    do { try await body(); XCTFail("Expected the original access boundary to reject the operation", file: file, line: line) }
+    catch { XCTAssertNotNil(error as? AppAccessContractFailureV1, file: file, line: line) }
+}
+
+extension V9_15AppLockLifecycleTests {
+    @MainActor
+    func testAbortedEraseAdmissionRestoresFreshDisabledAccessAndPreservesOriginalOwners() async throws {
+        let fixture = try await V915CompletedEraseFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let originalGeneration = fixture.coordinator.generationID
+        let originalIngress = await fixture.lifecycle.protectedIngress()
+        let originalRead = try await fixture.gate.beginContentRead(for: .startupRecovery)
+        let aborted = try await fixture.failErase(at: .afterEmptyGenerationDirectoryCreate) {
+            _ = try await fixture.lifecycle.handle(.sceneBackground)
+        }
+        let receipt = try XCTUnwrap(aborted)
+        XCTAssertEqual(receipt.originalGenerationID, originalGeneration)
+        XCTAssertEqual(fixture.coordinator.generationID, originalGeneration)
+        XCTAssertNil(fixture.receipt)
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).loadPreparation())
+        await v915ExpectAccessFailure {
+            try await fixture.gate.abandonEraseAdmission(receipt, setting: .value(.init(isEnabled: true)))
+        }
+        await fixture.availability.setAvailable(false)
+        await v915ExpectAccessFailure { try await fixture.lifecycle.abandonEraseAdmission(receipt) }
+        let retained = await fixture.lifecycle.pendingAbortedEraseAdmissionReceipt()
+        XCTAssertEqual(retained?.reservation, receipt.reservation)
+        await fixture.availability.setAvailable(true)
+        try await fixture.lifecycle.abandonEraseAdmission(receipt)
+        try fixture.originalControl.verifyNotificationStorage()
+        let sameIngress = await fixture.lifecycle.protectedIngress()
+        XCTAssertTrue(sameIngress === originalIngress)
+        let state = await fixture.gate.currentState()
+        XCTAssertEqual(state, .disabled)
+        await v915ExpectAccessFailure { try await fixture.gate.requireContentAccess() }
+        _ = try await fixture.lifecycle.handle(.sceneActive)
+        try await fixture.finishStartup()
+        await v915ExpectAccessFailure { try await fixture.gate.validateContentRead(originalRead, for: .startupRecovery) }
+        await v915ExpectAccessFailure { try await fixture.lifecycle.abandonEraseAdmission(receipt) }
+        let foreign = AppAccessGateV1(setting: .absentDisabled,
+            authentication: V915AuthenticationClient(outcomes: []), clock: V915Clock(), identifiers: SystemApplicationIDSource())
+        await v915ExpectAccessFailure { try await foreign.abandonEraseAdmission(receipt, setting: .absentDisabled) }
+        XCTAssertEqual(fixture.system.sourceOpenCount, 0)
+        XCTAssertEqual(fixture.system.observationCount, 0)
+    }
+
+    @MainActor
+    func testAbortedEraseAdmissionPreservesEnabledConfigurationAndRequiresFreshUnlock() async throws {
+        let authentication = V915AuthenticationClient(outcomes: [.authenticated, .authenticated, .authenticated])
+        let fixture = try await V915CompletedEraseFixture(authentication: authentication, usesNotificationSettingOwner: true)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        _ = try await fixture.lifecycle.enable(operationID: UUID())
+        let unlocked = await fixture.gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(unlocked, .authenticated)
+        let originalControl = try XCTUnwrap(fixture.originalControl.loadControl())
+        let originalSetting = try fixture.preferences.readAppLockSettingSnapshot()
+        let originalRead = try await fixture.gate.beginContentRead(for: .startupRecovery)
+        let aborted = try await fixture.failErase(at: .afterEmptyGenerationDirectoryCreate) {
+            _ = try await fixture.lifecycle.handle(.protectedDataUnavailable)
+        }
+        let receipt = try XCTUnwrap(aborted)
+        try await fixture.lifecycle.abandonEraseAdmission(receipt)
+        XCTAssertEqual(try fixture.originalControl.loadControl(), originalControl)
+        XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot(), originalSetting)
+        let heldState = await fixture.gate.currentState()
+        XCTAssertEqual(heldState, .locked(reason: .protectedDataUnavailable))
+        let heldUnlock = await fixture.gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(heldUnlock, .interrupted)
+        _ = try await fixture.lifecycle.recoverAfterAuthentication()
+        await v915ExpectAccessFailure { try await fixture.gate.requireContentAccess() }
+        let beforeUnlock = await authentication.attempts
+        XCTAssertEqual(beforeUnlock.count, 2)
+        _ = try await fixture.lifecycle.handle(.sceneActive)
+        let freshUnlock = await fixture.gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(freshUnlock, .authenticated)
+        try await fixture.gate.requireContentAccess()
+        await v915ExpectAccessFailure { try await fixture.gate.validateContentRead(originalRead, for: .startupRecovery) }
+        await v915ExpectAccessFailure { try await fixture.lifecycle.abandonEraseAdmission(receipt) }
+    }
+
+    @MainActor
+    func testAbortedEraseAdmissionRejectsConfigurationABAAndCannotReleaseDurableIntent() async throws {
+        let authentication = V915AuthenticationClient(outcomes: [.authenticated, .authenticated, .authenticated])
+        let fixture = try await V915CompletedEraseFixture(authentication: authentication)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let first = try await fixture.failErase(at: .afterEmptyGenerationDirectoryCreate)
+        let firstReceipt = try XCTUnwrap(first)
+        try await fixture.lifecycle.abandonEraseAdmission(firstReceipt)
+        let enabled = await fixture.gate.authenticate(trigger: .enableAppLock)
+        XCTAssertEqual(enabled, .authenticated)
+        let enableProof = try await fixture.gate.toggleAuthenticationToken(targetEnabled: true)
+        try await fixture.gate.setEnabledAfterAuthenticated(true, toggleToken: enableProof)
+        let unlocked = await fixture.gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(unlocked, .authenticated)
+        let disabled = await fixture.gate.authenticate(trigger: .disableAppLock)
+        XCTAssertEqual(disabled, .authenticated)
+        let disableProof = try await fixture.gate.toggleAuthenticationToken(targetEnabled: false)
+        try await fixture.gate.setEnabledAfterAuthenticated(false, toggleToken: disableProof)
+        let second = try await fixture.failErase(at: .afterEmptyGenerationDirectoryCreate,
+            initialIDs: [firstReceipt.subject.newGenerationID, firstReceipt.subject.eraseID])
+        let secondReceipt = try XCTUnwrap(second)
+        XCTAssertEqual(secondReceipt.subject, firstReceipt.subject)
+        XCTAssertNotEqual(secondReceipt.reservation, firstReceipt.reservation)
+        await v915ExpectAccessFailure { try await fixture.lifecycle.abandonEraseAdmission(firstReceipt) }
+        try await fixture.gate.validateEraseAdoption(secondReceipt.reservation)
+        try await fixture.lifecycle.abandonEraseAdmission(secondReceipt)
+        let unfinished = try await fixture.failErase(at: .afterPreparedWrite)
+        XCTAssertNil(unfinished)
+        XCTAssertNil(fixture.receipt)
+        XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
+        await v915ExpectAccessFailure { try await fixture.lifecycle.abandonEraseAdmission(secondReceipt) }
+        try await fixture.gate.validateEraseAdoption(try XCTUnwrap(fixture.reservation))
+        await v915ExpectAccessFailure { try await fixture.gate.requireContentAccess() }
+    }
+
+    @MainActor
+    func testFullEraseReservationSurvivesBackgroundAndRejectsConfigurationBypasses() async throws {
+        let authentication = V915AuthenticationClient(outcomes: [])
+        let fixture = try await V915CompletedEraseFixture(authentication: authentication)
+        // SQLite owners remain alive until this test returns; the Simulator
+        // owns the temporary directory rather than unlinking live databases.
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let originalRead = try await fixture.gate.beginContentRead(for: .startupRecovery)
+        let receipt = try await fixture.erase { subject, reservation in
+            await v915ExpectAccessFailure { try await fixture.gate.validateContentRead(originalRead, for: .startupRecovery) }
+            await v915ExpectAccessFailure { try await fixture.gate.requireContentAccess() }
+            for trigger in [LocalAuthenticationTriggerV1.unlock, .enableAppLock, .disableAppLock, .repairConfiguration] {
+                let result = await fixture.gate.authenticate(trigger: trigger)
+                XCTAssertEqual(result, .interrupted)
+            }
+            await v915ExpectAccessFailure { _ = try await fixture.lifecycle.enable(operationID: UUID()) }
+            await v915ExpectAccessFailure { _ = try await fixture.lifecycle.disable(operationID: UUID()) }
+            await v915ExpectAccessFailure { _ = try await fixture.lifecycle.recoverAfterAuthentication() }
+            await v915ExpectAccessFailure { try await fixture.lifecycle.erase(operationID: UUID()) }
+            await v915ExpectAccessFailure { try await fixture.gate.markRecoveryComplete(enabled: false) }
+            await fixture.gate.eraseAccessState()
+            for event in [AppLockLifecycleEventV1.sceneInactive, .sceneBackground, .sceneActive] {
+                _ = try await fixture.lifecycle.handle(event)
+                try await fixture.gate.validateEraseAdoption(reservation)
+                await v915ExpectAccessFailure { try await fixture.gate.requireContentAccess() }
+            }
+            let resumed = try await fixture.lifecycle.beginExternalErase(subject: subject, authorization: nil)
+            XCTAssertEqual(resumed, reservation)
+            let foreign = AppAccessGateV1(setting: .absentDisabled, authentication: authentication,
+                clock: V915Clock(), identifiers: SystemApplicationIDSource())
+            await v915ExpectAccessFailure { try await foreign.validateEraseAdoption(reservation) }
+        }
+        XCTAssertEqual(receipt.reservation, fixture.reservation)
+        let replacement = try fixture.replacement(for: receipt)
+        try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: replacement)
+        let sameGate = await fixture.lifecycle.accessGate()
+        XCTAssertTrue(sameGate === fixture.gate)
+        XCTAssertThrowsError(try fixture.originalControl.verifyNotificationStorage())
+        XCTAssertEqual(fixture.system.sourceOpenCount, 0)
+        let attempts = await authentication.attempts
+        XCTAssertTrue(attempts.isEmpty)
+        await v915ExpectAccessFailure { _ = try await fixture.gate.beginContentRead(for: .render) }
+        try await fixture.finishStartup()
+        try await fixture.gate.requireContentAccess()
+        await v915ExpectAccessFailure { try await fixture.gate.validateContentRead(originalRead, for: .startupRecovery) }
+        await v915ExpectAccessFailure { try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: replacement) }
+    }
+
+    @MainActor
+    func testCompletedErasePreservesProtectedDataAndRequiresFreshActiveStartup() async throws {
+        let fixture = try await V915CompletedEraseFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let receipt = try await fixture.erase { _, _ in
+            _ = try await fixture.lifecycle.handle(.sceneBackground)
+            _ = try await fixture.lifecycle.handle(.protectedDataUnavailable)
+        }
+        try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: fixture.replacement(for: receipt))
+        let heldState = await fixture.gate.currentState()
+        XCTAssertEqual(heldState, .locked(reason: .protectedDataUnavailable))
+        await v915ExpectAccessFailure { _ = try await fixture.gate.beginContentRead(for: .startupRecovery) }
+        _ = try await fixture.lifecycle.handle(.sceneActive)
+        await v915ExpectAccessFailure { _ = try await fixture.gate.beginContentRead(for: .startupRecovery) }
+        let recovery = try await fixture.lifecycle.recoverAfterAuthentication()
+        XCTAssertEqual(recovery, .noRecoveryRequired)
+        let first = try await fixture.gate.beginContentRead(for: .startupRecovery)
+        _ = try await fixture.lifecycle.handle(.sceneInactive)
+        await v915ExpectAccessFailure { try await fixture.gate.completePostEraseStartup(first) }
+        await v915ExpectAccessFailure { _ = try await fixture.gate.beginContentRead(for: .startupRecovery) }
+        _ = try await fixture.lifecycle.handle(.sceneActive)
+        await v915ExpectAccessFailure { try await fixture.gate.completePostEraseStartup(first) }
+        await v915ExpectAccessFailure { try await fixture.gate.requireContentAccess() }
+        try await fixture.finishStartup()
+        try await fixture.gate.requireContentAccess()
+        XCTAssertEqual(fixture.system.sourceOpenCount, 0)
+    }
+
+    @MainActor
+    func testCompletedEraseRetainsReceiptUntilFreshSettingsAndAllNotificationLeavesAreEmpty() async throws {
+        let fixture = try await V915CompletedEraseFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let receipt = try await fixture.erase()
+        let replacement = try fixture.replacement(for: receipt)
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalAppLockSettingV1.key)
+        let key = PreferencesAdapterV1.storagePrefix + descriptor.key
+        for value in [false, true] {
+            try fixture.preferences.writeCanonicalValue(CompatibilityCanonicalV1.encode(value),
+                descriptor: descriptor, operationID: UUID())
+            await v915ExpectAccessFailure { try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: replacement) }
+            fixture.defaults.removeObject(forKey: key)
+        }
+        fixture.defaults.set("invalid", forKey: key)
+        await v915ExpectAccessFailure { try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: replacement) }
+        fixture.defaults.removeObject(forKey: key)
+        await fixture.availability.setAvailable(false)
+        await v915ExpectAccessFailure { try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: replacement) }
+        await fixture.availability.setAvailable(true)
+        let root = fixture.support.appendingPathComponent("FieldEvidenceOperations")
+            .appendingPathComponent(AppLockNotificationControlStoreV1.rootName)
+        for name in [AppLockNotificationControlStoreV1.recordName, AppLockNotificationControlStoreV1.pendingName,
+                     AppLockNotificationControlStoreV1.mappingName, AppLockNotificationControlStoreV1.mappingPendingName,
+                     AppLockNotificationControlStoreV1.eraseName, AppLockNotificationControlStoreV1.erasePendingName] {
+            let leaf = root.appendingPathComponent(name)
+            try Data("retained physical owner".utf8).write(to: leaf)
+            await v915ExpectAccessFailure { try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: replacement) }
+            let retained = await fixture.lifecycle.pendingCompletedEraseReceipt()
+            XCTAssertEqual(retained?.reservation, receipt.reservation)
+            try await fixture.gate.validateEraseAdoption(try XCTUnwrap(receipt.reservation))
+            try FileManager.default.removeItem(at: leaf)
+        }
+        try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: replacement)
+        let retained = await fixture.lifecycle.pendingCompletedEraseReceipt()
+        XCTAssertNil(retained)
+        try await fixture.finishStartup()
+        try await fixture.gate.requireContentAccess()
+        XCTAssertEqual(fixture.system.sourceOpenCount, 0)
+    }
+
+    @MainActor
+    func testCompletedEraseRejectsOriginalAuthorizationABAAndReceiptReplayAfterConfigurationCycle() async throws {
+        let authentication = V915AuthenticationClient(outcomes: [.authenticated, .authenticated, .authenticated])
+        let fixture = try await V915CompletedEraseFixture(authentication: authentication)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let receipt = try await fixture.erase()
+        try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: fixture.replacement(for: receipt))
+        try await fixture.finishStartup()
+        let stale = try await fixture.gate.beginContentRead(for: .startupRecovery)
+        let enabled = await fixture.gate.authenticate(trigger: .enableAppLock)
+        XCTAssertEqual(enabled, .authenticated)
+        let enableProof = try await fixture.gate.toggleAuthenticationToken(targetEnabled: true)
+        try await fixture.gate.setEnabledAfterAuthenticated(true,
+            toggleToken: enableProof)
+        let unlocked = await fixture.gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(unlocked, .authenticated)
+        let disabled = await fixture.gate.authenticate(trigger: .disableAppLock)
+        XCTAssertEqual(disabled, .authenticated)
+        let disableProof = try await fixture.gate.toggleAuthenticationToken(targetEnabled: false)
+        try await fixture.gate.setEnabledAfterAuthenticated(false,
+            toggleToken: disableProof)
+        await v915ExpectAccessFailure {
+            _ = try await fixture.lifecycle.beginExternalErase(subject: receipt.subject, authorization: stale)
+        }
+        let fresh = try await fixture.gate.beginContentRead(for: .startupRecovery)
+        let later = try await fixture.lifecycle.beginExternalErase(subject: receipt.subject, authorization: fresh)
+        XCTAssertNotEqual(later, receipt.reservation)
+        await v915ExpectAccessFailure { try await fixture.gate.adoptCompletedErase(receipt, token: later) }
+        await v915ExpectAccessFailure {
+            try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: fixture.replacement(for: receipt))
+        }
+        try await fixture.gate.validateEraseAdoption(later)
+    }
+
+    @MainActor
+    func testFullEraseAdmissionExcludesConfigurationWhileAdoptionAllowsBackgroundEvents() async throws {
+        let fixture = try await V915CompletedEraseFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let receipt = try await fixture.erase()
+        let authentication = V915GatedAuthenticationClient()
+        let other = try await V915CompletedEraseFixture(authentication: authentication)
+        defer { other.defaults.removePersistentDomain(forName: other.suiteName) }
+        let beforeConfiguration = try await other.gate.beginContentRead(for: .startupRecovery)
+        let configuring = Task { try await other.lifecycle.enable(operationID: UUID()) }
+        await authentication.waitUntilAttemptStarted()
+        await v915ExpectAccessFailure {
+            _ = try await other.lifecycle.beginExternalErase(subject: receipt.subject, authorization: beforeConfiguration)
+        }
+        await authentication.finish(.userCancelled)
+        await v915ExpectAccessFailure { _ = try await configuring.value }
+        XCTAssertEqual(other.system.sourceOpenCount, 0)
+
+        let replacement = try fixture.replacement(for: receipt)
+        await fixture.availability.suspendNextCheck()
+        let adopting = Task { try await fixture.lifecycle.adoptCompletedErase(receipt, replacement: replacement) }
+        await fixture.availability.waitUntilSuspended()
+        let retained = await fixture.lifecycle.pendingCompletedEraseReceipt()
+        XCTAssertEqual(retained?.reservation, receipt.reservation)
+        _ = try await fixture.lifecycle.handle(.sceneBackground)
+        await v915ExpectAccessFailure { _ = try await fixture.lifecycle.enable(operationID: UUID()) }
+        await v915ExpectAccessFailure { try await fixture.gate.requireContentAccess() }
+        await fixture.availability.releaseCheck()
+        try await adopting.value
+        await v915ExpectAccessFailure { _ = try await fixture.gate.beginContentRead(for: .startupRecovery) }
+        _ = try await fixture.lifecycle.handle(.sceneActive)
+        try await fixture.finishStartup()
+        try await fixture.gate.requireContentAccess()
+    }
+}
 
 private struct C16NotificationControlFixture {
     let support: URL
@@ -1167,6 +1629,10 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         let gate = AppAccessGateV1(setting: .absentDisabled, authentication: auth,
             clock: V915Clock(), identifiers: V915IDs(values: [Self.id(701), Self.id(702)]))
         let token = try await gate.beginContentRead(for: .search)
+        XCTAssertEqual(try token.withContentRead(for: .search) { "guarded" }, "guarded")
+        XCTAssertThrowsError(try token.withContentRead(for: .render) {}) { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
         for _ in 0..<3 {
             try await gate.validateContentRead(token, for: .search)
             let fresh = try await gate.beginContentRead(for: .render)
@@ -1243,6 +1709,51 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         XCTAssertEqual(attempts.count, 3)
     }
 
+    func testContentReadReferenceBlocksRevocationAndRejectsRevokedEpochABA() async throws {
+        let gate = AppAccessGateV1(setting: .absentDisabled,
+            authentication: V915AuthenticationClient(outcomes: []), clock: V915Clock(), identifiers: V915IDs(values: []))
+        let token = try await gate.beginContentRead(for: .search)
+        let barrier = V915ContentReadBarrier()
+        let publication = Task.detached {
+            do {
+                try token.withContentRead(for: .search) {
+                    barrier.entered.signal()
+                    _ = barrier.release.wait()
+                }
+                barrier.publicationSucceeded.signal()
+            } catch { barrier.publicationFailed.signal() }
+        }
+        XCTAssertEqual(barrier.entered.wait(timeout: .now() + 1), .success)
+        let revocation = Task.detached {
+            barrier.revocationStarted.signal()
+            await gate.markProtectedDataUnavailable()
+            barrier.revoked.signal()
+        }
+        XCTAssertEqual(barrier.revocationStarted.wait(timeout: .now() + 1), .success)
+        XCTAssertEqual(barrier.revoked.wait(timeout: .now()), .timedOut)
+        barrier.release.signal()
+        XCTAssertEqual(barrier.publicationSucceeded.wait(timeout: .now() + 1), .success)
+        XCTAssertEqual(barrier.publicationFailed.wait(timeout: .now()), .timedOut)
+        await publication.value
+        await revocation.value
+        XCTAssertEqual(barrier.revoked.wait(timeout: .now()), .success)
+        XCTAssertThrowsError(try token.withContentRead(for: .search) {}) { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        await assertReadDenied(gate, token: token)
+        let generation = await gate.protectedDataAvailabilityRecoveryGeneration()
+        let recoveryGeneration = try XCTUnwrap(generation)
+        try await gate.recoverProtectedDataAvailability(
+            setting: .absentDisabled, configurationVerified: true,
+            expectedGeneration: recoveryGeneration
+        )
+        let fresh = try await gate.beginContentRead(for: .search)
+        XCTAssertNoThrow(try fresh.withContentRead(for: .search) {})
+        XCTAssertThrowsError(try token.withContentRead(for: .search) {}) { error in
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+    }
+
     func testConfigurationRepairProofKeepsContentClosedAndRejectsForeignAndConsumedAuthority() async throws {
         let gate = AppAccessGateV1(
             setting: .corruptOrAmbiguous,
@@ -1291,6 +1802,132 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         do { try await gate.setEnabledAfterAuthenticated(true, configurationToken: proof); XCTFail("consumed proof changed the completed setting") }
         catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
         _ = try await gate.beginContentRead(for: .search)
+    }
+
+    func testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes() async throws {
+        let operation = Self.id(805)
+        let gate = AppAccessGateV1(
+            setting: .corruptOrAmbiguous,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated, .authenticated]),
+            clock: V915Clock(), identifiers: V915IDs(values: (802...809).map(Self.id))
+        )
+        let firstRepair = await gate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(firstRepair, .authenticated)
+        let proof = try await gate.configurationAuthenticationToken()
+        let token = try await gate.beginConfigurationStartupRecovery(proof, operationID: operation)
+        try await gate.validateConfigurationStartupRecovery(
+            token, configuration: proof, operationID: operation
+        )
+        do {
+            try await gate.validateConfigurationStartupRecovery(
+                token, configuration: proof, operationID: Self.id(806)
+            )
+            XCTFail("a startup token must bind its original operation")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+
+        let ordinaryRepair = NotificationOperationAuthorizationV1(
+            gate: gate,
+            proof: .repair(proof, targetEnabled: true),
+            operationID: operation,
+            subject: nil
+        )
+        do {
+            try await ordinaryRepair.validateStartupRecovery()
+            XCTFail("a repair authorization without the startup token opened recovery")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+
+        let foreign = AppAccessGateV1(
+            setting: .corruptOrAmbiguous,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+            clock: V915Clock(), identifiers: V915IDs(values: (802...809).map(Self.id))
+        )
+        let foreignRepair = await foreign.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(foreignRepair, .authenticated)
+        let foreignProof = try await foreign.configurationAuthenticationToken()
+        do {
+            try await foreign.validateConfigurationStartupRecovery(
+                token, configuration: foreignProof, operationID: operation
+            )
+            XCTFail("a foreign gate accepted a startup recovery token")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+
+        await gate.sceneBecameInactive()
+        await gate.sceneBecameActive()
+        do {
+            try await gate.validateConfigurationStartupRecovery(
+                token, configuration: proof, operationID: operation
+            )
+            XCTFail("scene revocation retained a startup recovery token")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+
+        await gate.lock(reason: .lockNow)
+        let secondRepair = await gate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(secondRepair, .authenticated)
+        let currentProof = try await gate.configurationAuthenticationToken()
+        let currentToken = try await gate.beginConfigurationStartupRecovery(
+            currentProof, operationID: operation
+        )
+        try await gate.validateConfigurationStartupRecovery(
+            currentToken, configuration: currentProof, operationID: operation
+        )
+        do {
+            try await gate.validateConfigurationStartupRecovery(
+                token, configuration: proof, operationID: operation
+            )
+            XCTFail("a relocked startup token survived its original repair session")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        do {
+            try await gate.validateConfigurationStartupRecovery(
+                token, configuration: currentProof, operationID: operation
+            )
+            XCTFail("an original startup token accepted a replacement repair proof")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        try await gate.setEnabledAfterAuthenticated(false, configurationToken: currentProof)
+        do {
+            try await gate.validateConfigurationStartupRecovery(
+                currentToken, configuration: currentProof, operationID: operation
+            )
+            XCTFail("consumed configuration retained a startup recovery token")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+    }
+
+    func testConfigurationStartupRecoveryTokenRejectsOperationMintABA() async throws {
+        let gate = AppAccessGateV1(setting: .corruptOrAmbiguous,
+            authentication: V915AuthenticationClient(outcomes: [.authenticated]),
+            clock: V915Clock(), identifiers: V915IDs(values: [Self.id(930), Self.id(931)]))
+        let outcome = await gate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(outcome, .authenticated)
+        let proof = try await gate.configurationAuthenticationToken()
+        let operationA = Self.id(932)
+        let operationB = Self.id(933)
+        let firstA = try await gate.beginConfigurationStartupRecovery(proof, operationID: operationA)
+        let tokenB = try await gate.beginConfigurationStartupRecovery(proof, operationID: operationB)
+        try await gate.validateConfigurationStartupRecovery(tokenB, configuration: proof, operationID: operationB)
+        let secondA = try await gate.beginConfigurationStartupRecovery(proof, operationID: operationA)
+        try await gate.validateConfigurationStartupRecovery(secondA, configuration: proof, operationID: operationA)
+        for (token, operation) in [(firstA, operationA), (tokenB, operationB)] {
+            do {
+                try await gate.validateConfigurationStartupRecovery(token, configuration: proof, operationID: operation)
+                XCTFail("a replaced startup-token mint revived under the same repair session")
+            } catch {
+                XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+            }
+        }
+        await assertReadDenied(gate)
     }
 
     func testConfigurationRepairProofExpiresAcrossEveryRevocationBoundary() async throws {
@@ -1674,6 +2311,94 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         }
     }
 
+    func testRuntimeProtectedDataLossRevokesDisabledAndEnabledCapabilitiesUntilVerifiedRecovery() async throws {
+        let disabledEffects = try recoveryEffects(journal: nil)
+        let disabledSetting = V915SettingStore(value: .init(isEnabled: false))
+        let disabled = try await AppLockLifecycleCoordinatorV1.bootstrap(
+            setting: disabledSetting, authentication: V915AuthenticationClient(outcomes: []),
+            ingressStore: V915IngressStore(),
+            notifications: AppLockNotificationPrivacyCoordinatorV1(effects: disabledEffects),
+            clock: V915Clock(), identifiers: V915IDs(values: (970...978).map(Self.id))
+        )
+        let disabledGate = await disabled.accessGate()
+        let disabledToken = try await disabledGate.beginContentRead(for: .search)
+        _ = try await disabled.handle(.protectedDataUnavailable)
+        let disabledHeldState = await disabledGate.currentState()
+        let disabledHeldCover = await disabledGate.privacyCoverRequired()
+        XCTAssertEqual(disabledHeldState, .locked(reason: .protectedDataUnavailable))
+        XCTAssertTrue(disabledHeldCover)
+        await assertReadDenied(disabledGate, token: disabledToken)
+        let disabledBlockedEnable = await disabledGate.authenticate(trigger: .enableAppLock)
+        let disabledRecovery = try await disabled.recoverAfterAuthentication()
+        let disabledRecoveredState = await disabledGate.currentState()
+        XCTAssertEqual(disabledBlockedEnable, .interrupted)
+        XCTAssertEqual(disabledRecovery, .noRecoveryRequired)
+        XCTAssertEqual(disabledRecoveredState, .disabled)
+        _ = try await disabledGate.beginContentRead(for: .search)
+
+        let enabledJournal = try recoveryJournal(enabled: true, disposition: .genericProjectionApplied)
+        let enabledEffects = try recoveryEffects(journal: enabledJournal)
+        let enabledAuthentication = V915AuthenticationClient(outcomes: [.authenticated, .authenticated])
+        let enabled = try await AppLockLifecycleCoordinatorV1.bootstrap(
+            setting: V915SettingStore(value: .init(isEnabled: true)), authentication: enabledAuthentication,
+            ingressStore: V915IngressStore(),
+            notifications: AppLockNotificationPrivacyCoordinatorV1(effects: enabledEffects),
+            clock: V915Clock(), identifiers: V915IDs(values: (980...990).map(Self.id))
+        )
+        let enabledGate = await enabled.accessGate()
+        let initialUnlock = await enabledGate.authenticate(trigger: .unlock)
+        XCTAssertEqual(initialUnlock, .authenticated)
+        let enabledToken = try await enabledGate.beginContentRead(for: .search)
+        _ = try await enabled.handle(.protectedDataUnavailable)
+        let enabledHeldState = await enabledGate.currentState()
+        XCTAssertEqual(enabledHeldState, .locked(reason: .protectedDataUnavailable))
+        await assertReadDenied(enabledGate, token: enabledToken)
+        let blockedUnlock = await enabledGate.authenticate(trigger: .unlock)
+        let enabledRecovery = try await enabled.recoverAfterAuthentication()
+        let enabledRecoveredState = await enabledGate.currentState()
+        let recoveredUnlock = await enabledGate.authenticate(trigger: .unlock)
+        XCTAssertEqual(blockedUnlock, .interrupted)
+        XCTAssertEqual(enabledRecovery, .noRecoveryRequired)
+        XCTAssertEqual(enabledRecoveredState, .locked(reason: .coldLaunch))
+        XCTAssertEqual(recoveredUnlock, .authenticated)
+        _ = try await enabledGate.beginContentRead(for: .search)
+    }
+
+    func testRuntimeProtectedDataLossCancelsPendingAuthenticationAndRejectsUnverifiedRecovery() async throws {
+        let authentication = V915GatedAuthenticationClient()
+        let setting = V915SettingStore(value: .init(isEnabled: false))
+        let lifecycle = try await AppLockLifecycleCoordinatorV1.bootstrap(
+            setting: setting, authentication: authentication, ingressStore: V915IngressStore(),
+            notifications: AppLockNotificationPrivacyCoordinatorV1(effects: try recoveryEffects(journal: nil)),
+            clock: V915Clock(), identifiers: V915IDs(values: (991...999).map(Self.id))
+        )
+        let gate = await lifecycle.accessGate()
+        let pending = Task { try await lifecycle.enable(operationID: Self.id(1_000)) }
+        await authentication.waitUntilAttemptStarted()
+        _ = try await lifecycle.handle(.protectedDataUnavailable)
+        await authentication.finish(.authenticated)
+        do { _ = try await pending.value; XCTFail("protected-data loss retained a pending enable") }
+        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        let cancelled = await authentication.cancelledAttemptIDs
+        let heldState = await gate.currentState()
+        XCTAssertEqual(cancelled.count, 1)
+        XCTAssertEqual(heldState, .locked(reason: .protectedDataUnavailable))
+        await assertReadDenied(gate)
+
+        await setting.setReadOverride(.corruptOrAmbiguous)
+        let corruptRecovery = try await lifecycle.recoverAfterAuthentication()
+        let corruptState = await gate.currentState()
+        XCTAssertEqual(corruptRecovery, .ambiguousStateLocked)
+        XCTAssertEqual(corruptState, .locked(reason: .protectedDataUnavailable))
+        await assertReadDenied(gate)
+        await setting.setReadOverride(.value(.init(isEnabled: false)))
+        let verifiedRecovery = try await lifecycle.recoverAfterAuthentication()
+        let verifiedState = await gate.currentState()
+        XCTAssertEqual(verifiedRecovery, .noRecoveryRequired)
+        XCTAssertEqual(verifiedState, .disabled)
+        _ = try await gate.beginContentRead(for: .search)
+    }
+
     func testSpecializedContentPermitsRejectRepairProofAndTransientInactivity() async throws {
         let surfaces: [AppAccessContentReadSurfaceV1] = [
             .ocrProposal, .dictationProposal, .oneShotLocationProposal,
@@ -1809,6 +2534,55 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         XCTAssertTrue(attempts.isEmpty)
     }
 
+    func testConcreteAppLockSettingReadRequiresFreshProtectedDataAvailability() async throws {
+        let suiteName = "V915.AppLock.ProtectedData.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let registry = try SettingsRegistryV1.current()
+        let availability = V915ProtectedDataAvailability(values: [false, true, true])
+        let setting = try DeviceLocalAppLockSettingAdapterV1(
+            preferences: PreferencesAdapterV1(defaults: defaults), registry: registry,
+            protectedDataAvailable: { await availability.next() }
+        )
+        let unavailable = await setting.readAppLockSetting()
+        let restored = await setting.readAppLockSetting()
+        XCTAssertEqual(unavailable, .protectedDataUnavailable)
+        XCTAssertEqual(restored, .absentDisabled)
+
+        let midReadAvailability = V915ProtectedDataAvailability(values: [true, false, true, true])
+        let midRead = try DeviceLocalAppLockSettingAdapterV1(
+            preferences: PreferencesAdapterV1(defaults: defaults), registry: registry,
+            protectedDataAvailable: { await midReadAvailability.next() }
+        )
+        let revokedDuringRead = await midRead.readAppLockSetting()
+        let freshAfterRevocation = await midRead.readAppLockSetting()
+        XCTAssertEqual(revokedDuringRead, .protectedDataUnavailable)
+        XCTAssertEqual(freshAfterRevocation, .absentDisabled)
+    }
+
+    func testProtectedDataRecoveryGenerationRejectsNewLossDuringRecovery() async throws {
+        let gate = AppAccessGateV1(
+            setting: .absentDisabled, authentication: V915AuthenticationClient(outcomes: []),
+            clock: V915Clock(), identifiers: V915IDs(values: [])
+        )
+        await gate.markProtectedDataUnavailable()
+        let recoveryGeneration = await gate.protectedDataAvailabilityRecoveryGeneration()
+        let staleGeneration = try XCTUnwrap(recoveryGeneration)
+        await gate.markProtectedDataUnavailable()
+        do {
+            try await gate.recoverProtectedDataAvailability(
+                setting: .absentDisabled, configurationVerified: true,
+                expectedGeneration: staleGeneration
+            )
+            XCTFail("a second protected-data loss accepted an earlier recovery")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .staleAttempt)
+        }
+        let state = await gate.currentState()
+        XCTAssertEqual(state, .locked(reason: .protectedDataUnavailable))
+        await assertReadDenied(gate)
+    }
+
     private func specializedPermit(
         _ gate: AppAccessGateV1, surface: AppAccessContentReadSurfaceV1
     ) async throws -> AppAccessContentPermitV1 {
@@ -1874,6 +2648,182 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         try await gate.validateContentRead(token, for: .search)
         let revealed = await gate.privacyCoverRequired()
         XCTAssertFalse(revealed)
+    }
+
+    func testConfigurationAuthenticationSettlesBothCallbackAndActiveOrderings() async throws {
+        for trigger in [LocalAuthenticationTriggerV1.enableAppLock, .disableAppLock, .repairConfiguration] {
+            for callbackFirst in [true, false] {
+                let auth = V915GatedAuthenticationClient()
+                let gate = try await configurationAuthenticationGate(trigger, authentication: auth)
+                let earlyCompletion = expectation(description: "configuration proof waits for active \(trigger)")
+                earlyCompletion.isInverted = true
+                let completed = expectation(description: "active configuration attempt completes \(trigger)")
+                var observesEarlyCompletion = true
+                var outcome: LocalAuthenticationOutcomeV1?
+                let task = Task {
+                    outcome = await gate.authenticate(trigger: trigger)
+                    if observesEarlyCompletion { earlyCompletion.fulfill() }
+                    completed.fulfill()
+                }
+                defer { task.cancel() }
+                await auth.waitUntilAttemptCount(trigger == .disableAppLock ? 2 : 1)
+                await gate.sceneBecameInactive()
+                if callbackFirst {
+                    await auth.finish(.authenticated)
+                    await fulfillment(of: [earlyCompletion], timeout: 0.05)
+                    let state = await gate.currentState()
+                    guard case .authenticating = state else {
+                        XCTFail("a configuration result published before the active scene edge")
+                        await gate.lock(reason: .interrupted)
+                        continue
+                    }
+                    let covered = await gate.privacyCoverRequired()
+                    XCTAssertTrue(covered)
+                    await assertReadDenied(gate)
+                    await assertConfigurationAuthenticationProofDenied(gate, trigger: trigger)
+                }
+                observesEarlyCompletion = false
+                await gate.sceneBecameActive()
+                if !callbackFirst { await auth.finish(.authenticated) }
+                await fulfillment(of: [completed], timeout: 2)
+                XCTAssertEqual(outcome, .authenticated)
+                let cancelled = await auth.cancelledAttemptIDs
+                XCTAssertTrue(cancelled.isEmpty)
+                if trigger == .repairConfiguration {
+                    let proof = try await gate.configurationAuthenticationToken()
+                    try await gate.validateConfigurationAuthentication(proof)
+                    await assertReadDenied(gate)
+                } else {
+                    let target = trigger == .enableAppLock
+                    let proof = try await gate.toggleAuthenticationToken(targetEnabled: target)
+                    try await gate.validateToggleAuthentication(proof, targetEnabled: target)
+                }
+            }
+        }
+    }
+
+    func testConfigurationAuthenticationPendingActiveIsPreemptedByRevocation() async throws {
+        for trigger in [LocalAuthenticationTriggerV1.enableAppLock, .disableAppLock, .repairConfiguration] {
+            for boundary in 0..<5 {
+                let auth = V915GatedAuthenticationClient()
+                let gate = try await configurationAuthenticationGate(trigger, authentication: auth)
+                let earlyCompletion = expectation(description: "inactive configuration completion remains pending")
+                earlyCompletion.isInverted = true
+                let completed = expectation(description: "revocation releases original configuration completion")
+                var observesEarlyCompletion = true
+                var outcome: LocalAuthenticationOutcomeV1?
+                let task = Task {
+                    outcome = await gate.authenticate(trigger: trigger)
+                    if observesEarlyCompletion { earlyCompletion.fulfill() }
+                    completed.fulfill()
+                }
+                defer { task.cancel() }
+                await auth.waitUntilAttemptCount(trigger == .disableAppLock ? 2 : 1)
+                await gate.sceneBecameInactive()
+                await auth.finish(.authenticated)
+                await fulfillment(of: [earlyCompletion], timeout: 0.05)
+                observesEarlyCompletion = false
+                switch boundary {
+                case 0: await gate.lock(reason: .returnedFromBackground)
+                case 1: await gate.lock(reason: .lockNow)
+                case 2: await gate.markConfigurationUnknown()
+                case 3: await gate.eraseAccessState()
+                default: task.cancel()
+                }
+                await fulfillment(of: [completed], timeout: 2)
+                XCTAssertEqual(outcome, .interrupted)
+                let cancelled = await auth.cancelledAttemptIDs
+                XCTAssertEqual(cancelled.count, 1)
+                await gate.sceneBecameActive()
+                await assertConfigurationAuthenticationProofDenied(gate, trigger: trigger)
+                let state = await gate.currentState()
+                switch state {
+                case .disabled, .locked, .configurationUnknownLocked: break
+                default: XCTFail("revoked configuration completion revived a session: \(state)")
+                }
+            }
+        }
+    }
+
+    func testRecoveryCompletionRejectsPendingConfigurationAttemptWithoutStrandingCancellation() async throws {
+        for trigger in [LocalAuthenticationTriggerV1.enableAppLock, .disableAppLock] {
+            let auth = V915GatedAuthenticationClient()
+            let gate = try await configurationAuthenticationGate(trigger, authentication: auth)
+            let earlyCompletion = expectation(description: "successful inactive configuration attempt stays pending")
+            earlyCompletion.isInverted = true
+            let completed = expectation(description: "pending attempt remains cancellable after recovery rejection")
+            var observesEarlyCompletion = true
+            var outcome: LocalAuthenticationOutcomeV1?
+            let task = Task {
+                outcome = await gate.authenticate(trigger: trigger)
+                if observesEarlyCompletion { earlyCompletion.fulfill() }
+                completed.fulfill()
+            }
+            defer { task.cancel() }
+            await auth.waitUntilAttemptCount(trigger == .disableAppLock ? 2 : 1)
+            await gate.sceneBecameInactive()
+            await auth.finish(.authenticated)
+            await fulfillment(of: [earlyCompletion], timeout: 0.05)
+            let originalState = await gate.currentState()
+            guard case .authenticating(let attemptID) = originalState else {
+                XCTFail("the original configuration attempt did not stay pending")
+                await gate.lock(reason: .interrupted)
+                continue
+            }
+            do {
+                try await gate.markRecoveryComplete(enabled: trigger == .disableAppLock)
+                XCTFail("recovery completion replaced a still-active configuration attempt")
+            } catch {
+                XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+            }
+            let retainedState = await gate.currentState()
+            let retainedCover = await gate.privacyCoverRequired()
+            XCTAssertEqual(retainedState, originalState)
+            XCTAssertTrue(retainedCover)
+            await assertReadDenied(gate)
+            await assertConfigurationAuthenticationProofDenied(gate, trigger: trigger)
+            observesEarlyCompletion = false
+            task.cancel()
+            await fulfillment(of: [completed], timeout: 2)
+            XCTAssertEqual(outcome, .interrupted)
+            let cancelled = await auth.cancelledAttemptIDs
+            XCTAssertEqual(cancelled, [attemptID])
+            await assertConfigurationAuthenticationProofDenied(gate, trigger: trigger)
+        }
+    }
+
+    private func configurationAuthenticationGate(
+        _ trigger: LocalAuthenticationTriggerV1,
+        authentication: V915GatedAuthenticationClient
+    ) async throws -> AppAccessGateV1 {
+        let setting: DeviceLocalAppLockSettingReadV1 = trigger == .repairConfiguration
+            ? .corruptOrAmbiguous : .value(.init(isEnabled: trigger == .disableAppLock))
+        let gate = AppAccessGateV1(setting: setting, authentication: authentication,
+            clock: V915Clock(), identifiers: V915IDs(values: (940...949).map(Self.id)))
+        if trigger == .disableAppLock {
+            let unlock = Task { await gate.authenticate(trigger: .unlock) }
+            await authentication.waitUntilAttemptStarted()
+            await authentication.finish(.authenticated)
+            let result = await unlock.value
+            XCTAssertEqual(result, .authenticated)
+        }
+        return gate
+    }
+
+    private func assertConfigurationAuthenticationProofDenied(
+        _ gate: AppAccessGateV1, trigger: LocalAuthenticationTriggerV1,
+        file: StaticString = #filePath, line: UInt = #line
+    ) async {
+        do {
+            if trigger == .repairConfiguration {
+                _ = try await gate.configurationAuthenticationToken()
+            } else {
+                _ = try await gate.toggleAuthenticationToken(targetEnabled: trigger == .enableAppLock)
+            }
+            XCTFail("unsettled or revoked configuration authentication admitted a proof", file: file, line: line)
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied, file: file, line: line)
+        }
     }
 
     func testToggleProofBindsFreshAuthenticationOwnerTargetAndSingleCompletion() async throws {
@@ -2724,6 +3674,26 @@ private actor V915AuthenticationClient: LocalAuthenticationClient {
     var maximumEvaluationCountPerAttempt: Int { counts.values.max() ?? 0 }
 }
 
+private final class V915ContentReadBarrier: @unchecked Sendable {
+    let entered = DispatchSemaphore(value: 0)
+    let revocationStarted = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    let revoked = DispatchSemaphore(value: 0)
+    let publicationSucceeded = DispatchSemaphore(value: 0)
+    let publicationFailed = DispatchSemaphore(value: 0)
+}
+
+private actor V915ProtectedDataAvailability {
+    private var values: [Bool]
+    private var last = false
+    init(values: [Bool]) { self.values = values }
+    func next() -> Bool {
+        guard !values.isEmpty else { return last }
+        last = values.removeFirst()
+        return last
+    }
+}
+
 private actor V915GatedAuthenticationClient: LocalAuthenticationClient {
     private var attemptCount = 0
     private var awaitedAttemptCount = 0
@@ -3163,7 +4133,7 @@ private actor V915GatedNotificationStore: AppLockNotificationPrivacyPortV1 {
 
 private actor V915SettingStore: DeviceLocalAppLockSettingPortV1 {
     private var value: DeviceLocalAppLockSettingV1?
-    private let readOverride: DeviceLocalAppLockSettingReadV1?
+    private var readOverride: DeviceLocalAppLockSettingReadV1?
     private(set) var eraseEffectCount = 0
     private(set) var eraseCallCount = 0
     private(set) var writeEffectCount = 0
@@ -3171,6 +4141,7 @@ private actor V915SettingStore: DeviceLocalAppLockSettingPortV1 {
         self.value = value; self.readOverride = readOverride
     }
     func readAppLockSetting() -> DeviceLocalAppLockSettingReadV1 { readOverride ?? value.map(DeviceLocalAppLockSettingReadV1.value) ?? .absentDisabled }
+    func setReadOverride(_ value: DeviceLocalAppLockSettingReadV1?) { readOverride = value }
     func writeAppLockSetting(_ value: DeviceLocalAppLockSettingV1, operationID: UUID, authorization: NotificationOperationAuthorizationV1) -> DeviceLocalAppLockSettingWriteReceiptV1 { writeEffectCount += 1; self.value = value; return .init(operationID: operationID, value: value, adoptedExistingEffect: false) }
     func eraseAppLockSetting(operationID: UUID) { eraseCallCount += 1; if value != nil { eraseEffectCount += 1 }; value = nil }
 }

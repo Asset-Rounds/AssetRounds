@@ -197,14 +197,48 @@ private struct RatingEligibilityEnvelopeVersionProbeV1: Codable, Sendable {
 /// The sole device-local preference adapter. Feature and view code receive the
 /// typed port and never read or write raw defaults keys.
 final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStoreV1,
+    SceneNavigationDeviceStatePortV1,
     @unchecked Sendable {
     static let storagePrefix = "settings.v1."
     private static let ratingEligibilityStorageKey = "rating-eligibility.v1"
+    private static let sceneNavigationStorageKey = "scene-navigation.v1"
     private static let ratingEligibilityLock = NSLock()
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+    }
+
+    func loadSceneNavigationData() throws -> Data? {
+        try withLock {
+            guard let object = defaults.object(forKey: Self.sceneNavigationStorageKey) else { return nil }
+            guard let data = object as? Data,
+                  data.count <= SceneNavigationSnapshotV1.maximumEncodedByteCount else {
+                throw SceneNavigationFailureV1.invalidSnapshot
+            }
+            return data
+        }
+    }
+
+    func saveSceneNavigationData(_ data: Data) throws {
+        try withLock {
+            guard data.count <= SceneNavigationSnapshotV1.maximumEncodedByteCount else {
+                throw SceneNavigationFailureV1.invalidSnapshot
+            }
+            defaults.set(data, forKey: Self.sceneNavigationStorageKey)
+            guard defaults.data(forKey: Self.sceneNavigationStorageKey) == data else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+        }
+    }
+
+    func eraseSceneNavigationData() throws {
+        try withLock {
+            defaults.removeObject(forKey: Self.sceneNavigationStorageKey)
+            guard defaults.object(forKey: Self.sceneNavigationStorageKey) == nil else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+        }
     }
 
     func readCanonicalValue(for descriptor: SettingDescriptorV1) throws -> Data {

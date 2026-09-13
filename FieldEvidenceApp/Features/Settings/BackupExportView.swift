@@ -16,6 +16,7 @@ struct BackupExportView: View {
     static let warning = "This backup contains sign details, notes, photos, and reports. It does not contain your subscription. Store and share it securely."
 
     private let service: BackupExportService
+    private let contentAccess: AppAccessPresentationV1.ContentAccess
     private let usesConfirmedDestinationForUITest: Bool
 
     @State private var preview: BackupExportPreviewV1?
@@ -25,7 +26,9 @@ struct BackupExportView: View {
     @AccessibilityFocusState private var warningFocused: Bool
     @AccessibilityFocusState private var exportedFocused: Bool
 
-    init(modelContext: ModelContext, generationRootURL: URL) {
+    init(modelContext: ModelContext, generationRootURL: URL,
+         contentAccess: AppAccessPresentationV1.ContentAccess) {
+        self.contentAccess = contentAccess
         service = BackupExportService(
             modelContext: modelContext,
             generationRootURL: generationRootURL
@@ -101,7 +104,7 @@ struct BackupExportView: View {
     private func loadPreview() {
         isWorking = true
         defer { isWorking = false }
-        preview = try? service.prepare()
+        preview = try? contentAccess.withRead { try service.prepare() }
         if preview != nil {
             Task { @MainActor in
                 await Task.yield()
@@ -136,7 +139,7 @@ struct BackupExportView: View {
             if accessed { destination.stopAccessingSecurityScopedResource() }
             isWorking = false
         }
-        if let url = try? service.export(previewID: previewID, to: destination) {
+        if let url = try? contentAccess.withRead({ try service.export(previewID: previewID, to: destination) }) {
             exportedPackageName = url.lastPathComponent
             Task { @MainActor in
                 await Task.yield()

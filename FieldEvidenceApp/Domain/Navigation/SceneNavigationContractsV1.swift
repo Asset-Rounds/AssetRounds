@@ -1,11 +1,33 @@
 import Foundation
 
+extension NavigationTargetV1 {
+    var isIdentitylessSceneRootMarker: Bool {
+        destination == RouteRegistryV1.rootDestination(for: root)
+            && stableEntityID == nil
+            && stableScheduleDefinitionID == nil
+            && stableScheduleReleaseID == nil
+            && stableSessionID == nil
+            && stableOccurrenceID == nil
+            && stableLocationID == nil
+            && packageSurfaceID == nil
+            && requestedMode == .read
+            && expectedRevision == nil
+            && expectedScheduleRevision == nil
+            && expectedOccurrenceRevision == nil
+            && draftResumeAnchor == nil
+            && fieldPosition == nil
+            && searchAnchor == nil
+            && fallback == .today
+    }
+}
+
 struct SceneRootPathV1: Codable, Equatable, Sendable {
     let root: AppRootV1
     let targets: [NavigationTargetV1]
 
     func validate(workspaceID: WorkspaceID) throws {
-        guard targets.allSatisfy({ $0.workspaceID == workspaceID && $0.root == root }) else {
+        guard targets.count <= SceneNavigationSnapshotV1.maximumPathDepth,
+              targets.allSatisfy({ $0.workspaceID == workspaceID && $0.root == root }) else {
             throw SceneNavigationFailureV1.invalidPath
         }
         try targets.forEach { try $0.validate() }
@@ -15,6 +37,7 @@ struct SceneRootPathV1: Codable, Equatable, Sendable {
 struct SceneNavigationSnapshotV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let maximumEncodedByteCount = 64 * 1024
+    static let maximumPathDepth = 32
     let schemaVersion: Int
     let workspaceID: WorkspaceID
     let selectedRoot: AppRootV1
@@ -37,6 +60,9 @@ struct SceneNavigationSnapshotV1: Codable, Equatable, Sendable {
               snapshotID != RouteContractValidationV1.zeroUUID,
               paths.map(\.root) == AppRootV1.frozenOrder else { throw SceneNavigationFailureV1.invalidSnapshot }
         try paths.forEach { try $0.validate(workspaceID: workspaceID) }
+        guard try RouteCanonicalCodecV1.encode(self).count <= Self.maximumEncodedByteCount else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
     }
 
     var selectedTarget: NavigationTargetV1? {
@@ -106,6 +132,53 @@ struct RouteRestorationReceiptV1: Codable, Equatable, Sendable {
 
     private var basis: Basis { .init(schemaVersion: schemaVersion, receiptID: receiptID, evidenceKind: evidenceKind, source: source, result: result, snapshotID: snapshotID, canonicalMutationCount: canonicalMutationCount, startsAutomaticWork: startsAutomaticWork) }
     private struct Basis: Codable { let schemaVersion: Int; let receiptID: UUID; let evidenceKind: RouteEvidenceKindV1; let source: RouteRestorationSourceV1; let result: RouteResolutionResultV1; let snapshotID: UUID?; let canonicalMutationCount: Int; let startsAutomaticWork: Bool }
+}
+
+/// A runtime-only projection of restored scene state. The receipt remains the
+/// immutable proof; reconciled paths are device-local presentation state and
+/// intentionally have no Codable conformance.
+struct SceneNavigationRestorationResultV1: Equatable, Sendable {
+    let receipt: RouteRestorationReceiptV1
+    let selectedRoot: AppRootV1
+    let paths: [SceneRootPathV1]
+
+    init(
+        receipt: RouteRestorationReceiptV1,
+        selectedRoot: AppRootV1,
+        paths: [SceneRootPathV1]
+    ) throws {
+        try receipt.validate()
+        try WorkspaceExperienceRouteBoundaryV1.validate()
+        guard paths.map(\.root) == AppRootV1.frozenOrder,
+              receipt.result.target.root == selectedRoot else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+        try paths.forEach { path in
+            try path.validate(workspaceID: receipt.result.target.workspaceID)
+            guard !path.targets.contains(where: { $0.isIdentitylessSceneRootMarker }) else {
+                throw SceneNavigationFailureV1.invalidPath
+            }
+        }
+        guard let selectedPath = paths.first(where: { $0.root == selectedRoot }) else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+        if let selectedTarget = selectedPath.targets.last {
+            guard selectedTarget == receipt.result.target else {
+                throw SceneNavigationFailureV1.invalidSnapshot
+            }
+        } else {
+            guard receipt.result.target.isIdentitylessSceneRootMarker else {
+                throw SceneNavigationFailureV1.invalidSnapshot
+            }
+        }
+        self.receipt = receipt
+        self.selectedRoot = selectedRoot
+        self.paths = paths
+    }
+
+    func path(for root: AppRootV1) -> SceneRootPathV1? {
+        paths.first(where: { $0.root == root })
+    }
 }
 
 struct RouteConformanceReceiptV1: Codable, Equatable, Sendable {

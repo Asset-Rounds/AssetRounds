@@ -428,6 +428,46 @@ private enum C30AssetLabelTestSupport {
         )
     }
 
+    static func canonicalReceipt(
+        snapshot: AcceptedLabelGenerationSnapshotV1
+    ) throws -> MutationReceiptV1 {
+        let mutation = try AssetLabelMutationV1(snapshot: snapshot)
+        let replicaID = ReplicaID(rawValue: id(90_001))
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: snapshot.workspaceID,
+            replicaID: replicaID
+        )
+        let envelope = try MutationEnvelopeV1(
+            request: mutation.canonicalWorkspaceMutationRequest(),
+            identity: identity
+        )
+        let resulting = try MutationPortableExpectedRevisionV1(
+            WorkspaceExpectedRevisionV1(
+                workspaceID: snapshot.workspaceID,
+                generationID: snapshot.expectedRevision.generationID,
+                writerInstanceID: snapshot.expectedRevision.writerInstanceID,
+                workspaceRevision: snapshot.expectedRevision.workspaceRevision + 1,
+                entityRevisions: [
+                    WorkspaceEntityRevisionV1(
+                        identity: try mutation.affectedIdentity,
+                        revision: snapshot.revision
+                    ),
+                ]
+            )
+        )
+        return try MutationReceiptV1(
+            identity: MutationReceiptIdentityV1(
+                workspaceID: snapshot.workspaceID,
+                replicaID: replicaID,
+                localSequence: 1
+            ),
+            envelope: envelope,
+            resultingRevision: resulting,
+            postImages: [try mutation.mutationPostImage],
+            committedAt: snapshot.recordedAt.addingTimeInterval(1)
+        )
+    }
+
     static func publishedArtifacts(
         plan: AssetLabelGenerationPlanV1,
         result: LabelProjectionResultV1
@@ -641,7 +681,10 @@ private enum C30AssetLabelTestSupport {
             generationPublicationAdapter: publicationAdapter,
             maximumConcurrency: 1
         )
-        let authority = AssetLabelAuthoritativePlanAdapterV1 { try $0.validate() }
+        let authorityState = C30MutableLabelAuthority()
+        let authority = AssetLabelAuthoritativePlanAdapterV1 {
+            try authorityState.validate($0)
+        }
         let interruptedLifecycle = await AssetLabelLifecycleAdapterV1(
             authority: authority,
             writer: C30RejectingLabelWriter(),
@@ -672,9 +715,10 @@ private enum C30AssetLabelTestSupport {
             maximumConcurrency: 1
         )
         let query = C30MutableAcceptedSnapshotQuery()
+        let writer = C30AcceptingLabelWriter()
         let recoveredLifecycle = await AssetLabelLifecycleAdapterV1(
             authority: authority,
-            writer: C30RejectingLabelWriter(),
+            writer: writer,
             query: query,
             jobs: recoveredRunner,
             artifacts: recoveredOperations
@@ -697,6 +741,49 @@ private enum C30AssetLabelTestSupport {
             publishedArtifacts: readback.publishedArtifacts,
             publicationReceipt: try XCTUnwrap(recoveredJob.publicationReceipt)
         )
+        let firstReceipt = try await recoveredLifecycle.acceptPublishedJob(
+            jobID: job.id,
+            outputReceiptID: accepted.outputReceipt.receiptID,
+            snapshotID: accepted.snapshotID,
+            expectedRevision: accepted.expectedRevision,
+            mutationID: accepted.mutationID,
+            recordedBy: accepted.recordedBy,
+            recordedAt: accepted.recordedAt
+        )
+        XCTAssertEqual(writer.commitCount, 1)
+        authorityState.rejectCurrent = true
+        let replayedReceipt = try await recoveredLifecycle.acceptPublishedJob(
+            jobID: job.id,
+            outputReceiptID: accepted.outputReceipt.receiptID,
+            snapshotID: accepted.snapshotID,
+            expectedRevision: accepted.expectedRevision,
+            mutationID: accepted.mutationID,
+            recordedBy: accepted.recordedBy,
+            recordedAt: accepted.recordedAt
+        )
+        XCTAssertEqual(replayedReceipt, firstReceipt)
+        XCTAssertEqual(writer.commitCount, 1)
+        let freshWorkspace = workspace(803)
+        let freshSnapshot = try accepted.rebound(
+            to: freshWorkspace,
+            expectedRevision: expectedRevision(
+                workspaceID: freshWorkspace,
+                snapshotID: accepted.snapshotID,
+                slot: 804
+            ),
+            mutationID: mutation(805),
+            recordedBy: actor(workspaceID: freshWorkspace, slot: 806),
+            recordedAt: date(807)
+        )
+        do {
+            _ = try await recoveredLifecycle.coordinator.accept(
+                AssetLabelAcceptanceRequestV1(snapshot: freshSnapshot)
+            )
+            XCTFail("A fresh mutation must not commit after live authority changes")
+        } catch {
+            XCTAssertEqual(error as? AssetLabelContractFailureV1, .invalidValue)
+        }
+        XCTAssertEqual(writer.commitCount, 1)
         query.snapshot = accepted
         let exact = try await recoveredLifecycle.prepareExactAcceptedExport(
             workspaceID: accepted.workspaceID,
@@ -875,6 +962,44 @@ private final class C30CleanupTracker: @unchecked Sendable {
     func recordRemoval() {
         lock.lock(); defer { lock.unlock() }
         count += 1
+    }
+}
+
+@MainActor
+private final class C30MutableLabelAuthority {
+    var rejectCurrent = false
+
+    func validate(_ plan: AssetLabelGenerationPlanV1) throws {
+        try plan.validate()
+        if rejectCurrent { throw AssetLabelContractFailureV1.invalidValue }
+    }
+}
+
+@MainActor
+private final class C30AcceptingLabelWriter: AssetLabelCanonicalWorkspaceWritingV1 {
+    private var receipts: [MutationIDV1: AssetLabelAcceptanceReceiptV1] = [:]
+    private(set) var commitCount = 0
+
+    func acceptedReceipt(
+        for mutation: AssetLabelMutationV1
+    ) async throws -> AssetLabelAcceptanceReceiptV1? {
+        receipts[mutation.mutationID]
+    }
+
+    func commitAssetLabel(
+        _ mutation: AssetLabelMutationV1
+    ) async throws -> AssetLabelAcceptanceReceiptV1 {
+        try mutation.validate()
+        if let receipt = receipts[mutation.mutationID] { return receipt }
+        let receipt = try AssetLabelAcceptanceReceiptV1(
+            mutation: mutation,
+            canonicalMutationReceipt: try C30AssetLabelTestSupport.canonicalReceipt(
+                snapshot: mutation.snapshot
+            )
+        )
+        receipts[mutation.mutationID] = receipt
+        commitCount += 1
+        return receipt
     }
 }
 

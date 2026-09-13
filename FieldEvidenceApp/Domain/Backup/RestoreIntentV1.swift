@@ -13,6 +13,9 @@ enum RestoreIntentPhaseV1: String, CaseIterable, Codable, Sendable {
 }
 
 struct RestoreIntentV1: Equatable, Sendable {
+    /// Milliseconds must remain distinguishable when represented as a Date.
+    /// This covers more than 142,000 years on either side of the epoch.
+    private static let maximumCanonicalTimestampMilliseconds = 4_503_599_627_370_496
     let newGenerationID: UUID
     let newGenerationRelativePath: String
     let oldGenerationID: UUID
@@ -21,6 +24,14 @@ struct RestoreIntentV1: Equatable, Sendable {
     let schemaVersion: Int
     let stagingGenerationRelativePath: String
     let identity: RestoreIdentityV1?
+    /// The one canonical replacement instant used to materialize tombstones.
+    /// Released journals intentionally have no value: recovery must not invent
+    /// an instant that was never durably bound.
+    let replacementTimestampMilliseconds: Int?
+
+    var replacementAt: Date? {
+        replacementTimestampMilliseconds.flatMap(Self.date)
+    }
 
     /// Compatibility initializer for released schema-V1 restore journals.
     init(
@@ -31,7 +42,8 @@ struct RestoreIntentV1: Equatable, Sendable {
         restoreID: UUID,
         schemaVersion: Int,
         stagingGenerationRelativePath: String,
-        identity: RestoreIdentityV1? = nil
+        identity: RestoreIdentityV1? = nil,
+        replacementTimestampMilliseconds: Int? = nil
     ) {
         self.newGenerationID = newGenerationID
         self.newGenerationRelativePath = newGenerationRelativePath
@@ -41,21 +53,24 @@ struct RestoreIntentV1: Equatable, Sendable {
         self.schemaVersion = schemaVersion
         self.stagingGenerationRelativePath = stagingGenerationRelativePath
         self.identity = identity
+        self.replacementTimestampMilliseconds = replacementTimestampMilliseconds
     }
 
     init(
         identity: RestoreIdentityV1,
         phase: RestoreIntentPhaseV1 = .prepared,
-        restoreID: UUID
+        restoreID: UUID,
+        replacementTimestampMilliseconds: Int
     ) {
         newGenerationID = identity.targetPointer.generationID
         newGenerationRelativePath = "FieldEvidenceData/generations/\(Self.canonical(identity.targetPointer.generationID))"
         oldGenerationID = identity.oldPointer.generationID
         self.phase = phase
         self.restoreID = restoreID
-        schemaVersion = 2
+        schemaVersion = 3
         stagingGenerationRelativePath = "FieldEvidenceRestore/generations/\(Self.canonical(identity.targetPointer.generationID))"
         self.identity = identity
+        self.replacementTimestampMilliseconds = replacementTimestampMilliseconds
     }
 
     func advancing(to phase: RestoreIntentPhaseV1) -> RestoreIntentV1 {
@@ -67,8 +82,33 @@ struct RestoreIntentV1: Equatable, Sendable {
             restoreID: restoreID,
             schemaVersion: schemaVersion,
             stagingGenerationRelativePath: stagingGenerationRelativePath,
-            identity: identity
+            identity: identity,
+            replacementTimestampMilliseconds: replacementTimestampMilliseconds
         )
+    }
+
+    static func canonicalReplacementTimestampMilliseconds(_ value: Date) -> Int? {
+        let raw = value.timeIntervalSince1970 * 1_000
+        guard raw.isFinite,
+              raw >= -Double(maximumCanonicalTimestampMilliseconds),
+              raw <= Double(maximumCanonicalTimestampMilliseconds) else {
+            return nil
+        }
+        let milliseconds = Int(raw.rounded())
+        guard date(milliseconds) != nil else { return nil }
+        return milliseconds
+    }
+
+    static func date(_ milliseconds: Int) -> Date? {
+        guard milliseconds >= -maximumCanonicalTimestampMilliseconds,
+              milliseconds <= maximumCanonicalTimestampMilliseconds else {
+            return nil
+        }
+        let seconds = TimeInterval(milliseconds) / 1_000
+        guard seconds.isFinite else {
+            return nil
+        }
+        return Date(timeIntervalSince1970: seconds)
     }
 
     private static func canonical(_ value: UUID) -> String {
@@ -91,6 +131,7 @@ enum RestoreIntentCodecV1 {
         "stagingGenerationRelativePath",
     ])
     private static let v2Keys = legacyKeys.union(["identity"])
+    private static let v3Keys = v2Keys.union(["replacementTimestampMilliseconds"])
     private static let identityKeys = Set([
         "mode",
         "oldPointer",
@@ -124,6 +165,13 @@ enum RestoreIntentCodecV1 {
         ]
         if let identity = value.identity {
             object["identity"] = identityJSON(identity)
+        } else if value.schemaVersion == 3 {
+            object["identity"] = .null
+        }
+        if let replacementTimestampMilliseconds = value.replacementTimestampMilliseconds {
+            object["replacementTimestampMilliseconds"] = .integer(
+                replacementTimestampMilliseconds
+            )
         }
         return try CanonicalJSONV1.encode(.object(object))
     }
@@ -140,6 +188,7 @@ enum RestoreIntentCodecV1 {
         switch schemaVersion {
         case 1: expectedKeys = legacyKeys
         case 2: expectedKeys = v2Keys
+        case 3: expectedKeys = v3Keys
         default: throw RestoreIntentContractErrorV1.invalidIntent
         }
         guard Set(object.keys) == expectedKeys,
@@ -162,8 +211,28 @@ enum RestoreIntentCodecV1 {
                 throw RestoreIntentContractErrorV1.invalidIntent
             }
             identity = decoded
+        } else if schemaVersion == 3 {
+            if object["identity"] is NSNull {
+                identity = nil
+            } else {
+                guard let decoded = decodeIdentity(object["identity"]) else {
+                    throw RestoreIntentContractErrorV1.invalidIntent
+                }
+                identity = decoded
+            }
         } else {
             identity = nil
+        }
+        let replacementTimestampMilliseconds: Int?
+        if schemaVersion == 3 {
+            guard let timestamp = exactInteger(
+                object["replacementTimestampMilliseconds"]
+            ), RestoreIntentV1.date(timestamp) != nil else {
+                throw RestoreIntentContractErrorV1.invalidIntent
+            }
+            replacementTimestampMilliseconds = timestamp
+        } else {
+            replacementTimestampMilliseconds = nil
         }
         let value = RestoreIntentV1(
             newGenerationID: newGenerationID,
@@ -173,7 +242,8 @@ enum RestoreIntentCodecV1 {
             restoreID: restoreID,
             schemaVersion: schemaVersion,
             stagingGenerationRelativePath: stagingGenerationRelativePath,
-            identity: identity
+            identity: identity,
+            replacementTimestampMilliseconds: replacementTimestampMilliseconds
         )
         guard try encode(value) == data else {
             throw RestoreIntentContractErrorV1.invalidIntent
@@ -195,8 +265,21 @@ enum RestoreIntentCodecV1 {
         switch value.schemaVersion {
         case 1:
             return value.identity == nil
+                && value.replacementTimestampMilliseconds == nil
         case 2:
-            guard let identity = value.identity else { return false }
+            guard let identity = value.identity,
+                  value.replacementTimestampMilliseconds == nil else { return false }
+            return identity.oldPointer.generationID == value.oldGenerationID
+                && identity.targetPointer.generationID == value.newGenerationID
+                && validPointer(identity.oldPointer)
+                && validPointer(identity.targetPointer)
+                && validIdentity(identity)
+        case 3:
+            guard let timestamp = value.replacementTimestampMilliseconds,
+                  RestoreIntentV1.date(timestamp) != nil else { return false }
+            guard let identity = value.identity else {
+                return true
+            }
             return identity.oldPointer.generationID == value.oldGenerationID
                 && identity.targetPointer.generationID == value.newGenerationID
                 && validPointer(identity.oldPointer)
@@ -382,6 +465,9 @@ private extension RestoreIntentCodecV1 {
     static func exactInteger(_ raw: Any?) -> Int? {
         guard let number = raw as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue.isFinite,
+              number.doubleValue >= Double(Int.min),
+              number.doubleValue < Double(Int.max),
               number.doubleValue == Double(number.intValue) else {
             return nil
         }

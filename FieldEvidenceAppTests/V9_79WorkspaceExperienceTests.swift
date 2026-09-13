@@ -426,6 +426,102 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         catch { XCTAssertEqual(reportGate.events, ["gate"]) }
     }
 
+    func testV23P04C16J01ConcreteLockedAndConfigurationUnknownGatesRejectStartupBeforeCanonicalOpen() async throws {
+        let manager = FileManager.default
+        let support = manager.temporaryDirectory.appendingPathComponent(
+            "c16-startup-pre-auth-\(UUID().uuidString.lowercased())", isDirectory: true
+        )
+        try manager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: support) }
+
+        let locked = AppAccessGateV1(
+            setting: .value(.init(isEnabled: true)), authentication: C16Authentication(),
+            clock: C16Clock(), identifiers: C16IDs()
+        )
+        let configurationUnknown = AppAccessGateV1(
+            setting: .corruptOrAmbiguous, authentication: C16Authentication(),
+            clock: C16Clock(), identifiers: C16IDs()
+        )
+
+        for gate in [locked, configurationUnknown] {
+            let steps = C16ReadCounter()
+            let router = StartupRouter(
+                applicationSupportURL: support,
+                didBeginStep: { _ in steps.increment() }
+            )
+            defer { router.failClosedPDFRecovery() }
+
+            do {
+                try await router.startIfNeeded(accessGate: gate)
+                XCTFail("a pre-authentication gate must reject startup")
+            } catch {
+                XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+            }
+            do {
+                try await router.retryChecks(accessGate: gate)
+                XCTFail("a pre-authentication gate must reject retry")
+            } catch {
+                XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+            }
+
+            XCTAssertEqual(steps.value, 0)
+            XCTAssertNil(router.entitlementProcessor)
+            XCTAssertFalse(router.hasPendingWriterCleanup)
+            guard case .checking = router.route else {
+                return XCTFail("denied startup must remain covered")
+            }
+            XCTAssertFalse(manager.fileExists(atPath: support.appendingPathComponent("FieldEvidenceData").path))
+            XCTAssertFalse(manager.fileExists(atPath: support.appendingPathComponent("FieldEvidenceOperations").path))
+        }
+    }
+
+    func testV23P04C16J02RepairAuthorizationWithoutStartupRecoveryTokenCannotOpenStartup() async throws {
+        let manager = FileManager.default
+        let support = manager.temporaryDirectory.appendingPathComponent(
+            "c16-startup-repair-without-token-\(UUID().uuidString.lowercased())", isDirectory: true
+        )
+        try manager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: support) }
+
+        let gate = AppAccessGateV1(
+            setting: .corruptOrAmbiguous, authentication: C16Authentication(),
+            clock: C16Clock(), identifiers: C16IDs()
+        )
+        let repairOutcome = await gate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(repairOutcome, .authenticated)
+        let operationID = UUID()
+        let configuration = try await gate.configurationAuthenticationToken()
+        let authorization = NotificationOperationAuthorizationV1(
+            gate: gate,
+            proof: .repair(configuration, targetEnabled: true),
+            operationID: operationID,
+            subject: try C16NotificationSubject(operationID: operationID)
+        )
+        let steps = C16ReadCounter()
+        let router = StartupRouter(
+            applicationSupportURL: support,
+            didBeginStep: { _ in steps.increment() }
+        )
+        try router.bindStartupAccessGate(gate)
+        defer { router.failClosedPDFRecovery() }
+
+        do {
+            _ = try await router.notificationSource(authorization: authorization)
+            XCTFail("repair authorization without startup recovery capability must not open storage")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+
+        XCTAssertEqual(steps.value, 0)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        guard case .checking = router.route else {
+            return XCTFail("failed repair startup must remain covered")
+        }
+        XCTAssertFalse(manager.fileExists(atPath: support.appendingPathComponent("FieldEvidenceData").path))
+        XCTAssertFalse(manager.fileExists(atPath: support.appendingPathComponent("FieldEvidenceOperations").path))
+    }
+
     func testV23P04C16I01InterruptedInstallResumeIsIdempotent() async throws {
         let fixture = try C16Fixture(failOnceAt: .afterSaveBeforeReturn)
         let command = try fixture.command()
@@ -721,6 +817,33 @@ private struct C16Clock: ApplicationClock {
 
 private struct C16IDs: ApplicationIDSource {
     func makeID() -> UUID { UUID() }
+}
+
+private actor C16Authentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        .authenticated
+    }
+
+    func cancel(attemptID: UUID) {}
+}
+
+private func C16NotificationSubject(operationID: UUID) throws -> NotificationOperationSubjectV1 {
+    let digest = String(repeating: "a", count: 64)
+    let journal = try AppLockNotificationJournalV1(
+        operationID: operationID,
+        targetEnabled: true,
+        priorPolicy: .init(policyID: "c16-startup", revision: 1, canonicalDigest: digest),
+        projections: [],
+        disposition: .enablingPrepared
+    )
+    return try NotificationOperationSubjectV1(
+        journal: journal,
+        settingWriteSHA256: digest
+    )
 }
 
 private struct C16Files: ApplicationFileAuthorityV1 {

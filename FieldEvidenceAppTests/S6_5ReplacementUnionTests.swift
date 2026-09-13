@@ -272,12 +272,14 @@ final class S6_5ReplacementUnionTests: XCTestCase {
     func testRecoveryPreservesReplacementUnionAcrossEveryJournalPhase() async throws {
         let cases: [(point: BackupRestoreFailurePoint, keepsOld: Bool)] = [
             (.afterPreparedWrite, true),
-            (.afterGenerationInstall, false),
+            (.afterGenerationInstall, true),
             (.afterPointerSwitch, false),
             (.afterNewGenerationValidation, false),
         ]
 
         for (index, value) in cases.enumerated() {
+            let plannedAt = Date(timeIntervalSince1970: 1_786_710_000 + Double(index))
+            let reopenedAt = plannedAt.addingTimeInterval(86_400 + Double(index))
             let root = try makeRoot("recovery-\(index)")
             defer { try? fileManager.removeItem(at: root) }
             let current = try await makeLiveHarness(
@@ -303,7 +305,7 @@ final class S6_5ReplacementUnionTests: XCTestCase {
             let oldID = current.session.generationID
             let service = try BackupRestoreService(
                 applicationSupportURL: current.support,
-                now: { self.replacementAt },
+                now: { plannedAt },
                 makeUUID: sequence([uuid(800 + index * 2), uuid(801 + index * 2)]),
                 failureInjection: BackupRestoreFailureInjection(
                     failOnceAt: value.point
@@ -325,13 +327,133 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                 )
             }
 
+            let intentBeforeRecovery = try XCTUnwrap(
+                RestoreIntentStore(applicationSupportURL: current.support).load()
+            )
+            XCTAssertEqual(intentBeforeRecovery.schemaVersion, 3)
+            XCTAssertEqual(intentBeforeRecovery.replacementAt, plannedAt)
+            let intentData = try Data(contentsOf: current.support.appendingPathComponent(
+                "FieldEvidenceRestore/restore.json"
+            ))
+            let timestamp = try XCTUnwrap(
+                intentBeforeRecovery.replacementTimestampMilliseconds
+            )
+            let intentText = try XCTUnwrap(String(data: intentData, encoding: .utf8))
+            let hostileTimestampData = Data(intentText.replacingOccurrences(
+                of: "\"replacementTimestampMilliseconds\":\(timestamp)",
+                with: "\"replacementTimestampMilliseconds\":\(timestamp).5"
+            ).utf8)
+            XCTAssertThrowsError(try RestoreIntentCodecV1.decode(hostileTimestampData))
+            if index == 0, let identity = intentBeforeRecovery.identity {
+                let legacyV1 = RestoreIntentV1(
+                    newGenerationID: intentBeforeRecovery.newGenerationID,
+                    newGenerationRelativePath: intentBeforeRecovery.newGenerationRelativePath,
+                    oldGenerationID: intentBeforeRecovery.oldGenerationID,
+                    phase: intentBeforeRecovery.phase,
+                    restoreID: intentBeforeRecovery.restoreID,
+                    schemaVersion: 1,
+                    stagingGenerationRelativePath: intentBeforeRecovery
+                        .stagingGenerationRelativePath
+                )
+                let legacyV2 = RestoreIntentV1(
+                    newGenerationID: intentBeforeRecovery.newGenerationID,
+                    newGenerationRelativePath: intentBeforeRecovery.newGenerationRelativePath,
+                    oldGenerationID: intentBeforeRecovery.oldGenerationID,
+                    phase: intentBeforeRecovery.phase,
+                    restoreID: intentBeforeRecovery.restoreID,
+                    schemaVersion: 2,
+                    stagingGenerationRelativePath: intentBeforeRecovery
+                        .stagingGenerationRelativePath,
+                    identity: identity
+                )
+                XCTAssertEqual(
+                    try RestoreIntentCodecV1.decode(
+                        RestoreIntentCodecV1.encode(legacyV1)
+                    ),
+                    legacyV1
+                )
+                XCTAssertEqual(
+                    try RestoreIntentCodecV1.decode(
+                        RestoreIntentCodecV1.encode(legacyV2)
+                    ),
+                    legacyV2
+                )
+            }
+            if index == 2, let identity = intentBeforeRecovery.identity {
+                let legacyV2 = RestoreIntentV1(
+                    newGenerationID: intentBeforeRecovery.newGenerationID,
+                    newGenerationRelativePath: intentBeforeRecovery.newGenerationRelativePath,
+                    oldGenerationID: intentBeforeRecovery.oldGenerationID,
+                    phase: intentBeforeRecovery.phase,
+                    restoreID: intentBeforeRecovery.restoreID,
+                    schemaVersion: 2,
+                    stagingGenerationRelativePath: intentBeforeRecovery
+                        .stagingGenerationRelativePath,
+                    identity: identity
+                )
+                let intentURL = current.support.appendingPathComponent(
+                    "FieldEvidenceRestore/restore.json"
+                )
+                let pendingURL = current.support.appendingPathComponent(
+                    "FieldEvidenceRestore/.restore.json.next"
+                )
+                let phaseMismatch = Data(intentText.replacingOccurrences(
+                    of: "\"phase\":\"pointer_switched\"",
+                    with: "\"phase\":\"prepared\""
+                ).utf8)
+                try phaseMismatch.write(to: pendingURL, options: .atomic)
+                try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary, at: pendingURL)
+                XCTAssertThrowsError(try RestoreIntentStore(
+                    applicationSupportURL: current.support
+                ).load())
+                XCTAssertEqual(try Data(contentsOf: intentURL), intentData)
+                XCTAssertEqual(try Data(contentsOf: pendingURL), phaseMismatch)
+                try fileManager.removeItem(at: pendingURL)
+
+                let timestampMismatch = Data(intentText
+                    .replacingOccurrences(
+                        of: "\"phase\":\"pointer_switched\"",
+                        with: "\"phase\":\"new_generation_validated\""
+                    )
+                    .replacingOccurrences(
+                        of: "\"replacementTimestampMilliseconds\":\(timestamp)",
+                        with: "\"replacementTimestampMilliseconds\":\(timestamp + 1)"
+                    ).utf8)
+                try timestampMismatch.write(to: pendingURL, options: .atomic)
+                try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary, at: pendingURL)
+                XCTAssertThrowsError(try RestoreIntentStore(
+                    applicationSupportURL: current.support
+                ).load())
+                XCTAssertEqual(try Data(contentsOf: intentURL), intentData)
+                XCTAssertEqual(try Data(contentsOf: pendingURL), timestampMismatch)
+                try fileManager.removeItem(at: pendingURL)
+
+                // Inject released canonical V2 bytes after the pointer switch;
+                // a V3-to-V2 store replacement is itself an invalid operation.
+                let legacyData = try RestoreIntentCodecV1.encode(legacyV2)
+                try legacyData.write(to: intentURL, options: .atomic)
+                try ProtectedFilePolicyV1.applyAndVerify(.journal, at: intentURL)
+                XCTAssertThrowsError(try BackupRestoreService(
+                    applicationSupportURL: current.support,
+                    now: { reopenedAt }
+                ).reconcileAtStartup())
+                XCTAssertEqual(try Data(contentsOf: intentURL), legacyData)
+                XCTAssertEqual(
+                    try RestoreIntentStore(applicationSupportURL: current.support).load(),
+                    legacyV2
+                )
+                try intentData.write(to: intentURL, options: .atomic)
+                try ProtectedFilePolicyV1.applyAndVerify(.journal, at: intentURL)
+            }
+
             let recovery = try BackupRestoreService(
                 applicationSupportURL: current.support,
-                now: { self.replacementAt }
+                now: { reopenedAt }
             )
             let recovered: StoreGenerationSession?
             do {
-                recovered = try recovery.reconcileAtStartup()
+                recovered = try await recovery
+                    .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
             } catch {
                 XCTFail("Recovery failed at \(value.point): \(error)")
                 continue
@@ -361,13 +483,81 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                         .map(\.stableRootID)),
                     Set([current.rootID, incoming.rootID])
                 )
+                XCTAssertEqual(
+                    try active.modelContext.fetch(FetchDescriptor<Packet>())
+                        .first(where: { $0.stableRootID == current.rootID })?
+                        .contentDeletedAt,
+                    plannedAt
+                )
             }
             XCTAssertFalse(fileManager.fileExists(
                 atPath: current.support.appendingPathComponent(
                     "FieldEvidenceRestore/restore.json"
                 ).path
             ))
+            XCTAssertNil(try RestoreIntentStore(applicationSupportURL: current.support).load())
         }
+    }
+
+    func testRestoreIntentTimestampUsesOneCanonicalMillisecondDomain() throws {
+        XCTAssertEqual(
+            RestoreIntentV1.canonicalReplacementTimestampMilliseconds(
+                Date(timeIntervalSince1970: 1.001)
+            ),
+            1_001
+        )
+        XCTAssertEqual(
+            RestoreIntentV1.canonicalReplacementTimestampMilliseconds(
+                Date(timeIntervalSince1970: 1.0014)
+            ),
+            1_001
+        )
+        XCTAssertNil(RestoreIntentV1.canonicalReplacementTimestampMilliseconds(
+            Date(timeIntervalSince1970: .infinity)
+        ))
+        XCTAssertNil(RestoreIntentV1.date(Int.max))
+
+        let intent = RestoreIntentV1(
+            newGenerationID: uuid(901),
+            newGenerationRelativePath:
+                "FieldEvidenceData/generations/\(uuid(901).uuidString.lowercased())",
+            oldGenerationID: uuid(902),
+            phase: .prepared,
+            restoreID: uuid(903),
+            schemaVersion: 3,
+            stagingGenerationRelativePath:
+                "FieldEvidenceRestore/generations/\(uuid(901).uuidString.lowercased())",
+            replacementTimestampMilliseconds: 1_001
+        )
+        let data = try RestoreIntentCodecV1.encode(intent)
+        XCTAssertEqual(try RestoreIntentCodecV1.decode(data), intent)
+        let phaseCopy = intent.advancing(to: .generationInstalled)
+        XCTAssertEqual(phaseCopy.replacementTimestampMilliseconds, 1_001)
+        XCTAssertEqual(try RestoreIntentCodecV1.decode(
+            RestoreIntentCodecV1.encode(phaseCopy)
+        ), phaseCopy)
+        let text = try XCTUnwrap(String(data: data, encoding: .utf8))
+        XCTAssertThrowsError(try RestoreIntentCodecV1.decode(Data(text
+            .replacingOccurrences(
+                of: "\"replacementTimestampMilliseconds\":1001",
+                with: "\"replacementTimestampMilliseconds\":true"
+            ).utf8)))
+        XCTAssertThrowsError(try RestoreIntentCodecV1.decode(Data(
+            (String(text.dropLast()) + ",\"unexpected\":0}").utf8
+        )))
+        let outOfRange = RestoreIntentV1(
+            newGenerationID: uuid(901),
+            newGenerationRelativePath:
+                "FieldEvidenceData/generations/\(uuid(901).uuidString.lowercased())",
+            oldGenerationID: uuid(902),
+            phase: .prepared,
+            restoreID: uuid(903),
+            schemaVersion: 3,
+            stagingGenerationRelativePath:
+                "FieldEvidenceRestore/generations/\(uuid(901).uuidString.lowercased())",
+            replacementTimestampMilliseconds: Int.max
+        )
+        XCTAssertThrowsError(try RestoreIntentCodecV1.encode(outOfRange))
     }
 }
 

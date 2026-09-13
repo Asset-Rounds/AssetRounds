@@ -403,6 +403,46 @@ private struct C19CorpusFixtureV1: Decodable {
 
 @MainActor
 final class V9_33MeasurementIntegrityTests: XCTestCase {
+    private struct SeriesDigestBasis: Encodable {
+        let schemaVersion: Int
+        let snapshotID: UUID
+        let seriesID: UUID
+        let workspaceID: WorkspaceID
+        let protocolReference: MeasurementProtocolReferenceV1
+        let samples: [MeasurementCaptureReferenceV1]
+        let expectedSampleCount: Int
+        let observedSampleCount: Int
+        let aggregationPolicy: MeasurementAggregationPolicyV1
+        let state: MeasurementSeriesStateV1
+        let derivedFact: DerivedFactProvenanceV1?
+        let recordedAt: Date
+        let supersedesSnapshotID: UUID?
+        let revision: UInt64
+        let mutationID: MutationIDV1
+
+        init(
+            _ series: MeasurementSeriesV1,
+            samples: [MeasurementCaptureReferenceV1],
+            observedSampleCount: Int? = nil
+        ) {
+            schemaVersion = series.schemaVersion
+            snapshotID = series.snapshotID
+            seriesID = series.seriesID
+            workspaceID = series.workspaceID
+            protocolReference = series.protocolReference
+            self.samples = samples
+            expectedSampleCount = series.expectedSampleCount
+            self.observedSampleCount = observedSampleCount ?? series.observedSampleCount
+            aggregationPolicy = series.aggregationPolicy
+            state = series.state
+            derivedFact = series.derivedFact
+            recordedAt = series.recordedAt
+            supersedesSnapshotID = series.supersedesSnapshotID
+            revision = series.revision
+            mutationID = series.mutationID
+        }
+    }
+
     private func makeWriterRetryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("C19-writer-retry-\(UUID().uuidString)", isDirectory: true)
@@ -783,6 +823,22 @@ final class V9_33MeasurementIntegrityTests: XCTestCase {
             journalReceiptSHA256: C19MeasurementIntegrityTestSupport.digest("f")
         )
         try MeasurementIntegrityCoordinatorV1.validate(receipt, for: prepared)
+        var malformedReceiptObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: try MeasurementIntegrityCanonicalCodecV1.encode(receipt)
+        ) as? [String: Any])
+        malformedReceiptObject["journalReceiptSHA256"] = "not-a-sha"
+        let malformedReceiptData = try JSONSerialization.data(
+            withJSONObject: malformedReceiptObject, options: [.sortedKeys]
+        )
+        let malformedReceipt = try JSONDecoder().decode(
+            MeasurementIntegrityWriteReceiptV1.self, from: malformedReceiptData
+        )
+        XCTAssertThrowsError(try MeasurementIntegrityCoordinatorV1.validate(
+            malformedReceipt, for: prepared
+        )) { XCTAssertEqual($0 as? MeasurementIntegrityCoordinatorFailureV1, .receiptMismatch) }
+        XCTAssertThrowsError(try MeasurementIntegrityCanonicalCodecV1.decode(
+            MeasurementIntegrityWriteReceiptV1.self, from: malformedReceiptData
+        )) { XCTAssertEqual($0 as? MeasurementIntegrityCoordinatorFailureV1, .receiptMismatch) }
     }
 
     func testV23P03C19A01OptionalPlanReferencesRemainIndependentAndTyped() throws {
@@ -827,6 +883,70 @@ final class V9_33MeasurementIntegrityTests: XCTestCase {
 
     func testV23P03C19H01UnknownCalibrationAndInvalidProvenanceFailClosed() throws {
         let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let firstSample = try MeasurementCaptureReferenceV1(
+            captureID: fixture.capture.captureID, revision: fixture.capture.revision,
+            captureSHA256: fixture.capture.captureSHA256, sampleOrdinal: 1
+        )
+        let secondSample = try MeasurementCaptureReferenceV1(
+            captureID: fixture.secondCapture.captureID, revision: fixture.secondCapture.revision,
+            captureSHA256: fixture.secondCapture.captureSHA256, sampleOrdinal: 2
+        )
+        let emptyOpen = try MeasurementSeriesV1(
+            snapshotID: C19MeasurementIntegrityTestSupport.id(122),
+            seriesID: C19MeasurementIntegrityTestSupport.id(123), workspaceID: fixture.workspace,
+            protocolReference: try MeasurementProtocolReferenceV1(fixture.protocolRelease),
+            samples: [], expectedSampleCount: 2, aggregationPolicy: .mean, state: .open,
+            recordedAt: fixture.capture.capturedAt, mutationID: fixture.mutationID
+        )
+        XCTAssertTrue(emptyOpen.samples.isEmpty)
+        XCTAssertThrowsError(try MeasurementSeriesV1(
+            snapshotID: C19MeasurementIntegrityTestSupport.id(124),
+            seriesID: C19MeasurementIntegrityTestSupport.id(125), workspaceID: fixture.workspace,
+            protocolReference: try MeasurementProtocolReferenceV1(fixture.protocolRelease),
+            samples: [try MeasurementCaptureReferenceV1(
+                captureID: fixture.capture.captureID, revision: fixture.capture.revision,
+                captureSHA256: fixture.capture.captureSHA256, sampleOrdinal: 2
+            )], expectedSampleCount: 2, aggregationPolicy: .mean, state: .open,
+            recordedAt: fixture.capture.capturedAt, mutationID: fixture.mutationID
+        ))
+        let orderedOpen = try MeasurementSeriesV1(
+            snapshotID: C19MeasurementIntegrityTestSupport.id(126),
+            seriesID: C19MeasurementIntegrityTestSupport.id(127), workspaceID: fixture.workspace,
+            protocolReference: try MeasurementProtocolReferenceV1(fixture.protocolRelease),
+            samples: [firstSample, secondSample], expectedSampleCount: 2,
+            aggregationPolicy: .mean, state: .open,
+            recordedAt: fixture.capture.capturedAt, mutationID: fixture.mutationID
+        )
+        var reorderedOpenObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: try MeasurementIntegrityCanonicalCodecV1.encode(orderedOpen)
+        ) as? [String: Any])
+        reorderedOpenObject["samples"] = Array(try XCTUnwrap(
+            reorderedOpenObject["samples"] as? [Any]
+        ).reversed())
+        reorderedOpenObject["seriesSHA256"] = try WorkspaceMutationCanonicalV1.sha256(
+            SeriesDigestBasis(orderedOpen, samples: [secondSample, firstSample])
+        )
+        let reorderedOpenData = try JSONSerialization.data(
+            withJSONObject: reorderedOpenObject, options: [.sortedKeys]
+        )
+        XCTAssertThrowsError(try MeasurementIntegrityCanonicalCodecV1.decode(
+            MeasurementSeriesV1.self, from: reorderedOpenData
+        ))
+        var negativeObservedCountObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: try MeasurementIntegrityCanonicalCodecV1.encode(orderedOpen)
+        ) as? [String: Any])
+        negativeObservedCountObject["observedSampleCount"] = -1
+        negativeObservedCountObject["seriesSHA256"] = try WorkspaceMutationCanonicalV1.sha256(
+            SeriesDigestBasis(
+                orderedOpen, samples: orderedOpen.samples, observedSampleCount: -1
+            )
+        )
+        let negativeObservedCountData = try JSONSerialization.data(
+            withJSONObject: negativeObservedCountObject, options: [.sortedKeys]
+        )
+        XCTAssertThrowsError(try MeasurementIntegrityCanonicalCodecV1.decode(
+            MeasurementSeriesV1.self, from: negativeObservedCountData
+        ))
         XCTAssertEqual(fixture.unknownCalibration.status, .unknown)
         XCTAssertEqual(fixture.unknownCalibration.basis, .unknown)
         let mismatchedCurrentCalibration = try CalibrationStatusSnapshotV1(

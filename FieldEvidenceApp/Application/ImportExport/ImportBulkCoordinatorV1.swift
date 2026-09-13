@@ -239,6 +239,67 @@ final class ImportBulkCoordinatorV1 {
             throw ImportBulkFailureV1.unsupportedSchema
         }
 
+        // A process may terminate after the incumbent writer committed its
+        // effect but before C08 persisted its immutable chunk receipt.  Bind
+        // any durable receipt to the original materialized request before
+        // honoring cancellation; an ID match alone is never sufficient.
+        if let receipt = try writer.durableReceipt(mutationID: chunk.mutationIDs[0]) {
+            let current = try writer.currentRevision()
+            guard receipt.identity.workspaceID == current.workspaceID,
+                  receipt.expectedRevision.workspaceID == current.workspaceID,
+                  receipt.expectedRevision.generationID == current.generationID else {
+                throw ImportBulkFailureV1.changedInputQuarantined
+            }
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: receipt.expectedRevision.workspaceID,
+                generationID: receipt.expectedRevision.generationID,
+                writerInstanceID: current.writerInstanceID,
+                workspaceRevision: receipt.expectedRevision.workspaceRevision,
+                entityRevisions: receipt.expectedRevision.entityRevisions
+            )
+            let command = row.commands[0]
+            try lifecycle.validate(registrationFor: command.kind)
+            guard let registration = materializers[command.kind] else {
+                throw ImportBulkFailureV1.unsupportedSchema
+            }
+            let context = try ImportCommandMaterializationContextV1(
+                plan: importPlan,
+                rowIdentity: row.identity,
+                row: row,
+                command: command,
+                chunkIndex: chunkIndex,
+                mutationID: chunk.mutationIDs[0],
+                expectedRevision: expected
+            )
+            let request = try registration.materializer.materializeValidated(context)
+            guard registration.allowedWorkspaceCommandKinds.contains(request.command.kind) else {
+                throw ImportBulkFailureV1.unsupportedSchema
+            }
+            let replayIdentity = try WorkspaceReplicaIdentityV1(
+                workspaceID: receipt.identity.workspaceID,
+                replicaID: receipt.identity.replicaID
+            )
+            let replayEnvelope = try MutationEnvelopeV1(request: request, identity: replayIdentity)
+            guard receipt.mutationID == request.mutationID,
+                  receipt.expectedRevision == replayEnvelope.expectedRevision,
+                  receipt.commandBodySHA256 == replayEnvelope.commandBodySHA256,
+                  receipt.envelopeSHA256 == (try replayEnvelope.canonicalSHA256()),
+                  receipt.sourceKind == replayEnvelope.sourceKind,
+                  receipt.contentDependencyIDs == replayEnvelope.contentDependencyIDs,
+                  receipt.causationMutationID == replayEnvelope.causationMutationID,
+                  receipt.correlationID == replayEnvelope.correlationID else {
+                throw ImportBulkFailureV1.changedInputQuarantined
+            }
+            _ = try writer.execute(request)
+            return try recordCommittedChunk(
+                session: session,
+                bulkPlan: bulkPlan,
+                chunkIndex: chunkIndex,
+                expectedWorkspaceRevisionSHA256: currentWorkspaceRevisionSHA256,
+                mutationID: chunk.mutationIDs[0]
+            )
+        }
+
         if cancellationRequested || session.state == .cancellationRequested {
             let receipt = try bulkReceipt(
                 bulkPlan: bulkPlan,
@@ -256,20 +317,6 @@ final class ImportBulkCoordinatorV1 {
             )
             try lifecycle.record(session: cancelled, replacing: session.sessionSHA256)
             return cancelled
-        }
-
-        // A process may terminate after the incumbent writer committed its
-        // effect but before C08 persisted its immutable chunk receipt.  Probe
-        // the writer's receipt authority first; never rematerialize the row
-        // against a newer revision in that case.
-        if try writer.durableReceipt(mutationID: chunk.mutationIDs[0]) != nil {
-            return try recordCommittedChunk(
-                session: session,
-                bulkPlan: bulkPlan,
-                chunkIndex: chunkIndex,
-                expectedWorkspaceRevisionSHA256: currentWorkspaceRevisionSHA256,
-                mutationID: chunk.mutationIDs[0]
-            )
         }
 
         let command = row.commands[0]

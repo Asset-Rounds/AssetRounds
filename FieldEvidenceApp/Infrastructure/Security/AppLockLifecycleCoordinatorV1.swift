@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Production notification state machine over injected durable and system
 /// effects. The effect owns descriptor-pinned persistence and OS scheduling;
@@ -193,10 +194,16 @@ actor AppLockNotificationPrivacyCoordinatorV1: AppLockNotificationPrivacyPortV1 
 actor DeviceLocalAppLockSettingAdapterV1: DeviceLocalAppLockSettingPortV1 {
     private let preferences: any DevicePreferencesPortV1
     private let descriptor: SettingDescriptorV1
+    private let protectedDataAvailable: @Sendable () async -> Bool
+    private let transactionWriter: (any DeviceLocalAppLockSettingPortV1)?
 
     init(
         preferences: any DevicePreferencesPortV1,
-        registry: any SettingsRegistryPortV1
+        registry: any SettingsRegistryPortV1,
+        protectedDataAvailable: @escaping @Sendable () async -> Bool = {
+            await MainActor.run { UIApplication.shared.isProtectedDataAvailable }
+        },
+        transactionWriter: (any DeviceLocalAppLockSettingPortV1)? = nil
     ) throws {
         let descriptor = try registry.descriptor(for: DeviceLocalAppLockSettingV1.key)
         guard descriptor.scope == .deviceLocal,
@@ -207,17 +214,24 @@ actor DeviceLocalAppLockSettingAdapterV1: DeviceLocalAppLockSettingPortV1 {
         }
         self.preferences = preferences
         self.descriptor = descriptor
+        self.protectedDataAvailable = protectedDataAvailable
+        self.transactionWriter = transactionWriter
     }
 
     func readAppLockSetting() async -> DeviceLocalAppLockSettingReadV1 {
         do {
+            guard await protectedDataAvailable() else {
+                return .protectedDataUnavailable
+            }
             guard let data = try preferences.readStoredCanonicalValue(for: descriptor) else {
-                return .absentDisabled
+                let stillAvailable = await protectedDataAvailable()
+                return stillAvailable ? .absentDisabled : .protectedDataUnavailable
             }
             let enabled = try CompatibilityCanonicalV1.decode(Bool.self, from: data)
             let value = DeviceLocalAppLockSettingV1(isEnabled: enabled)
             try value.validate()
-            return .value(value)
+            let stillAvailable = await protectedDataAvailable()
+            return stillAvailable ? .value(value) : .protectedDataUnavailable
         } catch {
             return .corruptOrAmbiguous
         }
@@ -231,6 +245,16 @@ actor DeviceLocalAppLockSettingAdapterV1: DeviceLocalAppLockSettingPortV1 {
         try await authorization.validateMutation(operationID: operationID, targetEnabled: value.isEnabled)
         guard operationID != SettingsValidationV1.zeroUUID else {
             throw AppAccessContractFailureV1.invalidValue
+        }
+        if let transactionWriter {
+            let receipt = try await transactionWriter.writeAppLockSetting(
+                value, operationID: operationID, authorization: authorization
+            )
+            try await authorization.validateMutation(operationID: operationID, targetEnabled: value.isEnabled)
+            guard receipt.operationID == operationID, receipt.value == value else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            return receipt
         }
         let bytes = try CompatibilityCanonicalV1.encode(value.isEnabled)
         let before = try preferences.readCanonicalValue(for: descriptor)
@@ -253,7 +277,11 @@ actor DeviceLocalAppLockSettingAdapterV1: DeviceLocalAppLockSettingPortV1 {
         guard operationID != SettingsValidationV1.zeroUUID else {
             throw AppAccessContractFailureV1.invalidValue
         }
-        try preferences.erase(descriptors: [descriptor], operationID: operationID)
+        if let transactionWriter {
+            try await transactionWriter.eraseAppLockSetting(operationID: operationID)
+        } else {
+            try preferences.erase(descriptors: [descriptor], operationID: operationID)
+        }
         let value = try preferences.readCanonicalValue(for: descriptor)
         guard value == descriptor.defaultCanonicalValue else {
             throw AppAccessContractFailureV1.effectMismatch
@@ -261,18 +289,33 @@ actor DeviceLocalAppLockSettingAdapterV1: DeviceLocalAppLockSettingPortV1 {
     }
 }
 
+/// Fresh device-local collaborators assembled only by the production
+/// composition root after an authentic full-Erase completion. The lifecycle
+/// verifies their physical metadata itself before installing them.
+struct CompletedEraseAccessReplacementV1: Sendable {
+    let subject: EraseAllOperationSubjectV1
+    let setting: any DeviceLocalAppLockSettingPortV1
+    let ingressStore: any ProtectedIngressStoreV1
+    let notifications: any AppLockNotificationPrivacyPortV1
+    let notificationControl: AppLockNotificationControlStoreV1
+    let clock: any ApplicationClock
+}
+
 actor AppLockLifecycleCoordinatorV1 {
     static let shippingAdoption: AppLockShippingAdoptionV1 =
         .deferredUntilAcceptedS10_6Composition
 
     private let gate: AppAccessGateV1
-    private let setting: any DeviceLocalAppLockSettingPortV1
-    private let ingress: ProtectedIngressCoordinatorV1
-    private let notifications: any AppLockNotificationPrivacyPortV1
+    private var setting: any DeviceLocalAppLockSettingPortV1
+    private var ingress: ProtectedIngressCoordinatorV1
+    private var notifications: any AppLockNotificationPrivacyPortV1
     private let identifiers: any ApplicationIDSource
     private var activeOperationID: UUID?
     private var startupSettingUnresolved: Bool
-    private let startupHygieneRequiresRecovery: Bool
+    private var startupHygieneRequiresRecovery: Bool
+    private var externalEraseReservation: AppAccessGateV1.EraseAdoptionToken?
+    private var retainedCompletedEraseReceipt: CompletedEraseReceiptV1?
+    private var retainedAbortedEraseAdmissionReceipt: AbortedEraseAdmissionReceiptV1?
 
     private init(
         gate: AppAccessGateV1,
@@ -369,6 +412,174 @@ actor AppLockLifecycleCoordinatorV1 {
 
     func accessGate() -> AppAccessGateV1 { gate }
 
+    /// A nil authorization may only resume the exact admitted cleanup. It
+    /// never mints a reservation from current unlocked state or a reused UUID.
+    func beginExternalErase(
+        subject: EraseAllOperationSubjectV1,
+        authorization: AppAccessGateV1.ContentReadToken?
+    ) async throws -> AppAccessGateV1.EraseAdoptionToken {
+        try validate(subject.eraseID)
+        guard activeOperationID == nil else {
+            throw AppAccessContractFailureV1.invalidTransition
+        }
+        if let existing = externalEraseReservation {
+            guard existing.subject == subject else {
+                throw AppAccessContractFailureV1.invalidTransition
+            }
+            try await validateExternalEraseReservation(existing)
+            return existing
+        }
+        guard let authorization else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        // Hold the lifecycle claim across the gate call, so configuration
+        // cannot begin between the original authorization and reservation.
+        try claim(subject.eraseID)
+        defer { release(subject.eraseID) }
+        let reservation = try await gate.reserveEraseAdoption(
+            subject: subject, authorization: authorization
+        )
+        externalEraseReservation = reservation
+        return reservation
+    }
+
+    func pendingCompletedEraseReceipt() -> CompletedEraseReceiptV1? {
+        retainedCompletedEraseReceipt
+    }
+
+    func pendingAbortedEraseAdmissionReceipt() -> AbortedEraseAdmissionReceiptV1? {
+        retainedAbortedEraseAdmissionReceipt
+    }
+
+    func abandonEraseAdmission(_ receipt: AbortedEraseAdmissionReceiptV1) async throws {
+        guard let reservation = externalEraseReservation,
+              receipt.reservation == reservation, receipt.subject == reservation.subject,
+              retainedCompletedEraseReceipt == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try claim(receipt.subject.eraseID)
+        defer { release(receipt.subject.eraseID) }
+        retainedAbortedEraseAdmissionReceipt = receipt
+        try await validateExternalEraseReservation(reservation)
+        let currentSetting = await setting.readAppLockSetting()
+        try await validateExternalEraseReservation(reservation)
+        switch currentSetting {
+        case .absentDisabled, .value: break
+        case .corruptOrAmbiguous, .protectedDataUnavailable:
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let configurationValid = try await notifications.validatesLocalConfiguration(currentSetting)
+        try await validateExternalEraseReservation(reservation)
+        let journal = try await notifications.loadJournal()
+        try await validateExternalEraseReservation(reservation)
+        guard configurationValid,
+              Self.verifiesRuntimeConfiguration(setting: currentSetting, journal: journal),
+              !startupSettingUnresolved, !startupHygieneRequiresRecovery else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let finalSetting = await setting.readAppLockSetting()
+        try await validateExternalEraseReservation(reservation)
+        guard finalSetting == currentSetting else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try await gate.abandonEraseAdmission(receipt, setting: finalSetting)
+        // The old ingress and notification authorities remain valid because
+        // this service receipt proves no Erase effect survives. Keep them.
+        externalEraseReservation = nil
+        retainedAbortedEraseAdmissionReceipt = nil
+    }
+
+    /// Replaces only the authorities whose pinned operational directories
+    /// physical Erase removed. This never repeats a destructive erase effect.
+    func adoptCompletedErase(
+        _ receipt: CompletedEraseReceiptV1,
+        replacement: CompletedEraseAccessReplacementV1
+    ) async throws {
+        guard let reservation = externalEraseReservation,
+              receipt.reservation == reservation,
+              receipt.subject == reservation.subject,
+              replacement.subject == receipt.subject else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try claim(receipt.subject.eraseID)
+        defer { release(receipt.subject.eraseID) }
+        // Preserve physical completion before the first suspension. Failure
+        // below leaves this receipt and its reservation available for retry.
+        retainedCompletedEraseReceipt = receipt
+        try await validateExternalEraseReservation(reservation)
+
+        let settingRead = await setting.readAppLockSetting()
+        try await validateExternalEraseReservation(reservation)
+        guard settingRead == .absentDisabled else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let replacementSettingRead = await replacement.setting.readAppLockSetting()
+        try await validateExternalEraseReservation(reservation)
+        guard replacementSettingRead == .absentDisabled else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try replacement.notificationControl.requireEmptyForCompletedErase(subject: receipt.subject)
+        try await replacement.notifications.bindNotificationGate(gate)
+        try await validateExternalEraseReservation(reservation)
+        let configurationValid = try await replacement.notifications.validatesLocalConfiguration(settingRead)
+        try await validateExternalEraseReservation(reservation)
+        guard configurationValid else { throw AppAccessContractFailureV1.configurationUnknown }
+        let journal = try await replacement.notifications.loadJournal()
+        try await validateExternalEraseReservation(reservation)
+        guard journal == nil else { throw AppAccessContractFailureV1.notificationReconciliationRequired }
+        let subject = try await replacement.notifications.loadAuthenticationSubject()
+        try await validateExternalEraseReservation(reservation)
+        guard subject == nil else { throw AppAccessContractFailureV1.notificationReconciliationRequired }
+
+        let hygiene = try await replacement.ingressStore.performBlindStartupHygiene(
+            now: replacement.clock.now(), operationID: receipt.subject.eraseID
+        )
+        try await validateExternalEraseReservation(reservation)
+        guard hygiene.operationID == receipt.subject.eraseID, !hygiene.contentRead,
+              !hygiene.requiresAuthenticatedRecovery, hygiene.retainedValidCount == 0 else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let pending = try await replacement.ingressStore.pendingIntents()
+        try await validateExternalEraseReservation(reservation)
+        guard pending.isEmpty else { throw AppAccessContractFailureV1.configurationUnknown }
+        let finalSetting = await setting.readAppLockSetting()
+        try await validateExternalEraseReservation(reservation)
+        guard finalSetting == .absentDisabled else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let finalReplacementSetting = await replacement.setting.readAppLockSetting()
+        try await validateExternalEraseReservation(reservation)
+        guard finalReplacementSetting == .absentDisabled else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try replacement.notificationControl.requireEmptyForCompletedErase(subject: receipt.subject)
+
+        // Keep the replacement private during the final actor hop: exposing a
+        // locked ingress coordinator here would allow staging between the
+        // empty readback and adoption. The gate opens only startup recovery;
+        // the caller cannot start it until this adoption method returns.
+        let replacementIngress = ProtectedIngressCoordinatorV1(gate: gate,
+            store: replacement.ingressStore, clock: replacement.clock)
+        try await gate.adoptCompletedErase(receipt, token: reservation)
+        setting = replacement.setting
+        ingress = replacementIngress
+        notifications = replacement.notifications
+        startupSettingUnresolved = false
+        startupHygieneRequiresRecovery = false
+        externalEraseReservation = nil
+        retainedCompletedEraseReceipt = nil
+        retainedAbortedEraseAdmissionReceipt = nil
+    }
+
+    private func validateExternalEraseReservation(
+        _ reservation: AppAccessGateV1.EraseAdoptionToken
+    ) async throws {
+        try await gate.validateEraseAdoption(reservation)
+        guard externalEraseReservation == reservation else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+
     private static func settingIsUnresolved(_ read: DeviceLocalAppLockSettingReadV1) -> Bool {
         switch read {
         case .absentDisabled: return false
@@ -389,6 +600,18 @@ actor AppLockLifecycleCoordinatorV1 {
                 || journal.disposition == .genericProjectionAdopted
         }
         return journal.disposition == .priorPolicyRebuilt
+    }
+
+    private static func verifiesRuntimeConfiguration(
+        setting: DeviceLocalAppLockSettingReadV1,
+        journal: AppLockNotificationJournalV1?
+    ) -> Bool {
+        if let journal { return completedJournal(journal, matches: setting) }
+        switch setting {
+        case .absentDisabled: return true
+        case .value(let value): return (try? value.validate()) != nil && !value.isEnabled
+        case .corruptOrAmbiguous, .protectedDataUnavailable: return false
+        }
     }
 
     /// Returns a reason-bearing, nonpersistent permit for a C16 ingress. The
@@ -423,7 +646,7 @@ actor AppLockLifecycleCoordinatorV1 {
 
     func enable(operationID: UUID) async throws -> AppLockConfigurationReceiptV1 {
         try validate(operationID)
-        try beginOperation(operationID)
+        try await beginOperation(operationID)
         try claim(operationID, confirmingExisting: true)
         defer { release(operationID); endOperation(operationID) }
         let outcome = await gate.authenticate(trigger: .enableAppLock)
@@ -476,7 +699,7 @@ actor AppLockLifecycleCoordinatorV1 {
 
     func disable(operationID: UUID) async throws -> AppLockConfigurationReceiptV1 {
         try validate(operationID)
-        try beginOperation(operationID)
+        try await beginOperation(operationID)
         try claim(operationID, confirmingExisting: true)
         defer { release(operationID); endOperation(operationID) }
         let outcome = await gate.authenticate(trigger: .disableAppLock)
@@ -530,7 +753,7 @@ actor AppLockLifecycleCoordinatorV1 {
     func recoverAfterAuthentication() async throws -> AppLockRecoveryDispositionV1 {
         let recoveryOperationID = identifiers.makeID()
         try validate(recoveryOperationID)
-        try beginOperation(recoveryOperationID)
+        try await beginOperation(recoveryOperationID, allowProtectedDataRecovery: true)
         try claim(recoveryOperationID, confirmingExisting: true)
         defer { release(recoveryOperationID); endOperation(recoveryOperationID) }
         // Authentication cannot resolve an unknown filesystem owner. Retain
@@ -540,17 +763,46 @@ actor AppLockLifecycleCoordinatorV1 {
             return .ambiguousStateLocked
         }
         do {
-            guard let journal = try await notifications.loadJournal() else {
+            // Runtime protected-data loss has no durable Boolean latch.  Read
+            // the actual typed setting and validate its notification/journal
+            // relationship before releasing the gate's revoking hold.
+            let protectedDataGeneration = await gate.protectedDataAvailabilityRecoveryGeneration()
+            let currentSetting = await setting.readAppLockSetting()
+            let localConfigurationValid = try await notifications.validatesLocalConfiguration(currentSetting)
+            let journal = try await notifications.loadJournal()
+            if let protectedDataGeneration {
+                // Both reads perform concrete availability checks. The second
+                // fences loss while notification validation awaited, while the
+                // generation rejects a newer runtime loss.
+                guard await setting.readAppLockSetting() == currentSetting else {
+                    return .ambiguousStateLocked
+                }
+                do {
+                    try await gate.recoverProtectedDataAvailability(
+                        setting: currentSetting,
+                        configurationVerified: localConfigurationValid
+                            && !startupSettingUnresolved
+                            && Self.verifiesRuntimeConfiguration(
+                                setting: currentSetting, journal: journal
+                            ),
+                        expectedGeneration: protectedDataGeneration
+                    )
+                } catch AppAccessContractFailureV1.configurationUnknown {
+                    return .ambiguousStateLocked
+                } catch AppAccessContractFailureV1.staleAttempt {
+                    return .ambiguousStateLocked
+                }
+            }
+            guard let journal else {
                 let gateRequiresRecovery = await gate.requiresConfigurationRecovery()
-                if startupSettingUnresolved || gateRequiresRecovery {
+                if startupSettingUnresolved || gateRequiresRecovery || !localConfigurationValid
+                    || !Self.verifiesRuntimeConfiguration(setting: currentSetting, journal: nil) {
                     await gate.markConfigurationUnknown()
                     return .ambiguousStateLocked
                 }
                 return .noRecoveryRequired
             }
-            let currentSetting = await setting.readAppLockSetting()
             let gateRequiresRecovery = await gate.requiresConfigurationRecovery()
-            let localConfigurationValid = try await notifications.validatesLocalConfiguration(currentSetting)
             if !startupSettingUnresolved, !gateRequiresRecovery, localConfigurationValid {
                 // This is local configuration readiness only. It does not
                 // assert OS reconciliation; that still requires an original
@@ -563,9 +815,6 @@ actor AppLockLifecycleCoordinatorV1 {
             let outcome = await gate.authenticate(trigger: .repairConfiguration)
             guard outcome == .authenticated else { return .ambiguousStateLocked }
             let proof = try await gate.configurationAuthenticationToken()
-            let authorization = NotificationOperationAuthorizationV1(gate: gate,
-                proof: .repair(proof, targetEnabled: journal.targetEnabled),
-                operationID: journal.operationID, subject: subject)
             // This rejects a journal replaced during authentication before a
             // preference write. The durable effect still needs its own shared
             // journal/setting transaction fence for cross-instance publication.
@@ -577,6 +826,15 @@ actor AppLockLifecycleCoordinatorV1 {
             guard try await notifications.loadAuthenticationSubject() == subject else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
+            let startupRecoveryToken = try await gate.beginConfigurationStartupRecovery(
+                proof,
+                operationID: journal.operationID
+            )
+            let authorization = NotificationOperationAuthorizationV1(gate: gate,
+                proof: .repair(proof, targetEnabled: journal.targetEnabled),
+                operationID: journal.operationID,
+                subject: subject,
+                startupRecoveryToken: startupRecoveryToken)
             try await authorization.validateRead()
             let notification: AppLockNotificationPrivacyDispositionV1
             if journal.targetEnabled {
@@ -651,7 +909,7 @@ actor AppLockLifecycleCoordinatorV1 {
         case .sceneActive:
             await gate.sceneBecameActive()
         case .protectedDataUnavailable:
-            await gate.lock(reason: .protectedDataUnavailable)
+            await gate.markProtectedDataUnavailable()
         case .lockNow:
             await gate.lock(reason: .lockNow)
         case .termination:
@@ -675,7 +933,7 @@ actor AppLockLifecycleCoordinatorV1 {
 
     func erase(operationID: UUID) async throws {
         try validate(operationID)
-        try beginOperation(operationID)
+        try await beginOperation(operationID)
         try claim(operationID, confirmingExisting: true)
         defer { release(operationID); endOperation(operationID) }
         try await performErase(operationID: operationID)
@@ -714,8 +972,23 @@ actor AppLockLifecycleCoordinatorV1 {
         }
     }
 
-    private func beginOperation(_ operationID: UUID) throws {
+    private func beginOperation(_ operationID: UUID, allowProtectedDataRecovery: Bool = false) async throws {
+        guard externalEraseReservation == nil else {
+            throw AppAccessContractFailureV1.invalidTransition
+        }
         try claim(operationID)
+        do {
+            // After completed Erase, the only permitted recovery exception is
+            // the existing typed protected-data readback. Gate authentication
+            // and every configuration completion remain denied by the startup
+            // barrier; an unresolved physical reservation has no exception.
+            try await gate.requireConfigurationMutationAdmission(
+                allowProtectedDataRecovery: allowProtectedDataRecovery
+            )
+        } catch {
+            release(operationID)
+            throw error
+        }
     }
 
     private func claim(_ operationID: UUID) throws {

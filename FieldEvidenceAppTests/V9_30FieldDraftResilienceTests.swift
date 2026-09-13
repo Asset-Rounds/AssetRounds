@@ -367,6 +367,134 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         )
     }
 
+    @MainActor
+    private func terminalRecoveryContext() throws -> ModelContext {
+        let container = try ModelContainer(
+            for: FieldDraftCheckpointRow.self,
+            AttachmentStagingItemRow.self,
+            DraftCommitSagaRow.self,
+            DraftContentReservationRow.self,
+            DraftCommitReceiptRow.self,
+            DraftDiscardReceiptRow.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        return ModelContext(container)
+    }
+
+    @MainActor
+    private func insertCommitRecoveryFixture(
+        _ fixture: C36FieldDraftTestSupportV1.Fixture,
+        checkpoint: FieldDraftCheckpointV1,
+        includeReceipt: Bool,
+        into context: ModelContext
+    ) throws {
+        context.insert(try FieldDraftCheckpointRow(checkpoint))
+        context.insert(try AttachmentStagingItemRow(fixture.committedItem))
+        context.insert(try AttachmentStagingItemRow(fixture.alternateReadyItem))
+        context.insert(try AttachmentStagingItemRow(fixture.failedItem))
+        for saga in [
+            fixture.preparedSaga,
+            fixture.promotedSaga,
+            fixture.targetCommittedSaga,
+            fixture.retirePendingSaga,
+            fixture.retiredSaga,
+        ] {
+            context.insert(try DraftCommitSagaRow(saga))
+        }
+        context.insert(try DraftContentReservationRow(fixture.reservation))
+        context.insert(try DraftContentReservationRow(fixture.associatedReservation))
+        if includeReceipt {
+            context.insert(try DraftCommitReceiptRow(fixture.commitReceipt))
+        }
+        try context.save()
+    }
+
+    @MainActor
+    private func insertDiscardRecoveryFixture(
+        _ fixture: C36FieldDraftTestSupportV1.Fixture,
+        includeReceipt: Bool,
+        into context: ModelContext
+    ) throws {
+        context.insert(try FieldDraftCheckpointRow(fixture.discardedCheckpoint))
+        context.insert(try AttachmentStagingItemRow(fixture.readyItem))
+        context.insert(try AttachmentStagingItemRow(fixture.alternateReadyItem))
+        context.insert(try AttachmentStagingItemRow(fixture.failedItem))
+        if includeReceipt {
+            context.insert(try DraftDiscardReceiptRow(fixture.discardReceipt))
+        }
+        try context.save()
+    }
+
+    @MainActor
+    func testV23P03C36R02TerminalDraftReceiptsAreRequiredDuringRealModelRecovery() throws {
+        let fixture = try fixture()
+
+        let completeCommitContext = try terminalRecoveryContext()
+        try insertCommitRecoveryFixture(
+            fixture,
+            checkpoint: fixture.committedCheckpoint,
+            includeReceipt: true,
+            into: completeCommitContext
+        )
+        XCTAssertNoThrow(
+            try DraftCommitSagaRecoveryV1(modelContext: completeCommitContext).reconcile()
+        )
+
+        let missingCommittedCheckpointReceiptContext = try terminalRecoveryContext()
+        try insertCommitRecoveryFixture(
+            fixture,
+            checkpoint: fixture.committedCheckpoint,
+            includeReceipt: false,
+            into: missingCommittedCheckpointReceiptContext
+        )
+        XCTAssertThrowsError(
+            try DraftCommitSagaRecoveryV1(
+                modelContext: missingCommittedCheckpointReceiptContext
+            ).reconcile()
+        ) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .missingReceipt)
+        }
+
+        let missingRetiredSagaReceiptContext = try terminalRecoveryContext()
+        try insertCommitRecoveryFixture(
+            fixture,
+            checkpoint: fixture.committingCheckpoint,
+            includeReceipt: false,
+            into: missingRetiredSagaReceiptContext
+        )
+        XCTAssertThrowsError(
+            try DraftCommitSagaRecoveryV1(
+                modelContext: missingRetiredSagaReceiptContext
+            ).reconcile()
+        ) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .missingReceipt)
+        }
+
+        let completeDiscardContext = try terminalRecoveryContext()
+        try insertDiscardRecoveryFixture(
+            fixture,
+            includeReceipt: true,
+            into: completeDiscardContext
+        )
+        XCTAssertNoThrow(
+            try DraftCommitSagaRecoveryV1(modelContext: completeDiscardContext).reconcile()
+        )
+
+        let missingDiscardReceiptContext = try terminalRecoveryContext()
+        try insertDiscardRecoveryFixture(
+            fixture,
+            includeReceipt: false,
+            into: missingDiscardReceiptContext
+        )
+        XCTAssertThrowsError(
+            try DraftCommitSagaRecoveryV1(
+                modelContext: missingDiscardReceiptContext
+            ).reconcile()
+        ) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .missingReceipt)
+        }
+    }
+
     func testV9_30G01GoldenCheckpointAutosavePurposeAndPresentationTruth() throws {
         let fixture = try fixture()
         let corpus = try corpus()
@@ -1338,4 +1466,143 @@ extension V9_30FieldDraftResilienceTests {
         let sourceAfter = try Data(contentsOf: sourceURL)
         XCTAssertEqual(sourceAfter, bytes)
     }
+}
+
+extension V9_30FieldDraftResilienceTests {
+    func testV23ReviewedConflictTargetBasisRetainsOnlyExactTargetOrAbsenceLock() throws {
+        let workspace = WorkspaceID(rawValue: UUID())
+        let key = try MyDayKeyV1(
+            workspaceID: workspace,
+            civilDate: .init(year: 2026, month: 9, day: 12),
+            ianaTimeZoneIdentifier: "UTC"
+        )
+        let identity = try WorkspaceEntityIdentityV1(kind: .myDayPlan, id: UUID())
+        let digest = String(repeating: "a", count: 64)
+        let existing = ReviewedMyDayTargetBasisV1.existing(
+            identity: identity, key: key, revision: 7, canonicalSHA256: digest
+        )
+        let absent = ReviewedMyDayTargetBasisV1.absent(key: key, expectedWorkspaceRevision: 0)
+        XCTAssertNoThrow(try existing.validate())
+        XCTAssertNoThrow(try absent.validate())
+        XCTAssertEqual(existing.key, key)
+        XCTAssertEqual(existing.targetRevision, 7)
+        XCTAssertEqual(existing.existingIdentity, identity)
+        XCTAssertNil(existing.expectedWorkspaceRevision)
+        XCTAssertEqual(absent.targetRevision, 0)
+        XCTAssertNil(absent.existingIdentity)
+        XCTAssertEqual(absent.expectedWorkspaceRevision, 0)
+        XCTAssertTrue(FieldDraftCheckpointV1.permits(.active, .conflicted))
+        XCTAssertTrue(FieldDraftCheckpointV1.permits(.recoveryRequired, .conflicted))
+        XCTAssertFalse(FieldDraftCheckpointV1.permits(.discarded, .conflicted))
+    }
+}
+extension V9_30FieldDraftResilienceTests {
+    func testV23ReviewedConflictResolutionBindsFullMyDayCheckpointsAndTargetLocks() throws {
+        let fixture = try V23ReviewedConflictDomainFixture.make()
+        let existing = try ReviewedDraftConflictResolutionV1(
+            plan: .reviewAndRebase, expectedCheckpoint: fixture.expected,
+            reviewedTargetBasis: .existing(identity: fixture.targetIdentity, key: fixture.key,
+                                           revision: fixture.target.revision, canonicalSHA256: fixture.target.planSHA256),
+            successorCheckpoint: fixture.existingSuccessor
+        )
+        let absent = try ReviewedDraftConflictResolutionV1(
+            plan: .reviewAndRebase, expectedCheckpoint: fixture.expected,
+            reviewedTargetBasis: .absent(key: fixture.key, expectedWorkspaceRevision: 0),
+            successorCheckpoint: fixture.absentSuccessor
+        )
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(ReviewedDraftConflictResolutionV1.self,
+            from: FieldDraftCanonicalCodecV1.encode(existing)), existing)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(ReviewedDraftConflictResolutionV1.self,
+            from: FieldDraftCanonicalCodecV1.encode(absent)), absent)
+        XCTAssertThrowsError(try fixture.existingSuccessor.validateSuccessor(
+            of: fixture.expected, expectedDraftRevision: fixture.expected.draftRevision,
+            expectedBaseRevision: fixture.expected.baseCanonicalRevision
+        ))
+
+        XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(
+            plan: .reviewAndRebase, expectedCheckpoint: fixture.expected,
+            reviewedTargetBasis: .existing(identity: fixture.targetIdentity, key: fixture.key,
+                                           revision: fixture.target.revision, canonicalSHA256: fixture.target.planSHA256),
+            successorCheckpoint: fixture.absentSuccessor
+        ))
+        let foreignKey = try MyDayKeyV1(workspaceID: fixture.key.workspaceID,
+            civilDate: .init(year: 2026, month: 9, day: 13), ianaTimeZoneIdentifier: "UTC")
+        XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(
+            plan: .reviewAndRebase, expectedCheckpoint: fixture.expected,
+            reviewedTargetBasis: .absent(key: foreignKey, expectedWorkspaceRevision: 0),
+            successorCheckpoint: fixture.absentSuccessor
+        ))
+        XCTAssertThrowsError(try ReviewedMyDayTargetBasisV1.existing(
+            identity: try .init(kind: .serviceRequestRecord, id: UUID()), key: fixture.key,
+            revision: fixture.target.revision, canonicalSHA256: fixture.target.planSHA256
+        ).validate())
+        let submillisecond = try fixture.checkpoint(payload: fixture.existingPayload,
+            base: fixture.target.revision, revision: 2, state: .active,
+            mutation: UUID(), at: fixture.now.addingTimeInterval(0.0005))
+        XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(
+            plan: .reviewAndRebase, expectedCheckpoint: fixture.expected,
+            reviewedTargetBasis: .existing(identity: fixture.targetIdentity, key: fixture.key,
+                                           revision: fixture.target.revision, canonicalSHA256: fixture.target.planSHA256),
+            successorCheckpoint: submillisecond
+        ))
+        let prepared = try fixture.preparedConflict()
+        XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(
+            plan: .reviewAndRebase, expectedCheckpoint: prepared.expected,
+            reviewedTargetBasis: .existing(identity: fixture.targetIdentity, key: fixture.key,
+                                           revision: fixture.target.revision, canonicalSHA256: fixture.target.planSHA256),
+            successorCheckpoint: prepared.successor
+        ))
+        for predecessor in try fixture.sameKeyRevisionSubstitutions() {
+            let successor = try fixture.successor(payload: try fixture.planPayload(predecessor: predecessor))
+            XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(plan: .reviewAndRebase, expectedCheckpoint: fixture.expected, reviewedTargetBasis: .existing(identity: fixture.targetIdentity, key: fixture.key, revision: fixture.target.revision, canonicalSHA256: fixture.target.planSHA256), successorCheckpoint: successor))
+            let carryover = try fixture.successor(payload: try fixture.carryoverPayload(targetPredecessor: .init(predecessor)))
+            XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(plan: .reviewAndRebase, expectedCheckpoint: fixture.expected, reviewedTargetBasis: .existing(identity: fixture.targetIdentity, key: fixture.key, revision: fixture.target.revision, canonicalSHA256: fixture.target.planSHA256), successorCheckpoint: carryover))
+        }
+        let absentWithReference = try fixture.successor(payload: try fixture.planPayload(predecessor: fixture.target))
+        XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(plan: .reviewAndRebase, expectedCheckpoint: fixture.expected, reviewedTargetBasis: .absent(key: fixture.key, expectedWorkspaceRevision: 0), successorCheckpoint: absentWithReference))
+        let absentCarryoverWithReference = try fixture.successor(payload: try fixture.carryoverPayload(targetPredecessor: .init(fixture.target)))
+        XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(plan: .reviewAndRebase, expectedCheckpoint: fixture.expected, reviewedTargetBasis: .absent(key: fixture.key, expectedWorkspaceRevision: 0), successorCheckpoint: absentCarryoverWithReference))
+        let encoded = try FieldDraftCanonicalCodecV1.encode(existing)
+        let corruptHash = try XCTUnwrap(String(data: encoded, encoding: .utf8))
+            .replacingOccurrences(of: fixture.expected.checkpointSHA256, with: String(repeating: "0", count: 64), options: [], range: nil)
+        XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(ReviewedDraftConflictResolutionV1.self,
+            from: Data(corruptHash.utf8)))
+        XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(ReviewedDraftConflictResolutionV1.self,
+            from: Data(repeating: 0x20, count: ReviewedDraftConflictResolutionV1.maximumCanonicalByteCount + 1)))
+    }
+}
+
+private struct V23ReviewedConflictDomainFixture {
+    let workspace: WorkspaceID; let key: MyDayKeyV1; let now: Date; let target: MyDayPlanV1
+    let targetIdentity: WorkspaceEntityIdentityV1; let expected: FieldDraftCheckpointV1
+    let existingPayload: MyDayPlanningDraftPayloadV1; let existingSuccessor: FieldDraftCheckpointV1
+    let absentSuccessor: FieldDraftCheckpointV1
+
+    static func make() throws -> Self {
+        let workspace = WorkspaceID(rawValue: UUID()), now = Date(timeIntervalSince1970: 1_789_084_800)
+        let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 12), ianaTimeZoneIdentifier: "UTC")
+        let actor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Reviewer")
+        let snapshot = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: actor, responsibility: .recordedBy, displayNameAtTime: "Reviewer", capturedAt: now)
+        let target = try MyDayPlanV1(planID: UUID(), key: key, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: snapshot, authoredAt: now)
+        let context = try MyDayPlanningConfirmedContextV1(key: key, recordedBy: snapshot, keyWasExplicitlyConfirmed: true, recordedByWasExplicitlySelectedOrCaptured: true)
+        let stalePayload = try MyDayPlanningDraftPayloadV1(editing: context, intent: .plan(draft: .init(key: key, items: [], eligibleReferences: []), predecessor: nil))
+        let existingPayload = try MyDayPlanningDraftPayloadV1(editing: context, intent: .plan(draft: .init(key: key, items: [], eligibleReferences: []), predecessor: target))
+        let value = try Self(workspace: workspace, key: key, now: now, target: target, targetIdentity: .init(kind: .myDayPlan, id: target.planID), expected: try Self.checkpoint(workspace: workspace, key: key, payload: stalePayload, base: 0, revision: 1, state: .conflicted, mutation: UUID(), at: now), existingPayload: existingPayload, existingSuccessor: try Self.checkpoint(workspace: workspace, key: key, payload: existingPayload, base: 1, revision: 2, state: .active, mutation: UUID(), at: now.addingTimeInterval(1)), absentSuccessor: try Self.checkpoint(workspace: workspace, key: key, payload: stalePayload, base: 0, revision: 2, state: .active, mutation: UUID(), at: now.addingTimeInterval(1)))
+        return value
+    }
+
+    func successor(payload: MyDayPlanningDraftPayloadV1) throws -> FieldDraftCheckpointV1 { try checkpoint(payload: payload, base: target.revision, revision: 2, state: .active, mutation: UUID(), at: now.addingTimeInterval(1)) }
+    func planPayload(predecessor: MyDayPlanV1?) throws -> MyDayPlanningDraftPayloadV1 { let context = try XCTUnwrap(existingPayload.confirmedContext); return try .init(editing: context, intent: .plan(draft: .init(key: key, items: [], eligibleReferences: []), predecessor: predecessor)) }
+    func carryoverPayload(targetPredecessor: MyDayPlanReferenceV1?) throws -> MyDayPlanningDraftPayloadV1 { let context = try XCTUnwrap(existingPayload.confirmedContext); let sourceKey = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: "UTC"); let source = try MyDayPlanV1(planID: UUID(), key: sourceKey, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now); return try .init(editing: context, intent: .carryover(sourcePlan: .init(source), selectedMembershipIDs: [UUID()], targetKey: key, targetPredecessor: targetPredecessor)) }
+    func sameKeyRevisionSubstitutions() throws -> [MyDayPlanV1] { [try .init(planID: UUID(), key: key, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now), try .init(planID: target.planID, key: key, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now)] }
+    func preparedConflict() throws -> (expected: FieldDraftCheckpointV1, successor: FieldDraftCheckpointV1) {
+        let commandSuccessor = try MyDayPlanV1(planID: target.planID, key: key, items: [], predecessor: target, revision: 2, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now.addingTimeInterval(1))
+        let attempt = try MyDayPlanningCommitAttemptInputsV1(command: .save(successor: commandSuccessor, predecessor: target), fieldDraftPlanID: UUID(), preparedSagaID: UUID(), contentPromotedSagaID: UUID(), targetCommittedSagaID: UUID(), draftRetirePendingSagaID: UUID(), draftRetiredSagaID: UUID(), preparedSagaMutationID: .init(rawValue: UUID()), contentPromotedSagaMutationID: .init(rawValue: UUID()), targetCommittedSagaMutationID: .init(rawValue: UUID()), draftRetirePendingSagaMutationID: .init(rawValue: UUID()), terminalBundleMutationID: .init(rawValue: UUID()), commitReceiptID: UUID(), preparedSagaUpdatedAt: now, contentPromotedSagaUpdatedAt: now.addingTimeInterval(1), targetCommittedSagaUpdatedAt: now.addingTimeInterval(2), draftRetirePendingSagaUpdatedAt: now.addingTimeInterval(3), draftRetiredSagaUpdatedAt: now.addingTimeInterval(4), terminalCheckpointUpdatedAt: now.addingTimeInterval(5))
+        let expected = try checkpoint(payload: .init(prepared: attempt), base: target.revision, revision: 1, state: .conflicted, mutation: UUID(), at: now)
+        let successor = try checkpoint(payload: existingPayload, base: target.revision, revision: 2, state: .active, mutation: attempt.terminalBundleMutationID.rawValue, at: now.addingTimeInterval(6))
+        return (expected, successor)
+    }
+
+    func checkpoint(payload: MyDayPlanningDraftPayloadV1, base: UInt64, revision: UInt64, state: FieldDraftStateV1, mutation: UUID, at: Date) throws -> FieldDraftCheckpointV1 { try Self.checkpoint(workspace: workspace, key: key, payload: payload, base: base, revision: revision, state: state, mutation: mutation, at: at) }
+    private static func checkpoint(workspace: WorkspaceID, key: MyDayKeyV1, payload: MyDayPlanningDraftPayloadV1, base: UInt64, revision: UInt64, state: FieldDraftStateV1, mutation: UUID, at: Date) throws -> FieldDraftCheckpointV1 { try .init(draftID: UUID(uuidString: "00000000-0000-0000-0000-000000000231")!, workspaceID: workspace, scope: try MyDayPlanningDraftCodecV1.scope(for: key), purpose: .myDayPlanning, codec: try MyDayPlanningDraftCodecV1.release(), baseCanonicalRevision: base, draftRevision: revision, payloadData: try MyDayPlanningDraftCodecV1.encode(payload), stageIDs: [], resumeAnchor: .init(sectionID: "review"), state: state, updatedAt: at, mutationID: .init(rawValue: mutation)) }
 }

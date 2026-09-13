@@ -4,6 +4,8 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Take photos or record short video evidence only when you choose a camera action. Media stays on this iPhone unless you explicitly export or share it.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to unlock your locally stored inspection and service records.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Record short audio evidence or transcribe voice details only when you choose those actions. Audio evidence stays on this iPhone unless you explicitly export or share it; voice-detail audio is temporary and not archived.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

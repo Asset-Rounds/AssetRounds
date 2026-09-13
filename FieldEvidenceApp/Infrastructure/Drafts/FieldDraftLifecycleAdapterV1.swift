@@ -13,7 +13,15 @@ import SwiftData
     func append(reservation value:DraftContentReservationV1,expectedRevision:UInt64)throws->MutationReceiptV1{try execute(.init(workspaceID:value.workspaceID,expectedRevision:expectedRevision,expectedBaseCanonicalRevision:0,mutationID:value.mutationID,postImage:expectedRevision==0 ? .appendContentReservation(value):.reviseContentReservation(value)))}
     func apply(commitTerminalBundle value:DraftCommitTerminalBundleV1,expectedDraftRevision:UInt64,expectedSagaRevision:UInt64)throws->MutationReceiptV1{try execute(.init(workspaceID:value.workspaceID,expectedRevision:expectedDraftRevision,expectedBaseCanonicalRevision:value.committedCheckpoint.baseCanonicalRevision,mutationID:value.mutationID,postImage:.applyCommitTerminal(value,expectedSagaRevision:expectedSagaRevision)))}
     func apply(discardTerminalBundle value:DraftDiscardTerminalBundleV1,expectedDraftRevision:UInt64)throws->MutationReceiptV1{try execute(.init(workspaceID:value.workspaceID,expectedRevision:expectedDraftRevision,expectedBaseCanonicalRevision:value.discardedCheckpoint.baseCanonicalRevision,mutationID:value.mutationID,postImage:.applyDiscardTerminal(value)))}
-    private func execute(_ mutation:FieldDraftMutationV1)throws->MutationReceiptV1{_ = try writer.execute(.applyFieldDraft(mutation),mutationID:mutation.mutationID);guard let receipt=try journal.receipt(mutationID:mutation.mutationID)else{throw FieldDraftFailureV1.missingReceipt};_ = try FieldDraftMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
+    /// The journal validates physical tips and retained history together. No
+    /// historical successor is reconstructed from the current checkpoint.
+    func reviewedFieldDraftResolutionEvidence(
+        mutationID: MutationIDV1
+    ) throws -> ReviewedFieldDraftResolutionEvidenceV1? {
+        try writer.reviewedFieldDraftResolutionEvidence(mutationID: mutationID)
+    }
+
+    private func execute(_ mutation:FieldDraftMutationV1)throws->MutationReceiptV1{try writer.commitFieldDraft(mutation)}
 }
 
 extension FieldDraftLifecycleAdapterV1: VoiceReviewedFieldDraftReceiptReadingV1 {}

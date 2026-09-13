@@ -28,6 +28,16 @@ final class MyDayWorkflowCoordinatorV1 {
         eligibleReferences: [MyDayEligibleReferenceV1],
         predecessor: MyDayPlanV1? = nil
     ) throws -> MyDayPlanDraftV1 {
+        try Self.projectDraft(key: key, selectedItems: selectedItems,
+                              eligibleReferences: eligibleReferences, predecessor: predecessor)
+    }
+
+    static func projectDraft(
+        key: MyDayKeyV1,
+        selectedItems: [MyDayDraftItemV1],
+        eligibleReferences: [MyDayEligibleReferenceV1],
+        predecessor: MyDayPlanV1? = nil
+    ) throws -> MyDayPlanDraftV1 {
         try key.validate()
         try predecessor?.validate()
         try eligibleReferences.forEach { try $0.validate() }
@@ -61,6 +71,13 @@ final class MyDayWorkflowCoordinatorV1 {
     /// Projection-only accessible movement. It has no canonical effect until
     /// the returned draft is explicitly previewed and saved.
     func move(
+        _ draft: MyDayPlanDraftV1,
+        action: MyDayAccessibleMoveV1
+    ) throws -> MyDayPlanDraftV1 {
+        try Self.projectMove(draft, action: action)
+    }
+
+    static func projectMove(
         _ draft: MyDayPlanDraftV1,
         action: MyDayAccessibleMoveV1
     ) throws -> MyDayPlanDraftV1 {
@@ -180,12 +197,79 @@ final class MyDayWorkflowCoordinatorV1 {
         actor: ActorSnapshotV1
     ) throws -> MyDayCarryoverPreviewV1 {
         try sourceSummary.validate(plan: source)
+        let command = try Self.makeCarryover(
+            source: source,
+            eligibleMembershipIDs: sourceSummary.carryoverEligibleMembershipIDs,
+            targetKey: targetKey,
+            targetPredecessor: targetPredecessor,
+            membershipIDs: membershipIDs,
+            targetPlanID: targetPlanID,
+            mutationID: mutationID,
+            actor: actor,
+            authoredAt: { clock.now() }
+        )
+        guard case let .carryover(plan, commandSource, target, receipt) = command,
+              commandSource == source else {
+            throw MyDayWorkflowFailureV1.invalidContext
+        }
+        return try .init(
+            plan: plan,
+            source: source,
+            target: target,
+            receipt: receipt,
+            sourceSummary: sourceSummary
+        )
+    }
+
+    static func prepareCarryover(
+        source: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1,
+        targetKey: MyDayKeyV1,
+        targetPredecessor: MyDayPlanV1?,
+        membershipIDs: [UUID],
+        targetPlanID: UUID,
+        mutationID: MutationIDV1,
+        actor: ActorSnapshotV1,
+        authoredAt: Date
+    ) throws -> MyDayCommandV1 {
+        try readiness.validate(plan: source)
+        let eligible = zip(source.items, readiness.frontiers).compactMap { item, frontier in
+            MyDaySummaryItemV1.isCarryoverEligible(
+                plannedReference: item.reference,
+                currentReference: frontier.currentReference,
+                state: frontier.state
+            ) ? item.membershipID : nil
+        }
+        return try makeCarryover(
+            source: source,
+            eligibleMembershipIDs: eligible,
+            targetKey: targetKey,
+            targetPredecessor: targetPredecessor,
+            membershipIDs: membershipIDs,
+            targetPlanID: targetPlanID,
+            mutationID: mutationID,
+            actor: actor,
+            authoredAt: { authoredAt }
+        )
+    }
+
+    private static func makeCarryover(
+        source: MyDayPlanV1,
+        eligibleMembershipIDs: [UUID],
+        targetKey: MyDayKeyV1,
+        targetPredecessor: MyDayPlanV1?,
+        membershipIDs: [UUID],
+        targetPlanID: UUID,
+        mutationID: MutationIDV1,
+        actor: ActorSnapshotV1,
+        authoredAt: () -> Date
+    ) throws -> MyDayCommandV1 {
+        try source.validate()
         try targetKey.validate()
         try actor.validate()
-        let eligible = sourceSummary.carryoverEligibleMembershipIDs
         guard !membershipIDs.isEmpty,
               Set(membershipIDs).count == membershipIDs.count,
-              membershipIDs.allSatisfy(eligible.contains),
+              membershipIDs.allSatisfy(eligibleMembershipIDs.contains),
               targetKey.workspaceID == source.key.workspaceID,
               targetKey != source.key,
               targetPredecessor?.key == targetKey || targetPredecessor == nil,
@@ -230,7 +314,7 @@ final class MyDayWorkflowCoordinatorV1 {
             revision: revision,
             mutationID: mutationID,
             authoredBy: actor,
-            authoredAt: clock.now()
+            authoredAt: authoredAt()
         )
         let plan = try MyDayCarryoverPlanV1(
             sourcePlan: source,
@@ -245,13 +329,7 @@ final class MyDayWorkflowCoordinatorV1 {
             mutationID: mutationID,
             committedAt: target.authoredAt
         )
-        return try .init(
-            plan: plan,
-            source: source,
-            target: target,
-            receipt: receipt,
-            sourceSummary: sourceSummary
-        )
+        return .carryover(plan: plan, source: source, target: target, receipt: receipt)
     }
 
     func execute(_ command: MyDayWorkflowCommandV1) throws -> MyDayWorkflowOutcomeV1 {

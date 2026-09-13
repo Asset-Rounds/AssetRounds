@@ -834,26 +834,8 @@ private extension ReplacementRestoreRule {
         _ records: V4BackupRecordsV1,
         ledger: DeletionLedgerV2
     ) -> Bool {
-        guard records.recordsSchemaVersion == 5
-                || records.recordsSchemaVersion == 6
-                || records.recordsSchemaVersion == 7
-                || records.recordsSchemaVersion == 8
-                || records.recordsSchemaVersion == 9
-                || records.recordsSchemaVersion == 10
-                || records.recordsSchemaVersion == 11
-                || records.recordsSchemaVersion == 12
-                || records.recordsSchemaVersion == 13
-                || records.recordsSchemaVersion == 14
-                || records.recordsSchemaVersion == 15
-                || records.recordsSchemaVersion == 16
-                || records.recordsSchemaVersion == 17
-                || records.recordsSchemaVersion == 18
-                || records.recordsSchemaVersion == 19
-                || records.recordsSchemaVersion == 20
-                || records.recordsSchemaVersion == 21
-                || records.recordsSchemaVersion == 22
-                || records.recordsSchemaVersion == 23
-                || records.recordsSchemaVersion == 24 else {
+        guard (5...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion) else {
             return records.locationNodes.isEmpty
                 && records.assetPlacementEvents.isEmpty
                 && records.assetCompositionEdges.isEmpty

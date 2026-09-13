@@ -362,6 +362,30 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         }
     }
 
+    /// Content-gated projection reads acquire the original read epoch before
+    /// decoding any derived bytes. The epoch lock precedes the store's own
+    /// publication fence in every guarded overload below.
+    func projection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) throws -> SearchIndexProjectionV1 {
+        try contentReadToken.withContentRead(for: .search) {
+            try projection(for: source, registry: registry)
+        }
+    }
+
+    /// Rebuilds use their narrower surface token for the same disposable
+    /// projection read; callers cannot reinterpret it as ordinary search.
+    func rebuildProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) throws -> SearchIndexProjectionV1 {
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try projection(for: source, registry: registry)
+        }
+    }
     /// Reads the current projection through the opt-in C38 binding.  The
     /// derived store remains disposable, but party rows are still checked for
     /// the explicit non-contact, non-identity/legal field policy before being
@@ -545,6 +569,14 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         return envelope?.projection?.index
     }
 
+    func revision(
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) throws -> SearchIndexRevisionV1? {
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try revision()
+        }
+    }
+
     /// Invalidates only after an accepted canonical commit. A replay at an
     /// already-indexed revision is idempotent; an older callback can never
     /// remove a newer complete projection or rebuild checkpoint.
@@ -725,6 +757,21 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         try persist(Envelope(projection: StoredProjection(projection)))
     }
 
+    func replaceProjection(
+        source: SearchSourceRevisionV1,
+        records: [SearchIndexProjectionRecordV1],
+        registry: SearchableFieldRegistryV1,
+        publicationToken: SearchIndexPublicationTokenV1,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) throws {
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try replaceProjection(
+                source: source, records: records, registry: registry,
+                publicationToken: publicationToken
+            )
+        }
+    }
+
     /// Rebuild-only publication route. The fence check and atomic protected
     /// write occur under the same process-wide per-path lock as every purge
     /// and invalidation, so a stale rebuild cannot publish after either one.
@@ -734,29 +781,26 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         registry: SearchableFieldRegistryV1,
         publicationToken: SearchIndexPublicationTokenV1
     ) throws {
-        try ensureLoaded()
-        if let existing = envelope?.projection,
-           existing.source.workspaceID == source.workspaceID,
-           existing.source.generationID == source.generationID,
-           existing.index.indexedCommitRevision > source.commitRevision {
-            throw LocalSearchIndexStoreFailureV1.staleMutation
-        }
-        let index = try SearchIndexRevisionV1(
-            workspaceID: source.workspaceID,
-            generationID: source.generationID,
-            projectionFormatVersion: SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
-            indexedCommitRevision: source.commitRevision
-        )
-        let projection = try SearchIndexProjectionV1(
-            source: source,
-            index: index,
-            records: records,
-            registry: registry
-        )
         try SearchIndexPublicationFenceV1.shared.withGuardedPublication(
             publicationToken,
             for: fileURL
         ) {
+            try ensureLoaded()
+            if let existing = envelope?.projection,
+               existing.source.workspaceID == source.workspaceID,
+               existing.source.generationID == source.generationID,
+               existing.index.indexedCommitRevision > source.commitRevision {
+                throw LocalSearchIndexStoreFailureV1.staleMutation
+            }
+            let index = try SearchIndexRevisionV1(
+                workspaceID: source.workspaceID,
+                generationID: source.generationID,
+                projectionFormatVersion: SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
+                indexedCommitRevision: source.commitRevision
+            )
+            let projection = try SearchIndexProjectionV1(
+                source: source, index: index, records: records, registry: registry
+            )
             try persist(Envelope(projection: StoredProjection(projection)))
         }
     }
@@ -788,6 +832,15 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         }
     }
 
+    func rebuildStaging(
+        publicationToken: SearchIndexPublicationTokenV1,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) throws -> SearchIndexRebuildStagingV1? {
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try rebuildStaging(publicationToken: publicationToken)
+        }
+    }
+
     func saveRebuildStaging(
         checkpoint: SearchIndexRebuildCheckpointV1,
         records: [SearchIndexProjectionRecordV1],
@@ -806,6 +859,21 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         next.rebuildCheckpoint = checkpoint
         next.stagedRecords = sorted
         try persist(next)
+    }
+
+    func saveRebuildStaging(
+        checkpoint: SearchIndexRebuildCheckpointV1,
+        records: [SearchIndexProjectionRecordV1],
+        registry: SearchableFieldRegistryV1,
+        publicationToken: SearchIndexPublicationTokenV1,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) throws {
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try saveRebuildStaging(
+                checkpoint: checkpoint, records: records, registry: registry,
+                publicationToken: publicationToken
+            )
+        }
     }
 
     /// Rebuild-only staging write. Validation, current-envelope loading, and
@@ -871,6 +939,24 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
             next.rebuildCheckpoint = nil
             next.stagedRecords = []
             try persist(next)
+        }
+    }
+
+    func clearRebuildStaging(
+        operationID: UUID? = nil,
+        publicationToken: SearchIndexPublicationTokenV1,
+        contentReadToken: AppAccessGateV1.ContentReadToken
+    ) throws {
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try clearRebuildStaging(
+                operationID: operationID, publicationToken: publicationToken
+            )
+        }
+    }
+
+    func dropProjection(contentReadToken: AppAccessGateV1.ContentReadToken) throws {
+        try contentReadToken.withContentRead(for: .searchRebuild) {
+            try dropProjection()
         }
     }
 

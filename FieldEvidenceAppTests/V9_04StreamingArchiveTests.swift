@@ -301,6 +301,78 @@ final class V9_04StreamingArchiveTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: output.path), [])
     }
 
+    func testSurveyTemplateExtractsEightComponentMember() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("source")
+        let staging = root.appendingPathComponent("staging")
+        let output = root.appendingPathComponent("output")
+        try makeDirectories(source, output)
+        try makeProtectedStaging(staging)
+        let bytes = Data(repeating: 0x71, count: 8_192)
+        let sourceFile = source.appendingPathComponent("template")
+        try bytes.write(to: sourceFile)
+        let path = "package/definitions/revisions/2026/09/12/templates/example.json"
+        let service = StreamingArchiveService(
+            limits: limits(entryCount: 1, entryBytes: 8_192, aggregateBytes: 8_192),
+            pathProfile: .surveyTemplate,
+            makeOperationID: UUIDSequence().next
+        )
+        let entry = try writeEntry(
+            path: path,
+            source: sourceFile,
+            data: bytes,
+            mime: "application/json"
+        )
+        let archive = output.appendingPathComponent("template.arsurveytemplate")
+        _ = try service.write(.init(entries: [entry], stagingDirectoryURL: staging), to: archive)
+
+        let extraction = output.appendingPathComponent("extracted")
+        _ = try service.extract(archive, to: extraction)
+
+        XCTAssertEqual(try Data(contentsOf: extraction.appendingPathComponent(path)), bytes)
+    }
+
+    func testSurveyTemplateCancellationDuringNestedBytesWritingRemovesExtraction() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("source")
+        let staging = root.appendingPathComponent("staging")
+        let output = root.appendingPathComponent("output")
+        try makeDirectories(source, output)
+        try makeProtectedStaging(staging)
+        let bytes = Data(repeating: 0x72, count: 8_192)
+        let sourceFile = source.appendingPathComponent("template")
+        try bytes.write(to: sourceFile)
+        let path = "package/definitions/revisions/2026/09/12/templates/example.json"
+        let service = StreamingArchiveService(
+            limits: limits(entryCount: 1, entryBytes: 8_192, aggregateBytes: 8_192),
+            pathProfile: .surveyTemplate,
+            makeOperationID: UUIDSequence().next
+        )
+        let entry = try writeEntry(
+            path: path,
+            source: sourceFile,
+            data: bytes,
+            mime: "application/json"
+        )
+        let archive = output.appendingPathComponent("template.arsurveytemplate")
+        _ = try service.write(.init(entries: [entry], stagingDirectoryURL: staging), to: archive)
+
+        let extraction = output.appendingPathComponent("cancelled-extraction")
+        var checkpoints = 0
+        assertFailure(.cancelled) {
+            _ = try service.extract(archive, to: extraction, cancellation: .init {
+                checkpoints += 1
+                if checkpoints == 4 { throw StreamingArchiveFailureV1.cancelled }
+            })
+        }
+
+        XCTAssertEqual(checkpoints, 4)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: extraction.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: extraction.appendingPathComponent(path).path))
+    }
+
     func testV9_04R01RecoveryWriterInvalidationPreservesLegacyReaderAndStaging() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }

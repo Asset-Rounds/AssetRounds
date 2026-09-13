@@ -33,6 +33,7 @@ enum DraftPurposeV1:String,CaseIterable,Codable,Hashable,Sendable{
     /// C40 uses the existing universal draft checkpoint and codec boundary;
     /// it does not introduce a second service-request draft family.
     case serviceRequest="SERVICE_REQUEST"
+    case myDayPlanning="MY_DAY_PLANNING"
 }
 enum DraftPrivacyClassV1:String,Codable,Hashable,Sendable{case workspacePrivate="WORKSPACE_PRIVATE",restrictedEvidence="RESTRICTED_EVIDENCE"}
 enum DraftRetentionPolicyV1:String,Codable,Hashable,Sendable{case explicitDiscardOnly="EXPLICIT_DISCARD_ONLY",retireAfterCommit="RETIRE_AFTER_COMMIT"}
@@ -55,6 +56,17 @@ struct DraftPurposeRegistryV1:Sendable{
     func require(_ purpose:DraftPurposeV1,codec:DraftPayloadCodecReleaseV1)throws->DraftPurposeDefinitionV1{guard let value=definitions[purpose]else{throw FieldDraftFailureV1.unknownPurpose};guard value.codec==codec else{throw FieldDraftFailureV1.unknownCodec};return value}
 }
 
+/// Closed definition lookup used by a production flow that owns one real
+/// purpose release without fabricating releases for unrelated draft flows.
+protocol DraftPurposeDefinitionResolvingV1: Sendable {
+    func require(
+        _ purpose: DraftPurposeV1,
+        codec: DraftPayloadCodecReleaseV1
+    ) throws -> DraftPurposeDefinitionV1
+}
+
+extension DraftPurposeRegistryV1: DraftPurposeDefinitionResolvingV1 {}
+
 struct DraftScopeKeyV1:Codable,Equatable,Hashable,Sendable{
     let scopeKind:String;let stableComponentIDs:[String]
     init(scopeKind:String,stableComponentIDs:[String])throws{self.scopeKind=scopeKind;self.stableComponentIDs=stableComponentIDs;try validate()}
@@ -73,9 +85,10 @@ struct FieldDraftCheckpointV1:Codable,Equatable,Hashable,Sendable{
     static let schemaVersion=1;let schemaVersion:Int;let draftID:UUID;let workspaceID:WorkspaceID;let scope:DraftScopeKeyV1;let purpose:DraftPurposeV1;let codec:DraftPayloadCodecReleaseV1;let baseCanonicalRevision:UInt64;let draftRevision:UInt64;let payloadData:Data;let payloadSHA256:String;let stageIDs:[UUID];let resumeAnchor:DraftResumeAnchorV1;let state:FieldDraftStateV1;let lastDurableMutationID:MutationIDV1?;let lastReceiptSHA256:String?;let updatedAt:Date;let mutationID:MutationIDV1;let checkpointSHA256:String
     init(draftID:UUID,workspaceID:WorkspaceID,scope:DraftScopeKeyV1,purpose:DraftPurposeV1,codec:DraftPayloadCodecReleaseV1,baseCanonicalRevision:UInt64,draftRevision:UInt64,payloadData:Data,stageIDs:[UUID],resumeAnchor:DraftResumeAnchorV1,state:FieldDraftStateV1,lastDurableMutationID:MutationIDV1?=nil,lastReceiptSHA256:String?=nil,updatedAt:Date,mutationID:MutationIDV1)throws{let ids=stageIDs.sorted{$0.uuidString<$1.uuidString};schemaVersion=Self.schemaVersion;self.draftID=draftID;self.workspaceID=workspaceID;self.scope=scope;self.purpose=purpose;self.codec=codec;self.baseCanonicalRevision=baseCanonicalRevision;self.draftRevision=draftRevision;self.payloadData=payloadData;payloadSHA256=try FieldDraftCanonicalCodecV1.sha256(payloadData);self.stageIDs=ids;self.resumeAnchor=resumeAnchor;self.state=state;self.lastDurableMutationID=lastDurableMutationID;self.lastReceiptSHA256=lastReceiptSHA256;self.updatedAt=updatedAt;self.mutationID=mutationID;checkpointSHA256=try FieldDraftCanonicalCodecV1.sha256(Basis(schemaVersion:Self.schemaVersion,draftID:draftID,workspaceID:workspaceID,scope:scope,purpose:purpose,codec:codec,baseCanonicalRevision:baseCanonicalRevision,draftRevision:draftRevision,payloadSHA256:payloadSHA256,stageIDs:ids,resumeAnchor:resumeAnchor,state:state,lastDurableMutationID:lastDurableMutationID,lastReceiptSHA256:lastReceiptSHA256,updatedAt:updatedAt,mutationID:mutationID));try validate()}
     func validate()throws{try validate(registry:nil)}
-    func validate(registry:DraftPurposeRegistryV1?)throws{try FieldDraftValidationV1.id(draftID);try FieldDraftValidationV1.workspace(workspaceID);try scope.validate();try codec.validate();try FieldDraftValidationV1.revision(draftRevision);try resumeAnchor.validate();try FieldDraftValidationV1.instant(updatedAt);if let lastReceiptSHA256{try FieldDraftValidationV1.digest(lastReceiptSHA256)};if let registry{let d=try registry.require(purpose,codec:codec);guard payloadData.count<=d.maximumPayloadBytes,stageIDs.count<=d.maximumStageItems else{throw FieldDraftFailureV1.limitExceeded}};let terminalReceiptBound=(state != .committed && state != .discarded)||(lastDurableMutationID != nil && lastReceiptSHA256 != nil);guard schemaVersion==Self.schemaVersion,terminalReceiptBound,payloadData.count<=FieldDraftLimitsV1.maximumPayloadBytes,stageIDs.count<=FieldDraftLimitsV1.maximumStageItems,stageIDs==stageIDs.sorted(by:{$0.uuidString<$1.uuidString}),Set(stageIDs).count==stageIDs.count,payloadSHA256==FieldDraftCanonicalCodecV1.sha256(payloadData),checkpointSHA256==(try FieldDraftCanonicalCodecV1.sha256(basis)) else{throw FieldDraftFailureV1.digestMismatch}}
+    func validate(registry:DraftPurposeRegistryV1?)throws{try validate(authority:registry)}
+    func validate(authority:(any DraftPurposeDefinitionResolvingV1)?)throws{try FieldDraftValidationV1.id(draftID);try FieldDraftValidationV1.workspace(workspaceID);try scope.validate();try codec.validate();try FieldDraftValidationV1.revision(draftRevision);try resumeAnchor.validate();try FieldDraftValidationV1.instant(updatedAt);if let lastReceiptSHA256{try FieldDraftValidationV1.digest(lastReceiptSHA256)};if let authority{let d=try authority.require(purpose,codec:codec);try d.validate();guard d.purpose==purpose else{throw FieldDraftFailureV1.unknownPurpose};guard d.codec==codec else{throw FieldDraftFailureV1.unknownCodec};guard payloadData.count<=d.maximumPayloadBytes,stageIDs.count<=d.maximumStageItems else{throw FieldDraftFailureV1.limitExceeded}};let terminalReceiptBound=(state != .committed && state != .discarded)||(lastDurableMutationID != nil && lastReceiptSHA256 != nil);guard schemaVersion==Self.schemaVersion,terminalReceiptBound,payloadData.count<=FieldDraftLimitsV1.maximumPayloadBytes,stageIDs.count<=FieldDraftLimitsV1.maximumStageItems,stageIDs==stageIDs.sorted(by:{$0.uuidString<$1.uuidString}),Set(stageIDs).count==stageIDs.count,payloadSHA256==FieldDraftCanonicalCodecV1.sha256(payloadData),checkpointSHA256==(try FieldDraftCanonicalCodecV1.sha256(basis)) else{throw FieldDraftFailureV1.digestMismatch}}
     func validateSuccessor(of p:Self,expectedDraftRevision:UInt64,expectedBaseRevision:UInt64)throws{try p.validate();try validate();try FieldDraftValidationV1.next(p.draftRevision,draftRevision);guard expectedDraftRevision==p.draftRevision,expectedBaseRevision==p.baseCanonicalRevision,workspaceID==p.workspaceID,draftID==p.draftID,scope==p.scope,purpose==p.purpose,codec==p.codec,baseCanonicalRevision==p.baseCanonicalRevision,updatedAt>=p.updatedAt,mutationID != p.mutationID,Self.permits(p.state,state) else{throw FieldDraftFailureV1.staleDraftRevision}}
-    static func permits(_ from:FieldDraftStateV1,_ to:FieldDraftStateV1)->Bool{switch(from,to){case(.active,.active),(.active,.committing),(.active,.discardPending),(.committing,.committed),(.committing,.conflicted),(.committing,.recoveryRequired),(.conflicted,.active),(.conflicted,.discardPending),(.recoveryRequired,.active),(.recoveryRequired,.committing),(.recoveryRequired,.discardPending),(.discardPending,.discarded),(.discardPending,.recoveryRequired):return true;default:return false}}
+    static func permits(_ from:FieldDraftStateV1,_ to:FieldDraftStateV1)->Bool{switch(from,to){case(.active,.active),(.active,.committing),(.active,.conflicted),(.active,.discardPending),(.committing,.committed),(.committing,.conflicted),(.committing,.recoveryRequired),(.conflicted,.active),(.conflicted,.discardPending),(.recoveryRequired,.active),(.recoveryRequired,.committing),(.recoveryRequired,.conflicted),(.recoveryRequired,.discardPending),(.discardPending,.discarded),(.discardPending,.recoveryRequired):return true;default:return false}}
     private var basis:Basis{.init(schemaVersion:schemaVersion,draftID:draftID,workspaceID:workspaceID,scope:scope,purpose:purpose,codec:codec,baseCanonicalRevision:baseCanonicalRevision,draftRevision:draftRevision,payloadSHA256:payloadSHA256,stageIDs:stageIDs,resumeAnchor:resumeAnchor,state:state,lastDurableMutationID:lastDurableMutationID,lastReceiptSHA256:lastReceiptSHA256,updatedAt:updatedAt,mutationID:mutationID)}
     private struct Basis:Codable{let schemaVersion:Int;let draftID:UUID;let workspaceID:WorkspaceID;let scope:DraftScopeKeyV1;let purpose:DraftPurposeV1;let codec:DraftPayloadCodecReleaseV1;let baseCanonicalRevision:UInt64;let draftRevision:UInt64;let payloadSHA256:String;let stageIDs:[UUID];let resumeAnchor:DraftResumeAnchorV1;let state:FieldDraftStateV1;let lastDurableMutationID:MutationIDV1?;let lastReceiptSHA256:String?;let updatedAt:Date;let mutationID:MutationIDV1}
 }
@@ -116,6 +129,71 @@ struct AttachmentStagingItemV1:Codable,Equatable,Hashable,Sendable{
 }
 
 enum DraftConflictResolutionPlanV1:String,CaseIterable,Codable,Hashable,Sendable{case reviewAndRebase="REVIEW_AND_REBASE",commitAsCopy="COMMIT_AS_COPY",continueEditing="CONTINUE_EDITING",discard="DISCARD"}
+
+enum ReviewedMyDayTargetBasisV1: Codable, Equatable, Sendable {
+    case existing(identity: WorkspaceEntityIdentityV1, key: MyDayKeyV1, revision: UInt64, canonicalSHA256: String)
+    case absent(key: MyDayKeyV1, expectedWorkspaceRevision: UInt64)
+    var key: MyDayKeyV1 { switch self { case .existing(_, let key, _, _), .absent(let key, _): return key } }
+    var targetRevision: UInt64 { switch self { case .existing(_, _, let revision, _): return revision; case .absent: return 0 } }
+    var existingIdentity: WorkspaceEntityIdentityV1? { switch self { case .existing(let identity, _, _, _): return identity; case .absent: return nil } }
+    var expectedWorkspaceRevision: UInt64? { switch self { case .existing: return nil; case .absent(_, let revision): return revision } }
+    func validate() throws {
+        try key.validate()
+        switch self {
+        case .existing(let identity, _, let revision, let canonicalSHA256):
+            _ = try WorkspaceEntityIdentityV1(kind: identity.kind, id: identity.id)
+            try MyDayLimitsV1.revision(revision); try FieldDraftValidationV1.digest(canonicalSHA256)
+            guard identity.kind == .myDayPlan else { throw FieldDraftFailureV1.invalidValue }
+        case .absent:
+            guard expectedWorkspaceRevision != nil else { throw FieldDraftFailureV1.invalidValue }
+        }
+    }
+}
+
+struct ReviewedDraftConflictResolutionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumCanonicalByteCount = 4 * 1_024 * 1_024
+    let schemaVersion: Int; let plan: DraftConflictResolutionPlanV1
+    let expectedCheckpoint: FieldDraftCheckpointV1; let expectedCheckpointSHA256: String
+    let reviewedTargetBasis: ReviewedMyDayTargetBasisV1
+    let successorCheckpoint: FieldDraftCheckpointV1; let successorCheckpointSHA256: String
+    init(plan: DraftConflictResolutionPlanV1, expectedCheckpoint: FieldDraftCheckpointV1, reviewedTargetBasis: ReviewedMyDayTargetBasisV1, successorCheckpoint: FieldDraftCheckpointV1) throws {
+        schemaVersion = Self.schemaVersion; self.plan = plan; self.expectedCheckpoint = expectedCheckpoint
+        expectedCheckpointSHA256 = expectedCheckpoint.checkpointSHA256; self.reviewedTargetBasis = reviewedTargetBasis
+        self.successorCheckpoint = successorCheckpoint; successorCheckpointSHA256 = successorCheckpoint.checkpointSHA256; try validate()
+    }
+    func validate() throws {
+        try expectedCheckpoint.validate(); try successorCheckpoint.validate(); try reviewedTargetBasis.validate()
+        try FieldDraftValidationV1.digest(expectedCheckpointSHA256); try FieldDraftValidationV1.digest(successorCheckpointSHA256)
+        try MyDayLimitsV1.millisecondInstant(expectedCheckpoint.updatedAt); try MyDayLimitsV1.millisecondInstant(successorCheckpoint.updatedAt)
+        guard schemaVersion == Self.schemaVersion, expectedCheckpointSHA256 == expectedCheckpoint.checkpointSHA256, successorCheckpointSHA256 == successorCheckpoint.checkpointSHA256, expectedCheckpoint.workspaceID == successorCheckpoint.workspaceID, expectedCheckpoint.workspaceID == reviewedTargetBasis.key.workspaceID, expectedCheckpoint.draftID == successorCheckpoint.draftID, expectedCheckpoint.scope == successorCheckpoint.scope, expectedCheckpoint.purpose == successorCheckpoint.purpose, expectedCheckpoint.codec == successorCheckpoint.codec, expectedCheckpoint.stageIDs == successorCheckpoint.stageIDs, expectedCheckpoint.resumeAnchor == successorCheckpoint.resumeAnchor, expectedCheckpoint.updatedAt <= successorCheckpoint.updatedAt, expectedCheckpoint.mutationID != successorCheckpoint.mutationID, (expectedCheckpoint.state == .conflicted || expectedCheckpoint.state == .recoveryRequired) else { throw FieldDraftFailureV1.invalidValue }
+        try FieldDraftValidationV1.next(expectedCheckpoint.draftRevision, successorCheckpoint.draftRevision)
+        if expectedCheckpoint.purpose == .myDayPlanning, let attempt = try MyDayPlanningDraftCodecV1.decode(expectedCheckpoint.payloadData).commitAttempt {
+            guard !attempt.allOperationalMutationIDs.contains(successorCheckpoint.mutationID) else { throw FieldDraftFailureV1.invalidValue }
+        }
+        switch plan {
+        case .reviewAndRebase:
+            let payload = try MyDayPlanningDraftCodecV1.validateCheckpointPayload(successorCheckpoint)
+            guard successorCheckpoint.state == .active, successorCheckpoint.baseCanonicalRevision == reviewedTargetBasis.targetRevision, payload.phase == .editing, let context = payload.confirmedContext, let intent = payload.editingIntent, context.key == reviewedTargetBasis.key, intent.targetKey == reviewedTargetBasis.key, intent.targetBaseRevision == reviewedTargetBasis.targetRevision, successorCheckpoint.scope == (try MyDayPlanningDraftCodecV1.scope(for: reviewedTargetBasis.key)) else { throw FieldDraftFailureV1.invalidValue }
+            switch (reviewedTargetBasis, intent) {
+            case let (.existing(identity, key, revision, canonicalSHA256), .plan(_, predecessor)):
+                guard let predecessor, predecessor.planID == identity.id, predecessor.key == key, predecessor.revision == revision, predecessor.planSHA256 == canonicalSHA256 else { throw FieldDraftFailureV1.invalidValue }
+            case let (.existing(identity, key, revision, canonicalSHA256), .carryover(_, _, _, targetPredecessor)):
+                guard let targetPredecessor, targetPredecessor.planID == identity.id, targetPredecessor.key == key, targetPredecessor.revision == revision, targetPredecessor.planSHA256 == canonicalSHA256 else { throw FieldDraftFailureV1.invalidValue }
+            case let (.absent(_, _), .plan(_, predecessor)):
+                guard predecessor == nil else { throw FieldDraftFailureV1.invalidValue }
+            case let (.absent(_, _), .carryover(_, _, _, targetPredecessor)):
+                guard targetPredecessor == nil else { throw FieldDraftFailureV1.invalidValue }
+            }
+        case .continueEditing:
+            guard successorCheckpoint.state == .active, successorCheckpoint.baseCanonicalRevision == expectedCheckpoint.baseCanonicalRevision, successorCheckpoint.payloadData == expectedCheckpoint.payloadData else { throw FieldDraftFailureV1.invalidValue }
+        case .discard:
+            guard successorCheckpoint.state == .discardPending, successorCheckpoint.baseCanonicalRevision == expectedCheckpoint.baseCanonicalRevision, successorCheckpoint.payloadData == expectedCheckpoint.payloadData else { throw FieldDraftFailureV1.invalidValue }
+        case .commitAsCopy: throw FieldDraftFailureV1.invalidValue
+        }
+        guard try FieldDraftCanonicalCodecV1.encode(self).count <= Self.maximumCanonicalByteCount else { throw FieldDraftFailureV1.limitExceeded }
+    }
+}
 struct DraftCommitPlanV1:Codable,Equatable,Hashable,Sendable{let planID:UUID;let workspaceID:WorkspaceID;let draftID:UUID;let draftRevision:UInt64;let baseCanonicalRevision:UInt64;let payloadSHA256:String;let stageDigests:[String];let targetCommandKind:WorkspaceCommandKindV1;let expectedTargetRevision:UInt64;let mutationID:MutationIDV1;let outputKeys:[String];let planSHA256:String
     init(planID:UUID,workspaceID:WorkspaceID,draftID:UUID,draftRevision:UInt64,baseCanonicalRevision:UInt64,payloadSHA256:String,stageDigests:[String],targetCommandKind:WorkspaceCommandKindV1,expectedTargetRevision:UInt64,mutationID:MutationIDV1,outputKeys:[String])throws{let stages=stageDigests.sorted(),outputs=outputKeys.sorted();self.planID=planID;self.workspaceID=workspaceID;self.draftID=draftID;self.draftRevision=draftRevision;self.baseCanonicalRevision=baseCanonicalRevision;self.payloadSHA256=payloadSHA256;self.stageDigests=stages;self.targetCommandKind=targetCommandKind;self.expectedTargetRevision=expectedTargetRevision;self.mutationID=mutationID;self.outputKeys=outputs;planSHA256=try FieldDraftCanonicalCodecV1.sha256(Basis(planID:planID,workspaceID:workspaceID,draftID:draftID,draftRevision:draftRevision,baseCanonicalRevision:baseCanonicalRevision,payloadSHA256:payloadSHA256,stageDigests:stages,targetCommandKind:targetCommandKind,expectedTargetRevision:expectedTargetRevision,mutationID:mutationID,outputKeys:outputs));try validate()}
     func validate()throws{try [planID,draftID].forEach(FieldDraftValidationV1.id);try FieldDraftValidationV1.workspace(workspaceID);try FieldDraftValidationV1.revision(draftRevision);try FieldDraftValidationV1.digest(payloadSHA256);try stageDigests.forEach(FieldDraftValidationV1.digest);try outputKeys.forEach(FieldDraftValidationV1.text);guard stageDigests==stageDigests.sorted(),Set(stageDigests).count==stageDigests.count,outputKeys==outputKeys.sorted(),Set(outputKeys).count==outputKeys.count,planSHA256==(try FieldDraftCanonicalCodecV1.sha256(basis))else{throw FieldDraftFailureV1.digestMismatch}}
@@ -253,7 +331,7 @@ extension DraftDiscardPlanV1{
 }
 
 private protocol FieldDraftValidatableV1{func validate()throws}
-extension FieldDraftCheckpointV1:FieldDraftValidatableV1{};extension AttachmentStagingItemV1:FieldDraftValidatableV1{};extension DraftCommitSagaV1:FieldDraftValidatableV1{};extension DraftContentReservationV1:FieldDraftValidatableV1{};extension DraftCommitReceiptV1:FieldDraftValidatableV1{};extension DraftDiscardReceiptV1:FieldDraftValidatableV1{};extension DraftCommitTerminalBundleV1:FieldDraftValidatableV1{};extension DraftDiscardTerminalBundleV1:FieldDraftValidatableV1{}
+extension FieldDraftCheckpointV1:FieldDraftValidatableV1{};extension ReviewedDraftConflictResolutionV1:FieldDraftValidatableV1{};extension AttachmentStagingItemV1:FieldDraftValidatableV1{};extension DraftCommitSagaV1:FieldDraftValidatableV1{};extension DraftContentReservationV1:FieldDraftValidatableV1{};extension DraftCommitReceiptV1:FieldDraftValidatableV1{};extension DraftDiscardReceiptV1:FieldDraftValidatableV1{};extension DraftCommitTerminalBundleV1:FieldDraftValidatableV1{};extension DraftDiscardTerminalBundleV1:FieldDraftValidatableV1{}
 enum FieldDraftCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)};static func sha256(_ data:Data)->String{SHA256.hash(data:data).map{String(format:"%02x",$0)}.joined()};static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)};static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=FieldDraftLimitsV1.maximumCanonicalBytes else{throw FieldDraftFailureV1.limitExceeded};let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970;let value=try decoder.decode(type,from:data);if let v=value as? any FieldDraftValidatableV1{try v.validate()};guard try encode(value)==data else{throw FieldDraftFailureV1.digestMismatch};return value}}
 
 /// C56 may change an existing C36 draft only through the registered payload
@@ -762,10 +840,10 @@ enum C21RepetitiveCaptureDraftBoundaryV1 {
     static func validate(
         plan: RepetitiveCapturePlanV1,
         checkpoint: FieldDraftCheckpointV1,
-        registry: DraftPurposeRegistryV1? = nil
+        registry: (any DraftPurposeDefinitionResolvingV1)? = nil
     ) throws {
         try plan.validateIntrinsic()
-        try checkpoint.validate(registry: registry)
+        try checkpoint.validate(authority: registry)
         guard checkpoint.workspaceID == plan.workspaceID,
               checkpoint.draftID == plan.draftID,
               checkpoint.draftRevision == plan.draftRevision,
@@ -788,7 +866,7 @@ enum C21RepetitiveCaptureDraftBoundaryV1 {
         _ copy: RepetitiveCaptureConfigurationCopyV1,
         source: RepetitiveCapturePlanV1,
         sourceCheckpoint: FieldDraftCheckpointV1,
-        registry: DraftPurposeRegistryV1? = nil
+        registry: (any DraftPurposeDefinitionResolvingV1)? = nil
     ) throws {
         try copy.validateIntrinsic()
         try validate(plan: source, checkpoint: sourceCheckpoint, registry: registry)

@@ -3219,6 +3219,12 @@ private extension WholeSignDeletionService {
         let tombstones = Dictionary(uniqueKeysWithValues:
             intent.countedPacketTombstones.map { ($0.id, $0) }
         )
+        let liveRelativePaths = Set(
+            rows.evidence.flatMap { [$0.relativePath, $0.thumbnailRelativePath] }
+                + rows.reports.flatMap {
+                    [$0.snapshotRelativePath] + [$0.pdfRelativePath].compactMap { $0 }
+                }
+        )
         guard unique(rows.sites.map(\.id)),
               unique(rows.assets.map(\.id)),
               unique(rows.records.map(\.id)),
@@ -3305,6 +3311,7 @@ private extension WholeSignDeletionService {
                     && rows.records.allSatisfy({ $0.packetID != packet.id })
                     && rows.reports.allSatisfy({ $0.packetID != packet.id })
               }),
+              Set(intent.relativePaths).isDisjoint(with: liveRelativePaths),
               intent.ledgerEntries.allSatisfy({ entry in
                   if entry.identity.kind == .packet,
                      tombstones[entry.identity.id] != nil {

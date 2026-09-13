@@ -18,15 +18,111 @@ private extension EnvironmentValues {
     }
 }
 
+private struct AppLockSettingsSectionKey: EnvironmentKey {
+    static let defaultValue: AppLockSettingsSectionV1? = nil
+}
+
+private struct AppContentAccessKey: EnvironmentKey {
+    static let defaultValue: AppAccessPresentationV1.ContentAccess? = nil
+}
+
+private extension EnvironmentValues {
+    var appContentAccess: AppAccessPresentationV1.ContentAccess? {
+        get { self[AppContentAccessKey.self] }
+        set { self[AppContentAccessKey.self] = newValue }
+    }
+    var appLockSettingsSection: AppLockSettingsSectionV1? {
+        get { self[AppLockSettingsSectionKey.self] }
+        set { self[AppLockSettingsSectionKey.self] = newValue }
+    }
+}
+
 @MainActor
 private struct ProductionShellComposition {
     let root: ProductionCompositionRoot
     let workflow: ProductionSignWorkflow
+    let scene: AppShellSceneStateV1
+    let myDaySources: ProductionMyDaySourceStateV1
+}
+
+@MainActor
+private struct ProductionSceneShellContentV1<Content: View>: View {
+    @ObservedObject var scene: AppShellSceneStateV1
+    let content: (AppShellSceneStateV1) -> Content
+
+    var body: some View { content(scene) }
+}
+
+struct ReportsNavigationPresentationV1: Equatable {
+    private var transientAnchor: [ReportHistoryRoute] = []
+    private var transientRoutes: [ReportHistoryRoute] = []
+    private var transientSnapshotID: UUID?
+
+    mutating func setPresentedRoutes(
+        _ routes: [ReportHistoryRoute],
+        snapshotID: UUID?
+    ) -> [ReportHistoryRoute] {
+        let canonical: [ReportHistoryRoute] = Array(routes.prefix { route in
+            if case .report(_) = route { return true }
+            return false
+        })
+        transientAnchor = canonical
+        transientRoutes = Array(routes.dropFirst(canonical.count))
+        transientSnapshotID = snapshotID
+        return canonical
+    }
+
+    mutating func reconcileCanonicalRoutes(
+        _ canonical: [ReportHistoryRoute],
+        snapshotID: UUID?
+    ) {
+        guard canonical == transientAnchor,
+              snapshotID == transientSnapshotID else {
+            reset()
+            return
+        }
+    }
+
+    mutating func refreshCanonicalSnapshot(
+        from canonicalBefore: [ReportHistoryRoute],
+        snapshotIDBefore: UUID?,
+        to canonicalAfter: [ReportHistoryRoute],
+        snapshotIDAfter: UUID?
+    ) {
+        guard transientAnchor == canonicalBefore,
+              transientSnapshotID == snapshotIDBefore,
+              canonicalAfter == transientAnchor else {
+            reset()
+            return
+        }
+        transientSnapshotID = snapshotIDAfter
+    }
+
+    func presentedRoutes(
+        for canonical: [ReportHistoryRoute],
+        snapshotID: UUID?
+    ) -> [ReportHistoryRoute] {
+        guard canonical == transientAnchor,
+              snapshotID == transientSnapshotID else {
+            return canonical
+        }
+        return canonical + transientRoutes
+    }
+
+    mutating func reset() {
+        transientAnchor = []
+        transientRoutes = []
+        transientSnapshotID = nil
+    }
 }
 
 struct AppShellView: View {
     static let screenAccessibilityIdentifier = "s1.shell.screen"
     static let signsTabAccessibilityIdentifier = "s1.tab.signs"
+    static let todayTabAccessibilityIdentifier = "v23.tab.today"
+    static let workTabAccessibilityIdentifier = "v23.tab.work"
+    // Keep the incumbent automation identity when renaming the visible root.
+    static let assetsTabAccessibilityIdentifier = signsTabAccessibilityIdentifier
     static let reportsTabAccessibilityIdentifier = "s1.tab.reports"
     static let settingsButtonAccessibilityIdentifier = "s1.settings.button"
     static let settingsScreenAccessibilityIdentifier = "s1.settings.screen"
@@ -35,14 +131,12 @@ struct AppShellView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private enum Tab: Hashable {
-        case signs
-        case reports
-    }
-
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
     let storeSession: StoreSessionCoordinator
+    let contentAccess: AppAccessPresentationV1.ContentAccess
+    let sceneNavigationAccess: AppAccessPresentationV1.SceneNavigationAccess
+    let myDayAccess: AppAccessPresentationV1.MyDayAccess
     let diagnosticsStore: DiagnosticsStore
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
     let feedbackConfiguration: FeedbackConfigurationV1
@@ -53,14 +147,20 @@ struct AppShellView: View {
     let restoreDataBackup: @MainActor () -> Void
     let replaceDataBackup: @MainActor () -> Void
     let eraseAll: @MainActor () -> Void
+    let appLockSettingsSection: AppLockSettingsSectionV1?
+
+    #if DEBUG
+    /// Observes actual native tab binding; cannot supply composition or state.
+    var onNativeTabsBoundForTesting: (@MainActor (UITabBar) -> Void)?
+    #endif
 
     @StateObject private var purchaseCoordinator: StoreKitPurchaseCoordinator
     @StateObject private var lifecycleCoordinator: StoreKitLifecycleCoordinator
 
-    @State private var selectedTab: Tab = .signs
     @State private var productionComposition: ProductionShellComposition?
     @State private var productionCompositionErrorMessage: String?
     @State private var isComposingProductionWorkflow = false
+    @State private var reportsPresentation = ReportsNavigationPresentationV1()
 
     private var modelContext: ModelContext { storeSession.modelContext }
     private var generationRootURL: URL { storeSession.generationRootURL }
@@ -69,6 +169,9 @@ struct AppShellView: View {
         packLoadResult: SignPackLoadResult,
         exposesColorSchemeForUITest: Bool = false,
         storeSession: StoreSessionCoordinator,
+        contentAccess: AppAccessPresentationV1.ContentAccess,
+        sceneNavigationAccess: AppAccessPresentationV1.SceneNavigationAccess,
+        myDayAccess: AppAccessPresentationV1.MyDayAccess,
         diagnosticsStore: DiagnosticsStore,
         metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
         feedbackConfiguration: FeedbackConfigurationV1,
@@ -80,11 +183,15 @@ struct AppShellView: View {
         paywallCatalogLinks: PaywallCatalogLinksV1? = nil,
         restoreDataBackup: @escaping @MainActor () -> Void = {},
         replaceDataBackup: @escaping @MainActor () -> Void = {},
-        eraseAll: @escaping @MainActor () -> Void = {}
+        eraseAll: @escaping @MainActor () -> Void = {},
+        appLockSettingsSection: AppLockSettingsSectionV1? = nil
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
         self.storeSession = storeSession
+        self.contentAccess = contentAccess
+        self.sceneNavigationAccess = sceneNavigationAccess
+        self.myDayAccess = myDayAccess
         self.diagnosticsStore = diagnosticsStore
         self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
         self.feedbackConfiguration = feedbackConfiguration
@@ -108,6 +215,7 @@ struct AppShellView: View {
         self.restoreDataBackup = restoreDataBackup
         self.replaceDataBackup = replaceDataBackup
         self.eraseAll = eraseAll
+        self.appLockSettingsSection = appLockSettingsSection
     }
 
     var body: some View {
@@ -135,7 +243,19 @@ struct AppShellView: View {
     private func availableShell(pack: SignPack) -> some View {
         Group {
             if let productionComposition {
-                availableTabs(pack: pack, workflow: productionComposition.workflow)
+                ProductionSceneShellContentV1(scene: productionComposition.scene) { scene in
+                    Group {
+                        if scene.snapshot != nil {
+                            availableTabs(pack: pack, workflow: productionComposition.workflow,
+                                scene: scene, sources: productionComposition.myDaySources)
+                        } else {
+                            ProductionWorkflowUnavailableView(
+                                message: "Navigation could not be restored safely.",
+                                retry: { restoreScene(scene) })
+                        }
+                    }
+                }
+                .onDisappear { productionComposition.myDaySources.discard() }
             } else if let productionCompositionErrorMessage {
                 ProductionWorkflowUnavailableView(
                     message: productionCompositionErrorMessage,
@@ -143,9 +263,9 @@ struct AppShellView: View {
                 )
             } else {
                 AssetRoundsScreenFoundation {
-                    ProgressView("Opening signs and reports")
+                    ProgressView("Opening your workspace")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .accessibilityLabel("Opening signs and reports")
+                        .accessibilityLabel("Opening your workspace")
                 }
             }
         }
@@ -156,10 +276,32 @@ struct AppShellView: View {
 
     private func availableTabs(
         pack: SignPack,
-        workflow: ProductionSignWorkflow
+        workflow: ProductionSignWorkflow,
+        scene: AppShellSceneStateV1,
+        sources: ProductionMyDaySourceStateV1
     ) -> some View {
-        TabView(selection: $selectedTab) {
-            SwiftUI.Tab(value: Tab.signs) {
+        TabView(selection: rootSelection(scene)) {
+            SwiftUI.Tab(value: AppRootV1.today) {
+                NavigationStack {
+                    ProductionMyDayRootViewV1(source: sources)
+                        .toolbar { settingsToolbar }
+                }
+            } label: {
+                Label("Today", systemImage: "sun.max")
+                    .accessibilityIdentifier(Self.todayTabAccessibilityIdentifier)
+            }
+
+            SwiftUI.Tab(value: AppRootV1.work) {
+                NavigationStack {
+                    ProductionWorkRootViewV1(source: sources)
+                        .toolbar { settingsToolbar }
+                }
+            } label: {
+                Label("Work", systemImage: "checklist")
+                    .accessibilityIdentifier(Self.workTabAccessibilityIdentifier)
+            }
+
+            SwiftUI.Tab(value: AppRootV1.assets) {
                 SignsRootView(
                     workflow: workflow,
                     modelContext: modelContext,
@@ -186,12 +328,12 @@ struct AppShellView: View {
                     )
                 )
             } label: {
-                Label("Signs", systemImage: "signpost.right.fill")
-                    .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
+                Label("Assets", systemImage: "signpost.right.fill")
+                    .accessibilityIdentifier(Self.assetsTabAccessibilityIdentifier)
             }
 
-            SwiftUI.Tab(value: Tab.reports) {
-                NavigationStack {
+            SwiftUI.Tab(value: AppRootV1.reports) {
+                NavigationStack(path: reportHistoryPath(scene)) {
                     ReportsRootView(
                         workflow: workflow
                     )
@@ -199,24 +341,181 @@ struct AppShellView: View {
                         settingsToolbar
                     }
                 }
+                .onChange(of: scene.snapshot?.snapshotID) { _, _ in
+                    reportsPresentation.reconcileCanonicalRoutes(
+                        canonicalReportHistoryRoutes(in: scene),
+                        snapshotID: scene.snapshot?.snapshotID
+                    )
+                }
             } label: {
                 Label("Reports", systemImage: "doc.text.fill")
                     .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
             }
         }
         .background {
-            NativeTabAccessibilityIdentifierBinder(
-                identifiers: [
-                    Self.signsTabAccessibilityIdentifier,
-                    Self.reportsTabAccessibilityIdentifier,
-                ]
-            )
+            nativeTabIdentifierBinder()
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)
         }
         .tint(DesignTokens.SemanticColors.primaryAction)
         .background(DesignTokens.SemanticColors.workBackground)
         .environment(\.eraseAllAction, EraseAllAction(call: eraseAll))
+        .environment(\.appLockSettingsSection, appLockSettingsSection)
+        .environment(\.appContentAccess, contentAccess)
+    }
+
+    private func nativeTabIdentifierBinder() -> NativeTabAccessibilityIdentifierBinder {
+        let identifiers = [
+            Self.todayTabAccessibilityIdentifier,
+            Self.workTabAccessibilityIdentifier,
+            Self.assetsTabAccessibilityIdentifier,
+            Self.reportsTabAccessibilityIdentifier,
+        ]
+        #if DEBUG
+        return NativeTabAccessibilityIdentifierBinder(identifiers: identifiers,
+            onBoundForTesting: onNativeTabsBoundForTesting)
+        #else
+        return NativeTabAccessibilityIdentifierBinder(identifiers: identifiers)
+        #endif
+    }
+
+    private func rootSelection(_ scene: AppShellSceneStateV1) -> Binding<AppRootV1> {
+        Binding(get: { scene.snapshot?.selectedRoot ?? .today }, set: { root in
+            do {
+                let canonicalBefore = canonicalReportHistoryRoutes(in: scene)
+                let snapshotIDBefore = scene.snapshot?.snapshotID
+                try scene.select(root)
+                reportsPresentation.refreshCanonicalSnapshot(
+                    from: canonicalBefore,
+                    snapshotIDBefore: snapshotIDBefore,
+                    to: canonicalReportHistoryRoutes(in: scene),
+                    snapshotIDAfter: scene.snapshot?.snapshotID
+                )
+            } catch {
+                productionCompositionErrorMessage = "Navigation could not be restored safely."
+            }
+        })
+    }
+
+    private func reportHistoryPath(
+        _ scene: AppShellSceneStateV1
+    ) -> Binding<[ReportHistoryRoute]> {
+        Binding(
+            get: { reportHistoryRoutes(in: scene) },
+            set: { routes in persistReportHistory(routes, in: scene) }
+        )
+    }
+
+    private func reportHistoryRoutes(
+        in scene: AppShellSceneStateV1
+    ) -> [ReportHistoryRoute] {
+        let canonicalRoutes = canonicalReportHistoryRoutes(in: scene)
+        return reportsPresentation.presentedRoutes(
+            for: canonicalRoutes,
+            snapshotID: scene.snapshot?.snapshotID
+        )
+    }
+
+    private func canonicalReportHistoryRoutes(
+        in scene: AppShellSceneStateV1
+    ) -> [ReportHistoryRoute] {
+        guard let targets = scene.snapshot?.path(for: .reports)?.targets else {
+            return []
+        }
+        return targets.compactMap { target in
+            guard target.destination == .reports,
+                  target.requestedMode == .read,
+                  let reportID = target.stableEntityID else { return nil }
+            return .report(reportID)
+        }
+    }
+
+    private func persistReportHistory(
+        _ routes: [ReportHistoryRoute],
+        in scene: AppShellSceneStateV1
+    ) {
+        let canonicalBefore = canonicalReportHistoryRoutes(in: scene)
+        let snapshotIDBefore = scene.snapshot?.snapshotID
+        let canonicalRoutes = reportsPresentation.setPresentedRoutes(
+            routes,
+            snapshotID: scene.snapshot?.snapshotID
+        )
+        guard let targets = canonicalReportTargets(
+            canonicalRoutes,
+            preserving: scene
+        ) else { return }
+        let currentCanonicalRoutes = canonicalReportHistoryRoutes(in: scene)
+        guard canonicalRoutes != currentCanonicalRoutes else { return }
+        do {
+            if canonicalRoutes.count == currentCanonicalRoutes.count + 1,
+               let target = targets.last {
+                try scene.open(target)
+            } else {
+                try scene.setPath(targets, for: .reports)
+            }
+            reportsPresentation.refreshCanonicalSnapshot(
+                from: canonicalBefore,
+                snapshotIDBefore: snapshotIDBefore,
+                to: canonicalReportHistoryRoutes(in: scene),
+                snapshotIDAfter: scene.snapshot?.snapshotID
+            )
+        } catch {
+            reportsPresentation.reset()
+            productionCompositionErrorMessage =
+                "Navigation could not be restored safely."
+        }
+    }
+
+    private func canonicalReportTargets(
+        _ routes: [ReportHistoryRoute],
+        preserving scene: AppShellSceneStateV1
+    ) -> [NavigationTargetV1]? {
+        let existing = scene.snapshot?.path(for: .reports)?.targets ?? []
+        var targets: [NavigationTargetV1] = []
+        for route in routes {
+            guard case let .report(reportID) = route else { return nil }
+            if let target = existing.first(where: {
+                $0.destination == .reports
+                    && $0.requestedMode == .read
+                    && $0.stableEntityID == reportID
+            }) {
+                targets.append(target)
+            } else if let target = try? NavigationTargetV1(
+                workspaceID: storeSession.workspaceID,
+                destination: .reports,
+                stableEntityID: reportID,
+                requestedMode: .read,
+                fallback: try NavigationFallbackV1(
+                    root: .reports,
+                    destination: .reports
+                )
+            ) {
+                targets.append(target)
+            } else { return nil }
+        }
+        return targets
+    }
+
+    private func restoreScene(_ scene: AppShellSceneStateV1) {
+        let priorCanonicalRoutes = canonicalReportHistoryRoutes(in: scene)
+        let priorSnapshotID = scene.snapshot?.snapshotID
+        do {
+            try scene.restore()
+            let restoredCanonicalRoutes = canonicalReportHistoryRoutes(in: scene)
+            if restoredCanonicalRoutes == priorCanonicalRoutes {
+                reportsPresentation.refreshCanonicalSnapshot(
+                    from: priorCanonicalRoutes,
+                    snapshotIDBefore: priorSnapshotID,
+                    to: restoredCanonicalRoutes,
+                    snapshotIDAfter: scene.snapshot?.snapshotID
+                )
+            } else {
+                reportsPresentation.reset()
+            }
+        } catch {
+            reportsPresentation.reset()
+            productionCompositionErrorMessage = "Navigation could not be restored safely."
+        }
     }
 
     @MainActor
@@ -226,6 +525,7 @@ struct AppShellView: View {
         isComposingProductionWorkflow = true
         productionCompositionErrorMessage = nil
         do {
+            let composed = try contentAccess.withRead {
             let registry = try WorkspacePackageLifecycleCompatibilityV1
                 .legacyV3Registry(package: pack)
             let root = try ProductionCompositionRoot(
@@ -240,13 +540,21 @@ struct AppShellView: View {
                 injectsLowStorageFailureOnceForUITest:
                     injectsLowStorageFailureOnceForUITest
             )
-            productionComposition = ProductionShellComposition(
-                root: root,
-                workflow: workflow
-            )
+            return (root: root, workflow: workflow)
+            }
+            // Scene operations own a distinct, nonrecursive capability hold.
+            let scene = AppShellSceneStateV1(workspaceID: storeSession.workspaceID,
+                access: sceneNavigationAccess, registry: try RouteRegistryV1())
+            try scene.restore()
+            let sources = ProductionMyDaySourceStateV1(workspaceID: storeSession.workspaceID,
+                access: myDayAccess)
+            try contentAccess.withRead {
+                productionComposition = ProductionShellComposition(root: composed.root,
+                    workflow: composed.workflow, scene: scene, myDaySources: sources)
+            }
         } catch {
             productionCompositionErrorMessage =
-                "Signs and reports could not be opened safely."
+                "Your workspace could not be opened safely."
         }
         isComposingProductionWorkflow = false
     }
@@ -442,6 +750,8 @@ struct SettingsPlaceholderView: View {
     }
 
     @Environment(\.eraseAllAction) private var eraseAllAction
+    @Environment(\.appLockSettingsSection) private var appLockSettingsSection
+    @Environment(\.appContentAccess) private var contentAccess
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
     @ObservedObject var lifecycleCoordinator: StoreKitLifecycleCoordinator
@@ -488,15 +798,22 @@ struct SettingsPlaceholderView: View {
                         .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                         .accessibilityAddTraits(.isHeader)
 
+                    if let appLockSettingsSection {
+                        appLockSettingsSection
+                    }
+
+                if let contentAccess {
                 AssetRoundsPrimaryNavigationLink("Back up current data") {
                     BackupExportView(
                         modelContext: modelContext,
-                        generationRootURL: generationRootURL
+                        generationRootURL: generationRootURL,
+                        contentAccess: contentAccess
                     )
                 }
                 .accessibilityIdentifier(
                     BackupExportView.settingsEntryAccessibilityIdentifier
                 )
+                }
 
                 AssetRoundsSecondaryAction("Restore data backup", action: restoreDataBackup)
                     .accessibilityLabel("Restore data backup")
@@ -604,8 +921,16 @@ private struct NativeTabAccessibilityIdentifierBinder:
 {
     let identifiers: [String]
 
+    #if DEBUG
+    var onBoundForTesting: (@MainActor (UITabBar) -> Void)?
+    #endif
+
     func makeUIViewController(context: Context) -> Controller {
-        Controller(identifiers: identifiers)
+        let controller = Controller(identifiers: identifiers)
+        #if DEBUG
+        controller.onBoundForTesting = onBoundForTesting
+        #endif
+        return controller
     }
 
     func updateUIViewController(
@@ -613,11 +938,18 @@ private struct NativeTabAccessibilityIdentifierBinder:
         context: Context
     ) {
         uiViewController.identifiers = identifiers
+        #if DEBUG
+        uiViewController.onBoundForTesting = onBoundForTesting
+        #endif
         uiViewController.bindAccessibilityIdentifiers()
     }
 
     final class Controller: UIViewController {
         var identifiers: [String]
+
+        #if DEBUG
+        var onBoundForTesting: (@MainActor (UITabBar) -> Void)?
+        #endif
 
         init(identifiers: [String]) {
             self.identifiers = identifiers
@@ -657,6 +989,9 @@ private struct NativeTabAccessibilityIdentifierBinder:
             for (item, identifier) in zip(items, identifiers) {
                 item.accessibilityIdentifier = identifier
             }
+            #if DEBUG
+            onBoundForTesting?(tabBar)
+            #endif
         }
 
         private func findTabBar(in view: UIView?) -> UITabBar? {
