@@ -508,6 +508,13 @@ final class V23ProductionFourRootShellTests: XCTestCase {
         in fixture: V23ProductionMyDayPresentationHarness,
         label: String = "ready"
     ) async throws -> (reportID: UUID, assetID: UUID) {
+        #if DEBUG
+        var diagnosticPhase = "compose-workflow"
+        var diagnosticCompleted = false
+        defer {
+            print("V23 Reports fixture exit phase=\(diagnosticPhase) finished=\(diagnosticCompleted)")
+        }
+        #endif
         let access = try XCTUnwrap(fixture.presentation.renderAccess)
         let workflow = try access.withRead {
             let profiles = try WorkspacePackageLifecycleCompatibilityV1
@@ -522,12 +529,18 @@ final class V23ProductionFourRootShellTests: XCTestCase {
                 accessState: { .entitled }
             )
         }
+        #if DEBUG
+        diagnosticPhase = "create-first-sign"
+        #endif
         let sign = try await workflow.firstSign.create(.init(
             siteLabel: "Reports route site \(label)",
             signLabel: "Reports route sign \(label)",
             timeZoneID: "America/New_York",
             isTimeZoneConfirmed: true
         ))
+        #if DEBUG
+        diagnosticPhase = "begin-check"
+        #endif
         _ = try workflow.checkRunner.beginCheck(
             assetID: sign.assetID,
             timeZoneID: "America/New_York",
@@ -536,6 +549,9 @@ final class V23ProductionFourRootShellTests: XCTestCase {
             safePositionAccepted: true,
             observedAt: Date(timeIntervalSince1970: 1_800_500_000)
         )
+        #if DEBUG
+        diagnosticPhase = "finalize-check"
+        #endif
         let result = try await workflow.checkRunner.finalize(
             assetID: sign.assetID,
             selection: .couldNotVerify(
@@ -546,8 +562,14 @@ final class V23ProductionFourRootShellTests: XCTestCase {
             snapshotCreatedAt: Date(timeIntervalSince1970: 1_800_500_011),
             sourceApp: SourceAppSnapshotV1(build: "v23-reports-route", version: "1")
         )
+        #if DEBUG
+        diagnosticPhase = "prepare-report-delivery"
+        #endif
         guard case .ready = try workflow.checkRunner.prepareReportDelivery(result: result)
         else { throw AppAccessContractFailureV1.configurationUnknown }
+        #if DEBUG
+        diagnosticCompleted = true
+        #endif
         return (result.reportID, sign.assetID)
     }
 

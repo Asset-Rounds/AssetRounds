@@ -96,7 +96,8 @@ final class V23FirstSignReceiptClockTests: XCTestCase {
             XCTAssertEqual(replay.commandDigest, outcome.commandDigest)
             XCTAssertEqual(replay.occurredAt, outcome.occurredAt)
             XCTAssertEqual(replay.effect, outcome.effect)
-            Self.assertPortableRevision(replay.before, equals: outcome.before)
+            Self.assertPortableRevision(replay.before, equals: outcome.before, absentIsZero: true)
+            XCTAssertEqual(replay.before.entityRevisions, receipt.expectedRevision.entityRevisions)
             Self.assertPortableRevision(replay.after, equals: outcome.after)
             XCTAssertEqual(replay.before.writerInstanceID, beforeReplay.writerInstanceID)
             XCTAssertEqual(replay.after.writerInstanceID, beforeReplay.writerInstanceID)
@@ -195,18 +196,22 @@ final class V23FirstSignReceiptClockTests: XCTestCase {
     private static func assertPortableRevision(
         _ actual: WorkspaceRevisionV1,
         equals expected: WorkspaceRevisionV1,
+        absentIsZero: Bool = false,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
         XCTAssertEqual(actual.workspaceID, expected.workspaceID, file: file, line: line)
         XCTAssertEqual(actual.generationID, expected.generationID, file: file, line: line)
         XCTAssertEqual(actual.revision, expected.revision, file: file, line: line)
-        XCTAssertEqual(
-            actual.entityRevisions,
-            expected.entityRevisions,
-            file: file,
-            line: line
-        )
+        if absentIsZero {
+            let actualByIdentity = Dictionary(uniqueKeysWithValues: actual.entityRevisions.map { ($0.identity, $0.revision) })
+            let expectedByIdentity = Dictionary(uniqueKeysWithValues: expected.entityRevisions.map { ($0.identity, $0.revision) })
+            for identity in Set(actualByIdentity.keys).union(expectedByIdentity.keys) {
+                XCTAssertEqual(actualByIdentity[identity, default: 0], expectedByIdentity[identity, default: 0], file: file, line: line)
+            }
+        } else {
+            XCTAssertEqual(actual.entityRevisions, expected.entityRevisions, file: file, line: line)
+        }
     }
 }
 

@@ -3157,7 +3157,12 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func validateIngressClaim(_ claim: C16IngressDirectoryClaimV1) throws -> Int32 {
         try validateIngressPreparation(claim.preparation, intentID: claim.preparation.intent.intentID)
         let name = claim.preparation.lease.relativeDirectory
-        let descriptor = try openLeaseDirectory(name)
+        let descriptor: Int32
+        do {
+            descriptor = try openLeaseDirectory(name)
+        } catch ScratchDataLeaseStoreFailureV1.invalidRoot {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
         do {
             var information = stat()
             guard Darwin.fstat(descriptor, &information) == 0,

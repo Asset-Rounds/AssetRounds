@@ -938,6 +938,15 @@ final class MutationJournalStoreV1 {
         semanticReversal: SemanticReversalReceiptV1? = nil,
         semanticReversalExecution: SemanticReversalExecutionV1? = nil
     ) throws -> MutationReceiptV1 {
+        #if DEBUG
+        let observesWork: Bool
+        if case .recordWork = envelope.command { observesWork = true } else { observesWork = false }
+        var diagnosticPhase = "commit-admission"
+        var diagnosticCompleted = false
+        defer {
+            if observesWork { print("V23 Work commit exit phase=\(diagnosticPhase) finished=\(diagnosticCompleted)") }
+        }
+        #endif
         guard envelope.workspaceID == identity.workspaceID,
               envelope.replicaID == identity.replicaID,
               envelope.generationID == generationID else {
@@ -1199,10 +1208,16 @@ final class MutationJournalStoreV1 {
             throw WorkspaceMutationFailureV1.revisionOverflow
         }
 
+        #if DEBUG
+        if observesWork { diagnosticPhase = "advance-revisions" }
+        #endif
         state.workspaceRevision += 1
         state.lastLocalSequence += 1
         var postImages: [MutationPostImageV1] = []
         for entity in affectedEntities.sorted(by: { $0.stableKey < $1.stableKey }) {
+            #if DEBUG
+            if observesWork { diagnosticPhase = "postimage:\(entity.kind.rawValue)" }
+            #endif
             let key = entity.stableKey
             let rows = try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>(
                 predicate: #Predicate { $0.stableIdentity == key }
@@ -1381,12 +1396,18 @@ final class MutationJournalStoreV1 {
         if case let .applyWorkspaceExperience(mutation)=envelope.command{guard postImages == (try mutation.mutationPostImages) else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        #if DEBUG
+        if observesWork { diagnosticPhase = "resulting-revision" }
+        #endif
         let after = try currentRevision(writerInstanceID: writerInstanceID)
         let receiptIdentity = MutationReceiptIdentityV1(
             workspaceID: identity.workspaceID,
             replicaID: identity.replicaID,
             localSequence: try domainRevision(state.lastLocalSequence)
         )
+        #if DEBUG
+        if observesWork { diagnosticPhase = "construct-receipt" }
+        #endif
         let receipt = try MutationReceiptV1(
             identity: receiptIdentity,
             envelope: envelope,
@@ -1398,6 +1419,9 @@ final class MutationJournalStoreV1 {
         let generatedSemanticReversal: SemanticReversalReceiptV1?
         try Self.validateFinalizationReceipt(receipt, envelope: envelope)
         try Self.validateReportPDFReceipt(receipt, envelope: envelope)
+        #if DEBUG
+        if observesWork { diagnosticPhase = "validate-work-receipt" }
+        #endif
         try Self.validateWorkReceipt(receipt, envelope: envelope)
         if let execution = semanticReversalExecution {
             generatedSemanticReversal = try SemanticReversalReceiptV1(
@@ -1458,19 +1482,31 @@ final class MutationJournalStoreV1 {
                 canonicalMutationReceipt: receipt
             )
         }
+        #if DEBUG
+        if observesWork { diagnosticPhase = "canonical-receipt-row" }
+        #endif
         modelContext.insert(try MutationReceiptRow(
             envelope: envelope,
             receipt: receipt,
             reversalBasis: reversalBasis,
             semanticReversal: generatedSemanticReversal
         ))
+        #if DEBUG
+        if observesWork { diagnosticPhase = "mutable-checkpoint" }
+        #endif
         state.mutableSemanticSHA256 = try mutableSemanticSHA256()
+        #if DEBUG
+        if observesWork { diagnosticPhase = "before-save" }
+        #endif
         try reach(.afterReceiptBeforeSave)
         let committedEnvelopeSHA256 = try envelope.canonicalSHA256()
         do {
             try modelContext.save()
             persistedAttemptEnvelopeSHA256 = committedEnvelopeSHA256
             try reach(.afterSaveBeforeReturn)
+        #if DEBUG
+        diagnosticCompleted = true
+        #endif
             return receipt
         } catch let failure as MutationJournalFailureV1 {
             modelContext.rollback()
@@ -5647,12 +5683,22 @@ final class MutationJournalStoreV1 {
     ) throws {
         guard case let .recordWork(command) = envelope.command,
               let authority = command.writerAuthority else { return }
+        #if DEBUG
+        var diagnosticPhase = "authority"
+        var diagnosticCompleted = false
+        defer {
+            print("V23 Work receipt exit phase=\(diagnosticPhase) finished=\(diagnosticCompleted)")
+        }
+        #endif
         try authority.validate(envelope: envelope)
         let expected = Dictionary(uniqueKeysWithValues: envelope.expectedRevision.entityRevisions.map {
             ($0.identity, $0.revision)
         })
         let required = Set(try authority.concurrencyIdentities)
         let changed = Set(try authority.affectedIdentities)
+        #if DEBUG
+        diagnosticPhase = "receipt-lock-domain"
+        #endif
         guard receipt.expectedRevision == envelope.expectedRevision,
               receipt.commandBodySHA256 == envelope.commandBodySHA256,
               receipt.sourceKind == envelope.sourceKind,
@@ -5660,6 +5706,9 @@ final class MutationJournalStoreV1 {
               changed.isSubset(of: required) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+        #if DEBUG
+        diagnosticPhase = "evidence-zero-lock"
+        #endif
         if let evidence = authority.evidenceInsert {
             let identity = try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: evidence.id)
             guard expected[identity] == 0 else {
@@ -5668,6 +5717,9 @@ final class MutationJournalStoreV1 {
         }
         // Existing draft/issue/source rows can legitimately have baseline zero.
         // The receipt advances only the changed rows, retaining all source locks.
+        #if DEBUG
+        diagnosticPhase = "unchanged-locks"
+        #endif
         for identity in required.subtracting(changed) {
             guard let before = expected[identity],
                   receipt.resultingRevision.entityRevisions.filter({ $0.identity == identity })
@@ -5696,6 +5748,9 @@ final class MutationJournalStoreV1 {
             default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
+        #if DEBUG
+        diagnosticPhase = "source-binding"
+        #endif
         let record = authority.recordAfter
         let bindings = authority.sourceBindings.filter { $0.recordID == record.id }
         guard bindings.count == 1, let source = bindings.first else {
@@ -5732,10 +5787,16 @@ final class MutationJournalStoreV1 {
             basisData: source.observationBasisV1Data,
             temporalData: source.temporalContextV1Data
         )
+        #if DEBUG
+        diagnosticPhase = "workflow-postimage"
+        #endif
         try append(.workflowRecord, record.id, WorkflowRecordPostImageV8(
             record: workflowDTO, requirementAssurance: source.requirementAssurance
         ))
         let issue = authority.issueAfter
+        #if DEBUG
+        diagnosticPhase = "issue-postimage"
+        #endif
         try append(.issue, issue.id, V4BackupIssueDTO(
             id: issue.id, schemaVersion: issue.schemaVersion, assetID: issue.assetID,
             openedByRecordID: issue.openedByRecordID, labelKey: issue.labelKey,
@@ -5744,6 +5805,9 @@ final class MutationJournalStoreV1 {
             updatedAt: issue.updatedAt
         ))
         if let evidence = authority.evidenceInsert {
+        #if DEBUG
+        diagnosticPhase = "evidence-postimage"
+        #endif
             try append(.evidenceFile, evidence.id, V4BackupEvidenceFileDTO(
                 id: evidence.id, schemaVersion: evidence.schemaVersion, recordID: evidence.recordID,
                 purposeKey: evidence.purposeKey, relativePath: evidence.relativePath,
@@ -5752,11 +5816,17 @@ final class MutationJournalStoreV1 {
                 thumbnailByteCount: evidence.thumbnailByteCount, thumbnailSHA256: evidence.thumbnailSHA256
             ))
         }
+        #if DEBUG
+        diagnosticPhase = "postimage-equality"
+        #endif
         let ordered = try images.sorted { try $0.identity.stableKey < $1.identity.stableKey }
         guard receipt.postImages == ordered,
               Set(try images.map { try $0.identity }) == changed else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+        #if DEBUG
+        diagnosticCompleted = true
+        #endif
     }
 
     nonisolated private static func validateReportPDFReceipt(
