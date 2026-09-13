@@ -1593,6 +1593,74 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             try? FileManager.default.removeItem(at: root)
         }
 
+        // The historic boundary remains exact. Current import compatibility
+        // validates the real enrolled pair and genuine durable acceptance bytes.
+        diagnosticBoundary = "c32-import-compatibility"
+        do {
+            let compatibilitySupport = root.appendingPathComponent("c32-compatibility-support", isDirectory: true)
+            try fileManager.createDirectory(at: compatibilitySupport, withIntermediateDirectories: false)
+            let compatibilityFactory = StoreGenerationFactory(applicationSupportURL: compatibilitySupport)
+            let compatibilitySession = try compatibilityFactory.openOrBootstrapCurrent()
+            let acceptance = try C32AssistanceTestSupport.commitPersistentAcceptance(
+                in: compatibilitySession, slot: 6_424)
+            let record = try V32BackupAssistanceAcceptanceRecordV1(acceptance)
+            let context = compatibilitySession.modelContext
+            let originalAcceptance = try XCTUnwrap(context.fetch(
+                FetchDescriptor<AssistanceAcceptanceReceiptRow>()).first).canonicalData
+            let originalReceipt = try XCTUnwrap(context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+                $0.mutationID == acceptance.mutationID.rawValue
+            }).receiptData
+            let receiptCount = try context.fetchCount(FetchDescriptor<MutationReceiptRow>())
+            let stateRevision = try XCTUnwrap(context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first).workspaceRevision
+            try V32AssistanceImportBoundaryV1.validate(persistent: 32, records: 31, receipts: [record])
+            let currentRecords = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
+            let currentPersistent = LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion
+            XCTAssertThrowsError(try V32AssistanceImportBoundaryV1.validate(
+                persistent: currentPersistent, records: currentRecords, receipts: [record]))
+            for pair in [(32, 31), (currentPersistent, currentRecords)] {
+                try V32AssistanceImportBoundaryV1.validateCompatible(
+                    persistent: pair.0, records: pair.1, receipts: [record])
+                XCTAssertThrowsError(try V32AssistanceImportBoundaryV1.validateCompatible(
+                    persistent: pair.0, records: pair.1, receipts: [record, record]))
+                var fields = try XCTUnwrap(JSONSerialization.jsonObject(
+                    with: JSONEncoder().encode(record)) as? [String: Any])
+                // Receipt identity equals mutation identity in a valid receipt.
+                // Alter only the outer ID to reach the separate duplicate-mutation
+                // guard, which must report invalidRecords before value decoding.
+                var duplicateMutationFields = fields
+                duplicateMutationFields["receiptID"] = UUID().uuidString
+                let duplicateMutation = try JSONDecoder().decode(V32BackupAssistanceAcceptanceRecordV1.self,
+                    from: JSONSerialization.data(withJSONObject: duplicateMutationFields))
+                XCTAssertNotEqual(duplicateMutation.receiptID, record.receiptID)
+                XCTAssertEqual(duplicateMutation.mutationID, record.mutationID)
+                XCTAssertThrowsError(try V32AssistanceImportBoundaryV1.validateCompatible(
+                    persistent: pair.0, records: pair.1, receipts: [record, duplicateMutation])) {
+                    XCTAssertEqual($0 as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+                }
+                fields["canonicalData"] = Data("{}".utf8).base64EncodedString()
+                let malformed = try JSONDecoder().decode(V32BackupAssistanceAcceptanceRecordV1.self,
+                    from: JSONSerialization.data(withJSONObject: fields))
+                XCTAssertThrowsError(try V32AssistanceImportBoundaryV1.validateCompatible(
+                    persistent: pair.0, records: pair.1, receipts: [malformed]))
+            }
+            for pair in [(31, 30), (currentPersistent + 1, currentRecords + 1),
+                         (currentPersistent, 31), (32, 32)] {
+                XCTAssertThrowsError(try V32AssistanceImportBoundaryV1.validateCompatible(
+                    persistent: pair.0, records: pair.1, receipts: [record]))
+            }
+            XCTAssertEqual(try record.value(), acceptance)
+            XCTAssertEqual(try XCTUnwrap(context.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>()).first).canonicalData,
+                originalAcceptance)
+            XCTAssertEqual(try XCTUnwrap(context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+                $0.mutationID == acceptance.mutationID.rawValue
+            }).receiptData, originalReceipt)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<MutationReceiptRow>()), receiptCount)
+            XCTAssertEqual(try XCTUnwrap(context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first).workspaceRevision,
+                stateRevision)
+            XCTAssertEqual(try compatibilityFactory.currentGenerationID(), compatibilitySession.generationID)
+            XCTAssertFalse(context.hasChanges)
+        }
+
         let sourceSupport = root.appendingPathComponent(
             "source-support",
             isDirectory: true

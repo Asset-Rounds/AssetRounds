@@ -438,6 +438,29 @@ enum V32AssistanceImportBoundaryV1 {
         }
         for receipt in receipts { _ = try receipt.value() }
     }
+
+    /// The original 32/31 validator remains the historic boundary. Newer
+    /// validated packages retain the same assistance receipt semantics while
+    /// their shared archive envelope advances together by one generation.
+    static func validateCompatible(
+        persistent: Int,
+        records: Int,
+        receipts: [V32BackupAssistanceAcceptanceRecordV1] = []
+    ) throws {
+        guard (recordsSchemaVersion...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records),
+              persistent == records + 1,
+              durableFamilyCount == AssistancePersistenceEnrollmentV1.durableModelCount,
+              proposalImportDisposition == "EXCLUDED_NONPERSISTENT",
+              !rejectedCorpusImported else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        guard Set(receipts.map(\.receiptID)).count == receipts.count,
+              Set(receipts.map(\.mutationID)).count == receipts.count else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        for receipt in receipts { _ = try receipt.value() }
+    }
 }
 
 // MARK: - C45 accepted-label import boundary

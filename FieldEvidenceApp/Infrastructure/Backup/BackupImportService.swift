@@ -113,7 +113,7 @@ enum C32AssistanceBackupImportPolicyV1 {
             guard proposalImportDisposition == "EXCLUDED_NONPERSISTENT" else {
                 throw BackupImportServiceError.invalidGeneration
             }
-            try V32AssistanceImportBoundaryV1.validate(
+            try V32AssistanceImportBoundaryV1.validateCompatible(
                 persistent: package.manifest.source.persistentSchemaVersion,
                 records: package.records.recordsSchemaVersion,
                 receipts: package.records.assistanceAcceptanceReceipts
