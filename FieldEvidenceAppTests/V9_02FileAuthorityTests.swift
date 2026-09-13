@@ -132,6 +132,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
                     phase: tracePhase,
                     at: file
                 )
+                runFailureOnlyProtectionProbe(in: root)
             }
         }
 
@@ -180,6 +181,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
                     phase: tracePhase,
                     at: file
                 )
+                runFailureOnlyProtectionProbe(in: root)
             }
         }
         tracePhase = "initialApply"
@@ -532,6 +534,235 @@ final class V9_02FileAuthorityTests: XCTestCase {
 }
 
 private extension V9_02FileAuthorityTests {
+    enum FailureOnlyProtectionProbeWriter: String {
+        case url
+        case fileManager
+    }
+
+    struct FailureOnlyProtectionProbeReadback {
+        let protection: String
+        let protectionKnown: Bool
+        let backupKnown: Bool
+        let backupExcluded: Bool
+    }
+
+    func runFailureOnlyProtectionProbe(in root: URL) {
+        let cases: [(String, String, FailureOnlyProtectionProbeWriter)] = [
+            ("model-url", "probe-model.sqlite", .url),
+            ("model-fileManager", "probe-model.sqlite", .fileManager),
+            ("control-url", "probe-control.bin", .url),
+            ("control-fileManager", "probe-control.bin", .fileManager),
+        ]
+        for (name, basename, writer) in cases {
+            let directory = root.appendingPathComponent(
+                "file-authority-probe-\(name)",
+                isDirectory: true
+            )
+            let file = directory.appendingPathComponent(basename)
+            var setup = "ok"
+            do {
+                try fileManager.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: false
+                )
+                guard fileManager.createFile(atPath: file.path, contents: Data()) else {
+                    setup = "typedError"
+                    emitFailureOnlyProtectionProbe(
+                        name: name,
+                        writer: writer,
+                        stage: "default",
+                        setup: setup,
+                        write: "notAttempted",
+                        at: file
+                    )
+                    continue
+                }
+            } catch {
+                setup = "typedError"
+                emitFailureOnlyProtectionProbe(
+                    name: name,
+                    writer: writer,
+                    stage: "default",
+                    setup: setup,
+                    write: "notAttempted",
+                    at: file
+                )
+                continue
+            }
+
+            emitFailureOnlyProtectionProbe(
+                name: name,
+                writer: writer,
+                stage: "default",
+                setup: setup,
+                write: "notAttempted",
+                at: file
+            )
+            let wrongWrite = writeFailureOnlyProtection(
+                .completeUntilFirstUserAuthentication,
+                with: writer,
+                at: file
+            )
+            emitFailureOnlyProtectionProbe(
+                name: name,
+                writer: writer,
+                stage: "wrongProtection",
+                setup: setup,
+                write: wrongWrite,
+                at: file
+            )
+            let completeWrite = writeFailureOnlyProtection(
+                .complete,
+                with: writer,
+                at: file
+            )
+            emitFailureOnlyProtectionProbe(
+                name: name,
+                writer: writer,
+                stage: "completeRepair",
+                setup: setup,
+                write: completeWrite,
+                at: file
+            )
+        }
+    }
+
+    func writeFailureOnlyProtection(
+        _ protection: URLFileProtection,
+        with writer: FailureOnlyProtectionProbeWriter,
+        at url: URL
+    ) -> String {
+        do {
+            switch writer {
+            case .url:
+                try (url as NSURL).setResourceValue(
+                    protection,
+                    forKey: .fileProtectionKey
+                )
+            case .fileManager:
+                let fileManagerProtection: FileProtectionType
+                switch protection {
+                case .complete:
+                    fileManagerProtection = .complete
+                case .completeUntilFirstUserAuthentication:
+                    fileManagerProtection = .completeUntilFirstUserAuthentication
+                case .none:
+                    fileManagerProtection = .none
+                default:
+                    return "typedError"
+                }
+                try fileManager.setAttributes(
+                    [.protectionKey: fileManagerProtection],
+                    ofItemAtPath: url.path
+                )
+            }
+            return "ok"
+        } catch {
+            return "typedError"
+        }
+    }
+
+    func emitFailureOnlyProtectionProbe(
+        name: String,
+        writer: FailureOnlyProtectionProbeWriter,
+        stage: String,
+        setup: String,
+        write: String,
+        at url: URL
+    ) {
+        let urlReadback = failureOnlyURLReadback(at: url)
+        let fileManagerReadback = failureOnlyFileManagerReadback(at: url)
+        print(
+            "V9_02_FILE_AUTHORITY_PROBE case=\(name) writer=\(writer.rawValue) "
+                + "stage=\(stage) setup=\(setup) write=\(write) "
+                + "urlProtection=\(urlReadback.protection) "
+                + "urlProtectionKnown=\(urlReadback.protectionKnown) "
+                + "fileManagerProtection=\(fileManagerReadback.protection) "
+                + "fileManagerProtectionKnown=\(fileManagerReadback.protectionKnown) "
+                + "backupKnown=\(urlReadback.backupKnown) "
+                + "backupExcluded=\(urlReadback.backupExcluded) "
+                + "backupMatchesDatabase=\(urlReadback.backupKnown && !urlReadback.backupExcluded)"
+        )
+    }
+
+    func failureOnlyURLReadback(at url: URL) -> FailureOnlyProtectionProbeReadback {
+        var freshURL = URL(fileURLWithPath: url.path)
+        freshURL.removeAllCachedResourceValues()
+        do {
+            let values = try freshURL.resourceValues(forKeys: [
+                .fileProtectionKey,
+                .isExcludedFromBackupKey,
+            ])
+            return FailureOnlyProtectionProbeReadback(
+                protection: failureOnlyProtectionCategory(values.fileProtection),
+                protectionKnown: values.fileProtection != nil,
+                backupKnown: values.isExcludedFromBackup != nil,
+                backupExcluded: values.isExcludedFromBackup == true
+            )
+        } catch {
+            return FailureOnlyProtectionProbeReadback(
+                protection: "readError",
+                protectionKnown: false,
+                backupKnown: false,
+                backupExcluded: false
+            )
+        }
+    }
+
+    func failureOnlyFileManagerReadback(
+        at url: URL
+    ) -> FailureOnlyProtectionProbeReadback {
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: url.path)
+            let protection = attributes[.protectionKey] as? FileProtectionType
+            return FailureOnlyProtectionProbeReadback(
+                protection: failureOnlyProtectionCategory(protection),
+                protectionKnown: protection != nil,
+                backupKnown: false,
+                backupExcluded: false
+            )
+        } catch {
+            return FailureOnlyProtectionProbeReadback(
+                protection: "readError",
+                protectionKnown: false,
+                backupKnown: false,
+                backupExcluded: false
+            )
+        }
+    }
+
+    func failureOnlyProtectionCategory(
+        _ protection: URLFileProtection?
+    ) -> String {
+        guard let protection else { return "unknown" }
+        switch protection {
+        case .complete:
+            return "complete"
+        case .completeUntilFirstUserAuthentication:
+            return "completeUntilFirstUserAuthentication"
+        case .none:
+            return "none"
+        default:
+            return "other"
+        }
+    }
+
+    func failureOnlyProtectionCategory(
+        _ protection: FileProtectionType?
+    ) -> String {
+        guard let protection else { return "unknown" }
+        switch protection {
+        case .complete:
+            return "complete"
+        case .completeUntilFirstUserAuthentication:
+            return "completeUntilFirstUserAuthentication"
+        case .none:
+            return "none"
+        default:
+            return "other"
+        }
+    }
+
     func traceResourceReadback(test: String, phase: String, at url: URL) {
         var freshURL = URL(fileURLWithPath: url.path)
         freshURL.removeAllCachedResourceValues()

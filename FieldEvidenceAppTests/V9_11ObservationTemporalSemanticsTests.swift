@@ -949,6 +949,29 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
         in context: ModelContext
     ) throws {
         let recordedAt = Date(timeIntervalSince1970: 1_768_496_400)
+        let owners = try context.fetch(FetchDescriptor<Asset>()).filter {
+            $0.id == assetID
+        }
+        guard owners.count == 1, let owner = owners.first else {
+            throw V911TestFailure.unknownFixtureValue("expected one owner asset")
+        }
+        let ownerRelease = try PackageReleaseIdentityV1(
+            packageID: owner.packID,
+            schemaVersion: owner.packSchemaVersion,
+            contentVersion: owner.packContentVersion
+        )
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: .illuminatedSignV1
+        )
+        guard profile.release == ownerRelease else {
+            throw V911TestFailure.unknownFixtureValue("owner asset release does not match profile")
+        }
+        let outcomeKey = "no_visible_issue"
+        let stage = try profile.stage(WorkflowStage.check.rawValue)
+        XCTAssertTrue(stage.outcomeKeys.contains(outcomeKey))
+        guard stage.outcomeKeys.contains(outcomeKey) else {
+            throw V911TestFailure.unknownFixtureValue("profile does not admit fixture outcome")
+        }
         context.insert(WorkflowRecord(
             id: id,
             assetID: assetID,
@@ -977,12 +1000,12 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             safePositionAcknowledgementCopy: nil,
             safePositionAcknowledgementVersion: nil,
             safePositionAcknowledgementAccepted: nil,
-            packID: "test.pack",
-            packSchemaVersion: 1,
-            packContentVersion: 1,
-            pdfTemplateID: "worklight.report",
-            pdfTemplateVersion: 1,
-            outcomeKey: "unknown",
+            packID: profile.release.packageID,
+            packSchemaVersion: profile.release.schemaVersion,
+            packContentVersion: profile.release.contentVersion,
+            pdfTemplateID: profile.pdfTemplate.id,
+            pdfTemplateVersion: profile.pdfTemplate.version,
+            outcomeKey: outcomeKey,
             couldNotVerifyKey: nil,
             couldNotVerifyDisplaySnapshot: nil,
             couldNotVerifyRegistryVersion: nil,
@@ -991,6 +1014,24 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             note: nil,
             finalizationMutationID: nil
         ))
+        let inserted = try context.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+            $0.id == id
+        }
+        guard inserted.count == 1, let record = inserted.first,
+              record.packID == profile.release.packageID,
+              record.packSchemaVersion == profile.release.schemaVersion,
+              record.packContentVersion == profile.release.contentVersion,
+              record.pdfTemplateID == profile.pdfTemplate.id,
+              record.pdfTemplateVersion == profile.pdfTemplate.version,
+              record.state == WorkflowState.completed.rawValue,
+              record.stage == WorkflowStage.check.rawValue,
+              record.outcomeKey == outcomeKey,
+              record.issueID == nil,
+              record.couldNotVerifyKey == nil,
+              record.couldNotVerifyDisplaySnapshot == nil,
+              record.couldNotVerifyRegistryVersion == nil else {
+            throw V911TestFailure.unknownFixtureValue("inserted record does not match profile")
+        }
         context.insert(try ObservationAndTimeRow(
             recordID: id,
             observationBasisV1Data: basisData,

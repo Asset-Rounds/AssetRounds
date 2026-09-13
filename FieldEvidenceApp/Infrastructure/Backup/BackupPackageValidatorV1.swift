@@ -807,7 +807,7 @@ private extension BackupPackageValidatorV1 {
                     throw BackupPackageValidationErrorV1.invalidPackage
                 }
             case .directory:
-                guard ["media", "thumbnails", "snapshots", "pdfs", "draft-staging", "content"].contains(name),
+                guard ["media", "thumbnails", "snapshots", "pdfs", "draft-staging", "content", "review-exchange"].contains(name),
                       result.directories.insert(name).inserted else {
                     throw BackupPackageValidationErrorV1.invalidPackage
                 }
