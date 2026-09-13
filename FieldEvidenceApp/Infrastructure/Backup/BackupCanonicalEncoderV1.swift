@@ -2065,6 +2065,8 @@ private extension BackupCanonicalEncoderV1 {
         switch pathKind(value.path) {
         case .records:
             return value.mimeType == "application/json"
+        case .portableExchange:
+            return value.mimeType == PortableExchangeBackupMemberV2.mimeType
         case .media, .thumbnail:
             return value.mimeType == "image/jpeg"
         case .snapshot:
@@ -2076,10 +2078,11 @@ private extension BackupCanonicalEncoderV1 {
         }
     }
 
-    enum PathKind { case records, media, thumbnail, snapshot, pdf }
+    enum PathKind { case records, portableExchange, media, thumbnail, snapshot, pdf }
 
     static func pathKind(_ path: String) -> PathKind? {
         if path == "records.json" { return .records }
+        if path == PortableExchangeBackupMemberV2.path { return .portableExchange }
         let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
         guard components.count == 2 else { return nil }
         switch components[0] {

@@ -115,7 +115,9 @@ final class V9_06DeletionRightsTests: XCTestCase {
             source.session.modelContext.fetch(FetchDescriptor<Site>()).first?.id
         )
         let retainedMutationID = try MutationIDV1(rawValue: V906Integration.id(49))
-        let sourceWriter = StoreSessionCoordinator(session: source.session).workspaceWriter
+        let sourceCoordinator = StoreSessionCoordinator(session: source.session)
+        defer { withExtendedLifetime(sourceCoordinator) {} }
+        let sourceWriter = sourceCoordinator.workspaceWriter
         let sourceRevision = try sourceWriter.currentRevision()
         let mutationExpected = try WorkspaceExpectedRevisionV1(
             workspaceID: sourceRevision.workspaceID,

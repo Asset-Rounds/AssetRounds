@@ -1748,6 +1748,48 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         )
         XCTAssertNotNil(validated.records.mutationHistory)
         XCTAssertNotEqual(sourceReaderLease.ownerID, destinationReaderLease.ownerID)
+        let portableExchangeEntry = try XCTUnwrap(validated.manifest.entries.first(where: {
+            $0.path == PortableExchangeBackupMemberV2.path
+        }))
+        XCTAssertEqual(portableExchangeEntry.mimeType, PortableExchangeBackupMemberV2.mimeType)
+        let canonicalManifest = try BackupCanonicalEncoderV1().encodeManifest(validated.manifest)
+        XCTAssertEqual(
+            try BackupCanonicalDecoderV1().decodeManifest(canonicalManifest.data),
+            validated.manifest
+        )
+        func manifest(replacingPortableExchangeEntry entry: V4BackupEntryV1) -> V4BackupManifestV1 {
+            V4BackupManifestV1(
+                backupSchemaVersion: validated.manifest.backupSchemaVersion,
+                consumedEvaluationRootIDs: validated.manifest.consumedEvaluationRootIDs,
+                declaredPayloadByteCount: validated.manifest.declaredPayloadByteCount,
+                entries: validated.manifest.entries.map {
+                    $0.path == PortableExchangeBackupMemberV2.path ? entry : $0
+                }.sorted(by: { $0.path < $1.path }),
+                exportedAt: validated.manifest.exportedAt,
+                packs: validated.manifest.packs,
+                source: validated.manifest.source
+            )
+        }
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeManifest(
+            manifest(replacingPortableExchangeEntry: V4BackupEntryV1(
+                byteCount: portableExchangeEntry.byteCount,
+                mimeType: "text/plain",
+                path: portableExchangeEntry.path,
+                sha256: portableExchangeEntry.sha256
+            ))
+        )) {
+            XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidManifest)
+        }
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeManifest(
+            manifest(replacingPortableExchangeEntry: V4BackupEntryV1(
+                byteCount: portableExchangeEntry.byteCount,
+                mimeType: PortableExchangeBackupMemberV2.mimeType,
+                path: "review-exchange/unknown.json",
+                sha256: portableExchangeEntry.sha256
+            ))
+        )) {
+            XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidManifest)
+        }
 
         let restoreUUIDs = UUIDCursor((2_430...2_459).map(makeUUID))
         diagnosticBoundary = "restore-open"

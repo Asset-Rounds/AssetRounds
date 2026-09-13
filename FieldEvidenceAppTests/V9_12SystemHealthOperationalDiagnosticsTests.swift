@@ -252,8 +252,12 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
             let currentURL = Self.diagnosticsURL(recoveryRoot)
             let backupURL = currentURL.deletingLastPathComponent()
                 .appendingPathComponent(".counters.json.previous")
+            let stagedURL = currentURL.deletingLastPathComponent()
+                .appendingPathComponent(".counters.json.next")
             try canonical.write(to: backupURL)
             try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: backupURL)
+            try canonical.write(to: stagedURL)
+            try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: stagedURL)
             if mode == 1 {
                 try Self.writeDiagnosticsBytes(canonical + Data(" ".utf8), at: recoveryRoot)
             } else if mode == 2 {
@@ -265,11 +269,16 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
             XCTAssertEqual(recovered, expected)
             XCTAssertEqual(try Data(contentsOf: currentURL), canonical)
             XCTAssertFalse(FileManager.default.fileExists(atPath: backupURL.path))
+            XCTAssertEqual(try Data(contentsOf: stagedURL), canonical)
         }
         let futureRoot = try Self.temporaryRoot("diagnostics-decoder-future")
         addTeardownBlock { try FileManager.default.removeItem(at: futureRoot) }
         let futureBytes = Data("{\"schemaVersion\":999}".utf8)
         try Self.writeDiagnosticsBytes(futureBytes, at: futureRoot)
+        let futureStagedURL = Self.diagnosticsURL(futureRoot).deletingLastPathComponent()
+            .appendingPathComponent(".counters.json.next")
+        try canonical.write(to: futureStagedURL)
+        try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: futureStagedURL)
         let futureStore = DiagnosticsStore(applicationSupportURL: futureRoot, now: { instant },
             capacityProvider: { _ in Int64.max })
         do {
@@ -279,6 +288,7 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
             XCTAssertEqual(error as? DiagnosticsFailure, .unsupportedVersion)
         }
         XCTAssertEqual(try Data(contentsOf: Self.diagnosticsURL(futureRoot)), futureBytes)
+        XCTAssertEqual(try Data(contentsOf: futureStagedURL), canonical)
         let futureBackupURL = Self.diagnosticsURL(futureRoot).deletingLastPathComponent()
             .appendingPathComponent(".counters.json.previous")
         try canonical.write(to: futureBackupURL)
@@ -293,6 +303,37 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
         }
         XCTAssertEqual(try Data(contentsOf: Self.diagnosticsURL(futureRoot)), futureBytes)
         XCTAssertEqual(try Data(contentsOf: futureBackupURL), canonical)
+        XCTAssertEqual(try Data(contentsOf: futureStagedURL), canonical)
+
+        let stagedFutureRoot = try Self.temporaryRoot("diagnostics-decoder-future-stage")
+        addTeardownBlock { try FileManager.default.removeItem(at: stagedFutureRoot) }
+        let stagedFutureURL = Self.diagnosticsURL(stagedFutureRoot).deletingLastPathComponent()
+            .appendingPathComponent(".counters.json.next")
+        try FileManager.default.createDirectory(
+            at: stagedFutureURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try ProtectedFilePolicyV1.applyAndVerify(
+            .stagingDirectory,
+            at: stagedFutureURL.deletingLastPathComponent()
+        )
+        try futureBytes.write(to: stagedFutureURL)
+        try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: stagedFutureURL)
+        for stagedFutureStore in [
+            DiagnosticsStore(applicationSupportURL: stagedFutureRoot, now: { instant },
+                capacityProvider: { _ in Int64.max }),
+            DiagnosticsStore(applicationSupportURL: stagedFutureRoot, now: { instant },
+                capacityProvider: { _ in Int64.max }),
+        ] {
+            do {
+                _ = try await stagedFutureStore.operationalSupportSnapshot()
+                XCTFail("A newer staged schema must not become an empty successful snapshot")
+            } catch {
+                XCTAssertEqual(error as? DiagnosticsFailure, .unsupportedVersion)
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: Self.diagnosticsURL(stagedFutureRoot).path))
+            XCTAssertEqual(try Data(contentsOf: stagedFutureURL), futureBytes)
+        }
     }
 
     func testV23P03C37TypedPoseContractAnchor() throws {
@@ -812,14 +853,22 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
         let canonicalURL = Self.diagnosticsURL(interruptedRoot)
         let stagedURL = canonicalURL.deletingLastPathComponent()
             .appendingPathComponent(".counters.json.next")
+        let stagedBytes = try Data(contentsOf: canonicalURL)
         try FileManager.default.moveItem(at: canonicalURL, to: stagedURL)
         let recoveredStore = DiagnosticsStore(
             applicationSupportURL: interruptedRoot, now: { corpus.createdAt }
         )
         let recoveredSnapshot = try await recoveredStore.operationalSupportSnapshot()
         XCTAssertEqual(recoveredSnapshot.counters.firstSignCreated, 1)
+        XCTAssertEqual(recoveredSnapshot, firstSnapshot)
+        XCTAssertEqual(try Data(contentsOf: canonicalURL), stagedBytes)
         XCTAssertTrue(FileManager.default.fileExists(atPath: canonicalURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: stagedURL.path))
+        let reopenedStore = DiagnosticsStore(
+            applicationSupportURL: interruptedRoot, now: { corpus.createdAt }
+        )
+        let reopenedSnapshot = try await reopenedStore.operationalSupportSnapshot()
+        XCTAssertEqual(reopenedSnapshot, firstSnapshot)
 
         for (offset, replacement) in [
             (30, ("\"schemaVersion\":1", "\"schemaVersion\":2")),

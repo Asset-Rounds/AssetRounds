@@ -1367,6 +1367,8 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
     }
 
     private func recoverPendingPublication() throws {
+        Self.formatLease.lock()
+        defer { Self.formatLease.unlock() }
         guard let authority = try PinnedDiagnosticsAuthority.open(
             applicationSupportURL: applicationSupportURL,
             diagnosticsURL: directoryURL,
@@ -1380,10 +1382,73 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             Self.backupName,
             isDirectory: false
         )
+        let temporaryURL = directoryURL.appendingPathComponent(
+            Self.temporaryName,
+            isDirectory: false
+        )
         guard let backupIdentity = try fileIdentityIfPresent(
             at: backupURL,
             authorityCheck: authorityCheck
         ) else {
+            guard try fileIdentityIfPresent(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) == nil,
+                  let temporaryIdentity = try fileIdentityIfPresent(
+                    at: temporaryURL,
+                    authorityCheck: authorityCheck
+                  ),
+                  temporaryIdentity.size >= 0,
+                  temporaryIdentity.size <= Int64(Self.maximumOperationalTotalBytes) else {
+                return
+            }
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .temporaryFile,
+                at: temporaryURL,
+                authorityCheck: authorityCheck
+            )
+            let temporaryData = try readData(
+                at: temporaryURL,
+                expected: temporaryIdentity,
+                authorityCheck: authorityCheck
+            )
+            _ = try decodeOperationalStore(temporaryData)
+            try authorityCheck()
+            guard try fileIdentityIfPresent(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) == nil,
+                  try fileIdentityIfPresent(
+                    at: temporaryURL,
+                    authorityCheck: authorityCheck
+                  ) == temporaryIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            try fileManager.moveItem(at: temporaryURL, to: countersURL)
+            try authorityCheck()
+            guard try fileIdentity(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) == temporaryIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .diagnostics,
+                at: countersURL,
+                authorityCheck: authorityCheck
+            )
+            guard try fileIdentity(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) == temporaryIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            try syncFile(
+                at: countersURL,
+                expected: temporaryIdentity,
+                authorityCheck: authorityCheck
+            )
+            try syncDirectory(authorityCheck: authorityCheck)
             return
         }
         try ProtectedFilePolicyV1.applyAndVerify(

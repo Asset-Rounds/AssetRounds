@@ -886,8 +886,87 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertTrue(Set(corpus.durableFirstWriteKindIDs).isSubset(of: Set(durableFirstWrites)))
         XCTAssertEqual(durableFirstWrites.count, 229)
         let historicalFirstWrites = Set(durableFirstWrites).intersection(historicalKindIDs)
-        XCTAssertEqual(historicalFirstWrites.count, 84)
-        XCTAssertEqual(historicalDescriptors.count - historicalFirstWrites.count, 46)
+        XCTAssertEqual(historicalFirstWrites.count, 79)
+        XCTAssertEqual(historicalDescriptors.count - historicalFirstWrites.count, 51)
+        let historicalPortableProjectionBackingRows: [String: String] = [
+            "PROJECTION:ActorSnapshotV1": "PERSISTENT_MODEL:ActorSnapshotRow",
+            "PROJECTION:QualificationSnapshotV1": "PERSISTENT_MODEL:QualificationSnapshotRow",
+            "PROJECTION:ServicePartyReferenceV1": "PERSISTENT_MODEL:ServicePartyRow",
+            "PROJECTION:SignoffSnapshotV1": "PERSISTENT_MODEL:SignoffSnapshotRow",
+            "PROJECTION:SitePartyRoleEventV1": "PERSISTENT_MODEL:SitePartyRoleEventRow",
+        ]
+        XCTAssertEqual(Set(historicalPortableProjectionBackingRows.keys), Set([
+            "PROJECTION:ActorSnapshotV1",
+            "PROJECTION:QualificationSnapshotV1",
+            "PROJECTION:ServicePartyReferenceV1",
+            "PROJECTION:SignoffSnapshotV1",
+            "PROJECTION:SitePartyRoleEventV1",
+        ]))
+        for (projectionID, backingID) in historicalPortableProjectionBackingRows {
+            let projectionName = String(projectionID.dropFirst("PROJECTION:".count))
+            let projectionSubject = try SyncSubjectIdentityV1(
+                category: .projection, stableName: projectionName
+            )
+            let projectionRegistration = try source.registration(for: projectionSubject)
+            let projectionDescriptor = try catalog.descriptor(for: projectionSubject)
+            XCTAssertEqual(projectionRegistration.classification, .derivedRebuildable, projectionID)
+            XCTAssertEqual(projectionRegistration.replicationPolicy.persistence, .nonpersistent, projectionID)
+            XCTAssertEqual(projectionDescriptor.kindClassification, .wire, projectionID)
+            XCTAssertEqual(projectionDescriptor.storage, .portableWireProjection, projectionID)
+            XCTAssertEqual(projectionDescriptor.mutation, .derivedOnly, projectionID)
+            XCTAssertEqual(projectionDescriptor.digest, .rebuildFromDependencies, projectionID)
+            XCTAssertFalse(
+                PersistentKindLifecycleRegistryV1.hasIndependentRepresentationWrite(projectionSubject),
+                projectionID
+            )
+            XCTAssertEqual(
+                projectionDescriptor.temporalEvidence.disposition, .nonpersistentNoCanonicalWrite, projectionID
+            )
+            XCTAssertEqual(
+                projectionDescriptor.temporalEvidence.firstWriteVersion,
+                PersistentKindTemporalEvidenceV1.notApplicable,
+                projectionID
+            )
+            XCTAssertEqual(projectionDescriptor.temporalEvidence.firstWriteOrdinal, 0, projectionID)
+            XCTAssertFalse(historicalFirstWrites.contains(projectionID), projectionID)
+
+            let backingName = String(backingID.dropFirst("PERSISTENT_MODEL:".count))
+            let backingSubject = try SyncSubjectIdentityV1(
+                category: .persistentModel, stableName: backingName
+            )
+            let backingRegistration = try source.registration(for: backingSubject)
+            let backingDescriptor = try catalog.descriptor(for: backingSubject)
+            XCTAssertEqual(backingRegistration.classification, .replicated, backingID)
+            XCTAssertEqual(backingRegistration.replicationPolicy.persistence, .swiftDataRecord, backingID)
+            XCTAssertEqual(backingDescriptor.mutation, .workspaceWriter, backingID)
+            XCTAssertEqual(backingDescriptor.digest, .canonicalDigestRequired, backingID)
+            XCTAssertTrue(
+                PersistentKindLifecycleRegistryV1.hasIndependentRepresentationWrite(backingSubject),
+                backingID
+            )
+            XCTAssertEqual(
+                backingDescriptor.temporalEvidence.disposition, .enrolledBeforeFirstWrite, backingID
+            )
+            XCTAssertEqual(backingDescriptor.temporalEvidence.representationSourceCard, "V23_P03_C38", backingID)
+            XCTAssertEqual(backingDescriptor.temporalEvidence.representationSourceOrdinal, 46, backingID)
+            XCTAssertEqual(backingDescriptor.temporalEvidence.firstWriteVersion, "V23_P03_C38", backingID)
+            XCTAssertEqual(backingDescriptor.temporalEvidence.firstWriteOrdinal, 46, backingID)
+            XCTAssertTrue(historicalFirstWrites.contains(backingID), backingID)
+
+            XCTAssertThrowsError(try PersistentKindDescriptorV1(
+                subject: backingSubject,
+                policyRevision: projectionDescriptor.policyRevision,
+                storage: projectionDescriptor.storage,
+                revision: projectionDescriptor.revision,
+                mutation: projectionDescriptor.mutation,
+                digest: projectionDescriptor.digest,
+                kindClassification: projectionDescriptor.kindClassification,
+                replicationClassification: projectionDescriptor.replicationClassification,
+                temporalEvidence: projectionDescriptor.temporalEvidence,
+                declarationOwner: projectionDescriptor.declarationOwner,
+                currentImplementationOwner: projectionDescriptor.currentImplementationOwner
+            )) { XCTAssertEqual($0 as? PersistentKindLifecycleFailureV1, .invalidDescriptor, projectionID) }
+        }
         XCTAssertTrue(Set([
             "PROJECTION:ReportSnapshotV1",
             "PROJECTION:entityMutationRevision",

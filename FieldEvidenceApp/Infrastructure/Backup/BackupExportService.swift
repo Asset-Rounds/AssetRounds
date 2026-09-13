@@ -1259,6 +1259,15 @@ private extension BackupExportService {
         previewID: UUID,
         exportedAt: Date
     ) throws -> PreparedV4BackupV1 {
+#if DEBUG
+        var legacyBackupTracePhase: String = "identity"
+        var legacyBackupTraceCompleted: Bool = false
+        defer {
+            if !legacyBackupTraceCompleted {
+                FileHandle.standardError.write(Data("BackupExportService.buildPrepared failure phase=\(legacyBackupTracePhase)\n".utf8))
+            }
+        }
+#endif
         guard let rootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
@@ -1266,9 +1275,21 @@ private extension BackupExportService {
                 == rootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
+#if DEBUG
+        legacyBackupTracePhase = "rows"
+#endif
         let rows = try fetchRows()
+#if DEBUG
+        legacyBackupTracePhase = "lifecycle-backup"
+#endif
         try validateLifecycleScope(rows, operation: .backup)
+#if DEBUG
+        legacyBackupTracePhase = "lifecycle-archive"
+#endif
         try validateLifecycleScope(rows, operation: .archive)
+#if DEBUG
+        legacyBackupTracePhase = "deletion-ledger"
+#endif
         let deletionLedger: DeletionLedgerV2
         do {
             deletionLedger = try DeletionLedgerStore(context: modelContext).snapshot()
@@ -1276,8 +1297,17 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
+#if DEBUG
+        legacyBackupTracePhase = "graph"
+#endif
         try validateGraph(rows, deletionLedger: deletionLedger)
+#if DEBUG
+        legacyBackupTracePhase = "records"
+#endif
         let records = try makeRecords(rows)
+#if DEBUG
+        legacyBackupTracePhase = "canonical-records"
+#endif
         let recordsData: Data
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
@@ -1285,6 +1315,9 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidAuthority
         }
 
+#if DEBUG
+        legacyBackupTracePhase = "content-inventory"
+#endif
         var members = [V4BackupPackageMemberV1(
             path: "records.json",
             mimeType: "application/json",
@@ -1405,12 +1438,18 @@ private extension BackupExportService {
                 throw BackupExportServiceError.invalidAuthority
             }
         }
+#if DEBUG
+        legacyBackupTracePhase = "root-revalidation"
+#endif
         guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
                 == rootIdentity,
               !modelContext.hasChanges else {
             throw BackupExportServiceError.invalidGeneration
         }
 
+#if DEBUG
+        legacyBackupTracePhase = "member-budgets"
+#endif
         members.sort { $0.path < $1.path }
         var entries: [V4BackupEntryV1] = []
         var declaredPayloadByteCount = 0
@@ -1429,6 +1468,9 @@ private extension BackupExportService {
                 sha256: CanonicalJSONV1.sha256(member.data)
             ))
         }
+#if DEBUG
+        legacyBackupTracePhase = "manifest"
+#endif
         let packs = try manifestPacks(rows)
         let manifest = V4BackupManifestV1(
             backupSchemaVersion: 1,
@@ -1447,8 +1489,14 @@ private extension BackupExportService {
                 recordsSchemaVersion: 1
             )
         )
+#if DEBUG
+        legacyBackupTracePhase = "canonical-manifest"
+#endif
         do { _ = try BackupCanonicalEncoderV1().encodeManifest(manifest) }
         catch { throw BackupExportServiceError.invalidAuthority }
+#if DEBUG
+        legacyBackupTraceCompleted = true
+#endif
         return PreparedV4BackupV1(
             preview: .init(
                 id: previewID,
