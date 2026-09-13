@@ -1153,13 +1153,13 @@ final class StartupRouter: ObservableObject {
         execution: PostAdoptionExecution?
     ) throws {
         let validate: () throws -> Void = {
-            try requireCurrentPostAdoptionExecution(
+            try self.requireCurrentPostAdoptionExecution(
                 operation: operation, execution: execution
             )
             if let execution {
-                willReadPostAdoptionCanonicalContent(execution.executionID)
+                self.willReadPostAdoptionCanonicalContent(execution.executionID)
             }
-            try requireCurrentOperation(operation, owner: owner)
+            try self.requireCurrentOperation(operation, owner: owner)
         }
         if let execution {
             try execution.contentReadToken.withContentRead(
@@ -1554,28 +1554,28 @@ final class StartupRouter: ObservableObject {
                 operation, owner: owner, execution: postAdoptionExecution
             )
             let recoverCanonicalContent: () throws -> ReportRecoveryService = {
-                try requireCurrentPostAdoptionExecution(
+                try self.requireCurrentPostAdoptionExecution(
                     operation: operation, execution: postAdoptionExecution
                 )
                 if let postAdoptionExecution {
-                    willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
+                    self.willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
                 }
-                try requireCurrentOperation(operation, owner: owner)
+                try self.requireCurrentOperation(operation, owner: owner)
                 guard ownsActivatedWriter,
-                      pendingEraseDrainProof?.isDrained == true,
+                      self.pendingEraseDrainProof?.isDrained == true,
                       coordinator.generationID == session.generationID,
-                      try generationFactory.currentGenerationID()
+                      try self.generationFactory.currentGenerationID()
                         == session.generationID,
                       BackupRestoreService.isEmptyCurrent(session.modelContext),
-                      noActiveJournal(
-                        at: applicationSupportURL.appendingPathComponent(
+                      self.noActiveJournal(
+                        at: self.applicationSupportURL.appendingPathComponent(
                             "FieldEvidenceErase/erase.json"
                         )
                       ) else {
                     throw StartupMaintenanceReason.eraseInconsistent
                 }
-                try reconcileGenerationLeasesForStartup()
-                let recovery = try makeActiveReportRecovery(
+                try self.reconcileGenerationLeasesForStartup()
+                let recovery = try self.makeActiveReportRecovery(
                     session: session,
                     coordinator: coordinator
                 )
@@ -1613,22 +1613,22 @@ final class StartupRouter: ObservableObject {
                 postAdoptionExecution: postAdoptionExecution
             )
             let publishReady: () throws -> Void = {
-                try requireCurrentPostAdoptionExecution(
+                try self.requireCurrentPostAdoptionExecution(
                     operation: operation, execution: postAdoptionExecution
                 )
                 if let postAdoptionExecution {
-                    willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
+                    self.willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
                 }
-                try requireCurrentOperation(operation, owner: owner)
-                pendingEraseDrainProof = nil
-                deferredEraseCoordinator = nil
-                pendingErasedActivation = nil
-                operationOwnedWriter = nil
-                publishedWriter = owner
-                removeOriginalOperation(operation)
+                try self.requireCurrentOperation(operation, owner: owner)
+                self.pendingEraseDrainProof = nil
+                self.deferredEraseCoordinator = nil
+                self.pendingErasedActivation = nil
+                self.operationOwnedWriter = nil
+                self.publishedWriter = owner
+                self.removeOriginalOperation(operation)
                 endsOperation = false
-                endOperation(operation)
-                route = .ready(coordinator, diagnosticsStore, recovery)
+                self.endOperation(operation)
+                self.route = .ready(coordinator, self.diagnosticsStore, recovery)
             }
             if let postAdoptionExecution {
                 try postAdoptionExecution.contentReadToken.withContentRead(
@@ -2021,8 +2021,8 @@ final class StartupRouter: ObservableObject {
         let readCommerceInputs: () throws -> (UUID, EntitlementStore) = {
             let writerID = try owner.writer.currentRevision().writerInstanceID
             let store = try EntitlementStore(
-                applicationSupportURL: applicationSupportURL,
-                fileManager: fileManager
+                applicationSupportURL: self.applicationSupportURL,
+                fileManager: self.fileManager
             )
             return (writerID, store)
         }
@@ -2049,14 +2049,14 @@ final class StartupRouter: ObservableObject {
                 operation, owner: owner, execution: postAdoptionExecution
             )
             let publishProcessor: () throws -> Void = {
-                try requireCurrentPostAdoptionExecution(
+                try self.requireCurrentPostAdoptionExecution(
                     operation: operation, execution: postAdoptionExecution
                 )
                 if let postAdoptionExecution {
-                    willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
+                    self.willReadPostAdoptionCanonicalContent(postAdoptionExecution.executionID)
                 }
-                try requireCurrentOperation(operation, owner: owner)
-                entitlementProcessor = processor
+                try self.requireCurrentOperation(operation, owner: owner)
+                self.entitlementProcessor = processor
             }
             if let postAdoptionExecution {
                 try postAdoptionExecution.contentReadToken.withContentRead(
