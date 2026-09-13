@@ -1757,6 +1757,44 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             try BackupCanonicalDecoderV1().decodeManifest(canonicalManifest.data),
             validated.manifest
         )
+        XCTAssertEqual(validated.records.recordsSchemaVersion,
+                       LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion,
+                       LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)
+        let originalManifestURL = validated.stagedPackageURL.appendingPathComponent("manifest.json")
+        let originalManifestBytes = try Data(contentsOf: originalManifestURL)
+        XCTAssertEqual(originalManifestBytes, canonicalManifest.data)
+        let manifestText = try XCTUnwrap(String(data: originalManifestBytes, encoding: .utf8))
+        let recordsVersion = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
+        let persistentVersion = LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion
+        let recordsField = "\"recordsSchemaVersion\":\(recordsVersion)"
+        let persistentField = "\"persistentSchemaVersion\":\(persistentVersion)"
+        XCTAssertTrue(manifestText.contains(recordsField))
+        XCTAssertTrue(manifestText.contains(persistentField))
+        // Exercise the actual public package boundary with copies of the
+        // genuine export. Neither a future pair, a mismatched pair, nor a
+        // declared but unadmitted intermediate pair can begin a restore.
+        let rejectedPairs = [(recordsVersion + 1, persistentVersion + 1),
+                             (recordsVersion, persistentVersion + 1), (36, 37)]
+        for (index, pair) in rejectedPairs.enumerated() {
+            let hostileRoot = root.appendingPathComponent("schema-rejection-\(index).fieldrecordbackup",
+                                                          isDirectory: true)
+            try fileManager.copyItem(at: validated.stagedPackageURL, to: hostileRoot)
+            let hostileText = manifestText
+                .replacingOccurrences(of: recordsField, with: "\"recordsSchemaVersion\":\(pair.0)")
+                .replacingOccurrences(of: persistentField, with: "\"persistentSchemaVersion\":\(pair.1)")
+            try overwriteFilePreservingIdentity(Data(hostileText.utf8),
+                at: hostileRoot.appendingPathComponent("manifest.json"))
+            XCTAssertThrowsError(try BackupPackageValidatorV1(
+                profileRegistry: WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
+            ).validate(stagedPackageURL: hostileRoot)) {
+                XCTAssertEqual($0 as? BackupPackageValidationErrorV1, .invalidPackage)
+            }
+            XCTAssertEqual(try destinationFactory.currentGenerationID(), destinationOldID)
+            XCTAssertEqual(try Data(contentsOf: originalManifestURL), originalManifestBytes)
+            XCTAssertFalse(destination.modelContext.hasChanges)
+        }
+
         func manifest(replacingPortableExchangeEntry entry: V4BackupEntryV1) -> V4BackupManifestV1 {
             V4BackupManifestV1(
                 backupSchemaVersion: validated.manifest.backupSchemaVersion,
