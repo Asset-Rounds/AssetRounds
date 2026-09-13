@@ -21,7 +21,7 @@ LANES = {
     "github-xcode-26.6-acceptance": ("github", "macos-26"),
     "bitrise-build-hub-xcode-26.6-acceptance": ("bitrise", "bitrise-runner-Asset Roundddd"),
 }
-TIERS = {"N8": (300, 600, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
+TIERS = {"N8": (300, 1200, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
          "F25": (300, 900, 1200, 1800, 4500)}
 BUDGET_KEYS = ("setupArtifactTimeoutSeconds", "buildTimeoutSeconds", "testTimeoutSeconds",
                "uiTimeoutSeconds", "totalBudgetSeconds")

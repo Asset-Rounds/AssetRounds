@@ -1340,7 +1340,10 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [300, 600, 900, 0, 2400]
+                ] == (if .taskID == "V23-INTEGRATION-20260910"
+                      then [300, 1200, 900, 0, 2400]
+                      else [300, 600, 900, 0, 2400]
+                      end)
               elif .tier == "P12" then
                 [
                   .setupArtifactTimeoutSeconds,

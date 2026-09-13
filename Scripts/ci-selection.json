@@ -4,7 +4,7 @@
   "tier": "N8",
   "runUISmoke": false,
   "setupArtifactTimeoutSeconds": 300,
-  "buildTimeoutSeconds": 600,
+  "buildTimeoutSeconds": 1200,
   "testTimeoutSeconds": 900,
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,

@@ -151,6 +151,20 @@ class AdmissionTests(unittest.TestCase):
             json.loads('{"head":"a","head":"b"}', object_pairs_hook=CI.unique_pairs)
 
 
+class UpdatedBuildBudgetAdmissionTests(unittest.TestCase):
+    def test_previous_budget_cannot_dispatch_or_attest_current_policy(self):
+        current = selection()
+        previous = dict(current, buildTimeoutSeconds=600)
+        for provider in ("github", "bitrise"):
+            for stage in ("dispatch", "worker"):
+                valid = environment(provider)
+                CI.admission(current, valid, HEAD, stage)
+                stale = environment(provider)
+                stale["DISPATCH_NATIVE_SELECTION_SHA256"] = CI.sha256(CI.canonical(previous))
+                with self.assertRaises(ValueError):
+                    CI.admission(previous, stale, HEAD, stage)
+
+
 class ResultTests(unittest.TestCase):
     def test_real_tree_shape_normalizes_only_method_parentheses(self):
         tree = native_tree()
