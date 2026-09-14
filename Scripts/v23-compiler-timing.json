@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "mode": "timing-f6-source-v1",
+  "sourceHead": "f6f99acec0c6ab5b5defb80b21607bde0ef5caaf",
+  "sourceTrees": {
+    "FieldEvidenceApp": "3e93cb3c625cc268a045fe8320e703cc798b53b7",
+    "FieldEvidenceAppTests": "f90f0b7e6c5719816e5487d54eee32edbc5a4bbc",
+    "FieldEvidenceAppUITests": "978eced2587c6ed6cb280aa6cea7d4e3fa6e4190",
+    "FieldEvidenceApp.xcodeproj": "4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0"
+  },
+  "selectionSHA256": "E1704C9587E7C9661D4E032BD380AC44A2CC79E2BF066DF2162428D08D8C0B7A",
+  "sampleIntervalSeconds": 5,
+  "selectionMapSHA256": "09208F042EBAD8B82E09FB90973D9626DAE54FAB026E411632FE91D9B54726E8",
+  "resolvedSelectionSHA256": "428CF8C679E28D87B3CB7BD2DC42B191F02A9DB4322D9882E3DF72521179F9B1"
+}
