@@ -26,14 +26,15 @@ struct OutcomeReviewView: View {
     let assetID: UUID
     let coordinator: CheckRunnerCoordinator
     let startsWithCouldNotVerify: Bool
+    @State private var editable: CheckRunnerEditableOutcomeV1
 
-    @State private var selection: CheckOutcomeSelection?
-    @State private var isChoosingVisibleIssue = false
-    @State private var isChoosingDifferentIssue = false
-    @State private var isChoosingCouldNotVerify: Bool
-    @State private var selectedCouldNotVerifyReasonKey: String?
-    @State private var couldNotVerifyNote = ""
-    @State private var recheckNote = ""
+    private var selection: CheckOutcomeSelection? { editable.selection?.liveSelection }
+    private var isChoosingVisibleIssue: Bool { editable.choice == .visibleIssue }
+    private var isChoosingDifferentIssue: Bool { editable.choice == .differentIssue }
+    private var isChoosingCouldNotVerify: Bool { editable.choice == .couldNotVerify }
+    private var selectedCouldNotVerifyReasonKey: String? { editable.selectedCouldNotVerifyReasonKey }
+    private var couldNotVerifyNote: String { editable.couldNotVerifyNote }
+    private var recheckNote: String { editable.recheckNote }
     @State private var review: FinalizationReview?
     @State private var result: FinalizationResult?
     @State private var isSaving = false
@@ -47,7 +48,7 @@ struct OutcomeReviewView: View {
         self.assetID = assetID
         self.coordinator = coordinator
         self.startsWithCouldNotVerify = startsWithCouldNotVerify
-        _isChoosingCouldNotVerify = State(initialValue: startsWithCouldNotVerify)
+        _editable = State(initialValue: .initial(startsWithCouldNotVerify: startsWithCouldNotVerify))
     }
 
     var body: some View {
@@ -82,10 +83,7 @@ struct OutcomeReviewView: View {
                         isSelected: isResolvedSelected,
                         identifier: Self.resolvedAccessibilityIdentifier
                     ) {
-                        selection = .resolved(note: normalizedRecheckNote)
-                        isChoosingVisibleIssue = false
-                        isChoosingDifferentIssue = false
-                        isChoosingCouldNotVerify = false
+                        editable.selectResolved()
                         errorMessage = nil
                     }
 
@@ -94,10 +92,7 @@ struct OutcomeReviewView: View {
                         isSelected: isIssueStillVisibleSelected,
                         identifier: Self.issueStillVisibleAccessibilityIdentifier
                     ) {
-                        selection = .issueStillVisible(note: normalizedRecheckNote)
-                        isChoosingVisibleIssue = false
-                        isChoosingDifferentIssue = false
-                        isChoosingCouldNotVerify = false
+                        editable.selectIssueStillVisible()
                         errorMessage = nil
                     }
 
@@ -106,10 +101,7 @@ struct OutcomeReviewView: View {
                         isSelected: isOriginalResolvedDifferentIssueSelected,
                         identifier: Self.originalResolvedDifferentIssueAccessibilityIdentifier
                     ) {
-                        selection = nil
-                        isChoosingVisibleIssue = false
-                        isChoosingDifferentIssue = true
-                        isChoosingCouldNotVerify = false
+                        editable.chooseDifferentIssue()
                         errorMessage = nil
                     }
                 } else if !isRecheck && !startsWithCouldNotVerify {
@@ -118,10 +110,7 @@ struct OutcomeReviewView: View {
                         isSelected: selection == .noVisibleIssue,
                         identifier: Self.noVisibleIssueAccessibilityIdentifier
                     ) {
-                        selection = .noVisibleIssue
-                        isChoosingVisibleIssue = false
-                        isChoosingDifferentIssue = false
-                        isChoosingCouldNotVerify = false
+                        editable.selectNoVisibleIssue()
                         errorMessage = nil
                     }
 
@@ -130,10 +119,7 @@ struct OutcomeReviewView: View {
                         isSelected: isChoosingVisibleIssue,
                         identifier: Self.visibleIssueAccessibilityIdentifier
                     ) {
-                        selection = nil
-                        isChoosingVisibleIssue = true
-                        isChoosingDifferentIssue = false
-                        isChoosingCouldNotVerify = false
+                        editable.chooseVisibleIssue()
                         errorMessage = nil
                     }
                 }
@@ -143,17 +129,14 @@ struct OutcomeReviewView: View {
                     isSelected: isChoosingCouldNotVerify,
                     identifier: Self.couldNotVerifyAccessibilityIdentifier
                 ) {
-                    selection = nil
-                    isChoosingVisibleIssue = false
-                    isChoosingDifferentIssue = false
-                    isChoosingCouldNotVerify = true
+                    editable.chooseCouldNotVerify()
                     errorMessage = nil
                 }
             }
 
             if isRecheck && !isChoosingCouldNotVerify {
                 AssetRoundsEvidenceCard {
-                    TextField("Optional note", text: $recheckNote, axis: .vertical)
+                    TextField("Optional note", text: $editable.recheckNote, axis: .vertical)
                         .lineLimit(3...6)
                         .frame(
                             minHeight: DesignTokens.Target.minimumInteractiveHeight,
@@ -180,15 +163,7 @@ struct OutcomeReviewView: View {
                             isSelected: selectedIssueKey == label.key,
                             identifier: "s3.outcome.issue.\(label.key)"
                         ) {
-                            if isChoosingDifferentIssue {
-                                selection = .originalResolvedDifferentIssue(
-                                    labelKey: label.key,
-                                    note: normalizedRecheckNote
-                                )
-                            } else {
-                                selection = .visibleIssue(labelKey: label.key)
-                                isChoosingVisibleIssue = true
-                            }
+                            editable.selectIssue(labelKey: label.key)
                             errorMessage = nil
                         }
                     }
@@ -206,18 +181,14 @@ struct OutcomeReviewView: View {
                             isSelected: selectedCouldNotVerifyReasonKey == reason.key,
                             identifier: "s3.outcome.cnv.reason.\(reason.key)"
                         ) {
-                            selectedCouldNotVerifyReasonKey = reason.key
-                            selection = .couldNotVerify(
-                                reasonKey: reason.key,
-                                note: normalizedCouldNotVerifyNote
-                            )
+                            editable.selectCouldNotVerifyReason(key: reason.key)
                             errorMessage = nil
                         }
                     }
 
                     TextField(
                         "Optional note",
-                        text: $couldNotVerifyNote,
+                        text: $editable.couldNotVerifyNote,
                         axis: .vertical
                     )
                     .lineLimit(3...6)
@@ -436,22 +407,6 @@ struct OutcomeReviewView: View {
 
     private typealias NormalizedNote = CheckRunnerEditableNoteProjectionV1
 
-    private var normalizedCouldNotVerifyNote: String? {
-        switch normalizedNote(couldNotVerifyNote) {
-        case .none: nil
-        case let .value(value): value
-        case .invalid: couldNotVerifyNote
-        }
-    }
-
-    private var normalizedRecheckNote: String? {
-        switch normalizedNote(recheckNote) {
-        case .none: nil
-        case let .value(value): value
-        case .invalid: recheckNote
-        }
-    }
-
     private var isRecheck: Bool {
         coordinator.activeDraftStage(assetID: assetID) == .recheck
     }
@@ -472,19 +427,7 @@ struct OutcomeReviewView: View {
     }
 
     private func updateRecheckSelection() {
-        switch selection {
-        case .resolved:
-            selection = .resolved(note: normalizedRecheckNote)
-        case .issueStillVisible:
-            selection = .issueStillVisible(note: normalizedRecheckNote)
-        case let .originalResolvedDifferentIssue(labelKey, _):
-            selection = .originalResolvedDifferentIssue(
-                labelKey: labelKey,
-                note: normalizedRecheckNote
-            )
-        default:
-            break
-        }
+        editable.updateRecheckSelection()
     }
 
     private func normalizedNote(_ value: String?) -> NormalizedNote {
@@ -492,11 +435,7 @@ struct OutcomeReviewView: View {
     }
 
     private func updateCouldNotVerifySelection() {
-        guard let key = selectedCouldNotVerifyReasonKey else { return }
-        selection = .couldNotVerify(
-            reasonKey: key,
-            note: normalizedCouldNotVerifyNote
-        )
+        editable.updateCouldNotVerifySelection()
     }
 
     private func outcomeDisplay(_ key: String) -> String {

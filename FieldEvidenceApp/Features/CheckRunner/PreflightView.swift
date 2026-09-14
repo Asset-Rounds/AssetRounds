@@ -54,11 +54,13 @@ struct PreflightView: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @State private var timeZoneID: String
-    @State private var isTimeZoneConfirmed: Bool
-    @State private var confirmedTimeZoneID: String?
-    @State private var afterDarkAccepted = false
-    @State private var safePositionAccepted = false
+    @State private var editable: CheckRunnerEditablePreflightV1
+
+    private var timeZoneID: String { editable.timeZoneID }
+    private var isTimeZoneConfirmed: Bool { editable.isTimeZoneConfirmed }
+    private var confirmedTimeZoneID: String? { editable.confirmedTimeZoneID }
+    private var afterDarkAccepted: Bool { editable.afterDarkAccepted }
+    private var safePositionAccepted: Bool { editable.safePositionAccepted }
     @State private var didCheckForDraft = false
     @State private var isCheckingForDraft = true
     @State private var didFailDraftCheck = false
@@ -92,9 +94,11 @@ struct PreflightView: View {
         self.beforeBeginRouteValidation = beforeBeginRouteValidation
         self.cannotComplete = cannotComplete
         self.cancel = cancel
-        _timeZoneID = State(initialValue: snapshot.timeZoneID ?? "")
-        _isTimeZoneConfirmed = State(initialValue: snapshot.timeZoneID != nil)
-        _confirmedTimeZoneID = State(initialValue: snapshot.timeZoneID)
+        _editable = State(initialValue: .init(
+            timeZoneID: snapshot.timeZoneID ?? "",
+            isTimeZoneConfirmed: snapshot.timeZoneID != nil,
+            confirmedTimeZoneID: snapshot.timeZoneID
+        ))
     }
 
     var body: some View {
@@ -151,7 +155,7 @@ struct PreflightView: View {
 
             do {
                 let preparation = try coordinator.prepare(assetID: snapshot.assetID)
-                confirmedTimeZoneID = preparation.confirmedTimeZoneID
+                editable.confirmedTimeZoneID = preparation.confirmedTimeZoneID
                 hasDraft = preparation.existingDraftID != nil
             } catch {
                 didFailDraftCheck = true
@@ -254,7 +258,7 @@ struct PreflightView: View {
                 .font(DesignTokens.Typography.fieldLabel)
                 .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
-            TextField("IANA time zone, for example America/New_York", text: $timeZoneID)
+            TextField("IANA time zone, for example America/New_York", text: $editable.timeZoneID)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textContentType(.none)
@@ -275,11 +279,11 @@ struct PreflightView: View {
                 .accessibilityHint("Enter a time zone such as America slash New York")
                 .accessibilityIdentifier(Self.timeZoneAccessibilityIdentifier)
                 .onChange(of: timeZoneID) { _, _ in
-                    isTimeZoneConfirmed = false
+                    editable.isTimeZoneConfirmed = false
                     errorMessage = nil
                 }
 
-            Toggle(isOn: $isTimeZoneConfirmed) {
+            Toggle(isOn: $editable.isTimeZoneConfirmed) {
                 Text("I confirm this is the site's time zone.")
             }
                 .frame(
@@ -367,7 +371,7 @@ struct PreflightView: View {
         } catch {
             errorMessage = "The check could not be started. Try again."
             if let preparation = try? coordinator.prepare(assetID: snapshot.assetID) {
-                confirmedTimeZoneID = preparation.confirmedTimeZoneID
+                editable.confirmedTimeZoneID = preparation.confirmedTimeZoneID
                 hasDraft = preparation.existingDraftID != nil
             }
         }
@@ -378,9 +382,9 @@ struct PreflightView: View {
     private func acknowledgementBinding(for key: String) -> Binding<Bool> {
         switch key {
         case "after_dark":
-            $afterDarkAccepted
+            $editable.afterDarkAccepted
         case "safe_authorized_position":
-            $safePositionAccepted
+            $editable.safePositionAccepted
         default:
             .constant(false)
         }

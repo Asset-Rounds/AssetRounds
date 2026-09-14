@@ -1472,6 +1472,18 @@ private extension BackupCanonicalDecoderV1 {
         let timestampFormatter = Self.makeTimestampFormatter()
         value.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
+            // This embedded canonical codec writes numeric milliseconds. The
+            // enclosing backup still requires exact canonical reencoding.
+            if decoder.codingPath.first?.stringValue == "partsStockSnapshot" {
+                let milliseconds = try container.decode(Double.self)
+                guard milliseconds.isFinite else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container,
+                        debugDescription: "Expected finite canonical stock milliseconds"
+                    )
+                }
+                return Date(timeIntervalSince1970: milliseconds / 1_000)
+            }
             let string = try container.decode(String.self)
             guard Self.isCanonicalTimestamp(string),
                   let date = timestampFormatter.date(from: string),

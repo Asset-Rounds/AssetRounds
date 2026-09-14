@@ -507,21 +507,47 @@ final class FinalizationService {
         let prepared: PreparedFinalization
         let promoted: PromotedFinalization
         let snapshotPromoted: PromotedFinalization
+#if DEBUG
+        var journalPreparationPhase = "root-before-prepare"
+#endif
         do {
             try requireFrozenRootIdentity()
+#if DEBUG
+            journalPreparationPhase = "prepare"
+#endif
             prepared = try await intentStore.prepare(
                 intent: commitIntent,
                 snapshot: frozen.encodedSnapshot
             )
+#if DEBUG
+            journalPreparationPhase = "root-after-prepare"
+#endif
             try requireFrozenRootIdentity()
+#if DEBUG
+            journalPreparationPhase = "promote-snapshot"
+#endif
             promoted = try await intentStore.promoteSnapshot(prepared)
+#if DEBUG
+            journalPreparationPhase = "root-after-promotion"
+#endif
             try requireFrozenRootIdentity()
+#if DEBUG
+            journalPreparationPhase = "advance-snapshot-promoted"
+#endif
             snapshotPromoted = try await intentStore.advance(
                 promoted,
                 to: .snapshotPromoted
             )
+#if DEBUG
+            journalPreparationPhase = "root-after-advance"
+#endif
             try requireFrozenRootIdentity()
         } catch {
+#if DEBUG
+            finalizationJournalDiagnosticFailureV1(
+                component: "service", phase: journalPreparationPhase, error: error
+            )
+#endif
             throw FinalizationServiceError.journalFailed
         }
 
@@ -641,21 +667,47 @@ final class FinalizationService {
         let prepared: PreparedFinalization
         let promoted: PromotedFinalization
         let snapshotPromoted: PromotedFinalization
+#if DEBUG
+        var journalPreparationPhase = "root-before-prepare"
+#endif
         do {
             try requireFrozenRootIdentity()
+#if DEBUG
+            journalPreparationPhase = "prepare"
+#endif
             prepared = try await intentStore.prepare(
                 intent: commitIntent,
                 snapshot: frozen.encodedSnapshot
             )
+#if DEBUG
+            journalPreparationPhase = "root-after-prepare"
+#endif
             try requireFrozenRootIdentity()
+#if DEBUG
+            journalPreparationPhase = "promote-snapshot"
+#endif
             promoted = try await intentStore.promoteSnapshot(prepared)
+#if DEBUG
+            journalPreparationPhase = "root-after-promotion"
+#endif
             try requireFrozenRootIdentity()
+#if DEBUG
+            journalPreparationPhase = "advance-snapshot-promoted"
+#endif
             snapshotPromoted = try await intentStore.advance(
                 promoted,
                 to: .snapshotPromoted
             )
+#if DEBUG
+            journalPreparationPhase = "root-after-advance"
+#endif
             try requireFrozenRootIdentity()
         } catch {
+#if DEBUG
+            finalizationJournalDiagnosticFailureV1(
+                component: "service", phase: journalPreparationPhase, error: error
+            )
+#endif
             throw FinalizationServiceError.journalFailed
         }
 

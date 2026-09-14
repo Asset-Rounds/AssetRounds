@@ -753,7 +753,13 @@ struct FinalizationContractEncoderV1 {
             guard let binding = intent.writerCommitBinding else {
                 throw FinalizationContractEncodingErrorV1.unsupportedValue
             }
+#if DEBUG
+            let envelope = try finalizationJournalDiagnosticCallV1(phase: "binding-envelope") {
+                try binding.envelope()
+            }
+#else
             let envelope = try binding.envelope()
+#endif
             let authority: FinalizationWriterAuthorityV1?
             switch envelope.command {
             case let .finalizeCheck(command): authority = command.writerAuthority
@@ -761,7 +767,13 @@ struct FinalizationContractEncoderV1 {
             default: authority = nil
             }
             guard let authority else { throw FinalizationContractEncodingErrorV1.unsupportedValue }
+#if DEBUG
+            try finalizationJournalDiagnosticCallV1(phase: "binding-authority") {
+                try authority.validate(command: envelope.command)
+            }
+#else
             try authority.validate(command: envelope.command)
+#endif
             guard authority.workspaceID == envelope.workspaceID,
                   authority.generationID == envelope.generationID,
                   envelope.generationID == intent.generationID,
@@ -776,6 +788,9 @@ struct FinalizationContractEncoderV1 {
                   authority.payload.packetAfter.stableRootID == intent.stableRootID,
                   authority.payload.reportInsert?.id == intent.reportID,
                   authority.payload.reportInsert?.createdAt == intent.snapshotCreatedAt else {
+#if DEBUG
+                finalizationIntentBindingDiagnosticV1(authority: authority, envelope: envelope, intent: intent)
+#endif
                 throw FinalizationContractEncodingErrorV1.unsupportedValue
             }
         default: throw FinalizationContractEncodingErrorV1.unsupportedValue
@@ -1197,3 +1212,77 @@ enum C52ServiceRequestBoundary_FinalizationContracts {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+
+#if DEBUG
+private func finalizationJournalDiagnosticCallV1<Value>(
+    phase: String,
+    _ operation: () throws -> Value
+) throws -> Value {
+    do {
+        return try operation()
+    } catch {
+        finalizationJournalDiagnosticFailureV1(component: "contract", phase: phase, error: error)
+        throw error
+    }
+}
+
+func finalizationJournalDiagnosticFailureV1(
+    component: String,
+    phase: String,
+    error: Error? = nil,
+    details: String = ""
+) {
+    let errorDetails: String
+    if let error {
+        let value = error as NSError
+        errorDetails = " errorType=\(String(reflecting: type(of: error)))"
+            + " errorDomain=\(value.domain) errorCode=\(value.code)"
+    } else {
+        errorDetails = ""
+    }
+    FileHandle.standardError.write(Data(
+        ("Finalization journal-failure component=\(component) phase=\(phase)"
+            + errorDetails + (details.isEmpty ? "" : " " + details) + "\n").utf8
+    ))
+}
+
+private func finalizationIntentBindingDiagnosticV1(
+    authority: FinalizationWriterAuthorityV1,
+    envelope: MutationEnvelopeV1,
+    intent: FinalizationIntentV1
+) {
+    let encoder = FinalizationContractEncoderV1()
+    let authorityPayload = try? encoder.encodePayload(authority.payload)
+    let intentPayload = try? encoder.encodePayload(intent.finalizationPayload)
+    let canonicalPayloadMatches: Bool
+    if let authorityPayload, let intentPayload {
+        canonicalPayloadMatches = authorityPayload.data == intentPayload.data
+    } else {
+        canonicalPayloadMatches = false
+    }
+    let facts: [(String, Bool)] = [
+        ("workspace", authority.workspaceID == envelope.workspaceID),
+        ("authorityGeneration", authority.generationID == envelope.generationID),
+        ("intentGeneration", envelope.generationID == intent.generationID),
+        ("mutation", envelope.mutationID.rawValue == intent.finalizationMutationID),
+        ("payload", authority.payload == intent.finalizationPayload),
+        ("canonicalPayload", canonicalPayloadMatches),
+        ("authorityPayloadEncodes", authorityPayload != nil),
+        ("intentPayloadEncodes", intentPayload != nil),
+        ("payloadHash", authority.payloadSHA256 == intent.finalizationPayloadSHA256),
+        ("snapshotPath", authority.snapshotRelativePath == intent.snapshotFinalRelativePath),
+        ("snapshotHash", authority.snapshotSHA256 == intent.snapshotSHA256),
+        ("record", authority.payload.workflowRecordAfter.id == intent.recordID),
+        ("completedAt", authority.payload.workflowRecordAfter.completedAt == intent.completedAt),
+        ("packet", authority.payload.packetAfter.id == intent.packetID),
+        ("stableRoot", authority.payload.packetAfter.stableRootID == intent.stableRootID),
+        ("report", authority.payload.reportInsert?.id == intent.reportID),
+        ("snapshotCreatedAt", authority.payload.reportInsert?.createdAt == intent.snapshotCreatedAt),
+    ]
+    finalizationJournalDiagnosticFailureV1(
+        component: "contract", phase: "schema2-binding",
+        details: facts.map { "\($0.0)Matches=\($0.1)" }.joined(separator: " ")
+    )
+}
+#endif

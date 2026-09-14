@@ -500,6 +500,9 @@ actor FinalizationIntentStore {
         }
         try authority.ensureGenerationDirectory(components: [".staging", "snapshots"])
 
+#if DEBUG
+        var preparationPhase = "snapshot-staging-write"
+#endif
         do {
             guard failureInjection?.consume(.snapshotStagingWrite) != true else {
                 throw FinalizationIntentStoreError.fileOperationFailed
@@ -509,15 +512,29 @@ actor FinalizationIntentStore {
                 components: paths.stagingComponents,
                 authority: authority
             )
+#if DEBUG
+            preparationPhase = "verify-staging-snapshot"
+#endif
             try verifyRegularFile(
                 components: paths.stagingComponents,
                 expectedData: snapshot.data,
                 expectedSHA256: snapshot.sha256,
                 authority: authority
             )
+#if DEBUG
+            preparationPhase = "create-and-verify-intent"
+#endif
             try createAndVerifyIntent(intent, name: paths.intentName, authority: authority)
+#if DEBUG
+            preparationPhase = "verify-authority-after-prepare"
+#endif
             try authority.verify()
         } catch {
+#if DEBUG
+            finalizationJournalDiagnosticFailureV1(
+                component: "intent-store", phase: preparationPhase, error: error
+            )
+#endif
             var cleanupFailed = false
             do {
                 try removeOwnedFileIfMatching(
@@ -1178,6 +1195,11 @@ actor FinalizationIntentStore {
         do {
             return try FinalizationContractEncoderV1().encodeIntent(intent)
         } catch {
+#if DEBUG
+            finalizationJournalDiagnosticFailureV1(
+                component: "intent-store", phase: "encode-intent", error: error
+            )
+#endif
             throw FinalizationIntentStoreError.intentInvalid
         }
     }

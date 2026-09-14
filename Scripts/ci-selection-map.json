@@ -69,9 +69,10 @@
         "V23FieldDraftAsyncCommitTests",
         "V23BackupManifestMemberTests",
         "S3_2MediaPipelineTests",
-        "V23FieldDraftReadyStagePublicationTests"
+        "V23FieldDraftReadyStagePublicationTests",
+        "V23StoreSemanticValidationTests"
       ],
-      "methodCount": 44
+      "methodCount": 47
     },
     {
       "id": "generation-leases-migration",
@@ -116,9 +117,10 @@
         "S3_6CameraRecoveryTests",
         "S4_5CorrectionTests",
         "S6_2BackupExportTests",
-        "V9_18PackLifecycleIntegrationTests"
+        "V9_18PackLifecycleIntegrationTests",
+        "V23CheckRunnerEditableFieldValuesTests"
       ],
-      "methodCount": 22
+      "methodCount": 29
     },
     {
       "id": "legacy-lifecycle-recovery",
@@ -187,7 +189,7 @@
         "V23PartsStockReplacementHistoryTests",
         "V23PartsStockReplacementProjectionTests"
       ],
-      "methodCount": 32
+      "methodCount": 34
     },
     {
       "id": "work-asset-production",

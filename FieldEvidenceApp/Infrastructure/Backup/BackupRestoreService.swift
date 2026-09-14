@@ -2870,12 +2870,6 @@ private extension BackupRestoreService {
 #endif
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
             do {
-                if let identityDecision {
-#if DEBUG
-                    materializationPhase = "c52-identity-policy"
-#endif
-                    try C52ServiceRequestRestoreIdentityPolicyV1.validate(records, identity: identityDecision)
-                }
                 let expectedWorkspaceID: UUID?
                 if let decision=identityDecision {
                     expectedWorkspaceID=C52ServiceRequestRestoreIdentityPolicyV1.preservesCanonicalWorkspaceBinding(for:decision.mode)
@@ -3067,6 +3061,18 @@ private extension BackupRestoreService {
             }
         } else if normalized.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
             _ = try normalized.validateC49WorkResources()
+        }
+        if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion,
+           let identityDecision {
+#if DEBUG
+            materializationPhase = "c52-rebound-identity-policy"
+#endif
+            do {
+                // The policy also validates C55 against its destination. Run
+                // it after stock projection, while still preparing values.
+                try C52ServiceRequestRestoreIdentityPolicyV1.validate(normalized, identity: identityDecision)
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
         }
         if let identityDecision,
            identityDecision.mode == .replaceExisting,

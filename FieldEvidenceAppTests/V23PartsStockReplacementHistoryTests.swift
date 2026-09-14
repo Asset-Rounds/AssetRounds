@@ -221,6 +221,164 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
     }
 
     @MainActor
+    func testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates() throws {
+        let harness = try V906Integration.makeHarness("c55-canonical-dates", withAsset: false)
+        registerPublicFixtureCleanup(harness)
+        _ = try seedIncomingMixedHistory(in: harness.session, slot: 1_760)
+        let records = try BackupRestoreService(applicationSupportURL: harness.support)
+            .c55CurrentRecordsForTesting(in: harness.session.modelContext)
+        let snapshot = try XCTUnwrap(records.partsStockSnapshot)
+        XCTAssertFalse(snapshot.movements.isEmpty)
+        XCTAssertFalse(snapshot.uses.isEmpty)
+
+        let encoded = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded)
+        XCTAssertEqual(decoded, records)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(decoded).data, encoded)
+
+        let root = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        let stock = try XCTUnwrap(root["partsStockSnapshot"] as? [String: Any])
+        let movements = try XCTUnwrap(stock["movements"] as? [[String: Any]])
+        let firstMovement = try XCTUnwrap(movements.first)
+        let occurredAt = try XCTUnwrap(firstMovement["occurredAt"] as? NSNumber)
+        let recordedAt = try XCTUnwrap(firstMovement["recordedAt"] as? NSNumber)
+        let actor = try XCTUnwrap(firstMovement["actor"] as? [String: Any])
+        XCTAssertNotNil(actor["capturedAt"] as? NSNumber)
+        XCTAssertNil(firstMovement["occurredAt"] as? String)
+        XCTAssertEqual(
+            occurredAt.doubleValue,
+            snapshot.movements[0].occurredAt.timeIntervalSince1970 * 1_000,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            recordedAt.doubleValue,
+            snapshot.movements[0].recordedAt.timeIntervalSince1970 * 1_000,
+            accuracy: 0.001
+        )
+
+        let canonicalText = try XCTUnwrap(String(data: encoded, encoding: .utf8))
+        let occurredToken = "\"occurredAt\":\(occurredAt.stringValue)"
+        XCTAssertTrue(canonicalText.contains(occurredToken))
+        for invalidValue in ["\"wrong-type\"", "\"2027-01-15T08:00:00Z\""] {
+            let hostileText = canonicalText.replacingOccurrences(
+                of: occurredToken,
+                with: "\"occurredAt\":\(invalidValue)"
+            )
+            XCTAssertNotEqual(hostileText, canonicalText)
+            XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(Data(hostileText.utf8))) {
+                XCTAssertEqual($0 as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+            }
+        }
+
+        let legacyRecords = V4BackupRecordsV1(
+            assets: [], evidenceFiles: [], issues: [], packets: [],
+            recordsSchemaVersion: 1, reports: [], sites: [.init(
+                id: Fixture.id(1_761), schemaVersion: 1, label: "Legacy site",
+                address: nil, timeZoneID: nil,
+                createdAt: Fixture.fixedDate,
+                updatedAt: Fixture.fixedDate.addingTimeInterval(1)
+            )], workflowRecords: []
+        )
+        let legacyBytes = try BackupCanonicalEncoderV1().encodeRecords(legacyRecords).data
+        XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(legacyBytes), legacyRecords)
+        let legacyRoot = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: legacyBytes) as? [String: Any]
+        )
+        let legacySite = try XCTUnwrap((legacyRoot["sites"] as? [[String: Any]])?.first)
+        let legacyCreatedAt = try XCTUnwrap(legacySite["createdAt"] as? String)
+        XCTAssertTrue(legacyCreatedAt.hasSuffix(".000Z"))
+        let legacyText = try XCTUnwrap(String(data: legacyBytes, encoding: .utf8))
+        let hostileLegacyText = legacyText.replacingOccurrences(
+            of: "\"createdAt\":\"\(legacyCreatedAt)\"",
+            with: "\"createdAt\":\(Fixture.fixedDate.timeIntervalSince1970 * 1_000)"
+        )
+        XCTAssertNotEqual(hostileLegacyText, legacyText)
+        XCTAssertThrowsError(
+            try BackupCanonicalDecoderV1().decodeRecords(Data(hostileLegacyText.utf8))
+        ) {
+            XCTAssertEqual($0 as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+        }
+    }
+
+    @MainActor
+    func testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection() async throws {
+        let source = try V906Integration.makeHarness("c55-policy-source", withAsset: false)
+        registerPublicFixtureCleanup(source)
+        let target = try V906Integration.makeHarness("c55-policy-target", withAsset: false)
+        registerPublicFixtureCleanup(target)
+        let sourceRecords = try BackupRestoreService(applicationSupportURL: source.support)
+            .c55CurrentRecordsForTesting(in: source.session.modelContext)
+        let sourceSnapshot = try XCTUnwrap(sourceRecords.partsStockSnapshot)
+        XCTAssertTrue(sourceSnapshot.parts.isEmpty)
+
+        let targetPointer = RestorePointerIdentityV1(
+            generationID: target.session.generationID,
+            generationManifestSHA256: String(repeating: "a", count: 64),
+            workspaceID: target.session.workspaceIdentity.workspaceID.rawValue,
+            replicaID: target.session.workspaceIdentity.replicaID.rawValue
+        )
+        let identity = RestoreIdentityV1(
+            mode: .replaceExisting,
+            source: .init(
+                workspaceID: source.session.workspaceIdentity.workspaceID.rawValue,
+                replicaID: source.session.workspaceIdentity.replicaID.rawValue
+            ),
+            oldPointer: targetPointer,
+            targetPointer: targetPointer,
+            recordIdentityDisposition: .preserve
+        )
+        XCTAssertThrowsError(try C52ServiceRequestRestoreIdentityPolicyV1.validate(
+            sourceRecords,
+            identity: identity
+        )) {
+            XCTAssertEqual($0 as? RestoreIdentityDecisionErrorV1, .invalidPointerIdentity)
+        }
+        let missingSnapshot = try replacingRecordAuthority(
+            in: sourceRecords,
+            recordsSchemaVersion: sourceRecords.recordsSchemaVersion,
+            partsStockSnapshot: .omitted
+        )
+        XCTAssertThrowsError(try C52ServiceRequestRestoreIdentityPolicyV1.validate(
+            missingSnapshot,
+            identity: identity
+        )) {
+            XCTAssertEqual($0 as? RestoreIdentityDecisionErrorV1, .invalidPointerIdentity)
+        }
+
+        let archive = try V906Integration.exportStreaming(source)
+        let restored = try await V906Integration.restore(
+            archive,
+            into: target,
+            mode: .replaceExisting,
+            ids: V906Integration.restoreIDs(.replaceExisting, offset: 34)
+        )
+        let projectedRecords = try BackupRestoreService(applicationSupportURL: target.support)
+            .c55CurrentRecordsForTesting(in: restored.modelContext)
+        let projectedSnapshot = try XCTUnwrap(projectedRecords.partsStockSnapshot)
+        XCTAssertEqual(projectedSnapshot.workspaceID, target.session.workspaceIdentity.workspaceID)
+        XCTAssertTrue(projectedSnapshot.parts.isEmpty)
+        let projectedPointer = RestorePointerIdentityV1(
+            generationID: restored.generationID,
+            generationManifestSHA256: String(repeating: "b", count: 64),
+            workspaceID: target.session.workspaceIdentity.workspaceID.rawValue,
+            replicaID: restored.workspaceIdentity.replicaID.rawValue
+        )
+        let projectedIdentity = RestoreIdentityV1(
+            mode: .replaceExisting,
+            source: identity.source,
+            oldPointer: targetPointer,
+            targetPointer: projectedPointer,
+            recordIdentityDisposition: .preserve
+        )
+        XCTAssertNoThrow(try C52ServiceRequestRestoreIdentityPolicyV1.validate(
+            projectedRecords,
+            identity: projectedIdentity
+        ))
+    }
+
+    @MainActor
     func testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority() throws {
         let source = try V906Integration.makeHarness("c55-schema-source", withAsset: false)
         registerPublicFixtureCleanup(source)
