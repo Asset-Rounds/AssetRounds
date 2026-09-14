@@ -216,16 +216,30 @@ enum ProtectedFilePolicyV1 {
         try authorityCheck()
         let before = try pin(kind, at: url, disposition: disposition)
 
+        #if DEBUG
+        var afterProtection: DirectoryProtectionReadback?
+        var afterBackup: DirectoryProtectionReadback?
+        #endif
         do {
             try (url as NSURL).setResourceValue(
                 URLFileProtection.complete,
                 forKey: .fileProtectionKey
             )
+            #if DEBUG
+            if disposition.expectsDirectory {
+                afterProtection = independentProtectionReadback(at: url)
+            }
+            #endif
 
             var resourceValues = URLResourceValues()
             resourceValues.isExcludedFromBackup = disposition.isExcludedFromBackup
             var resourceURL = url
             try resourceURL.setResourceValues(resourceValues)
+            #if DEBUG
+            if disposition.expectsDirectory {
+                afterBackup = independentProtectionReadback(at: url)
+            }
+            #endif
         } catch {
             throw mapWriteError(error)
         }
@@ -235,7 +249,23 @@ enum ProtectedFilePolicyV1 {
         guard before == after else {
             throw ProtectedFilePolicyError.identityChanged
         }
+        #if DEBUG
+        do {
+            try verifyResourceValues(at: url, disposition: disposition)
+        } catch {
+            if (error as? ProtectedFilePolicyError) == .resourceValueMismatch {
+                emitDirectoryProtectionReadback(kind: kind, at: url,
+                    phase: "afterProtection", readback: afterProtection)
+                emitDirectoryProtectionReadback(kind: kind, at: url,
+                    phase: "afterBackup", readback: afterBackup)
+                emitDirectoryProtectionReadback(kind: kind, at: url,
+                    phase: "finalMismatch", readback: independentProtectionReadback(at: url))
+            }
+            throw error
+        }
+        #else
         try verifyResourceValues(at: url, disposition: disposition)
+        #endif
         try authorityCheck()
     }
 
@@ -593,6 +623,75 @@ enum ProtectedFilePolicyV1 {
             throw mapWriteError(error)
         }
     }
+
+    #if DEBUG
+    private struct DirectoryProtectionReadback {
+        let urlProtection: String
+        let fileManagerProtection: String
+        let backupExcluded: Bool?
+        let isDirectory: Bool?
+        let volumeSupportsProtection: Bool?
+    }
+
+    /// Read a separately constructed URL so diagnostic observations cannot
+    /// populate or clear the caller's cached metadata between its two setters.
+    private static func independentProtectionReadback(at url: URL) -> DirectoryProtectionReadback {
+        var independent = URL(fileURLWithPath: url.path)
+        independent.removeAllCachedResourceValues()
+        let values = try? independent.resourceValues(forKeys: [
+            .fileProtectionKey, .isExcludedFromBackupKey,
+            .isDirectoryKey, .volumeSupportsFileProtectionKey
+        ])
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let urlProtection: String
+        switch values?.fileProtection {
+        case .some(.complete): urlProtection = "complete"
+        case .some(.completeUnlessOpen): urlProtection = "completeUnlessOpen"
+        case .some(.completeUntilFirstUserAuthentication): urlProtection = "completeUntilFirstUserAuthentication"
+        case .some(.none): urlProtection = "none"
+        case .none: urlProtection = values == nil ? "readError" : "unknown"
+        default: urlProtection = "other"
+        }
+        let fileManagerProtection: String
+        switch attributes?[.protectionKey] as? FileProtectionType {
+        case .some(.complete): fileManagerProtection = "complete"
+        case .some(.completeUnlessOpen): fileManagerProtection = "completeUnlessOpen"
+        case .some(.completeUntilFirstUserAuthentication): fileManagerProtection = "completeUntilFirstUserAuthentication"
+        case .some(.none): fileManagerProtection = "none"
+        case .none: fileManagerProtection = attributes == nil ? "readError" : "unknown"
+        default: fileManagerProtection = "other"
+        }
+        return DirectoryProtectionReadback(
+            urlProtection: urlProtection, fileManagerProtection: fileManagerProtection,
+            backupExcluded: values?.isExcludedFromBackup, isDirectory: values?.isDirectory,
+            volumeSupportsProtection: values?.volumeSupportsFileProtection
+        )
+    }
+
+    private static func emitDirectoryProtectionReadback(
+        kind: OwnedFileKindV1, at url: URL, phase: String,
+        readback: DirectoryProtectionReadback?
+    ) {
+        guard let readback else { return }
+        let role: String
+        switch (kind, url.lastPathComponent) {
+        case (.generationLeaseDirectory, "FieldEvidenceOperations"),
+             (.stagingDirectory, "FieldEvidenceOperations"): role = "operationsRoot"
+        case (.generationLeaseDirectory, "generation-leases"): role = "generationLeases"
+        case (.generationLeaseDirectory, "owners"): role = "leaseOwners"
+        case (.stagingDirectory, "schema-migration"): role = "schemaMigration"
+        default: role = "other"
+        }
+        let facts = "ProtectedFilePolicy phase-readback"
+            + " kind=\(kind.rawValue) role=\(role) phase=\(phase)"
+            + " independentURLProtection=\(readback.urlProtection)"
+            + " fileManagerProtection=\(readback.fileManagerProtection)"
+            + " backupExcluded=\(String(describing: readback.backupExcluded))"
+            + " isDirectory=\(String(describing: readback.isDirectory))"
+            + " volumeSupportsProtection=\(String(describing: readback.volumeSupportsProtection))\n"
+        FileHandle.standardError.write(Data(facts.utf8))
+    }
+    #endif
 
     private static func mapWriteError(_ error: Error) -> ProtectedFilePolicyError {
         let nsError = error as NSError

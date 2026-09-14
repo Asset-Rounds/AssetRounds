@@ -115,6 +115,16 @@ final class ProductionRepetitiveCaptureProgressServiceV2 {
         }
     }
 
+    /// Source preparation must use the same live session and canonical row
+    /// context as this progress owner. It grants no scene publication permission.
+    func validateCheckRunnerOwner(writer: WorkspaceWriterV1, modelContext: ModelContext) throws {
+        let current = try currentSession()
+        guard current.workspaceWriter === writer, current.modelContext === modelContext else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        try writer.validateFieldDraftReadContext(modelContext)
+    }
+
     func prepareStep(read value: ProductionRepetitiveCaptureReadV2,
                      action: RepetitiveCaptureProgressActionV2,
                      focus: RepetitiveCaptureRequirementFocusV1,

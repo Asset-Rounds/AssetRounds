@@ -133,6 +133,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
                     at: file
                 )
                 runFailureOnlyProtectionProbe(in: root)
+                runFailureOnlyDirectoryProtectionProbe(in: root)
             }
         }
 
@@ -164,6 +165,35 @@ final class V9_02FileAuthorityTests: XCTestCase {
         try ProtectedFilePolicyV1.applyAndVerify(.database, at: file)
         tracePhase = "repairedAttributeAssert"
         try assertResourceValues(.database, at: file)
+
+        let directory = root.appendingPathComponent(
+            "generation-lease-directory",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: false
+        )
+        let directoryIdentity = try fileIdentity(at: directory)
+        let expectedDirectoryContents = try directoryContents(at: directory)
+        XCTAssertTrue(expectedDirectoryContents.isEmpty)
+        tracePhase = "directoryApply"
+        try ProtectedFilePolicyV1.applyAndVerify(
+            .generationLeaseDirectory,
+            at: directory
+        )
+        tracePhase = "directoryVerify"
+        try ProtectedFilePolicyV1.verify(.generationLeaseDirectory, at: directory)
+        tracePhase = "directoryIdentityAndContents"
+        XCTAssertEqual(try fileIdentity(at: directory), directoryIdentity)
+        XCTAssertEqual(try directoryContents(at: directory), expectedDirectoryContents)
+        tracePhase = "directoryAttributeAssert"
+        try assertResourceValues(
+            .generationLeaseDirectory,
+            at: directory,
+            protection: .complete,
+            isExcludedFromBackup: true
+        )
         traceCompleted = true
     }
 
@@ -182,6 +212,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
                     at: file
                 )
                 runFailureOnlyProtectionProbe(in: root)
+                runFailureOnlyDirectoryProtectionProbe(in: root)
             }
         }
         tracePhase = "initialApply"
@@ -546,6 +577,29 @@ private extension V9_02FileAuthorityTests {
         let backupExcluded: Bool
     }
 
+    enum FailureOnlyDirectoryCreationRoute: String {
+        case urlProtection = "urlProtection"
+        case fileManagerProtection = "fileManagerProtection"
+        case creationAttributes = "creationAttributes"
+    }
+
+    struct FailureOnlyDirectoryURLReadback {
+        let protection: String
+        let backup: String
+        let volumeProtection: String
+        let shape: String
+    }
+
+    struct FailureOnlyDirectoryFileManagerReadback {
+        let protection: String
+        let shape: String
+    }
+
+    struct FileAuthorityIdentity: Equatable {
+        let device: UInt64
+        let inode: UInt64
+    }
+
     func runFailureOnlyProtectionProbe(in root: URL) {
         let cases: [(String, String, FailureOnlyProtectionProbeWriter)] = [
             ("model-url", "probe-model.sqlite", .url),
@@ -625,6 +679,194 @@ private extension V9_02FileAuthorityTests {
                 at: file
             )
         }
+    }
+
+    func runFailureOnlyDirectoryProtectionProbe(in root: URL) {
+        let cases: [(String, FailureOnlyDirectoryCreationRoute)] = [
+            ("excluded-url", .urlProtection),
+            ("excluded-fileManager", .fileManagerProtection),
+            ("excluded-creationAttributes", .creationAttributes),
+        ]
+        for (name, route) in cases {
+            let directory = root.appendingPathComponent(
+                "file-authority-directory-probe-\(name)",
+                isDirectory: true
+            )
+            let setup: String
+            do {
+                switch route {
+                case .urlProtection, .fileManagerProtection:
+                    try fileManager.createDirectory(
+                        at: directory,
+                        withIntermediateDirectories: false
+                    )
+                case .creationAttributes:
+                    try fileManager.createDirectory(
+                        atPath: directory.path,
+                        withIntermediateDirectories: false,
+                        attributes: [.protectionKey: FileProtectionType.complete]
+                    )
+                }
+                setup = "ok"
+            } catch {
+                emitFailureOnlyDirectoryProtectionProbe(
+                    name: name,
+                    route: route,
+                    stage: "setup",
+                    setup: "typedError",
+                    protectionWrite: "notAttempted",
+                    backupWrite: "notAttempted",
+                    at: directory
+                )
+                continue
+            }
+
+            emitFailureOnlyDirectoryProtectionProbe(
+                name: name,
+                route: route,
+                stage: route == .creationAttributes ? "afterCreation" : "default",
+                setup: setup,
+                protectionWrite: route == .creationAttributes ? "creationAttribute" : "notAttempted",
+                backupWrite: "notAttempted",
+                at: directory
+            )
+
+            var protectionWrite = route == .creationAttributes ? "creationAttribute" : "notAttempted"
+            switch route {
+            case .urlProtection:
+                protectionWrite = writeFailureOnlyProtection(
+                    .complete,
+                    with: .url,
+                    at: directory
+                )
+            case .fileManagerProtection:
+                protectionWrite = writeFailureOnlyProtection(
+                    .complete,
+                    with: .fileManager,
+                    at: directory
+                )
+            case .creationAttributes:
+                break
+            }
+            if route != .creationAttributes {
+                emitFailureOnlyDirectoryProtectionProbe(
+                    name: name,
+                    route: route,
+                    stage: "afterProtection",
+                    setup: setup,
+                    protectionWrite: protectionWrite,
+                    backupWrite: "notAttempted",
+                    at: directory
+                )
+            }
+
+            let backupWrite = writeFailureOnlyDirectoryBackup(at: directory)
+            emitFailureOnlyDirectoryProtectionProbe(
+                name: name,
+                route: route,
+                stage: "afterBackup",
+                setup: setup,
+                protectionWrite: protectionWrite,
+                backupWrite: backupWrite,
+                at: directory
+            )
+        }
+    }
+
+    func writeFailureOnlyDirectoryBackup(at url: URL) -> String {
+        do {
+            var mutationURL = url
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try mutationURL.setResourceValues(values)
+            return "ok"
+        } catch {
+            return "typedError"
+        }
+    }
+
+    func emitFailureOnlyDirectoryProtectionProbe(
+        name: String,
+        route: FailureOnlyDirectoryCreationRoute,
+        stage: String,
+        setup: String,
+        protectionWrite: String,
+        backupWrite: String,
+        at url: URL
+    ) {
+        let current = failureOnlyDirectoryURLReadback(at: url, independentlyConstructed: false)
+        let independent = failureOnlyDirectoryURLReadback(at: url, independentlyConstructed: true)
+        let fileManager = failureOnlyDirectoryFileManagerReadback(at: url)
+        print(
+            "V9_02_DIRECTORY_PROTECTION_PROBE case=\(name) route=\(route.rawValue) "
+                + "stage=\(stage) setup=\(setup) protectionWrite=\(protectionWrite) "
+                + "backupWrite=\(backupWrite) currentProtection=\(current.protection) "
+                + "currentBackup=\(current.backup) currentVolumeProtection=\(current.volumeProtection) "
+                + "currentShape=\(current.shape) independentProtection=\(independent.protection) "
+                + "independentBackup=\(independent.backup) "
+                + "independentVolumeProtection=\(independent.volumeProtection) "
+                + "independentShape=\(independent.shape) "
+                + "fileManagerProtection=\(fileManager.protection) "
+                + "fileManagerShape=\(fileManager.shape)"
+        )
+    }
+
+    func failureOnlyDirectoryURLReadback(
+        at url: URL,
+        independentlyConstructed: Bool
+    ) -> FailureOnlyDirectoryURLReadback {
+        var reader = independentlyConstructed ? URL(fileURLWithPath: url.path) : url
+        reader.removeAllCachedResourceValues()
+        do {
+            let values = try reader.resourceValues(forKeys: [
+                .fileProtectionKey,
+                .isExcludedFromBackupKey,
+                .volumeSupportsFileProtectionKey,
+                .isDirectoryKey,
+            ])
+            return FailureOnlyDirectoryURLReadback(
+                protection: failureOnlyProtectionCategory(values.fileProtection),
+                backup: failureOnlyBooleanCategory(values.isExcludedFromBackup),
+                volumeProtection: failureOnlyBooleanCategory(values.volumeSupportsFileProtection),
+                shape: failureOnlyDirectoryShapeCategory(values.isDirectory)
+            )
+        } catch {
+            return FailureOnlyDirectoryURLReadback(
+                protection: "readError",
+                backup: "readError",
+                volumeProtection: "readError",
+                shape: "readError"
+            )
+        }
+    }
+
+    func failureOnlyDirectoryFileManagerReadback(
+        at url: URL
+    ) -> FailureOnlyDirectoryFileManagerReadback {
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: url.path)
+            let protection = attributes[.protectionKey] as? FileProtectionType
+            let type = attributes[.type] as? FileAttributeType
+            return FailureOnlyDirectoryFileManagerReadback(
+                protection: failureOnlyProtectionCategory(protection),
+                shape: type == nil ? "unknown" : (type == .typeDirectory ? "directory" : "other")
+            )
+        } catch {
+            return FailureOnlyDirectoryFileManagerReadback(
+                protection: "readError",
+                shape: "readError"
+            )
+        }
+    }
+
+    func failureOnlyBooleanCategory(_ value: Bool?) -> String {
+        guard let value else { return "unknown" }
+        return value ? "true" : "false"
+    }
+
+    func failureOnlyDirectoryShapeCategory(_ isDirectory: Bool?) -> String {
+        guard let isDirectory else { return "unknown" }
+        return isDirectory ? "directory" : "other"
     }
 
     func writeFailureOnlyProtection(
@@ -801,6 +1043,24 @@ private extension V9_02FileAuthorityTests {
             withIntermediateDirectories: true
         )
         return root
+    }
+
+    func fileIdentity(at url: URL) throws -> FileAuthorityIdentity {
+        var information = stat()
+        guard Darwin.lstat(url.path, &information) == 0 else {
+            throw ProtectedFilePolicyError.invalidURL
+        }
+        return FileAuthorityIdentity(
+            device: UInt64(information.st_dev),
+            inode: UInt64(information.st_ino)
+        )
+    }
+
+    func directoryContents(at url: URL) throws -> [String] {
+        try fileManager.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: nil
+        ).map(\.lastPathComponent).sorted()
     }
 
     func assertResourceValues(

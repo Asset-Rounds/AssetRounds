@@ -2087,27 +2087,7 @@ private extension StoreGenerationFactory {
         }
     }
 
-#if DEBUG
-    /// Observes the actual validation traversal without publishing its temporary bytes.
-    @MainActor
-    internal func validateSemanticRowsForTesting(
-        in context: ModelContext,
-        through release: PersistentSchemaReleaseV1,
-        didEncode: @escaping (Data) -> Void
-    ) throws {
-        var purpose = StoreSemanticExportPurposeV1.validationOnly
-        purpose.didEncode = didEncode
-        _ = try semanticProjection(in: context, release: release, purpose: purpose)
-    }
 
-    @MainActor
-    internal func canonicalSemanticProjectionForTesting(
-        in context: ModelContext,
-        release: PersistentSchemaReleaseV1
-    ) throws -> Data {
-        try semanticProjection(in: context, release: release)
-    }
-#endif
 
     @MainActor
     private func semanticProjection(in context: ModelContext, release: PersistentSchemaReleaseV1,
@@ -13514,3 +13494,27 @@ private struct StoreSemanticExportPurposeV1 {
         return retainsCanonicalBytes ? bytes : Data()
     }
 }
+
+#if DEBUG
+extension StoreGenerationFactory {
+    /// Observes the actual validation traversal without publishing its temporary bytes.
+    @MainActor
+    internal func validateSemanticRowsForTesting(
+        in context: ModelContext,
+        through release: PersistentSchemaReleaseV1,
+        didEncode: @escaping (Data) -> Void
+    ) throws {
+        var purpose = StoreSemanticExportPurposeV1.validationOnly
+        purpose.didEncode = didEncode
+        _ = try semanticProjection(in: context, release: release, purpose: purpose)
+    }
+
+    @MainActor
+    internal func canonicalSemanticProjectionForTesting(
+        in context: ModelContext,
+        release: PersistentSchemaReleaseV1
+    ) throws -> Data {
+        try semanticProjection(in: context, release: release)
+    }
+}
+#endif

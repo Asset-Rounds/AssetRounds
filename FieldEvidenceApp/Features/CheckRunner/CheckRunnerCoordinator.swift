@@ -1205,6 +1205,150 @@ final class CheckRunnerCoordinator {
         return status
     }
 
+    /// Captures an explicit check/recheck request before a future parent draft
+    /// exists. The source value is not a saved checkpoint or an access token.
+    func captureFrozenBeginSource(
+        read: ProductionRepetitiveCaptureReadV2,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        itemID: UUID,
+        publishedRelease: InspectionPackageReleaseV1,
+        requestedEntry: CheckRunnerRequestedEntryV1
+    ) throws -> CheckRunnerRoundItemSourceV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        try progress.validateForPublication(read)
+        let source = try CheckRunnerRoundItemSourceV1(
+            read: read, itemID: itemID, publishedRelease: publishedRelease,
+            signPack: signPack, requestedEntry: requestedEntry
+        )
+        try validateFrozenBeginAdmission(source, dependencies: dependencies)
+        try progress.validateForPublication(read)
+        return source
+    }
+
+    /// Produces source inputs only. The eventual parent owner must retain this
+    /// exact value before any effect; this method does not perform retry/resume.
+    func prepareFrozenBegin(
+        source: CheckRunnerRoundItemSourceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1,
+        submission: BeginDraftSubmission
+    ) throws -> CheckRunnerFrozenBeginAttemptV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let read = try progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
+        try progress.validateForPublication(read)
+        try source.validate(read: read, publishedRelease: publishedRelease, signPack: signPack)
+        try validateFrozenBeginAdmission(source, dependencies: dependencies)
+        guard submission.assetID == source.assetID,
+              submission.requestedStage == source.requestedEntry.stage,
+              submission.issueID == source.requestedEntry.issueID else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        guard submission.afterDarkAccepted, submission.safePositionAccepted else {
+            throw CheckRunnerCoordinatorError.acknowledgementsRequired
+        }
+        guard let observedAt = submission.observedAtUTC,
+              observedAt.timeIntervalSince1970.isFinite else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        let asset = try requiredAsset(id: source.assetID)
+        let parentID = try validatedParentRecordID(
+            assetID: source.assetID, requestedStage: source.requestedEntry.stage,
+            issueID: source.requestedEntry.issueID
+        )
+        let snapshots = try acknowledgementSnapshots(for: asset)
+        let resolution = try resolvedTimeZone(
+            asset: asset, proposedTimeZoneID: submission.confirmedTimeZoneID
+        )
+        let timeContext: FrozenTimeContext
+        do {
+            timeContext = try TimeContextRule.freeze(
+                observedAtUTC: observedAt, confirmedTimeZoneID: resolution.timeZoneID
+            )
+        } catch TimeContextRuleError.invalidTimeZoneID {
+            throw CheckRunnerCoordinatorError.invalidTimeZoneID
+        }
+        let sampled = clock.now().timeIntervalSince1970
+        guard sampled.isFinite, sampled >= 0, (sampled * 1_000).isFinite else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        let committedAt = Date(timeIntervalSince1970: floor(sampled * 1_000) / 1_000)
+        let command = try prepareDraftCommand(
+            asset: asset, requestedStage: source.requestedEntry.stage,
+            issueID: source.requestedEntry.issueID, parentRecordID: parentID,
+            timeContext: timeContext, acknowledgementSnapshots: snapshots, startedAt: observedAt
+        )
+        let recordID = command.recordID
+        guard try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }
+        )).isEmpty else { throw CheckRunnerCoordinatorError.invalidLineage }
+        let mutationID = try MutationIDV1(rawValue: recordID)
+        let timeZoneID: MutationIDV1?
+        if resolution.requiresSave {
+            timeZoneID = try MutationIDV1(rawValue: idSource.makeID())
+        } else {
+            timeZoneID = nil
+        }
+        let current = try dependencies.writer.currentRevision()
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        let targets = try workspaceTargets(.createCheckDraft(command)).sorted { $0.stableKey < $1.stableKey }
+        let expected = targets.map {
+            WorkspaceEntityRevisionV1(identity: $0, revision: known[$0, default: 0])
+        }
+        let timeZone = try timeZoneID.map { id in
+            try CheckRunnerBeginTimeZoneAttemptV1(
+                command: .init(siteID: resolution.site.id, timeZoneID: resolution.timeZoneID,
+                               confirmedAt: observedAt),
+                mutationID: id,
+                expectedSiteRevision: known[try WorkspaceEntityIdentityV1(kind: .site, id: resolution.site.id), default: 0],
+                committedAt: committedAt
+            )
+        }
+        let attempt = try CheckRunnerFrozenBeginAttemptV1(
+            source: source, sourceWorkspaceID: current.workspaceID,
+            recordCommand: command, recordMutationID: mutationID,
+            recordExpectedEntityRevisions: expected, recordCommittedAt: committedAt,
+            timeZone: timeZone, siteID: resolution.site.id, resolvedSiteTimeZoneID: resolution.timeZoneID
+        )
+        try progress.validateForPublication(read)
+        _ = try frozenBeginDependencies(progress: progress)
+        return attempt
+    }
+
+    private func frozenBeginDependencies(
+        progress: ProductionRepetitiveCaptureProgressServiceV2
+    ) throws -> WorkspacePackageLifecycleDependenciesV1 {
+        guard let liveLifecycle else { throw CheckRunnerCoordinatorError.packageLifecycleMismatch }
+        let dependencies = liveLifecycle.dependencies
+        try progress.validateCheckRunnerOwner(writer: dependencies.writer, modelContext: modelContext)
+        let current = try dependencies.writer.currentRevision()
+        guard current.workspaceID == dependencies.workspaceID,
+              current.generationID == dependencies.generationID,
+              try dependencies.profileRegistry.resolve(liveLifecycle.profile.release) == liveLifecycle.profile else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return dependencies
+    }
+
+    private func validateFrozenBeginAdmission(
+        _ source: CheckRunnerRoundItemSourceV1,
+        dependencies: WorkspacePackageLifecycleDependenciesV1
+    ) throws {
+        try source.validate()
+        let asset = try requiredAsset(id: source.assetID)
+        guard source.roundAtEntry.workspaceID == dependencies.workspaceID,
+              asset.siteID == source.originalItem.selection.siteID,
+              asset.packID == source.legacyPackageIdentity.packageID,
+              asset.packSchemaVersion == source.legacyPackageIdentity.schemaVersion,
+              asset.packContentVersion == source.legacyPackageIdentity.contentVersion,
+              source.legacyPackageIdentity.matches(signPack) else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        _ = try requiredSite(id: asset.siteID)
+        let decision = try accessDecision(assetID: source.assetID,
+            requestedStage: source.requestedEntry.stage, issueID: source.requestedEntry.issueID)
+        guard decision == .allow else { throw CheckRunnerCoordinatorError.accessDenied(decision) }
+    }
+
     func beginOrResumeDraft(
         assetID: UUID,
         requestedStage: WorkflowStage,
@@ -1902,6 +2046,57 @@ final class CheckRunnerCoordinator {
         )
     }
 
+    private func prepareDraftCommand(
+        asset: Asset,
+        requestedStage: WorkflowStage,
+        issueID: UUID?,
+        parentRecordID: UUID?,
+        timeContext: FrozenTimeContext?,
+        acknowledgementSnapshots: (
+            afterDark: SignPack.Acknowledgement,
+            safePosition: SignPack.Acknowledgement
+        )?,
+        startedAt: Date
+    ) throws -> CheckDraftMutationV1 {
+        let pdfTemplate = try activeLifecycleProfile().pdfTemplate
+        guard signPack.packID == asset.packID,
+              signPack.schemaVersion == asset.packSchemaVersion,
+              signPack.contentVersion == asset.packContentVersion else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+
+        let id = idSource.makeID()
+        return CheckDraftMutationV1(
+            recordID: id,
+            assetID: asset.id,
+            issueID: issueID,
+            parentRecordID: parentRecordID,
+            stage: requestedStage.rawValue,
+            draftStepKey: requestedStage == .work
+                ? nil
+                : WorkflowDraftStep.wide.rawValue,
+            startedAt: startedAt,
+            observedAtUTC: timeContext?.observedAtUTC,
+            timeZoneID: timeContext?.timeZoneID,
+            utcOffsetMinutes: timeContext?.utcOffsetMinutes,
+            localDate: timeContext?.localDate,
+            localTime: timeContext?.localTime,
+            afterDarkAcknowledgementKey: acknowledgementSnapshots?.afterDark.key,
+            afterDarkAcknowledgementCopy: acknowledgementSnapshots?.afterDark.copy,
+            afterDarkAcknowledgementVersion: acknowledgementSnapshots?.afterDark.version,
+            afterDarkAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
+            safePositionAcknowledgementKey: acknowledgementSnapshots?.safePosition.key,
+            safePositionAcknowledgementCopy: acknowledgementSnapshots?.safePosition.copy,
+            safePositionAcknowledgementVersion: acknowledgementSnapshots?.safePosition.version,
+            safePositionAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
+            packID: asset.packID,
+            packSchemaVersion: asset.packSchemaVersion,
+            packContentVersion: asset.packContentVersion,
+            pdfTemplateID: pdfTemplate.id,
+            pdfTemplateVersion: pdfTemplate.version
+        )
+    }
+
     private func createDraft(
         asset: Asset,
         requestedStage: WorkflowStage,
@@ -1914,45 +2109,19 @@ final class CheckRunnerCoordinator {
         )?,
         startedAt: Date
     ) throws -> WorkflowRecord {
-        let pdfTemplate = try activeLifecycleProfile().pdfTemplate
-        guard signPack.packID == asset.packID,
-              signPack.schemaVersion == asset.packSchemaVersion,
-              signPack.contentVersion == asset.packContentVersion else {
-            throw CheckRunnerCoordinatorError.invalidLineage
-        }
-
-        let id = idSource.makeID()
+        let command = try prepareDraftCommand(
+            asset: asset,
+            requestedStage: requestedStage,
+            issueID: issueID,
+            parentRecordID: parentRecordID,
+            timeContext: timeContext,
+            acknowledgementSnapshots: acknowledgementSnapshots,
+            startedAt: startedAt
+        )
+        let id = command.recordID
         do {
             try executeWorkspaceMutation(
-                .createCheckDraft(CheckDraftMutationV1(
-                    recordID: id,
-                    assetID: asset.id,
-                    issueID: issueID,
-                    parentRecordID: parentRecordID,
-                    stage: requestedStage.rawValue,
-                    draftStepKey: requestedStage == .work
-                        ? nil
-                        : WorkflowDraftStep.wide.rawValue,
-                    startedAt: startedAt,
-                    observedAtUTC: timeContext?.observedAtUTC,
-                    timeZoneID: timeContext?.timeZoneID,
-                    utcOffsetMinutes: timeContext?.utcOffsetMinutes,
-                    localDate: timeContext?.localDate,
-                    localTime: timeContext?.localTime,
-                    afterDarkAcknowledgementKey: acknowledgementSnapshots?.afterDark.key,
-                    afterDarkAcknowledgementCopy: acknowledgementSnapshots?.afterDark.copy,
-                    afterDarkAcknowledgementVersion: acknowledgementSnapshots?.afterDark.version,
-                    afterDarkAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
-                    safePositionAcknowledgementKey: acknowledgementSnapshots?.safePosition.key,
-                    safePositionAcknowledgementCopy: acknowledgementSnapshots?.safePosition.copy,
-                    safePositionAcknowledgementVersion: acknowledgementSnapshots?.safePosition.version,
-                    safePositionAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
-                    packID: asset.packID,
-                    packSchemaVersion: asset.packSchemaVersion,
-                    packContentVersion: asset.packContentVersion,
-                    pdfTemplateID: pdfTemplate.id,
-                    pdfTemplateVersion: pdfTemplate.version
-                )),
+                .createCheckDraft(command),
                 mutationID: try MutationIDV1(rawValue: id),
                 occurredAt: startedAt
             )
