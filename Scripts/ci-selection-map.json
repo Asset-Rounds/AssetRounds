@@ -118,9 +118,10 @@
         "S4_5CorrectionTests",
         "S6_2BackupExportTests",
         "V9_18PackLifecycleIntegrationTests",
-        "V23CheckRunnerEditableFieldValuesTests"
+        "V23CheckRunnerEditableFieldValuesTests",
+        "V23CheckRunnerBeginHistoryTests"
       ],
-      "methodCount": 29
+      "methodCount": 36
     },
     {
       "id": "legacy-lifecycle-recovery",

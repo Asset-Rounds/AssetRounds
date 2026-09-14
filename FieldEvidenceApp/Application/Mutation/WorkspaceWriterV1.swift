@@ -2336,6 +2336,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         try journalStore.validateFieldDraftReadContext(modelContext)
     }
 
+    /// Authenticates a retained original in its explicit workspace namespace.
+    /// It supplies no target readback, replay or permission for a new effect.
+    func checkRunnerBeginEvidence(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) throws -> CheckRunnerBeginCommittedEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        return try journalStore.checkRunnerBeginEvidence(workspaceID: workspaceID, mutationID: mutationID)
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }

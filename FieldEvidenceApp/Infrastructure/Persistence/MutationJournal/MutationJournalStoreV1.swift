@@ -1520,6 +1520,34 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// Reads the exact historical workspace namespace. Original generations
+    /// remain evidence; the active lease governs this reader, not those bytes.
+    func checkRunnerBeginEvidence(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) throws -> CheckRunnerBeginCommittedEvidenceV1? {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        try validateAll()
+        let key = MutationWorkspaceKeyV1.value(workspaceID: workspaceID, mutationID: mutationID)
+        guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        )).isEmpty else {
+            throw WorkspaceMutationFailureV1.mutationIDQuarantined
+        }
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        ))
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard let row = rows.first else { return nil }
+        let receipt = try validate(row: row, expectedEnvelope: nil)
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+        guard envelope.workspaceID == workspaceID, envelope.mutationID == mutationID else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return try CheckRunnerBeginCommittedEvidenceV1(envelope: envelope, receipt: receipt)
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         try validateCurrentWriterLease()
         try validateAll()

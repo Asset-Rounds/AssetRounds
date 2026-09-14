@@ -31,6 +31,16 @@ Accepted main is `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Preserve S10 brandi
 
 Use the existing five GitHub and three Bitrise capacity only for distinct, source-defined, dependency-ready questions under CURRENT_INTEGRATION. Never dispatch duplicate, speculative, known-failing or unqualified acceptance runs. One collector audits each original once. Preserve all native-environment and final-main gates.
 
+## Working cadence — owner confirmed 2026-09-14
+
+Apply the existing efficiency policy directly:
+
+- Keep ACTIVE_BRIEF current and short (normally no more than 60 lines/6 KB); update its sections instead of prepending history. Read prior detail only for a relevant unresolved question.
+- Use one scoped checkpoint and combined independent review per consequential batch. Reuse unchanged findings and review only changed source or dependency deltas. Preserve required actual-index, route and final review gates.
+- Reuse reviewed dispatcher/collector code through its existing parameter interfaces and immutable pins. Avoid per-head script copies and repeated reviews of unchanged helpers or generated records. Test and review diagnosed logic changes.
+- Use one collector per original and consume its verified summary/hashes thereafter. Retain complete originals externally. Use event-driven status and useful source work while CI runs; do not add a polling worker for unchanged state.
+- Keep all existing ownership, native-route, test, provider, visual, human-review and final-main requirements. This cadence grants no alternate native environment, cancellation, speculative dispatch or release action.
+
 ## Preserved historical instructions
 
 The exact pre-change AGENTS.md is retained in `docs/execution/AGENTS_HISTORY_20260911.md`. Its enduring constraints remain applicable where relevant and not superseded by the selected integration task or this owner-approved cost policy. Its retired S10 card-selection and serial-development instructions are provenance, not active integration work orders. Consult only a relevant section when resolving an actual authority question; do not load it by default. If a different task is selected, read its applicable historical authority before acting.

@@ -2090,7 +2090,7 @@ private extension StoreGenerationFactory {
 #if DEBUG
     /// Observes the actual validation traversal without publishing its temporary bytes.
     @MainActor
-    func validateSemanticRowsForTesting(
+    internal func validateSemanticRowsForTesting(
         in context: ModelContext,
         through release: PersistentSchemaReleaseV1,
         didEncode: @escaping (Data) -> Void
@@ -2101,7 +2101,7 @@ private extension StoreGenerationFactory {
     }
 
     @MainActor
-    func canonicalSemanticProjectionForTesting(
+    internal func canonicalSemanticProjectionForTesting(
         in context: ModelContext,
         release: PersistentSchemaReleaseV1
     ) throws -> Data {

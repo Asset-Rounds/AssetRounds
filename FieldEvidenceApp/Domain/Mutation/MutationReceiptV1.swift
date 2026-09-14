@@ -1539,6 +1539,79 @@ struct FieldDraftMutationReceiptV1: Codable, Equatable, Sendable {
     }
 }
 
+/// A canonical original Begin command and its sole target effect. This value
+/// does not prove a current target, match a future frozen attempt, or authorize
+/// a destination effect. The journal separately authenticates retained history.
+struct CheckRunnerBeginCommittedEvidenceV1: Equatable, Sendable {
+    enum Command: Equatable, Sendable {
+        case createCheckDraft(CheckDraftMutationV1)
+        case updateSiteTimeZone(SiteTimeZoneMutationV1)
+    }
+
+    let envelope: MutationEnvelopeV1
+    let receipt: MutationReceiptV1
+    let command: Command
+
+    var envelopeSHA256: String { receipt.envelopeSHA256 }
+
+    init(envelope: MutationEnvelopeV1, receipt: MutationReceiptV1) throws {
+        try envelope.validate()
+        try receipt.validate()
+        guard receipt.mutationID == envelope.mutationID,
+              receipt.identity.workspaceID == envelope.workspaceID,
+              receipt.identity.replicaID == envelope.replicaID,
+              receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
+              receipt.commandBodySHA256 == envelope.commandBodySHA256,
+              receipt.expectedRevision == envelope.expectedRevision,
+              receipt.contentDependencyIDs == envelope.contentDependencyIDs,
+              receipt.sourceKind == envelope.sourceKind,
+              receipt.causationMutationID == envelope.causationMutationID,
+              receipt.correlationID == envelope.correlationID,
+              envelope.reversalPlanDigest == nil,
+              envelope.semanticReversalReplayIdentitySHA256 == nil,
+              envelope.semanticReversalExecution == nil,
+              receipt.reversesMutationID == nil,
+              receipt.postImages.count == 1,
+              let image = receipt.postImages.first else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+
+        let command: Command
+        let target: WorkspaceEntityIdentityV1
+        switch envelope.command {
+        case let .createCheckDraft(value):
+            guard case let .workflowRecord(id, _, _) = image,
+                  id == value.recordID else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            command = .createCheckDraft(value)
+            target = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: value.recordID)
+        case let .updateSiteTimeZone(value):
+            guard case let .site(id, _, _) = image,
+                  id == value.siteID else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            command = .updateSiteTimeZone(value)
+            target = try WorkspaceEntityIdentityV1(kind: .site, id: value.siteID)
+        default:
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+
+        // Receipts retain full workspace revision snapshots. Only the sole
+        // target entry is selected here; unrelated entries remain untouched.
+        let before = receipt.expectedRevision.entityRevisions.filter { $0.identity == target }
+        let after = receipt.resultingRevision.entityRevisions.filter { $0.identity == target }
+        guard before.count == 1, before[0].revision < UInt64.max,
+              image.revision == before[0].revision + 1,
+              after.count == 1, after[0].revision == image.revision else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        self.envelope = envelope
+        self.receipt = receipt
+        self.command = command
+    }
+}
+
 /// Authenticated original field-draft command evidence. The journal supplies
 /// these values from its canonical envelope and receipt bytes, never a live
 /// checkpoint reconstruction.
