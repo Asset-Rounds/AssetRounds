@@ -2067,7 +2067,9 @@ private extension BackupCanonicalEncoderV1 {
               sortedUniqueIDs(manifest.consumedEvaluationRootIDs),
               manifest.entries == manifest.entries.sorted(by: { $0.path < $1.path }),
               Set(manifest.entries.map(\.path)).count == manifest.entries.count,
-              manifest.entries.allSatisfy(validEntry),
+              manifest.entries.allSatisfy({
+                  validEntry($0, recordsSchemaVersion: manifest.source.recordsSchemaVersion)
+              }),
               manifest.entries.filter({ $0.path == "records.json" }).count == 1,
               manifest.packs == manifest.packs.sorted(by: packOrder),
               manifest.packs.allSatisfy({
@@ -2090,7 +2092,7 @@ private extension BackupCanonicalEncoderV1 {
         return Set(values).count == values.count && strings == strings.sorted()
     }
 
-    static func validEntry(_ value: V4BackupEntryV1) -> Bool {
+    static func validEntry(_ value: V4BackupEntryV1, recordsSchemaVersion: Int) -> Bool {
         guard value.byteCount >= 0,
               isLowercaseSHA256(value.sha256),
               value.path == value.path.precomposedStringWithCanonicalMapping else {
@@ -2107,17 +2109,43 @@ private extension BackupCanonicalEncoderV1 {
             return value.mimeType == "application/json"
         case .pdf:
             return value.mimeType == "application/pdf"
+        case .draftStaging:
+            return recordsSchemaVersion >= V16FieldDraftImportBoundaryV1.recordsSchemaVersion
+                && value.mimeType == "application/octet-stream"
+        case .contentOriginal:
+            return recordsSchemaVersion >= TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion
+                && ContentContractValidationV1.validMediaType(value.mimeType)
+        case .derivativePublication:
+            return recordsSchemaVersion >= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion
+                && value.mimeType == "application/json"
         case nil:
             return false
         }
     }
 
-    enum PathKind { case records, portableExchange, media, thumbnail, snapshot, pdf }
+    enum PathKind {
+        case records, portableExchange, media, thumbnail, snapshot, pdf
+        case draftStaging, contentOriginal, derivativePublication
+    }
 
     static func pathKind(_ path: String) -> PathKind? {
         if path == "records.json" { return .records }
         if path == PortableExchangeBackupMemberV2.path { return .portableExchange }
         let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        if components.count == 3, components[0] == "draft-staging" {
+            guard UUID(uuidString: components[1])?.uuidString.lowercased() == components[1],
+                  canonicalUUIDFilename(components[2], pathExtension: "bin") else { return nil }
+            return .draftStaging
+        }
+        if components.count == 4, components[0] == "content" {
+            guard UUID(uuidString: components[1])?.uuidString.lowercased() == components[1],
+                  ContentContractValidationV1.validID(components[2]) else { return nil }
+            switch components[3] {
+            case "original.bin": return .contentOriginal
+            case "derivative-publication.json": return .derivativePublication
+            default: return nil
+            }
+        }
         guard components.count == 2 else { return nil }
         switch components[0] {
         case "media":

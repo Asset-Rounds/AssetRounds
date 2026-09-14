@@ -65,9 +65,11 @@
         "V9_07CompatibilityCorpusIntegrationTests",
         "V9_07CompatibilityPolicyTests",
         "V9_10LifecycleBoundaryTests",
-        "V23FieldDraftStageDigestBackupTests"
+        "V23FieldDraftStageDigestBackupTests",
+        "V23FieldDraftAsyncCommitTests",
+        "V23BackupManifestMemberTests"
       ],
-      "methodCount": 11
+      "methodCount": 25
     },
     {
       "id": "generation-leases-migration",

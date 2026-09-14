@@ -24,13 +24,41 @@ protocol DraftContentPromotionPortV1: Sendable {
     func readBackMatches(plan:DraftCommitPlanV1,receipt:MutationReceiptV1)throws->Bool
 }
 
+/// Async targets retain the same canonical receipt and read-back boundary.
+@MainActor protocol DraftAsyncCanonicalCommitPortV1: AnyObject {
+    func commit(plan: DraftCommitPlanV1, reservations: [DraftContentReservationV1]) async throws -> MutationReceiptV1
+    func readBackMatches(plan: DraftCommitPlanV1, receipt: MutationReceiptV1) throws -> Bool
+}
+
 @MainActor final class FieldDraftCoordinatorV1 {
     private let purposeAuthority:any DraftPurposeDefinitionResolvingV1
     private let writer:any FieldDraftWritingV1
     private let content:any DraftContentPromotionPortV1
-    private let target:any DraftCanonicalCommitPortV1
-    init(registry:DraftPurposeRegistryV1,writer:any FieldDraftWritingV1,content:any DraftContentPromotionPortV1,target:any DraftCanonicalCommitPortV1){self.purposeAuthority=registry;self.writer=writer;self.content=content;self.target=target}
-    init(purposeAuthority:any DraftPurposeDefinitionResolvingV1,writer:any FieldDraftWritingV1,content:any DraftContentPromotionPortV1,target:any DraftCanonicalCommitPortV1){self.purposeAuthority=purposeAuthority;self.writer=writer;self.content=content;self.target=target}
+    private let commitTarget: @MainActor (DraftCommitPlanV1, [DraftContentReservationV1]) async throws -> MutationReceiptV1
+    private let readBackTarget: @MainActor (DraftCommitPlanV1, MutationReceiptV1) throws -> Bool
+
+    convenience init(registry: DraftPurposeRegistryV1, writer: any FieldDraftWritingV1,
+                     content: any DraftContentPromotionPortV1, target: any DraftCanonicalCommitPortV1) {
+        self.init(purposeAuthority: registry, writer: writer, content: content, target: target)
+    }
+
+    init(purposeAuthority: any DraftPurposeDefinitionResolvingV1, writer: any FieldDraftWritingV1,
+         content: any DraftContentPromotionPortV1, target: any DraftCanonicalCommitPortV1) {
+        self.purposeAuthority = purposeAuthority
+        self.writer = writer
+        self.content = content
+        commitTarget = { try target.commit(plan: $0, reservations: $1) }
+        readBackTarget = { try target.readBackMatches(plan: $0, receipt: $1) }
+    }
+
+    init(purposeAuthority: any DraftPurposeDefinitionResolvingV1, writer: any FieldDraftWritingV1,
+         content: any DraftContentPromotionPortV1, asyncTarget: any DraftAsyncCanonicalCommitPortV1) {
+        self.purposeAuthority = purposeAuthority
+        self.writer = writer
+        self.content = content
+        commitTarget = { try await asyncTarget.commit(plan: $0, reservations: $1) }
+        readBackTarget = { try asyncTarget.readBackMatches(plan: $0, receipt: $1) }
+    }
 
     func checkpoint(_ value:FieldDraftCheckpointV1,expectedDraftRevision:UInt64,expectedBaseRevision:UInt64)throws->MutationReceiptV1{
         try value.validate(authority:purposeAuthority)
@@ -110,11 +138,15 @@ protocol DraftContentPromotionPortV1: Sendable {
         guard checkpoint.state == .committing,plan.workspaceID==checkpoint.workspaceID,plan.draftID==checkpoint.draftID,plan.draftRevision==checkpoint.draftRevision,plan.baseCanonicalRevision==checkpoint.baseCanonicalRevision,plan.payloadSHA256==checkpoint.payloadSHA256,prepared.plan==plan,prepared.state == .prepared,contentPromoted.state == .contentPromotedUnbound,targetCommitted.state == .targetCommitted,retirePending.state == .draftRetirePending,retired.state == .draftRetired,retired.mutationID==rowMutationIDs.terminalBundleMutationID,Set(items.map(\.stageID)).count==items.count,Set(items.map(\.stageSHA256)).count==items.count,items.allSatisfy({$0.workspaceID==plan.workspaceID&&$0.draftID==plan.draftID&&$0.state == .readyLocal}),Set(items.map(\.stageSHA256)).sorted()==plan.stageDigests else{throw FieldDraftFailureV1.conflictRequired}
         _ = try writer.append(saga:prepared,expectedRevision:0)
         let reservations=try await content.promote(plan:plan,items:items,reservationMutationIDs:rowMutationIDs.reservationByStageID)
+        try requireCurrentCommittingCheckpoint(checkpoint)
         guard reservations.count==items.count,Set(reservations.map(\.stageID)).count==reservations.count,Set(reservations.map(\.stageID))==Set(items.map(\.stageID)),reservations.allSatisfy({$0.workspaceID==plan.workspaceID&&$0.draftID==plan.draftID&&$0.commitPlanSHA256==plan.planSHA256&&$0.mutationID==rowMutationIDs.reservationByStageID[$0.stageID]})else{throw FieldDraftFailureV1.missingContent}
         for reservation in reservations{_ = try writer.append(reservation:reservation,expectedRevision:0)}
         _ = try writer.append(saga:contentPromoted,expectedRevision:prepared.revision)
-        let targetReceipt=try target.commit(plan:plan,reservations:reservations)
-        guard try target.readBackMatches(plan:plan,receipt:targetReceipt)else{throw FieldDraftFailureV1.missingReceipt}
+        let targetReceipt=try await commitTarget(plan,reservations)
+        try requireCurrentCommittingCheckpoint(checkpoint)
+        guard targetReceipt.mutationID == plan.mutationID,
+              targetReceipt.identity.workspaceID == plan.workspaceID,
+              try readBackTarget(plan,targetReceipt) else { throw FieldDraftFailureV1.missingReceipt }
         _ = try writer.append(saga:targetCommitted,expectedRevision:contentPromoted.revision)
         _ = try writer.append(saga:retirePending,expectedRevision:targetCommitted.revision)
         let mapping=Dictionary(uniqueKeysWithValues:reservations.map{($0.stageID.uuidString,$0.locator.contentID)})
@@ -126,6 +158,13 @@ protocol DraftContentPromotionPortV1: Sendable {
         let bundle=try DraftCommitTerminalBundleV1(retiredSaga:retired,committedCheckpoint:terminalCheckpoint,receipt:receipt)
         _ = try writer.apply(commitTerminalBundle:bundle,expectedDraftRevision:checkpoint.draftRevision,expectedSagaRevision:retirePending.revision)
         return receipt
+    }
+
+    private func requireCurrentCommittingCheckpoint(_ checkpoint: FieldDraftCheckpointV1) throws {
+        guard checkpoint.state == .committing,
+              try writer.currentCheckpoint(workspaceID: checkpoint.workspaceID, draftID: checkpoint.draftID) == checkpoint else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
     }
 
     func discard(plan:DraftDiscardPlanV1,checkpoint:FieldDraftCheckpointV1,reservations:[DraftContentReservationV1],disposedStageIDs:[UUID],discardReceiptID:UUID,at instant:Date,mutationID:MutationIDV1)async throws->DraftDiscardReceiptV1{

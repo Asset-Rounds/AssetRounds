@@ -157,98 +157,145 @@ enum ReplacementRestoreRule {
     static func makeDeletionWinningPlan(
         _ input: DeletionWinningRestoreInputV2
     ) throws -> DeletionWinningRestorePlanV2 {
-        guard validDate(input.replacementAt) else {
-            throw ReplacementRestoreRuleError.invalidAuthority
-        }
-        var ledger = try normalizedLedger(input.currentRecords)
-            .union(normalizedLedger(input.incomingRecords))
-        var incoming = input.incomingRecords
-        let crossWorkspacePartsStockReplacement = input.mode == .replaceExisting
-            && input.incomingRecords.recordsSchemaVersion
-                >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
-            && input.currentIdentity?.workspaceID != input.incomingIdentity?.workspaceID
-        if crossWorkspacePartsStockReplacement {
-            guard let currentWorkspaceID = input.currentIdentity?.workspaceID,
-                  let incomingWorkspaceID = input.incomingIdentity?.workspaceID,
-                  currentWorkspaceID != incomingWorkspaceID else {
+        #if DEBUG
+        var diagnosticPhase = "replacement-time"
+        #endif
+        do {
+            guard validDate(input.replacementAt) else {
                 throw ReplacementRestoreRuleError.invalidAuthority
             }
-            do {
-                try C55PartsStockBackupImportBoundaryV1.validate(
-                    input.currentRecords,
-                    workspaceID: currentWorkspaceID
-                )
-                try C55PartsStockBackupImportBoundaryV1.validate(
-                    input.incomingRecords,
-                    workspaceID: incomingWorkspaceID
-                )
-            } catch {
-                throw ReplacementRestoreRuleError.invalidAuthority
+            #if DEBUG
+            diagnosticPhase = "normalized-ledger"
+            #endif
+            var ledger = try normalizedLedger(input.currentRecords)
+                .union(normalizedLedger(input.incomingRecords))
+            var incoming = input.incomingRecords
+            let crossWorkspacePartsStockReplacement = input.mode == .replaceExisting
+                && input.incomingRecords.recordsSchemaVersion
+                    >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+                && input.currentIdentity?.workspaceID != input.incomingIdentity?.workspaceID
+            if crossWorkspacePartsStockReplacement {
+                #if DEBUG
+                diagnosticPhase = "cross-workspace-identities"
+                #endif
+                guard let currentWorkspaceID = input.currentIdentity?.workspaceID,
+                      let incomingWorkspaceID = input.incomingIdentity?.workspaceID,
+                      currentWorkspaceID != incomingWorkspaceID else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                do {
+                    #if DEBUG
+                    diagnosticPhase = "current-c55-boundary"
+                    #endif
+                    try C55PartsStockBackupImportBoundaryV1.validate(
+                        input.currentRecords,
+                        workspaceID: currentWorkspaceID
+                    )
+                    #if DEBUG
+                    diagnosticPhase = "incoming-c55-boundary"
+                    #endif
+                    try C55PartsStockBackupImportBoundaryV1.validate(
+                        input.incomingRecords,
+                        workspaceID: incomingWorkspaceID
+                    )
+                } catch {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
             }
-        }
 
-        if input.mode == .replaceExisting {
-            let packetPlan = try makePlan(.init(
-                currentPackets: input.currentRecords.packets,
-                incomingPackets: input.incomingRecords.packets,
-                replacementAt: input.replacementAt
-            ))
-            incoming = replacingPackets(in: incoming, with: packetPlan.packetsAfter)
-            let packetEntries = try packetPlan.packetsAfter.compactMap { packet -> DeletionLedgerEntryV2? in
-                guard packet.currentRecordID == nil,
-                      let deletedAt = packet.contentDeletedAt else { return nil }
-                return try DeletionLedgerEntryV2(
-                    identity: DeletionIdentityV2(kind: .packet, id: packet.id),
-                    deletedAt: deletedAt
+            if input.mode == .replaceExisting {
+                #if DEBUG
+                diagnosticPhase = "packet-plan"
+                #endif
+                let packetPlan = try makePlan(.init(
+                    currentPackets: input.currentRecords.packets,
+                    incomingPackets: input.incomingRecords.packets,
+                    replacementAt: input.replacementAt
+                ))
+                incoming = replacingPackets(in: incoming, with: packetPlan.packetsAfter)
+                #if DEBUG
+                diagnosticPhase = "packet-deletion-entries"
+                #endif
+                let packetEntries = try packetPlan.packetsAfter.compactMap { packet -> DeletionLedgerEntryV2? in
+                    guard packet.currentRecordID == nil,
+                          let deletedAt = packet.contentDeletedAt else { return nil }
+                    return try DeletionLedgerEntryV2(
+                        identity: DeletionIdentityV2(kind: .packet, id: packet.id),
+                        deletedAt: deletedAt
+                    )
+                }
+                #if DEBUG
+                diagnosticPhase = "packet-ledger-union"
+                #endif
+                ledger = try ledger.union(DeletionLedgerV2(
+                    entries: packetEntries.sorted { $0.identity < $1.identity }
+                ))
+            }
+
+            let mutationHistory: MutationHistorySnapshotV1?
+            let assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1]
+            switch input.mode {
+            case .emptyInstall, .clone, .fork:
+                mutationHistory = input.incomingRecords.mutationHistory
+                assistanceAcceptanceReceipts = input.incomingRecords.assistanceAcceptanceReceipts
+            case .replaceExisting:
+                #if DEBUG
+                diagnosticPhase = "merged-mutation-history"
+                #endif
+                mutationHistory = try mergedMutationHistory(
+                    current: input.currentRecords.mutationHistory,
+                    currentIdentity: input.currentIdentity,
+                    incoming: input.incomingRecords.mutationHistory,
+                    incomingIdentity: input.incomingIdentity
+                )
+                #if DEBUG
+                diagnosticPhase = "merged-assistance"
+                #endif
+                assistanceAcceptanceReceipts = try C32AssistanceReplacementRestorePolicyV1.merged(
+                    current: input.currentRecords.assistanceAcceptanceReceipts,
+                    incoming: input.incomingRecords.assistanceAcceptanceReceipts
                 )
             }
-            ledger = try ledger.union(DeletionLedgerV2(
-                entries: packetEntries.sorted { $0.identity < $1.identity }
-            ))
-        }
-
-        let mutationHistory: MutationHistorySnapshotV1?
-        let assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1]
-        switch input.mode {
-        case .emptyInstall, .clone, .fork:
-            mutationHistory = input.incomingRecords.mutationHistory
-            assistanceAcceptanceReceipts = input.incomingRecords.assistanceAcceptanceReceipts
-        case .replaceExisting:
-            mutationHistory = try mergedMutationHistory(
-                current: input.currentRecords.mutationHistory,
-                currentIdentity: input.currentIdentity,
-                incoming: input.incomingRecords.mutationHistory,
-                incomingIdentity: input.incomingIdentity
-            )
-            assistanceAcceptanceReceipts = try C32AssistanceReplacementRestorePolicyV1.merged(
-                current: input.currentRecords.assistanceAcceptanceReceipts,
-                incoming: input.incomingRecords.assistanceAcceptanceReceipts
-            )
-        }
-        incoming = replacingMutationHistory(
-            in: incoming,
-            with: mutationHistory,
-            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts
-        )
-        if input.mode == .replaceExisting {
-            incoming = try replacingRequirementAssurance(
+            #if DEBUG
+            diagnosticPhase = "replace-mutation-history"
+            #endif
+            incoming = replacingMutationHistory(
                 in: incoming,
-                with: mergedRequirementAssurance(
-                    current: input.currentRecords.requirementAssurance,
-                    incoming: incoming.requirementAssurance,
-                    retainedWorkflowIDs: Set(incoming.workflowRecords.map(\.id))
-                )
+                with: mutationHistory,
+                assistanceAcceptanceReceipts: assistanceAcceptanceReceipts
             )
+            if input.mode == .replaceExisting {
+                #if DEBUG
+                diagnosticPhase = "merged-requirement-assurance"
+                #endif
+                incoming = try replacingRequirementAssurance(
+                    in: incoming,
+                    with: mergedRequirementAssurance(
+                        current: input.currentRecords.requirementAssurance,
+                        incoming: incoming.requirementAssurance,
+                        retainedWorkflowIDs: Set(incoming.workflowRecords.map(\.id))
+                    )
+                )
+            }
+            #if DEBUG
+            diagnosticPhase = "filtered-records"
+            #endif
+            let recordsAfter = try filtering(
+                incoming,
+                through: ledger,
+                validatesPartsStock: !crossWorkspacePartsStockReplacement
+            )
+            return DeletionWinningRestorePlanV2(
+                recordsAfter: recordsAfter,
+                deletionLedger: ledger
+            )
+        } catch {
+            #if DEBUG
+            let observed = error as NSError
+            print("C55 restore-plan failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error))) domain=\(observed.domain) code=\(observed.code)")
+            #endif
+            throw error
         }
-        let recordsAfter = try filtering(
-            incoming,
-            through: ledger,
-            validatesPartsStock: !crossWorkspacePartsStockReplacement
-        )
-        return DeletionWinningRestorePlanV2(
-            recordsAfter: recordsAfter,
-            deletionLedger: ledger
-        )
     }
 }
 
@@ -421,113 +468,148 @@ private extension ReplacementRestoreRule {
         through ledger: DeletionLedgerV2,
         validatesPartsStock: Bool
     ) throws -> V4BackupRecordsV1 {
-        try ledger.validate()
-        try C52ServiceRequestReplacementRestorePolicyV1.validate(
-            records,
-            validatesPartsStock: validatesPartsStock
-        )
-        try AssetLocatorReplacementRestorePolicyV1.validate(records.assetLocators)
-        try ScheduleReplacementRestorePolicyV1.validate(records.schedules)
-        try PlanReplacementRestorePolicyV1.validate(records.plans)
-        let deleted = Dictionary(
-            uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
-        )
-        func isDeleted(_ kind: DeletionRecordKindV2, _ id: UUID) throws -> Bool {
-            deleted[try DeletionIdentityV2(kind: kind, id: id)] != nil
-        }
+        #if DEBUG
+        var diagnosticPhase = "ledger-validation"
+        #endif
+        do {
+            try ledger.validate()
+            #if DEBUG
+            diagnosticPhase = "service-request-closure"
+            #endif
+            try C52ServiceRequestReplacementRestorePolicyV1.validate(
+                records,
+                validatesPartsStock: validatesPartsStock
+            )
+            #if DEBUG
+            diagnosticPhase = "asset-locator-closure"
+            #endif
+            try AssetLocatorReplacementRestorePolicyV1.validate(records.assetLocators)
+            #if DEBUG
+            diagnosticPhase = "schedule-closure"
+            #endif
+            try ScheduleReplacementRestorePolicyV1.validate(records.schedules)
+            #if DEBUG
+            diagnosticPhase = "plan-closure"
+            #endif
+            try PlanReplacementRestorePolicyV1.validate(records.plans)
+            let deleted = Dictionary(
+                uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
+            )
+            func isDeleted(_ kind: DeletionRecordKindV2, _ id: UUID) throws -> Bool {
+                deleted[try DeletionIdentityV2(kind: kind, id: id)] != nil
+            }
 
-        let sites = try records.sites.filter { try !isDeleted(.site, $0.id) }
-        let assets = try records.assets.filter { try !isDeleted(.asset, $0.id) }
-        let workflow = try records.workflowRecords.filter {
-            try !isDeleted(.workflowRecord, $0.id)
-        }
-        let retainedWorkflowIDs = Set(workflow.map(\.id))
-        let requirementAssurance = records.requirementAssurance.filter {
-            retainedWorkflowIDs.contains($0.workflowRecordID)
-        }
-        let evidence = try records.evidenceFiles.filter {
-            try !isDeleted(.evidenceFile, $0.id)
-        }
-        let issues = try records.issues.filter { try !isDeleted(.issue, $0.id) }
-        let reports = try records.reports.filter { try !isDeleted(.report, $0.id) }
-        let packets = try records.packets.map { packet -> V4BackupPacketDTO in
-            let identity = try DeletionIdentityV2(kind: .packet, id: packet.id)
-            guard let entry = deleted[identity] else { return packet }
-            guard packet.evaluationCounted,
-                  packet.createdAt <= entry.deletedAt else {
+            #if DEBUG
+            diagnosticPhase = "deleted-row-filter"
+            #endif
+            let sites = try records.sites.filter { try !isDeleted(.site, $0.id) }
+            let assets = try records.assets.filter { try !isDeleted(.asset, $0.id) }
+            let workflow = try records.workflowRecords.filter {
+                try !isDeleted(.workflowRecord, $0.id)
+            }
+            let retainedWorkflowIDs = Set(workflow.map(\.id))
+            let requirementAssurance = records.requirementAssurance.filter {
+                retainedWorkflowIDs.contains($0.workflowRecordID)
+            }
+            let evidence = try records.evidenceFiles.filter {
+                try !isDeleted(.evidenceFile, $0.id)
+            }
+            let issues = try records.issues.filter { try !isDeleted(.issue, $0.id) }
+            let reports = try records.reports.filter { try !isDeleted(.report, $0.id) }
+            #if DEBUG
+            diagnosticPhase = "packet-deletion-filter"
+            #endif
+            let packets = try records.packets.map { packet -> V4BackupPacketDTO in
+                let identity = try DeletionIdentityV2(kind: .packet, id: packet.id)
+                guard let entry = deleted[identity] else { return packet }
+                guard packet.evaluationCounted,
+                      packet.createdAt <= entry.deletedAt else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                return V4BackupPacketDTO(
+                    id: packet.id,
+                    schemaVersion: packet.schemaVersion,
+                    stableRootID: packet.stableRootID,
+                    currentRecordID: nil,
+                    evaluationCounted: true,
+                    contentDeletedAt: entry.deletedAt,
+                    createdAt: packet.createdAt
+                )
+            }
+
+            #if DEBUG
+            diagnosticPhase = "result-records"
+            #endif
+            let result = V4BackupRecordsV1(
+                guidedSurveys:records.guidedSurveys,
+                assetLocators: records.assetLocators,
+                schedules: records.schedules,
+                plans: records.plans,
+                placementPoses: records.placementPoses,
+                accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+                surveyDefinitions: records.surveyDefinitions,
+                fieldReferences:records.fieldReferences,
+                recoverabilityReceipts: records.recoverabilityReceipts,
+                clientCapabilities: records.clientCapabilities,
+                privacyTransforms: records.privacyTransforms,
+                measurementIntegrity: records.measurementIntegrity,
+                packageEvolution: records.packageEvolution,
+                fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+                evidenceAssurance: records.evidenceAssurance,
+                functionalRelationships: records.functionalRelationships,
+                authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
+                assetCompositionEdges: records.assetCompositionEdges,
+                assetCompositionEvents: records.assetCompositionEvents,
+                assetPlacementEvents: records.assetPlacementEvents,
+                assets: assets,
+                deletionLedger: ledger,
+                evidenceFiles: evidence,
+                issues: issues,
+                locationHierarchyEvents: records.locationHierarchyEvents,
+                locationMigrationReceipts: records.locationMigrationReceipts,
+                locationNodes: records.locationNodes,
+                mutationHistory: records.mutationHistory,
+                packets: packets,
+                partyAccountability: records.partyAccountability,
+                recordsSchemaVersion: records.mutationHistory == nil
+                    ? 2
+                    : records.recordsSchemaVersion,
+                reports: reports,
+                requirementAssurance: requirementAssurance,
+                savedSmartViews: records.savedSmartViews,
+                sites: sites,
+                workflowRecords: workflow,
+                lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+                lightingNightWorkflows: records.lightingNightWorkflows,
+                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+                temporalEvidence: records.temporalEvidence,
+                activityContracts: records.activityContracts,
+                serviceRequests: records.serviceRequests,
+                serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+                partsStockSnapshot: records.partsStockSnapshot,
+                myDayPlans: records.myDayPlans,
+                myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+                nonactivePlanReferences: records.nonactivePlanReferences,
+                evidenceAssociationEvents: records.evidenceAssociationEvents,
+                evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+                importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
+            )
+            #if DEBUG
+            diagnosticPhase = "result-reference-closure"
+            #endif
+            guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
+                  validLocationReferences(result, ledger: ledger) else {
                 throw ReplacementRestoreRuleError.invalidAuthority
             }
-            return V4BackupPacketDTO(
-                id: packet.id,
-                schemaVersion: packet.schemaVersion,
-                stableRootID: packet.stableRootID,
-                currentRecordID: nil,
-                evaluationCounted: true,
-                contentDeletedAt: entry.deletedAt,
-                createdAt: packet.createdAt
-            )
+            return result
+        } catch {
+            #if DEBUG
+            let observed = error as NSError
+            print("C55 restore-filter failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error))) domain=\(observed.domain) code=\(observed.code)")
+            #endif
+            throw error
         }
-
-        let result = V4BackupRecordsV1(
-            guidedSurveys:records.guidedSurveys,
-            assetLocators: records.assetLocators,
-            schedules: records.schedules,
-            plans: records.plans,
-            placementPoses: records.placementPoses,
-            accessibleDocumentAssessments:records.accessibleDocumentAssessments,
-            surveyDefinitions: records.surveyDefinitions,
-            fieldReferences:records.fieldReferences,
-            recoverabilityReceipts: records.recoverabilityReceipts,
-            clientCapabilities: records.clientCapabilities,
-            privacyTransforms: records.privacyTransforms,
-            measurementIntegrity: records.measurementIntegrity,
-            packageEvolution: records.packageEvolution,
-            fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
-            evidenceAssurance: records.evidenceAssurance,
-            functionalRelationships: records.functionalRelationships,
-            authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
-            assetCompositionEdges: records.assetCompositionEdges,
-            assetCompositionEvents: records.assetCompositionEvents,
-            assetPlacementEvents: records.assetPlacementEvents,
-            assets: assets,
-            deletionLedger: ledger,
-            evidenceFiles: evidence,
-            issues: issues,
-            locationHierarchyEvents: records.locationHierarchyEvents,
-            locationMigrationReceipts: records.locationMigrationReceipts,
-            locationNodes: records.locationNodes,
-            mutationHistory: records.mutationHistory,
-            packets: packets,
-            partyAccountability: records.partyAccountability,
-            recordsSchemaVersion: records.mutationHistory == nil
-                ? 2
-                : records.recordsSchemaVersion,
-            reports: reports,
-            requirementAssurance: requirementAssurance,
-            savedSmartViews: records.savedSmartViews,
-            sites: sites,
-            workflowRecords: workflow,
-            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
-            lightingNightWorkflows: records.lightingNightWorkflows,
-            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-            temporalEvidence: records.temporalEvidence,
-            activityContracts: records.activityContracts,
-            serviceRequests: records.serviceRequests,
-            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
-            partsStockSnapshot: records.partsStockSnapshot,
-            myDayPlans: records.myDayPlans,
-            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
-            nonactivePlanReferences: records.nonactivePlanReferences,
-            evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
-            importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
-        )
-        guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
-              validLocationReferences(result, ledger: ledger) else {
-            throw ReplacementRestoreRuleError.invalidAuthority
-        }
-        return result
     }
 
     static func replacingPackets(

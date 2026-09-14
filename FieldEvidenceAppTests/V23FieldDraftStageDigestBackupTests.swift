@@ -25,6 +25,24 @@ final class V23FieldDraftStageDigestBackupTests: XCTestCase {
                        [fixture.storedStage.stageID.uuidString: fixture.clip.original.contentID])
     }
 
+    func testPublicPackageValidatorAcceptsAsyncTargetReceiptFromExistingWriter() async throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fixture = try await makePackage(at: root, mode: .valid, usesAsyncTarget: true)
+        try assertInternallyConsistentPackage(fixture)
+
+        let asyncReceipt = try XCTUnwrap(fixture.asyncTargetReceipt)
+        XCTAssertEqual(asyncReceipt, fixture.targetReceipt)
+        XCTAssertEqual(asyncReceipt.mutationID, fixture.plan.mutationID)
+        XCTAssertEqual(asyncReceipt.identity.workspaceID, fixture.plan.workspaceID)
+        XCTAssertEqual(fixture.receipt.targetReceiptSHA256, asyncReceipt.resultSHA256)
+        let validated = try BackupPackageValidatorV1().validate(stagedPackageURL: fixture.package)
+        XCTAssertEqual(validated.records, fixture.records)
+        XCTAssertEqual(validated.members[fixture.draftMember], fixture.bytes)
+        XCTAssertEqual(validated.members[try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)],
+                       fixture.bytes)
+    }
+
     func testContentDigestSubstitutionIsFullyRehashedButRejectedByBothProducersAndPackage() async throws {
         let root = temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -72,6 +90,7 @@ private extension V23FieldDraftStageDigestBackupTests {
         let plan: DraftCommitPlanV1
         let receipt: DraftCommitReceiptV1
         let targetReceipt: MutationReceiptV1
+        let asyncTargetReceipt: MutationReceiptV1?
         let clip: TemporalEvidenceClipV1
         let coordinatorRejectedWrongDomain: Bool
         let stagingRejectedWrongDomain: Bool
@@ -198,7 +217,7 @@ private extension V23FieldDraftStageDigestBackupTests {
                 PackageEvolutionCanonicalCodecV1.encode(pointer)])
     }
 
-    func makePackage(at root: URL, mode: Mode) async throws -> PackageFixture {
+    func makePackage(at root: URL, mode: Mode, usesAsyncTarget: Bool = false) async throws -> PackageFixture {
         let diagnostics = StageDigestDiagnostics()
         do {
             let fm = FileManager.default
@@ -257,8 +276,15 @@ private extension V23FieldDraftStageDigestBackupTests {
             let purpose = try StageDigestPurposeAuthority()
             let target = StageDigestTemporalTarget(submission: submission, writer: store.workspaceWriter,
                 journal: journal, context: session.modelContext, diagnostics: diagnostics)
-            let coordinator = FieldDraftCoordinatorV1(purposeAuthority: purpose, writer: writer,
-                content: staging, target: target)
+            let asyncTarget = usesAsyncTarget ? StageDigestAsyncTemporalTarget(target: target) : nil
+            let coordinator: FieldDraftCoordinatorV1
+            if let asyncTarget {
+                coordinator = FieldDraftCoordinatorV1(purposeAuthority: purpose, writer: writer,
+                    content: staging, asyncTarget: asyncTarget)
+            } else {
+                coordinator = FieldDraftCoordinatorV1(purposeAuthority: purpose, writer: writer,
+                    content: staging, target: target)
+            }
             diagnostics.phase = "constructCheckpoint"
             let active = try FieldDraftCheckpointV1(draftID: draftID, workspaceID: session.workspaceID,
                 scope: .init(scopeKind: "temporal-evidence", stableComponentIDs: [submission.clipID.uuidString]),
@@ -449,7 +475,8 @@ private extension V23FieldDraftStageDigestBackupTests {
             }
             return PackageFixture(package: package, manifest: manifest, records: records, bytes: bytes,
                 producerStage: stage, storedStage: storedStage, plan: plan, receipt: receipt,
-                targetReceipt: actualTarget, clip: clip, coordinatorRejectedWrongDomain: coordinatorRejected,
+                targetReceipt: actualTarget, asyncTargetReceipt: asyncTarget?.returnedReceipt,
+                clip: clip, coordinatorRejectedWrongDomain: coordinatorRejected,
                 stagingRejectedWrongDomain: stagingRejected)
         } catch {
             XCTFail("StageDigest fixture mode=\(mode) phase=\(diagnostics.phase) type=\(String(reflecting: type(of: error))) error=\(String(reflecting: error))")
@@ -684,6 +711,28 @@ private struct StageDigestPurposeAuthority: DraftPurposeDefinitionResolvingV1 {
     func require(_ purpose: DraftPurposeV1, codec: DraftPayloadCodecReleaseV1) throws -> DraftPurposeDefinitionV1 {
         guard purpose == definition.purpose, codec == definition.codec else { throw FieldDraftFailureV1.unknownPurpose }
         return definition
+    }
+}
+
+@MainActor
+private final class StageDigestAsyncTemporalTarget: DraftAsyncCanonicalCommitPortV1 {
+    private let target: StageDigestTemporalTarget
+    private(set) var returnedReceipt: MutationReceiptV1?
+
+    init(target: StageDigestTemporalTarget) { self.target = target }
+
+    func commit(plan: DraftCommitPlanV1, reservations: [DraftContentReservationV1]) async throws -> MutationReceiptV1 {
+        let receipt = try target.commit(plan: plan, reservations: reservations)
+        // A separate main-actor task resumes only after this call suspends.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            Task { @MainActor in continuation.resume() }
+        }
+        returnedReceipt = receipt
+        return receipt
+    }
+
+    func readBackMatches(plan: DraftCommitPlanV1, receipt: MutationReceiptV1) throws -> Bool {
+        try target.readBackMatches(plan: plan, receipt: receipt)
     }
 }
 

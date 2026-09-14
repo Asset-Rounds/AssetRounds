@@ -30,13 +30,11 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let source = try publicReplacementStep("create-source") {
             try V906Integration.makeHarness("c55-mixed-source", withAsset: false)
         }
+        registerPublicFixtureCleanup(source)
         let target = try publicReplacementStep("create-target") {
             try V906Integration.makeHarness("c55-mixed-target", withAsset: false)
         }
-        defer {
-            V906Integration.remove(source.root)
-            V906Integration.remove(target.root)
-        }
+        registerPublicFixtureCleanup(target)
 
         let sourceHistory = try publicReplacementStep("seed-incoming-mixed") {
             try seedIncomingMixedHistory(in: source.session, slot: 1_300)
@@ -673,6 +671,21 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         }
     }
 
+    private func registerPublicFixtureCleanup(_ harness: V906Integration.Harness) {
+        addTeardownBlock { [weak session = harness.session, root = harness.root] in
+            guard session == nil else {
+                XCTFail("C55 fixture cleanup requires the original session to be released")
+                return
+            }
+            do {
+                try FileManager.default.removeItem(at: root)
+            } catch {
+                let observed = error as NSError
+                XCTFail("C55 fixture cleanup failed type=\(String(reflecting: type(of: error))) domain=\(observed.domain) code=\(observed.code)")
+            }
+        }
+    }
+
     private func reportPublicReplacementFailure(_ error: Error, phase: String) {
         let value = error as NSError
         print("C55 public failure phase=\(phase) type=\(String(reflecting: type(of: error))) domain=\(value.domain) code=\(value.code)")
@@ -689,15 +702,13 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
                 "c55-\(name)-source", withAsset: true, placementSource: .manual
             )
         }
+        registerPublicFixtureCleanup(source)
         let target = try publicReplacementStep("create-target") {
             try V906Integration.makeHarness(
                 "c55-\(name)-target", withAsset: true, placementSource: .manual
             )
         }
-        defer {
-            V906Integration.remove(source.root)
-            V906Integration.remove(target.root)
-        }
+        registerPublicFixtureCleanup(target)
         if seedCurrentStock {
             try publicReplacementStep("seed-current-stock") {
                 try seedCurrentPart(in: target.session, slot: 1_100 + restoreOffset)
@@ -748,201 +759,218 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         in session: StoreGenerationSession,
         slot: Int
     ) throws -> MutationHistorySnapshotV1 {
-        let journal = try MutationJournalStoreV1(
-            modelContext: session.modelContext,
-            identity: session.workspaceIdentity,
-            generationID: session.generationID,
-            allowStateBootstrap: false
-        )
-        let writerID = V906Integration.id(slot + 1)
-        let writer = try WorkspaceWriterV1(
-            identity: session.workspaceIdentity,
-            generationID: session.generationID,
-            initialRevision: journal.currentRevision(writerInstanceID: writerID),
-            clock: ReplacementClock(),
-            idSource: ReplacementIDs(start: slot + 100),
-            fileAuthority: ReplacementFiles(),
-            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
-            journalStore: journal
-        )
-        let workspaceID = session.workspaceIdentity.workspaceID
-        let firstSignMutationID = try MutationIDV1(
-            rawValue: V906Integration.id(slot + 2)
-        )
-        _ = try writer.execute(
-            .createFirstSign(.init(
-                siteID: V906Integration.id(slot + 3),
-                newSite: .init(
-                    id: V906Integration.id(slot + 3),
-                    label: "Incoming historic site",
-                    address: nil,
-                    timeZoneID: "UTC"
-                ),
-                assetID: V906Integration.id(slot + 4),
-                assetLabel: "Incoming historic sign",
-                packID: SignPack.illuminatedSignV1.packID,
-                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
-                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
-                createdAt: Fixture.fixedDate,
-                initialPlacementMutationID: firstSignMutationID,
-                initialPlacementEventID: V906Integration.id(slot + 5),
-                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
-                    rawValue: V906Integration.id(slot + 6)
-                )
-            )),
-            mutationID: firstSignMutationID
-        )
-
-        let actor = try Fixture.actor(workspaceID, slot: slot + 40)
-        _ = try writer.execute(
-            .applyPartyAccountability(.appendActorSnapshot(actor)),
-            mutationID: try MutationIDV1(rawValue: V906Integration.id(slot + 7))
-        )
-        let packetMutationID = try MutationIDV1(
-            rawValue: V906Integration.id(slot + 8)
-        )
-        let packet = try WorkPacketManifestV1(
-            manifestID: V906Integration.id(slot + 9),
-            packetID: V906Integration.id(slot + 24),
-            packetVersion: 1,
-            workspaceID: workspaceID,
-            items: [try WorkPacketItemV1(
-                itemID: "C55-PUBLIC-MIXED",
-                kind: .inspection,
-                expectedRevision: 1,
-                itemSHA256: Fixture.digest("e")
-            )],
-            packageReleases: [],
-            creationBasis: .explicitLocalSelection,
-            creator: actor,
-            createdAt: Fixture.fixedDate,
-            mutationID: packetMutationID
-        )
-        let packetMutation = try WorkPacketMutationV1(
-            workspaceID: workspaceID,
-            expectedRevision: 0,
-            mutationID: packetMutationID,
-            postImage: .appendManifest(packet)
-        )
-        _ = try writer.execute(
-            .applyWorkPacket(packetMutation), mutationID: packetMutationID
-        )
-
-        let partMutationID = try MutationIDV1(rawValue: V906Integration.id(slot + 10))
-        let part = try Fixture.part(
-            workspaceID, slot: slot + 11, mutationID: partMutationID
-        )
-        let location = try Fixture.location(workspaceID, slot: slot + 12)
-        let locationMutationID = try MutationIDV1(
-            rawValue: V906Integration.id(slot + 13)
-        )
-        let openingMutationID = try MutationIDV1(
-            rawValue: V906Integration.id(slot + 14)
-        )
-        let opening = try Fixture.movement(
-            workspaceID: workspaceID,
-            slot: slot + 15,
-            part: part.frozenReference(),
-            locationID: location.locationID,
-            kind: .openingCount,
-            quantity: 7,
-            pre: .unknown,
-            post: 7,
-            expectedRevision: 0,
-            mutationID: openingMutationID,
-            time: 1
-        )
-        let workMutationID = try MutationIDV1(
-            rawValue: V906Integration.id(slot + 16)
-        )
-        let subject = try WorkResourceSubjectV1(
-            workspaceID: workspaceID,
-            kind: .workPacket,
-            subjectID: packet.manifestID.uuidString.lowercased(),
-            subjectRevision: packet.revision,
-            subjectSHA256: packet.manifestSHA256
-        )
-        let predecessor = try Fixture.work(
-            workspaceID: workspaceID,
-            slot: slot + 18,
-            subject: subject,
-            actor: actor,
-            mutationID: workMutationID,
-            expectedRevision: 0
-        )
-        let useMutationID = try MutationIDV1(
-            rawValue: V906Integration.id(slot + 19)
-        )
-        let useMovement = try Fixture.movement(
-            workspaceID: workspaceID,
-            slot: slot + 20,
-            part: part.frozenReference(),
-            locationID: location.locationID,
-            kind: .useOnWork,
-            quantity: 2,
-            pre: .known(try .init(mantissa: 7, scale: 0, unit: .each)),
-            post: 5,
-            expectedRevision: 1,
-            mutationID: useMutationID,
-            time: 3
-        )
-        let materialLineID = V906Integration.id(slot + 21)
-        let material = try ManualMaterialLineV1(
-            lineID: materialLineID,
-            description: part.displayName,
-            quantity: .init(mantissa: 2, scale: 0),
-            unit: StockUnitV1.each.rawValue,
-            localPartReference: part.frozenReference()
-        )
-        let successor = try Fixture.work(
-            workspaceID: workspaceID,
-            slot: slot + 22,
-            subject: subject,
-            actor: actor,
-            mutationID: useMutationID,
-            expectedRevision: predecessor.revision,
-            predecessor: predecessor,
-            materials: [material],
-            disposition: .superseded
-        )
-        let use = try StockUseOnWorkReceiptV1(
-            receiptID: V906Integration.id(slot + 23),
-            movement: useMovement,
-            workResourceSuccessor: successor,
-            frozenMaterialLineID: materialLineID,
-            mutationID: useMutationID
-        )
-
-        _ = try writer.commitPartsStock(.upsertPart(part))
-        _ = try writer.commitPartsStock(
-            .upsertLocation(location, mutationID: locationMutationID)
-        )
-        _ = try writer.commitPartsStock(.appendMovement(opening))
-        let beforeWork = try writer.currentRevision()
-        _ = try writer.commitWorkResource(
-            try WorkResourceMutationV1(
-                workspaceID: workspaceID,
-                mutationID: workMutationID,
-                postImage: predecessor
-            ),
-            expectedRevision: try WorkspaceExpectedRevisionV1(
-                workspaceID: beforeWork.workspaceID,
-                generationID: beforeWork.generationID,
-                writerInstanceID: beforeWork.writerInstanceID,
-                workspaceRevision: beforeWork.revision,
-                entityRevisions: [
-                    .init(
-                        identity: try WorkspaceEntityIdentityV1(
-                            kind: .workResourceEntry,
-                            id: predecessor.entryID
-                        ),
-                        revision: predecessor.expectedRevision
-                    ),
-                ]
+        var phase = "mixed-journal-init"
+        do {
+            let journal = try MutationJournalStoreV1(
+                modelContext: session.modelContext,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                allowStateBootstrap: false
             )
-        )
-        _ = try writer.commitPartsStock(.use(use))
-        return try journal.exportSnapshot()
+            phase = "mixed-writer-init"
+            let writerID = V906Integration.id(slot + 1)
+            let writer = try WorkspaceWriterV1(
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                initialRevision: journal.currentRevision(writerInstanceID: writerID),
+                clock: ReplacementClock(),
+                idSource: ReplacementIDs(start: slot + 100),
+                fileAuthority: ReplacementFiles(),
+                adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+                journalStore: journal
+            )
+            phase = "mixed-create-first-sign"
+            let workspaceID = session.workspaceIdentity.workspaceID
+            let firstSignMutationID = try MutationIDV1(
+                rawValue: V906Integration.id(slot + 2)
+            )
+            _ = try writer.execute(
+                .createFirstSign(.init(
+                    siteID: V906Integration.id(slot + 3),
+                    newSite: .init(
+                        id: V906Integration.id(slot + 3),
+                        label: "Incoming historic site",
+                        address: nil,
+                        timeZoneID: "UTC"
+                    ),
+                    assetID: V906Integration.id(slot + 4),
+                    assetLabel: "Incoming historic sign",
+                    packID: SignPack.illuminatedSignV1.packID,
+                    packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                    packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                    createdAt: Fixture.fixedDate,
+                    initialPlacementMutationID: firstSignMutationID,
+                    initialPlacementEventID: V906Integration.id(slot + 5),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                        rawValue: V906Integration.id(slot + 6)
+                    )
+                )),
+                mutationID: firstSignMutationID
+            )
+
+            phase = "mixed-append-actor"
+            let actor = try Fixture.actor(workspaceID, slot: slot + 40)
+            _ = try writer.execute(
+                .applyPartyAccountability(.appendActorSnapshot(actor)),
+                mutationID: try MutationIDV1(rawValue: V906Integration.id(slot + 7))
+            )
+            phase = "mixed-append-work-packet"
+            let packetMutationID = try MutationIDV1(
+                rawValue: V906Integration.id(slot + 8)
+            )
+            let packet = try WorkPacketManifestV1(
+                manifestID: V906Integration.id(slot + 9),
+                packetID: V906Integration.id(slot + 24),
+                packetVersion: 1,
+                workspaceID: workspaceID,
+                items: [try WorkPacketItemV1(
+                    itemID: "C55-PUBLIC-MIXED",
+                    kind: .inspection,
+                    expectedRevision: 1,
+                    itemSHA256: Fixture.digest("e")
+                )],
+                packageReleases: [],
+                creationBasis: .explicitLocalSelection,
+                creator: actor,
+                createdAt: Fixture.fixedDate,
+                mutationID: packetMutationID
+            )
+            let packetMutation = try WorkPacketMutationV1(
+                workspaceID: workspaceID,
+                expectedRevision: 0,
+                mutationID: packetMutationID,
+                postImage: .appendManifest(packet)
+            )
+            _ = try writer.execute(
+                .applyWorkPacket(packetMutation), mutationID: packetMutationID
+            )
+
+            phase = "mixed-stock-and-work-value-construction"
+            let partMutationID = try MutationIDV1(rawValue: V906Integration.id(slot + 10))
+            let part = try Fixture.part(
+                workspaceID, slot: slot + 11, mutationID: partMutationID
+            )
+            let location = try Fixture.location(workspaceID, slot: slot + 12)
+            let locationMutationID = try MutationIDV1(
+                rawValue: V906Integration.id(slot + 13)
+            )
+            let openingMutationID = try MutationIDV1(
+                rawValue: V906Integration.id(slot + 14)
+            )
+            let opening = try Fixture.movement(
+                workspaceID: workspaceID,
+                slot: slot + 15,
+                part: part.frozenReference(),
+                locationID: location.locationID,
+                kind: .openingCount,
+                quantity: 7,
+                pre: .unknown,
+                post: 7,
+                expectedRevision: 0,
+                mutationID: openingMutationID,
+                time: 1
+            )
+            let workMutationID = try MutationIDV1(
+                rawValue: V906Integration.id(slot + 16)
+            )
+            let subject = try WorkResourceSubjectV1(
+                workspaceID: workspaceID,
+                kind: .workPacket,
+                subjectID: packet.manifestID.uuidString.lowercased(),
+                subjectRevision: packet.revision,
+                subjectSHA256: packet.manifestSHA256
+            )
+            let predecessor = try Fixture.work(
+                workspaceID: workspaceID,
+                slot: slot + 18,
+                subject: subject,
+                actor: actor,
+                mutationID: workMutationID,
+                expectedRevision: 0
+            )
+            let useMutationID = try MutationIDV1(
+                rawValue: V906Integration.id(slot + 19)
+            )
+            let useMovement = try Fixture.movement(
+                workspaceID: workspaceID,
+                slot: slot + 20,
+                part: part.frozenReference(),
+                locationID: location.locationID,
+                kind: .useOnWork,
+                quantity: 2,
+                pre: .known(try .init(mantissa: 7, scale: 0, unit: .each)),
+                post: 5,
+                expectedRevision: 1,
+                mutationID: useMutationID,
+                time: 3
+            )
+            let materialLineID = V906Integration.id(slot + 21)
+            let material = try ManualMaterialLineV1(
+                lineID: materialLineID,
+                description: part.displayName,
+                quantity: .init(mantissa: 2, scale: 0),
+                unit: StockUnitV1.each.rawValue,
+                localPartReference: part.frozenReference()
+            )
+            let successor = try Fixture.work(
+                workspaceID: workspaceID,
+                slot: slot + 22,
+                subject: subject,
+                actor: actor,
+                mutationID: useMutationID,
+                expectedRevision: predecessor.revision,
+                predecessor: predecessor,
+                materials: [material],
+                disposition: .superseded
+            )
+            let use = try StockUseOnWorkReceiptV1(
+                receiptID: V906Integration.id(slot + 23),
+                movement: useMovement,
+                workResourceSuccessor: successor,
+                frozenMaterialLineID: materialLineID,
+                mutationID: useMutationID
+            )
+
+            phase = "mixed-upsert-part"
+            _ = try writer.commitPartsStock(.upsertPart(part))
+            phase = "mixed-upsert-location"
+            _ = try writer.commitPartsStock(
+                .upsertLocation(location, mutationID: locationMutationID)
+            )
+            phase = "mixed-opening-movement"
+            _ = try writer.commitPartsStock(.appendMovement(opening))
+            phase = "mixed-predecessor-work-resource"
+            let beforeWork = try writer.currentRevision()
+            _ = try writer.commitWorkResource(
+                try WorkResourceMutationV1(
+                    workspaceID: workspaceID,
+                    mutationID: workMutationID,
+                    postImage: predecessor
+                ),
+                expectedRevision: try WorkspaceExpectedRevisionV1(
+                    workspaceID: beforeWork.workspaceID,
+                    generationID: beforeWork.generationID,
+                    writerInstanceID: beforeWork.writerInstanceID,
+                    workspaceRevision: beforeWork.revision,
+                    entityRevisions: [
+                        .init(
+                            identity: try WorkspaceEntityIdentityV1(
+                                kind: .workResourceEntry,
+                                id: predecessor.entryID
+                            ),
+                            revision: predecessor.expectedRevision
+                        ),
+                    ]
+                )
+            )
+            phase = "mixed-use-on-work"
+            _ = try writer.commitPartsStock(.use(use))
+            phase = "mixed-export-history"
+            return try journal.exportSnapshot()
+        } catch {
+            reportPublicReplacementFailure(error, phase: phase)
+            throw error
+        }
     }
 
     @MainActor
