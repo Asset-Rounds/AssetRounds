@@ -733,7 +733,7 @@ fileprivate extension PartsStockReplacementValueProjectionV1 {
                       owned == Set(try revisions.filter { $0.revision > 1 }.map(LocationKey.init)) else {
                     throw PartsStockReplacementValueProjectionFailureV1.incompleteProjection
                 }
-            } else if actual != (1...revisions.count).map(UInt64.init)
+            } else if try actual != (1...revisions.count).map(UInt64.init)
                 || owned != Set(try revisions.map(LocationKey.init)) {
                 throw PartsStockReplacementValueProjectionFailureV1.incompleteProjection
             }

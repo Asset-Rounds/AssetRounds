@@ -2830,9 +2830,15 @@ private extension BackupRestoreService {
                     && identityDecision?.source.workspaceID
                         != identityDecision?.targetPointer.workspaceID
                 let sourceRecords = isCrossWorkspaceReplacement ? incomingOriginal : records
-                let sourceWorkspaceID = isCrossWorkspaceReplacement
-                    ? identityDecision!.source.workspaceID
-                    : identityDecision?.source.workspaceID ?? legacyWorkspaceID
+                let sourceWorkspaceID: UUID
+                if isCrossWorkspaceReplacement {
+                    guard let originalWorkspaceID = identityDecision?.source.workspaceID else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    sourceWorkspaceID = originalWorkspaceID
+                } else {
+                    sourceWorkspaceID = identityDecision?.source.workspaceID ?? legacyWorkspaceID
+                }
                 try C55PartsStockBackupImportBoundaryV1.validate(
                     sourceRecords,
                     workspaceID: WorkspaceID(rawValue: sourceWorkspaceID)
