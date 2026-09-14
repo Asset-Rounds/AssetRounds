@@ -270,9 +270,10 @@
       "classes": [
         "V23ReferenceOwnerReplacementSourceTests",
         "V23WorkPacketReplacementCommandProjectionTests",
-        "V23RoundSessionReplacementCommandProjectionTests"
+        "V23RoundSessionReplacementCommandProjectionTests",
+        "V23ScheduleReplacementCommandProjectionTests"
       ],
-      "methodCount": 21
+      "methodCount": 40
     }
   ]
 }
