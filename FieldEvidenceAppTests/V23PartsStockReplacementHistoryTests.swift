@@ -3,8 +3,9 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+@MainActor
 final class V23PartsStockReplacementHistoryTests: XCTestCase {
-    private typealias Projector = PartsStockReplacementHistoryProjectionV1
+    fileprivate typealias Projector = PartsStockReplacementHistoryProjectionV1
 
     @MainActor
     func testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock() async throws {
@@ -1004,6 +1005,7 @@ private extension V23PartsStockReplacementHistoryTests {
         let workResources: [WorkResourceEntryV1]
     }
 
+    @MainActor
     struct Fixture {
         static let fixedDate = Date(timeIntervalSince1970: 1_800_100_000)
         let sourceWorkspaceID: WorkspaceID

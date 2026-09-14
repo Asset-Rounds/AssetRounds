@@ -4,7 +4,7 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V23PartsStockReplacementProjectionTests: XCTestCase {
-    private typealias Projector = PartsStockReplacementValueProjectionV1
+    fileprivate typealias Projector = PartsStockReplacementValueProjectionV1
 
     func testProjectsAllMutationCasesAndSnapshotFamiliesDeterministically() throws {
         let fixture = try Fixture.make()
@@ -511,7 +511,7 @@ final class V23PartsStockReplacementProjectionTests: XCTestCase {
             .upsertLocation(locationThree, mutationID: locationThreeMutation),
         ]
         let replica = try WorkspaceReplicaIdentityV1(
-            workspaceID: sourceWorkspaceID, replicaID: Fixture.id(938)
+            workspaceID: sourceWorkspaceID, replicaID: ReplicaID(rawValue: Fixture.id(938))
         )
         let generationID = Fixture.id(939)
         let admittedReceipts = try admittedMutations.enumerated().map { offset, mutation in
