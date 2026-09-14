@@ -350,7 +350,8 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
         var ancestors = Set<ObjectIdentifier>()
         while let current = ancestor {
             guard ancestors.count < 64, ancestors.insert(ObjectIdentifier(current)).inserted,
-                  !current.isHidden, current.alpha > 0, current.window === window else {
+                  !current.isHidden, current.alpha > 0,
+                  (current === window || current.window === window) else {
                 note("ancestor_rejected type=\(String(reflecting: type(of: current))) count=\(ancestors.count) window_match=\(current.window === window) hidden=\(current.isHidden) alpha=\(current.alpha)")
                 return (false, nil)
             }

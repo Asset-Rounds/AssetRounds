@@ -86,157 +86,332 @@ private extension V23FieldDraftStageDigestBackupTests {
             .appendingPathComponent("V23-field-draft-stage-digest-\(UUID().uuidString)", isDirectory: true)
     }
 
-    func makePackage(at root: URL, mode: Mode) async throws -> PackageFixture {
-        let fm = FileManager.default
-        try fm.createDirectory(at: root, withIntermediateDirectories: true)
-        let support = root.appendingPathComponent("source", isDirectory: true)
-        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
-        let now = C33TemporalEvidenceTestSupport.fixedDate
-        let store = try StoreSessionCoordinator(validatingSession: session,
-            clock: StageDigestClock(value: now.addingTimeInterval(5)))
-        defer { XCTAssertNoThrow(try store.invalidateAndReleaseWriter()) }
-        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
-            identity: session.workspaceIdentity, generationID: session.generationID)
-        let writer = FieldDraftLifecycleAdapterV1(writer: store.workspaceWriter, journal: journal,
+    func seedTemporalAuthority(session: StoreGenerationSession, writer: WorkspaceWriterV1,
+                               journal: MutationJournalStoreV1,
+                               diagnostics: StageDigestDiagnostics) async throws -> StageDigestTemporalAuthority {
+        diagnostics.phase = "authority.construct"
+        let workspaceID = session.workspaceID
+        let package = try C26SurveySessionTestSupport.packageRelease()
+        let definition = try C26SurveySessionTestSupport.release(releaseSlot: 330, workspaceID: workspaceID)
+        let actor = try C26SurveySessionTestSupport.actor(workspaceID: workspaceID, slot: 36_001)
+        let provisional = try C26SurveySessionTestSupport.provisional(workspaceID: workspaceID)
+        let survey = try C26SurveySessionTestSupport.session(
+            authority: C26SurveySessionTestSupport.authority(for: definition, package: package),
+            workspaceID: workspaceID, subject: .provisional(provisional.reference),
+            state: .draft, transition: .create, revision: 1, actorSlot: 36_100)
+        var setupMutationIDs: [MutationIDV1] = []
+        var actorsByID: [UUID: ActorSnapshotV1] = [:]
+        for value in [actor, definition.authoredBy, provisional.createdBy,
+                      survey.startedBy, survey.lastTransitionBy] {
+            if let prior = actorsByID[value.snapshotID] { XCTAssertEqual(prior, value) }
+            actorsByID[value.snapshotID] = value
+        }
+        diagnostics.phase = "authority.commitActors"
+        for value in actorsByID.values.sorted(by: { $0.snapshotID.uuidString < $1.snapshotID.uuidString }) {
+            let mutationID = try MutationIDV1(rawValue: UUID())
+            _ = try writer.execute(.applyPartyAccountability(.appendActorSnapshot(value)), mutationID: mutationID)
+            setupMutationIDs.append(mutationID)
+        }
+
+        diagnostics.phase = "authority.sandbox"
+        let diff = try PackageSemanticDifferV1.diff(source: package, target: package)
+        func fixtures(_ shape: PackageSandboxFixtureShapeV1) throws
+            -> [PackageSandboxCheckKindV1: PackageSandboxFixtureV1] {
+            try Dictionary(uniqueKeysWithValues: PackageSandboxCheckKindV1.allCases.map { kind in
+                let name = "stage-digest.\(shape.rawValue.lowercased()).\(kind.rawValue.lowercased())"
+                return (kind, try PackageSandboxFixtureV1(fixtureID: name,
+                    fixtureSHA256: KernelCanonicalHashV1.sha256(Data(name.utf8))))
+            })
+        }
+        let promotionMutationID = try MutationIDV1(rawValue: UUID())
+        // This is fixture input to the sandbox contract, not Git/native/release evidence.
+        let fixtureHead = String(repeating: "d", count: 40)
+        let sandbox = try await PackageSandboxRunnerV1(
+            activationObserver: StageDigestPointerObserver(context: session.modelContext)
+        ).run(runID: UUID(), workspaceID: workspaceID, release: package, semanticDiff: diff,
+              exactHead: fixtureHead, fixtures: .init(minimal: fixtures(.minimal),
+                  representative: fixtures(.representative)), mutationID: promotionMutationID)
+        let promoted = try PromotedPackageReleaseV1(releaseRecordID: UUID(), workspaceID: workspaceID,
+            packageRelease: package, mutationID: promotionMutationID,
+            promotedAt: C33TemporalEvidenceTestSupport.fixedDate)
+        let promotionReceiptID = UUID()
+        let pointer = try ActivePackageRegistryPointerV1(pointerID: UUID(), workspaceID: workspaceID,
+            packageID: package.packageID, activeReleaseRecordID: promoted.releaseRecordID,
+            promotionReceiptID: promotionReceiptID, activePackageReleaseID: package.packageReleaseID,
+            activeReleaseRecordSHA256: promoted.releaseRecordSHA256, revision: 1,
+            mutationID: promotionMutationID)
+        let promotionReceipt = try PackagePromotionReceiptV1(receiptID: promotionReceiptID,
+            workspaceID: workspaceID, promotedRelease: promoted, sandboxRun: sandbox, diff: diff,
+            predecessorPointer: nil, resultingPointer: pointer, actor: actor, exactHead: fixtureHead,
+            operation: .initialActivation, rollbackCompatibility: .activatedForwardFixRequired,
+            mutationID: promotionMutationID, recordedAt: C33TemporalEvidenceTestSupport.fixedDate)
+        diagnostics.phase = "authority.commitPromotion"
+        let packageWriter = PackageEvolutionLifecycleAdapterV1(writer: writer, journal: journal,
             modelContext: session.modelContext)
-        let submission = try StageDigestTemporalSubmission(workspaceID: session.workspaceID)
-        let bytes = pcmWave()
-        let wav = root.appendingPathComponent("source.wav")
-        try bytes.write(to: wav)
-        // The attachment is a decodable PCM WAV, not an empty or arbitrary byte sentinel.
-        let audio = try AVAudioFile(forReading: wav)
-        XCTAssertEqual(audio.length, 800)
-        XCTAssertEqual(audio.processingFormat.sampleRate, 8_000)
-        let samples = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: audio.processingFormat, frameCapacity: 800))
-        try audio.read(into: samples)
-        XCTAssertEqual(samples.frameLength, 800)
+        XCTAssertEqual(try packageWriter.applyPromotion(.init(promotedRelease: promoted,
+            sandboxRun: sandbox, semanticDiff: diff, predecessorPointer: nil,
+            resultingPointer: pointer, actor: actor, receipt: promotionReceipt)), promotionReceipt)
+        setupMutationIDs.append(promotionMutationID)
+        let closure = try XCTUnwrap(packageWriter.acceptedLifecycleClosure(mutationID: promotionMutationID))
+        XCTAssertEqual(closure.promotedReleases, [promoted])
+        XCTAssertEqual(closure.sandboxRuns, [sandbox])
+        XCTAssertEqual(closure.promotionReceipts, [promotionReceipt])
+        XCTAssertEqual(closure.activePointers, [pointer])
 
-        let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: support,
-            workspaceID: session.workspaceID,
-            immutableContentWriter: EvidenceBundleStore(generationRootURL: session.generationRootURL),
-            clock: { now })
-        let draftID = UUID()
-        let stage = try await staging.stage(data: bytes, draftID: draftID,
-            workspaceID: session.workspaceID, attachmentKind: .audio, mediaType: "audio/wav")
-        XCTAssertEqual(stage.state, .readyLocal)
-        let stagedBytes = try await staging.data(stageID: stage.stageID)
-        XCTAssertEqual(stagedBytes, bytes)
-        let storedStage: AttachmentStagingItemV1
-        if mode == .differentStageMetadata { storedStage = try alteredStage(stage) }
-        else { storedStage = stage }
-        let purpose = try StageDigestPurposeAuthority()
-        let target = StageDigestTemporalTarget(submission: submission, writer: store.workspaceWriter,
-            journal: journal, context: session.modelContext)
-        let coordinator = FieldDraftCoordinatorV1(purposeAuthority: purpose, writer: writer,
-            content: staging, target: target)
-        let active = try FieldDraftCheckpointV1(draftID: draftID, workspaceID: session.workspaceID,
-            scope: .init(scopeKind: "temporal-evidence", stableComponentIDs: [submission.clipID.uuidString]),
-            purpose: .evidenceCuration, codec: purpose.definition.codec, baseCanonicalRevision: 0,
-            draftRevision: 1, payloadData: FieldDraftCanonicalCodecV1.encode(submission),
-            stageIDs: [stage.stageID], resumeAnchor: .init(sectionID: "review"), state: .active,
-            updatedAt: now, mutationID: MutationIDV1(rawValue: UUID()))
-        _ = try coordinator.checkpoint(active, expectedDraftRevision: 0, expectedBaseRevision: 0)
-        // The metadata-hostile corpus records its actual changed preimage in the journal.
-        // It never reconstructs an earlier READY_LOCAL value from a current committed tip.
-        _ = try coordinator.append(storedStage, checkpoint: active, expectedRevision: 0)
-        let committing = try FieldDraftCheckpointV1(draftID: active.draftID,
-            workspaceID: active.workspaceID, scope: active.scope, purpose: active.purpose,
-            codec: active.codec, baseCanonicalRevision: active.baseCanonicalRevision,
-            draftRevision: 2, payloadData: active.payloadData, stageIDs: active.stageIDs,
-            resumeAnchor: active.resumeAnchor, state: .committing, updatedAt: now,
-            mutationID: MutationIDV1(rawValue: UUID()))
-        _ = try coordinator.checkpoint(committing, expectedDraftRevision: 1, expectedBaseRevision: 0)
-        let correctPlan = try DraftCommitPlanV1(planID: UUID(), workspaceID: session.workspaceID,
-            draftID: draftID, draftRevision: committing.draftRevision, baseCanonicalRevision: 0,
-            payloadSHA256: committing.payloadSHA256, stageDigests: [stage.stageSHA256],
-            targetCommandKind: .applyTemporalEvidence, expectedTargetRevision: 0,
-            mutationID: MutationIDV1(rawValue: UUID()), outputKeys: [submission.clipID.uuidString])
-        let plan: DraftCommitPlanV1
-        if mode == .contentDigestInPlan {
-            plan = try replacingDigests(correctPlan, with: [XCTUnwrap(stage.contentDigest).hexadecimalValue])
-        } else {
-            plan = correctPlan
-        }
-        let chain = try sagaChain(plan, at: now)
-        let rowIDs = try DraftCommitRowMutationIDsV1(
-            reservationByStageID: [stage.stageID: MutationIDV1(rawValue: UUID())],
-            terminalBundleMutationID: chain[4].mutationID)
-        let receiptID = UUID()
-        var coordinatorRejected = false
-        var stagingRejected = false
-        let receipt: DraftCommitReceiptV1
-        if mode == .contentDigestInPlan {
-            let before = try store.workspaceWriter.currentRevision()
-            do {
-                _ = try await commit(coordinator, plan: plan, checkpoint: committing,
-                    stage: stage, chain: chain, rowIDs: rowIDs, receiptID: receiptID, at: now)
-                XCTFail("The coordinator must reject a content digest before writing a saga")
-            } catch {
-                XCTAssertEqual(error as? FieldDraftFailureV1, .conflictRequired)
-                coordinatorRejected = (error as? FieldDraftFailureV1) == .conflictRequired
-            }
-            do {
-                _ = try await staging.promote(plan: plan, items: [stage],
-                    reservationMutationIDs: rowIDs.reservationByStageID)
-                XCTFail("The real staging adapter must reject the wrong digest domain")
-            } catch {
-                XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .reservationMismatch)
-                stagingRejected = (error as? DraftAttachmentStagingFailureV1) == .reservationMismatch
-            }
-            XCTAssertEqual(try store.workspaceWriter.currentRevision(), before)
-            XCTAssertFalse(session.modelContext.hasChanges)
-            XCTAssertNil(target.committedClip)
-            let unchangedStage = try await staging.verify(stageID: stage.stageID)
-            XCTAssertEqual(unchangedStage, stage)
-
-            // Deliberately author a hostile but fully rehashed graph through the lower
-            // canonical writer. The real promotion still uses its correct producer plan;
-            // only the hostile reservation/plan binding is substituted afterwards. Every
-            // field mutation and the real temporal target receive actual writer receipts.
-            _ = try writer.append(saga: chain[0], expectedRevision: 0)
-            let promoted = try await staging.promote(plan: correctPlan, items: [stage],
-                reservationMutationIDs: rowIDs.reservationByStageID)
-            let reservations = try promoted.map { try replacingPlan($0, with: plan.planSHA256) }
-            for reservation in reservations { _ = try writer.append(reservation: reservation, expectedRevision: 0) }
-            _ = try writer.append(saga: chain[1], expectedRevision: 1)
-            let actualTarget = try target.commit(plan: plan, reservations: reservations)
-            XCTAssertTrue(try target.readBackMatches(plan: plan, receipt: actualTarget))
-            _ = try writer.append(saga: chain[2], expectedRevision: 2)
-            _ = try writer.append(saga: chain[3], expectedRevision: 3)
-            receipt = try terminalReceipt(plan: plan, chain: chain, reservations: reservations,
-                target: actualTarget, receiptID: receiptID)
-            let terminal = try terminalCheckpoint(committing, receipt: receipt, at: now.addingTimeInterval(8))
-            _ = try writer.apply(commitTerminalBundle: .init(retiredSaga: chain[4],
-                committedCheckpoint: terminal, receipt: receipt), expectedDraftRevision: 2, expectedSagaRevision: 4)
-        } else {
-            receipt = try await commit(coordinator, plan: plan, checkpoint: committing,
-                stage: stage, chain: chain, rowIDs: rowIDs, receiptID: receiptID, at: now)
-        }
-        let clip = try XCTUnwrap(target.committedClip)
-        let actualTarget = try XCTUnwrap(journal.receipt(mutationID: plan.mutationID))
-        XCTAssertEqual(receipt.targetReceiptSHA256, actualTarget.resultSHA256)
-        XCTAssertEqual(try XCTUnwrap(writer.currentCheckpoint(workspaceID: session.workspaceID,
-            draftID: draftID)).lastReceiptSHA256, receipt.receiptSHA256)
+        diagnostics.phase = "authority.commitDefinition"
+        let event = try SurveyDefinitionLifecycleEventV1(eventID: UUID(), workspaceID: workspaceID,
+            definitionID: definition.definitionID, action: .createDraft, priorState: nil,
+            resultingState: .draft, release: .init(definition), actor: definition.authoredBy,
+            recordedAt: definition.authoredAt, revision: 1, mutationID: definition.mutationID)
+        let identity = try SurveyDefinitionIdentityV1(definitionID: definition.definitionID,
+            workspaceID: workspaceID, activityKind: definition.activityKind, lifecycleState: .draft,
+            currentRelease: .init(definition), latestLifecycleEventID: event.eventID,
+            latestLifecycleEventSHA256: event.eventSHA256, createdBy: definition.authoredBy,
+            createdAt: definition.authoredAt, revision: 1, mutationID: definition.mutationID)
+        _ = try writer.commitSurveyDefinition(.init(identity: identity, release: definition, event: event))
+        setupMutationIDs.append(definition.mutationID)
+        diagnostics.phase = "authority.commitProvisionalSubject"
+        _ = try writer.commitSurveySession(.init(workspaceID: workspaceID,
+            mutationID: provisional.mutationID, payload: .applyProvisionalSubject(provisional)))
+        setupMutationIDs.append(provisional.mutationID)
+        diagnostics.phase = "authority.commitSurveySession"
+        _ = try writer.commitSurveySession(.init(workspaceID: workspaceID,
+            mutationID: survey.mutationID, payload: .applySession(survey, definition: definition, publication: nil)))
+        setupMutationIDs.append(survey.mutationID)
+        diagnostics.phase = "authority.readBack"
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
+            .map { try $0.value() }, [definition])
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<SurveySessionRow>())
+            .map { try $0.value() }, [survey])
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>())
+            .map { try $0.value() }, [provisional])
+        let setupReceipts = try setupMutationIDs.map { try XCTUnwrap(journal.receipt(mutationID: $0)) }
         XCTAssertFalse(session.modelContext.hasChanges)
+        return StageDigestTemporalAuthority(package: package, definition: definition, definitionEvent: event,
+            session: survey, actor: actor, setupReceipts: setupReceipts,
+            definitionBytes: try [SurveyDefinitionCanonicalCodecV1.encode(identity),
+                SurveyDefinitionCanonicalCodecV1.encode(definition)],
+            guidedBytes: try [SurveySessionCanonicalCodecV1.encode(survey),
+                SurveySessionCanonicalCodecV1.encode(provisional)],
+            packageBytes: try [PackageEvolutionCanonicalCodecV1.encode(promoted),
+                PackageEvolutionCanonicalCodecV1.encode(sandbox), PackageEvolutionCanonicalCodecV1.encode(promotionReceipt),
+                PackageEvolutionCanonicalCodecV1.encode(pointer)])
+    }
 
-        let exportRoot = root.appendingPathComponent("export", isDirectory: true)
-        try fm.createDirectory(at: exportRoot, withIntermediateDirectories: true)
-        let exporter = BackupExportService(modelContext: session.modelContext,
-            generationRootURL: session.generationRootURL,
-            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
-            now: { now.addingTimeInterval(120) })
-        let preview = try exporter.prepare()
-        let archive = try exporter.export(previewID: preview.id, to: exportRoot)
-        let package = root.appendingPathComponent("decoded.fieldrecordbackup", isDirectory: true)
-        _ = try StreamingArchiveService().extract(archive, to: package)
-        let manifest = try BackupCanonicalDecoderV1().decodeManifest(
-            Data(contentsOf: package.appendingPathComponent("manifest.json")))
-        let records = try BackupCanonicalDecoderV1().decodeRecords(
-            Data(contentsOf: package.appendingPathComponent("records.json")))
-        return PackageFixture(package: package, manifest: manifest, records: records, bytes: bytes,
-            producerStage: stage, storedStage: storedStage, plan: plan, receipt: receipt,
-            targetReceipt: actualTarget, clip: clip, coordinatorRejectedWrongDomain: coordinatorRejected,
-            stagingRejectedWrongDomain: stagingRejected)
+    func makePackage(at root: URL, mode: Mode) async throws -> PackageFixture {
+        let diagnostics = StageDigestDiagnostics()
+        do {
+            let fm = FileManager.default
+            diagnostics.phase = "createRoot"
+            try fm.createDirectory(at: root, withIntermediateDirectories: true)
+            let support = root.appendingPathComponent("source", isDirectory: true)
+            diagnostics.phase = "openOrBootstrapCurrent"
+            let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+            let now = C33TemporalEvidenceTestSupport.fixedDate
+            diagnostics.phase = "StoreSessionCoordinator"
+            let store = try StoreSessionCoordinator(validatingSession: session,
+                clock: StageDigestClock(value: now.addingTimeInterval(5)))
+            defer { XCTAssertNoThrow(try store.invalidateAndReleaseWriter()) }
+            diagnostics.phase = "MutationJournalStore"
+            let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity, generationID: session.generationID)
+            let writer = FieldDraftLifecycleAdapterV1(writer: store.workspaceWriter, journal: journal,
+                modelContext: session.modelContext)
+            let authority = try await seedTemporalAuthority(session: session, writer: store.workspaceWriter,
+                journal: journal, diagnostics: diagnostics)
+            diagnostics.phase = "deriveSubmission"
+            let submission = try StageDigestTemporalSubmission(authority: authority)
+            diagnostics.phase = "createPCMBytes"
+            let bytes = pcmWave()
+            let wav = root.appendingPathComponent("source.wav")
+            diagnostics.phase = "writeWAV"
+            try bytes.write(to: wav)
+            // The attachment is a decodable PCM WAV, not an empty or arbitrary byte sentinel.
+            diagnostics.phase = "openAVAudioFile"
+            let audio = try AVAudioFile(forReading: wav)
+            XCTAssertEqual(audio.length, 800)
+            XCTAssertEqual(audio.processingFormat.sampleRate, 8_000)
+            diagnostics.phase = "allocatePCMBuffer"
+            let samples = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: audio.processingFormat, frameCapacity: 800))
+            diagnostics.phase = "decodePCMFrames"
+            try audio.read(into: samples)
+            XCTAssertEqual(samples.frameLength, 800)
+
+            diagnostics.phase = "initStaging"
+            let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: support,
+                workspaceID: session.workspaceID,
+                immutableContentWriter: EvidenceBundleStore(generationRootURL: session.generationRootURL),
+                clock: { now })
+            let draftID = UUID()
+            diagnostics.phase = "stageBytes"
+            let stage = try await staging.stage(data: bytes, draftID: draftID,
+                workspaceID: session.workspaceID, attachmentKind: .audio, mediaType: "audio/wav")
+            XCTAssertEqual(stage.state, .readyLocal)
+            diagnostics.phase = "readStagedBytes"
+            let stagedBytes = try await staging.data(stageID: stage.stageID)
+            XCTAssertEqual(stagedBytes, bytes)
+            diagnostics.phase = "constructStoredStage"
+            let storedStage: AttachmentStagingItemV1
+            if mode == .differentStageMetadata { storedStage = try alteredStage(stage) }
+            else { storedStage = stage }
+            let purpose = try StageDigestPurposeAuthority()
+            let target = StageDigestTemporalTarget(submission: submission, writer: store.workspaceWriter,
+                journal: journal, context: session.modelContext, diagnostics: diagnostics)
+            let coordinator = FieldDraftCoordinatorV1(purposeAuthority: purpose, writer: writer,
+                content: staging, target: target)
+            diagnostics.phase = "constructCheckpoint"
+            let active = try FieldDraftCheckpointV1(draftID: draftID, workspaceID: session.workspaceID,
+                scope: .init(scopeKind: "temporal-evidence", stableComponentIDs: [submission.clipID.uuidString]),
+                purpose: .evidenceCuration, codec: purpose.definition.codec, baseCanonicalRevision: 0,
+                draftRevision: 1, payloadData: FieldDraftCanonicalCodecV1.encode(submission),
+                stageIDs: [stage.stageID], resumeAnchor: .init(sectionID: "review"), state: .active,
+                updatedAt: now, mutationID: MutationIDV1(rawValue: UUID()))
+            diagnostics.phase = "checkpointActive"
+            _ = try coordinator.checkpoint(active, expectedDraftRevision: 0, expectedBaseRevision: 0)
+            // The metadata-hostile corpus records its actual changed preimage in the journal.
+            // It never reconstructs an earlier READY_LOCAL value from a current committed tip.
+            diagnostics.phase = "appendStage"
+            _ = try coordinator.append(storedStage, checkpoint: active, expectedRevision: 0)
+            diagnostics.phase = "constructCommittingCheckpoint"
+            let committing = try FieldDraftCheckpointV1(draftID: active.draftID,
+                workspaceID: active.workspaceID, scope: active.scope, purpose: active.purpose,
+                codec: active.codec, baseCanonicalRevision: active.baseCanonicalRevision,
+                draftRevision: 2, payloadData: active.payloadData, stageIDs: active.stageIDs,
+                resumeAnchor: active.resumeAnchor, state: .committing, updatedAt: now,
+                mutationID: MutationIDV1(rawValue: UUID()))
+            diagnostics.phase = "checkpointCommitting"
+            _ = try coordinator.checkpoint(committing, expectedDraftRevision: 1, expectedBaseRevision: 0)
+            diagnostics.phase = "constructPlan"
+            let correctPlan = try DraftCommitPlanV1(planID: UUID(), workspaceID: session.workspaceID,
+                draftID: draftID, draftRevision: committing.draftRevision, baseCanonicalRevision: 0,
+                payloadSHA256: committing.payloadSHA256, stageDigests: [stage.stageSHA256],
+                targetCommandKind: .applyTemporalEvidence, expectedTargetRevision: 0,
+                mutationID: MutationIDV1(rawValue: UUID()), outputKeys: [submission.clipID.uuidString])
+            let plan: DraftCommitPlanV1
+            if mode == .contentDigestInPlan {
+                plan = try replacingDigests(correctPlan, with: [XCTUnwrap(stage.contentDigest).hexadecimalValue])
+            } else {
+                plan = correctPlan
+            }
+            diagnostics.phase = "constructSagaChain"
+            let chain = try sagaChain(plan, at: now)
+            let rowIDs = try DraftCommitRowMutationIDsV1(
+                reservationByStageID: [stage.stageID: MutationIDV1(rawValue: UUID())],
+                terminalBundleMutationID: chain[4].mutationID)
+            let receiptID = UUID()
+            var coordinatorRejected = false
+            var stagingRejected = false
+            let receipt: DraftCommitReceiptV1
+            if mode == .contentDigestInPlan {
+                let before = try store.workspaceWriter.currentRevision()
+                do {
+                    _ = try await commit(coordinator, plan: plan, checkpoint: committing,
+                        stage: stage, chain: chain, rowIDs: rowIDs, receiptID: receiptID, at: now)
+                    XCTFail("The coordinator must reject a content digest before writing a saga")
+                } catch {
+                    XCTAssertEqual(error as? FieldDraftFailureV1, .conflictRequired)
+                    coordinatorRejected = (error as? FieldDraftFailureV1) == .conflictRequired
+                }
+                do {
+                    _ = try await staging.promote(plan: plan, items: [stage],
+                        reservationMutationIDs: rowIDs.reservationByStageID)
+                    XCTFail("The real staging adapter must reject the wrong digest domain")
+                } catch {
+                    XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .reservationMismatch)
+                    stagingRejected = (error as? DraftAttachmentStagingFailureV1) == .reservationMismatch
+                }
+                XCTAssertEqual(try store.workspaceWriter.currentRevision(), before)
+                XCTAssertFalse(session.modelContext.hasChanges)
+                XCTAssertNil(target.committedClip)
+                let unchangedStage = try await staging.verify(stageID: stage.stageID)
+                XCTAssertEqual(unchangedStage, stage)
+
+                // Deliberately author a hostile but fully rehashed graph through the lower
+                // canonical writer. The real promotion still uses its correct producer plan;
+                // only the hostile reservation/plan binding is substituted afterwards. Every
+                // field mutation and the real temporal target receive actual writer receipts.
+                diagnostics.phase = "hostile.appendPrepared"
+                _ = try writer.append(saga: chain[0], expectedRevision: 0)
+                diagnostics.phase = "hostile.promoteOriginal"
+                let promoted = try await staging.promote(plan: correctPlan, items: [stage],
+                    reservationMutationIDs: rowIDs.reservationByStageID)
+                let reservations = try promoted.map { try replacingPlan($0, with: plan.planSHA256) }
+                for reservation in reservations { _ = try writer.append(reservation: reservation, expectedRevision: 0) }
+                _ = try writer.append(saga: chain[1], expectedRevision: 1)
+                diagnostics.phase = "hostile.commitTarget"
+                let actualTarget = try target.commit(plan: plan, reservations: reservations)
+                XCTAssertTrue(try target.readBackMatches(plan: plan, receipt: actualTarget))
+                diagnostics.phase = "hostile.appendTargetCommitted"
+                _ = try writer.append(saga: chain[2], expectedRevision: 2)
+                _ = try writer.append(saga: chain[3], expectedRevision: 3)
+                receipt = try terminalReceipt(plan: plan, chain: chain, reservations: reservations,
+                    target: actualTarget, receiptID: receiptID)
+                let terminal = try terminalCheckpoint(committing, receipt: receipt, at: now.addingTimeInterval(8))
+                diagnostics.phase = "hostile.applyTerminalBundle"
+                _ = try writer.apply(commitTerminalBundle: .init(retiredSaga: chain[4],
+                    committedCheckpoint: terminal, receipt: receipt), expectedDraftRevision: 2, expectedSagaRevision: 4)
+            } else {
+                diagnostics.phase = "coordinator.commit"
+                receipt = try await commit(coordinator, plan: plan, checkpoint: committing,
+                    stage: stage, chain: chain, rowIDs: rowIDs, receiptID: receiptID, at: now)
+            }
+            diagnostics.phase = "readCommittedClip"
+            let clip = try XCTUnwrap(target.committedClip)
+            let actualTarget = try XCTUnwrap(journal.receipt(mutationID: plan.mutationID))
+            XCTAssertEqual(receipt.targetReceiptSHA256, actualTarget.resultSHA256)
+            XCTAssertEqual(try XCTUnwrap(writer.currentCheckpoint(workspaceID: session.workspaceID,
+                draftID: draftID)).lastReceiptSHA256, receipt.receiptSHA256)
+            XCTAssertFalse(session.modelContext.hasChanges)
+
+            let exportRoot = root.appendingPathComponent("export", isDirectory: true)
+            try fm.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+            diagnostics.phase = "initExporter"
+            let exporter = BackupExportService(modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                now: { now.addingTimeInterval(120) })
+            diagnostics.phase = "prepareExport"
+            let preview = try exporter.prepare()
+            diagnostics.phase = "exportArchive"
+            let archive = try exporter.export(previewID: preview.id, to: exportRoot)
+            let package = root.appendingPathComponent("decoded.fieldrecordbackup", isDirectory: true)
+            diagnostics.phase = "extractArchive"
+            _ = try StreamingArchiveService().extract(archive, to: package)
+            diagnostics.phase = "decodeManifest"
+            let manifest = try BackupCanonicalDecoderV1().decodeManifest(
+                Data(contentsOf: package.appendingPathComponent("manifest.json")))
+            diagnostics.phase = "decodeRecords"
+            let records = try BackupCanonicalDecoderV1().decodeRecords(
+                Data(contentsOf: package.appendingPathComponent("records.json")))
+            diagnostics.phase = "verifyExportedAuthority"
+            XCTAssertEqual(Set(records.surveyDefinitions.map(\.canonicalData)), Set(authority.definitionBytes))
+            XCTAssertEqual(Set(records.guidedSurveys.map(\.canonicalData)), Set(authority.guidedBytes))
+            XCTAssertEqual(Set(records.packageEvolution.map(\.canonicalData)), Set(authority.packageBytes))
+            XCTAssertEqual(records.surveyDefinitions.count, authority.definitionBytes.count)
+            XCTAssertEqual(records.guidedSurveys.count, authority.guidedBytes.count)
+            XCTAssertEqual(records.packageEvolution.count, authority.packageBytes.count)
+            let exportedReceipts = try XCTUnwrap(records.mutationHistory).receipts.map {
+                try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+            }
+            // Lifecycle events are retained in history, not separate exported definition rows.
+            let exportedDefinitionEvents = try XCTUnwrap(records.mutationHistory).receipts.compactMap {
+                record -> SurveyDefinitionLifecycleEventV1? in
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                guard case let .applySurveyDefinition(mutation) = envelope.command else { return nil }
+                return mutation.event
+            }
+            XCTAssertEqual(exportedDefinitionEvents, [authority.definitionEvent])
+            for expected in authority.setupReceipts {
+                XCTAssertEqual(exportedReceipts.filter { $0.mutationID == expected.mutationID }, [expected])
+            }
+            return PackageFixture(package: package, manifest: manifest, records: records, bytes: bytes,
+                producerStage: stage, storedStage: storedStage, plan: plan, receipt: receipt,
+                targetReceipt: actualTarget, clip: clip, coordinatorRejectedWrongDomain: coordinatorRejected,
+                stagingRejectedWrongDomain: stagingRejected)
+        } catch {
+            XCTFail("StageDigest fixture mode=\(mode) phase=\(diagnostics.phase) type=\(String(reflecting: type(of: error))) error=\(String(reflecting: error))")
+            throw error
+        }
     }
 
     func commit(_ coordinator: FieldDraftCoordinatorV1, plan: DraftCommitPlanV1,
@@ -410,6 +585,36 @@ private struct StageDigestClock: ApplicationClock {
     func now() -> Date { value }
 }
 
+@MainActor
+private final class StageDigestDiagnostics {
+    var phase = "entry"
+}
+
+@MainActor
+private final class StageDigestPointerObserver: PackageSandboxActivationObservingV1 {
+    let context: ModelContext
+    init(context: ModelContext) { self.context = context }
+    func activePointerStateSHA256(workspaceID: WorkspaceID, packageID: String) async throws -> String {
+        let pointers = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
+            .map { try $0.value() }
+            .filter { $0.workspaceID == workspaceID && $0.packageID == packageID }
+            .sorted { $0.pointerID.uuidString < $1.pointerID.uuidString }
+        return KernelCanonicalHashV1.sha256(try PackageEvolutionCanonicalCodecV1.encode(pointers))
+    }
+}
+
+private struct StageDigestTemporalAuthority {
+    let package: InspectionPackageReleaseV1
+    let definition: SurveyDefinitionReleaseV1
+    let definitionEvent: SurveyDefinitionLifecycleEventV1
+    let session: SurveySessionV1
+    let actor: ActorSnapshotV1
+    let setupReceipts: [MutationReceiptV1]
+    let definitionBytes: [Data]
+    let guidedBytes: [Data]
+    let packageBytes: [Data]
+}
+
 private struct StageDigestPurposeAuthority: DraftPurposeDefinitionResolvingV1 {
     let definition: DraftPurposeDefinitionV1
 
@@ -437,23 +642,25 @@ private struct StageDigestTemporalSubmission: Codable {
     let profile: TemporalEvidenceLimitProfileV1
     let recordedBy: ActorSnapshotV1
 
-    init(workspaceID: WorkspaceID) throws {
+    init(authority: StageDigestTemporalAuthority) throws {
+        let workspaceID = authority.session.workspaceID
         self.workspaceID = workspaceID
         clipID = UUID()
         let base = try C33TemporalEvidenceTestSupport.profile(workspaceID: workspaceID,
             reportProjection: .typedLinkOnly, requiresTranscript: false)
         let wav = try TemporalEvidenceCodecV1(container: "wav", codec: "pcm-s16le", mediaType: "audio/wav")
         profile = try .init(profileID: base.profileID, revision: base.revision,
-            packageRelease: base.packageRelease, definitionRelease: base.definitionRelease,
+            packageRelease: try .init(authority.package), definitionRelease: try .init(authority.definition),
             audio: .init(kind: .audio, maximumDurationMilliseconds: 1_000, maximumByteCount: 8_192,
                          acceptedCodecs: [wav]), video: base.video,
             maximumClipsPerRequirement: base.maximumClipsPerRequirement,
             maximumClipsPerSession: base.maximumClipsPerSession, minimumFreeByteCount: base.minimumFreeByteCount,
             reportProjection: .typedLinkOnly, requiresAccessibleDescription: true, requiresManualTranscript: false)
-        target = try C33TemporalEvidenceTestSupport.target(workspaceID: workspaceID, profile: profile)
+        target = try .init(workspaceID: workspaceID, sessionID: authority.session.sessionID,
+            sessionRevision: authority.session.revision, sessionSHA256: authority.session.sessionSHA256,
+            definitionRelease: .init(authority.definition), factID: "fact-a", repeatCoordinates: [])
         facts = try .init(kind: .audio, durationMilliseconds: 100, byteCount: 1_644, codec: wav)
-        recordedBy = try C26SurveySessionTestSupport.actor(workspaceID: workspaceID, slot: 36_001,
-            responsibility: .recordedBy)
+        recordedBy = authority.actor
     }
 }
 
@@ -465,14 +672,17 @@ private final class StageDigestTemporalTarget: DraftCanonicalCommitPortV1 {
     let writer: WorkspaceWriterV1
     let journal: MutationJournalStoreV1
     let context: ModelContext
+    let diagnostics: StageDigestDiagnostics
     private(set) var committedClip: TemporalEvidenceClipV1?
 
     init(submission: StageDigestTemporalSubmission, writer: WorkspaceWriterV1,
-         journal: MutationJournalStoreV1, context: ModelContext) {
+         journal: MutationJournalStoreV1, context: ModelContext, diagnostics: StageDigestDiagnostics) {
         self.submission = submission; self.writer = writer; self.journal = journal; self.context = context
+        self.diagnostics = diagnostics
     }
 
     func commit(plan: DraftCommitPlanV1, reservations: [DraftContentReservationV1]) throws -> MutationReceiptV1 {
+        diagnostics.phase = "temporalTarget.validateBinding"
         guard plan.workspaceID == submission.workspaceID, plan.targetCommandKind == .applyTemporalEvidence,
               plan.expectedTargetRevision == 0, plan.outputKeys == [submission.clipID.uuidString],
               plan.payloadSHA256 == FieldDraftCanonicalCodecV1.sha256(
@@ -482,6 +692,7 @@ private final class StageDigestTemporalTarget: DraftCanonicalCommitPortV1 {
             throw FieldDraftFailureV1.conflictRequired
         }
         let formatter = ISO8601DateFormatter()
+        diagnostics.phase = "temporalTarget.constructClip"
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let original = try ContentReferenceV1(workspaceID: plan.workspaceID.rawValue.uuidString.lowercased(),
             contentID: reservation.locator.contentID, byteLength: Int64(submission.facts.byteCount),
@@ -499,17 +710,21 @@ private final class StageDigestTemporalTarget: DraftCanonicalCommitPortV1 {
             acceptedAt: C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(5),
             revision: 1, mutationID: plan.mutationID)
         let current = try writer.currentRevision()
+        diagnostics.phase = "temporalTarget.expectedRevision"
         let expected = try C33TemporalEvidenceTestSupport.expectedRevision(for: clip,
             generationID: current.generationID, writerInstanceID: current.writerInstanceID,
             workspaceRevision: current.revision)
+        diagnostics.phase = "temporalTarget.commit"
         _ = try writer.commitTemporalEvidence(.init(workspaceID: plan.workspaceID, expectedRevision: expected,
             mutationID: plan.mutationID, payload: .acceptClip(clip,
                 review: C33TemporalEvidenceTestSupport.review(for: clip), predecessor: nil)))
         committedClip = clip
+        diagnostics.phase = "temporalTarget.readReceipt"
         return try XCTUnwrap(journal.receipt(mutationID: plan.mutationID))
     }
 
     func readBackMatches(plan: DraftCommitPlanV1, receipt: MutationReceiptV1) throws -> Bool {
+        diagnostics.phase = "temporalTarget.readBack"
         guard let clip = committedClip, clip.mutationID == plan.mutationID,
               try journal.receipt(mutationID: plan.mutationID) == receipt else { return false }
         let clips = try context.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).map { try $0.value() }
