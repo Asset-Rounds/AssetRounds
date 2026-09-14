@@ -162,14 +162,75 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
         identifiedBy identifier: String,
         in view: UIView
     ) -> Bool {
-        if view.accessibilityIdentifier == identifier { return true }
-        for case let element as UIAccessibilityIdentification in view.accessibilityElements ?? [] {
-            if element.accessibilityIdentifier == identifier { return true }
+        accessibilityObservation(identifier, in: view).found
+    }
+
+    /// Follow only descendants exported by this host; never inspect other windows
+    /// or follow parent/container back-references. Bounds make hostile cycles finite.
+    @MainActor
+    func accessibilityObservation(
+        _ identifier: String, in view: UIView, includeRows: Bool = false
+    ) -> (found: Bool, visited: Int, truncated: Bool, rows: [String]) {
+        var seen = Set<ObjectIdentifier>()
+        var found = false
+        var truncated = false
+        var rows: [String] = []
+        @MainActor
+        func visit(_ value: Any, depth: Int, edge: String) {
+            guard !found else { return }
+            guard depth <= 64, seen.count < 8192 else { truncated = true; return }
+            guard let object = value as? NSObject else {
+                if (value as? UIAccessibilityIdentification)?.accessibilityIdentifier == identifier {
+                    found = true
+                }
+                return
+            }
+            guard seen.insert(ObjectIdentifier(object)).inserted else { return }
+            let observedID = (object as? UIAccessibilityIdentification)?.accessibilityIdentifier
+            if includeRows, rows.count < 128 {
+                rows.append("depth=\(depth) edge=\(edge) type=\(String(reflecting: type(of: object))) id=\(String((observedID ?? "<nil>").prefix(100)))")
+            }
+            if observedID == identifier { found = true; return }
+            if let childView = object as? UIView {
+                if childView.subviews.count > 512 { truncated = true }
+                for child in childView.subviews.prefix(512) {
+                    visit(child, depth: depth + 1, edge: "subview")
+                }
+            }
+            if let elements = object.accessibilityElements {
+                if elements.count > 512 { truncated = true }
+                for element in elements.prefix(512) {
+                    visit(element, depth: depth + 1, edge: "array")
+                }
+            }
+            let count = object.accessibilityElementCount()
+            if count != NSNotFound, count > 0 {
+                if count > 512 { truncated = true }
+                for index in 0..<min(count, 512) {
+                    if let element = object.accessibilityElement(at: index) {
+                        visit(element, depth: depth + 1, edge: "indexed")
+                    }
+                }
+            }
         }
-        for child in view.subviews {
-            if containsAccessibilityIdentifier(identifiedBy: identifier, in: child) { return true }
+        visit(view, depth: 0, edge: "host")
+        return (found, seen.count, truncated, rows)
+    }
+
+    @MainActor
+    func logNativeObservation(_ identifier: String, from host: UIViewController, phase: String) {
+        let observation = accessibilityObservation(identifier, in: host.view, includeRows: true)
+        print("ShellObservation phase=\(phase) found=\(observation.found) visited=\(observation.visited) truncated=\(observation.truncated)")
+        observation.rows.forEach { print("ShellObservation " + $0) }
+        var seen = Set<ObjectIdentifier>()
+        @MainActor
+        func visit(_ controller: UIViewController, depth: Int) {
+            guard depth < 16, seen.count < 128,
+                  seen.insert(ObjectIdentifier(controller)).inserted else { return }
+            print("ShellController phase=\(phase) depth=\(depth) type=\(String(reflecting: type(of: controller))) children=\(controller.children.count) navigation_stack=\((controller as? UINavigationController)?.viewControllers.count ?? 0)")
+            for child in controller.children.prefix(32) { visit(child, depth: depth + 1) }
         }
-        return false
+        visit(host, depth: 0)
     }
 
     @MainActor
@@ -604,7 +665,8 @@ final class V23ProductionFourRootShellTests: V23ProductionFourRootShellTestSuppo
         let windowScene = try XCTUnwrap(UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }.first)
         let previousKeyWindow = windowScene.windows.first { $0.isKeyWindow }
-        let shell = AppShellView(packLoadResult: .available(.illuminatedSignV1),
+        var observedShellScene: AppShellSceneStateV1?
+        var shell = AppShellView(packLoadResult: .available(.illuminatedSignV1),
             storeSession: fixture.coordinator,
             contentAccess: try XCTUnwrap(fixture.presentation.renderAccess),
             sceneNavigationAccess: sceneAccess,
@@ -614,6 +676,10 @@ final class V23ProductionFourRootShellTests: V23ProductionFourRootShellTestSuppo
             feedbackConfiguration: .production,
             mailComposerAdapter: .unavailable,
             entitlementProcessor: fixture.router.entitlementProcessor)
+        shell.onProductionSceneBoundForTesting = { boundScene in
+            observedShellScene = boundScene
+            print("ReportsStartupDiagnostic scene_bound reports_selected=\(boundScene.snapshot?.selectedRoot == .reports) exact_target=\(boundScene.snapshot?.path(for: .reports)?.targets == [target]) target_count=\(boundScene.snapshot?.path(for: .reports)?.targets.count ?? -1)")
+        }
         let host = UIHostingController(rootView: shell.modelContext(fixture.coordinator.modelContext))
         let window = UIWindow(windowScene: windowScene)
         window.rootViewController = host
@@ -636,6 +702,34 @@ final class V23ProductionFourRootShellTests: V23ProductionFourRootShellTestSuppo
             }
             return false
         }.value
+        // Observe the real composed scene and UIKit containers independently of
+        // the unchanged detail identifier assertion; never supply navigation state.
+        print("ReportsStartupDiagnostic after_wait scene_bound=\(observedShellScene != nil) reports_selected=\(observedShellScene?.snapshot?.selectedRoot == .reports) exact_target=\(observedShellScene?.snapshot?.path(for: .reports)?.targets == [target]) target_count=\(observedShellScene?.snapshot?.path(for: .reports)?.targets.count ?? -1)")
+        do {
+            if case let .restored(saved) = try sceneAccess.load() {
+                print("ReportsStartupDiagnostic persisted reports_selected=\(saved.selectedRoot == .reports) exact_target=\(saved.path(for: .reports)?.targets == [target]) target_count=\(saved.path(for: .reports)?.targets.count ?? -1)")
+            } else {
+                print("ReportsStartupDiagnostic persisted_not_restored")
+            }
+        } catch {
+            print("ReportsStartupDiagnostic persisted_read_failed type=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+        }
+        let reportsRootObserved = containsAccessibilityIdentifier(
+            identifiedBy: ReportsRootView.screenAccessibilityIdentifier, in: host.view
+        )
+        print("ReportsStartupDiagnostic hierarchy root_identifier=\(reportsRootObserved) detail_identifier=\(detailVisible) context_changes=\(fixture.coordinator.modelContext.hasChanges)")
+        @MainActor
+        func controllerSummary(_ controller: UIViewController, depth: Int = 0) -> [String] {
+            guard depth < 12 else { return ["depth_limit"] }
+            let stackCount = (controller as? UINavigationController)?.viewControllers.count ?? 0
+            let value = "depth=\(depth) class=\(String(reflecting: type(of: controller))) children=\(controller.children.count) navigation_stack=\(stackCount)"
+            return [value] + controller.children.prefix(12).flatMap {
+                controllerSummary($0, depth: depth + 1)
+            }
+        }
+        for line in controllerSummary(host).prefix(64) {
+            print("ReportsStartupDiagnostic controller \(line)")
+        }
         XCTAssertTrue(detailVisible, "Actual Reports startup must render ready detail")
 
         let navigation = try XCTUnwrap(
@@ -938,25 +1032,60 @@ struct V23RoundRouteHarness {
 
     static func make(in fixture: V23ProductionMyDayPresentationHarness,
                      label: String) async throws -> Self {
-        let work = try await V23WorkRouteHarness.make(in: fixture, label: label)
+        guard case let .ready(store, _, _) = fixture.router.route else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
         let access = try XCTUnwrap(fixture.presentation.roundAccess)
         let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
         let workflow = try ShippingIlluminatedSignAdapterV1.finalizationWorkflow(
             from: .illuminatedSignV1, stage: .check)
         let release = try InspectionPackageReleasePublisherV1.publish(
             InspectionPackageReleasePublisherV1.test(.makeDraft(package: package, workflow: workflow))).release
-        let existing = try work.store.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+        let existing = try store.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
             .map { try $0.value() }.filter { $0.packageRelease.packageReleaseID == release.packageReleaseID }
         if existing.isEmpty {
+            // External package setup must never adopt real writer frontiers.
+            guard try store.modelContext.fetchCount(FetchDescriptor<EntityMutationRevisionRow>()) == 0,
+                  try store.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()) == 0 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let journal = try MutationJournalStoreV1(modelContext: store.modelContext,
+                identity: store.workspaceIdentity, generationID: store.generationID,
+                allowStateBootstrap: false)
+            try journal.validateAll()
             let promoted = try PromotedPackageReleaseV1(releaseRecordID: UUID(),
-                workspaceID: work.store.workspaceID, packageRelease: release,
+                workspaceID: store.workspaceID, packageRelease: release,
                 mutationID: MutationIDV1(rawValue: UUID()), promotedAt: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970 * 1_000) / 1_000))
-            work.store.modelContext.insert(try PromotedPackageReleaseRow(promoted))
-            try work.store.modelContext.save()
+            store.modelContext.insert(try PromotedPackageReleaseRow(promoted))
+            XCTAssertThrowsError(try journal.validateAll()) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+            }
+            XCTAssertThrowsError(try journal.stageMutableSemanticStateAfterAuthorizedExternalMutation()) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+            }
+            let frontier = EntityMutationRevisionRow(identity: try .init(
+                kind: .promotedPackageRelease, id: promoted.releaseRecordID), revision: promoted.revision)
+            store.modelContext.insert(frontier)
+            try journal.stageMutableSemanticStateAfterAuthorizedExternalMutation()
+            try store.modelContext.save()
+            try journal.validateAll()
+            XCTAssertEqual(frontier.revision, Int64(promoted.revision))
+            XCTAssertEqual(frontier.externalProjectionSHA256, promoted.releaseRecordSHA256)
+            frontier.externalProjectionSHA256 = String(repeating: "0", count: 64)
+            XCTAssertThrowsError(try journal.validateAll()) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+            }
+            frontier.externalProjectionSHA256 = promoted.releaseRecordSHA256
+            try store.modelContext.save()
+            try journal.validateAll()
         } else {
             XCTAssertEqual(existing.count, 1)
             XCTAssertEqual(existing.first?.packageRelease, release)
         }
+        let work = try await V23WorkRouteHarness.make(in: fixture, label: label)
+        let assetFrontier = try XCTUnwrap(store.modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>())
+            .first { $0.kind == WorkspaceEntityKindV1.asset.rawValue && $0.entityID == work.sign.assetID })
+        XCTAssertNil(assetFrontier.externalProjectionSHA256)
         let key = try MyDayKeyV1(workspaceID: work.store.workspaceID,
             civilDate: .init("2026-09-13"), ianaTimeZoneIdentifier: "America/New_York")
         let actor = try XCTUnwrap(fixture.presentation.myDayAccess)

@@ -208,7 +208,6 @@ struct BatchScanSelectionV1: Codable, Equatable, Sendable {
               Set(previews.compactMap { $0.asset?.assetID }).count == previews.compactMap({ $0.asset?.assetID }).count else { throw ScanToWorkFailureV1.duplicate }
         self.workspaceID = workspaceID; self.previews = previews
         selectionSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(workspaceID: workspaceID, previews: previews))
-        try validateIntrinsic()
     }
     func validateIntrinsic() throws { guard self == (try Self(workspaceID: workspaceID, previews: previews)) else { throw ScanToWorkFailureV1.digestMismatch } }
     private struct Basis: Codable { let workspaceID: WorkspaceID; let previews: [AssetPreviewStateV1] }

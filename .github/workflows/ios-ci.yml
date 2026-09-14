@@ -26,7 +26,7 @@ on:
           - s10-4-minimum-diagnostic-pilot
           - s10-4-focused-diagnostics-development-only
       native_selection_id:
-        description: Closed V23 N8 selection; default retains all 405 methods across 29 bounded groups
+        description: Closed V23 N8 selection; default retains all 426 methods across 30 bounded groups
         required: true
         default: default-132
         type: choice
@@ -61,6 +61,7 @@ on:
           - scene-navigation-production
           - capture-payload-codec
           - store-control-descriptor-ownership
+          - reference-owner-replacement
       s10_4_minimum_core_smoke_id:
         description: Explicit minimum functional smoke; none preserves full legacy behavior
         required: false

@@ -167,6 +167,11 @@ private struct WorkAssetPreflightDestinationV1: View {
                     },
                     cancel: cancel
                 )
+                #if DEBUG
+                .onAppear {
+                    print("WorkStartupDiagnostic preflight_appeared active=\(admission.isActiveWorkRoute()) selected_asset_matches=\(displayedSnapshot.assetID == admission.target.stableEntityID)")
+                }
+                #endif
             } else if isUnavailable {
                 AssetRoundsEmptyState(
                     title: Text("Work unavailable"),
@@ -181,12 +186,21 @@ private struct WorkAssetPreflightDestinationV1: View {
             target: admission.target,
             isWorkSelected: scene.snapshot?.selectedRoot == .work
         )) {
+            #if DEBUG
+            print("WorkStartupDiagnostic task_started work_selected=\(scene.snapshot?.selectedRoot == .work) active=\(admission.isActiveWorkRoute())")
+            #endif
             guard admission.isActiveWorkRoute() else { return }
             displayedSnapshot = nil
             isUnavailable = false
             do {
                 displayedSnapshot = try admission.loadForActivePresentation()
+                #if DEBUG
+                print("WorkStartupDiagnostic load_ready selected_asset_matches=\(displayedSnapshot?.assetID == admission.target.stableEntityID)")
+                #endif
             } catch {
+                #if DEBUG
+                print("WorkStartupDiagnostic load_failed type=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+                #endif
                 isUnavailable = true
             }
         }
@@ -449,6 +463,9 @@ struct AppShellView: View {
                     ProductionWorkRootViewV1(source: sources, openRound: roundAccess.map { _ in
                         { reference in openRound(reference, in: scene) }
                     })
+                        #if DEBUG
+                        .onAppear { print("WorkStartupDiagnostic root_appeared") }
+                        #endif
                         .toolbar { settingsToolbar }
                         .navigationDestination(for: NavigationTargetV1.self) { target in
                             if ProductionRoundSessionPresentationV1.accepts(target), let roundAccess {

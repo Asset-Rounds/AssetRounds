@@ -10,6 +10,32 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
     @MainActor
     func testActualWorkAssetPreflightRestoresWithoutDraftOrCameraAndBackClearsPath() async throws {
         #if DEBUG
+        // These objects are deliberately outside the mounted production host.
+        let direct = UIView()
+        direct.accessibilityIdentifier = "container-regression-target"
+        XCTAssertTrue(containsAccessibilityIdentifier(identifiedBy: "container-regression-target", in: direct))
+        let nestedRoot = UIView()
+        let nested = UIAccessibilityElement(accessibilityContainer: nestedRoot)
+        let leaf = UIAccessibilityElement(accessibilityContainer: nested)
+        leaf.accessibilityIdentifier = "container-regression-target"
+        nestedRoot.accessibilityElements = [nested]
+        nested.accessibilityElements = [leaf]
+        XCTAssertTrue(containsAccessibilityIdentifier(identifiedBy: "container-regression-target", in: nestedRoot))
+        let indexedRoot = UIView()
+        let indexed = V23IndexedAccessibilityContainer()
+        indexed.elements = [leaf]
+        indexedRoot.accessibilityElements = [indexed]
+        XCTAssertTrue(containsAccessibilityIdentifier(identifiedBy: "container-regression-target", in: indexedRoot))
+        indexed.elements = [indexed, indexedRoot]
+        let cyclic = accessibilityObservation("absent", in: indexedRoot)
+        XCTAssertFalse(cyclic.found)
+        XCTAssertEqual(cyclic.visited, 2)
+        XCTAssertFalse(cyclic.truncated)
+        XCTAssertFalse(containsAccessibilityIdentifier(identifiedBy: "container-regression-target", in: UIView()))
+        indexed.elements = []
+        indexedRoot.accessibilityElements = nil
+        nested.accessibilityElements = nil
+        nestedRoot.accessibilityElements = nil
         let fixture = try await makeFixture("work-asset-preflight")
         defer { fixture.cleanUp() }
         let sign = try await makeWorkAsset(in: fixture, label: "preflight")
@@ -28,7 +54,8 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
             requestAuthorization: { permissionRequests += 1; return .denied },
             isCameraAvailable: { availabilityReads += 1; return false }
         )
-        let shell = AppShellView(packLoadResult: .available(.illuminatedSignV1),
+        var actualScene: AppShellSceneStateV1?
+        var shell = AppShellView(packLoadResult: .available(.illuminatedSignV1),
             storeSession: fixture.coordinator,
             contentAccess: try XCTUnwrap(fixture.presentation.renderAccess),
             sceneNavigationAccess: sceneAccess,
@@ -37,6 +64,10 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
             metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter(manager: nil),
             feedbackConfiguration: .production, mailComposerAdapter: .unavailable,
             cameraAdapter: camera, entitlementProcessor: fixture.router.entitlementProcessor)
+        shell.onProductionSceneBoundForTesting = { composed in
+            actualScene = composed
+            print("WorkStartupDiagnostic scene_bound work_selected=\(composed.snapshot?.selectedRoot == .work) exact_target=\(composed.snapshot?.path(for: .work)?.targets == [target])")
+        }
         let windowScene = try XCTUnwrap(UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }.first)
         let previousKeyWindow = windowScene.windows.first { $0.isKeyWindow }
@@ -48,6 +79,8 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         host.view.layoutIfNeeded()
         let visible = await waitForAccessibilityIdentifier(
             PreflightView.screenAccessibilityIdentifier, in: host.view)
+        print("WorkStartupDiagnostic after_wait scene_bound=\(actualScene != nil) work_selected=\(actualScene?.snapshot?.selectedRoot == .work) exact_target=\(actualScene?.snapshot?.path(for: .work)?.targets == [target])")
+        if !visible { logNativeObservation(PreflightView.screenAccessibilityIdentifier, from: host, phase: "initial_preflight") }
         XCTAssertTrue(visible)
         XCTAssertEqual(scene.snapshot?.path(for: .work)?.targets, [target])
         XCTAssertEqual(statusReads, 0)
@@ -126,6 +159,7 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         try scene.select(.work)
         let visible = await waitForAccessibilityIdentifier(
             PreflightView.screenAccessibilityIdentifier, in: host.view)
+        if !visible { logNativeObservation(PreflightView.screenAccessibilityIdentifier, from: host, phase: "activated_preflight") }
         XCTAssertTrue(visible)
         XCTAssertEqual(tabBar.selectedItem?.title, "Work")
         let beforeCoalescing = scene.snapshot?.snapshotID
@@ -156,9 +190,11 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         try scene.setPath([firstTarget, secondTarget], for: .work)
         let rootVisible = await waitForAccessibilityIdentifier(
             ProductionWorkRootViewV1.screenAccessibilityIdentifier, in: host.view)
+        if !rootVisible { logNativeObservation(ProductionWorkRootViewV1.screenAccessibilityIdentifier, from: host, phase: "long_path_root") }
         XCTAssertTrue(rootVisible)
         let atNativeRoot = await waitForNativeRoot(
             ProductionWorkRootViewV1.screenAccessibilityIdentifier, from: host)
+        if !atNativeRoot { logNativeObservation(ProductionWorkRootViewV1.screenAccessibilityIdentifier, from: host, phase: "long_path_native_root") }
         XCTAssertTrue(atNativeRoot)
         XCTAssertEqual(scene.snapshot?.path(for: .work)?.targets, [firstTarget, secondTarget])
         try context.scene.restore()
@@ -345,5 +381,15 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         XCTAssertEqual(try fresh.store.workspaceWriter.currentRevision(), beforeResume)
         XCTAssertEqual(try fresh.store.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()), 1)
         XCTAssertFalse(fresh.store.modelContext.hasChanges)
+    }
+}
+
+@MainActor
+private final class V23IndexedAccessibilityContainer: NSObject {
+    var elements: [Any] = []
+    override func accessibilityElementCount() -> Int { elements.count }
+    override func accessibilityElement(at index: Int) -> Any? {
+        guard elements.indices.contains(index) else { return nil }
+        return elements[index]
     }
 }

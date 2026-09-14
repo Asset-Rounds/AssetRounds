@@ -264,6 +264,15 @@
         "V23StoreControlDescriptorOwnershipTests"
       ],
       "methodCount": 6
+    },
+    {
+      "id": "reference-owner-replacement",
+      "classes": [
+        "V23ReferenceOwnerReplacementSourceTests",
+        "V23WorkPacketReplacementCommandProjectionTests",
+        "V23RoundSessionReplacementCommandProjectionTests"
+      ],
+      "methodCount": 21
     }
   ]
 }

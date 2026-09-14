@@ -33,6 +33,47 @@ final class V23RepetitiveCaptureDraftPayloadTests: XCTestCase {
 
     func testCodecRejectsClosedGrammarTamperingAndBounds() throws {
         let fixture = try Fixture()
+        // Construction and reconstructive validation must both terminate while
+        // retaining the batch bounds and exact canonical digest checks.
+        func selectionOfCount(_ count: Int) throws -> BatchScanSelectionV1 {
+            let previews = try (0..<count).map { index in
+                try AssetPreviewStateV1(workspaceID: fixture.workspace, source: .manual,
+                    inputSHA256: KernelCanonicalHashV1.sha256(Data("batch-bound-\(index)".utf8)),
+                    resolutionSHA256: Fixture.alternate, outcome: .notFound, asset: nil,
+                    candidateLocators: [], evaluatedAt: Fixture.date)
+            }.sorted { $0.inputSHA256 < $1.inputSHA256 }
+            return try BatchScanSelectionV1(workspaceID: fixture.workspace, previews: previews)
+        }
+        for count in [1, 2, ScanToWorkLimitsV1.maximumSelection] {
+            let selection = try selectionOfCount(count)
+            XCTAssertEqual(selection.previews.count, count)
+            XCTAssertNoThrow(try selection.validateIntrinsic())
+        }
+        XCTAssertThrowsError(try selectionOfCount(
+            ScanToWorkLimitsV1.maximumSelection + 1
+        ))
+        XCTAssertThrowsError(try BatchScanSelectionV1(workspaceID: fixture.workspace, previews: []))
+        XCTAssertThrowsError(try BatchScanSelectionV1(
+            workspaceID: fixture.otherWorkspace, previews: fixture.selection.previews
+        ))
+        XCTAssertThrowsError(try BatchScanSelectionV1(
+            workspaceID: fixture.workspace, previews: Array(fixture.selection.previews.reversed())
+        ))
+        let preview = try XCTUnwrap(fixture.selection.previews.first)
+        XCTAssertThrowsError(try BatchScanSelectionV1(
+            workspaceID: fixture.workspace, previews: [preview, preview]
+        ))
+        var damagedSelection = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(fixture.selection)
+        ) as? [String: Any])
+        let wrongDigest = String(repeating: "f", count: 64)
+        XCTAssertNotEqual(fixture.selection.selectionSHA256, wrongDigest)
+        damagedSelection["selectionSHA256"] = wrongDigest
+        let decodedDamagedSelection = try JSONDecoder().decode(BatchScanSelectionV1.self,
+            from: JSONSerialization.data(withJSONObject: damagedSelection, options: [.sortedKeys]))
+        XCTAssertThrowsError(try decodedDamagedSelection.validateIntrinsic()) {
+            XCTAssertEqual($0 as? ScanToWorkFailureV1, .digestMismatch)
+        }
         let source = try fixture.sourceCheckpoint()
         let bytes = try RepetitiveCaptureDraftCodecV1.encode(fixture.sourcePayload)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])

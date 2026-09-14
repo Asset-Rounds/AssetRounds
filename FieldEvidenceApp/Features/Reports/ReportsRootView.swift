@@ -526,6 +526,11 @@ private struct ReportHistoryDetailDestination: View {
                     coordinator: deliveryCoordinator
                 )
                 .accessibilityFocused($focusedElement, equals: .detail)
+                #if DEBUG
+                .onAppear {
+                    print("ReportsStartupDiagnostic ready_child_appeared")
+                }
+                #endif
             } else if failed {
                 ReportHistoryUnavailableView(
                     message: "The saved report could not be opened."
@@ -540,10 +545,19 @@ private struct ReportHistoryDetailDestination: View {
         .task {
             guard !didLoad else { return }
             didLoad = true
+            #if DEBUG
+            print("ReportsStartupDiagnostic destination_load_started")
+            #endif
             do {
                 delivery = try deliveryCoordinator.loadReadyReport(id: reportID)
+                #if DEBUG
+                print("ReportsStartupDiagnostic destination_load_ready")
+                #endif
                 moveAccessibilityFocus(to: .detail)
             } catch {
+                #if DEBUG
+                print("ReportsStartupDiagnostic destination_load_failed type=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+                #endif
                 failed = true
                 moveAccessibilityFocus(to: .unavailable)
             }

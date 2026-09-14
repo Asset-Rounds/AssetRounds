@@ -317,13 +317,37 @@ class WorkflowWiringTests(unittest.TestCase):
             group["methodCount"] = prior
         return groups[:count]
 
+    def test_reference_owner_admission_preserves_exact_698_pool_and_adds_complete_classes(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(len(default["unitTestSelectors"]), 426)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:405]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), '0FAF6BDA92295FE5D342E47DD997079384F4019AC130F91FA1EB797B4DE41122')
+        prior_map = copy.deepcopy(mapping)
+        prior_map["groups"] = prior_map["groups"][:29]
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), '13816E50720D2F60B42E54656C02346578953A7D22B9011A5093B57C2B756BE2')
+        expected = ['FieldEvidenceAppTests/V23ReferenceOwnerReplacementSourceTests/testAuthenticatedMixedHistoryRetainsExactOriginalsAndOrdersOwnFourFamilies', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementSourceTests/testWrongOwnerMutationAndExpectedFrontierFailClosed', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementSourceTests/testReceiptBodyMismatchAndDuplicateQualifiedMutationFailClosed', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementSourceTests/testRelevantQuarantineIsDeniedAfterSnapshotAuthentication', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testReplacementMutationNamespacesAreDeterministicAndDisjoint', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testReplacementMutationNamespacesBindSourceOwnerAndTargetGeneration', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testProjectsAllSevenPayloadsFromAuthenticatedHistoryWithoutRewritingContent', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testHistoricalManifestLookupUsesExactOlderReferenceDespiteNewerSnapshotFrontier', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testProjectionMapsOnlyRealDependenciesAndRetainsAuthenticatedReceiptOrder', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testProjectedCommandsProduceValidTypedTargetReceiptsAndEquivalentConflictEvidence', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testMissingManifestClaimLeaseAndReleaseDependenciesFailClosed', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testDuplicateHistoricalIdentityAndMappedMutationCollisionFailClosed', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testProjectionRejectsDifferentSourceOwnerAndNonReplacementIdentity', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testFiveReplacementMutationNamespacesAreDeterministicDisjointAndIdentityBound', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testAuthenticatedSourceClassifiesRoundDistinctFromGuidedSurveyAndRetainsForeignHistory', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testSourceRejectsRelevantQuarantineAndTypedRoundReceiptMismatch', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testProjectsCompleteHistoricalTransitionChainAndPreservesLiteralFacts', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testExactOlderAndNewerReferencesResolveDespiteNewerSnapshotFrontierAndRecordOrder', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testMissingDuplicateAndForkedHistoricalPredecessorsFailClosed', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testWrongOwnerAndMappedMutationCollisionFailClosedWhileForeignRoundIsIgnored', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testProjectedCommandsProduceValidTypedTargetReceiptsWithoutStorageClaim']
+        self.assertEqual(default["unitTestSelectors"][405:], expected)
+        group = mapping["groups"][-1]
+        self.assertEqual(group, {'id': 'reference-owner-replacement', 'classes': ['V23ReferenceOwnerReplacementSourceTests', 'V23WorkPacketReplacementCommandProjectionTests', 'V23RoundSessionReplacementCommandProjectionTests'], 'methodCount': 21})
+        resolved = CI.resolve_selection(default, mapping, group["id"])
+        self.assertEqual(resolved["unitTestSelectors"], expected)
+        for klass in group["classes"]:
+            source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text()
+            declared = re.findall(r"^    func (test\w+)\(", source, re.M)
+            selected = [s.rsplit("/", 1)[1] for s in expected if CI.selection_class(s) == klass]
+            self.assertEqual(len(declared), len(set(declared)), klass)
+            self.assertEqual(declared, selected, klass)
+
     def test_work_round_capture_and_descriptor_admission_preserves_821f_pool(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 405)
+        self.assertEqual(len(default["unitTestSelectors"]), 426)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:298])),
                          "5ABC2B0E9AD06346872CEFE60223FAD2E2AC775AAB2C691A6EAC98F026EDFB0C")
-        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][298:])),
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][298:405])),
                          "BC86EB9A4C01F799C151D7E78281A0B9D6046956C6A8E6C885C57DE2875F24A8")
         prior = copy.deepcopy(mapping)
         prior["groups"] = self.prior_821f_groups(mapping)
@@ -344,9 +368,9 @@ class WorkflowWiringTests(unittest.TestCase):
                                        "V23RepetitiveCaptureProgressDraftPayloadV2Tests"], 20),
             ("store-control-descriptor-ownership", ["V23StoreControlDescriptorOwnershipTests"], 6),
         ]
-        self.assertEqual(mapping["groups"][17:],
+        self.assertEqual(mapping["groups"][17:29],
                          [dict(id=i, classes=c, methodCount=n) for i, c, n in expected])
-        added_classes = {CI.selection_class(s) for s in default["unitTestSelectors"][298:]}
+        added_classes = {CI.selection_class(s) for s in default["unitTestSelectors"][298:405]}
         for klass in added_classes:
             source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text()
             declarations = re.findall(r"^    func (test\w+)\(", source, re.M)
@@ -419,7 +443,7 @@ class WorkflowWiringTests(unittest.TestCase):
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         groups = [CI.resolve_selection(default, mapping, group["id"])
                   for group in mapping["groups"]]
-        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 405)
+        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 426)
         self.assertEqual({item for group in groups for item in group["unitTestSelectors"]},
                          set(default["unitTestSelectors"]))
         self.assertEqual(CI.resolve_selection(default, mapping, CI.DEFAULT_SELECTION_ID), default)
@@ -464,7 +488,7 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertEqual(resolved_generation["unitTestSelectors"], original_generation + [location])
         self.assertEqual(CI.sha256(CI.canonical(historical_groups)),
                          "9CFA63307F86B2F88570672F8C4D35348CB97357893F68A37B3A70859224D66D")
-        self.assertEqual(len(mapping["groups"]), 29)
+        self.assertEqual(len(mapping["groups"]), 30)
         for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
             self.assertEqual(selected[key], default[key])
         for selector in expected + [location]:
@@ -580,7 +604,7 @@ class WorkflowWiringTests(unittest.TestCase):
                 self.assertEqual(group["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests"])
                 group["classes"] = ["V10_02MutationEnvelopeReceiptTests"]
         self.assertEqual(CI.sha256(CI.canonical(original_mapping)), "4D2BB00E3151DE86EF6C2033A4951974E47E5043692F8CACE385DE5BA100904F")
-        self.assertEqual(len(mapping["groups"]), 29)
+        self.assertEqual(len(mapping["groups"]), 30)
         for selector in appended:
             bundle, klass, method = selector.split("/")
             source = (ROOT / bundle / (klass + ".swift")).read_text()
