@@ -13,7 +13,12 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         // These objects are deliberately outside the mounted production host.
         let direct = UIView()
         direct.accessibilityIdentifier = "container-regression-target"
+        XCTAssertEqual(direct.accessibilityIdentifier, "container-regression-target")
         XCTAssertTrue(containsAccessibilityIdentifier(identifiedBy: "container-regression-target", in: direct))
+        let ordinaryRoot = UIView()
+        ordinaryRoot.addSubview(direct)
+        XCTAssertTrue(containsAccessibilityIdentifier(identifiedBy: "container-regression-target", in: ordinaryRoot))
+        direct.removeFromSuperview()
         let nestedRoot = UIView()
         let nested = UIAccessibilityElement(accessibilityContainer: nestedRoot)
         let leaf = UIAccessibilityElement(accessibilityContainer: nested)

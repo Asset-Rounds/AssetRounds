@@ -186,7 +186,8 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
                 return
             }
             guard seen.insert(ObjectIdentifier(object)).inserted else { return }
-            let observedID = (object as? UIAccessibilityIdentification)?.accessibilityIdentifier
+            let observedID = (object as? UIView)?.accessibilityIdentifier
+                ?? (object as? UIAccessibilityIdentification)?.accessibilityIdentifier
             if includeRows, rows.count < 128 {
                 rows.append("depth=\(depth) edge=\(edge) type=\(String(reflecting: type(of: object))) id=\(String((observedID ?? "<nil>").prefix(100)))")
             }
