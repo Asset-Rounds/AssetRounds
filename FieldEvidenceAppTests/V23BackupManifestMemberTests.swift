@@ -200,9 +200,9 @@ private extension V23BackupManifestMemberTests {
         records: Int = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
         sortEntries: Bool = true,
         declaredPayloadByteCount: Int? = nil,
-        workspaceID: UUID? = Self.workspaceID,
-        replicaID: UUID? = Self.replicaID,
-        sourceGenerationID: UUID? = Self.generationID,
+        workspaceID: UUID? = V23BackupManifestMemberTests.workspaceID,
+        replicaID: UUID? = V23BackupManifestMemberTests.replicaID,
+        sourceGenerationID: UUID? = V23BackupManifestMemberTests.generationID,
         appBuild: String = "manifest-member-tests"
     ) -> V4BackupManifestV1 {
         var entries = [entry(path: "records.json", mimeType: "application/json")] + additions
