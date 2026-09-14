@@ -10,10 +10,12 @@ import json
 import math
 import os
 from pathlib import Path, PurePosixPath
+import queue
 import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 
@@ -37,6 +39,9 @@ SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bo
 COMPILERS = {"xcodebuild", "swiftc", "swift-frontend", "clang", "clang++", "ld",
              "actool", "ibtool", "assetcatalogcompiler"}
 PS_FIELDS = "pid=,ppid=,pcpu=,time=,etime=,rss=,state=,lstart=,comm="
+DEVELOPER_DIR = "/Applications/Xcode_26.6.app/Contents/Developer"
+CAPABILITY_TIMEOUT_SECONDS = 10
+CAPABILITY_FLAGS = (b"-warn-long-function-bodies", b"-warn-long-expression-type-checking")
 
 
 def require(condition, message):
@@ -115,6 +120,7 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
         "CI_UI_TIMEOUT_SECONDS": "0", "CI_TOTAL_BUDGET_SECONDS": "2400",
         "CI_RUN_UI_SMOKE": "false", "CI_SELECTOR_RUN_UI_SMOKE": "false",
         "CODE_SIGNING_ALLOWED": "NO", "RUNNER_ARCH": "ARM64",
+        "DEVELOPER_DIR": DEVELOPER_DIR,
     }
     require(platform == "darwin", "host platform")
     for key, value in required.items():
@@ -256,6 +262,136 @@ class ProcessObservations:
         return first, disappeared
 
 
+def capability_command(environment):
+    require(environment.get("DEVELOPER_DIR") == DEVELOPER_DIR, "pinned developer directory")
+    return [DEVELOPER_DIR + "/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend",
+            "-help-hidden"]
+
+
+def run_observed_capability(command, output, metadata, interval=5,
+                            sampler=sample_host, commands_reader=process_commands,
+                            timeout_seconds=CAPABILITY_TIMEOUT_SECONDS):
+    """Observe one query; its deadline is independent of slow process sampling.
+
+    Only main supplies native argv and the fixed deadline. Test callers use
+    Python children. The sampler thread cannot write events or affect the child.
+    """
+    events = Events(output / "capability-events.jsonl")
+    observations, received_signal, previous_handlers = ProcessObservations(), [], {}
+    child, observer = None, None
+    stopped, pending = threading.Event(), queue.Queue()
+    status, code, timed_out, flags_admitted = "error", None, False, False
+    launched = None
+
+    def relay(signum, _frame):
+        received_signal.append(signum)
+        if child is not None and child.poll() is None:
+            child.send_signal(signum)
+
+    def observe():
+        while not stopped.is_set():
+            start = time.monotonic()
+            try:
+                sample = sampler()
+                commands = commands_reader(sample["processes"])
+                pending.put((start, time.monotonic(), sample, commands, None))
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                pending.put((start, time.monotonic(), None, None,
+                             {"errorType": type(error).__name__, "error": str(error)}))
+            stopped.wait(max(0, interval - (time.monotonic() - start)))
+
+    def drain():
+        while True:
+            try:
+                start, end, sample, commands, error = pending.get_nowait()
+            except queue.Empty:
+                return
+            fields = {"sampleStartElapsedSeconds": round(start - events.started, 6),
+                      "samplerSeconds": round(end - start, 6)}
+            if error is not None:
+                events.append("capability-observation-error", **fields, **error)
+            else:
+                first, disappeared = observations.observe(sample, end - events.started, commands)
+                events.append("capability-sample", **fields, **sample,
+                              newlyObserved=first, disappeared=disappeared)
+
+    try:
+        events.append("capability-query-request", command=command,
+                      timeoutSeconds=timeout_seconds, **metadata)
+        executable = Path(command[0])
+        require(executable.is_file() and os.access(executable, os.X_OK),
+                "frontend is not an executable file")
+        identity = executable.stat()
+        events.append("capability-executable", requestedPath=str(executable),
+                      resolvedPath=str(executable.resolve()), bytes=identity.st_size,
+                      modifiedNanoseconds=identity.st_mtime_ns)
+        for name in ("SIGTERM", "SIGINT", "SIGHUP"):
+            signum = getattr(signal, name, None)
+            if signum is not None:
+                previous_handlers[signum] = signal.signal(signum, relay)
+        with (output / "swift-frontend-help.txt").open("xb") as stdout, \
+                (output / "swift-frontend-help.stderr.txt").open("xb") as stderr:
+            try:
+                child = subprocess.Popen(command, stdout=stdout, stderr=stderr)
+                launched = time.monotonic()
+                deadline = launched + timeout_seconds
+                events.append("capability-process", pid=child.pid,
+                              launchElapsedSeconds=round(launched - events.started, 6),
+                              deadlineElapsedSeconds=round(deadline - events.started, 6))
+                observer = threading.Thread(target=observe, daemon=True)
+                observer.start()
+                while not received_signal:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        timed_out = True
+                        break
+                    if child.poll() is not None:
+                        break
+                    drain()
+                    try:
+                        child.wait(timeout=max(0, min(.1, deadline - time.monotonic())))
+                    except subprocess.TimeoutExpired:
+                        pass
+            finally:
+                # Kill/reap only this owned query. Never start a retry. Sampling
+                # cannot delay deadline enforcement or add a grace period.
+                if child is not None:
+                    if child.poll() is None:
+                        child.kill()
+                    code = child.wait()
+                stopped.set()
+                for stream in (stdout, stderr):
+                    stream.flush()
+                    os.fsync(stream.fileno())
+        if received_signal:
+            status = "interrupted"
+        elif timed_out:
+            status = "timeout"
+        elif code != 0:
+            status = "nonzero-exit"
+        else:
+            help_bytes = (output / "swift-frontend-help.txt").read_bytes()
+            flags_admitted = all(re.search(rb"(?m)^\s*" + re.escape(flag) + rb"(?:[=\s<]|$)",
+                                           help_bytes) for flag in CAPABILITY_FLAGS)
+            status = "supported" if flags_admitted else "missing-required-flag"
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        events.append("capability-error", errorType=type(error).__name__, error=str(error))
+    finally:
+        stopped.set()
+        drain()
+        for signum, previous in previous_handlers.items():
+            signal.signal(signum, previous)
+        events.append("capability-terminal-observation", status=status,
+                      capabilityReturnCode=code, timedOut=timed_out,
+                      queryElapsedSeconds=None if launched is None else round(time.monotonic() - launched, 6),
+                      receivedSignals=received_signal, flagsAdmitted=flags_admitted,
+                      samplerStillActive=observer is not None and observer.is_alive(),
+                      processesWithUnobservedTerminal=observations.active,
+                      nativeAcceptance=False, providerQualification=False)
+        events.close()
+    return 0 if status == "supported" else 65
+
+
 def run_observed_build(command, output, metadata, interval=5,
                        sampler=sample_host, commands_reader=process_commands):
     events = Events(output / "events.jsonl")
@@ -325,12 +461,6 @@ def main():
     head = admit(config, os.environ, command, root, git)
     output = Path(os.environ["CI_ARTIFACT_DIR"]) / "v23-compiler-timing"
     output.mkdir(exist_ok=False)
-    # This is a capability query in the pinned hosted toolchain, not a second
-    # compilation. Unknown/removed flags fail before the native build is started.
-    help_bytes = subprocess.check_output(["xcrun", "swift-frontend", "-help-hidden"], timeout=10)
-    (output / "swift-frontend-help.txt").write_bytes(help_bytes)
-    for flag in (b"-warn-long-function-bodies", b"-warn-long-expression-type-checking"):
-        require(flag in help_bytes, "unsupported frontend observation flag")
     metadata = {"schemaVersion": 1, "purpose": "compiler-timing-diagnostic",
                 "head": head, "productSourceHead": SOURCE_HEAD,
                 "configuration": config,
@@ -338,6 +468,10 @@ def main():
                 "baseCommand": command, "nativeAcceptance": False,
                 "providerQualification": False, "buildWatchdogSeconds": 1200,
                 "limits": "Sampling gives first/last sightings, not per-process exit codes. CPU percent is a decaying average. Host compilers can be unrelated; bind rendered source/primary paths before attribution. Instrumentation may affect duration."}
+    # This single capability query must succeed before xcodebuild. Its durable
+    # request and stream files precede launch, including every failure path.
+    if run_observed_capability(capability_command(os.environ), output, metadata) != 0:
+        return 65
     return run_observed_build(diagnostic_command(command), output, metadata)
 
 

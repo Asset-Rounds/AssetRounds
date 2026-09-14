@@ -9,6 +9,8 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -51,6 +53,7 @@ class CompilerTimingTests(unittest.TestCase):
             "CI_UI_TIMEOUT_SECONDS": "0", "CI_TOTAL_BUDGET_SECONDS": "2400",
             "CI_RUN_UI_SMOKE": "false", "CI_SELECTOR_RUN_UI_SMOKE": "false",
             "CODE_SIGNING_ALLOWED": "NO", "RUNNER_ARCH": "ARM64",
+            "DEVELOPER_DIR": "/Applications/Xcode_26.6.app/Contents/Developer",
             "PROJECT_PATH": "FieldEvidenceApp.xcodeproj", "SCHEME": "FieldEvidenceApp",
             "CONFIGURATION": "Debug", "CI_SIMULATOR_UDID": "53084A6F-DD88-48EC-BF58-62A55A3B0DEA",
             "CI_DESTINATION": "platform=iOS Simulator,id=53084A6F-DD88-48EC-BF58-62A55A3B0DEA",
@@ -354,6 +357,184 @@ sys.exit(code)
         missed = [row for row in events if row["event"] == "sampling-deadline-missed"]
         self.assertEqual(len(missed), 1)
         self.assertEqual(missed[0]["overrunSeconds"], 2.0)
+
+
+class CapabilityTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="v23-capability-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.output = Path(self.temp.name)
+        self.metadata = {"purpose": "compiler-timing-diagnostic", "head": "a" * 40,
+                         "nativeAcceptance": False, "providerQualification": False,
+                         "buildWatchdogSeconds": 1200}
+        self.empty_sample = lambda: {"logicalCPUCount": 4, "loadAverages": [1.0, 1.0, 1.0],
+                                     "processes": [], "malformedMetadataRows": 0}
+
+    def rows(self):
+        rows = [json.loads(line) for line in (self.output / "capability-events.jsonl").read_bytes().splitlines()]
+        self.assertEqual(rows[0]["event"], "capability-query-request")
+        self.assertEqual(rows[-1]["event"], "capability-terminal-observation")
+        self.assertFalse(rows[-1]["nativeAcceptance"])
+        self.assertFalse(rows[-1]["providerQualification"])
+        self.assertEqual([r["elapsedSeconds"] for r in rows], sorted(r["elapsedSeconds"] for r in rows))
+        return rows
+
+    def query(self, program, **kwargs):
+        return TIMING.run_observed_capability([sys.executable, "-c", program], self.output,
+            self.metadata, sampler=kwargs.pop("sampler", self.empty_sample),
+            commands_reader=lambda _: {}, interval=.01, **kwargs)
+
+    def testTimeoutRetainsPartialStreamsAndKillsExactlyOneQuery(self):
+        program = ("import sys,time;print('partial stdout',flush=True);"
+                   "print('partial stderr',file=sys.stderr,flush=True);time.sleep(30)")
+        children = []
+        original = TIMING.subprocess.Popen
+
+        def launch(*args, **kwargs):
+            # Durable request exists before the child can emit any bytes.
+            self.assertIn(b'capability-query-request', (self.output / "capability-events.jsonl").read_bytes())
+            child = original(*args, **kwargs)
+            children.append(child)
+            return child
+
+        with mock.patch.object(TIMING.subprocess, "Popen", side_effect=launch):
+            self.assertEqual(self.query(program, timeout_seconds=.5), 65)
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].poll())
+        self.assertIn(b"partial stdout", (self.output / "swift-frontend-help.txt").read_bytes())
+        self.assertIn(b"partial stderr", (self.output / "swift-frontend-help.stderr.txt").read_bytes())
+        rows = self.rows()
+        self.assertEqual(rows[0]["timeoutSeconds"], .5)
+        self.assertTrue(any(r["event"] == "capability-process" for r in rows))
+        self.assertTrue(any(r["event"] == "capability-sample" for r in rows))
+        self.assertTrue(rows[-1]["timedOut"])
+        self.assertEqual(rows[-1]["status"], "timeout")
+        self.assertFalse(rows[-1]["flagsAdmitted"])
+        self.assertFalse((self.output / "events.jsonl").exists())
+
+    def testSupportedFlagsAndBothStreamsSurviveObserverErrors(self):
+        def failed():
+            raise OSError("ps unavailable")
+
+        program = ("import sys,time;print('  -warn-long-function-bodies <n>');"
+                   "print('  -warn-long-expression-type-checking <n>');"
+                   "print('help warning',file=sys.stderr);time.sleep(.1)")
+        self.assertEqual(self.query(program, sampler=failed), 0)
+        rows = self.rows()
+        self.assertTrue(any(r["event"] == "capability-observation-error" for r in rows))
+        self.assertEqual(rows[0]["timeoutSeconds"], 10)
+        self.assertEqual(rows[0]["buildWatchdogSeconds"], 1200)
+        self.assertEqual(rows[-1]["capabilityReturnCode"], 0)
+        self.assertEqual(rows[-1]["status"], "supported")
+        self.assertTrue(rows[-1]["flagsAdmitted"])
+        self.assertIn(b"help warning", (self.output / "swift-frontend-help.stderr.txt").read_bytes())
+
+    def testMissingFlagSubstringNonzeroAndMissingExecutableDenyWithEvidence(self):
+        cases = [
+            ("print('-warn-long-function-bodies <n>')", "missing-required-flag", 0),
+            ("print('-warn-long-function-bodies-extra');print('-warn-long-expression-type-checking')", "missing-required-flag", 0),
+            ("import sys;print('-warn-long-function-bodies');print('-warn-long-expression-type-checking');sys.exit(7)", "nonzero-exit", 7),
+        ]
+        base = self.output
+        for i, (program, status, code) in enumerate(cases):
+            self.output = base / str(i)
+            self.output.mkdir()
+            with self.subTest(status=status, program=program):
+                self.assertEqual(self.query(program), 65)
+                row = self.rows()[-1]
+                self.assertEqual(row["status"], status)
+                self.assertEqual(row["capabilityReturnCode"], code)
+                self.assertFalse(row["flagsAdmitted"])
+        self.output = base / "missing"
+        self.output.mkdir()
+        with mock.patch.object(TIMING.subprocess, "Popen") as launch:
+            self.assertEqual(TIMING.run_observed_capability([str(base / "missing-frontend"), "-help-hidden"],
+                self.output, self.metadata), 65)
+        launch.assert_not_called()
+        self.assertEqual(self.rows()[-1]["status"], "error")
+
+    def testSlowObserverCannotExtendQueryDeadline(self):
+        release, began = threading.Event(), threading.Event()
+
+        def slow():
+            began.set()
+            release.wait(5)
+            return self.empty_sample()
+
+        started = time.monotonic()
+        try:
+            self.assertEqual(self.query("import time;time.sleep(30)", sampler=slow, timeout_seconds=.2), 65)
+            self.assertTrue(began.is_set())
+            self.assertLess(time.monotonic() - started, 2)
+            self.assertTrue(self.rows()[-1]["samplerStillActive"])
+            self.assertEqual(self.rows()[-1]["status"], "timeout")
+            retained = (self.output / "capability-events.jsonl").read_bytes()
+        finally:
+            release.set()
+        # The observer never writes to an event stream after its owner closes it.
+        self.assertEqual((self.output / "capability-events.jsonl").read_bytes(), retained)
+
+    def testSignalKillsReapsOwnedQueryAndDeniesBuild(self):
+        class Child:
+            pid = 42
+            status = None
+            signals = []
+            killed = 0
+
+            def poll(self): return self.status
+            def send_signal(self, signum): self.signals.append(signum)
+            def kill(self):
+                self.killed += 1
+                self.status = -signal.SIGTERM
+            def wait(self, timeout=None):
+                if self.status is None:
+                    signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+                    raise subprocess.TimeoutExpired("owned-query", timeout)
+                return self.status
+
+        child = Child()
+        previous = signal.getsignal(signal.SIGTERM)
+        with mock.patch.object(TIMING.subprocess, "Popen", return_value=child) as launch:
+            self.assertEqual(self.query("unused"), 65)
+        launch.assert_called_once()
+        self.assertEqual(child.signals, [signal.SIGTERM])
+        self.assertEqual(child.killed, 1)
+        self.assertEqual(signal.getsignal(signal.SIGTERM), previous)
+        terminal = self.rows()[-1]
+        self.assertEqual(terminal["status"], "interrupted")
+        self.assertEqual(terminal["receivedSignals"], [signal.SIGTERM])
+        self.assertEqual(terminal["capabilityReturnCode"], -signal.SIGTERM)
+
+    def testMainRequiresPinnedSingleQueryBeforeUnchangedBuild(self):
+        direct = ["/Applications/Xcode_26.6.app/Contents/Developer/Toolchains/"
+                  "XcodeDefault.xctoolchain/usr/bin/swift-frontend", "-help-hidden"]
+        self.assertEqual(TIMING.capability_command({"DEVELOPER_DIR": TIMING.DEVELOPER_DIR}), direct)
+        for env in ({}, {"DEVELOPER_DIR": "/other/Xcode"}):
+            with self.assertRaises(ValueError):
+                TIMING.capability_command(env)
+        (self.output / "Scripts").mkdir()
+        config = (ROOT / "Scripts/v23-compiler-timing.json").read_bytes()
+        (self.output / "Scripts/v23-compiler-timing.json").write_bytes(config)
+        base_command = ["xcodebuild", "original-value", "build-for-testing"]
+        for status in (65, 0):
+            artifact = self.output / str(status)
+            artifact.mkdir()
+            with mock.patch.object(TIMING.Path, "cwd", return_value=self.output), \
+                 mock.patch.object(TIMING.sys, "argv", ["helper", "--", *base_command]), \
+                 mock.patch.dict(TIMING.os.environ, {"CI_ARTIFACT_DIR": str(artifact), "DEVELOPER_DIR": TIMING.DEVELOPER_DIR}), \
+                 mock.patch.object(TIMING, "admit", return_value="a" * 40), \
+                 mock.patch.object(TIMING, "run_observed_capability", return_value=status) as query, \
+                 mock.patch.object(TIMING, "run_observed_build", return_value=7) as build:
+                self.assertEqual(TIMING.main(), 65 if status else 7)
+                query.assert_called_once()
+                self.assertEqual(query.call_args.args[0], direct)
+                self.assertEqual(query.call_args.kwargs, {})  # No timeout override.
+                self.assertEqual(query.call_args.args[2]["baseCommand"], base_command)
+                if status:
+                    build.assert_not_called()
+                else:
+                    build.assert_called_once_with(TIMING.diagnostic_command(base_command),
+                        artifact / "v23-compiler-timing", query.call_args.args[2])
 
 
 if __name__ == "__main__":
