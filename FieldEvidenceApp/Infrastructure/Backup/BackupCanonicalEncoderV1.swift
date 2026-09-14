@@ -2139,7 +2139,8 @@ private extension BackupCanonicalEncoderV1 {
         }
         if components.count == 4, components[0] == "content" {
             guard UUID(uuidString: components[1])?.uuidString.lowercased() == components[1],
-                  ContentContractValidationV1.validID(components[2]) else { return nil }
+                  ContentContractValidationV1.validID(components[2]),
+                  components[2] != ".", components[2] != ".." else { return nil }
             switch components[3] {
             case "original.bin": return .contentOriginal
             case "derivative-publication.json": return .derivativePublication

@@ -79,6 +79,12 @@ final class V23BackupManifestMemberTests: XCTestCase {
             mimeType: "application/json"
         )
         XCTAssertNoThrow(try encode(manifest(entries: [validDraft, validOriginal, validMarker])))
+        // A dot within a legal content identifier remains distinct from a path component.
+        let dottedID = "manifest.member-content"
+        XCTAssertNoThrow(try encode(manifest(entries: [
+            entry(path: "content/\(workspace)/\(dottedID)/original.bin", mimeType: "audio/mp4"),
+            entry(path: "content/\(workspace)/\(dottedID)/derivative-publication.json", mimeType: "application/json"),
+        ])))
 
         let hostile: [V4BackupEntryV1] = [
             entry(path: "draft-staging/\(draft.uppercased())/\(stage).bin", mimeType: "application/octet-stream"),
@@ -90,6 +96,9 @@ final class V23BackupManifestMemberTests: XCTestCase {
             entry(path: "content/\(workspace)/INVALID/original.bin", mimeType: "audio/mp4"),
             entry(path: "content/\(workspace)//original.bin", mimeType: "audio/mp4"),
             entry(path: "content/\(workspace)/../original.bin", mimeType: "audio/mp4"),
+            entry(path: "content/\(workspace)/./original.bin", mimeType: "audio/mp4"),
+            entry(path: "content/\(workspace)/../derivative-publication.json", mimeType: "application/json"),
+            entry(path: "content/\(workspace)/./derivative-publication.json", mimeType: "application/json"),
             entry(path: "content/\(workspace)/\(contentID)/original.bin/extra", mimeType: "audio/mp4"),
             entry(path: "content/\(workspace)/\(contentID)/original.jpg", mimeType: "audio/mp4"),
             entry(path: "content/\(workspace)/\(contentID)/original.bin", mimeType: "Audio/MP4"),

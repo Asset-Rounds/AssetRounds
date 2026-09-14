@@ -116,7 +116,7 @@
         "S6_2BackupExportTests",
         "V9_18PackLifecycleIntegrationTests"
       ],
-      "methodCount": 14
+      "methodCount": 21
     },
     {
       "id": "legacy-lifecycle-recovery",
@@ -185,7 +185,7 @@
         "V23PartsStockReplacementHistoryTests",
         "V23PartsStockReplacementProjectionTests"
       ],
-      "methodCount": 29
+      "methodCount": 32
     },
     {
       "id": "work-asset-production",

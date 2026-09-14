@@ -434,11 +434,7 @@ struct OutcomeReviewView: View {
         }
     }
 
-    private enum NormalizedNote: Equatable {
-        case none
-        case value(String)
-        case invalid
-    }
+    private typealias NormalizedNote = CheckRunnerEditableNoteProjectionV1
 
     private var normalizedCouldNotVerifyNote: String? {
         switch normalizedNote(couldNotVerifyNote) {
@@ -492,11 +488,7 @@ struct OutcomeReviewView: View {
     }
 
     private func normalizedNote(_ value: String?) -> NormalizedNote {
-        guard let value else { return .none }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .none }
-        guard trimmed.count <= 1000 else { return .invalid }
-        return .value(trimmed)
+        CheckRunnerOutcomeResolverV1.projectEditableNote(value)
     }
 
     private func updateCouldNotVerifySelection() {

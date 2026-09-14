@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -101,6 +102,248 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             ),
             restoredHistory
         )
+    }
+
+    @MainActor
+    func testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows() throws {
+        let harness = try V906Integration.makeHarness("c55-current-records", withAsset: false)
+        registerPublicFixtureCleanup(harness)
+        let service = try BackupRestoreService(applicationSupportURL: harness.support)
+        let journal = try MutationJournalStoreV1(
+            modelContext: harness.session.modelContext,
+            identity: harness.session.workspaceIdentity,
+            generationID: harness.session.generationID,
+            allowStateBootstrap: false
+        )
+
+        XCTAssertFalse(harness.session.modelContext.hasChanges)
+        let beforeEmptyRead = try journal.exportSnapshot()
+        let empty = try service.c55CurrentRecordsForTesting(
+            in: harness.session.modelContext
+        )
+        let emptySnapshot = try XCTUnwrap(empty.partsStockSnapshot)
+        XCTAssertEqual(emptySnapshot.workspaceID, harness.session.workspaceIdentity.workspaceID)
+        XCTAssertTrue(emptySnapshot.parts.isEmpty)
+        XCTAssertTrue(emptySnapshot.locations.isEmpty)
+        XCTAssertTrue(emptySnapshot.movements.isEmpty)
+        XCTAssertTrue(emptySnapshot.uses.isEmpty)
+        XCTAssertTrue(emptySnapshot.reversals.isEmpty)
+        XCTAssertTrue(emptySnapshot.returns.isEmpty)
+        XCTAssertTrue(emptySnapshot.abandonments.isEmpty)
+        XCTAssertNotNil(empty.deletionLedger)
+        XCTAssertNotNil(empty.mutationHistory)
+        XCTAssertEqual(try journal.exportSnapshot(), beforeEmptyRead)
+        XCTAssertFalse(harness.session.modelContext.hasChanges)
+        let noHistory = try service.c55CurrentRecordsForTesting(
+            in: harness.session.modelContext,
+            includingDeletionLedger: false
+        )
+        XCTAssertNil(noHistory.deletionLedger)
+        XCTAssertNil(noHistory.mutationHistory)
+        XCTAssertNil(noHistory.partsStockSnapshot)
+        XCTAssertEqual(try journal.exportSnapshot(), beforeEmptyRead)
+        XCTAssertFalse(harness.session.modelContext.hasChanges)
+
+        try seedCurrentPart(in: harness.session, slot: 1_700)
+        XCTAssertFalse(harness.session.modelContext.hasChanges)
+        let beforeNonemptyRead = try journal.exportSnapshot()
+        let nonempty = try service.c55CurrentRecordsForTesting(
+            in: harness.session.modelContext
+        )
+        let nonemptySnapshot = try XCTUnwrap(nonempty.partsStockSnapshot)
+        XCTAssertEqual(nonemptySnapshot.workspaceID, harness.session.workspaceIdentity.workspaceID)
+        XCTAssertEqual(nonemptySnapshot.parts.count, 1)
+        XCTAssertTrue(nonemptySnapshot.locations.isEmpty)
+        XCTAssertEqual(try journal.exportSnapshot(), beforeNonemptyRead)
+        XCTAssertFalse(harness.session.modelContext.hasChanges)
+
+        let hostile = try V906Integration.makeHarness("c55-current-records-foreign", withAsset: false)
+        registerPublicFixtureCleanup(hostile)
+        let foreignWorkspaceID = WorkspaceID(rawValue: V906Integration.id(1_750))
+        let foreignPart = try Fixture.part(
+            foreignWorkspaceID,
+            slot: 1_751,
+            mutationID: try MutationIDV1(rawValue: V906Integration.id(1_752))
+        )
+        hostile.session.modelContext.insert(try LocalPartDefinitionRowV1(foreignPart))
+        XCTAssertTrue(hostile.session.modelContext.hasChanges)
+        let hostileService = try BackupRestoreService(applicationSupportURL: hostile.support)
+        XCTAssertThrowsError(try hostileService.c55CurrentRecordsForTesting(
+            in: hostile.session.modelContext
+        ))
+        XCTAssertTrue(hostile.session.modelContext.hasChanges)
+        let retainedForeignRows = try hostile.session.modelContext.fetch(
+            FetchDescriptor<LocalPartDefinitionRowV1>()
+        )
+        XCTAssertEqual(retainedForeignRows.count, 1)
+        XCTAssertEqual(retainedForeignRows.first?.workspaceUUID, foreignWorkspaceID.rawValue)
+        hostile.session.modelContext.rollback()
+        XCTAssertFalse(hostile.session.modelContext.hasChanges)
+        XCTAssertEqual(try hostile.session.modelContext.fetchCount(
+            FetchDescriptor<LocalPartDefinitionRowV1>()
+        ), 0)
+    }
+
+    @MainActor
+    func testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority() throws {
+        let source = try V906Integration.makeHarness("c55-schema-source", withAsset: false)
+        registerPublicFixtureCleanup(source)
+        let target = try V906Integration.makeHarness("c55-schema-target", withAsset: false)
+        registerPublicFixtureCleanup(target)
+        try seedCurrentPart(in: target.session, slot: 1_800)
+
+        let sourceRecords = try BackupRestoreService(applicationSupportURL: source.support)
+            .c55CurrentRecordsForTesting(in: source.session.modelContext)
+        let targetRecords = try BackupRestoreService(applicationSupportURL: target.support)
+            .c55CurrentRecordsForTesting(in: target.session.modelContext)
+        XCTAssertTrue(try XCTUnwrap(sourceRecords.partsStockSnapshot).parts.isEmpty)
+        XCTAssertEqual(try XCTUnwrap(targetRecords.partsStockSnapshot).parts.count, 1)
+
+        let declaredSchemas = [
+            C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
+            C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+            C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion,
+            C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion,
+            FastSurveyInboxBackupEnrollmentV1.recordsSchemaVersion,
+            ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion,
+            EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion,
+            PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion,
+            LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion,
+            LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        ]
+        XCTAssertEqual(declaredSchemas, Array(43...52))
+        for schema in declaredSchemas {
+            let current = try replacingRecordAuthority(
+                in: targetRecords,
+                recordsSchemaVersion: schema
+            )
+            let plan = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+                currentRecords: current,
+                currentIdentity: target.session.workspaceIdentity,
+                incomingRecords: sourceRecords,
+                incomingIdentity: source.session.workspaceIdentity,
+                mode: .replaceExisting,
+                replacementAt: Fixture.fixedDate.addingTimeInterval(10_000)
+            ))
+            XCTAssertEqual(plan.recordsAfter.partsStockSnapshot, sourceRecords.partsStockSnapshot,
+                           "schema \(schema)")
+        }
+
+        let missingLedger = try replacingRecordAuthority(
+            in: targetRecords,
+            recordsSchemaVersion: C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+            deletionLedger: .omitted
+        )
+        assertInvalidReplacementPlan(
+            current: missingLedger, incoming: sourceRecords, target: target, source: source
+        )
+        let missingHistory = try replacingRecordAuthority(
+            in: targetRecords,
+            recordsSchemaVersion: C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+            mutationHistory: .omitted
+        )
+        assertInvalidReplacementPlan(
+            current: missingHistory, incoming: sourceRecords, target: target, source: source
+        )
+        let missingC55 = try replacingRecordAuthority(
+            in: targetRecords,
+            recordsSchemaVersion: C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+            partsStockSnapshot: .omitted
+        )
+        assertInvalidReplacementPlan(
+            current: missingC55, incoming: sourceRecords, target: target, source: source
+        )
+        let foreignSnapshot = try PartsStockBackupSnapshotV1(
+            workspaceID: source.session.workspaceIdentity.workspaceID,
+            parts: [], locations: [], movements: [], uses: [], reversals: [], returns: [],
+            abandonments: []
+        )
+        let foreignC55 = try replacingRecordAuthority(
+            in: targetRecords,
+            recordsSchemaVersion: C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+            partsStockSnapshot: .value(foreignSnapshot)
+        )
+        assertInvalidReplacementPlan(
+            current: foreignC55, incoming: sourceRecords, target: target, source: source
+        )
+        let future = try replacingRecordAuthority(in: targetRecords, recordsSchemaVersion: 53)
+        assertInvalidReplacementPlan(
+            current: future, incoming: sourceRecords, target: target, source: source
+        )
+    }
+
+    @MainActor
+    func testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor() throws {
+        let harness = try V906Integration.makeHarness("c55-actor-party", withAsset: false)
+        registerPublicFixtureCleanup(harness)
+        let journal = try MutationJournalStoreV1(
+            modelContext: harness.session.modelContext,
+            identity: harness.session.workspaceIdentity,
+            generationID: harness.session.generationID,
+            allowStateBootstrap: false
+        )
+        let writerID = V906Integration.id(1_900)
+        let writer = try WorkspaceWriterV1(
+            identity: harness.session.workspaceIdentity,
+            generationID: harness.session.generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: writerID),
+            clock: ReplacementClock(),
+            idSource: ReplacementIDs(start: 1_910),
+            fileAuthority: ReplacementFiles(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: harness.session.modelContext),
+            journalStore: journal
+        )
+        let before = try journal.exportSnapshot()
+        let linked = try Fixture.actor(
+            harness.session.workspaceIdentity.workspaceID,
+            slot: 1_920
+        )
+        XCTAssertNotNil(linked.actor.partyID)
+        XCTAssertThrowsError(try writer.execute(
+            .applyPartyAccountability(.appendActorSnapshot(linked)),
+            mutationID: try MutationIDV1(rawValue: V906Integration.id(1_921))
+        )) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try journal.exportSnapshot(), before)
+        XCTAssertNil(try journal.receipt(
+            mutationID: try MutationIDV1(rawValue: V906Integration.id(1_921))
+        ))
+        XCTAssertEqual(
+            try harness.session.modelContext.fetchCount(FetchDescriptor<ActorSnapshotRow>()), 0
+        )
+        XCTAssertEqual(
+            try harness.session.modelContext.fetchCount(FetchDescriptor<ServicePartyRow>()), 0
+        )
+        XCTAssertFalse(harness.session.modelContext.hasChanges)
+
+        let unlinked = try Fixture.actor(
+            harness.session.workspaceIdentity.workspaceID,
+            slot: 1_930,
+            includesPartyReference: false
+        )
+        XCTAssertNil(unlinked.actor.partyID)
+        let mutationID = try MutationIDV1(rawValue: V906Integration.id(1_931))
+        let outcome = try writer.execute(
+            .applyPartyAccountability(.appendActorSnapshot(unlinked)), mutationID: mutationID
+        )
+        XCTAssertEqual(outcome.mutationID, mutationID)
+        XCTAssertEqual(try XCTUnwrap(journal.receipt(mutationID: mutationID)).mutationID, mutationID)
+        let history = try journal.exportSnapshot()
+        XCTAssertEqual(history.receipts.count, 1)
+        XCTAssertEqual(
+            try MutationEnvelopeV1.decodeCanonical(
+                from: try XCTUnwrap(history.receipts.first).envelopeData
+            ).commandKind,
+            .applyPartyAccountability
+        )
+        let actorRows = try harness.session.modelContext.fetch(FetchDescriptor<ActorSnapshotRow>())
+        XCTAssertEqual(actorRows.count, 1)
+        XCTAssertEqual(try XCTUnwrap(actorRows.first).value(), unlinked)
+        XCTAssertEqual(
+            try harness.session.modelContext.fetchCount(FetchDescriptor<ServicePartyRow>()), 0
+        )
+        XCTAssertFalse(harness.session.modelContext.hasChanges)
     }
 
     func testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork() throws {
@@ -691,6 +934,75 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         print("C55 public failure phase=\(phase) type=\(String(reflecting: type(of: error))) domain=\(value.domain) code=\(value.code)")
     }
 
+    private enum RecordField<Value: Encodable> {
+        case unchanged
+        case value(Value)
+        case omitted
+    }
+
+    private func replacingRecordAuthority(
+        in records: V4BackupRecordsV1,
+        recordsSchemaVersion: Int,
+        deletionLedger: RecordField<DeletionLedgerV2> = .unchanged,
+        mutationHistory: RecordField<MutationHistorySnapshotV1> = .unchanged,
+        partsStockSnapshot: RecordField<PartsStockBackupSnapshotV1> = .unchanged
+    ) throws -> V4BackupRecordsV1 {
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoder.encode(records)) as? [String: Any]
+        )
+        object["recordsSchemaVersion"] = recordsSchemaVersion
+        try replaceJSONField("deletionLedger", deletionLedger, in: &object, encoder: encoder)
+        try replaceJSONField("mutationHistory", mutationHistory, in: &object, encoder: encoder)
+        try replaceJSONField("partsStockSnapshot", partsStockSnapshot, in: &object, encoder: encoder)
+        return try decoder.decode(
+            V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        )
+    }
+
+    private func replaceJSONField<Value: Encodable>(
+        _ key: String,
+        _ replacement: RecordField<Value>,
+        in object: inout [String: Any],
+        encoder: JSONEncoder
+    ) throws {
+        switch replacement {
+        case .unchanged:
+            break
+        case let .value(value):
+            object[key] = try JSONSerialization.jsonObject(with: encoder.encode(value))
+        case .omitted:
+            object.removeValue(forKey: key)
+        }
+    }
+
+    private func assertInvalidReplacementPlan(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        target: V906Integration.Harness,
+        source: V906Integration.Harness,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertThrowsError(try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+            currentRecords: current,
+            currentIdentity: target.session.workspaceIdentity,
+            incomingRecords: incoming,
+            incomingIdentity: source.session.workspaceIdentity,
+            mode: .replaceExisting,
+            replacementAt: Fixture.fixedDate.addingTimeInterval(10_000)
+        )), file: file, line: line) {
+            XCTAssertEqual(
+                $0 as? ReplacementRestoreRuleError,
+                .invalidAuthority,
+                file: file,
+                line: line
+            )
+        }
+    }
+
     @MainActor
     private func assertPublicEmptyIncomingReplacement(
         name: String,
@@ -809,7 +1121,11 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             )
 
             phase = "mixed-append-actor"
-            let actor = try Fixture.actor(workspaceID, slot: slot + 40)
+            let actor = try Fixture.actor(
+                workspaceID,
+                slot: slot + 40,
+                includesPartyReference: false
+            )
             _ = try writer.execute(
                 .applyPartyAccountability(.appendActorSnapshot(actor)),
                 mutationID: try MutationIDV1(rawValue: V906Integration.id(slot + 7))
@@ -1142,11 +1458,15 @@ private extension V23PartsStockReplacementHistoryTests {
             String(repeating: String(value), count: 64)
         }
 
-        static func actor(_ workspaceID: WorkspaceID, slot: Int) throws -> ActorSnapshotV1 {
+        static func actor(
+            _ workspaceID: WorkspaceID,
+            slot: Int,
+            includesPartyReference: Bool = true
+        ) throws -> ActorSnapshotV1 {
             let actor = try LocalActorReferenceV1(
                 actorReferenceID: id(slot),
                 workspaceID: workspaceID,
-                partyID: id(slot + 1),
+                partyID: includesPartyReference ? id(slot + 1) : nil,
                 displayName: "History projection actor"
             )
             return try ActorSnapshotV1(

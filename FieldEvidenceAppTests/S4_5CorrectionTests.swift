@@ -18,7 +18,6 @@ final class S4_5CorrectionTests: XCTestCase {
     @MainActor
     func testFirstAndSecondCorrectionCopyOnlyFiveSnapshotFieldsAndKeepEveryPriorPDF() async throws {
         let harness = try await makeHarness("two-generations")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let originalSnapshot = try snapshot(report: harness.originalReport, in: harness)
         let initialDiagnostics = await harness.diagnostics.snapshot()
@@ -225,7 +224,6 @@ final class S4_5CorrectionTests: XCTestCase {
     @MainActor
     func testHistoricalObservationCompanionFailuresRejectCorrectionDeliveryWithoutRewritingFrozenBytes() async throws {
         let harness = try await makeHarness("historical-companion")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let originalSource = try harness.coordinator.correctionSource(reportID: harness.originalReport.id)
         let firstIDs = ReportCorrectionIdentifiers(mutationID: UUID(), recordID: UUID(), reportID: UUID())
@@ -333,7 +331,6 @@ final class S4_5CorrectionTests: XCTestCase {
     @MainActor
     func testPureRuleRejectsNoopMalformedUnknownAndNoncurrentAuthority() async throws {
         let harness = try await makeHarness("pure-rule")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let snapshot = try snapshot(report: harness.originalReport, in: harness)
         let source = ReportCorrectionRuleSource(
@@ -515,7 +512,6 @@ final class S4_5CorrectionTests: XCTestCase {
             "date-precision",
             substantiveDate: substantiveDate
         )
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let originalRecord = recordPayload(harness.originalRecord)
         let originalEvidence = try harness.context.fetch(FetchDescriptor<EvidenceFile>())
@@ -595,7 +591,6 @@ final class S4_5CorrectionTests: XCTestCase {
     func testPrecommitJournalAndSaveFailuresLeaveNoPartialAuthorityThenRetryOnce() async throws {
         for fault in CorrectionPrecommitFault.allCases {
             let harness = try await makeHarness("precommit-\(fault)")
-            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
             defer { try? harness.close() }
             let identifiers = ReportCorrectionIdentifiers(
                 mutationID: UUID(), recordID: UUID(), reportID: UUID()
@@ -663,7 +658,6 @@ final class S4_5CorrectionTests: XCTestCase {
                 FileHandle.standardError.write(Data(("S4_5 snapshot-promoted stage=" + $0 + "\n").utf8))
             }
         )
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         diagnosticBoundary = "test-original-snapshot"
         let priorSnapshot = try snapshot(report: harness.originalReport, in: harness)
@@ -801,7 +795,6 @@ final class S4_5CorrectionTests: XCTestCase {
             "committed-recovery",
             substantiveDate: Date(timeIntervalSince1970: 1_768_940_000.123456)
         )
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let correctionDate = Date(timeIntervalSince1970: 1_768_940_100.987654)
         let storeFailure = FinalizationIntentStoreFailureInjection(
@@ -979,7 +972,6 @@ final class S4_5CorrectionTests: XCTestCase {
     @MainActor
     func testPostcommitDirtyInterleavingReturnsPersistedAuthorityWithoutSavingOrRollingBackUnrelatedEdit() async throws {
         let harness = try await makeHarness("postcommit-dirty-interleaving")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let originalSiteLabel = harness.site.label
         let dirtySiteLabel = "Unsaved concurrent site label"
@@ -1074,7 +1066,6 @@ final class S4_5CorrectionTests: XCTestCase {
     @MainActor
     func testRenderFailurePersistsOneRecoverableCorrectionWithoutResubmitOrCounterMutation() async throws {
         let harness = try await makeHarness("render-failure")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let renderFailure = ReportRenderFailureInjection(failOnceAt: .render)
         let recovery = try ReportRecoveryService(
@@ -1163,7 +1154,6 @@ final class S4_5CorrectionTests: XCTestCase {
     func testDirtyCollisionMalformedAndUnsafeAuthorityFailClosedWithoutMutationOrLinkFollowing() async throws {
         for invalid in InvalidCorrectionAuthority.allCases {
             let harness = try await makeHarness("invalid-\(invalid)")
-            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
             defer { try? harness.close() }
             let sourceReportID = harness.originalReport.id
             let sentinel = try apply(invalid, to: harness)
@@ -1204,7 +1194,6 @@ final class S4_5CorrectionTests: XCTestCase {
     @MainActor
     func testGenerationRootIdentityReplacementFailsClosedWithoutTouchingRetainedBytes() async throws {
         let harness = try await makeHarness("generation-root-replacement")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let coordinator = harness.coordinator
         let sourceReportID = harness.originalReport.id
@@ -1247,7 +1236,6 @@ final class S4_5CorrectionTests: XCTestCase {
     @MainActor
     func testIntentStorePersistentSwapAndJournalABAKeepMutationOwnedBytesAnchored() async throws {
         let harness = try await makeHarness("intent-store-barrier")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         defer { try? harness.close() }
         let before = try domainSnapshot(in: harness)
         let root = harness.session.generationRootURL
@@ -1564,6 +1552,16 @@ private struct CorrectionHarness {
     }
 }
 
+private struct CorrectionHarnessConstructionFailure: Error {
+    let phase: String
+    let underlying: Error
+    let retainedApplicationSupportURL: URL
+
+    var underlyingType: String { String(reflecting: type(of: underlying)) }
+    var underlyingDomain: String { (underlying as NSError).domain }
+    var underlyingCode: Int { (underlying as NSError).code }
+}
+
 private struct RowCounts: Equatable {
     let sites: Int
     let assets: Int
@@ -1819,6 +1817,18 @@ private extension S4_5CorrectionTests {
     }
 
     @MainActor
+    func registerCorrectionSessionCleanup(root: URL, session: StoreGenerationSession) {
+        addTeardownBlock { [weak session = session, root] in
+            guard session == nil else {
+                XCTFail("S4_5 fixture cleanup requires the store session graph to be released")
+                return
+            }
+            guard FileManager.default.fileExists(atPath: root.path) else { return }
+            try FileManager.default.removeItem(at: root)
+        }
+    }
+
+    @MainActor
     func makeHarness(
         _ label: String,
         substantiveDate: Date = Fixture.baseDate,
@@ -1829,24 +1839,35 @@ private extension S4_5CorrectionTests {
                 "S4_5CorrectionTests-\(label)-\(UUID().uuidString)",
                 isDirectory: true
             )
-        reportDiagnosticBoundary?("harness-directory-create")
+        var phase = "harness-directory-create"
+        var constructionSession: StoreGenerationSession?
+        var constructionCoordinator: StoreSessionCoordinator?
+        func mark(_ value: String) {
+            phase = value
+            reportDiagnosticBoundary?(value)
+        }
+        do {
+        mark("harness-directory-create")
         try fileManager.createDirectory(
             at: applicationSupport,
             withIntermediateDirectories: false
         )
-        reportDiagnosticBoundary?("harness-bootstrap")
+        mark("harness-bootstrap")
         let session = try StoreGenerationFactory(applicationSupportURL: applicationSupport)
             .openOrBootstrapCurrent()
+        constructionSession = session
+        registerCorrectionSessionCleanup(root: applicationSupport, session: session)
         let context = session.modelContext
-        reportDiagnosticBoundary?("harness-writer")
+        mark("harness-writer")
         let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
+        constructionCoordinator = storeCoordinator
         let diagnostics = DiagnosticsStore(applicationSupportURL: applicationSupport)
-        reportDiagnosticBoundary?("harness-diagnostics-prepare")
+        mark("harness-diagnostics-prepare")
         await diagnostics.prepare()
         let siteID = UUID()
         let assetID = UUID()
         let placementMutationID = try MutationIDV1(rawValue: UUID())
-        reportDiagnosticBoundary?("harness-first-sign")
+        mark("harness-first-sign")
         _ = try storeCoordinator.workspaceWriter.execute(
             .createFirstSign(.init(
                 siteID: siteID,
@@ -1868,24 +1889,24 @@ private extension S4_5CorrectionTests {
             )),
             mutationID: placementMutationID
         )
-        reportDiagnosticBoundary?("harness-first-sign-fetch")
+        mark("harness-first-sign-fetch")
         let site = try XCTUnwrap(
             context.fetch(FetchDescriptor<Site>()).first { $0.id == siteID }
         )
         let asset = try XCTUnwrap(
             context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID }
         )
-        reportDiagnosticBoundary?("harness-lifecycle-profile")
+        mark("harness-lifecycle-profile")
         let lifecycleProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
             package: .illuminatedSignV1
         )
-        reportDiagnosticBoundary?("harness-lifecycle-dependencies")
+        mark("harness-lifecycle-dependencies")
         let lifecycleDependencies = try storeCoordinator.packageLifecycleDependencies(
             profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(
                 profiles: [lifecycleProfile]
             )
         )
-        reportDiagnosticBoundary?("harness-runner-create")
+        mark("harness-runner-create")
         let runner = try CheckRunnerCoordinator(
             modelContext: context,
             packageLifecycleDependencies: lifecycleDependencies,
@@ -1893,7 +1914,7 @@ private extension S4_5CorrectionTests {
             diagnosticsStore: diagnostics
         )
         runner.configureCapture(generationRootURL: session.generationRootURL)
-        reportDiagnosticBoundary?("harness-runner-begin")
+        mark("harness-runner-begin")
         let record = try runner.beginCheck(
             assetID: asset.id,
             timeZoneID: "America/New_York",
@@ -1902,21 +1923,21 @@ private extension S4_5CorrectionTests {
             safePositionAccepted: true,
             observedAt: substantiveDate.addingTimeInterval(-20)
         )
-        reportDiagnosticBoundary?("harness-wide-import")
+        mark("harness-wide-import")
         let wide = try await runner.importCandidate(
             assetID: asset.id,
             sourceData: try makePNG(seed: 41),
             createdAt: substantiveDate.addingTimeInterval(-15)
         )
-        reportDiagnosticBoundary?("harness-wide-accept")
+        mark("harness-wide-accept")
         _ = try await runner.accept(candidate: wide, assetID: asset.id)
-        reportDiagnosticBoundary?("harness-close-import")
+        mark("harness-close-import")
         let close = try await runner.importCandidate(
             assetID: asset.id,
             sourceData: try makePNG(seed: 77),
             createdAt: substantiveDate.addingTimeInterval(-14)
         )
-        reportDiagnosticBoundary?("harness-close-accept")
+        mark("harness-close-accept")
         _ = try await runner.accept(candidate: close, assetID: asset.id)
         let originalIDs = FinalizationIdentifiers(
             mutationID: UUID(),
@@ -1925,7 +1946,7 @@ private extension S4_5CorrectionTests {
             reportID: UUID(),
             issueID: UUID()
         )
-        reportDiagnosticBoundary?("harness-runner-finalize")
+        mark("harness-runner-finalize")
         let result = try await runner.finalize(
             assetID: asset.id,
             selection: .visibleIssue(labelKey: "dark_section"),
@@ -1934,36 +1955,36 @@ private extension S4_5CorrectionTests {
             sourceApp: SourceAppSnapshotV1(build: "440", version: "1.0"),
             identifiers: originalIDs
         )
-        reportDiagnosticBoundary?("harness-delivery-create")
+        mark("harness-delivery-create")
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: context,
             lifecycleDependencies: lifecycleDependencies,
             lifecycleProfile: lifecycleProfile,
             diagnosticsStore: diagnostics
         )
-        reportDiagnosticBoundary?("harness-delivery-prepare")
+        mark("harness-delivery-prepare")
         guard case .ready = try coordinator.prepareFinalizedReport(id: result.reportID) else {
             throw CorrectionFixtureError.unexpectedSubmission
         }
-        reportDiagnosticBoundary?("harness-original-envelope")
+        mark("harness-original-envelope")
         XCTAssertNotNil(try storeCoordinator.workspaceWriter.finalizationEnvelope(
             mutationID: MutationIDV1(rawValue: originalIDs.mutationID)
         ))
-        reportDiagnosticBoundary?("harness-original-journal-validate")
+        mark("harness-original-journal-validate")
         try MutationJournalStoreV1(
             modelContext: context,
             identity: session.workspaceIdentity,
             generationID: session.generationID,
             allowStateBootstrap: false
         ).validateAll()
-        reportDiagnosticBoundary?("harness-final-rows")
+        mark("harness-final-rows")
         let packet = try XCTUnwrap(
             try context.fetch(FetchDescriptor<Packet>()).first { $0.id == originalIDs.packetID }
         )
         let report = try XCTUnwrap(
             try context.fetch(FetchDescriptor<Report>()).first { $0.id == result.reportID }
         )
-        reportDiagnosticBoundary?("harness-completed")
+        mark("harness-completed")
         return CorrectionHarness(
             applicationSupportURL: applicationSupport,
             session: session,
@@ -1980,6 +2001,16 @@ private extension S4_5CorrectionTests {
             originalReport: report,
             coordinator: coordinator
         )
+        } catch {
+            try? constructionCoordinator?.invalidateAndReleaseWriter()
+            constructionCoordinator = nil
+            constructionSession = nil
+            throw CorrectionHarnessConstructionFailure(
+                phase: phase,
+                underlying: error,
+                retainedApplicationSupportURL: applicationSupport
+            )
+        }
     }
 
     @MainActor

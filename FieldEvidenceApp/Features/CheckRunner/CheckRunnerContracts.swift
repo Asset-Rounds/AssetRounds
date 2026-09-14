@@ -199,6 +199,184 @@ enum CheckOutcomeSelection: Equatable, Sendable {
     case originalResolvedDifferentIssue(labelKey: String, note: String?)
 }
 
+// C36 shares the incumbent live CheckRunner interpretation before codec admission.
+// This value carries no mutation, receipt, or durability authority.
+struct CheckRunnerResolvedOutcomeV1: Equatable, Sendable {
+    let key: String
+    let display: String
+    let issueLabel: SignPack.RegistryEntry?
+    let couldNotVerify: SignPack.RegistryEntry?
+    let note: String?
+    let selection: CheckOutcomeSelection
+}
+
+enum CheckRunnerEditableNoteProjectionV1: Equatable, Sendable {
+    case none
+    case value(String)
+    case invalid
+}
+
+enum CheckRunnerOutcomeResolverV1 {
+    static func projectEditableNote(_ value: String?) -> CheckRunnerEditableNoteProjectionV1 {
+        guard let value else { return .none }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .none }
+        guard trimmed.count <= 1000 else { return .invalid }
+        return .value(trimmed)
+    }
+
+    static func resolve(
+        _ selection: CheckOutcomeSelection,
+        signPack: SignPack,
+        activeLifecycleProfile: () throws -> WorkspacePackageLifecycleProfileV1
+    ) throws -> CheckRunnerResolvedOutcomeV1 {
+        let key: String
+        let issueLabel: SignPack.RegistryEntry?
+        let couldNotVerify: SignPack.RegistryEntry?
+        let note: String?
+        let normalizedSelection: CheckOutcomeSelection
+        switch selection {
+        case .noVisibleIssue:
+            key = try packageOutcome(for: .noFinding, activeLifecycleProfile: activeLifecycleProfile).key
+            issueLabel = nil
+            couldNotVerify = nil
+            note = nil
+            normalizedSelection = .noVisibleIssue
+        case let .visibleIssue(labelKey):
+            let normalizedKey = labelKey.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard !normalizedKey.isEmpty else {
+                throw CheckRunnerCoordinatorError.issueLabelRequired
+            }
+            guard let selected = signPack.issueLabels.first(where: {
+                $0.key == normalizedKey
+            }), signPack.issueLabels.filter({ $0.key == normalizedKey }).count == 1 else {
+                throw CheckRunnerCoordinatorError.issueLabelInvalid
+            }
+            key = try packageOutcome(for: .findingObserved, activeLifecycleProfile: activeLifecycleProfile).key
+            issueLabel = selected
+            couldNotVerify = nil
+            note = nil
+            normalizedSelection = .visibleIssue(labelKey: normalizedKey)
+        case let .couldNotVerify(reasonKey, rawNote):
+            let normalizedKey = reasonKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard reasonKey == normalizedKey,
+                  !normalizedKey.isEmpty,
+                  validCouldNotVerifyRegistry(signPack: signPack, activeLifecycleProfile: activeLifecycleProfile),
+                  let selected = signPack.couldNotVerifyReasons.entries.first(where: { $0.key == normalizedKey }) else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            let trimmed = rawNote?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedNote = trimmed.flatMap { $0.isEmpty ? nil : $0 }
+            guard rawNote.map({ $0.isEmpty || $0 == trimmed }) ?? true,
+                  normalizedNote.map({ (1...1000).contains($0.count) }) ?? true else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            key = try packageOutcome(for: .couldNotVerify, activeLifecycleProfile: activeLifecycleProfile).key
+            issueLabel = nil
+            couldNotVerify = selected
+            note = normalizedNote
+            normalizedSelection = .couldNotVerify(reasonKey: selected.key, note: normalizedNote)
+        case let .resolved(rawNote):
+            let normalizedNote = try normalizedRecheckNote(rawNote)
+            key = try packageOutcome(for: .resolved, activeLifecycleProfile: activeLifecycleProfile).key
+            issueLabel = nil
+            couldNotVerify = nil
+            note = normalizedNote
+            normalizedSelection = .resolved(note: normalizedNote)
+        case let .issueStillVisible(rawNote):
+            let normalizedNote = try normalizedRecheckNote(rawNote)
+            key = try packageOutcome(for: .findingStillPresent, activeLifecycleProfile: activeLifecycleProfile).key
+            issueLabel = nil
+            couldNotVerify = nil
+            note = normalizedNote
+            normalizedSelection = .issueStillVisible(note: normalizedNote)
+        case let .originalResolvedDifferentIssue(labelKey, rawNote):
+            let normalizedKey = labelKey.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard labelKey == normalizedKey,
+                  !normalizedKey.isEmpty,
+                  let selected = signPack.issueLabels.first(where: {
+                      $0.key == normalizedKey
+                  }),
+                  signPack.issueLabels.filter({ $0.key == normalizedKey }).count == 1 else {
+                throw CheckRunnerCoordinatorError.issueLabelInvalid
+            }
+            let normalizedNote = try normalizedRecheckNote(rawNote)
+            key = try packageOutcome(for: .originalResolvedDifferentFinding, activeLifecycleProfile: activeLifecycleProfile).key
+            issueLabel = selected
+            couldNotVerify = nil
+            note = normalizedNote
+            normalizedSelection = .originalResolvedDifferentIssue(
+                labelKey: normalizedKey,
+                note: normalizedNote
+            )
+        }
+        let matches = try activeLifecycleProfile().stages
+            .flatMap(\.outcomes).filter { $0.key == key }
+        guard let expected = matches.first,
+              matches.allSatisfy({
+                  $0.role == expected.role && $0.display == expected.display
+              }) else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        return CheckRunnerResolvedOutcomeV1(
+            key: key, display: expected.display, issueLabel: issueLabel,
+            couldNotVerify: couldNotVerify, note: note, selection: normalizedSelection
+        )
+    }
+
+    static func packageOutcome(
+        for role: WorkspacePackageOutcomeRoleV1,
+        activeLifecycleProfile: () throws -> WorkspacePackageLifecycleProfileV1
+    ) throws -> WorkspacePackageOutcomeProfileV1 {
+        let matches = try activeLifecycleProfile().stages
+            .flatMap(\.outcomes).filter { $0.role == role }
+        guard let first = matches.first,
+              matches.allSatisfy({ $0.key == first.key && $0.display == first.display }) else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return first
+    }
+
+    private static func normalizedRecheckNote(_ value: String?) throws -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.flatMap { $0.isEmpty ? nil : $0 }
+        guard value.map({ $0.isEmpty || $0 == trimmed }) ?? true,
+              normalized.map({ (1...1000).contains($0.count) }) ?? true else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        return normalized
+    }
+
+    static func validCouldNotVerifyRegistry(
+        signPack: SignPack,
+        activeLifecycleProfile: () throws -> WorkspacePackageLifecycleProfileV1
+    ) -> Bool {
+        let registry = signPack.couldNotVerifyReasons
+        guard let outcome = try? packageOutcome(for: .couldNotVerify, activeLifecycleProfile: activeLifecycleProfile),
+              signPackOutcomeDisplay(signPack: signPack, key: outcome.key) == outcome.display,
+              !registry.version.isEmpty,
+              registry.version == registry.version.trimmingCharacters(in: .whitespacesAndNewlines),
+              (1...64).contains(registry.entries.count),
+              Set(registry.entries.map(\.key)).count == registry.entries.count else {
+            return false
+        }
+        return registry.entries.allSatisfy {
+            !$0.key.isEmpty && $0.key == $0.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                && !$0.display.isEmpty
+                && $0.display == $0.display.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    static func signPackOutcomeDisplay(signPack: SignPack, key: String) -> String? {
+        let matches = signPack.outcomeDisplays.filter { $0.key == key }
+        return matches.count == 1 ? matches[0].display : nil
+    }
+}
+
 struct ReviewEvidence: Equatable, Sendable {
     let id: UUID
     let purposeKey: String

@@ -13435,10 +13435,27 @@ private extension BackupRestoreService {
         guard partsStockWorkspaceIDs.count <= 1 else {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
-        let partsStockSnapshot = try partsStockWorkspaceIDs.first.map {
-            try PartsStockLifecycleAdapterV1(modelContext: context).snapshotForBackup(
-                workspaceID: WorkspaceID(rawValue: $0)
+        let partsStockSnapshot: PartsStockBackupSnapshotV1?
+        if mutationHistory != nil {
+            var stateDescriptor = FetchDescriptor<WorkspaceMutationStateRow>()
+            stateDescriptor.fetchLimit = 2
+            let states = try context.fetch(stateDescriptor)
+            guard states.count == 1, let state = states.first,
+                  partsStockWorkspaceIDs.allSatisfy({ $0 == state.workspaceID }) else {
+                throw attributedRestoreAuthorityFailureV1(line: #line)
+            }
+            let identity = try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: state.workspaceID),
+                replicaID: ReplicaID(rawValue: state.activeReplicaID)
             )
+            partsStockSnapshot = try PartsStockLifecycleAdapterV1(modelContext: context)
+                .snapshotForBackup(workspaceID: identity.workspaceID)
+        } else {
+            partsStockSnapshot = try partsStockWorkspaceIDs.first.map {
+                try PartsStockLifecycleAdapterV1(modelContext: context).snapshotForBackup(
+                    workspaceID: WorkspaceID(rawValue: $0)
+                )
+            }
         }
         let myDayPlans = try myDayPlanRows.map { try $0.value() }.sorted {
             ($0.key.stableKey, $0.planID.uuidString, $0.revision)
@@ -14121,6 +14138,17 @@ private extension BackupRestoreService {
 
 #if DEBUG
 internal extension BackupRestoreService {
+    func c55CurrentRecordsForTesting(
+        in context: ModelContext,
+        includingDeletionLedger: Bool = true
+    ) throws -> V4BackupRecordsV1 {
+        try records(
+            in: context,
+            includingDeletionLedger: includingDeletionLedger,
+            includesObservationAndTime: true
+        )
+    }
+
     func c55RebindingWorkResourcesForTesting(
         in destination: V4BackupRecordsV1,
         sourceRecords: V4BackupRecordsV1,

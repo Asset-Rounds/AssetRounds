@@ -408,7 +408,9 @@ private extension V23FieldDraftStageDigestBackupTests {
                 receipts: zip(sourceHistory.receipts, sourceIdentities)
                     .sorted { $0.1.stableKey < $1.1.stableKey }.map { $0.0 },
                 quarantines: sourceHistory.quarantines,
-                entityRevisions: sourceHistory.entityRevisions
+                entityRevisions: sourceHistory.entityRevisions.sorted {
+                    $0.identity.stableKey < $1.identity.stableKey
+                }
             )
 
             let exportRoot = root.appendingPathComponent("export", isDirectory: true)

@@ -30,6 +30,331 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
 
     private let fileManager = FileManager.default
 
+    func testEditableNoteProjectionPreservesIncumbentRawTextBoundaries() {
+        let thousand = String(repeating: "e\u{301}", count: 1000)
+        let overflow = thousand + "e\u{301}"
+        let cases: [(String?, CheckRunnerEditableNoteProjectionV1)] = [
+            (nil, .none), ("", .none), (" \n\t", .none),
+            ("field note", .value("field note")),
+            (" \nfield note\t ", .value("field note")),
+            (thousand, .value(thousand)),
+            (" \n" + thousand + "\t ", .value(thousand)),
+            (overflow, .invalid), (" " + overflow + " ", .invalid),
+        ]
+        XCTAssertEqual(thousand.count, 1000)
+        XCTAssertEqual(overflow.count, 1001)
+        XCTAssertGreaterThan(thousand.utf8.count, 1000)
+        for (raw, expected) in cases {
+            XCTAssertEqual(CheckRunnerOutcomeResolverV1.projectEditableNote(raw), expected)
+        }
+    }
+
+    func testEditableNoteProjectionFeedsEveryStrictNoteBearingOutcome() throws {
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let cases: [(raw: String?, normalized: String?, allowed: Bool)] = [
+            (nil, nil, true), ("", nil, true), (" \n", nil, true),
+            (" \nfield note\t ", "field note", true),
+            (String(repeating: "e\u{301}", count: 1000),
+             String(repeating: "e\u{301}", count: 1000), true),
+            (String(repeating: "e\u{301}", count: 1001), nil, false),
+        ]
+        func selections(_ note: String?) -> [CheckOutcomeSelection] {
+            [.couldNotVerify(reasonKey: "conditions_changed", note: note),
+             .resolved(note: note), .issueStillVisible(note: note),
+             .originalResolvedDifferentIssue(labelKey: "physical_damage", note: note)]
+        }
+        for value in cases {
+            let projected = CheckRunnerOutcomeResolverV1.projectEditableNote(value.raw)
+            let note: String?
+            switch projected {
+            case .none: note = nil
+            case let .value(text): note = text
+            case .invalid:
+                XCTAssertFalse(value.allowed)
+                for selection in selections(value.raw) {
+                    assertResolverError(.invalidLineage) {
+                        _ = try CheckRunnerOutcomeResolverV1.resolve(selection,
+                            signPack: pack, activeLifecycleProfile: { profile })
+                    }
+                }
+                continue
+            }
+            XCTAssertTrue(value.allowed)
+            XCTAssertEqual(note, value.normalized)
+            for selection in selections(note) {
+                let resolved = try CheckRunnerOutcomeResolverV1.resolve(selection,
+                    signPack: pack, activeLifecycleProfile: { profile })
+                XCTAssertEqual(resolved.note, value.normalized)
+                XCTAssertEqual(resolved.selection, selection)
+            }
+        }
+    }
+
+
+    func testOutcomeResolverNormalizesAllShippingAndAlternateOutcomesExactly() throws {
+        let packages = [SignPack.illuminatedSignV1, try alternatePackage()]
+        for (packageIndex, package) in packages.enumerated() {
+            let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: package)
+            let label = try XCTUnwrap(package.issueLabels.first)
+            let reason = try XCTUnwrap(package.couldNotVerifyReasons.entries.first)
+            let cases: [(CheckOutcomeSelection, WorkspacePackageOutcomeRoleV1, String?, String?)] = [
+                (.noVisibleIssue, .noFinding, nil, nil),
+                (.visibleIssue(labelKey: label.key), .findingObserved, label.key, nil),
+                (.couldNotVerify(reasonKey: reason.key, note: "field note"), .couldNotVerify,
+                 nil, reason.key),
+                (.resolved(note: "field note"), .resolved, nil, nil),
+                (.issueStillVisible(note: "field note"), .findingStillPresent, nil, nil),
+                (.originalResolvedDifferentIssue(labelKey: label.key, note: "field note"),
+                 .originalResolvedDifferentFinding, label.key, nil),
+            ]
+            let requestedRoles = Set(cases.map { $0.1 })
+            let supportedRoles = Set(profile.stages.flatMap(\.outcomes).map(\.role))
+                .intersection(requestedRoles)
+            XCTAssertEqual(supportedRoles, packageIndex == 0 ? requestedRoles :
+                Set([.noFinding, .findingObserved, .couldNotVerify]))
+            for (selection, role, labelKey, reasonKey) in cases {
+                let matches = profile.stages.flatMap(\.outcomes).filter { $0.role == role }
+                guard let expected = matches.first else {
+                    // The existing alternate package declares only the three base roles.
+                    assertResolverError(.packageLifecycleMismatch) {
+                        _ = try CheckRunnerOutcomeResolverV1.resolve(
+                            selection, signPack: package, activeLifecycleProfile: { profile })
+                    }
+                    continue
+                }
+                let actual = try CheckRunnerOutcomeResolverV1.resolve(
+                    selection, signPack: package, activeLifecycleProfile: { profile })
+                XCTAssertEqual(actual.key, expected.key)
+                XCTAssertEqual(actual.display, expected.display)
+                XCTAssertEqual(actual.issueLabel?.key, labelKey)
+                XCTAssertEqual(actual.issueLabel?.display,
+                    labelKey.flatMap { key in package.issueLabels.first { $0.key == key }?.display })
+                XCTAssertEqual(actual.couldNotVerify?.key, reasonKey)
+                XCTAssertEqual(actual.couldNotVerify?.display,
+                    reasonKey.flatMap { key in package.couldNotVerifyReasons.entries.first {
+                        $0.key == key
+                    }?.display })
+                XCTAssertEqual(actual.note, resolverExpectedNote(selection))
+                XCTAssertEqual(actual.selection, selection)
+            }
+        }
+    }
+
+    func testOutcomeResolverPreservesCheckLabelTrimAndRecheckStrictLabelRules() throws {
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let trimmed = try CheckRunnerOutcomeResolverV1.resolve(
+            .visibleIssue(labelKey: "  physical_damage\n"), signPack: pack,
+            activeLifecycleProfile: { profile })
+        XCTAssertEqual(trimmed.issueLabel,
+            pack.issueLabels.first { $0.key == "physical_damage" })
+        XCTAssertEqual(trimmed.selection, .visibleIssue(labelKey: "physical_damage"))
+
+        assertResolverError(.issueLabelRequired) {
+            _ = try CheckRunnerOutcomeResolverV1.resolve(.visibleIssue(labelKey: " \n"),
+                signPack: pack, activeLifecycleProfile: { profile })
+        }
+        for key in ["unknown_label", "physical_damage "] {
+            assertResolverError(.issueLabelInvalid) {
+                _ = try CheckRunnerOutcomeResolverV1.resolve(
+                    .originalResolvedDifferentIssue(labelKey: key, note: nil),
+                    signPack: pack, activeLifecycleProfile: { profile })
+            }
+        }
+        assertResolverError(.issueLabelInvalid) {
+            _ = try CheckRunnerOutcomeResolverV1.resolve(
+                .originalResolvedDifferentIssue(labelKey: "", note: nil),
+                signPack: pack, activeLifecycleProfile: { profile })
+        }
+        assertResolverError(.issueLabelInvalid) {
+            _ = try CheckRunnerOutcomeResolverV1.resolve(.visibleIssue(labelKey: "unknown_label"),
+                signPack: pack, activeLifecycleProfile: { profile })
+        }
+        for reason in ["", "unknown_reason", " conditions_changed"] {
+            assertResolverError(.invalidLineage) {
+                _ = try CheckRunnerOutcomeResolverV1.resolve(
+                    .couldNotVerify(reasonKey: reason, note: nil), signPack: pack,
+                    activeLifecycleProfile: { profile })
+            }
+        }
+        let duplicate = resolverPack(pack,
+            issueLabels: pack.issueLabels + [try XCTUnwrap(pack.issueLabels.first)])
+        let duplicateKey = try XCTUnwrap(pack.issueLabels.first).key
+        for selection in [CheckOutcomeSelection.visibleIssue(labelKey: duplicateKey),
+                          .originalResolvedDifferentIssue(labelKey: duplicateKey, note: nil)] {
+            assertResolverError(.issueLabelInvalid) {
+                _ = try CheckRunnerOutcomeResolverV1.resolve(selection,
+                    signPack: duplicate, activeLifecycleProfile: { profile })
+            }
+        }
+    }
+
+    func testOutcomeResolverAppliesIncumbentCNVAndRecheckNoteBoundaries() throws {
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let reason = try XCTUnwrap(pack.couldNotVerifyReasons.entries.first).key
+        let label = try XCTUnwrap(pack.issueLabels.first).key
+        let thousand = String(repeating: "e\u{301}", count: 1000)
+        XCTAssertEqual(thousand.count, 1000)
+        XCTAssertGreaterThan(thousand.utf8.count, 1000)
+        let accepted: [(String?, String?)] = [(nil, nil), ("", nil), ("field note", "field note"),
+                                               (thousand, thousand)]
+        for (raw, expected) in accepted {
+            let selections: [(CheckOutcomeSelection, CheckOutcomeSelection)] = [
+                (.couldNotVerify(reasonKey: reason, note: raw),
+                 .couldNotVerify(reasonKey: reason, note: expected)),
+                (.resolved(note: raw), .resolved(note: expected)),
+                (.issueStillVisible(note: raw), .issueStillVisible(note: expected)),
+                (.originalResolvedDifferentIssue(labelKey: label, note: raw),
+                 .originalResolvedDifferentIssue(labelKey: label, note: expected)),
+            ]
+            for (selection, normalized) in selections {
+                let value = try CheckRunnerOutcomeResolverV1.resolve(selection, signPack: pack,
+                    activeLifecycleProfile: { profile })
+                XCTAssertEqual(value.note, expected)
+                XCTAssertEqual(value.selection, normalized)
+            }
+        }
+        let rejected = [" field note", "field note\n", " \n", String(repeating: "e\u{301}", count: 1001)]
+        for note in rejected {
+            let selections: [CheckOutcomeSelection] = [
+                .couldNotVerify(reasonKey: reason, note: note), .resolved(note: note),
+                .issueStillVisible(note: note),
+                .originalResolvedDifferentIssue(labelKey: label, note: note),
+            ]
+            for selection in selections {
+                assertResolverError(.invalidLineage) {
+                    _ = try CheckRunnerOutcomeResolverV1.resolve(selection, signPack: pack,
+                        activeLifecycleProfile: { profile })
+                }
+            }
+        }
+    }
+
+    func testOutcomeResolverValidatesActualCNVRegistryAndUniqueOutcomeDisplay() throws {
+        let base = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let one = [SignPack.RegistryEntry(key: "reason_0", display: "Reason 0")]
+        let sixtyFour = (0..<64).map {
+            SignPack.RegistryEntry(key: "reason_\($0)", display: "Reason \($0)")
+        }
+        XCTAssertTrue(CheckRunnerOutcomeResolverV1.validCouldNotVerifyRegistry(
+            signPack: resolverPack(base, cnvEntries: one), activeLifecycleProfile: { profile }))
+        XCTAssertTrue(CheckRunnerOutcomeResolverV1.validCouldNotVerifyRegistry(
+            signPack: resolverPack(base, cnvEntries: sixtyFour), activeLifecycleProfile: { profile }))
+        let malformed: [SignPack] = [
+            resolverPack(base, cnvVersion: ""),
+            resolverPack(base, cnvVersion: " version "),
+            resolverPack(base, cnvEntries: []),
+            resolverPack(base, cnvEntries: sixtyFour + [
+                SignPack.RegistryEntry(key: "reason_64", display: "Reason 64")]),
+            resolverPack(base, cnvEntries: one + one),
+            resolverPack(base, cnvEntries: [SignPack.RegistryEntry(key: "", display: "Bad")]),
+            resolverPack(base, cnvEntries: [SignPack.RegistryEntry(key: "bad", display: "")]),
+            resolverPack(base, cnvEntries: [SignPack.RegistryEntry(key: " bad", display: "Bad")]),
+            resolverPack(base, cnvEntries: [SignPack.RegistryEntry(key: "bad", display: " Bad")]),
+            resolverPack(base, outcomeDisplays: base.outcomeDisplays + [
+                try XCTUnwrap(base.outcomeDisplays.first { $0.key == "could_not_verify" })]),
+        ]
+        for pack in malformed {
+            XCTAssertFalse(CheckRunnerOutcomeResolverV1.validCouldNotVerifyRegistry(
+                signPack: pack, activeLifecycleProfile: { profile }))
+        }
+        let missingOutcome = resolverPack(base, outcomeDisplays:
+            base.outcomeDisplays.filter { $0.key != "could_not_verify" })
+        XCTAssertFalse(CheckRunnerOutcomeResolverV1.validCouldNotVerifyRegistry(
+            signPack: missingOutcome, activeLifecycleProfile: { profile }))
+    }
+
+    func testOutcomeResolverEvaluatesLazyProfileAtEachRequiredLookupAndPreservesErrors() throws {
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        var count = 0
+        assertResolverError(.issueLabelRequired) {
+            _ = try CheckRunnerOutcomeResolverV1.resolve(.visibleIssue(labelKey: " "),
+                signPack: pack, activeLifecycleProfile: {
+                    count += 1
+                    throw OutcomeResolverSentinel.supplier
+                })
+        }
+        XCTAssertEqual(count, 0)
+
+        assertResolverError(.invalidLineage) {
+            _ = try CheckRunnerOutcomeResolverV1.resolve(.resolved(note: " padded"),
+                signPack: pack, activeLifecycleProfile: {
+                    count += 1
+                    throw OutcomeResolverSentinel.supplier
+                })
+        }
+        XCTAssertEqual(count, 0, "Recheck note validation precedes profile lookup")
+        assertResolverError(.invalidLineage) {
+            _ = try CheckRunnerOutcomeResolverV1.resolve(
+                .couldNotVerify(reasonKey: "conditions_changed", note: nil),
+                signPack: pack, activeLifecycleProfile: {
+                    count += 1
+                    throw OutcomeResolverSentinel.supplier
+                })
+        }
+        XCTAssertEqual(count, 1, "CNV registry lookup translates its failed supplier")
+
+        count = 0
+        do {
+            _ = try CheckRunnerOutcomeResolverV1.resolve(.noVisibleIssue, signPack: pack,
+                activeLifecycleProfile: {
+                    count += 1
+                    if count == 2 { throw OutcomeResolverSentinel.supplier }
+                    return profile
+                })
+            XCTFail("The second required lookup must propagate the supplier error")
+        } catch {
+            XCTAssertEqual(error as? OutcomeResolverSentinel, .supplier)
+        }
+        XCTAssertEqual(count, 2)
+
+        count = 0
+        let input = CheckOutcomeSelection.issueStillVisible(note: "unchanged")
+        let value = try CheckRunnerOutcomeResolverV1.resolve(input, signPack: pack,
+            activeLifecycleProfile: { count += 1; return profile })
+        XCTAssertEqual(count, 2)
+        XCTAssertEqual(value.selection, input)
+        XCTAssertEqual(pack, .illuminatedSignV1)
+        XCTAssertEqual(profile, try WorkspacePackageLifecycleCompatibilityV1.shippingProfile())
+    }
+
+    private func resolverPack(_ base: SignPack, cnvVersion: String? = nil,
+        cnvEntries: [SignPack.RegistryEntry]? = nil,
+        issueLabels: [SignPack.RegistryEntry]? = nil,
+        outcomeDisplays: [SignPack.RegistryEntry]? = nil) -> SignPack {
+        SignPack(schemaVersion: base.schemaVersion, packID: base.packID,
+            contentVersion: base.contentVersion, nouns: base.nouns,
+            evidencePurposes: base.evidencePurposes, acknowledgements: base.acknowledgements,
+            issueLabels: issueLabels ?? base.issueLabels,
+            couldNotVerifyReasons: .init(version: cnvVersion ?? base.couldNotVerifyReasons.version,
+                entries: cnvEntries ?? base.couldNotVerifyReasons.entries),
+            stageDisplays: base.stageDisplays,
+            outcomeDisplays: outcomeDisplays ?? base.outcomeDisplays,
+            disclaimer: base.disclaimer)
+    }
+
+    private func assertResolverError(_ expected: CheckRunnerCoordinatorError,
+        file: StaticString = #filePath, line: UInt = #line,
+        _ operation: () throws -> Void) {
+        XCTAssertThrowsError(try operation(), file: file, line: line) {
+            XCTAssertEqual($0 as? CheckRunnerCoordinatorError, expected, file: file, line: line)
+        }
+    }
+
+    private enum OutcomeResolverSentinel: Error, Equatable { case supplier }
+
+    private func resolverExpectedNote(_ selection: CheckOutcomeSelection) -> String? {
+        switch selection {
+        case let .couldNotVerify(_, note), let .resolved(note), let .issueStillVisible(note),
+             let .originalResolvedDifferentIssue(_, note): note
+        default: nil
+        }
+    }
+
     func testFinalizationWorkflowBranchesMatchNativeOutcomeAndEvidenceRules() throws {
         let prefix = "native.sign.finalization."
         let stages: [(WorkflowStage, [String], String)] = [
@@ -148,7 +473,8 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             let support = fileManager.temporaryDirectory.appendingPathComponent("completion-recheck-\(UUID().uuidString)", isDirectory: true)
             let fixture = try await WorkCanonicalCurrentRouteFixtureV1.make(applicationSupportURL: support,
                 pack: .illuminatedSignV1, workPhotoData: nil)
-            defer { try? fixture.close(); try? fileManager.removeItem(at: support) }
+            registerSessionCleanup(root: support, session: fixture.session)
+            defer { try? fixture.close() }
             let runner = try CheckRunnerCoordinator(modelContext: fixture.context,
                 packageLifecycleDependencies: fixture.lifecycleDependencies, packageLifecycleProfile: fixture.lifecycleProfile)
             try runner.requestRecheck(assetID: fixture.assetID, issueID: fixture.issueID)
@@ -1083,6 +1409,7 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         let session = try StoreGenerationFactory(
             applicationSupportURL: root
         ).openOrBootstrapCurrent()
+        registerSessionCleanup(root: root, session: session)
         let shippingProfile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
         let registry = try WorkspacePackageLifecycleProfileRegistryV1(
             profiles: shippingProfile.release == profile.release
@@ -1100,6 +1427,17 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             coordinator: coordinator,
             dependencies: dependencies
         )
+    }
+
+    private func registerSessionCleanup(root: URL, session: StoreGenerationSession) {
+        addTeardownBlock { [weak session = session, root] in
+            guard session == nil else {
+                XCTFail("V9_18 fixture cleanup requires the store session graph to be released")
+                return
+            }
+            guard FileManager.default.fileExists(atPath: root.path) else { return }
+            try FileManager.default.removeItem(at: root)
+        }
     }
 
     private func alternatePackage() throws -> SignPack {
@@ -1304,8 +1642,8 @@ private struct Harness {
     let dependencies: WorkspacePackageLifecycleDependenciesV1
 
     func cleanup(fileManager: FileManager) {
+        _ = fileManager
         try? coordinator.invalidateAndReleaseWriter()
-        try? fileManager.removeItem(at: root)
     }
 }
 
@@ -1425,13 +1763,17 @@ extension V9_18PackLifecycleIntegrationTests {
             (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 2),
         ]
         for (index, value) in cases.enumerated() {
+            var phase = "fixture-create"
+            do {
             let support = fileManager.temporaryDirectory.appendingPathComponent(
                 "readback-recheck-\(index)-\(UUID().uuidString)", isDirectory: true
             )
             let base = try await WorkCanonicalCurrentRouteFixtureV1.make(
                 applicationSupportURL: support, pack: .illuminatedSignV1, workPhotoData: nil
             )
-            defer { try? base.close(); try? fileManager.removeItem(at: support) }
+            registerSessionCleanup(root: support, session: base.session)
+            defer { try? base.close() }
+            phase = "runner-create"
             let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
             let runner = try CheckRunnerCoordinator(
                 modelContext: base.context,
@@ -1473,6 +1815,7 @@ extension V9_18PackLifecycleIntegrationTests {
                     profile.package.couldNotVerifyReasons.entries.first { $0.key == key }
                 }, note: value.0.readbackNote, completedAt: completedAt,
                 snapshotCreatedAt: snapshotCreatedAt, sourceApp: sourceApp, identifiers: ids)
+            phase = "runner-finalize"
             let result = try await runner.finalize(assetID: base.assetID, selection: value.0,
                 completedAt: completedAt, snapshotCreatedAt: snapshotCreatedAt,
                 sourceApp: sourceApp, identifiers: ids)
@@ -1499,6 +1842,7 @@ extension V9_18PackLifecycleIntegrationTests {
             let beforeReceipts = try base.context.fetch(FetchDescriptor<MutationReceiptRow>()).count
             let beforeFiles = try readbackTree(base.session.generationRootURL)
             XCTAssertFalse(base.context.hasChanges)
+            phase = "readback"
             let proof = try XCTUnwrap(service.readCommittedFinalization(input))
             XCTAssertEqual(try adapter.readCommittedFinalization(input, binding: nilBinding), proof)
             let exactBinding = try PackFinalizationBindingV1(
@@ -1587,6 +1931,14 @@ extension V9_18PackLifecycleIntegrationTests {
             XCTAssertEqual(try base.context.fetch(FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
             XCTAssertEqual(try base.lifecycleDependencies.writer.currentRevision(), beforeRevision)
             XCTAssertEqual(try readbackTree(base.session.generationRootURL), beforeFiles)
+            } catch {
+                throw ReadbackOperationFailure(
+                    journey: .recheck,
+                    index: index,
+                    phase: phase,
+                    underlying: error
+                )
+            }
         }
     }
 
@@ -1730,8 +2082,13 @@ extension V9_18PackLifecycleIntegrationTests {
         XCTAssertEqual(input.asset.label, savedLabel + " dirty")
         XCTAssertTrue(fixture.attempt.harness.session.modelContext.hasChanges)
         XCTAssertEqual(try readbackTree(fixture.attempt.harness.session.generationRootURL), dirtyTree)
+        let freshContext = ModelContext(fixture.attempt.harness.session.modelContext.container)
+        let persistedAsset = try XCTUnwrap(
+            freshContext.fetch(FetchDescriptor<Asset>()).first { $0.id == input.asset.id }
+        )
+        XCTAssertEqual(persistedAsset.label, savedLabel)
         fixture.attempt.harness.session.modelContext.rollback()
-        XCTAssertEqual(input.asset.label, savedLabel)
+        XCTAssertFalse(fixture.attempt.harness.session.modelContext.hasChanges)
 
         let cnv = try await makeReadbackCompletion("readback-hostile-cnv",
             selection: .couldNotVerify(reasonKey: "conditions_changed", note: "frozen"), evidenceCount: 1)
@@ -1748,47 +2105,51 @@ extension V9_18PackLifecycleIntegrationTests {
 
     @MainActor
     func testReadCommittedFinalizationRejectsRetiredWriterAndSurvivesColdReopen() async throws {
-        let fixture = try await makeReadbackCompletion("readback-reopen",
-            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), evidenceCount: 1)
-        let harness = fixture.attempt.harness
-        defer { harness.cleanup(fileManager: fileManager) }
-        let oldWriterID = try harness.dependencies.writer.currentRevision().writerInstanceID
-        let original = try XCTUnwrap(fixture.attempt.service.readCommittedFinalization(fixture.attempt.input))
-        try harness.coordinator.invalidateAndReleaseWriter()
-        XCTAssertThrowsError(try fixture.attempt.service.readCommittedFinalization(fixture.attempt.input)) {
-            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        let seed = try await produceColdReadbackSeed()
+        var phase = "store-reopen"
+        do {
+            let session = try StoreGenerationFactory(applicationSupportURL: seed.root)
+                .openOrBootstrapCurrent()
+            registerSessionCleanup(root: seed.root, session: session)
+            phase = "coordinator-create"
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            defer { try? coordinator.invalidateAndReleaseWriter() }
+            let dependencies = try coordinator.packageLifecycleDependencies()
+            XCTAssertNotEqual(try dependencies.writer.currentRevision().writerInstanceID, seed.oldWriterID)
+            phase = "input-refetch"
+            let freshInput = try reopenedReadbackInput(seed.input, in: session.modelContext)
+            let fresh = try FinalizationService(modelContext: session.modelContext,
+                signPack: .illuminatedSignV1, generationRootURL: session.generationRootURL,
+                workspaceWriter: dependencies.writer)
+            let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+            let freshAdapter = try PackFinalizationAdapterV1(dependencies: dependencies,
+                profile: profile, legacyModelContext: session.modelContext)
+            let freshBinding = try PackFinalizationBindingV1(workspaceID: dependencies.workspaceID,
+                generationID: dependencies.generationID, packageRelease: profile.release,
+                mutationID: seed.bindingMutationID, durableReceiptIdentity: nil,
+                preservesReservedLegacyRawWriteDebt: false)
+            let beforeRevision = try dependencies.writer.currentRevision()
+            let beforeReceipts = try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count
+            let beforeFiles = try readbackTree(session.generationRootURL)
+            phase = "readback"
+            XCTAssertEqual(try fresh.readCommittedFinalization(freshInput), seed.expected)
+            XCTAssertEqual(
+                try freshAdapter.readCommittedFinalization(freshInput, binding: freshBinding),
+                seed.expected
+            )
+            XCTAssertFalse(session.modelContext.hasChanges)
+            XCTAssertEqual(try dependencies.writer.currentRevision(), beforeRevision)
+            XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count,
+                beforeReceipts)
+            XCTAssertEqual(try readbackTree(session.generationRootURL), beforeFiles)
+        } catch {
+            throw ReadbackOperationFailure(
+                journey: .coldReopen,
+                index: nil,
+                phase: phase,
+                underlying: error
+            )
         }
-        XCTAssertThrowsError(try fixture.attempt.adapter.readCommittedFinalization(
-            fixture.attempt.input, binding: fixture.attempt.nilBinding)) {
-            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
-        }
-        let session = try StoreGenerationFactory(applicationSupportURL: harness.root).openOrBootstrapCurrent()
-        let coordinator = try StoreSessionCoordinator(validatingSession: session)
-        defer { try? coordinator.invalidateAndReleaseWriter() }
-        let dependencies = try coordinator.packageLifecycleDependencies()
-        XCTAssertNotEqual(try dependencies.writer.currentRevision().writerInstanceID, oldWriterID)
-        let freshInput = try reopenedReadbackInput(fixture.attempt.input, in: session.modelContext,
-            generationRootURL: session.generationRootURL)
-        let fresh = try FinalizationService(modelContext: session.modelContext,
-            signPack: .illuminatedSignV1, generationRootURL: session.generationRootURL,
-            workspaceWriter: dependencies.writer)
-        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
-        let freshAdapter = try PackFinalizationAdapterV1(dependencies: dependencies,
-            profile: profile, legacyModelContext: session.modelContext)
-        let freshBinding = try PackFinalizationBindingV1(workspaceID: dependencies.workspaceID,
-            generationID: dependencies.generationID, packageRelease: profile.release,
-            mutationID: fixture.attempt.nilBinding.mutationID, durableReceiptIdentity: nil,
-            preservesReservedLegacyRawWriteDebt: false)
-        let beforeRevision = try dependencies.writer.currentRevision()
-        let beforeReceipts = try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count
-        let beforeFiles = try readbackTree(session.generationRootURL)
-        XCTAssertEqual(try fresh.readCommittedFinalization(freshInput), original)
-        XCTAssertEqual(try freshAdapter.readCommittedFinalization(freshInput, binding: freshBinding), original)
-        XCTAssertFalse(session.modelContext.hasChanges)
-        XCTAssertEqual(try dependencies.writer.currentRevision(), beforeRevision)
-        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count,
-            beforeReceipts)
-        XCTAssertEqual(try readbackTree(session.generationRootURL), beforeFiles)
     }
 
     @MainActor
@@ -2030,14 +2391,71 @@ extension V9_18PackLifecycleIntegrationTests {
     }
 
     @MainActor
-    private func reopenedReadbackInput(_ original: FinalizationServiceInput,
-        in context: ModelContext, generationRootURL: URL) throws -> FinalizationServiceInput {
+    private func produceColdReadbackSeed() async throws -> ColdReadbackSeed {
+        var phase = "fixture-create"
+        weak var releasedSession: StoreGenerationSession?
+        var completion: ReadbackCompletion?
+        do {
+            completion = try await makeReadbackCompletion(
+                "readback-reopen",
+                selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil),
+                evidenceCount: 1
+            )
+            guard completion != nil else { throw ReadbackTestFailure.inventoryUnavailable }
+            releasedSession = completion!.attempt.harness.session
+            phase = "readback-before-retirement"
+            let oldWriterID = try completion!.attempt.harness.dependencies.writer
+                .currentRevision().writerInstanceID
+            let expected = try XCTUnwrap(
+                completion!.attempt.service.readCommittedFinalization(completion!.attempt.input)
+            )
+            let inputSeed = ColdReadbackInputSeed(completion!.attempt.input)
+            let root = completion!.attempt.harness.root
+            let bindingMutationID = completion!.attempt.nilBinding.mutationID
+            phase = "writer-retirement"
+            try completion!.attempt.harness.coordinator.invalidateAndReleaseWriter()
+            XCTAssertThrowsError(try completion!.attempt.service
+                .readCommittedFinalization(completion!.attempt.input)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+            }
+            XCTAssertThrowsError(try completion!.attempt.adapter.readCommittedFinalization(
+                completion!.attempt.input, binding: completion!.attempt.nilBinding)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+            }
+            let seed = ColdReadbackSeed(
+                root: root,
+                oldWriterID: oldWriterID,
+                expected: expected,
+                input: inputSeed,
+                bindingMutationID: bindingMutationID
+            )
+            completion = nil
+            guard releasedSession == nil else {
+                throw ReadbackTestFailure.storeGraphRetainedBeforeColdReopen
+            }
+            return seed
+        } catch let error as ReadbackOperationFailure {
+            throw error
+        } catch {
+            completion = nil
+            throw ReadbackOperationFailure(
+                journey: .coldProducer,
+                index: nil,
+                phase: phase,
+                underlying: error
+            )
+        }
+    }
+
+    @MainActor
+    private func reopenedReadbackInput(_ original: ColdReadbackInputSeed,
+        in context: ModelContext) throws -> FinalizationServiceInput {
         let record = try XCTUnwrap(context.fetch(FetchDescriptor<WorkflowRecord>())
-            .first { $0.id == original.draft.id })
+            .first { $0.id == original.draftID })
         let asset = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>())
-            .first { $0.id == original.asset.id })
+            .first { $0.id == original.assetID })
         let site = try XCTUnwrap(context.fetch(FetchDescriptor<Site>())
-            .first { $0.id == original.site.id })
+            .first { $0.id == original.siteID })
         let evidence = try context.fetch(FetchDescriptor<EvidenceFile>()).filter { $0.recordID == record.id }
         return FinalizationServiceInput(draft: record, asset: asset, site: site, evidence: evidence,
             outcomeKey: original.outcomeKey, outcomeDisplay: original.outcomeDisplay,
@@ -2095,7 +2513,62 @@ extension V9_18PackLifecycleIntegrationTests {
     }
 }
 
-private enum ReadbackTestFailure: Error { case inventoryUnavailable }
+private enum ReadbackTestFailure: Error {
+    case inventoryUnavailable
+    case storeGraphRetainedBeforeColdReopen
+}
+
+private struct ReadbackOperationFailure: Error {
+    enum Journey: String {
+        case recheck
+        case coldProducer
+        case coldReopen
+    }
+
+    let journey: Journey
+    let index: Int?
+    let phase: String
+    let underlying: Error
+}
+
+private struct ColdReadbackSeed {
+    let root: URL
+    let oldWriterID: UUID
+    let expected: ReviewedFinalizationCommitV1
+    let input: ColdReadbackInputSeed
+    let bindingMutationID: MutationIDV1
+}
+
+private struct ColdReadbackInputSeed {
+    let draftID: UUID
+    let assetID: UUID
+    let siteID: UUID
+    let outcomeKey: String
+    let outcomeDisplay: String
+    let issueLabel: SignPack.RegistryEntry?
+    let couldNotVerify: SignPack.RegistryEntry?
+    let note: String?
+    let completedAt: Date
+    let snapshotCreatedAt: Date
+    let sourceApp: SourceAppSnapshotV1
+    let identifiers: FinalizationIdentifiers
+
+    @MainActor
+    init(_ input: FinalizationServiceInput) {
+        draftID = input.draft.id
+        assetID = input.asset.id
+        siteID = input.site.id
+        outcomeKey = input.outcomeKey
+        outcomeDisplay = input.outcomeDisplay
+        issueLabel = input.issueLabel
+        couldNotVerify = input.couldNotVerify
+        note = input.note
+        completedAt = input.completedAt
+        snapshotCreatedAt = input.snapshotCreatedAt
+        sourceApp = input.sourceApp
+        identifiers = input.identifiers
+    }
+}
 
 @MainActor
 private struct ReadbackAttempt {

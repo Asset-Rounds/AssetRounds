@@ -444,6 +444,15 @@ private extension ReplacementRestoreRule {
              (37, let ledger?, let history?), (38, let ledger?, let history?),
              (39, let ledger?, let history?), (40, let ledger?, let history?),
              (41, let ledger?, let history?), (42, let ledger?, let history?),
+             (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion, let ledger?, let history?),
+             (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (FastSurveyInboxBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
              (LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)

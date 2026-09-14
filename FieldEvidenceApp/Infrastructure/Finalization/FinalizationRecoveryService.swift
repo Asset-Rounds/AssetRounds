@@ -32,11 +32,29 @@ final class FinalizationRecoveryService {
         command: WorkspaceCommandV1,
         expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity
     ) throws {
+        #if DEBUG
+        var diagnosticPhase = "reentrancy"
+        var diagnosticSucceeded = false
+        defer {
+            if !diagnosticSucceeded {
+                print("FinalizationRecovery stageWriterMutation failure phase=\(diagnosticPhase)")
+            }
+        }
+        #endif
         guard !isReconciling else { throw FinalizationRecoveryServiceError.inconsistent }
+        #if DEBUG
+        diagnosticPhase = "clean-context"
+        #endif
         try requireCleanContext()
+        #if DEBUG
+        diagnosticPhase = "source-root-authority"
+        #endif
         guard sourceRecoveryAuthority == nil, rootIdentity == expectedRootIdentity else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+        #if DEBUG
+        diagnosticPhase = "command-authority"
+        #endif
         let authority: FinalizationWriterAuthorityV1?
         switch command {
         case let .finalizeCheck(value): authority = value.writerAuthority
@@ -44,7 +62,13 @@ final class FinalizationRecoveryService {
         default: authority = nil
         }
         guard let authority else { throw FinalizationRecoveryServiceError.inconsistent }
+        #if DEBUG
+        diagnosticPhase = "authority-validation"
+        #endif
         try authority.validate(command: command)
+        #if DEBUG
+        diagnosticPhase = "authority-payload-root"
+        #endif
         guard generationRootURL.lastPathComponent == authority.generationID.uuidString.lowercased(),
               let report = authority.payload.reportInsert,
               let completedAt = authority.payload.workflowRecordAfter.completedAt,
@@ -63,38 +87,92 @@ final class FinalizationRecoveryService {
             snapshotSHA256: authority.snapshotSHA256, snapshotStagingRelativePath: "",
             stableRootID: authority.payload.packetAfter.stableRootID
         )
+        #if DEBUG
+        diagnosticPhase = "contract"
+        #endif
         try validateContract(validation)
+        #if DEBUG
+        diagnosticPhase = "read-snapshot"
+        #endif
         let bytes = try ReportPDFAnchoredFile.readRegularFile(
             at: generationRootURL.appendingPathComponent(authority.snapshotRelativePath),
             within: generationRootURL, rootIdentity: expectedRootIdentity
         )
+        #if DEBUG
+        diagnosticPhase = "snapshot-digest"
+        #endif
         guard sha256(bytes) == authority.snapshotSHA256 else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+        #if DEBUG
+        diagnosticPhase = "decode-snapshot"
+        #endif
         let snapshot = try ReportSnapshotEncoderV1().decode(bytes)
+        #if DEBUG
+        diagnosticPhase = "snapshot-canonicality"
+        #endif
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == bytes else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+        #if DEBUG
+        diagnosticPhase = "snapshot-authority"
+        #endif
         try validateSnapshotAuthority(snapshot, payload: authority.payload)
+        #if DEBUG
+        diagnosticPhase = "fetch-source-digests"
+        #endif
         let sourceRecordID = authority.payload.workflowRecordAfter.evidenceSourceRecordID
             ?? authority.payload.workflowRecordAfter.id
         let sourceDigests = Array(Set(try modelContext.fetch(FetchDescriptor<EvidenceFile>())
             .filter { $0.recordID == sourceRecordID }.map(\.sha256))).sorted()
+        #if DEBUG
+        diagnosticPhase = "content-digests"
+        #endif
         guard sourceDigests == authority.contentDigests else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+        #if DEBUG
+        diagnosticPhase = "database-absence"
+        #endif
         guard databaseState(for: validation) == .absent else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+        #if DEBUG
+        diagnosticPhase = "writer-source-binding"
+        #endif
         try validateWriterSourceBinding(authority, stagedTarget: false)
+        #if DEBUG
+        diagnosticPhase = "capture-original-state"
+        #endif
         stagedOriginalState = authority.payload.packetBefore == nil
             ? try originalRecoveryMutationState(authority.payload) : nil
+        #if DEBUG
+        diagnosticPhase = "capture-correction-state"
+        #endif
         stagedCorrectionState = try correctionRecoveryPacketState(authority.payload)
+        #if DEBUG
+        diagnosticPhase = "apply-target"
+        #endif
         try apply(authority.payload)
+        #if DEBUG
+        diagnosticPhase = "writer-target-binding"
+        #endif
         try validateWriterSourceBinding(authority, stagedTarget: true)
+        #if DEBUG
+        diagnosticPhase = "fetch-report"
+        #endif
         let reports = try fetch(Report.self, id: report.id)
+        #if DEBUG
+        diagnosticPhase = "report-count"
+        #endif
         guard reports.count == 1 else { throw FinalizationRecoveryServiceError.inconsistent }
+        #if DEBUG
+        diagnosticPhase = "snapshot-validator"
+        #endif
         _ = try snapshotValidator().validate(report: reports[0])
+        #if DEBUG
+        diagnosticSucceeded = true
+        #endif
     }
 
     private func validateWriterSourceBinding(_ authority: FinalizationWriterAuthorityV1,
