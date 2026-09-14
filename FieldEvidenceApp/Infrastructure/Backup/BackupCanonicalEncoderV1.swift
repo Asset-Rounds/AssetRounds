@@ -2408,29 +2408,29 @@ private extension BackupCanonicalEncoderV1 {
     static func validMutationHistoryOrder(
         _ value: MutationHistorySnapshotV1
     ) -> Bool {
-        guard value.schemaVersion == MutationHistorySnapshotV1.schemaVersion,
-              value.receipts.count
-                <= MutationJournalStoreV1.maximumReceiptValidationCount,
-              value.quarantines.count
-                <= MutationJournalStoreV1.maximumReceiptValidationCount,
-              value.entityRevisions.count
-                <= MutationJournalStoreV1.maximumImportedEntityRevisionValidationCount,
-              value.workspaceRevision <= UInt64(Int.max),
-              value.lastLocalSequence <= UInt64(Int.max),
-              value.entityRevisions.allSatisfy({
-                  $0.revision > 0
-                    && $0.revision <= UInt64(Int.max)
-                    && $0.externalProjectionSHA256.map {
+        guard recordPredicate("history-schema", value.schemaVersion == MutationHistorySnapshotV1.schemaVersion),
+              recordPredicate("history-receipt-count", value.receipts.count
+                <= MutationJournalStoreV1.maximumReceiptValidationCount),
+              recordPredicate("history-quarantine-count", value.quarantines.count
+                <= MutationJournalStoreV1.maximumReceiptValidationCount),
+              recordPredicate("history-entity-count", value.entityRevisions.count
+                <= MutationJournalStoreV1.maximumImportedEntityRevisionValidationCount),
+              recordPredicate("history-workspace-revision-bound", value.workspaceRevision <= UInt64(Int.max)),
+              recordPredicate("history-local-sequence-bound", value.lastLocalSequence <= UInt64(Int.max)),
+              recordPredicate("history-entity-metadata", value.entityRevisions.allSatisfy({
+                  recordPredicate("history-entity-revision-positive", $0.revision > 0)
+                    && recordPredicate("history-entity-revision-bound", $0.revision <= UInt64(Int.max))
+                    && recordPredicate("history-entity-external-digest", $0.externalProjectionSHA256.map {
                         validSHA256($0)
-                    } != false
-              }),
-              value.quarantines.allSatisfy({
-                  validSHA256($0.acceptedIdentitySHA256)
-                    && validSHA256($0.conflictingIdentitySHA256)
-                    && $0.acceptedIdentitySHA256
-                        != $0.conflictingIdentitySHA256
-                    && validDate($0.detectedAt)
-              }) else {
+                    } != false)
+              })),
+              recordPredicate("history-quarantine-metadata", value.quarantines.allSatisfy({
+                  recordPredicate("history-quarantine-accepted-digest", validSHA256($0.acceptedIdentitySHA256))
+                    && recordPredicate("history-quarantine-conflicting-digest", validSHA256($0.conflictingIdentitySHA256))
+                    && recordPredicate("history-quarantine-distinct-digests", $0.acceptedIdentitySHA256
+                        != $0.conflictingIdentitySHA256)
+                    && recordPredicate("history-quarantine-date", validDate($0.detectedAt))
+              })) else {
             return false
         }
         let receiptKeys: [String]
@@ -2440,18 +2440,23 @@ private extension BackupCanonicalEncoderV1 {
                     .identity.stableKey
             }
         } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "BackupCanonicalEncoderV1.valid failed predicate=history-receipt-decode\n".utf8
+            ))
+#endif
             return false
         }
         let quarantineKeys = value.quarantines.map {
             "\($0.workspaceID.rawValue.uuidString.lowercased()):\($0.mutationID.uuidString.lowercased())"
         }
         let revisionKeys = value.entityRevisions.map(\.identity.stableKey)
-        return receiptKeys == receiptKeys.sorted()
-            && Set(receiptKeys).count == receiptKeys.count
-            && quarantineKeys == quarantineKeys.sorted()
-            && Set(quarantineKeys).count == quarantineKeys.count
-            && revisionKeys == revisionKeys.sorted()
-            && Set(revisionKeys).count == revisionKeys.count
+        return recordPredicate("history-receipt-order", receiptKeys == receiptKeys.sorted())
+            && recordPredicate("history-receipt-unique", Set(receiptKeys).count == receiptKeys.count)
+            && recordPredicate("history-quarantine-order", quarantineKeys == quarantineKeys.sorted())
+            && recordPredicate("history-quarantine-unique", Set(quarantineKeys).count == quarantineKeys.count)
+            && recordPredicate("history-entity-order", revisionKeys == revisionKeys.sorted())
+            && recordPredicate("history-entity-unique", Set(revisionKeys).count == revisionKeys.count)
     }
 
     static func validSHA256(_ value: String) -> Bool {

@@ -163,6 +163,29 @@ enum ReplacementRestoreRule {
         var ledger = try normalizedLedger(input.currentRecords)
             .union(normalizedLedger(input.incomingRecords))
         var incoming = input.incomingRecords
+        let crossWorkspacePartsStockReplacement = input.mode == .replaceExisting
+            && input.incomingRecords.recordsSchemaVersion
+                >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+            && input.currentIdentity?.workspaceID != input.incomingIdentity?.workspaceID
+        if crossWorkspacePartsStockReplacement {
+            guard let currentWorkspaceID = input.currentIdentity?.workspaceID,
+                  let incomingWorkspaceID = input.incomingIdentity?.workspaceID,
+                  currentWorkspaceID != incomingWorkspaceID else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            do {
+                try C55PartsStockBackupImportBoundaryV1.validate(
+                    input.currentRecords,
+                    workspaceID: currentWorkspaceID
+                )
+                try C55PartsStockBackupImportBoundaryV1.validate(
+                    input.incomingRecords,
+                    workspaceID: incomingWorkspaceID
+                )
+            } catch {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+        }
 
         if input.mode == .replaceExisting {
             let packetPlan = try makePlan(.init(
@@ -217,7 +240,11 @@ enum ReplacementRestoreRule {
                 )
             )
         }
-        let recordsAfter = try filtering(incoming, through: ledger)
+        let recordsAfter = try filtering(
+            incoming,
+            through: ledger,
+            validatesPartsStock: !crossWorkspacePartsStockReplacement
+        )
         return DeletionWinningRestorePlanV2(
             recordsAfter: recordsAfter,
             deletionLedger: ledger
@@ -391,10 +418,14 @@ private extension ReplacementRestoreRule {
 
     static func filtering(
         _ records: V4BackupRecordsV1,
-        through ledger: DeletionLedgerV2
+        through ledger: DeletionLedgerV2,
+        validatesPartsStock: Bool
     ) throws -> V4BackupRecordsV1 {
         try ledger.validate()
-        try C52ServiceRequestReplacementRestorePolicyV1.validate(records)
+        try C52ServiceRequestReplacementRestorePolicyV1.validate(
+            records,
+            validatesPartsStock: validatesPartsStock
+        )
         try AssetLocatorReplacementRestorePolicyV1.validate(records.assetLocators)
         try ScheduleReplacementRestorePolicyV1.validate(records.schedules)
         try PlanReplacementRestorePolicyV1.validate(records.plans)
@@ -1342,7 +1373,8 @@ enum C52ServiceRequestReplacementRestorePolicyV1 {
 
     static func validate(
         _ records: V4BackupRecordsV1,
-        targetWorkspaceID: UUID? = nil
+        targetWorkspaceID: UUID? = nil,
+        validatesPartsStock: Bool = true
     ) throws {
         guard persistentSchemaVersion == 39,
               recordsSchemaVersion == 38,
@@ -1368,10 +1400,12 @@ enum C52ServiceRequestReplacementRestorePolicyV1 {
                     workspaceID: targetWorkspaceID
                 )
             }
-            try C55PartsStockBackupEnrollmentV1.validate(
-                records,
-                workspaceID: targetWorkspaceID.map { WorkspaceID(rawValue: $0) }
-            )
+            if validatesPartsStock {
+                try C55PartsStockBackupEnrollmentV1.validate(
+                    records,
+                    workspaceID: targetWorkspaceID.map { WorkspaceID(rawValue: $0) }
+                )
+            }
         } catch {
             throw ReplacementRestoreRuleError.invalidAuthority
         }

@@ -178,9 +178,11 @@
       "id": "mutation-command-codec",
       "classes": [
         "V10_02MutationEnvelopeReceiptTests",
-        "V23FirstSignReceiptClockTests"
+        "V23FirstSignReceiptClockTests",
+        "V23PartsStockReplacementHistoryTests",
+        "V23PartsStockReplacementProjectionTests"
       ],
-      "methodCount": 14
+      "methodCount": 29
     },
     {
       "id": "work-asset-production",

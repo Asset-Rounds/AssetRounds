@@ -102,6 +102,7 @@ struct PartsStockLifecycleReceiptV1: Codable, Equatable, Sendable, PartsStockCan
     /// row and cross-reference has validated.
     func materializeRestoreStaging(
         _ snapshot: PartsStockBackupSnapshotV1,
+        materializedSnapshot: PartsStockBackupSnapshotV1? = nil,
         targetWorkspaceID: WorkspaceID,
         operationID: UUID,
         disposition: PartsStockRestoreDispositionV1,
@@ -115,6 +116,7 @@ struct PartsStockLifecycleReceiptV1: Codable, Equatable, Sendable, PartsStockCan
         try requireEmptyTarget(workspaceID: targetWorkspaceID)
         let materialized = try preparedRestoreSnapshot(
             snapshot,
+            materializedSnapshot: materializedSnapshot,
             targetWorkspaceID: targetWorkspaceID,
             operationID: operationID,
             disposition: disposition
@@ -146,6 +148,7 @@ struct PartsStockLifecycleReceiptV1: Codable, Equatable, Sendable, PartsStockCan
     /// post-staging backup validation. It performs no context access or writes.
     func preparedRestoreSnapshot(
         _ snapshot: PartsStockBackupSnapshotV1,
+        materializedSnapshot: PartsStockBackupSnapshotV1? = nil,
         targetWorkspaceID: WorkspaceID,
         operationID: UUID,
         disposition: PartsStockRestoreDispositionV1
@@ -158,12 +161,22 @@ struct PartsStockLifecycleReceiptV1: Codable, Equatable, Sendable, PartsStockCan
         let prepared: PartsStockBackupSnapshotV1
         switch disposition {
         case .replace:
-            guard snapshot.workspaceID == targetWorkspaceID else {
-                throw PartsStockFailureV1.crossWorkspace
+            if snapshot.workspaceID == targetWorkspaceID {
+                guard materializedSnapshot.map({ $0 == snapshot }) ?? true else {
+                    throw PartsStockFailureV1.invalidTransition
+                }
+                prepared = snapshot
+            } else {
+                guard let materializedSnapshot,
+                      materializedSnapshot.workspaceID == targetWorkspaceID else {
+                    throw PartsStockFailureV1.crossWorkspace
+                }
+                try Self.validateGraph(materializedSnapshot)
+                prepared = materializedSnapshot
             }
-            prepared = snapshot
         case .cloneDefinitions, .forkRequiresRecount:
-            guard snapshot.workspaceID != targetWorkspaceID else {
+            guard snapshot.workspaceID != targetWorkspaceID,
+                  materializedSnapshot == nil else {
                 throw PartsStockFailureV1.invalidTransition
             }
             let mutationID = try MutationIDV1(rawValue: operationID)

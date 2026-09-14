@@ -101,6 +101,26 @@ struct ReversalBasisV1: Codable, Equatable, Sendable {
         try validate()
     }
 
+    /// Rebinds only the identity-bearing portion of an already validated
+    /// historic basis. The archived plan digest is an opaque original
+    /// commitment: replacement restore has no plan body from which to invent a
+    /// destination plan, so the commitment and command kinds remain exact.
+    init(
+        rebinding source: ReversalBasisV1,
+        targetMutationID: MutationIDV1,
+        targetReceiptIdentity: MutationReceiptIdentityV1
+    ) throws {
+        try source.validate()
+        try targetReceiptIdentity.validate()
+        schemaVersion = Self.schemaVersion
+        self.targetMutationID = targetMutationID
+        self.targetReceiptIdentity = targetReceiptIdentity
+        policyVersion = MutationReversalPolicyRegistryV1.version
+        planDigest = source.planDigest
+        compensatingCommandKinds = source.compensatingCommandKinds
+        try validate()
+    }
+
     func validate() throws {
         try targetReceiptIdentity.validate()
         guard schemaVersion == Self.schemaVersion,

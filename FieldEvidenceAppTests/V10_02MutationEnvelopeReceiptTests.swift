@@ -146,6 +146,15 @@ private final class CompilerWriterAdmissionHarnessV1 {
 }
 
 final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
+    private struct ReversalBasisPayload: Encodable {
+        let schemaVersion: Int
+        let targetMutationID: MutationIDV1
+        let targetReceiptIdentity: MutationReceiptIdentityV1
+        let policyVersion: Int
+        let planDigest: String
+        let compensatingCommandKinds: [WorkspaceCommandKindV1]
+    }
+
     @MainActor
     func testQueryExistingCoversEveryCurrentKindWithoutCreatingRows() throws {
         let harness = try CompilerWriterAdmissionHarnessV1()
@@ -676,6 +685,143 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
         ) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
         }
+    }
+
+    @MainActor
+    func testHistoricReversalBasisRebindPreservesOpaquePlanAndClosesTargetReceipt() throws {
+        let source = try MutationJournalHarnessV1()
+        let sourceRequest = try source.request(mutation: 30, label: "Source target")
+        let sourceEnvelope = try source.envelope(sourceRequest)
+        let sourceReceipt = try source.commit(sourceEnvelope, entities: [source.site, source.asset])
+        let sourcePlan = try source.reversalPlan(mutation: 30)
+        let sourceBasis = try ReversalBasisV1(
+            targetMutationID: sourceRequest.mutationID,
+            targetReceiptIdentity: sourceReceipt.identity,
+            plan: sourcePlan
+        )
+
+        let targetWorkspaceID = WorkspaceID(rawValue: MutationJournalHarnessV1.id(80))
+        let targetReplicaID = ReplicaID(rawValue: MutationJournalHarnessV1.id(81))
+        let targetGenerationID = MutationJournalHarnessV1.id(82)
+        let targetWriterID = MutationJournalHarnessV1.id(83)
+        let mappedTargetMutationID = try MutationIDV1(
+            rawValue: MutationJournalHarnessV1.id(84)
+        )
+        let mappedTargetReceiptIdentity = MutationReceiptIdentityV1(
+            workspaceID: targetWorkspaceID,
+            replicaID: targetReplicaID,
+            localSequence: 1
+        )
+        let targetBasis = try ReversalBasisV1(
+            rebinding: sourceBasis,
+            targetMutationID: mappedTargetMutationID,
+            targetReceiptIdentity: mappedTargetReceiptIdentity
+        )
+        XCTAssertEqual(targetBasis.planDigest, sourceBasis.planDigest)
+        XCTAssertEqual(
+            targetBasis.compensatingCommandKinds,
+            sourceBasis.compensatingCommandKinds
+        )
+        XCTAssertNotEqual(
+            try targetBasis.canonicalSHA256(),
+            try sourceBasis.canonicalSHA256()
+        )
+
+        let mappedReversalMutationID = try MutationIDV1(
+            rawValue: MutationJournalHarnessV1.id(85)
+        )
+        let targetExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: targetWorkspaceID,
+            generationID: targetGenerationID,
+            writerInstanceID: targetWriterID,
+            workspaceRevision: 1,
+            entityRevisions: [.init(identity: source.site, revision: 1)]
+        )
+        let targetRequest = WorkspaceMutationRequestV1(
+            mutationID: mappedReversalMutationID,
+            expectedRevision: targetExpected,
+            command: sourcePlan.compensatingCommands[0]
+        )
+        let targetBasisSHA256 = try targetBasis.canonicalSHA256()
+        let execution = try SemanticReversalExecutionV1(
+            targetMutationID: mappedTargetMutationID,
+            targetReceiptIdentity: mappedTargetReceiptIdentity,
+            reversalBasisSHA256: targetBasisSHA256,
+            planDigest: targetBasis.planDigest,
+            compensatingMutationIDs: [mappedReversalMutationID]
+        )
+        let replayIdentitySHA256 = try SemanticReversalReplayIdentityV1(
+            request: targetRequest,
+            identity: try WorkspaceReplicaIdentityV1(
+                workspaceID: targetWorkspaceID,
+                replicaID: targetReplicaID
+            ),
+            targetMutationID: mappedTargetMutationID,
+            planDigest: targetBasis.planDigest,
+            compensatingMutationIDs: [mappedReversalMutationID]
+        ).canonicalSHA256()
+        let targetEnvelope = try MutationEnvelopeV1(
+            request: targetRequest,
+            identity: try WorkspaceReplicaIdentityV1(
+                workspaceID: targetWorkspaceID,
+                replicaID: targetReplicaID
+            ),
+            sourceKind: .semanticReversal,
+            causationMutationID: mappedTargetMutationID,
+            semanticReversalReplayIdentitySHA256: replayIdentitySHA256,
+            semanticReversalExecution: execution
+        )
+        let targetResult = try MutationPortableExpectedRevisionV1(
+            WorkspaceExpectedRevisionV1(
+                workspaceID: targetWorkspaceID,
+                generationID: targetGenerationID,
+                writerInstanceID: targetWriterID,
+                workspaceRevision: 2,
+                entityRevisions: [.init(identity: source.site, revision: 2)]
+            )
+        )
+        let targetReversalIdentity = MutationReceiptIdentityV1(
+            workspaceID: targetWorkspaceID,
+            replicaID: targetReplicaID,
+            localSequence: 2
+        )
+        let targetReceipt = try MutationReceiptV1(
+            identity: targetReversalIdentity,
+            envelope: targetEnvelope,
+            resultingRevision: targetResult,
+            postImages: [.site(
+                id: source.site.id,
+                revision: 2,
+                semanticSHA256: String(repeating: "d", count: 64)
+            )],
+            reversesMutationID: mappedTargetMutationID,
+            committedAt: source.date(85)
+        )
+        let semanticReceipt = try SemanticReversalReceiptV1(
+            reversalReceiptIdentity: targetReceipt.identity,
+            reversesMutationID: mappedTargetMutationID,
+            targetReceiptIdentity: mappedTargetReceiptIdentity,
+            reversalBasisSHA256: targetBasisSHA256,
+            planDigest: targetBasis.planDigest,
+            compensatingMutationIDs: [mappedReversalMutationID],
+            resultingRevision: targetReceipt.resultingRevision
+        )
+        XCTAssertEqual(semanticReceipt.reversalReceiptIdentity, targetReceipt.identity)
+        XCTAssertEqual(targetEnvelope.semanticReversalExecution, execution)
+        XCTAssertEqual(
+            targetEnvelope.semanticReversalReplayIdentitySHA256,
+            replayIdentitySHA256
+        )
+
+        let invalidPolicy = try WorkspaceMutationCanonicalV1.data(ReversalBasisPayload(
+            schemaVersion: targetBasis.schemaVersion,
+            targetMutationID: targetBasis.targetMutationID,
+            targetReceiptIdentity: targetBasis.targetReceiptIdentity,
+            policyVersion: 99,
+            planDigest: targetBasis.planDigest,
+            compensatingCommandKinds: targetBasis.compensatingCommandKinds
+        ))
+        XCTAssertThrowsError(try ReversalBasisV1.decodeCanonical(from: invalidPolicy))
     }
 
     func testV10_02G01TemporalReceiptRetainsPortableGenerationAndRevisionAuthority() throws {

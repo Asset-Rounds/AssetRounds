@@ -1047,7 +1047,9 @@ final class BackupRestoreService {
                 members: validatedPackage.members,
                 identityDecision: preliminaryIdentityDecision,
                 legacyWorkspaceID: frozenCurrentIdentity.workspaceID.rawValue,
-                partsStockOperationID: restoreID
+                partsStockOperationID: restoreID,
+                currentOriginalRecords: frozenCurrentRecords,
+                incomingOriginalRecords: validatedPackage.records
             )
             if let snapshot = expectedRecords.partsStockSnapshot {
                 let targetWorkspaceID = WorkspaceID(rawValue:
@@ -1067,9 +1069,26 @@ final class BackupRestoreService {
                     let disposition = C55PartsStockRestoreIdentityBoundaryV1.disposition(
                         for: preliminaryIdentityDecision?.mode ?? .replaceExisting
                     )
+                    let sourceSnapshot = validatedPackage.records.partsStockSnapshot
+                    let crossWorkspaceReplacement: Bool
+                    if disposition == .replace, let sourceSnapshot {
+                        crossWorkspaceReplacement = sourceSnapshot.workspaceID != targetWorkspaceID
+                    } else {
+                        crossWorkspaceReplacement = false
+                    }
+                    let lifecycleSourceSnapshot: PartsStockBackupSnapshotV1
+                    if crossWorkspaceReplacement {
+                        guard let sourceSnapshot else {
+                            throw BackupRestoreServiceError.invalidPackage
+                        }
+                        lifecycleSourceSnapshot = sourceSnapshot
+                    } else {
+                        lifecycleSourceSnapshot = snapshot
+                    }
                     let prepared = try PartsStockLifecycleAdapterV1(modelContext: currentModelContext)
                         .preparedRestoreSnapshot(
-                            snapshot,
+                            lifecycleSourceSnapshot,
+                            materializedSnapshot: crossWorkspaceReplacement ? snapshot : nil,
                             targetWorkspaceID: targetWorkspaceID,
                             operationID: restoreID,
                             disposition: disposition
@@ -1845,6 +1864,26 @@ final class BackupRestoreService {
             includingDeletionLedger: false,
             includesObservationAndTime: false
         )
+    }
+
+}
+
+extension BackupRestoreService {
+    static func sourceCommandKindsForPartsStockReplacement(
+        _ history: MutationHistorySnapshotV1,
+        sourceWorkspaceID: WorkspaceID
+    ) throws -> [UUID: WorkspaceCommandKindV1] {
+        var result: [UUID: WorkspaceCommandKindV1] = [:]
+        for record in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard envelope.workspaceID == sourceWorkspaceID else { continue }
+            guard result.updateValue(
+                envelope.commandKind, forKey: envelope.mutationID.rawValue
+            ) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        return result
     }
 
 }
@@ -2643,8 +2682,12 @@ private extension BackupRestoreService {
         members: ValidatedV4BackupMembersV1,
         identityDecision: RestoreIdentityV1?,
         legacyWorkspaceID: UUID,
-        partsStockOperationID: UUID
+        partsStockOperationID: UUID,
+        currentOriginalRecords: V4BackupRecordsV1? = nil,
+        incomingOriginalRecords: V4BackupRecordsV1? = nil
     ) throws -> V4BackupRecordsV1 {
+        let currentOriginal = currentOriginalRecords ?? records
+        let incomingOriginal = incomingOriginalRecords ?? records
         if records.recordsSchemaVersion >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
             _ = try records.validateC47ActivityContracts()
             try validateResolvedActivityContracts(in: records, members: members)
@@ -2783,10 +2826,15 @@ private extension BackupRestoreService {
         }
         if records.recordsSchemaVersion >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion {
             do {
-                let sourceWorkspaceID = identityDecision?.source.workspaceID
-                    ?? legacyWorkspaceID
+                let isCrossWorkspaceReplacement = identityDecision?.mode == .replaceExisting
+                    && identityDecision?.source.workspaceID
+                        != identityDecision?.targetPointer.workspaceID
+                let sourceRecords = isCrossWorkspaceReplacement ? incomingOriginal : records
+                let sourceWorkspaceID = isCrossWorkspaceReplacement
+                    ? identityDecision!.source.workspaceID
+                    : identityDecision?.source.workspaceID ?? legacyWorkspaceID
                 try C55PartsStockBackupImportBoundaryV1.validate(
-                    records,
+                    sourceRecords,
                     workspaceID: WorkspaceID(rawValue: sourceWorkspaceID)
                 )
             } catch {
@@ -2922,13 +2970,25 @@ private extension BackupRestoreService {
         if let identityDecision,
            normalized.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion,
            identityDecision.source.workspaceID != identityDecision.targetPointer.workspaceID {
-            normalized = try rebindingWorkResources(
-                in: normalized,
-                sourceRecords: records,
-                identity: identityDecision,
-                partsStockOperationID: partsStockOperationID,
-                historicReplicas: &historicReplicas
-            )
+            if identityDecision.mode == .replaceExisting,
+               normalized.recordsSchemaVersion
+                    >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion {
+                normalized = try rebindingCrossWorkspacePartsStockReplacement(
+                    in: normalized,
+                    currentOriginal: currentOriginal,
+                    incomingOriginal: incomingOriginal,
+                    identity: identityDecision,
+                    historicReplicas: &historicReplicas
+                )
+            } else {
+                normalized = try rebindingWorkResources(
+                    in: normalized,
+                    sourceRecords: records,
+                    identity: identityDecision,
+                    partsStockOperationID: partsStockOperationID,
+                    historicReplicas: &historicReplicas
+                )
+            }
         } else if normalized.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
             _ = try normalized.validateC49WorkResources()
         }
@@ -4867,6 +4927,139 @@ private extension BackupRestoreService {
         result = replacingMutationHistoryForCurrentWriter(in: result, with: transformedHistory)
         _ = try result.validateC47ActivityContracts()
         return result
+    }
+
+    private func rebindingCrossWorkspacePartsStockReplacement(
+        in planned: V4BackupRecordsV1,
+        currentOriginal: V4BackupRecordsV1,
+        incomingOriginal: V4BackupRecordsV1,
+        identity: RestoreIdentityV1,
+        historicReplicas: inout RestoreHistoricReplicaScope
+    ) throws -> V4BackupRecordsV1 {
+        let targetWorkspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        guard identity.mode == .replaceExisting,
+              identity.source.workspaceID != identity.targetPointer.workspaceID,
+              let currentSnapshot = currentOriginal.partsStockSnapshot,
+              let incomingSnapshot = incomingOriginal.partsStockSnapshot,
+              let currentHistory = currentOriginal.mutationHistory,
+              let incomingHistory = incomingOriginal.mutationHistory,
+              let plannedHistory = planned.mutationHistory else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        do {
+            try C55PartsStockBackupImportBoundaryV1.validate(
+                currentOriginal,
+                workspaceID: targetWorkspaceID
+            )
+            try C55PartsStockBackupImportBoundaryV1.validate(
+                incomingOriginal,
+                workspaceID: incomingSnapshot.workspaceID
+            )
+            let currentWorkResources = try currentOriginal.validateC49WorkResources()
+            let incomingWorkResources = try incomingOriginal.validateC49WorkResources()
+            let plannedWorkResources = try planned.workResources.map { try $0.value() }
+            let requirements = try PartsStockReplacementHistoryProjectionV1.requirements(
+                incomingSnapshot: incomingSnapshot,
+                incomingHistory: incomingHistory,
+                incomingWorkResources: incomingWorkResources
+            )
+
+            let kindByMutationID = try Self.sourceCommandKindsForPartsStockReplacement(
+                incomingHistory,
+                sourceWorkspaceID: incomingSnapshot.workspaceID
+            )
+            let partsStockMutationIDs = Set(
+                requirements.partsStockMutationIDs.map(\.rawValue)
+            )
+            let mutationBindings = try requirements.mutationIDs.map { source in
+                let target: MutationIDV1
+                switch kindByMutationID[source.rawValue] {
+                case .applyWorkResource:
+                    guard !partsStockMutationIDs.contains(source.rawValue) else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    target = try identity.destinationWorkResourceMutationID(for: source)
+                case .applyPartsStock:
+                    guard partsStockMutationIDs.contains(source.rawValue) else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    target = try identity.destinationPartsStockMutationID(for: source)
+                case nil where partsStockMutationIDs.contains(source.rawValue):
+                    // A projected catalog baseline can retain the mutation ID
+                    // of its unarchived revision-one predecessor. It has no
+                    // receipt row, but remains part of the exact C55 value
+                    // projection and therefore uses the stock namespace.
+                    target = try identity.destinationPartsStockMutationID(for: source)
+                default:
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return PartsStockReplacementHistoryProjectionV1.MutationBinding(
+                    source: source, target: target
+                )
+            }
+            let subjectBindings = try requirements.subjects.map { source in
+                PartsStockReplacementHistoryProjectionV1.SubjectBinding(
+                    source: source,
+                    target: try mappedWorkResourceSubject(
+                        source,
+                        sourceRecords: incomingOriginal,
+                        destinationRecords: planned,
+                        targetWorkspaceID: targetWorkspaceID
+                    )
+                )
+            }
+            let targetIdentity = try workspaceIdentity(identity)
+            let replicaBindings = try requirements.replicas.map { source in
+                PartsStockReplacementHistoryProjectionV1.ReplicaBinding(
+                    source: source,
+                    target: try historicReplicas.historicReplicaID(
+                        for: source,
+                        identity: identity,
+                        targetIdentity: targetIdentity
+                    )
+                )
+            }
+            let projection = try PartsStockReplacementHistoryProjectionV1.project(.init(
+                currentSnapshot: currentSnapshot,
+                incomingSnapshot: incomingSnapshot,
+                currentHistory: currentHistory,
+                incomingHistory: incomingHistory,
+                plannedHistory: plannedHistory,
+                currentWorkResources: currentWorkResources,
+                incomingWorkResources: incomingWorkResources,
+                plannedWorkResources: plannedWorkResources,
+                targetWorkspaceID: targetWorkspaceID,
+                targetGenerationID: identity.targetPointer.generationID,
+                writerInstanceID: identity.targetPointer.replicaID,
+                mutationBindings: mutationBindings,
+                subjectBindings: subjectBindings,
+                replicaBindings: replicaBindings
+            ))
+            guard projection.sourceSnapshotSHA256 == incomingSnapshot.snapshotSHA256 else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            var result = planned.replacingWorkResources(
+                try projection.workResources.map(V37BackupWorkResourceRecordV1.init)
+            )
+            result = try replacingPartsStockSnapshot(
+                in: result,
+                with: projection.targetSnapshot
+            )
+            result = replacingMutationHistoryForCurrentWriter(
+                in: result,
+                with: projection.history
+            )
+            _ = try result.validateC49WorkResources()
+            try C55PartsStockBackupImportBoundaryV1.validate(
+                result,
+                workspaceID: targetWorkspaceID
+            )
+            return result
+        } catch let error as BackupRestoreServiceError {
+            throw error
+        } catch {
+            throw BackupRestoreServiceError.invalidPackage
+        }
     }
 
     private func rebindingWorkResources(
@@ -8936,6 +9129,9 @@ private extension BackupRestoreService {
                     let receipt = try PartsStockLifecycleAdapterV1(modelContext: context)
                         .materializeRestoreStaging(
                             sourceSnapshot,
+                            materializedSnapshot: disposition == .replace
+                                && sourceSnapshot.workspaceID != targetWorkspaceID
+                                ? materializedSnapshot : nil,
                             targetWorkspaceID: targetWorkspaceID,
                             operationID: partsStockOperationID,
                             disposition: disposition,

@@ -307,8 +307,44 @@ class CheckpointTests(unittest.TestCase):
 
 
 class WorkflowWiringTests(unittest.TestCase):
-    def prior_f86664a_map(self, mapping):
+    def prior_ff8ae4c_map(self, mapping):
         prior = copy.deepcopy(mapping)
+        codec = next(g for g in prior["groups"] if g["id"] == "mutation-command-codec")
+        self.assertEqual(codec["methodCount"], 29)
+        self.assertEqual(codec["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests", "V23PartsStockReplacementHistoryTests", "V23PartsStockReplacementProjectionTests"])
+        codec["classes"] = codec["classes"][:2]
+        codec["methodCount"] = 14
+        return prior
+
+    def test_c55_admission_preserves_exact_ff8_pool_and_complete_paired_classes(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(len(default["unitTestSelectors"]), 479)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:464]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), 'B6F713A9889C43E4C3F82C94A970726678AFB229D80C0FFA04A325F51A583179')
+        prior_map = self.prior_ff8ae4c_map(mapping)
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), 'FF9568F96A872B357D55BBF3DA7DEF0FC152CC6CFACB18B6B5920C278DCA09C4')
+        expected = ['FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testOriginalMembershipAndBindingHostilesFailBeforeProjection', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testIncomingOtherFamilyOriginalsAndCausalTargetHistoryArePreserved', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testProjectsAllMutationCasesAndSnapshotFamiliesDeterministically', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testCursorStagesExternalPredecessorAndMatchesOneShotFold', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testBindingBoundaryFailsClosed', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testSameWorkspaceInvalidOrderAndLossyHistoryAreRejected', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testExplicitCatalogBaselinesPreserveStrictlyValidatedValuesAndMissingRevisionOne', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testCatalogBaselineProofRejectsMissingForgedMismatchedAndForbiddenFamily', 'FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testHistoricReversalBasisRebindPreservesOpaquePlanAndClosesTargetReceipt']
+        self.assertEqual(default["unitTestSelectors"][464:], expected)
+        selected = CI.resolve_selection(default, mapping, "mutation-command-codec")
+        original = CI.resolve_selection(prior_pool, prior_map, "mutation-command-codec")
+        self.assertEqual(len(original["unitTestSelectors"]), 14)
+        self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + expected)
+        self.assertEqual(len(selected["unitTestSelectors"]), 29)
+        for klass in ["V23PartsStockReplacementHistoryTests", "V23PartsStockReplacementProjectionTests"]:
+            source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text()
+            declared = re.findall(r"^    func (test\w+)\(", source, re.M)
+            self.assertEqual(len(declared), len(set(declared)))
+            self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in expected if CI.selection_class(s) == klass])
+        for selector in expected:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_f86664a_map(self, mapping):
+        prior = self.prior_ff8ae4c_map(mapping)
         reference = next(g for g in prior["groups"] if g["id"] == "reference-owner-replacement")
         self.assertEqual(reference["methodCount"], 51)
         self.assertEqual(reference["classes"].pop(), "V23ReferenceOwnerReplacementCommandPlanTests")
@@ -318,7 +354,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_command_plan_admission_preserves_exact_f86664a_pool_and_map(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 464)
+        self.assertEqual(len(default["unitTestSelectors"]), 479)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
         prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:453]
@@ -326,7 +362,7 @@ class WorkflowWiringTests(unittest.TestCase):
         prior_map = self.prior_f86664a_map(mapping)
         self.assertEqual(CI.sha256(CI.canonical(prior_map)), 'ED133A6747F235ADECE6C4B39A1FBD365C6CF7284D75336BADB480E52CE0D365')
         expected = ['FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testMixedPlanHasExactSourceOrderCoverageAndHistoricalTargets', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testCoverageIsIndependentOfReceiptStorageOrder', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testEmptyAndSingleFamilyPlansRemainExplicit', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testNonselectedAuthenticatedEntryAndFullSourceHistoryRemainExact', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testExternalProducerObligationsRetainAuthenticatedSourceAndSuppliedTarget', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsMissingForeignAndTargetCollisionProducerBindings', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testAtomicGenerationImagesAndFrontierEvidenceAreExact', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testDependenciesMapExactProducersAndRejectIncompleteExternalProducerCoverage', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testGenuineCausationAndReversalMetadataMapToOneSelectedPredecessor', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsGenuineForwardCausationAndReversalPair', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsAuthenticatedCausationToNonselectedGuidedOwner']
-        self.assertEqual(default["unitTestSelectors"][453:], expected)
+        self.assertEqual(default["unitTestSelectors"][453:464], expected)
         selected = CI.resolve_selection(default, mapping, "reference-owner-replacement")
         original = CI.resolve_selection(prior_pool, prior_map, "reference-owner-replacement")
         self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + expected)
@@ -347,7 +383,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_stage_digest_admission_preserves_exact_12e5742_pool_and_map(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 464)
+        self.assertEqual(len(default["unitTestSelectors"]), 479)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
         prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:450]
@@ -379,7 +415,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_native_observation_admission_preserves_exact_bea52c7_pool_and_map(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 464)
+        self.assertEqual(len(default["unitTestSelectors"]), 479)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
         prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:445]
@@ -409,7 +445,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_reference_owner_admission_preserves_exact_698_pool_and_adds_complete_classes(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 464)
+        self.assertEqual(len(default["unitTestSelectors"]), 479)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
         prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:405]
@@ -435,7 +471,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_schedule_admission_preserves_exact_4d_pool_and_map(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 464)
+        self.assertEqual(len(default["unitTestSelectors"]), 479)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
         prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:426]
@@ -451,7 +487,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_work_round_capture_and_descriptor_admission_preserves_821f_pool(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 464)
+        self.assertEqual(len(default["unitTestSelectors"]), 479)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:298])),
                          "5ABC2B0E9AD06346872CEFE60223FAD2E2AC775AAB2C691A6EAC98F026EDFB0C")
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][298:405])),
@@ -550,7 +586,7 @@ class WorkflowWiringTests(unittest.TestCase):
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         groups = [CI.resolve_selection(default, mapping, group["id"])
                   for group in mapping["groups"]]
-        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 464)
+        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 479)
         self.assertEqual({item for group in groups for item in group["unitTestSelectors"]},
                          set(default["unitTestSelectors"]))
         self.assertEqual(CI.resolve_selection(default, mapping, CI.DEFAULT_SELECTION_ID), default)
