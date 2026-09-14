@@ -407,7 +407,7 @@ private struct ProgressFixture {
         try OfflineReadinessManifestBuilderV1.build(snapshot: .init(session: round.reference,
             expectedPackage: package(), observedPackage: package(),
             selectedAssets: round.items.map(\.selection).sorted { $0.assetID.uuidString < $1.assetID.uuidString },
-            observedAssetIDs: round.items.map { $0.selection.assetID }, guidanceReferenceIDs: [], availableGuidanceReferenceIDs: [],
+            observedAssetIDs: Set(round.items.map { $0.selection.assetID }), guidanceReferenceIDs: [], availableGuidanceReferenceIDs: [],
             contentRequirements: [], contentObservations: [], expectedFieldReferences: [], fieldReferenceReadiness: [],
             storage: .init(capacityState: .checked, availableBytes: 100_000), access: .init(protectedDataAvailable: true),
             checkedAt: checkedAt, timeZoneIdentifier: "America/New_York", clockState: .checked))

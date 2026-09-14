@@ -4,6 +4,7 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+@MainActor
 final class V23StoreControlDescriptorOwnershipTests: XCTestCase {
     #if DEBUG
     private typealias Hooks = StoreControlInitializationTestHooksV1

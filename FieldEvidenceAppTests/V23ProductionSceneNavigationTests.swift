@@ -407,7 +407,7 @@ extension V23ProductionSceneNavigationTests {
         let initialRevision = try route.assetRevision()
         XCTAssertEqual(initialRevision, 1)
 
-        let mutationID = MutationIDV1(rawValue: UUID())
+        let mutationID = try MutationIDV1(rawValue: UUID())
         let record = try AssetLifecycleEventRecordV1.canonical(
             for: .retiredRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
             assetID: route.sign.assetID, predecessorEventID: nil, revision: initialRevision + 1,
@@ -448,7 +448,7 @@ extension V23ProductionSceneNavigationTests {
         let route = try await V23WorkRouteHarness.make(in: fixture, label: "retirement-gap")
         XCTAssertEqual(try route.assetRevision(), 1)
 
-        let activeID = MutationIDV1(rawValue: UUID())
+        let activeID = try MutationIDV1(rawValue: UUID())
         let activeRecord = try AssetLifecycleEventRecordV1.canonical(
             for: .activeRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
             assetID: route.sign.assetID, predecessorEventID: nil, revision: 2,
@@ -462,7 +462,7 @@ extension V23ProductionSceneNavigationTests {
         _ = try route.store.workspaceWriter.execute(.applyAssetSemantics(active), mutationID: activeID)
         XCTAssertEqual(try route.assetRevision(), 2)
 
-        let productID = MutationIDV1(rawValue: UUID())
+        let productID = try MutationIDV1(rawValue: UUID())
         let identifier = AssetProductIdentifierV1(
             kind: .serial, value: "WORK-RETIRE-GAP", normalizedComparisonValue: "work-retire-gap",
             issuer: "test", provenance: .humanRecorded, reviewState: .reviewedAsRecorded,
@@ -483,7 +483,7 @@ extension V23ProductionSceneNavigationTests {
         )
         XCTAssertEqual(try route.assetRevision(), 3)
 
-        let retirementID = MutationIDV1(rawValue: UUID())
+        let retirementID = try MutationIDV1(rawValue: UUID())
         let retirementRecord = try AssetLifecycleEventRecordV1.canonical(
             for: .retiredRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
             assetID: route.sign.assetID, predecessorEventID: activeRecord.eventID, revision: 4,
@@ -519,7 +519,7 @@ extension V23ProductionSceneNavigationTests {
         )
         defer { fixture.cleanUp() }
         let route = try await V23WorkRouteHarness.make(in: fixture, label: "retirement-malformed")
-        let activeID = MutationIDV1(rawValue: UUID())
+        let activeID = try MutationIDV1(rawValue: UUID())
         let active = try AssetLifecycleEventV1.activeRecorded(
             AssetLifecycleEventRecordV1.canonical(
                 for: .activeRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
@@ -527,7 +527,7 @@ extension V23ProductionSceneNavigationTests {
                 mutationID: activeID, recordedAt: Date()
             )
         )
-        let duplicateID = MutationIDV1(rawValue: UUID())
+        let duplicateID = try MutationIDV1(rawValue: UUID())
         let duplicate = try AssetLifecycleEventV1.retiredRecorded(
             AssetLifecycleEventRecordV1.canonical(
                 for: .retiredRecorded, eventID: UUID(), workspaceID: route.store.workspaceID,
