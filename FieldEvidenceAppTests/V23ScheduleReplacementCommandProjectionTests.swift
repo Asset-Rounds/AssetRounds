@@ -619,7 +619,7 @@ final class V23ScheduleReplacementCommandProjectionTests: XCTestCase {
     }
 }
 
-private enum ScheduleReplacementFixture {
+enum ScheduleReplacementFixture {
     struct Corpus {
         let sourceWorkspace: WorkspaceID
         let targetWorkspace: WorkspaceID

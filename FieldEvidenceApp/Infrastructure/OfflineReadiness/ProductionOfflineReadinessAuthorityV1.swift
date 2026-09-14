@@ -622,6 +622,13 @@ struct ProductionOfflineReadinessReadResultV1 {
             let storageMatches = manifests.allSatisfy { $0.storage == current }
             let protectedDataMatches = manifests.allSatisfy { $0.protectedDataAvailable == protected }
             print("ProductionOfflineReadinessAuthorityV1.publication phase=storage-protected-data storageMatches=\(storageMatches) protectedDataMatches=\(protectedDataMatches)")
+            for (index, manifest) in manifests.enumerated() {
+                let previous = manifest.storage
+                print("ProductionOfflineReadinessAuthorityV1.storage index=\(index) field=capacityState before=\(previous.capacityState.rawValue) after=\(current.capacityState.rawValue)")
+                print("ProductionOfflineReadinessAuthorityV1.storage index=\(index) field=availableBytes before=\(String(describing: previous.availableBytes)) after=\(String(describing: current.availableBytes))")
+                print("ProductionOfflineReadinessAuthorityV1.storage index=\(index) field=reservedBytes before=\(previous.reservedBytes) after=\(current.reservedBytes)")
+                print("ProductionOfflineReadinessAuthorityV1.storage index=\(index) field=operationReserveBytes before=\(previous.operationReserveBytes) after=\(current.operationReserveBytes)")
+            }
             #endif
             throw MyDaySourceReadFailureV1.sourcesChanged
         }

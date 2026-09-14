@@ -56,11 +56,33 @@ struct BackupCanonicalEncoderV1: Sendable {
     }
 
     func encodeRecords(_ records: V4BackupRecordsV1) throws -> EncodedBackupJSONV1 {
-        try C34SceneNavigationBackupEncoderBoundaryV1.validate()
-        guard Self.valid(records) else {
-            throw BackupCanonicalEncodingErrorV1.invalidRecords
+#if DEBUG
+        var phase = "scene-boundary"
+#endif
+        do {
+            try C34SceneNavigationBackupEncoderBoundaryV1.validate()
+#if DEBUG
+            phase = "record-validation"
+#endif
+            guard Self.valid(records) else {
+                throw BackupCanonicalEncodingErrorV1.invalidRecords
+            }
+#if DEBUG
+            phase = "record-fields"
+#endif
+            let fields = try Self.recordFields(records)
+#if DEBUG
+            phase = "canonical-json"
+#endif
+            return try encoded(.object(fields))
+        } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "BackupCanonicalEncoderV1.encodeRecords failed phase=\(phase) type=\(String(reflecting: type(of: error)))\n".utf8
+            ))
+#endif
+            throw error
         }
-        return try encoded(.object(Self.recordFields(records)))
     }
 
     /// Canonical business-state projection used by replication checkpoints and
@@ -675,6 +697,18 @@ private extension BackupCanonicalEncoderV1 {
             && records.workflowRecords.allSatisfy({ $0.schemaVersion == 1 })
     }
 
+    @inline(__always)
+    static func recordPredicate(_ label: StaticString, _ value: Bool) -> Bool {
+#if DEBUG
+        if !value {
+            FileHandle.standardError.write(Data(
+                "BackupCanonicalEncoderV1.valid failed predicate=\(label)\n".utf8
+            ))
+        }
+#endif
+        return value
+    }
+
     static func valid(_ records: V4BackupRecordsV1) -> Bool {
         let ledgerIsValid: Bool
         switch (
@@ -685,7 +719,7 @@ private extension BackupCanonicalEncoderV1 {
         case (1, nil, nil):
             ledgerIsValid = true
         case (2, let ledger?, nil):
-            ledgerIsValid = (try? ledger.validate()) != nil
+            ledgerIsValid = recordPredicate("deletion-ledger", (try? ledger.validate()) != nil)
         case (3, let ledger?, let history?), (4, let ledger?, let history?),
             (5, let ledger?, let history?), (6, let ledger?, let history?),
             (7, let ledger?, let history?), (8, let ledger?, let history?),
@@ -695,64 +729,64 @@ private extension BackupCanonicalEncoderV1 {
              (15, let ledger?, let history?), (16, let ledger?, let history?),
              (17, let ledger?, let history?), (18, let ledger?, let history?), (19, let ledger?, let history?),
              (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?), (36, let ledger?, let history?), (37, let ledger?, let history?), (38, let ledger?, let history?), (39, let ledger?, let history?), (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
-            ledgerIsValid = (try? ledger.validate()) != nil
-                && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
-                && validMutationHistoryOrder(history)
+            ledgerIsValid = recordPredicate("deletion-ledger", (try? ledger.validate()) != nil)
+                && recordPredicate("mutation-history", (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil)
+                && recordPredicate("mutation-history-order", validMutationHistoryOrder(history))
         default:
             ledgerIsValid = false
         }
-        return ledgerIsValid
-            && validObservationAndTime(records)
-            && validLocationRecords(records)
-            && validSavedSmartViews(records)
-            && validRequirementAssurance(records)
-            && validPartyAccountability(records)
-            && validAssetSemantics(records)
-            && validAuthorityCriterion(records)
-            && validFunctionalRelationships(records)
-            && validEvidenceAssurance(records)
-            && validInspectionReview(records)
-            && validWorkPackets(records)
-            && validFieldDrafts(records)
-            && validPackageEvolution(records)
-            && validMeasurementIntegrity(records)
-            && validPrivacyTransforms(records)
-            && validClientCapabilities(records)
-            && validRecoverabilityReceipts(records)
-            && validFieldReferences(records)
-            && validAccessibleDocumentAssessments(records)
-            && validSurveyDefinitions(records)
-            && validGuidedSurveys(records)
-            && validAssetLocators(records)
-            && validSchedules(records)
-            && validPlans(records)
-            && validC30EvidenceContext(records)
-            && validC31Lighting(records)
-            && validC32AssistanceAcceptanceReceipts(records)
-            && validC33TemporalEvidence(records)
-            && validC45AcceptedLabelSnapshots(records)
-            && validC46OperationalContacts(records)
-             && validC47ActivityContracts(records)
-            && validC49WorkResources(records)
-            && validC04ShopReportProfiles(records)
-             && (try? C52ServiceRequestBackupDecodingBoundaryV1.validate(records)) != nil
-             && validC53ServiceReliability(records)
-             && validC55PartsStock(records)
-             && (try? ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)) != nil
-            && sortedUniqueIDs(records.assets.map(\.id))
-            && records.assets.allSatisfy({ $0.schemaVersion == 1 })
-            && sortedUniqueIDs(records.evidenceFiles.map(\.id))
-            && records.evidenceFiles.allSatisfy({ $0.schemaVersion == 1 })
-            && sortedUniqueIDs(records.issues.map(\.id))
-            && records.issues.allSatisfy({ $0.schemaVersion == 1 })
-            && sortedUniqueIDs(records.packets.map(\.id))
-            && records.packets.allSatisfy({ $0.schemaVersion == 1 })
-            && sortedUniqueIDs(records.reports.map(\.id))
-            && records.reports.allSatisfy({ $0.schemaVersion == 1 })
-            && sortedUniqueIDs(records.sites.map(\.id))
-            && records.sites.allSatisfy({ $0.schemaVersion == 1 })
-            && sortedUniqueIDs(records.workflowRecords.map(\.id))
-            && records.workflowRecords.allSatisfy({ $0.schemaVersion == 1 })
+        return recordPredicate("schema-or-ledger", ledgerIsValid)
+            && recordPredicate("validObservationAndTime", validObservationAndTime(records))
+            && recordPredicate("validLocationRecords", validLocationRecords(records))
+            && recordPredicate("validSavedSmartViews", validSavedSmartViews(records))
+            && recordPredicate("validRequirementAssurance", validRequirementAssurance(records))
+            && recordPredicate("validPartyAccountability", validPartyAccountability(records))
+            && recordPredicate("validAssetSemantics", validAssetSemantics(records))
+            && recordPredicate("validAuthorityCriterion", validAuthorityCriterion(records))
+            && recordPredicate("validFunctionalRelationships", validFunctionalRelationships(records))
+            && recordPredicate("validEvidenceAssurance", validEvidenceAssurance(records))
+            && recordPredicate("validInspectionReview", validInspectionReview(records))
+            && recordPredicate("validWorkPackets", validWorkPackets(records))
+            && recordPredicate("validFieldDrafts", validFieldDrafts(records))
+            && recordPredicate("validPackageEvolution", validPackageEvolution(records))
+            && recordPredicate("validMeasurementIntegrity", validMeasurementIntegrity(records))
+            && recordPredicate("validPrivacyTransforms", validPrivacyTransforms(records))
+            && recordPredicate("validClientCapabilities", validClientCapabilities(records))
+            && recordPredicate("validRecoverabilityReceipts", validRecoverabilityReceipts(records))
+            && recordPredicate("validFieldReferences", validFieldReferences(records))
+            && recordPredicate("validAccessibleDocumentAssessments", validAccessibleDocumentAssessments(records))
+            && recordPredicate("validSurveyDefinitions", validSurveyDefinitions(records))
+            && recordPredicate("validGuidedSurveys", validGuidedSurveys(records))
+            && recordPredicate("validAssetLocators", validAssetLocators(records))
+            && recordPredicate("validSchedules", validSchedules(records))
+            && recordPredicate("validPlans", validPlans(records))
+            && recordPredicate("validC30EvidenceContext", validC30EvidenceContext(records))
+            && recordPredicate("validC31Lighting", validC31Lighting(records))
+            && recordPredicate("validC32AssistanceAcceptanceReceipts", validC32AssistanceAcceptanceReceipts(records))
+            && recordPredicate("validC33TemporalEvidence", validC33TemporalEvidence(records))
+            && recordPredicate("validC45AcceptedLabelSnapshots", validC45AcceptedLabelSnapshots(records))
+            && recordPredicate("validC46OperationalContacts", validC46OperationalContacts(records))
+             && recordPredicate("validC47ActivityContracts", validC47ActivityContracts(records))
+            && recordPredicate("validC49WorkResources", validC49WorkResources(records))
+            && recordPredicate("validC04ShopReportProfiles", validC04ShopReportProfiles(records))
+             && recordPredicate("C52ServiceRequestBackupDecodingBoundaryV1", (try? C52ServiceRequestBackupDecodingBoundaryV1.validate(records)) != nil)
+             && recordPredicate("validC53ServiceReliability", validC53ServiceReliability(records))
+             && recordPredicate("validC55PartsStock", validC55PartsStock(records))
+             && recordPredicate("ReinspectionExceptionQueueBackupEnrollmentV1", (try? ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)) != nil)
+            && recordPredicate("assets-ids", sortedUniqueIDs(records.assets.map(\.id)))
+            && recordPredicate("assets-schema", records.assets.allSatisfy({ $0.schemaVersion == 1 }))
+            && recordPredicate("evidenceFiles-ids", sortedUniqueIDs(records.evidenceFiles.map(\.id)))
+            && recordPredicate("evidenceFiles-schema", records.evidenceFiles.allSatisfy({ $0.schemaVersion == 1 }))
+            && recordPredicate("issues-ids", sortedUniqueIDs(records.issues.map(\.id)))
+            && recordPredicate("issues-schema", records.issues.allSatisfy({ $0.schemaVersion == 1 }))
+            && recordPredicate("packets-ids", sortedUniqueIDs(records.packets.map(\.id)))
+            && recordPredicate("packets-schema", records.packets.allSatisfy({ $0.schemaVersion == 1 }))
+            && recordPredicate("reports-ids", sortedUniqueIDs(records.reports.map(\.id)))
+            && recordPredicate("reports-schema", records.reports.allSatisfy({ $0.schemaVersion == 1 }))
+            && recordPredicate("sites-ids", sortedUniqueIDs(records.sites.map(\.id)))
+            && recordPredicate("sites-schema", records.sites.allSatisfy({ $0.schemaVersion == 1 }))
+            && recordPredicate("workflowRecords-ids", sortedUniqueIDs(records.workflowRecords.map(\.id)))
+            && recordPredicate("workflowRecords-schema", records.workflowRecords.allSatisfy({ $0.schemaVersion == 1 }))
     }
 
     static func validObservationAndTime(_ records: V4BackupRecordsV1) -> Bool {

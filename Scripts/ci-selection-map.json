@@ -273,9 +273,10 @@
         "V23ReferenceOwnerReplacementSourceTests",
         "V23WorkPacketReplacementCommandProjectionTests",
         "V23RoundSessionReplacementCommandProjectionTests",
-        "V23ScheduleReplacementCommandProjectionTests"
+        "V23ScheduleReplacementCommandProjectionTests",
+        "V23ReferenceOwnerReplacementCommandPlanTests"
       ],
-      "methodCount": 40
+      "methodCount": 51
     }
   ]
 }
