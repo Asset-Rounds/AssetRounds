@@ -5,6 +5,42 @@ import UniformTypeIdentifiers
 
 struct MediaNormalizerV1 {
     func normalize(_ sourceData: Data) throws -> NormalizedMediaV1 {
+        try normalizeWithSourceFacts(sourceData).normalized
+    }
+
+    /// Reads admitted source headers without producing normalized media.
+    func inspectSource(_ sourceData: Data) throws -> MediaSourceFactsV1 {
+        try inspectedSource(sourceData).facts
+    }
+
+    func normalizeWithSourceFacts(_ sourceData: Data) throws -> NormalizedMediaWithSourceFactsV1 {
+        let inspected = try inspectedSource(sourceData)
+        let source = inspected.source
+        let sourceDimensions = (
+            width: inspected.facts.pixelWidth,
+            height: inspected.facts.pixelHeight
+        )
+        let original = try normalize(
+            source: source,
+            sourceDimensions: sourceDimensions,
+            kind: .original
+        )
+        let thumbnail = try normalize(
+            source: source,
+            sourceDimensions: sourceDimensions,
+            kind: .thumbnail
+        )
+        _ = try validateCanonicalJPEG(original, kind: .original)
+        _ = try validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+        return NormalizedMediaWithSourceFactsV1(
+            sourceFacts: inspected.facts,
+            normalized: NormalizedMediaV1(originalJPEG: original, thumbnailJPEG: thumbnail)
+        )
+    }
+
+    private func inspectedSource(
+        _ sourceData: Data
+    ) throws -> (source: CGImageSource, facts: MediaSourceFactsV1) {
         guard sourceData.count <= MediaContractV1.sourceByteCountMaximum else {
             throw MediaImportErrorV1.sourceTooLarge
         }
@@ -33,19 +69,12 @@ struct MediaNormalizerV1 {
             throw MediaImportErrorV1.decodedPixelCountTooLarge
         }
 
-        let original = try normalize(
-            source: source,
-            sourceDimensions: sourceDimensions,
-            kind: .original
-        )
-        let thumbnail = try normalize(
-            source: source,
-            sourceDimensions: sourceDimensions,
-            kind: .thumbnail
-        )
-        _ = try validateCanonicalJPEG(original, kind: .original)
-        _ = try validateCanonicalJPEG(thumbnail, kind: .thumbnail)
-        return NormalizedMediaV1(originalJPEG: original, thumbnailJPEG: thumbnail)
+        return (source, MediaSourceFactsV1(
+            sourceTypeIdentifier: sourceType,
+            pixelWidth: sourceDimensions.width,
+            pixelHeight: sourceDimensions.height,
+            byteCount: sourceData.count
+        ))
     }
 
     func validateCanonicalJPEG(

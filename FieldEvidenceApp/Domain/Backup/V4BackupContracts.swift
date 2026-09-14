@@ -3840,9 +3840,20 @@ enum C55PartsStockBackupEnrollmentV1 {
                   receiptExpected.count == concurrency.count,
                   Set(receiptExpected.keys) == Set(concurrency),
                   receiptExpected == expectedByMutation,
-                  try images.allSatisfy({
-                      try receiptResult[physicalIdentity(for: $0)] == $0.revision
-                        && receiptResult[try $0.concurrencyIdentity] == $0.revision
+                  try images.allSatisfy({ image in
+                      let physical = try physicalIdentity(for: image)
+                      let concurrency = try image.concurrencyIdentity
+                      guard receiptResult[physical] == image.revision else { return false }
+                      if physical == concurrency || concurrency.kind == .stockBalanceStream {
+                          return receiptResult[concurrency] == image.revision
+                      }
+                      // Appending a WorkResource successor preserves its predecessor row.
+                      guard physical.kind == .workResourceEntry,
+                            concurrency.kind == .workResourceEntry,
+                            let expected = receiptExpected[concurrency],
+                            receiptResult[concurrency] == expected else { return false }
+                      let (successor, overflow) = expected.addingReportingOverflow(1)
+                      return !overflow && image.revision == successor
                   }) else {
                 throw PartsStockFailureV1.invalidTransition
             }

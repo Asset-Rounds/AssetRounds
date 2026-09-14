@@ -992,7 +992,7 @@ final class FinalizationRecoveryService {
                       && row.byteCount == evidence.byteCount
                       && isLowercaseSHA256(row.sha256)
                       && row.sha256 == evidence.sha256
-                      && row.createdAt == evidence.createdAt
+                      && canonicalDateEqual(row.createdAt, evidence.createdAt)
                       && row.thumbnailRelativePath == "evidence/\(id)/thumbnail.jpg"
                       && row.thumbnailRelativePath == evidence.thumbnailRelativePath
                       && row.thumbnailByteCount > 0
@@ -1012,8 +1012,8 @@ final class FinalizationRecoveryService {
                   value.display == issue.labelDisplaySnapshot,
                   value.status == issue.status,
                   value.resolvedByRecordID == issue.resolvedByRecordID,
-                  value.createdAt == issue.createdAt,
-                  value.updatedAt == issue.updatedAt else {
+                  canonicalDateEqual(value.createdAt, issue.createdAt),
+                  canonicalDateEqual(value.updatedAt, issue.updatedAt) else {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
         } else if !snapshot.issues.isEmpty {
@@ -1035,7 +1035,10 @@ final class FinalizationRecoveryService {
               snapshot.display.outcome == outcomeDisplay(outcomeKey),
               snapshot.couldNotVerify == expectedCNV,
               snapshot.note == payload.workflowRecordAfter.note,
-              snapshot.timeContext.observedAtUTC == payload.workflowRecordAfter.observedAtUTC,
+              canonicalOptionalDateEqual(
+                  snapshot.timeContext.observedAtUTC,
+                  payload.workflowRecordAfter.observedAtUTC
+              ),
               snapshot.timeContext.timeZoneID == payload.workflowRecordAfter.timeZoneID,
               snapshot.timeContext.utcOffsetMinutes == payload.workflowRecordAfter.utcOffsetMinutes,
               snapshot.timeContext.localDate == payload.workflowRecordAfter.localDate,

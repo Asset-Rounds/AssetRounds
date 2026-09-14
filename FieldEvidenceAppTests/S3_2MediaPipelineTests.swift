@@ -10,6 +10,60 @@ import XCTest
 final class S3_2MediaPipelineTests: XCTestCase {
     private let fileManager = FileManager.default
 
+    func testSourceInspectionRetainsOriginalFactsAndExactNormalizedOutputs() throws {
+        let normalizer = MediaNormalizerV1()
+        let source = try makePNG(width: 40, height: 20, seed: 53, orientation: 6)
+        let sourceDigest = sha256(source)
+        let facts = try normalizer.inspectSource(source)
+        XCTAssertEqual(facts.sourceTypeIdentifier, UTType.png.identifier)
+        XCTAssertEqual(facts.pixelWidth, 40)
+        XCTAssertEqual(facts.pixelHeight, 20)
+        XCTAssertEqual(facts.byteCount, source.count)
+
+        let result = try normalizer.normalizeWithSourceFacts(source)
+        XCTAssertEqual(result.sourceFacts, facts)
+        XCTAssertEqual(result.normalized, try normalizer.normalize(source))
+        XCTAssertEqual(sha256(source), sourceDigest)
+        let normalizedFacts = try normalizer.validateCanonicalJPEG(
+            result.normalized.originalJPEG, kind: .original
+        )
+        XCTAssertEqual(normalizedFacts.pixelWidth, 20)
+        XCTAssertEqual(normalizedFacts.pixelHeight, 40)
+        assertExactCanonicalJPEGMetadata(result.normalized.originalJPEG)
+        assertExactCanonicalJPEGMetadata(result.normalized.thumbnailJPEG)
+
+        let jpegFacts = try normalizer.inspectSource(result.normalized.originalJPEG)
+        XCTAssertEqual(jpegFacts.sourceTypeIdentifier, UTType.jpeg.identifier)
+        XCTAssertEqual(jpegFacts.pixelWidth, normalizedFacts.pixelWidth)
+        XCTAssertEqual(jpegFacts.pixelHeight, normalizedFacts.pixelHeight)
+        XCTAssertEqual(jpegFacts.byteCount, result.normalized.originalJPEG.count)
+    }
+
+    func testSourceInspectionPreservesInvalidInputFailurePrecedence() throws {
+        let normalizer = MediaNormalizerV1()
+        let onePixelGIF = try XCTUnwrap(
+            Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")
+        )
+        let cases: [(Data, MediaImportErrorV1)] = [
+            (Data([0x00, 0x01, 0x02]), .malformedSource),
+            (onePixelGIF, .unsupportedSourceType),
+            (try makeAnimatedPNG(), .animatedOrMultipageSource),
+            (try makePNG(width: 16_385, height: 1, seed: 17), .sourceDimensionsOutOfRange),
+            (Data(count: MediaContractV1.sourceByteCountMaximum + 1), .sourceTooLarge),
+        ]
+        for (source, expected) in cases {
+            XCTAssertThrowsError(try normalizer.inspectSource(source)) {
+                XCTAssertEqual($0 as? MediaImportErrorV1, expected)
+            }
+            XCTAssertThrowsError(try normalizer.normalizeWithSourceFacts(source)) {
+                XCTAssertEqual($0 as? MediaImportErrorV1, expected)
+            }
+            XCTAssertThrowsError(try normalizer.normalize(source)) {
+                XCTAssertEqual($0 as? MediaImportErrorV1, expected)
+            }
+        }
+    }
+
     func testNormalizerAndStoragePreflightEnforceTheFrozenMediaContract() throws {
         let source = try makePNG(width: 960, height: 540, seed: 31)
         let normalizer = MediaNormalizerV1()

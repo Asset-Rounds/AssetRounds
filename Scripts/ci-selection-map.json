@@ -67,9 +67,10 @@
         "V9_10LifecycleBoundaryTests",
         "V23FieldDraftStageDigestBackupTests",
         "V23FieldDraftAsyncCommitTests",
-        "V23BackupManifestMemberTests"
+        "V23BackupManifestMemberTests",
+        "S3_2MediaPipelineTests"
       ],
-      "methodCount": 25
+      "methodCount": 34
     },
     {
       "id": "generation-leases-migration",
@@ -116,7 +117,7 @@
         "S6_2BackupExportTests",
         "V9_18PackLifecycleIntegrationTests"
       ],
-      "methodCount": 21
+      "methodCount": 22
     },
     {
       "id": "legacy-lifecycle-recovery",

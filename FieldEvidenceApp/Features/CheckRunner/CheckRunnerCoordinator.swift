@@ -584,6 +584,9 @@ final class CheckRunnerCoordinator {
         )
         let evidence = try modelContext.fetch(evidenceDescriptor)
         let outcomeResult: FinalizationServiceOutcome
+#if DEBUG
+        var finalizationPhase = "input"
+#endif
         do {
             let input = FinalizationServiceInput(
                 draft: draft,
@@ -601,6 +604,9 @@ final class CheckRunnerCoordinator {
                 identifiers: identifiers
             )
             if let lifecycle = liveLifecycle {
+#if DEBUG
+                finalizationPhase = "adapter-create"
+#endif
                 let adapter = try PackFinalizationAdapterV1(
                     dependencies: lifecycle.dependencies,
                     profile: lifecycle.profile,
@@ -608,6 +614,9 @@ final class CheckRunnerCoordinator {
                     intentStoreFailureInjection: finalizationStoreFailureInjection,
                     failureInjection: finalizationServiceFailureInjection
                 )
+#if DEBUG
+                finalizationPhase = "binding-create"
+#endif
                 let binding = try PackFinalizationBindingV1(
                     workspaceID: lifecycle.dependencies.workspaceID,
                     generationID: lifecycle.dependencies.generationID,
@@ -616,8 +625,14 @@ final class CheckRunnerCoordinator {
                     durableReceiptIdentity: nil,
                     preservesReservedLegacyRawWriteDebt: false
                 )
+#if DEBUG
+                finalizationPhase = "adapter-finalize"
+#endif
                 outcomeResult = try await adapter.finalize(input, binding: binding).finalization
             } else {
+#if DEBUG
+                finalizationPhase = "legacy-service-create"
+#endif
                 let service = try FinalizationService(
                     modelContext: modelContext,
                     signPack: signPack,
@@ -625,9 +640,18 @@ final class CheckRunnerCoordinator {
                     intentStoreFailureInjection: finalizationStoreFailureInjection,
                     failureInjection: finalizationServiceFailureInjection
                 )
+#if DEBUG
+                finalizationPhase = "legacy-service-finalize"
+#endif
                 outcomeResult = try await service.finalize(input)
             }
         } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data((
+                "CheckRunner finalize failure phase=\(finalizationPhase) "
+                    + "type=\(String(reflecting: type(of: error))) error=\(error)\n"
+            ).utf8))
+#endif
             throw CheckRunnerCoordinatorError.finalizationFailed
         }
         let result = outcomeResult.result

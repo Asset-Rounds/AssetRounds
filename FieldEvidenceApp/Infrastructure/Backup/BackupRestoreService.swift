@@ -2825,6 +2825,9 @@ private extension BackupRestoreService {
             throw BackupRestoreServiceError.invalidPackage
         }
         if records.recordsSchemaVersion >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion {
+#if DEBUG
+            FileHandle.standardError.write(Data("C55 restore phase=initial-admission-before\n".utf8))
+#endif
             do {
                 let isCrossWorkspaceReplacement = identityDecision?.mode == .replaceExisting
                     && identityDecision?.source.workspaceID
@@ -2843,7 +2846,16 @@ private extension BackupRestoreService {
                     sourceRecords,
                     workspaceID: WorkspaceID(rawValue: sourceWorkspaceID)
                 )
+#if DEBUG
+                FileHandle.standardError.write(Data("C55 restore phase=initial-admission-after\n".utf8))
+#endif
             } catch {
+#if DEBUG
+                FileHandle.standardError.write(Data((
+                    "C55 restore failure phase=initial-admission "
+                        + "type=\(String(reflecting: type(of: error))) error=\(error)\n"
+                ).utf8))
+#endif
                 throw BackupRestoreServiceError.invalidPackage
             }
         } else if records.partsStockSnapshot != nil {
@@ -4942,6 +4954,10 @@ private extension BackupRestoreService {
         identity: RestoreIdentityV1,
         historicReplicas: inout RestoreHistoricReplicaScope
     ) throws -> V4BackupRecordsV1 {
+#if DEBUG
+        var c55Phase = "preconditions"
+        FileHandle.standardError.write(Data("C55 restore phase=rebinding-before\n".utf8))
+#endif
         let targetWorkspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
         guard identity.mode == .replaceExisting,
               identity.source.workspaceID != identity.targetPointer.workspaceID,
@@ -4950,26 +4966,50 @@ private extension BackupRestoreService {
               let currentHistory = currentOriginal.mutationHistory,
               let incomingHistory = incomingOriginal.mutationHistory,
               let plannedHistory = planned.mutationHistory else {
+#if DEBUG
+            FileHandle.standardError.write(Data("C55 restore failure phase=preconditions\n".utf8))
+#endif
             throw BackupRestoreServiceError.invalidPackage
         }
         do {
+#if DEBUG
+            c55Phase = "validate-current-c55"
+#endif
             try C55PartsStockBackupImportBoundaryV1.validate(
                 currentOriginal,
                 workspaceID: targetWorkspaceID
             )
+#if DEBUG
+            c55Phase = "validate-incoming-c55"
+#endif
             try C55PartsStockBackupImportBoundaryV1.validate(
                 incomingOriginal,
                 workspaceID: incomingSnapshot.workspaceID
             )
+#if DEBUG
+            c55Phase = "validate-current-c49"
+#endif
             let currentWorkResources = try currentOriginal.validateC49WorkResources()
+#if DEBUG
+            c55Phase = "validate-incoming-c49"
+#endif
             let incomingWorkResources = try incomingOriginal.validateC49WorkResources()
+#if DEBUG
+            c55Phase = "planned-work-resources"
+#endif
             let plannedWorkResources = try planned.workResources.map { try $0.value() }
+#if DEBUG
+            c55Phase = "requirements"
+#endif
             let requirements = try PartsStockReplacementHistoryProjectionV1.requirements(
                 incomingSnapshot: incomingSnapshot,
                 incomingHistory: incomingHistory,
                 incomingWorkResources: incomingWorkResources
             )
 
+#if DEBUG
+            c55Phase = "source-command-kinds"
+#endif
             let kindByMutationID = try Self.sourceCommandKindsForPartsStockReplacement(
                 incomingHistory,
                 sourceWorkspaceID: incomingSnapshot.workspaceID
@@ -4977,6 +5017,9 @@ private extension BackupRestoreService {
             let partsStockMutationIDs = Set(
                 requirements.partsStockMutationIDs.map(\.rawValue)
             )
+#if DEBUG
+            c55Phase = "mutation-bindings"
+#endif
             let mutationBindings = try requirements.mutationIDs.map { source in
                 let target: MutationIDV1
                 switch kindByMutationID[source.rawValue] {
@@ -5003,6 +5046,9 @@ private extension BackupRestoreService {
                     source: source, target: target
                 )
             }
+#if DEBUG
+            c55Phase = "subject-bindings"
+#endif
             let subjectBindings = try requirements.subjects.map { source in
                 PartsStockReplacementHistoryProjectionV1.SubjectBinding(
                     source: source,
@@ -5014,6 +5060,9 @@ private extension BackupRestoreService {
                     )
                 )
             }
+#if DEBUG
+            c55Phase = "replica-bindings"
+#endif
             let targetIdentity = try workspaceIdentity(identity)
             let replicaBindings = try requirements.replicas.map { source in
                 PartsStockReplacementHistoryProjectionV1.ReplicaBinding(
@@ -5025,6 +5074,9 @@ private extension BackupRestoreService {
                     )
                 )
             }
+#if DEBUG
+            c55Phase = "project-history"
+#endif
             let projection = try PartsStockReplacementHistoryProjectionV1.project(.init(
                 currentSnapshot: currentSnapshot,
                 incomingSnapshot: incomingSnapshot,
@@ -5041,29 +5093,62 @@ private extension BackupRestoreService {
                 subjectBindings: subjectBindings,
                 replicaBindings: replicaBindings
             ))
+#if DEBUG
+            c55Phase = "source-snapshot"
+#endif
             guard projection.sourceSnapshotSHA256 == incomingSnapshot.snapshotSHA256 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
+#if DEBUG
+            c55Phase = "result-work-resources"
+#endif
             var result = planned.replacingWorkResources(
                 try projection.workResources.map(V37BackupWorkResourceRecordV1.init)
             )
+#if DEBUG
+            c55Phase = "result-stock"
+#endif
             result = try replacingPartsStockSnapshot(
                 in: result,
                 with: projection.targetSnapshot
             )
+#if DEBUG
+            c55Phase = "result-history"
+#endif
             result = replacingMutationHistoryForCurrentWriter(
                 in: result,
                 with: projection.history
             )
+#if DEBUG
+            c55Phase = "validate-result-c49"
+#endif
             _ = try result.validateC49WorkResources()
+#if DEBUG
+            c55Phase = "validate-result-c55"
+#endif
             try C55PartsStockBackupImportBoundaryV1.validate(
                 result,
                 workspaceID: targetWorkspaceID
             )
+#if DEBUG
+            FileHandle.standardError.write(Data("C55 restore phase=rebinding-after\n".utf8))
+#endif
             return result
         } catch let error as BackupRestoreServiceError {
+#if DEBUG
+            FileHandle.standardError.write(Data((
+                "C55 restore failure phase=\(c55Phase) "
+                    + "type=\(String(reflecting: type(of: error))) error=\(error)\n"
+            ).utf8))
+#endif
             throw error
         } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data((
+                "C55 restore failure phase=\(c55Phase) "
+                    + "type=\(String(reflecting: type(of: error))) error=\(error)\n"
+            ).utf8))
+#endif
             throw BackupRestoreServiceError.invalidPackage
         }
     }

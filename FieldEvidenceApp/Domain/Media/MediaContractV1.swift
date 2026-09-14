@@ -55,6 +55,20 @@ struct NormalizedMediaV1: Equatable, Sendable {
     let thumbnailJPEG: Data
 }
 
+/// Inspected source headers, before orientation or JPEG conversion. These
+/// process-local facts do not prove durable staging or accepted evidence.
+struct MediaSourceFactsV1: Equatable, Sendable {
+    let sourceTypeIdentifier: String
+    let pixelWidth: Int
+    let pixelHeight: Int
+    let byteCount: Int
+}
+
+struct NormalizedMediaWithSourceFactsV1: Equatable, Sendable {
+    let sourceFacts: MediaSourceFactsV1
+    let normalized: NormalizedMediaV1
+}
+
 struct CanonicalJPEGFactsV1: Equatable, Sendable {
     let pixelWidth: Int
     let pixelHeight: Int

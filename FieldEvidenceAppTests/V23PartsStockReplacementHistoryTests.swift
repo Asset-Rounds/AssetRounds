@@ -63,6 +63,42 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         XCTAssertEqual(sourceSnapshot.movements.count, 2)
         XCTAssertEqual(sourceSnapshot.uses.count, 1)
 
+        let sourceUse = try XCTUnwrap(sourceSnapshot.uses.first)
+        let sourceUseRecord = try XCTUnwrap(sourceHistory.receipts.first {
+            try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).mutationID
+                == sourceUse.mutationID
+        })
+        let sourceUseReceipt = try MutationReceiptV1.decodeCanonical(
+            from: sourceUseRecord.receiptData
+        )
+        let successorIdentity = try WorkspaceEntityIdentityV1(
+            kind: .workResourceEntry, id: sourceUse.workResourceSuccessor.entryID
+        )
+        let workImage = try XCTUnwrap(sourceUseReceipt.postImages.first {
+            try $0.identity == successorIdentity
+        })
+        let predecessorIdentity = try workImage.concurrencyIdentity
+        let expectedRevisions = Dictionary(uniqueKeysWithValues:
+            sourceUseReceipt.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) }
+        )
+        let resultingRevisions = Dictionary(uniqueKeysWithValues:
+            sourceUseReceipt.resultingRevision.entityRevisions.map { ($0.identity, $0.revision) }
+        )
+        XCTAssertNotEqual(successorIdentity, predecessorIdentity)
+        XCTAssertEqual(predecessorIdentity.id, sourceUse.workResourceSuccessor.supersedesEntryID)
+        XCTAssertEqual(expectedRevisions[predecessorIdentity], 1)
+        XCTAssertEqual(resultingRevisions[predecessorIdentity], 1)
+        XCTAssertEqual(resultingRevisions[successorIdentity], 2)
+        XCTAssertEqual(workImage.revision, 2)
+        let stockImages = try sourceUseReceipt.postImages.filter {
+            try $0.concurrencyIdentity.kind == .stockBalanceStream
+        }
+        XCTAssertEqual(stockImages.count, 1)
+        for image in stockImages {
+            XCTAssertEqual(resultingRevisions[try image.identity], image.revision)
+            XCTAssertEqual(resultingRevisions[try image.concurrencyIdentity], image.revision)
+        }
+
         try publicReplacementStep("seed-current-stock") {
             try seedCurrentPart(in: target.session, slot: 1_400)
         }
@@ -366,6 +402,32 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let second = try Projector.project(input)
 
         XCTAssertEqual(first, second)
+        var checkedWorkResourcePredecessors = 0
+        for record in first.history.receipts {
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            guard receipt.identity.workspaceID == fixture.targetWorkspaceID else { continue }
+            let expected = Dictionary(uniqueKeysWithValues:
+                receipt.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) }
+            )
+            let resulting = Dictionary(uniqueKeysWithValues:
+                receipt.resultingRevision.entityRevisions.map { ($0.identity, $0.revision) }
+            )
+            for image in receipt.postImages {
+                let physical = try image.identity
+                let concurrency = try image.concurrencyIdentity
+                guard physical.kind == .workResourceEntry,
+                      concurrency.kind == .workResourceEntry,
+                      physical != concurrency else { continue }
+                let predecessor = try XCTUnwrap(expected[concurrency])
+                XCTAssertEqual(resulting[concurrency], predecessor)
+                XCTAssertEqual(resulting[physical], image.revision)
+                let (successor, overflow) = predecessor.addingReportingOverflow(1)
+                XCTAssertFalse(overflow)
+                XCTAssertEqual(image.revision, successor)
+                checkedWorkResourcePredecessors += 1
+            }
+        }
+        XCTAssertGreaterThan(checkedWorkResourcePredecessors, 0)
         XCTAssertEqual(first.sourceSnapshotSHA256, fixture.incoming.snapshot.snapshotSHA256)
         XCTAssertEqual(first.targetSnapshot.workspaceID, fixture.targetWorkspaceID)
         XCTAssertNotEqual(first.targetSnapshot.snapshotSHA256, first.sourceSnapshotSHA256)
@@ -2170,7 +2232,10 @@ private extension V23PartsStockReplacementHistoryTests {
                 )
                 for image in images {
                     terminal[try image.identity] = image.revision
-                    terminal[try image.concurrencyIdentity] = image.revision
+                    let concurrencyIdentity = try image.concurrencyIdentity
+                    if concurrencyIdentity.kind == .stockBalanceStream {
+                        terminal[concurrencyIdentity] = image.revision
+                    }
                     if case let .partsStock(id, kind, _, _, _) = image {
                         terminal[try .init(kind: kind, id: id)] = image.revision
                     }

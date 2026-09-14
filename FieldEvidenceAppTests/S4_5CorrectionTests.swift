@@ -2002,8 +2002,10 @@ private extension S4_5CorrectionTests {
             coordinator: coordinator
         )
         } catch {
-            try? constructionCoordinator?.invalidateAndReleaseWriter()
-            constructionCoordinator = nil
+            withExtendedLifetime(constructionSession) {
+                try? constructionCoordinator?.invalidateAndReleaseWriter()
+                constructionCoordinator = nil
+            }
             constructionSession = nil
             throw CorrectionHarnessConstructionFailure(
                 phase: phase,

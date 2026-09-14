@@ -288,7 +288,7 @@ enum ReplacementHistoryCommandEmissionV1 {
             semanticReversalExecution: semanticExecution
         )
         for image in postImages {
-            for identity in try terminalIdentities(for: image) {
+            for identity in try advancingIdentities(for: image) {
                 terminal[identity] = image.revision
             }
         }
@@ -416,7 +416,7 @@ enum ReplacementHistoryCommandEmissionV1 {
             terminal[row.identity] = row.revision
         }
         for image in source.receipt.postImages {
-            for identity in try terminalIdentities(for: image) {
+            for identity in try advancingIdentities(for: image) {
                 terminal[identity] = image.revision
             }
         }
@@ -476,6 +476,20 @@ enum ReplacementHistoryCommandEmissionV1 {
                 targetReplaySHA256: envelope.semanticReversalReplayIdentitySHA256
             )
         )
+    }
+
+    private static func advancingIdentities(
+        for image: MutationPostImageV1
+    ) throws -> Set<WorkspaceEntityIdentityV1> {
+        var result = try terminalIdentities(for: image)
+        let physical = try image.identity
+        let concurrency = try image.concurrencyIdentity
+        if physical.kind == .workResourceEntry,
+           concurrency.kind == .workResourceEntry,
+           physical != concurrency {
+            result.remove(concurrency)
+        }
+        return result
     }
 
     static func terminalIdentities(

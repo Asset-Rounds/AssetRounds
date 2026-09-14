@@ -2105,19 +2105,30 @@ extension V9_18PackLifecycleIntegrationTests {
 
     @MainActor
     func testReadCommittedFinalizationRejectsRetiredWriterAndSurvivesColdReopen() async throws {
+        markColdReadbackPhase("producer-before")
         let seed = try await produceColdReadbackSeed()
+        markColdReadbackPhase("producer-after")
         var phase = "store-reopen"
         do {
+            markColdReadbackPhase("store-reopen-before")
             let session = try StoreGenerationFactory(applicationSupportURL: seed.root)
                 .openOrBootstrapCurrent()
+            markColdReadbackPhase("store-reopen-after")
             registerSessionCleanup(root: seed.root, session: session)
             phase = "coordinator-create"
+            markColdReadbackPhase("coordinator-create-before")
             let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            markColdReadbackPhase("coordinator-create-after")
             defer { try? coordinator.invalidateAndReleaseWriter() }
+            markColdReadbackPhase("dependencies-before")
             let dependencies = try coordinator.packageLifecycleDependencies()
+            markColdReadbackPhase("dependencies-after")
             XCTAssertNotEqual(try dependencies.writer.currentRevision().writerInstanceID, seed.oldWriterID)
             phase = "input-refetch"
+            markColdReadbackPhase("input-refetch-before")
             let freshInput = try reopenedReadbackInput(seed.input, in: session.modelContext)
+            markColdReadbackPhase("input-refetch-after")
+            markColdReadbackPhase("readback-services-before")
             let fresh = try FinalizationService(modelContext: session.modelContext,
                 signPack: .illuminatedSignV1, generationRootURL: session.generationRootURL,
                 workspaceWriter: dependencies.writer)
@@ -2128,20 +2139,29 @@ extension V9_18PackLifecycleIntegrationTests {
                 generationID: dependencies.generationID, packageRelease: profile.release,
                 mutationID: seed.bindingMutationID, durableReceiptIdentity: nil,
                 preservesReservedLegacyRawWriteDebt: false)
+            markColdReadbackPhase("readback-services-after")
+            markColdReadbackPhase("before-inventory")
             let beforeRevision = try dependencies.writer.currentRevision()
             let beforeReceipts = try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count
             let beforeFiles = try readbackTree(session.generationRootURL)
+            markColdReadbackPhase("after-inventory")
             phase = "readback"
+            markColdReadbackPhase("service-readback-before")
             XCTAssertEqual(try fresh.readCommittedFinalization(freshInput), seed.expected)
+            markColdReadbackPhase("service-readback-after")
+            markColdReadbackPhase("adapter-readback-before")
             XCTAssertEqual(
                 try freshAdapter.readCommittedFinalization(freshInput, binding: freshBinding),
                 seed.expected
             )
+            markColdReadbackPhase("adapter-readback-after")
+            markColdReadbackPhase("invariants-before")
             XCTAssertFalse(session.modelContext.hasChanges)
             XCTAssertEqual(try dependencies.writer.currentRevision(), beforeRevision)
             XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count,
                 beforeReceipts)
             XCTAssertEqual(try readbackTree(session.generationRootURL), beforeFiles)
+            markColdReadbackPhase("invariants-after")
         } catch {
             throw ReadbackOperationFailure(
                 journey: .coldReopen,
@@ -2390,9 +2410,16 @@ extension V9_18PackLifecycleIntegrationTests {
             preservesReservedLegacyRawWriteDebt: false)
     }
 
+    private func markColdReadbackPhase(_ phase: String) {
+#if DEBUG
+        FileHandle.standardError.write(Data(("V9_18 cold-readback phase=" + phase + "\n").utf8))
+#endif
+    }
+
     @MainActor
     private func produceColdReadbackSeed() async throws -> ColdReadbackSeed {
         var phase = "fixture-create"
+        markColdReadbackPhase("producer-fixture-before")
         weak var releasedSession: StoreGenerationSession?
         var completion: ReadbackCompletion?
         do {
@@ -2401,19 +2428,27 @@ extension V9_18PackLifecycleIntegrationTests {
                 selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil),
                 evidenceCount: 1
             )
+            markColdReadbackPhase("producer-fixture-after")
             guard completion != nil else { throw ReadbackTestFailure.inventoryUnavailable }
             releasedSession = completion!.attempt.harness.session
             phase = "readback-before-retirement"
+            markColdReadbackPhase("pre-retirement-revision-before")
             let oldWriterID = try completion!.attempt.harness.dependencies.writer
                 .currentRevision().writerInstanceID
+            markColdReadbackPhase("pre-retirement-revision-after")
+            markColdReadbackPhase("pre-retirement-readback-before")
             let expected = try XCTUnwrap(
                 completion!.attempt.service.readCommittedFinalization(completion!.attempt.input)
             )
+            markColdReadbackPhase("pre-retirement-readback-after")
             let inputSeed = ColdReadbackInputSeed(completion!.attempt.input)
             let root = completion!.attempt.harness.root
             let bindingMutationID = completion!.attempt.nilBinding.mutationID
             phase = "writer-retirement"
+            markColdReadbackPhase("writer-retirement-before")
             try completion!.attempt.harness.coordinator.invalidateAndReleaseWriter()
+            markColdReadbackPhase("writer-retirement-after")
+            markColdReadbackPhase("retired-rejections-before")
             XCTAssertThrowsError(try completion!.attempt.service
                 .readCommittedFinalization(completion!.attempt.input)) {
                 XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
@@ -2422,6 +2457,7 @@ extension V9_18PackLifecycleIntegrationTests {
                 completion!.attempt.input, binding: completion!.attempt.nilBinding)) {
                 XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
             }
+            markColdReadbackPhase("retired-rejections-after")
             let seed = ColdReadbackSeed(
                 root: root,
                 oldWriterID: oldWriterID,
@@ -2429,10 +2465,16 @@ extension V9_18PackLifecycleIntegrationTests {
                 input: inputSeed,
                 bindingMutationID: bindingMutationID
             )
+            phase = "completion-release"
+            markColdReadbackPhase("completion-release-before")
             completion = nil
+            markColdReadbackPhase("completion-release-after")
+            phase = "released-session-check"
+            markColdReadbackPhase("weak-session-check-before")
             guard releasedSession == nil else {
                 throw ReadbackTestFailure.storeGraphRetainedBeforeColdReopen
             }
+            markColdReadbackPhase("weak-session-check-after")
             return seed
         } catch let error as ReadbackOperationFailure {
             throw error
