@@ -363,6 +363,28 @@ private extension V23FieldDraftStageDigestBackupTests {
                 draftID: draftID)).lastReceiptSHA256, receipt.receiptSHA256)
             XCTAssertFalse(session.modelContext.hasChanges)
 
+            let sourceHistory = try journal.exportSnapshot()
+            let sourceIdentities = try sourceHistory.receipts.map {
+                try MutationReceiptV1.decodeCanonical(from: $0.receiptData).identity
+            }
+            XCTAssertEqual(sourceIdentities, sourceIdentities.sorted {
+                ($0.workspaceID.rawValue.uuidString, $0.replicaID.rawValue.uuidString, $0.localSequence)
+                    < ($1.workspaceID.rawValue.uuidString, $1.replicaID.rawValue.uuidString, $1.localSequence)
+            })
+            let replicaSequences = Dictionary(grouping: sourceIdentities) {
+                "\($0.workspaceID.rawValue.uuidString):\($0.replicaID.rawValue.uuidString)"
+            }.values.map { Set($0.map(\.localSequence)) }
+            XCTAssertTrue(replicaSequences.contains { $0.contains(9) && $0.contains(10) })
+            XCTAssertNotEqual(sourceIdentities.map(\.stableKey), sourceIdentities.map(\.stableKey).sorted())
+            let expectedArchiveHistory = MutationHistorySnapshotV1(
+                workspaceRevision: sourceHistory.workspaceRevision,
+                lastLocalSequence: sourceHistory.lastLocalSequence,
+                receipts: zip(sourceHistory.receipts, sourceIdentities)
+                    .sorted { $0.1.stableKey < $1.1.stableKey }.map { $0.0 },
+                quarantines: sourceHistory.quarantines,
+                entityRevisions: sourceHistory.entityRevisions
+            )
+
             let exportRoot = root.appendingPathComponent("export", isDirectory: true)
             try fm.createDirectory(at: exportRoot, withIntermediateDirectories: true)
             diagnostics.phase = "initExporter"
@@ -383,6 +405,27 @@ private extension V23FieldDraftStageDigestBackupTests {
             diagnostics.phase = "decodeRecords"
             let records = try BackupCanonicalDecoderV1().decodeRecords(
                 Data(contentsOf: package.appendingPathComponent("records.json")))
+            let archivedHistory = try XCTUnwrap(records.mutationHistory)
+            XCTAssertEqual(archivedHistory, expectedArchiveHistory)
+            XCTAssertEqual(try journal.exportSnapshot(), sourceHistory)
+            XCTAssertEqual(try replacingMutationHistory(records, with: archivedHistory), records)
+            XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(records).data,
+                           try Data(contentsOf: package.appendingPathComponent("records.json")))
+            let numericOrderRecords = try replacingMutationHistory(records, with: sourceHistory)
+            XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(numericOrderRecords)) {
+                XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords)
+            }
+            let duplicateHistory = MutationHistorySnapshotV1(
+                workspaceRevision: archivedHistory.workspaceRevision,
+                lastLocalSequence: archivedHistory.lastLocalSequence,
+                receipts: [try XCTUnwrap(archivedHistory.receipts.first)] + archivedHistory.receipts,
+                quarantines: archivedHistory.quarantines,
+                entityRevisions: archivedHistory.entityRevisions
+            )
+            let duplicateRecords = try replacingMutationHistory(records, with: duplicateHistory)
+            XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(duplicateRecords)) {
+                XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords)
+            }
             diagnostics.phase = "verifyExportedAuthority"
             XCTAssertEqual(Set(records.surveyDefinitions.map(\.canonicalData)), Set(authority.definitionBytes))
             XCTAssertEqual(Set(records.guidedSurveys.map(\.canonicalData)), Set(authority.guidedBytes))
@@ -412,6 +455,17 @@ private extension V23FieldDraftStageDigestBackupTests {
             XCTFail("StageDigest fixture mode=\(mode) phase=\(diagnostics.phase) type=\(String(reflecting: type(of: error))) error=\(String(reflecting: error))")
             throw error
         }
+    }
+
+    func replacingMutationHistory(
+        _ records: V4BackupRecordsV1, with history: MutationHistorySnapshotV1
+    ) throws -> V4BackupRecordsV1 {
+        let encoder = JSONEncoder()
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(records))
+            as? [String: Any])
+        object["mutationHistory"] = try JSONSerialization.jsonObject(with: encoder.encode(history))
+        return try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
     }
 
     func commit(_ coordinator: FieldDraftCoordinatorV1, plan: DraftCommitPlanV1,

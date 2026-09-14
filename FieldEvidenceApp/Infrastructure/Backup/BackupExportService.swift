@@ -2402,6 +2402,23 @@ private extension BackupExportService {
         deletionLedger: DeletionLedgerV2? = nil,
         mutationHistory: MutationHistorySnapshotV1? = nil
     ) throws -> V4BackupRecordsV1 {
+        // Journal snapshots retain numeric replica sequence order. Archive records
+        // use the incumbent lexical receipt identity order without rewriting bytes.
+        let archiveMutationHistory = try mutationHistory.map { history in
+            guard history.schemaVersion == MutationHistorySnapshotV1.schemaVersion else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let ordered = try history.receipts.map { record in
+                (record, try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity.stableKey)
+            }.sorted { $0.1 < $1.1 }.map { $0.0 }
+            return MutationHistorySnapshotV1(
+                workspaceRevision: history.workspaceRevision,
+                lastLocalSequence: history.lastLocalSequence,
+                receipts: ordered,
+                quarantines: history.quarantines,
+                entityRevisions: history.entityRevisions
+            )
+        }
         let sourceIdentity = try currentStreamingWorkspaceIdentity()
         func includedLocationRecords(
             _ build: () throws -> [V5BackupLocationRecordV1]
@@ -2780,7 +2797,7 @@ private extension BackupExportService {
             locationHierarchyEvents: locationHierarchyEvents,
             locationMigrationReceipts: locationMigrationReceipts,
             locationNodes: locationNodes,
-            mutationHistory: mutationHistory,
+            mutationHistory: archiveMutationHistory,
             packets: rows.packets.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
