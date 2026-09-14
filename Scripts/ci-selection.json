@@ -458,7 +458,10 @@
     "FieldEvidenceAppTests/V23NativeScreenObservationTests/testSelectedTabAndNativeBackRejectRetainedScreens",
     "FieldEvidenceAppTests/V23NativeScreenObservationTests/testPresentedNativeControllerMasksCoveredHostAndDismissalRestoresIt",
     "FieldEvidenceAppTests/V23NativeScreenObservationTests/testWitnessHasNoLayoutInteractionOrAccessibilityRoleAndClearsOnDismantle",
-    "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation"
+    "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation",
+    "FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testPublicPackageValidatorAcceptsNonemptyProducerStageSHA256Commit",
+    "FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testContentDigestSubstitutionIsFullyRehashedButRejectedByBothProducersAndPackage",
+    "FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testSameOriginalBytesWithDifferentCanonicalStageMetadataCannotSatisfyPlan"
   ],
   "uiTestSelectors": []
 }

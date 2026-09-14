@@ -307,8 +307,37 @@ class CheckpointTests(unittest.TestCase):
 
 
 class WorkflowWiringTests(unittest.TestCase):
-    def prior_bea52c7_map(self, mapping):
+    def prior_12e5742_map(self, mapping):
         prior = copy.deepcopy(mapping)
+        archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
+        self.assertEqual(archive["methodCount"], 11)
+        self.assertEqual(archive["classes"].pop(), "V23FieldDraftStageDigestBackupTests")
+        archive["methodCount"] = 8
+        return prior
+
+    def test_stage_digest_admission_preserves_exact_12e5742_pool_and_map(self):
+        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(len(default["unitTestSelectors"]), 453)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:450]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), '37C46812503287DCEE72EAC00EC8A143D8A38CDF058777C96A0C2C75A5C2F4EA')
+        prior_map = self.prior_12e5742_map(mapping)
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), 'FE7FDFCB15875FE158DEB96448028B465087772FC279742A51FA8AEA50A1CD44')
+        expected = ['FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testPublicPackageValidatorAcceptsNonemptyProducerStageSHA256Commit', 'FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testContentDigestSubstitutionIsFullyRehashedButRejectedByBothProducersAndPackage', 'FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testSameOriginalBytesWithDifferentCanonicalStageMetadataCannotSatisfyPlan']
+        self.assertEqual(default["unitTestSelectors"][450:], expected)
+        selected = CI.resolve_selection(default, mapping, "archive-contracts")
+        original = CI.resolve_selection(prior_pool, prior_map, "archive-contracts")
+        self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + expected)
+        self.assertEqual(len(selected["unitTestSelectors"]), 11)
+        for selector in expected:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_bea52c7_map(self, mapping):
+        prior = self.prior_12e5742_map(mapping)
         app = next(g for g in prior["groups"] if g["id"] == "app-myday-production")
         self.assertEqual(app["methodCount"], 24)
         self.assertEqual(app["classes"].pop(), "V23NativeScreenObservationTests")
@@ -321,14 +350,14 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_native_observation_admission_preserves_exact_bea52c7_pool_and_map(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 450)
+        self.assertEqual(len(default["unitTestSelectors"]), 453)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
         prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:445]
         self.assertEqual(CI.sha256(CI.canonical(prior_pool)), 'F075564395571E8C149E7E3FED45D9E769C2BDEE26AF00BC5792F7854EB1AF3A')
         self.assertEqual(CI.sha256(CI.canonical(self.prior_bea52c7_map(mapping))), 'D6E6BDB9DF2430F717C923897D7A57B65C966DFDACF05544784D4A1D73E19859')
         expected = ['FieldEvidenceAppTests/V23NativeScreenObservationTests/testRealSwiftUIBranchMountUnmountAndWindowScope', 'FieldEvidenceAppTests/V23NativeScreenObservationTests/testSelectedTabAndNativeBackRejectRetainedScreens', 'FieldEvidenceAppTests/V23NativeScreenObservationTests/testPresentedNativeControllerMasksCoveredHostAndDismissalRestoresIt', 'FieldEvidenceAppTests/V23NativeScreenObservationTests/testWitnessHasNoLayoutInteractionOrAccessibilityRoleAndClearsOnDismantle', 'FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation']
-        self.assertEqual(default["unitTestSelectors"][445:], expected)
+        self.assertEqual(default["unitTestSelectors"][445:450], expected)
         for selector in expected:
             bundle, klass, method = selector.split("/")
             source = (ROOT / bundle / (klass + ".swift")).read_text()
@@ -351,7 +380,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_reference_owner_admission_preserves_exact_698_pool_and_adds_complete_classes(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 450)
+        self.assertEqual(len(default["unitTestSelectors"]), 453)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
         prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:405]
@@ -376,7 +405,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_schedule_admission_preserves_exact_4d_pool_and_map(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 450)
+        self.assertEqual(len(default["unitTestSelectors"]), 453)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
         prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:426]
@@ -392,7 +421,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_work_round_capture_and_descriptor_admission_preserves_821f_pool(self):
         default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(len(default["unitTestSelectors"]), 450)
+        self.assertEqual(len(default["unitTestSelectors"]), 453)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:298])),
                          "5ABC2B0E9AD06346872CEFE60223FAD2E2AC775AAB2C691A6EAC98F026EDFB0C")
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][298:405])),
@@ -491,7 +520,7 @@ class WorkflowWiringTests(unittest.TestCase):
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         groups = [CI.resolve_selection(default, mapping, group["id"])
                   for group in mapping["groups"]]
-        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 450)
+        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 453)
         self.assertEqual({item for group in groups for item in group["unitTestSelectors"]},
                          set(default["unitTestSelectors"]))
         self.assertEqual(CI.resolve_selection(default, mapping, CI.DEFAULT_SELECTION_ID), default)
@@ -522,7 +551,7 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertEqual(default["unitTestSelectors"][270:271], [location])
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:259])),
                          "E8F942EDCE2B513FFC66A01BF5D7003FDD885CD8B1F9EDF7F6D38426E1031400")
-        historical_groups = copy.deepcopy(mapping["groups"][:15])
+        historical_groups = self.prior_12e5742_map(mapping)["groups"][:15]
         owner = next(group for group in historical_groups if group["id"] == "notification-owner")
         self.assertEqual(owner["methodCount"], 75)
         owner["methodCount"] = 63

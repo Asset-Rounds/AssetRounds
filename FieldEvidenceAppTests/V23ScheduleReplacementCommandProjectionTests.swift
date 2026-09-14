@@ -752,186 +752,248 @@ private enum ScheduleReplacementFixture {
         ))
     }
 
-    static func make(reverseStorage: Bool = true, definitionProducer: Bool = true, promotions: Bool = false, unknownProvenance: Bool = false, unknownCompletion: Bool = false, allDays: Bool = false) throws -> Corpus {
-        let sourceWorkspace = WorkspaceID(rawValue: id(1))
-        let identity = try identity()
-        let targetWorkspace = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
-        let sourceDefinition = try C26SurveySessionTestSupport.release(
-            releaseSlot: 600, workspaceID: sourceWorkspace
-        )
-        let sourceDefinitionMutation = try definitionMutation(release: sourceDefinition)
-        let targetDefinitionMutation = try reboundDefinitionMutation(
-            sourceDefinitionMutation, workspaceID: targetWorkspace,
-            mutationID: definitionProducer ? mutation(900) : sourceDefinitionMutation.mutationID
-        )
-        let targetDefinition = targetDefinitionMutation.release
-        let package = try C26SurveySessionTestSupport.packageRelease()
-        let promotionPairs = try (promotions ? [800, 820, 840] : []).map { slot in
-            ScheduleReplacementCommandProjectionV1.PackageProducerPair(
-                source: try promotion(workspaceID: sourceWorkspace, package: package, slot: slot, mutationID: mutation(slot)),
-                target: try promotion(workspaceID: targetWorkspace, package: package, slot: slot, mutationID: mutation(2_000 - slot))
-            )
+    private struct FixtureConstructionFailure: Error, CustomStringConvertible {
+        let stage: String
+        let errorType: String
+        let detail: String
+        var description: String {
+            "ScheduleReplacementFixture.make stage=\(stage) type=\(errorType) error=\(detail)"
         }
+    }
 
-        let manifestMutation = try workPacket(workspaceID: sourceWorkspace)
-        let manifest: WorkPacketManifestV1
-        guard case let .appendManifest(value) = manifestMutation.postImage else { fatalError() }
-        manifest = value
-        let roundMutation = try round(workspaceID: sourceWorkspace, package: package)
-        let round = roundMutation.session
-        let calendar1 = try calendar(workspaceID: sourceWorkspace, revision: 1)
-        let calendar2 = try calendar(workspaceID: sourceWorkspace, revision: 2, predecessor: calendar1)
-        let release1 = try release(
-            workspaceID: sourceWorkspace, definition: sourceDefinition, package: package,
-            calendar: calendar1, revision: 1, advanced: !allDays
-        )
-        let release2 = try release(
-            workspaceID: sourceWorkspace, definition: sourceDefinition, package: package,
-            calendar: calendar1, revision: 2, predecessor: release1, advanced: !allDays
-        )
-        let basis1 = try basis("2027-06-01", release: release1, provenance: unknownProvenance ? digest("f") : nil)
-        let occurrence1 = try OccurrenceIDV1(
-            scheduleDefinitionID: release1.scheduleDefinitionID,
-            identityNamespaceID: release1.occurrenceIdentityNamespaceID,
-            nominalKey: basis1.nominalKey
-        )
-        let generated1 = try event(
-            slot: 100, release: release1, occurrenceID: occurrence1,
-            basis: basis1, action: .generated, predecessor: nil
-        )
-        let startedWork = try event(
-            slot: 101, release: release1, occurrenceID: occurrence1,
-            basis: basis1, action: .start, predecessor: generated1,
-            work: .workPacket(try WorkPacketManifestReferenceV1(manifest))
-        )
-        let completed = try event(
-            slot: 102, release: release1, occurrenceID: occurrence1,
-            basis: basis1, action: .complete, predecessor: startedWork,
-            work: .workPacket(try WorkPacketManifestReferenceV1(manifest)), completedAt: now.addingTimeInterval(500)
-        )
-        let completionSHA = unknownCompletion ? digest("f") : completed.eventSHA256
-        let basis2 = try basis("2027-06-02", release: release2)
-        let childID = try OccurrenceIDV1(
-            scheduleDefinitionID: release2.scheduleDefinitionID,
-            identityNamespaceID: release2.occurrenceIdentityNamespaceID,
-            nominalKey: basis2.nominalKey, predecessorOccurrenceID: occurrence1,
-            completionEventSHA256: completionSHA
-        )
-        let basis3 = try basis("2027-06-03", release: release2)
-        let siblingID = try OccurrenceIDV1(
-            scheduleDefinitionID: release2.scheduleDefinitionID,
-            identityNamespaceID: release2.occurrenceIdentityNamespaceID,
-            nominalKey: basis3.nominalKey
-        )
-        let generationMutationID = try mutation(106)
-        let child = try event(
-            slot: 106, release: release2, occurrenceID: childID, basis: basis2,
-            action: .generated, predecessor: nil, mutationID: generationMutationID,
-            identityPredecessor: occurrence1, identityCompletion: completionSHA
-        )
-        let sibling = try event(
-            slot: 107, release: release2, occurrenceID: siblingID, basis: basis3,
-            action: .generated, predecessor: nil, mutationID: generationMutationID
-        )
-        let startedRound = try event(
-            slot: 108, release: release2, occurrenceID: childID, basis: basis2,
-            action: .start, predecessor: child,
-            work: .roundSession(sessionID: round.sessionID, revision: round.revision,
-                                sessionSHA256: round.sessionSHA256)
-        )
-        let plan = try OccurrenceGenerationPlanV1(
-            definition: release2,
-            window: .init(startsAtUTC: release2.startsAtUTC,
-                          endsAtUTC: release2.startsAtUTC.addingTimeInterval(10 * 86_400),
-                          maximumOccurrences: 4),
-            candidates: [
-                .init(occurrenceID: childID, nominalBasis: basis2, effectiveBasis: basis2,
-                      predecessorOccurrenceID: occurrence1,
-                      completionEventSHA256: completionSHA),
-                .init(occurrenceID: siblingID, nominalBasis: basis3, effectiveBasis: basis3)
-            ], existingOccurrenceIDs: [occurrence1]
-        )
-        let emptyFrontier = try ScheduleOverridePrecedenceV1.closureSHA256([])
-        let forwardOccurrence = OccurrenceIDV1(rawValue: digest("e"))
-        let override1 = try override(
-            slot: 120, release: release2, revision: 1, predecessor: nil,
-            target: .occurrence(forwardOccurrence, nominalDate: try date(2027, 6, 20)),
-            kind: .move, frontier: emptyFrontier
-        )
-        let override2 = try override(
-            slot: 121, release: release2, revision: 2, predecessor: override1,
-            target: .nominalDate(try date(2027, 6, 21)), kind: .addOne,
-            frontier: try ScheduleOverridePrecedenceV1.closureSHA256([override1])
-        )
+    static func make(reverseStorage: Bool = true, definitionProducer: Bool = true, promotions: Bool = false, unknownProvenance: Bool = false, unknownCompletion: Bool = false, allDays: Bool = false) throws -> Corpus {
+        var fixtureStage = "entry"
+        do {
+            fixtureStage = "sourceWorkspace"
+            let sourceWorkspace = WorkspaceID(rawValue: id(1))
+            fixtureStage = "identity"
+            let identity = try identity()
+            fixtureStage = "targetWorkspace"
+            let targetWorkspace = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+            fixtureStage = "sourceDefinition"
+            let sourceDefinition = try C26SurveySessionTestSupport.release(
+                releaseSlot: 600, workspaceID: sourceWorkspace
+            )
+            fixtureStage = "sourceDefinitionMutation"
+            let sourceDefinitionMutation = try definitionMutation(release: sourceDefinition)
+            fixtureStage = "targetDefinitionMutation"
+            let targetDefinitionMutation = try reboundDefinitionMutation(
+                sourceDefinitionMutation, workspaceID: targetWorkspace,
+                mutationID: definitionProducer ? mutation(900) : sourceDefinitionMutation.mutationID
+            )
+            fixtureStage = "targetDefinition"
+            let targetDefinition = targetDefinitionMutation.release
+            fixtureStage = "package"
+            let package = try C26SurveySessionTestSupport.packageRelease()
+            fixtureStage = "promotionPairs"
+            let promotionPairs = try (promotions ? [800, 820, 840] : []).map { slot in
+                ScheduleReplacementCommandProjectionV1.PackageProducerPair(
+                    source: try promotion(workspaceID: sourceWorkspace, package: package, slot: slot, mutationID: mutation(slot)),
+                    target: try promotion(workspaceID: targetWorkspace, package: package, slot: slot, mutationID: mutation(2_000 - slot))
+                )
+            }
 
-        let addedID = try ScheduleOccurrenceLineageV1.addedOccurrenceID(
-            scheduleDefinitionID: release2.scheduleDefinitionID,
-            identityNamespaceID: release2.occurrenceIdentityNamespaceID, overrideEvent: override2)
-        let override3 = try override(
-            slot: 122, release: release2, revision: 3, predecessor: override2,
-            target: .occurrence(addedID, nominalDate: override2.target.nominalDate), kind: .skip,
-            frontier: try ScheduleOverridePrecedenceV1.closureSHA256([override1, override2]))
+            fixtureStage = "manifestMutation"
+            let manifestMutation = try workPacket(workspaceID: sourceWorkspace)
+            fixtureStage = "manifest"
+            let manifest: WorkPacketManifestV1
+            guard case let .appendManifest(value) = manifestMutation.postImage else { fatalError() }
+            manifest = value
+            fixtureStage = "roundMutation"
+            let roundMutation = try round(workspaceID: sourceWorkspace, package: package)
+            fixtureStage = "round"
+            let round = roundMutation.session
+            fixtureStage = "calendar1"
+            let calendar1 = try calendar(workspaceID: sourceWorkspace, revision: 1)
+            fixtureStage = "calendar2"
+            let calendar2 = try calendar(workspaceID: sourceWorkspace, revision: 2, predecessor: calendar1)
+            fixtureStage = "release1"
+            let release1 = try release(
+                workspaceID: sourceWorkspace, definition: sourceDefinition, package: package,
+                calendar: calendar1, revision: 1, advanced: !allDays
+            )
+            fixtureStage = "release2"
+            let release2 = try release(
+                workspaceID: sourceWorkspace, definition: sourceDefinition, package: package,
+                calendar: calendar1, revision: 2, predecessor: release1, advanced: !allDays
+            )
+            fixtureStage = "basis1"
+            let basis1 = try basis("2027-06-01", release: release1, provenance: unknownProvenance ? digest("f") : nil)
+            fixtureStage = "occurrence1"
+            let occurrence1 = try OccurrenceIDV1(
+                scheduleDefinitionID: release1.scheduleDefinitionID,
+                identityNamespaceID: release1.occurrenceIdentityNamespaceID,
+                nominalKey: basis1.nominalKey
+            )
+            fixtureStage = "generated1"
+            let generated1 = try event(
+                slot: 100, release: release1, occurrenceID: occurrence1,
+                basis: basis1, action: .generated, predecessor: nil
+            )
+            fixtureStage = "startedWork"
+            let startedWork = try event(
+                slot: 101, release: release1, occurrenceID: occurrence1,
+                basis: basis1, action: .start, predecessor: generated1,
+                work: .workPacket(try WorkPacketManifestReferenceV1(manifest))
+            )
+            fixtureStage = "completed"
+            let completed = try event(
+                slot: 102, release: release1, occurrenceID: occurrence1,
+                basis: basis1, action: .complete, predecessor: startedWork,
+                work: .workPacket(try WorkPacketManifestReferenceV1(manifest)), completedAt: now.addingTimeInterval(500)
+            )
+            fixtureStage = "completionSHA"
+            let completionSHA = unknownCompletion ? digest("f") : completed.eventSHA256
+            fixtureStage = "basis2"
+            let basis2 = try basis("2027-06-02", release: release2)
+            fixtureStage = "childID"
+            let childID = try OccurrenceIDV1(
+                scheduleDefinitionID: release2.scheduleDefinitionID,
+                identityNamespaceID: release2.occurrenceIdentityNamespaceID,
+                nominalKey: basis2.nominalKey, predecessorOccurrenceID: occurrence1,
+                completionEventSHA256: completionSHA
+            )
+            fixtureStage = "basis3"
+            let basis3 = try basis("2027-06-03", release: release2)
+            fixtureStage = "siblingID"
+            let siblingID = try OccurrenceIDV1(
+                scheduleDefinitionID: release2.scheduleDefinitionID,
+                identityNamespaceID: release2.occurrenceIdentityNamespaceID,
+                nominalKey: basis3.nominalKey
+            )
+            fixtureStage = "generationMutationID"
+            let generationMutationID = try mutation(106)
+            fixtureStage = "child"
+            let child = try event(
+                slot: 106, release: release2, occurrenceID: childID, basis: basis2,
+                action: .generated, predecessor: nil, mutationID: generationMutationID,
+                identityPredecessor: occurrence1, identityCompletion: completionSHA
+            )
+            fixtureStage = "sibling"
+            let sibling = try event(
+                slot: 107, release: release2, occurrenceID: siblingID, basis: basis3,
+                action: .generated, predecessor: nil, mutationID: generationMutationID
+            )
+            fixtureStage = "startedRound"
+            let startedRound = try event(
+                slot: 108, release: release2, occurrenceID: childID, basis: basis2,
+                action: .start, predecessor: child,
+                work: .roundSession(sessionID: round.sessionID, revision: round.revision,
+                                    sessionSHA256: round.sessionSHA256)
+            )
+            fixtureStage = "plan"
+            let plan = try OccurrenceGenerationPlanV1(
+                definition: release2,
+                window: .init(startsAtUTC: release2.startsAtUTC,
+                              endsAtUTC: release2.startsAtUTC.addingTimeInterval(10 * 86_400),
+                              maximumOccurrences: 4),
+                candidates: [
+                    .init(occurrenceID: childID, nominalBasis: basis2, effectiveBasis: basis2,
+                          predecessorOccurrenceID: occurrence1,
+                          completionEventSHA256: completionSHA),
+                    .init(occurrenceID: siblingID, nominalBasis: basis3, effectiveBasis: basis3)
+                ], existingOccurrenceIDs: [occurrence1]
+            )
+            fixtureStage = "emptyFrontier"
+            let emptyFrontier = try ScheduleOverridePrecedenceV1.closureSHA256([])
+            fixtureStage = "forwardOccurrence"
+            let forwardOccurrence = OccurrenceIDV1(rawValue: digest("e"))
+            fixtureStage = "override1"
+            let override1 = try override(
+                slot: 120, release: release2, revision: 1, predecessor: nil,
+                target: .occurrence(forwardOccurrence, nominalDate: try date(2027, 6, 20)),
+                kind: .move, frontier: emptyFrontier
+            )
+            fixtureStage = "override2"
+            let override2 = try override(
+                slot: 121, release: release2, revision: 2, predecessor: override1,
+                target: .nominalDate(try date(2027, 6, 21)), kind: .addOne,
+                frontier: try ScheduleOverridePrecedenceV1.closureSHA256([override1])
+            )
 
-        let scheduleMutations = try [
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: calendar1.mutationID,
-                               payload: .appendExceptionCalendarRelease(calendar1, predecessor: nil)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: release1.mutationID,
-                               payload: .appendRelease(release1, predecessor: nil)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: generated1.mutationID,
-                               payload: .appendOccurrenceEvent(generated1, predecessor: nil, release: release1)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: startedWork.mutationID,
-                               payload: .startOccurrence(startedWork, predecessor: generated1, release: release1)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: completed.mutationID,
-                               payload: .appendOccurrenceEvent(completed, predecessor: startedWork, release: release1)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: calendar2.mutationID,
-                               payload: .appendExceptionCalendarRelease(calendar2, predecessor: calendar1)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: release2.mutationID,
-                               payload: .appendRelease(release2, predecessor: release1)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: override1.mutationID,
-                               payload: .appendOverrideEvent(override1, predecessor: nil, release: release2)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: override2.mutationID,
-                               payload: .appendOverrideEvent(override2, predecessor: override1, release: release2)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: override3.mutationID,
-                               payload: .appendOverrideEvent(override3, predecessor: override2, release: release2)),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: generationMutationID,
-                               payload: .generateOccurrences(release: release2, plan: plan, events: [child, sibling])),
-            ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: startedRound.mutationID,
-                               payload: .startOccurrence(startedRound, predecessor: child, release: release2))
-        ]
-        let commands: [WorkspaceCommandV1] =
-            (definitionProducer ? [.applySurveyDefinition(sourceDefinitionMutation)] : [])
-            + promotionPairs.prefix(2).map { .applyPackagePromotion($0.source) }
-            + [.applyWorkPacket(manifestMutation), .applyRoundSession(roundMutation)]
-            + scheduleMutations.map(WorkspaceCommandV1.applySchedule)
-            + promotionPairs.dropFirst(2).map { .applyPackagePromotion($0.source) }
-        let built = try history(commands: commands, reverseStorage: reverseStorage)
-        let source = try ReferenceOwnerReplacementSourceV1.source(
-            workspaceID: sourceWorkspace, history: built
-        )
-        let workProjection = try WorkPacketReplacementCommandProjectionV1.project(
-            source: source, identity: identity
-        )
-        let roundProjection = try RoundSessionReplacementCommandProjectionV1.project(
-            source: source, identity: identity
-        )
-        let definitionBindings = [ScheduleReplacementCommandProjectionV1.DefinitionBinding(
-            source: sourceDefinition, target: targetDefinition,
-            producer: definitionProducer ? .init(source: sourceDefinitionMutation, target: targetDefinitionMutation) : nil
-        )]
-        let packageBindings = [ScheduleReplacementCommandProjectionV1.PackageBinding(
-            source: package, target: package, producers: promotionPairs
-        )]
-        return Corpus(
-            sourceWorkspace: sourceWorkspace, targetWorkspace: targetWorkspace,
-            history: built, source: source, identity: identity,
-            scheduleEntries: source.entries.filter { $0.family == .schedule },
-            scheduleMutations: scheduleMutations, releases: [release1, release2],
-            calendars: [calendar1, calendar2], overrides: [override1, override2, override3],
-            forwardOverride: override1,
-            events: [generated1, startedWork, completed, child, sibling, startedRound],
-            definitionBindings: definitionBindings, packageBindings: packageBindings,
-            workProjection: workProjection, roundProjection: roundProjection
-        )
+            fixtureStage = "addedID"
+            let addedID = try ScheduleOccurrenceLineageV1.addedOccurrenceID(
+                scheduleDefinitionID: release2.scheduleDefinitionID,
+                identityNamespaceID: release2.occurrenceIdentityNamespaceID, overrideEvent: override2)
+            fixtureStage = "override3"
+            let override3 = try override(
+                slot: 122, release: release2, revision: 3, predecessor: override2,
+                target: .occurrence(addedID, nominalDate: override2.target.nominalDate), kind: .skip,
+                frontier: try ScheduleOverridePrecedenceV1.closureSHA256([override1, override2]))
+
+            fixtureStage = "scheduleMutations"
+            let scheduleMutations = try [
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: calendar1.mutationID,
+                                   payload: .appendExceptionCalendarRelease(calendar1, predecessor: nil)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: release1.mutationID,
+                                   payload: .appendRelease(release1, predecessor: nil)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: generated1.mutationID,
+                                   payload: .appendOccurrenceEvent(generated1, predecessor: nil, release: release1)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: startedWork.mutationID,
+                                   payload: .startOccurrence(startedWork, predecessor: generated1, release: release1)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: completed.mutationID,
+                                   payload: .appendOccurrenceEvent(completed, predecessor: startedWork, release: release1)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: calendar2.mutationID,
+                                   payload: .appendExceptionCalendarRelease(calendar2, predecessor: calendar1)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: release2.mutationID,
+                                   payload: .appendRelease(release2, predecessor: release1)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: override1.mutationID,
+                                   payload: .appendOverrideEvent(override1, predecessor: nil, release: release2)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: override2.mutationID,
+                                   payload: .appendOverrideEvent(override2, predecessor: override1, release: release2)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: override3.mutationID,
+                                   payload: .appendOverrideEvent(override3, predecessor: override2, release: release2)),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: generationMutationID,
+                                   payload: .generateOccurrences(release: release2, plan: plan, events: [child, sibling])),
+                ScheduleMutationV1(workspaceID: sourceWorkspace, mutationID: startedRound.mutationID,
+                                   payload: .startOccurrence(startedRound, predecessor: child, release: release2))
+            ]
+            fixtureStage = "commands"
+            let commands: [WorkspaceCommandV1] =
+                (definitionProducer ? [.applySurveyDefinition(sourceDefinitionMutation)] : [])
+                + promotionPairs.prefix(2).map { .applyPackagePromotion($0.source) }
+                + [.applyWorkPacket(manifestMutation), .applyRoundSession(roundMutation)]
+                + scheduleMutations.map(WorkspaceCommandV1.applySchedule)
+                + promotionPairs.dropFirst(2).map { .applyPackagePromotion($0.source) }
+            fixtureStage = "built"
+            let built = try history(commands: commands, reverseStorage: reverseStorage)
+            fixtureStage = "source"
+            let source = try ReferenceOwnerReplacementSourceV1.source(
+                workspaceID: sourceWorkspace, history: built
+            )
+            fixtureStage = "workProjection"
+            let workProjection = try WorkPacketReplacementCommandProjectionV1.project(
+                source: source, identity: identity
+            )
+            fixtureStage = "roundProjection"
+            let roundProjection = try RoundSessionReplacementCommandProjectionV1.project(
+                source: source, identity: identity
+            )
+            fixtureStage = "definitionBindings"
+            let definitionBindings = [ScheduleReplacementCommandProjectionV1.DefinitionBinding(
+                source: sourceDefinition, target: targetDefinition,
+                producer: definitionProducer ? .init(source: sourceDefinitionMutation, target: targetDefinitionMutation) : nil
+            )]
+            fixtureStage = "packageBindings"
+            let packageBindings = [ScheduleReplacementCommandProjectionV1.PackageBinding(
+                source: package, target: package, producers: promotionPairs
+            )]
+            fixtureStage = "corpus"
+            return Corpus(
+                sourceWorkspace: sourceWorkspace, targetWorkspace: targetWorkspace,
+                history: built, source: source, identity: identity,
+                scheduleEntries: source.entries.filter { $0.family == .schedule },
+                scheduleMutations: scheduleMutations, releases: [release1, release2],
+                calendars: [calendar1, calendar2], overrides: [override1, override2, override3],
+                forwardOverride: override1,
+                events: [generated1, startedWork, completed, child, sibling, startedRound],
+                definitionBindings: definitionBindings, packageBindings: packageBindings,
+                workProjection: workProjection, roundProjection: roundProjection
+            )
+        } catch {
+            throw FixtureConstructionFailure(stage: fixtureStage,
+                errorType: String(reflecting: type(of: error)), detail: String(reflecting: error))
+        }
     }
 
     static func definitionMutation(release: SurveyDefinitionReleaseV1) throws
@@ -1121,7 +1183,7 @@ private enum ScheduleReplacementFixture {
                               hour: 9, minute: 0, second: 0))), timeBasis: timeBasis,
             startsAtUTC: now, generationHorizonDays: 60, maximumGeneratedOccurrences: 8,
             readyLeadSeconds: Int64(3_600 + revision) + readyLeadDelta, overdueGraceSeconds: 7_200,
-            subject: .init(kind: .asset, subjectID: id(64), revision: 7, ownerAssetID: id(65)),
+            subject: .init(kind: .asset, subjectID: id(64), revision: 7, ownerAssetID: nil),
             workDefinition: try .init(kind: .roundSession, definition: definition,
                                       packageRelease: package),
             assignee: nil, supersedesReleaseID: predecessor?.releaseID,

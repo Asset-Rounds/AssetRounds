@@ -2679,7 +2679,7 @@ private extension BackupPackageValidatorV1 {
                   stage.contentDigest == reservation.contentDigest else { throw invalid() }
         }
         for saga in sagas.values {
-            let availableDigests = Set(stages.values.filter { $0.draftID == saga.draftID }.compactMap { $0.contentDigest?.hexadecimalValue })
+            let availableDigests = Set(stages.values.filter { $0.draftID == saga.draftID }.map { $0.stageSHA256 })
             guard checkpoints[saga.draftID] != nil,
                   Set(saga.plan.stageDigests).isSubset(of: availableDigests) else { throw invalid() }
             if let predecessorID = saga.predecessorSagaID {

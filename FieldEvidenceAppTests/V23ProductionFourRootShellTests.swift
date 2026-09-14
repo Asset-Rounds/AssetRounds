@@ -238,10 +238,23 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
     /// separate from the public accessibility-container traversal above.
     @MainActor
     func nativeScreenObservation(
-        _ identifier: String, from host: UIViewController
+        _ identifier: String, from host: UIViewController, diagnostics: Bool = false
     ) -> (found: Bool, navigation: UINavigationController?) {
         #if DEBUG
+        var diagnosticRows: [String] = []
+        @MainActor
+        func note(_ message: @autoclosure () -> String) {
+            guard diagnostics, diagnosticRows.count < 96 else { return }
+            diagnosticRows.append(message())
+        }
+        defer {
+            if diagnostics {
+                print("NativeObserver id=\(identifier) host=\(String(reflecting: type(of: host))) loaded=\(host.isViewLoaded) has_window=\(host.viewIfLoaded?.window != nil) rows=\(diagnosticRows.count)")
+                diagnosticRows.forEach { print("NativeObserver " + $0) }
+            }
+        }
         guard host.isViewLoaded, let window = host.view.window, !window.isHidden else {
+            note("host_rejected loaded=\(host.isViewLoaded) has_window=\(host.viewIfLoaded?.window != nil) window_hidden=\(host.viewIfLoaded?.window?.isHidden ?? true)")
             return (false, nil)
         }
         var controllers = Set<ObjectIdentifier>()
@@ -251,22 +264,32 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
         func visibleControllers(_ controller: UIViewController,
                                 navigation: UINavigationController?, depth: Int) {
             guard depth <= 64, controllers.count < 8192,
-                  controller.isViewLoaded else { return }
+                  controller.isViewLoaded else {
+                note("controller_rejected type=\(String(reflecting: type(of: controller))) depth=\(depth) count=\(controllers.count) loaded=\(controller.isViewLoaded)")
+                return
+            }
+            note("controller_input type=\(String(reflecting: type(of: controller))) object=\(ObjectIdentifier(controller)) depth=\(depth) children=\(controller.children.count)")
             if let presented = controller.presentedViewController, !presented.isBeingDismissed {
                 if presented.isViewLoaded { presentedRoot = presented.view }
+                note("presentation selected=\(ObjectIdentifier(presented)) loaded=\(presented.isViewLoaded)")
                 visibleControllers(presented, navigation: nil, depth: depth + 1)
                 return
             }
             let identity = ObjectIdentifier(controller)
-            guard controllers.insert(identity).inserted else { return }
+            guard controllers.insert(identity).inserted else {
+                note("controller_duplicate object=\(identity)")
+                return
+            }
             let owner = (controller as? UINavigationController) ?? navigation
             if let owner { navigationOwners[identity] = owner }
             if let tabs = controller as? UITabBarController {
                 if let selected = tabs.selectedViewController {
+                    note("selected_tab object=\(ObjectIdentifier(selected))")
                     visibleControllers(selected, navigation: owner, depth: depth + 1)
                 }
             } else if let stack = controller as? UINavigationController {
                 if let visible = stack.visibleViewController {
+                    note("visible_navigation object=\(ObjectIdentifier(visible)) stack=\(stack.viewControllers.count)")
                     visibleControllers(visible, navigation: stack, depth: depth + 1)
                 }
             } else {
@@ -279,11 +302,20 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
         var seen = Set<ObjectIdentifier>()
         @MainActor
         func visit(_ view: UIView, depth: Int) -> (found: Bool, navigation: UINavigationController?) {
+            if let anchor = view as? NativeScreenObservationViewV1 {
+                note("anchor_candidate object=\(ObjectIdentifier(anchor)) id_match=\(anchor.observationIdentifier == identifier) depth=\(depth) window_match=\(anchor.window === window) hidden=\(anchor.isHidden) alpha=\(anchor.alpha)")
+            }
             guard depth <= 64, seen.count < 8192,
                   seen.insert(ObjectIdentifier(view)).inserted,
-                  view.window === window, !view.isHidden, view.alpha > 0 else { return (false, nil) }
+                  view.window === window, !view.isHidden, view.alpha > 0 else {
+                note("view_rejected type=\(String(reflecting: type(of: view))) depth=\(depth) count=\(seen.count) window_match=\(view.window === window) hidden=\(view.isHidden) alpha=\(view.alpha)")
+                return (false, nil)
+            }
             if let controller = view.next as? UIViewController,
-               !controllers.contains(ObjectIdentifier(controller)) { return (false, nil) }
+               !controllers.contains(ObjectIdentifier(controller)) {
+                note("view_controller_rejected view=\(String(reflecting: type(of: view))) controller=\(String(reflecting: type(of: controller))) object=\(ObjectIdentifier(controller))")
+                return (false, nil)
+            }
             if let anchor = view as? NativeScreenObservationViewV1,
                anchor.observationIdentifier == identifier {
                 var responder: UIResponder? = anchor
@@ -292,11 +324,16 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
                       responders.insert(ObjectIdentifier(current)).inserted {
                     if let controller = current as? UIViewController {
                         let identity = ObjectIdentifier(controller)
-                        guard controllers.contains(identity) else { return (false, nil) }
+                        guard controllers.contains(identity) else {
+                            note("anchor_controller_rejected type=\(String(reflecting: type(of: controller))) object=\(identity)")
+                            return (false, nil)
+                        }
+                        note("anchor_accepted controller=\(identity) has_navigation=\(navigationOwners[identity] != nil)")
                         return (true, navigationOwners[identity])
                     }
                     responder = current.next
                 }
+                note("anchor_responder_exhausted count=\(responders.count) remaining=\(responder != nil)")
             }
             for child in view.subviews.prefix(512) {
                 let result = visit(child, depth: depth + 1)
@@ -307,15 +344,22 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
         // A real presented controller can live beside the presenting host view.
         // Only its public presentation ownership permits that alternate root.
         let root = presentedRoot ?? host.view!
+        note("root_selected type=\(String(reflecting: type(of: root))) presented=\(presentedRoot != nil) controllers=\(controllers.count)")
         // Validate ancestors above a nested caller, too; no cross-window search.
         var ancestor: UIView? = root.superview
         var ancestors = Set<ObjectIdentifier>()
         while let current = ancestor {
             guard ancestors.count < 64, ancestors.insert(ObjectIdentifier(current)).inserted,
-                  !current.isHidden, current.alpha > 0, current.window === window else { return (false, nil) }
+                  !current.isHidden, current.alpha > 0, current.window === window else {
+                note("ancestor_rejected type=\(String(reflecting: type(of: current))) count=\(ancestors.count) window_match=\(current.window === window) hidden=\(current.isHidden) alpha=\(current.alpha)")
+                return (false, nil)
+            }
+            note("ancestor_accepted type=\(String(reflecting: type(of: current))) object=\(ObjectIdentifier(current))")
             ancestor = current.superview
         }
-        return visit(root, depth: 0)
+        let result = visit(root, depth: 0)
+        note("walk_complete found=\(result.found) navigation=\(result.navigation != nil) views=\(seen.count) controllers=\(controllers.count)")
+        return result
         #else
         return (false, nil)
         #endif
@@ -327,6 +371,7 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
             if nativeScreenObservation(identifier, from: host).found { return true }
             try? await Task.sleep(nanoseconds: 25_000_000)
         }
+        _ = nativeScreenObservation(identifier, from: host, diagnostics: true)
         return false
     }
 
