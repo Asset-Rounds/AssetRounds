@@ -46,6 +46,48 @@ final class PackFinalizationAdapterV1 {
         binding: PackFinalizationBindingV1
     ) async throws -> PackFinalizationAdapterOutcomeV1 {
         try Task.checkCancellation()
+        try validateBinding(input, binding: binding)
+
+        let outcome = try await service.finalize(input)
+        let durableReceipt = try dependencies.writer.durableReceipt(
+            mutationID: binding.mutationID
+        )
+        guard let durableReceipt,
+              binding.durableReceiptIdentity.map({ $0 == durableReceipt.identity }) ?? true else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return PackFinalizationAdapterOutcomeV1(
+            finalization: outcome,
+            binding: binding,
+            durableReceiptIdentity: durableReceipt.identity,
+            zeroFeatureWriteClosureClaimed: true
+        )
+    }
+
+    func readCommittedFinalization(
+        _ input: FinalizationServiceInput,
+        binding: PackFinalizationBindingV1
+    ) throws -> ReviewedFinalizationCommitV1? {
+        try Task.checkCancellation()
+        try validateBinding(input, binding: binding)
+        guard let committed = try service.readCommittedFinalization(input) else {
+            guard binding.durableReceiptIdentity == nil else {
+                throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+            }
+            return nil
+        }
+        guard committed.receipt.mutationID == binding.mutationID,
+              committed.receipt.identity.workspaceID == binding.workspaceID,
+              binding.durableReceiptIdentity.map({ $0 == committed.receipt.identity }) ?? true else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return committed
+    }
+
+    private func validateBinding(
+        _ input: FinalizationServiceInput,
+        binding: PackFinalizationBindingV1
+    ) throws {
         guard binding.workspaceID == dependencies.workspaceID,
               binding.generationID == dependencies.generationID,
               binding.packageRelease == profile.release,
@@ -74,20 +116,5 @@ final class PackFinalizationAdapterV1 {
               )] else {
             throw CheckRunnerCoordinatorError.packageLifecycleMismatch
         }
-
-        let outcome = try await service.finalize(input)
-        let durableReceipt = try dependencies.writer.durableReceipt(
-            mutationID: binding.mutationID
-        )
-        guard let durableReceipt,
-              binding.durableReceiptIdentity.map({ $0 == durableReceipt.identity }) ?? true else {
-            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
-        }
-        return PackFinalizationAdapterOutcomeV1(
-            finalization: outcome,
-            binding: binding,
-            durableReceiptIdentity: durableReceipt.identity,
-            zeroFeatureWriteClosureClaimed: true
-        )
     }
 }

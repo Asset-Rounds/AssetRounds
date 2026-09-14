@@ -1363,6 +1363,781 @@ extension V9_18PackLifecycleIntegrationTests {
     }
 }
 
+// MARK: - C36 authenticated finalization readback
+
+extension V9_18PackLifecycleIntegrationTests {
+    @MainActor
+    func testReadCommittedFinalizationReturnsActualCheckAndCNVReceiptsWithoutWrites() async throws {
+        let cases: [(CheckOutcomeSelection, Int)] = [
+            (.noVisibleIssue, 2),
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 1),
+        ]
+        for (index, value) in cases.enumerated() {
+            let fixture = try await makeReadbackCompletion(
+                "readback-check-\(index)", selection: value.0, evidenceCount: value.1
+            )
+            defer { fixture.attempt.harness.cleanup(fileManager: fileManager) }
+            let beforeRevision = try fixture.attempt.harness.dependencies.writer.currentRevision()
+            let beforeRows = try fixture.attempt.harness.session.modelContext.fetch(
+                FetchDescriptor<MutationReceiptRow>()
+            ).count
+            let beforeFiles = try readbackTree(fixture.attempt.harness.session.generationRootURL)
+            XCTAssertFalse(fixture.attempt.harness.session.modelContext.hasChanges)
+            let serviceValue = try XCTUnwrap(
+                fixture.attempt.service.readCommittedFinalization(fixture.attempt.input)
+            )
+            let adapterValue = try XCTUnwrap(
+                fixture.attempt.adapter.readCommittedFinalization(
+                    fixture.attempt.input, binding: fixture.attempt.nilBinding
+                )
+            )
+            let evidence = try XCTUnwrap(
+                fixture.attempt.harness.dependencies.writer.finalizationEvidence(
+                    mutationID: fixture.attempt.nilBinding.mutationID
+                )
+            )
+            XCTAssertEqual(serviceValue, adapterValue)
+            XCTAssertEqual(serviceValue.result, fixture.result)
+            XCTAssertEqual(serviceValue.receipt, evidence.receipt)
+            XCTAssertEqual(fixture.snapshot.reportID, fixture.result.reportID)
+            XCTAssertEqual(fixture.snapshot.packetID, fixture.result.packetID)
+            XCTAssertEqual(fixture.snapshot.stableRootID, fixture.result.stableRootID)
+            XCTAssertEqual(
+                fixture.snapshot.evidence.filter { $0.recordID == fixture.attempt.input.draft.id }.count,
+                value.1
+            )
+            XCTAssertEqual(try fixture.attempt.harness.dependencies.writer.currentRevision(), beforeRevision)
+            XCTAssertEqual(try fixture.attempt.harness.session.modelContext.fetch(
+                FetchDescriptor<MutationReceiptRow>()).count, beforeRows)
+            XCTAssertEqual(try readbackTree(fixture.attempt.harness.session.generationRootURL), beforeFiles)
+            XCTAssertFalse(fixture.attempt.harness.session.modelContext.hasChanges)
+        }
+    }
+
+    @MainActor
+    func testReadCommittedFinalizationCoversEveryRecheckOutcomeAndCurrentEvidenceMembership() async throws {
+        let cases: [(CheckOutcomeSelection, Int)] = [
+            (.resolved(note: nil), 2),
+            (.issueStillVisible(note: nil), 2),
+            (.originalResolvedDifferentIssue(labelKey: "physical_damage", note: nil), 2),
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 0),
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 1),
+            (.couldNotVerify(reasonKey: "conditions_changed", note: nil), 2),
+        ]
+        for (index, value) in cases.enumerated() {
+            let support = fileManager.temporaryDirectory.appendingPathComponent(
+                "readback-recheck-\(index)-\(UUID().uuidString)", isDirectory: true
+            )
+            let base = try await WorkCanonicalCurrentRouteFixtureV1.make(
+                applicationSupportURL: support, pack: .illuminatedSignV1, workPhotoData: nil
+            )
+            defer { try? base.close(); try? fileManager.removeItem(at: support) }
+            let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+            let runner = try CheckRunnerCoordinator(
+                modelContext: base.context,
+                packageLifecycleDependencies: base.lifecycleDependencies,
+                packageLifecycleProfile: profile
+            )
+            try runner.requestRecheck(assetID: base.assetID, issueID: base.issueID)
+            let observed = base.workSubmission.completedAt.addingTimeInterval(60)
+            _ = try runner.beginCheck(assetID: base.assetID, timeZoneID: "America/New_York",
+                isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true,
+                observedAt: observed)
+            runner.configureCapture(generationRootURL: base.session.generationRootURL)
+            for mediaIndex in 0..<value.1 {
+                let candidate = try await runner.importCandidate(assetID: base.assetID,
+                    sourceData: WorkCanonicalIntegrationTestSupportV1.makePNG(seed: UInt8(130 + mediaIndex)),
+                    createdAt: observed.addingTimeInterval(TimeInterval(mediaIndex + 1)))
+                _ = try await runner.accept(candidate: candidate, assetID: base.assetID)
+            }
+            let review = try runner.prepareReview(assetID: base.assetID, selection: value.0)
+            let draft = try XCTUnwrap(base.context.fetch(FetchDescriptor<WorkflowRecord>())
+                .first { $0.id == review.draftID })
+            let asset = try XCTUnwrap(base.context.fetch(FetchDescriptor<Asset>())
+                .first { $0.id == base.assetID })
+            let site = try XCTUnwrap(base.context.fetch(FetchDescriptor<Site>())
+                .first { $0.id == asset.siteID })
+            let evidence = try base.context.fetch(FetchDescriptor<EvidenceFile>())
+                .filter { $0.recordID == draft.id }
+            let ids = FinalizationIdentifiers(mutationID: UUID(), packetID: UUID(), stableRootID: UUID(),
+                reportID: UUID(), issueID: base.issueID,
+                newIssueID: value.0.readbackIssueLabelKey == nil ? nil : UUID())
+            let completedAt = observed.addingTimeInterval(10)
+            let snapshotCreatedAt = observed.addingTimeInterval(11)
+            let sourceApp = SourceAppSnapshotV1(build: "readback-recheck", version: "1.0")
+            let input = FinalizationServiceInput(draft: draft, asset: asset, site: site, evidence: evidence,
+                outcomeKey: review.outcomeKey, outcomeDisplay: review.outcomeDisplay,
+                issueLabel: value.0.readbackIssueLabelKey.flatMap { key in
+                    profile.package.issueLabels.first { $0.key == key }
+                }, couldNotVerify: value.0.readbackCNVKey.flatMap { key in
+                    profile.package.couldNotVerifyReasons.entries.first { $0.key == key }
+                }, note: value.0.readbackNote, completedAt: completedAt,
+                snapshotCreatedAt: snapshotCreatedAt, sourceApp: sourceApp, identifiers: ids)
+            let result = try await runner.finalize(assetID: base.assetID, selection: value.0,
+                completedAt: completedAt, snapshotCreatedAt: snapshotCreatedAt,
+                sourceApp: sourceApp, identifiers: ids)
+            let service = try FinalizationService(modelContext: base.context, signPack: profile.package,
+                generationRootURL: base.session.generationRootURL,
+                workspaceWriter: base.lifecycleDependencies.writer)
+            let adapter = try PackFinalizationAdapterV1(dependencies: base.lifecycleDependencies,
+                profile: profile, legacyModelContext: base.context)
+            let nilBinding = try PackFinalizationBindingV1(
+                workspaceID: base.lifecycleDependencies.workspaceID,
+                generationID: base.lifecycleDependencies.generationID,
+                packageRelease: profile.release,
+                mutationID: try MutationIDV1(rawValue: ids.mutationID),
+                durableReceiptIdentity: nil, preservesReservedLegacyRawWriteDebt: false)
+            let alternateMutation = try base.lifecycleDependencies.writer.makeMutationID()
+            _ = try base.lifecycleDependencies.writer.execute(
+                try makeFirstAssetCommand(label: "readback-recheck-foreign-\(index)",
+                    mutationID: alternateMutation), mutationID: alternateMutation)
+            let otherAsset = try XCTUnwrap(base.context.fetch(FetchDescriptor<Asset>())
+                .first { $0.id != input.asset.id })
+            let otherSite = try XCTUnwrap(base.context.fetch(FetchDescriptor<Site>())
+                .first { $0.id == otherAsset.siteID })
+            let beforeRevision = try base.lifecycleDependencies.writer.currentRevision()
+            let beforeReceipts = try base.context.fetch(FetchDescriptor<MutationReceiptRow>()).count
+            let beforeFiles = try readbackTree(base.session.generationRootURL)
+            XCTAssertFalse(base.context.hasChanges)
+            let proof = try XCTUnwrap(service.readCommittedFinalization(input))
+            XCTAssertEqual(try adapter.readCommittedFinalization(input, binding: nilBinding), proof)
+            let exactBinding = try PackFinalizationBindingV1(
+                workspaceID: nilBinding.workspaceID, generationID: nilBinding.generationID,
+                packageRelease: nilBinding.packageRelease, mutationID: nilBinding.mutationID,
+                durableReceiptIdentity: proof.receipt.identity,
+                preservesReservedLegacyRawWriteDebt: false)
+            XCTAssertEqual(try adapter.readCommittedFinalization(input, binding: exactBinding), proof)
+            XCTAssertEqual(proof.result, result)
+            XCTAssertEqual(proof.receipt, try base.lifecycleDependencies.writer
+                .finalizationEvidence(mutationID: MutationIDV1(rawValue: ids.mutationID))?.receipt)
+            let snapshot = try ReportSnapshotEncoderV1().decode(Data(contentsOf:
+                base.session.generationRootURL.appendingPathComponent(result.snapshotRelativePath)))
+            XCTAssertEqual(snapshot.history.map(\.recordID), [base.openingRecordID, base.workRecordID])
+            XCTAssertEqual(snapshot.evidence.filter { $0.recordID == result.recordID }.count, value.1)
+            XCTAssertEqual(Set(snapshot.evidence.filter { $0.recordID == result.recordID }.map(\.evidenceID)),
+                Set(evidence.map(\.id)))
+            XCTAssertEqual(result.issueID, base.issueID)
+            XCTAssertEqual(result.newIssueID, ids.newIssueID)
+            XCTAssertFalse(base.context.hasChanges)
+            XCTAssertEqual(try base.lifecycleDependencies.writer.currentRevision(), beforeRevision)
+            XCTAssertEqual(try base.context.fetch(FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+            XCTAssertEqual(try readbackTree(base.session.generationRootURL), beforeFiles)
+
+            let wrongIssue = copyReadbackInput(input, identifiers: FinalizationIdentifiers(
+                mutationID: ids.mutationID, packetID: ids.packetID, stableRootID: ids.stableRootID,
+                reportID: ids.reportID, issueID: UUID(), newIssueID: ids.newIssueID))
+            XCTAssertThrowsError(try service.readCommittedFinalization(wrongIssue))
+            let wrongNewIssue = copyReadbackInput(input, identifiers: FinalizationIdentifiers(
+                mutationID: ids.mutationID, packetID: ids.packetID, stableRootID: ids.stableRootID,
+                reportID: ids.reportID, issueID: ids.issueID,
+                newIssueID: ids.newIssueID == nil ? UUID() : nil))
+            XCTAssertThrowsError(try service.readCommittedFinalization(wrongNewIssue))
+            let alternateLabel = profile.package.issueLabels.first {
+                $0.key != input.issueLabel?.key
+            }
+            let alternateReason = profile.package.couldNotVerifyReasons.entries.first {
+                $0.key != input.couldNotVerify?.key
+            }
+            let evidenceSource = evidence.first
+            var scalarHostile: [FinalizationServiceInput] = [
+                copyReadbackInput(input, outcomeDisplay: input.outcomeDisplay + " changed"),
+                copyReadbackInput(input, note: .some("changed")),
+                copyReadbackInput(input, completedAt: input.completedAt.addingTimeInterval(1)),
+                copyReadbackInput(input,
+                    snapshotCreatedAt: input.snapshotCreatedAt.addingTimeInterval(1)),
+                copyReadbackInput(input,
+                    sourceApp: .init(build: "changed", version: input.sourceApp.version)),
+                copyReadbackInput(input,
+                    sourceApp: .init(build: input.sourceApp.build, version: "changed")),
+                copyReadbackInput(input, issueLabel: input.issueLabel == nil
+                    ? .some(try XCTUnwrap(alternateLabel)) : .some(nil)),
+                copyReadbackInput(input, couldNotVerify: input.couldNotVerify == nil
+                    ? .some(try XCTUnwrap(alternateReason)) : .some(nil)),
+                copyReadbackInput(input, asset: otherAsset),
+                copyReadbackInput(input, site: otherSite),
+            ]
+            if let evidenceSource {
+                scalarHostile += [
+                    copyReadbackInput(input, evidence: Array(evidence.dropLast())),
+                    copyReadbackInput(input, evidence: evidence + [evidenceSource]),
+                    copyReadbackInput(input, evidence: [readbackEvidenceCopy(evidenceSource,
+                        recordID: UUID())] + Array(evidence.dropFirst())),
+                    copyReadbackInput(input, evidence: [readbackEvidenceCopy(evidenceSource,
+                        createdAt: evidenceSource.createdAt.addingTimeInterval(1))]
+                        + Array(evidence.dropFirst())),
+                ]
+            } else {
+                let foreignEvidence = try XCTUnwrap(base.context.fetch(FetchDescriptor<EvidenceFile>())
+                    .first { $0.recordID != input.draft.id })
+                scalarHostile.append(copyReadbackInput(input, evidence: [foreignEvidence]))
+            }
+            for hostile in scalarHostile {
+                XCTAssertThrowsError(try service.readCommittedFinalization(hostile))
+            }
+            if input.issueLabel != nil, let alternateLabel {
+                XCTAssertThrowsError(try service.readCommittedFinalization(
+                    copyReadbackInput(input, issueLabel: .some(alternateLabel))))
+            }
+            if input.couldNotVerify != nil, let alternateReason {
+                XCTAssertThrowsError(try service.readCommittedFinalization(
+                    copyReadbackInput(input, couldNotVerify: .some(alternateReason))))
+            }
+            XCTAssertEqual(try service.readCommittedFinalization(input), proof)
+            XCTAssertFalse(base.context.hasChanges)
+            XCTAssertEqual(try base.context.fetch(FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+            XCTAssertEqual(try base.lifecycleDependencies.writer.currentRevision(), beforeRevision)
+            XCTAssertEqual(try readbackTree(base.session.generationRootURL), beforeFiles)
+        }
+    }
+
+    @MainActor
+    func testReadCommittedFinalizationDistinguishesStableAbsenceFromOneSidedAuthority() async throws {
+        let pending = try await prepareReadbackCheck(
+            "readback-absence", selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil),
+            evidenceCount: 0
+        )
+        defer { pending.harness.cleanup(fileManager: fileManager) }
+        let beforeRevision = try pending.harness.dependencies.writer.currentRevision()
+        let beforeReceipts = try pending.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count
+        let before = try readbackTree(pending.harness.session.generationRootURL)
+        XCTAssertFalse(pending.harness.session.modelContext.hasChanges)
+        XCTAssertNil(try pending.service.readCommittedFinalization(pending.input))
+        XCTAssertNil(try pending.adapter.readCommittedFinalization(pending.input, binding: pending.nilBinding))
+        XCTAssertFalse(pending.harness.session.modelContext.hasChanges)
+        XCTAssertEqual(try pending.harness.dependencies.writer.currentRevision(), beforeRevision)
+        XCTAssertEqual(try pending.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+        XCTAssertEqual(try readbackTree(pending.harness.session.generationRootURL), before)
+
+        let collision = copyReadbackInput(pending.input, identifiers: FinalizationIdentifiers(
+            mutationID: pending.placementMutationID.rawValue, packetID: pending.input.identifiers.packetID,
+            stableRootID: pending.input.identifiers.stableRootID, reportID: pending.input.identifiers.reportID,
+            issueID: nil))
+        XCTAssertThrowsError(try pending.service.readCommittedFinalization(collision)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+
+        let completed = try await makeReadbackCompletion("readback-wrong-mutation",
+            selection: .noVisibleIssue, evidenceCount: 2)
+        defer { completed.attempt.harness.cleanup(fileManager: fileManager) }
+        let wrongMutation = copyReadbackInput(completed.attempt.input,
+            identifiers: FinalizationIdentifiers(mutationID: UUID(),
+                packetID: completed.result.packetID, stableRootID: completed.result.stableRootID,
+                reportID: completed.result.reportID, issueID: completed.result.issueID,
+                newIssueID: completed.result.newIssueID))
+        XCTAssertThrowsError(try completed.attempt.service.readCommittedFinalization(wrongMutation))
+
+        let evidenceOnly = try await makeReadbackCompletion("readback-evidence-only",
+            selection: .noVisibleIssue, evidenceCount: 2)
+        defer { evidenceOnly.attempt.harness.cleanup(fileManager: fileManager) }
+        evidenceOnly.attempt.harness.session.modelContext.delete(evidenceOnly.attempt.input.draft)
+        try evidenceOnly.attempt.harness.session.modelContext.save()
+        XCTAssertThrowsError(try evidenceOnly.attempt.service
+            .readCommittedFinalization(evidenceOnly.attempt.input))
+
+        let resultOnly = try await makeReadbackCompletion("readback-result-only",
+            selection: .noVisibleIssue, evidenceCount: 2)
+        defer { resultOnly.attempt.harness.cleanup(fileManager: fileManager) }
+        let receiptRows = try resultOnly.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()
+        )
+        let finalizationRow = try XCTUnwrap(receiptRows.first { row in
+            (try? MutationEnvelopeV1.decodeCanonical(from: row.envelopeData).mutationID)
+                == resultOnly.attempt.nilBinding.mutationID
+        })
+        resultOnly.attempt.harness.session.modelContext.delete(finalizationRow)
+        try resultOnly.attempt.harness.session.modelContext.save()
+        XCTAssertThrowsError(try resultOnly.attempt.service
+            .readCommittedFinalization(resultOnly.attempt.input))
+    }
+
+    @MainActor
+    func testReadCommittedFinalizationRejectsEveryChangedFrozenInputField() async throws {
+        let fixture = try await makeReadbackCompletion("readback-hostile-fields",
+            selection: .visibleIssue(labelKey: "physical_damage"), evidenceCount: 2)
+        defer { fixture.attempt.harness.cleanup(fileManager: fileManager) }
+        let input = fixture.attempt.input
+        XCTAssertNotNil(try fixture.attempt.service.readCommittedFinalization(input))
+        let alternateMutation = try fixture.attempt.harness.dependencies.writer.makeMutationID()
+        _ = try fixture.attempt.harness.dependencies.writer.execute(
+            try makeFirstAssetCommand(label: "readback-foreign-identity", mutationID: alternateMutation),
+            mutationID: alternateMutation)
+        let otherAsset = try XCTUnwrap(fixture.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<Asset>()).first { $0.id != input.asset.id })
+        let otherSite = try XCTUnwrap(fixture.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<Site>()).first { $0.id == otherAsset.siteID })
+        let otherLabel = try XCTUnwrap(fixture.attempt.profile.package.issueLabels
+            .first { $0.key != input.issueLabel?.key })
+        let evidenceSource = try XCTUnwrap(input.evidence.first)
+        let foreignEvidence = readbackEvidenceCopy(evidenceSource, recordID: UUID())
+        let changedPurpose = readbackEvidenceCopy(evidenceSource,
+            purposeKey: evidenceSource.purposeKey == "wide_context" ? "close_detail" : "wide_context")
+        let changedCreatedAt = readbackEvidenceCopy(evidenceSource,
+            createdAt: evidenceSource.createdAt.addingTimeInterval(1))
+        let beforeRevision = try fixture.attempt.harness.dependencies.writer.currentRevision()
+        let beforeReceipts = try fixture.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count
+        let beforeFiles = try readbackTree(fixture.attempt.harness.session.generationRootURL)
+        let hostile: [FinalizationServiceInput] = [
+            copyReadbackInput(input, outcomeKey: "could_not_verify"),
+            copyReadbackInput(input, outcomeDisplay: "Changed outcome"),
+            copyReadbackInput(input, note: "changed"),
+            copyReadbackInput(input, completedAt: input.completedAt.addingTimeInterval(1)),
+            copyReadbackInput(input, snapshotCreatedAt: input.snapshotCreatedAt.addingTimeInterval(1)),
+            copyReadbackInput(input, sourceApp: .init(build: "changed", version: "1.0")),
+            copyReadbackInput(input, sourceApp: .init(build: input.sourceApp.build, version: "changed")),
+            copyReadbackInput(input, issueLabel: .some(nil)),
+            copyReadbackInput(input, issueLabel: .some(otherLabel)),
+            copyReadbackInput(input, evidence: Array(input.evidence.dropLast())),
+            copyReadbackInput(input, evidence: input.evidence + [try XCTUnwrap(input.evidence.first)]),
+            copyReadbackInput(input, evidence: [foreignEvidence] + Array(input.evidence.dropFirst())),
+            copyReadbackInput(input, evidence: [changedPurpose] + Array(input.evidence.dropFirst())),
+            copyReadbackInput(input, evidence: [changedCreatedAt] + Array(input.evidence.dropFirst())),
+            copyReadbackInput(input, asset: otherAsset),
+            copyReadbackInput(input, site: otherSite),
+            copyReadbackInput(input, identifiers: FinalizationIdentifiers(mutationID: input.identifiers.mutationID,
+                packetID: UUID(), stableRootID: input.identifiers.stableRootID,
+                reportID: input.identifiers.reportID, issueID: input.identifiers.issueID)),
+            copyReadbackInput(input, identifiers: FinalizationIdentifiers(mutationID: input.identifiers.mutationID,
+                packetID: input.identifiers.packetID, stableRootID: UUID(),
+                reportID: input.identifiers.reportID, issueID: input.identifiers.issueID)),
+            copyReadbackInput(input, identifiers: FinalizationIdentifiers(mutationID: input.identifiers.mutationID,
+                packetID: input.identifiers.packetID, stableRootID: input.identifiers.stableRootID,
+                reportID: UUID(), issueID: input.identifiers.issueID)),
+            copyReadbackInput(input, identifiers: FinalizationIdentifiers(
+                mutationID: input.identifiers.mutationID, packetID: input.identifiers.packetID,
+                stableRootID: input.identifiers.stableRootID, reportID: input.identifiers.reportID,
+                issueID: UUID(), newIssueID: input.identifiers.newIssueID)),
+            copyReadbackInput(input, identifiers: FinalizationIdentifiers(
+                mutationID: input.identifiers.mutationID, packetID: input.identifiers.packetID,
+                stableRootID: input.identifiers.stableRootID, reportID: input.identifiers.reportID,
+                issueID: input.identifiers.issueID, newIssueID: UUID())),
+        ]
+        for value in hostile { XCTAssertThrowsError(try fixture.attempt.service.readCommittedFinalization(value)) }
+        XCTAssertNotNil(try fixture.attempt.service.readCommittedFinalization(input))
+        XCTAssertFalse(fixture.attempt.harness.session.modelContext.hasChanges)
+        XCTAssertEqual(try fixture.attempt.harness.dependencies.writer.currentRevision(), beforeRevision)
+        XCTAssertEqual(try fixture.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+        XCTAssertEqual(try readbackTree(fixture.attempt.harness.session.generationRootURL), beforeFiles)
+
+        let savedLabel = input.asset.label
+        input.asset.label = savedLabel + " dirty"
+        let dirtyTree = try readbackTree(fixture.attempt.harness.session.generationRootURL)
+        XCTAssertTrue(fixture.attempt.harness.session.modelContext.hasChanges)
+        XCTAssertThrowsError(try fixture.attempt.service.readCommittedFinalization(input))
+        XCTAssertEqual(input.asset.label, savedLabel + " dirty")
+        XCTAssertTrue(fixture.attempt.harness.session.modelContext.hasChanges)
+        XCTAssertEqual(try readbackTree(fixture.attempt.harness.session.generationRootURL), dirtyTree)
+        fixture.attempt.harness.session.modelContext.rollback()
+        XCTAssertEqual(input.asset.label, savedLabel)
+
+        let cnv = try await makeReadbackCompletion("readback-hostile-cnv",
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: "frozen"), evidenceCount: 1)
+        defer { cnv.attempt.harness.cleanup(fileManager: fileManager) }
+        let differentReason = try XCTUnwrap(cnv.attempt.profile.package.couldNotVerifyReasons.entries
+            .first { $0.key != cnv.attempt.input.couldNotVerify?.key })
+        XCTAssertThrowsError(try cnv.attempt.service.readCommittedFinalization(
+            copyReadbackInput(cnv.attempt.input, couldNotVerify: .some(nil))))
+        XCTAssertThrowsError(try cnv.attempt.service.readCommittedFinalization(
+            copyReadbackInput(cnv.attempt.input, couldNotVerify: .some(differentReason))))
+        XCTAssertEqual(try cnv.attempt.service.readCommittedFinalization(cnv.attempt.input)?.result,
+            cnv.result)
+    }
+
+    @MainActor
+    func testReadCommittedFinalizationRejectsRetiredWriterAndSurvivesColdReopen() async throws {
+        let fixture = try await makeReadbackCompletion("readback-reopen",
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), evidenceCount: 1)
+        let harness = fixture.attempt.harness
+        defer { harness.cleanup(fileManager: fileManager) }
+        let oldWriterID = try harness.dependencies.writer.currentRevision().writerInstanceID
+        let original = try XCTUnwrap(fixture.attempt.service.readCommittedFinalization(fixture.attempt.input))
+        try harness.coordinator.invalidateAndReleaseWriter()
+        XCTAssertThrowsError(try fixture.attempt.service.readCommittedFinalization(fixture.attempt.input)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        XCTAssertThrowsError(try fixture.attempt.adapter.readCommittedFinalization(
+            fixture.attempt.input, binding: fixture.attempt.nilBinding)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        let session = try StoreGenerationFactory(applicationSupportURL: harness.root).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        defer { try? coordinator.invalidateAndReleaseWriter() }
+        let dependencies = try coordinator.packageLifecycleDependencies()
+        XCTAssertNotEqual(try dependencies.writer.currentRevision().writerInstanceID, oldWriterID)
+        let freshInput = try reopenedReadbackInput(fixture.attempt.input, in: session.modelContext,
+            generationRootURL: session.generationRootURL)
+        let fresh = try FinalizationService(modelContext: session.modelContext,
+            signPack: .illuminatedSignV1, generationRootURL: session.generationRootURL,
+            workspaceWriter: dependencies.writer)
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let freshAdapter = try PackFinalizationAdapterV1(dependencies: dependencies,
+            profile: profile, legacyModelContext: session.modelContext)
+        let freshBinding = try PackFinalizationBindingV1(workspaceID: dependencies.workspaceID,
+            generationID: dependencies.generationID, packageRelease: profile.release,
+            mutationID: fixture.attempt.nilBinding.mutationID, durableReceiptIdentity: nil,
+            preservesReservedLegacyRawWriteDebt: false)
+        let beforeRevision = try dependencies.writer.currentRevision()
+        let beforeReceipts = try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count
+        let beforeFiles = try readbackTree(session.generationRootURL)
+        XCTAssertEqual(try fresh.readCommittedFinalization(freshInput), original)
+        XCTAssertEqual(try freshAdapter.readCommittedFinalization(freshInput, binding: freshBinding), original)
+        XCTAssertFalse(session.modelContext.hasChanges)
+        XCTAssertEqual(try dependencies.writer.currentRevision(), beforeRevision)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count,
+            beforeReceipts)
+        XCTAssertEqual(try readbackTree(session.generationRootURL), beforeFiles)
+    }
+
+    @MainActor
+    func testReadCommittedFinalizationRejectsSnapshotCorruptionAndRestoresFixtureSafely() async throws {
+        let fixture = try await makeReadbackCompletion("readback-corrupt",
+            selection: .noVisibleIssue, evidenceCount: 2)
+        defer { fixture.attempt.harness.cleanup(fileManager: fileManager) }
+        let url = fixture.attempt.harness.session.generationRootURL
+            .appendingPathComponent(fixture.result.snapshotRelativePath)
+        let original = try Data(contentsOf: url)
+        let beforeRevision = try fixture.attempt.harness.dependencies.writer.currentRevision()
+        let beforeReceipts = try fixture.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count
+        let beforeFiles = try readbackTree(fixture.attempt.harness.session.generationRootURL)
+        do {
+            defer { try? original.write(to: url, options: .atomic) }
+            try Data("not-json".utf8).write(to: url, options: .atomic)
+            XCTAssertThrowsError(try fixture.attempt.service.readCommittedFinalization(fixture.attempt.input))
+        }
+        XCTAssertNotNil(try fixture.attempt.service.readCommittedFinalization(fixture.attempt.input))
+        XCTAssertEqual(try readbackTree(fixture.attempt.harness.session.generationRootURL), beforeFiles)
+        XCTAssertFalse(fixture.attempt.harness.session.modelContext.hasChanges)
+        XCTAssertEqual(try fixture.attempt.harness.dependencies.writer.currentRevision(), beforeRevision)
+        XCTAssertEqual(try fixture.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+        do {
+            defer { try? original.write(to: url, options: .atomic) }
+            var noncanonical = original
+            noncanonical.append(contentsOf: Data(" ".utf8))
+            try noncanonical.write(to: url, options: .atomic)
+            XCTAssertThrowsError(try fixture.attempt.service.readCommittedFinalization(fixture.attempt.input))
+        }
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        do {
+            defer { try? original.write(to: url, options: .atomic) }
+            try fileManager.removeItem(at: url)
+            XCTAssertThrowsError(try fixture.attempt.service.readCommittedFinalization(fixture.attempt.input))
+        }
+        XCTAssertNotNil(try fixture.attempt.service.readCommittedFinalization(fixture.attempt.input))
+        XCTAssertEqual(try readbackTree(fixture.attempt.harness.session.generationRootURL), beforeFiles)
+    }
+
+    @MainActor
+    func testPackFinalizationReadbackRequiresExactPackageBindingAndDurableReceiptIdentity() async throws {
+        let fixture = try await makeReadbackCompletion("readback-binding",
+            selection: .noVisibleIssue, evidenceCount: 2)
+        defer { fixture.attempt.harness.cleanup(fileManager: fileManager) }
+        let beforeRevision = try fixture.attempt.harness.dependencies.writer.currentRevision()
+        let beforeReceipts = try fixture.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count
+        let beforeFiles = try readbackTree(fixture.attempt.harness.session.generationRootURL)
+        let actual = try XCTUnwrap(fixture.attempt.service.readCommittedFinalization(fixture.attempt.input))
+        XCTAssertEqual(try fixture.attempt.adapter.readCommittedFinalization(
+            fixture.attempt.input, binding: fixture.attempt.nilBinding), actual)
+        let exact = try readbackBinding(fixture.attempt, receiptIdentity: actual.receipt.identity)
+        XCTAssertEqual(try fixture.attempt.adapter.readCommittedFinalization(
+            fixture.attempt.input, binding: exact), actual)
+        let wrongReceipt = try readbackBinding(fixture.attempt,
+            receiptIdentity: try XCTUnwrap(fixture.attempt.harness.dependencies.writer
+                .durableReceipt(mutationID: fixture.attempt.placementMutationID)).identity)
+        XCTAssertThrowsError(try fixture.attempt.adapter.readCommittedFinalization(
+            fixture.attempt.input, binding: wrongReceipt))
+        let wrongGeneration = try PackFinalizationBindingV1(workspaceID: fixture.attempt.nilBinding.workspaceID,
+            generationID: UUID(), packageRelease: fixture.attempt.nilBinding.packageRelease,
+            mutationID: fixture.attempt.nilBinding.mutationID, durableReceiptIdentity: nil,
+            preservesReservedLegacyRawWriteDebt: false)
+        XCTAssertThrowsError(try fixture.attempt.adapter.readCommittedFinalization(
+            fixture.attempt.input, binding: wrongGeneration))
+        let wrongMutation = try PackFinalizationBindingV1(workspaceID: fixture.attempt.nilBinding.workspaceID,
+            generationID: fixture.attempt.nilBinding.generationID,
+            packageRelease: fixture.attempt.nilBinding.packageRelease,
+            mutationID: try MutationIDV1(rawValue: UUID()), durableReceiptIdentity: nil,
+            preservesReservedLegacyRawWriteDebt: false)
+        XCTAssertThrowsError(try fixture.attempt.adapter.readCommittedFinalization(
+            fixture.attempt.input, binding: wrongMutation))
+        let wrongWorkspace = try PackFinalizationBindingV1(workspaceID: WorkspaceID(),
+            generationID: fixture.attempt.nilBinding.generationID,
+            packageRelease: fixture.attempt.nilBinding.packageRelease,
+            mutationID: fixture.attempt.nilBinding.mutationID, durableReceiptIdentity: nil,
+            preservesReservedLegacyRawWriteDebt: false)
+        XCTAssertThrowsError(try fixture.attempt.adapter.readCommittedFinalization(
+            fixture.attempt.input, binding: wrongWorkspace))
+        let wrongRelease = try PackFinalizationBindingV1(
+            workspaceID: fixture.attempt.nilBinding.workspaceID,
+            generationID: fixture.attempt.nilBinding.generationID,
+            packageRelease: try PackageReleaseIdentityV1(packageID: "readback.wrong.release",
+                schemaVersion: 1, contentVersion: 1),
+            mutationID: fixture.attempt.nilBinding.mutationID, durableReceiptIdentity: nil,
+            preservesReservedLegacyRawWriteDebt: false)
+        XCTAssertThrowsError(try fixture.attempt.adapter.readCommittedFinalization(
+            fixture.attempt.input, binding: wrongRelease))
+        XCTAssertFalse(fixture.attempt.harness.session.modelContext.hasChanges)
+        XCTAssertEqual(try fixture.attempt.harness.dependencies.writer.currentRevision(), beforeRevision)
+        XCTAssertEqual(try fixture.attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+        XCTAssertEqual(try readbackTree(fixture.attempt.harness.session.generationRootURL), beforeFiles)
+
+        let absent = try await prepareReadbackCheck("readback-binding-absent",
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), evidenceCount: 0)
+        defer { absent.harness.cleanup(fileManager: fileManager) }
+        let expectedReceipt = try XCTUnwrap(absent.harness.dependencies.writer
+            .durableReceipt(mutationID: absent.placementMutationID)).identity
+        let absentExpected = try readbackBinding(absent, receiptIdentity: expectedReceipt)
+        XCTAssertThrowsError(try absent.adapter.readCommittedFinalization(
+            absent.input, binding: absentExpected))
+        XCTAssertFalse(absent.harness.session.modelContext.hasChanges)
+    }
+
+    @MainActor
+    func testCleanupFailureAfterSavedEffectReadsActualCommitBeforeAndAfterRecovery() async throws {
+        let injection = FinalizationIntentStoreFailureInjection(
+            failOnceAt: .intentPhaseWrite(.databaseCommitted)
+        )
+        let attempt = try await prepareReadbackCheck("readback-cleanup-failure",
+            selection: .noVisibleIssue, evidenceCount: 2, failureInjection: injection)
+        defer { attempt.harness.cleanup(fileManager: fileManager) }
+        do {
+            _ = try await attempt.runner.finalize(assetID: attempt.input.asset.id,
+                selection: .noVisibleIssue, completedAt: attempt.input.completedAt,
+                snapshotCreatedAt: attempt.input.snapshotCreatedAt, sourceApp: attempt.input.sourceApp,
+                identifiers: attempt.input.identifiers)
+            XCTFail("The injected databaseCommitted intent write must surface cleanup failure")
+        } catch {
+            XCTAssertEqual(error as? CheckRunnerCoordinatorError, .finalizationFailed)
+        }
+        let receiptCount = try attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count
+        let beforeRead = try readbackTree(attempt.harness.session.generationRootURL)
+        XCTAssertFalse(attempt.harness.session.modelContext.hasChanges)
+        let serviceProof = try XCTUnwrap(attempt.service.readCommittedFinalization(attempt.input))
+        let adapterProof = try XCTUnwrap(attempt.adapter.readCommittedFinalization(
+            attempt.input, binding: attempt.nilBinding))
+        XCTAssertEqual(adapterProof, serviceProof)
+        XCTAssertEqual(try readbackTree(attempt.harness.session.generationRootURL), beforeRead)
+        let wrong = try readbackBinding(attempt,
+            receiptIdentity: try XCTUnwrap(attempt.harness.dependencies.writer
+                .durableReceipt(mutationID: attempt.placementMutationID)).identity)
+        XCTAssertThrowsError(try attempt.adapter.readCommittedFinalization(attempt.input, binding: wrong))
+        let recovery = try PackFinalizationRecoveryAdapterV1(dependencies: attempt.harness.dependencies,
+            profile: attempt.profile, legacyModelContext: attempt.harness.session.modelContext)
+        let outcome = try await recovery.reconcile()
+        XCTAssertEqual(outcome.summary.completedRecordIDs, [attempt.input.draft.id])
+        XCTAssertTrue(outcome.summary.recoveredDraftRecordIDs.isEmpty)
+        XCTAssertEqual(try attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count, receiptCount)
+        XCTAssertEqual(try attempt.service.readCommittedFinalization(attempt.input), serviceProof)
+        XCTAssertEqual(try attempt.adapter.readCommittedFinalization(
+            attempt.input, binding: attempt.nilBinding), serviceProof)
+        XCTAssertFalse(attempt.harness.session.modelContext.hasChanges)
+    }
+
+    @MainActor
+    private func prepareReadbackCheck(_ label: String, selection: CheckOutcomeSelection,
+        evidenceCount: Int,
+        failureInjection: FinalizationIntentStoreFailureInjection? = nil) async throws -> ReadbackAttempt {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let harness = try makeHarness(label, profile: profile)
+        do {
+            let runner = try CheckRunnerCoordinator(modelContext: harness.session.modelContext,
+                packageLifecycleDependencies: harness.dependencies, packageLifecycleProfile: profile,
+                finalizationStoreFailureInjection: failureInjection)
+            runner.configureCapture(generationRootURL: harness.session.generationRootURL)
+            let placement = try harness.dependencies.writer.makeMutationID()
+            _ = try harness.dependencies.writer.execute(try makeFirstAssetCommand(label: label,
+                mutationID: placement), mutationID: placement)
+            let asset = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<Asset>()).first)
+            _ = try runner.beginCheck(assetID: asset.id, timeZoneID: "America/New_York",
+                isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true,
+                observedAt: Date(timeIntervalSince1970: 1_768_900_000))
+            for index in 0..<evidenceCount {
+                let candidate = try await runner.importCandidate(assetID: asset.id,
+                    sourceData: WorkCanonicalIntegrationTestSupportV1.makePNG(seed: UInt8(160 + index)),
+                    createdAt: Date(timeIntervalSince1970: 1_768_900_001 + TimeInterval(index)))
+                _ = try await runner.accept(candidate: candidate, assetID: asset.id)
+            }
+            let review = try runner.prepareReview(assetID: asset.id, selection: selection)
+            let draft = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+                .first { $0.id == review.draftID })
+            let site = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<Site>())
+                .first { $0.id == asset.siteID })
+            let evidence = try harness.session.modelContext.fetch(FetchDescriptor<EvidenceFile>())
+                .filter { $0.recordID == draft.id }
+            let issueID = selection.readbackIssueLabelKey == nil ? nil : UUID()
+            let ids = FinalizationIdentifiers(mutationID: UUID(), packetID: UUID(), stableRootID: UUID(),
+                reportID: UUID(), issueID: issueID)
+            let input = FinalizationServiceInput(draft: draft, asset: asset, site: site, evidence: evidence,
+                outcomeKey: review.outcomeKey, outcomeDisplay: review.outcomeDisplay,
+                issueLabel: selection.readbackIssueLabelKey.flatMap { key in
+                    profile.package.issueLabels.first { $0.key == key }
+                }, couldNotVerify: selection.readbackCNVKey.flatMap { key in
+                    profile.package.couldNotVerifyReasons.entries.first { $0.key == key }
+                }, note: selection.readbackNote,
+                completedAt: Date(timeIntervalSince1970: 1_768_900_010),
+                snapshotCreatedAt: Date(timeIntervalSince1970: 1_768_900_011),
+                sourceApp: .init(build: "readback", version: "1.0"), identifiers: ids)
+            let service = try FinalizationService(modelContext: harness.session.modelContext,
+                signPack: profile.package, generationRootURL: harness.session.generationRootURL,
+                workspaceWriter: harness.dependencies.writer)
+            let adapter = try PackFinalizationAdapterV1(dependencies: harness.dependencies,
+                profile: profile, legacyModelContext: harness.session.modelContext)
+            let binding = try PackFinalizationBindingV1(workspaceID: harness.dependencies.workspaceID,
+                generationID: harness.dependencies.generationID, packageRelease: profile.release,
+                mutationID: try MutationIDV1(rawValue: ids.mutationID), durableReceiptIdentity: nil,
+                preservesReservedLegacyRawWriteDebt: false)
+            return ReadbackAttempt(harness: harness, profile: profile, runner: runner, input: input,
+                service: service, adapter: adapter, nilBinding: binding, placementMutationID: placement)
+        } catch {
+            harness.cleanup(fileManager: fileManager)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func makeReadbackCompletion(_ label: String, selection: CheckOutcomeSelection,
+        evidenceCount: Int) async throws -> ReadbackCompletion {
+        let attempt = try await prepareReadbackCheck(label, selection: selection, evidenceCount: evidenceCount)
+        do {
+            let result = try await attempt.runner.finalize(assetID: attempt.input.asset.id,
+                selection: selection, completedAt: attempt.input.completedAt,
+                snapshotCreatedAt: attempt.input.snapshotCreatedAt, sourceApp: attempt.input.sourceApp,
+                identifiers: attempt.input.identifiers)
+            let snapshot = try ReportSnapshotEncoderV1().decode(Data(contentsOf:
+                attempt.harness.session.generationRootURL.appendingPathComponent(result.snapshotRelativePath)))
+            return ReadbackCompletion(attempt: attempt, result: result, snapshot: snapshot)
+        } catch {
+            attempt.harness.cleanup(fileManager: fileManager)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func readbackBinding(_ attempt: ReadbackAttempt,
+        receiptIdentity: MutationReceiptIdentityV1?) throws -> PackFinalizationBindingV1 {
+        try PackFinalizationBindingV1(workspaceID: attempt.nilBinding.workspaceID,
+            generationID: attempt.nilBinding.generationID,
+            packageRelease: attempt.nilBinding.packageRelease,
+            mutationID: attempt.nilBinding.mutationID, durableReceiptIdentity: receiptIdentity,
+            preservesReservedLegacyRawWriteDebt: false)
+    }
+
+    @MainActor
+    private func reopenedReadbackInput(_ original: FinalizationServiceInput,
+        in context: ModelContext, generationRootURL: URL) throws -> FinalizationServiceInput {
+        let record = try XCTUnwrap(context.fetch(FetchDescriptor<WorkflowRecord>())
+            .first { $0.id == original.draft.id })
+        let asset = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>())
+            .first { $0.id == original.asset.id })
+        let site = try XCTUnwrap(context.fetch(FetchDescriptor<Site>())
+            .first { $0.id == original.site.id })
+        let evidence = try context.fetch(FetchDescriptor<EvidenceFile>()).filter { $0.recordID == record.id }
+        return FinalizationServiceInput(draft: record, asset: asset, site: site, evidence: evidence,
+            outcomeKey: original.outcomeKey, outcomeDisplay: original.outcomeDisplay,
+            issueLabel: original.issueLabel, couldNotVerify: original.couldNotVerify, note: original.note,
+            completedAt: original.completedAt, snapshotCreatedAt: original.snapshotCreatedAt,
+            sourceApp: original.sourceApp, identifiers: original.identifiers)
+    }
+
+    @MainActor
+    private func copyReadbackInput(_ value: FinalizationServiceInput,
+        asset: Asset? = nil, site: Site? = nil, evidence: [EvidenceFile]? = nil,
+        outcomeKey: String? = nil, outcomeDisplay: String? = nil,
+        issueLabel: SignPack.RegistryEntry?? = nil,
+        couldNotVerify: SignPack.RegistryEntry?? = nil,
+        note: String?? = nil, completedAt: Date? = nil, snapshotCreatedAt: Date? = nil,
+        sourceApp: SourceAppSnapshotV1? = nil,
+        identifiers: FinalizationIdentifiers? = nil) -> FinalizationServiceInput {
+        FinalizationServiceInput(draft: value.draft, asset: asset ?? value.asset, site: site ?? value.site,
+            evidence: evidence ?? value.evidence, outcomeKey: outcomeKey ?? value.outcomeKey,
+            outcomeDisplay: outcomeDisplay ?? value.outcomeDisplay,
+            issueLabel: issueLabel ?? value.issueLabel,
+            couldNotVerify: couldNotVerify ?? value.couldNotVerify, note: note ?? value.note,
+            completedAt: completedAt ?? value.completedAt,
+            snapshotCreatedAt: snapshotCreatedAt ?? value.snapshotCreatedAt,
+            sourceApp: sourceApp ?? value.sourceApp, identifiers: identifiers ?? value.identifiers)
+    }
+
+    @MainActor
+    private func readbackEvidenceCopy(_ value: EvidenceFile, recordID: UUID? = nil,
+        purposeKey: String? = nil, createdAt: Date? = nil) -> EvidenceFile {
+        EvidenceFile(id: value.id, recordID: recordID ?? value.recordID,
+            purposeKey: purposeKey ?? value.purposeKey, relativePath: value.relativePath,
+            mimeType: value.mimeType, byteCount: value.byteCount, sha256: value.sha256,
+            createdAt: createdAt ?? value.createdAt,
+            thumbnailRelativePath: value.thumbnailRelativePath,
+            thumbnailByteCount: value.thumbnailByteCount,
+            thumbnailSHA256: value.thumbnailSHA256)
+    }
+
+    private func readbackTree(_ root: URL) throws -> [String: Data] {
+        let keys: [URLResourceKey] = [.isRegularFileKey]
+        var enumerationError: Error?
+        guard let values = fileManager.enumerator(at: root, includingPropertiesForKeys: keys,
+            errorHandler: { _, error in enumerationError = error; return false }) else {
+            throw ReadbackTestFailure.inventoryUnavailable
+        }
+        var result: [String: Data] = [:]
+        for case let url as URL in values {
+            if try url.resourceValues(forKeys: Set(keys)).isRegularFile == true {
+                result[String(url.path.dropFirst(root.path.count))] = try Data(contentsOf: url)
+            }
+        }
+        if let enumerationError { throw enumerationError }
+        return result
+    }
+}
+
+private enum ReadbackTestFailure: Error { case inventoryUnavailable }
+
+@MainActor
+private struct ReadbackAttempt {
+    let harness: Harness
+    let profile: WorkspacePackageLifecycleProfileV1
+    let runner: CheckRunnerCoordinator
+    let input: FinalizationServiceInput
+    let service: FinalizationService
+    let adapter: PackFinalizationAdapterV1
+    let nilBinding: PackFinalizationBindingV1
+    let placementMutationID: MutationIDV1
+}
+
+@MainActor
+private struct ReadbackCompletion {
+    let attempt: ReadbackAttempt
+    let result: FinalizationResult
+    let snapshot: ReportSnapshotV1
+}
+
+private extension CheckOutcomeSelection {
+    var readbackIssueLabelKey: String? {
+        switch self {
+        case let .visibleIssue(labelKey), let .originalResolvedDifferentIssue(labelKey, _): labelKey
+        default: nil
+        }
+    }
+
+    var readbackCNVKey: String? {
+        guard case let .couldNotVerify(reasonKey, _) = self else { return nil }
+        return reasonKey
+    }
+
+    var readbackNote: String? {
+        switch self {
+        case let .couldNotVerify(_, note), let .resolved(note), let .issueStillVisible(note),
+             let .originalResolvedDifferentIssue(_, note): note
+        default: nil
+        }
+    }
+}
+
 
 private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_18PackLifecycleIntegrationTests_swift {
     static let compatibilityCardID = "V23-P03-C47"

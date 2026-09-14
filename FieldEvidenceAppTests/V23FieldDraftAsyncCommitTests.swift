@@ -283,7 +283,7 @@ private actor C36AsyncCommitGate {
         if didRelease { return }
         if didCancel { throw CancellationError() }
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 if didCancel {
                     continuation.resume(throwing: CancellationError())
                 } else if didRelease {

@@ -38,6 +38,18 @@ struct FinalizationServiceOutcome: Equatable, Sendable {
     let createdAuthority: Bool
 }
 
+/// An exact saved result and its original journal receipt, authenticated during
+/// one synchronous read. This does not prove intent cleanup or run recovery.
+struct ReviewedFinalizationCommitV1: Equatable, Sendable {
+    let result: FinalizationResult
+    let receipt: MutationReceiptV1
+
+    fileprivate init(result: FinalizationResult, receipt: MutationReceiptV1) {
+        self.result = result
+        self.receipt = receipt
+    }
+}
+
 struct ReportCorrectionFinalizationInput {
     let currentRecord: WorkflowRecord
     let packet: Packet
@@ -157,6 +169,116 @@ final class FinalizationService {
         self.failureInjection = failureInjection
         self.operationBarrier = operationBarrier
         self.workspaceWriter = workspaceWriter
+    }
+
+    /// Read the frozen attempt through the existing replay and writer owners.
+    /// A missing receipt beside a saved result is corruption, never absence.
+    func readCommittedFinalization(
+        _ input: FinalizationServiceInput
+    ) throws -> ReviewedFinalizationCommitV1? {
+        guard !modelContext.hasChanges, let workspaceWriter,
+              input.evidence.count <= 2 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let current = try workspaceWriter.currentRevision()
+        guard current.generationID == generationID else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        try requireFrozenRootIdentity()
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+            .filter { $0.id == input.draft.id }
+        let assets = try modelContext.fetch(FetchDescriptor<Asset>())
+            .filter { $0.id == input.asset.id }
+        let sites = try modelContext.fetch(FetchDescriptor<Site>())
+            .filter { $0.id == input.site.id }
+        let currentEvidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+            .filter { $0.recordID == input.draft.id }.sorted(by: evidenceOrder)
+        let inputEvidence = try input.evidence.sorted(by: evidenceOrder).map(evidenceSnapshot)
+        guard records.count == 1, records[0] === input.draft,
+              assets.count == 1, assets[0] === input.asset,
+              sites.count == 1, sites[0] === input.site,
+              input.draft.assetID == input.asset.id,
+              input.asset.siteID == input.site.id,
+              try currentEvidence.map(evidenceSnapshot) == inputEvidence else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let mutationID = try MutationIDV1(rawValue: input.identifiers.mutationID)
+        let evidence = try workspaceWriter.finalizationEvidence(mutationID: mutationID)
+        let result = try replayedFinalization(input)
+        guard let evidence, let result else {
+            guard evidence == nil, result == nil else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            // A different mutation ID cannot turn an already completed record
+            // into an apparently uncommitted frozen attempt.
+            try validateFrozenInput(input)
+            try validateDatabasePreconditions(input)
+            try requireFrozenRootIdentity()
+            guard !modelContext.hasChanges,
+                  try workspaceWriter.currentRevision() == current else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            return nil
+        }
+        guard case let .finalizeCheck(command) = evidence.envelope.command,
+              let authority = command.writerAuthority,
+              command.finalizationMutationID == input.identifiers.mutationID,
+              command.recordID == input.draft.id,
+              command.assetID == input.asset.id,
+              command.packetID == input.identifiers.packetID,
+              command.reportID == input.identifiers.reportID,
+              command.issueID == input.identifiers.issueID,
+              result.recordID == input.draft.id,
+              result.packetID == input.identifiers.packetID,
+              result.stableRootID == input.identifiers.stableRootID,
+              result.reportID == input.identifiers.reportID,
+              result.issueID == input.identifiers.issueID,
+              result.newIssueID == input.identifiers.newIssueID,
+              authority.generationID == generationID,
+              authority.snapshotRelativePath == result.snapshotRelativePath,
+              authority.snapshotSHA256 == result.snapshotSHA256,
+              evidence.receipt.mutationID == mutationID,
+              evidence.receipt.identity.workspaceID == current.workspaceID else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        _ = try evidence.workflowRecordRevision(recordID: result.recordID)
+        try validateReplayAuthority(mutationID: input.identifiers.mutationID,
+            recordID: result.recordID, reportID: result.reportID, correction: false)
+        let snapshotBytes = try anchoredSnapshotData(result.snapshotRelativePath)
+        let encoder = ReportSnapshotEncoderV1()
+        let snapshot = try encoder.decode(snapshotBytes)
+        let canonical = try encoder.encode(snapshot)
+        let reason = input.couldNotVerify.map {
+            CouldNotVerifySnapshotV1(display: $0.display, key: $0.key,
+                registryVersion: signPack.couldNotVerifyReasons.version)
+        }
+        // Recheck replay authenticates the original snapshot against its saved
+        // rows; this additionally binds the caller's complete frozen input.
+        guard canonical.data == snapshotBytes,
+              canonical.sha256 == result.snapshotSHA256,
+              snapshot.sourceRecordID == input.draft.id,
+              snapshot.evidenceSourceRecordID == input.draft.id,
+              snapshot.packetID == input.identifiers.packetID,
+              snapshot.stableRootID == input.identifiers.stableRootID,
+              snapshot.reportID == input.identifiers.reportID,
+              snapshot.snapshotCreatedAt == input.snapshotCreatedAt,
+              snapshot.sourceApp == input.sourceApp,
+              snapshot.asset == AssetSnapshotV1(label: input.asset.label),
+              snapshot.site == SiteSnapshotV1(address: input.site.address, label: input.site.label),
+              snapshot.outcome == input.outcomeKey,
+              snapshot.display.outcome == input.outcomeDisplay,
+              snapshot.note == input.note,
+              snapshot.couldNotVerify == reason,
+              snapshot.evidence.filter({ $0.recordID == input.draft.id }) == inputEvidence else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        try requireFrozenRootIdentity()
+        guard !modelContext.hasChanges,
+              try workspaceWriter.currentRevision() == current,
+              try anchoredSnapshotData(result.snapshotRelativePath) == snapshotBytes else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        return ReviewedFinalizationCommitV1(result: result, receipt: evidence.receipt)
     }
 
     func finalize(_ input: FinalizationServiceInput) async throws -> FinalizationServiceOutcome {
