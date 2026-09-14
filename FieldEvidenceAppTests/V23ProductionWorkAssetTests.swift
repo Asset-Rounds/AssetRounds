@@ -82,8 +82,8 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         window.makeKeyAndVisible()
         defer { window.isHidden = true; window.rootViewController = nil; previousKeyWindow?.makeKeyAndVisible() }
         host.view.layoutIfNeeded()
-        let visible = await waitForAccessibilityIdentifier(
-            PreflightView.screenAccessibilityIdentifier, in: host.view)
+        let visible = await waitForMountedScreen(
+            PreflightView.screenAccessibilityIdentifier, from: host)
         print("WorkStartupDiagnostic after_wait scene_bound=\(actualScene != nil) work_selected=\(actualScene?.snapshot?.selectedRoot == .work) exact_target=\(actualScene?.snapshot?.path(for: .work)?.targets == [target])")
         if !visible { logNativeObservation(PreflightView.screenAccessibilityIdentifier, from: host, phase: "initial_preflight") }
         XCTAssertTrue(visible)
@@ -98,6 +98,9 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         navigation.popToRootViewController(animated: false)
         let returnedToWorkRoot = await waitForPersistedWorkRoot(sceneAccess)
         XCTAssertTrue(returnedToWorkRoot)
+        let rootMounted = await waitForNativeRoot(ProductionWorkRootViewV1.screenAccessibilityIdentifier, from: host)
+        XCTAssertTrue(rootMounted)
+        XCTAssertFalse(nativeScreenObservation(PreflightView.screenAccessibilityIdentifier, from: host).found)
         XCTAssertEqual(try fixture.coordinator.workspaceWriter.currentRevision(), before)
         XCTAssertFalse(fixture.coordinator.modelContext.hasChanges)
         #else
@@ -162,8 +165,8 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         // Drive the production scene observed by the mounted shell, including
         // its hidden-to-selected task identity, rather than a second scene.
         try scene.select(.work)
-        let visible = await waitForAccessibilityIdentifier(
-            PreflightView.screenAccessibilityIdentifier, in: host.view)
+        let visible = await waitForMountedScreen(
+            PreflightView.screenAccessibilityIdentifier, from: host)
         if !visible { logNativeObservation(PreflightView.screenAccessibilityIdentifier, from: host, phase: "activated_preflight") }
         XCTAssertTrue(visible)
         XCTAssertEqual(tabBar.selectedItem?.title, "Work")
@@ -193,8 +196,8 @@ final class V23ProductionWorkAssetTests: V23ProductionFourRootShellTestSupport {
         // The one-destination adapter must leave a legitimate longer saved
         // path intact while showing Work root. Mounting [] cannot erase it.
         try scene.setPath([firstTarget, secondTarget], for: .work)
-        let rootVisible = await waitForAccessibilityIdentifier(
-            ProductionWorkRootViewV1.screenAccessibilityIdentifier, in: host.view)
+        let rootVisible = await waitForMountedScreen(
+            ProductionWorkRootViewV1.screenAccessibilityIdentifier, from: host)
         if !rootVisible { logNativeObservation(ProductionWorkRootViewV1.screenAccessibilityIdentifier, from: host, phase: "long_path_root") }
         XCTAssertTrue(rootVisible)
         let atNativeRoot = await waitForNativeRoot(

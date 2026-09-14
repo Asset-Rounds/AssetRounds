@@ -47,6 +47,15 @@ struct ProductionWorkRootViewV1: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(DesignTokens.SemanticColors.workBackground)
+        #if DEBUG
+        .background {
+            if source.snapshot != nil {
+                NativeScreenObservationAnchorV1(identifier: Self.screenAccessibilityIdentifier)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+            }
+        }
+        #endif
         .navigationTitle("Work")
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .task { await source.refresh() }

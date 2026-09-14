@@ -121,6 +121,13 @@ struct PreflightView: View {
                             loadFailure
                         } else {
                             preflight
+                                #if DEBUG
+                                .background {
+                                    NativeScreenObservationAnchorV1(identifier: Self.screenAccessibilityIdentifier)
+                                        .frame(width: 0, height: 0)
+                                        .allowsHitTesting(false)
+                                }
+                                #endif
                         }
                     }
                     .padding(DesignTokens.Spacing.space16)

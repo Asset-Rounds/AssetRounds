@@ -139,6 +139,13 @@ struct ReportDetailView: View {
                     }
             }
             .padding(DesignTokens.Spacing.space16)
+            #if DEBUG
+            .background {
+                NativeScreenObservationAnchorV1(identifier: Self.screenAccessibilityIdentifier)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+            }
+            #endif
         }
         .id(state.selectedReportID)
         .navigationTitle("Report")

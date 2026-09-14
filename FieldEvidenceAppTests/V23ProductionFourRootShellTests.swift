@@ -234,42 +234,112 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
         visit(host, depth: 0)
     }
 
+    /// DEBUG host-unit observation of mounted content. This is deliberately
+    /// separate from the public accessibility-container traversal above.
     @MainActor
-    func navigationControllerPresentingDetail(
-        from controller: UIViewController
-    ) -> UINavigationController? {
-        if let navigation = controller as? UINavigationController,
-           navigation.viewControllers.contains(where: {
-               containsAccessibilityIdentifier(
-                   identifiedBy: ReportDetailView.screenAccessibilityIdentifier,
-                   in: $0.view
-               )
-           }) {
-            return navigation
+    func nativeScreenObservation(
+        _ identifier: String, from host: UIViewController
+    ) -> (found: Bool, navigation: UINavigationController?) {
+        #if DEBUG
+        guard host.isViewLoaded, let window = host.view.window, !window.isHidden else {
+            return (false, nil)
         }
-        for child in controller.children {
-            if let navigation = navigationControllerPresentingDetail(from: child) {
-                return navigation
+        var controllers = Set<ObjectIdentifier>()
+        var navigationOwners: [ObjectIdentifier: UINavigationController] = [:]
+        var presentedRoot: UIView?
+        @MainActor
+        func visibleControllers(_ controller: UIViewController,
+                                navigation: UINavigationController?, depth: Int) {
+            guard depth <= 64, controllers.count < 8192,
+                  controller.isViewLoaded else { return }
+            if let presented = controller.presentedViewController, !presented.isBeingDismissed {
+                if presented.isViewLoaded { presentedRoot = presented.view }
+                visibleControllers(presented, navigation: nil, depth: depth + 1)
+                return
+            }
+            let identity = ObjectIdentifier(controller)
+            guard controllers.insert(identity).inserted else { return }
+            let owner = (controller as? UINavigationController) ?? navigation
+            if let owner { navigationOwners[identity] = owner }
+            if let tabs = controller as? UITabBarController {
+                if let selected = tabs.selectedViewController {
+                    visibleControllers(selected, navigation: owner, depth: depth + 1)
+                }
+            } else if let stack = controller as? UINavigationController {
+                if let visible = stack.visibleViewController {
+                    visibleControllers(visible, navigation: stack, depth: depth + 1)
+                }
+            } else {
+                for child in controller.children.prefix(512) {
+                    visibleControllers(child, navigation: owner, depth: depth + 1)
+                }
             }
         }
-        return nil
+        visibleControllers(host, navigation: nil, depth: 0)
+        var seen = Set<ObjectIdentifier>()
+        @MainActor
+        func visit(_ view: UIView, depth: Int) -> (found: Bool, navigation: UINavigationController?) {
+            guard depth <= 64, seen.count < 8192,
+                  seen.insert(ObjectIdentifier(view)).inserted,
+                  view.window === window, !view.isHidden, view.alpha > 0 else { return (false, nil) }
+            if let controller = view.next as? UIViewController,
+               !controllers.contains(ObjectIdentifier(controller)) { return (false, nil) }
+            if let anchor = view as? NativeScreenObservationViewV1,
+               anchor.observationIdentifier == identifier {
+                var responder: UIResponder? = anchor
+                var responders = Set<ObjectIdentifier>()
+                while let current = responder, responders.count < 64,
+                      responders.insert(ObjectIdentifier(current)).inserted {
+                    if let controller = current as? UIViewController {
+                        let identity = ObjectIdentifier(controller)
+                        guard controllers.contains(identity) else { return (false, nil) }
+                        return (true, navigationOwners[identity])
+                    }
+                    responder = current.next
+                }
+            }
+            for child in view.subviews.prefix(512) {
+                let result = visit(child, depth: depth + 1)
+                if result.found { return result }
+            }
+            return (false, nil)
+        }
+        // A real presented controller can live beside the presenting host view.
+        // Only its public presentation ownership permits that alternate root.
+        let root = presentedRoot ?? host.view!
+        // Validate ancestors above a nested caller, too; no cross-window search.
+        var ancestor: UIView? = root.superview
+        var ancestors = Set<ObjectIdentifier>()
+        while let current = ancestor {
+            guard ancestors.count < 64, ancestors.insert(ObjectIdentifier(current)).inserted,
+                  !current.isHidden, current.alpha > 0, current.window === window else { return (false, nil) }
+            ancestor = current.superview
+        }
+        return visit(root, depth: 0)
+        #else
+        return (false, nil)
+        #endif
+    }
+
+    @MainActor
+    func waitForMountedScreen(_ identifier: String, from host: UIViewController) async -> Bool {
+        for _ in 0..<200 {
+            if nativeScreenObservation(identifier, from: host).found { return true }
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
+        return false
+    }
+
+    @MainActor
+    func navigationControllerPresentingDetail(from controller: UIViewController) -> UINavigationController? {
+        nativeScreenObservation(ReportDetailView.screenAccessibilityIdentifier, from: controller).navigation
     }
 
     @MainActor
     func navigationControllerPresenting(
-        accessibilityIdentifier: String,
-        from controller: UIViewController
+        accessibilityIdentifier: String, from controller: UIViewController
     ) -> UINavigationController? {
-        if let navigation = controller as? UINavigationController,
-           navigation.viewControllers.contains(where: {
-               containsAccessibilityIdentifier(identifiedBy: accessibilityIdentifier, in: $0.view)
-           }) { return navigation }
-        for child in controller.children {
-            if let navigation = navigationControllerPresenting(
-                accessibilityIdentifier: accessibilityIdentifier, from: child
-            ) { return navigation }
-        }
-        return nil
+        nativeScreenObservation(accessibilityIdentifier, from: controller).navigation
     }
 
     @MainActor
@@ -693,10 +763,9 @@ final class V23ProductionFourRootShellTests: V23ProductionFourRootShellTestSuppo
         host.view.layoutIfNeeded()
         let detailVisible = await Task { @MainActor in
             for _ in 0..<200 {
-                if self.containsAccessibilityIdentifier(
-                    identifiedBy: ReportDetailView.screenAccessibilityIdentifier,
-                    in: host.view
-                ) {
+                if self.nativeScreenObservation(
+                    ReportDetailView.screenAccessibilityIdentifier, from: host
+                ).found {
                     return true
                 }
                 try? await Task.sleep(nanoseconds: 25_000_000)
@@ -749,10 +818,9 @@ final class V23ProductionFourRootShellTests: V23ProductionFourRootShellTestSuppo
             return false
         }.value
         XCTAssertTrue(persistedBackPath, "Shell back navigation must clear the saved Reports path")
-        XCTAssertFalse(containsAccessibilityIdentifier(
-            identifiedBy: ReportDetailView.screenAccessibilityIdentifier,
-            in: host.view
-        ))
+        XCTAssertFalse(nativeScreenObservation(
+            ReportDetailView.screenAccessibilityIdentifier, from: host
+        ).found)
         let reopened = AppShellSceneStateV1(workspaceID: fixture.coordinator.workspaceID,
             access: sceneAccess, registry: try RouteRegistryV1())
         try reopened.restore()

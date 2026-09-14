@@ -53,6 +53,13 @@ struct RoundSessionView: View {
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
+            #if DEBUG
+            .background {
+                NativeScreenObservationAnchorV1(identifier: Self.screenAccessibilityIdentifier)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+            }
+            #endif
         }
         .navigationTitle(text(.heading))
         .navigationBarTitleDisplayMode(.inline)

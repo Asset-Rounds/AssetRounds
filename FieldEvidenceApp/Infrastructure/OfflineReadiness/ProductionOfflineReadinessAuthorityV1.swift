@@ -191,12 +191,27 @@ struct ProductionOfflineReadinessReadResultV1 {
         for session: RoundSessionV1,
         previous: OfflineReadinessManifestV1?
     ) async throws -> ProductionOfflineReadinessReadResultV1 {
+        #if DEBUG
+        var rebuildStage = "session-validation"
+        var rebuildCompleted = false
+        defer {
+            if !rebuildCompleted {
+                print("ProductionOfflineReadinessAuthorityV1.rebuildReadiness phase=\(rebuildStage) completed=false")
+            }
+        }
+        #endif
         try session.validateIntrinsic()
         guard session.workspaceID == workspaceID else {
             throw MyDayFailureV1.wrongWorkspace
         }
+        #if DEBUG
+        rebuildStage = "begin-content-read"
+        #endif
         let token = try await accessGate.beginContentRead(for: .render)
         try Task.checkCancellation()
+        #if DEBUG
+        rebuildStage = "initial-source"
+        #endif
         let current = try currentSession()
         let writerRevision = try current.workspaceWriter.currentRevision()
         let initial = try ProductionOfflineReadinessSourceClosureV1(
@@ -204,6 +219,9 @@ struct ProductionOfflineReadinessReadResultV1 {
             workspaceID: workspaceID
         )
         let initialSHA = try initial.sha256()
+        #if DEBUG
+        rebuildStage = "initial-frontier"
+        #endif
         guard let initialRound = try RoundSessionHistoryValidatorV1.validate(
             initial.rounds.filter { $0.sessionID == session.sessionID },
             workspaceID: workspaceID,
@@ -216,10 +234,16 @@ struct ProductionOfflineReadinessReadResultV1 {
             sessionReader: readback,
             authority: readback
         )
+        #if DEBUG
+        rebuildStage = "coordinator-rebuild"
+        #endif
         let manifest = try await coordinator.rebuild(
             sessionID: session.sessionID,
             previous: previous
         )
+        #if DEBUG
+        rebuildStage = "manifest-frontier"
+        #endif
         guard manifest.session == (try session.reference) else {
             throw OfflineReadinessPreflightCoordinatorFailureV1.frontierChangedDuringReadback
         }
@@ -233,17 +257,25 @@ struct ProductionOfflineReadinessReadResultV1 {
             reference: reference,
             assessment: .roundManifest(manifest)
         )
+        #if DEBUG
+        rebuildStage = "completion-publication"
+        #endif
         let completionRoot = try await validateCompletionsForPublication(
             [assessment],
             token: token
         )
         #if DEBUG
+        rebuildStage = "materialization-hook"
         if let afterRoundReadinessMaterializationForTesting {
             try await afterRoundReadinessMaterializationForTesting()
         }
+        rebuildStage = "final-content-read"
         #endif
         try await accessGate.validateContentRead(token, for: .render)
         try Task.checkCancellation()
+        #if DEBUG
+        rebuildStage = "final-source-frontier"
+        #endif
         let reread = try currentSession()
         guard try reread.workspaceWriter.currentRevision() == writerRevision,
               try ProductionOfflineReadinessSourceClosureV1(
@@ -252,10 +284,16 @@ struct ProductionOfflineReadinessReadResultV1 {
               ).sha256() == initialSHA else {
             throw MyDaySourceReadFailureV1.sourcesChanged
         }
+        #if DEBUG
+        rebuildStage = "storage-publication"
+        #endif
         try validateStorageForPublication(
             [assessment],
             expectedGenerationRootIdentity: completionRoot
         )
+        #if DEBUG
+        rebuildCompleted = true
+        #endif
         return .init(
             manifest: manifest,
             publicationEvidence: .init(
@@ -552,6 +590,9 @@ struct ProductionOfflineReadinessReadResultV1 {
             }
         }
         guard try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL) == rootIdentity else {
+            #if DEBUG
+            print("ProductionOfflineReadinessAuthorityV1.publication phase=completion-root rootComparisonPassed=false")
+            #endif
             throw MyDaySourceReadFailureV1.sourcesChanged
         }
         return rootIdentity
@@ -569,11 +610,19 @@ struct ProductionOfflineReadinessReadResultV1 {
         guard !manifests.isEmpty else { return }
         guard let expectedGenerationRootIdentity,
               try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL) == expectedGenerationRootIdentity else {
+            #if DEBUG
+            print("ProductionOfflineReadinessAuthorityV1.publication phase=storage-root expectedRootPresent=\(expectedGenerationRootIdentity != nil) rootComparisonPassed=false")
+            #endif
             throw MyDaySourceReadFailureV1.sourcesChanged
         }
         let current = try ledger.observeOfflineReadiness(expectedApplicationSupportURL: applicationSupportURL)
         let protected = UIApplication.shared.isProtectedDataAvailable
         guard manifests.allSatisfy({ $0.storage == current && $0.protectedDataAvailable == protected }) else {
+            #if DEBUG
+            let storageMatches = manifests.allSatisfy { $0.storage == current }
+            let protectedDataMatches = manifests.allSatisfy { $0.protectedDataAvailable == protected }
+            print("ProductionOfflineReadinessAuthorityV1.publication phase=storage-protected-data storageMatches=\(storageMatches) protectedDataMatches=\(protectedDataMatches)")
+            #endif
             throw MyDaySourceReadFailureV1.sourcesChanged
         }
         let now = clock.now()
@@ -581,11 +630,23 @@ struct ProductionOfflineReadinessReadResultV1 {
         for manifest in manifests {
             guard now.timeIntervalSinceReferenceDate.isFinite, now >= manifest.checkedAt,
                   manifest.timeZoneIdentifier == TimeZone.current.identifier else {
+                #if DEBUG
+                let finiteNow = now.timeIntervalSinceReferenceDate.isFinite
+                let notBeforeCheckedAt = now >= manifest.checkedAt
+                let timeZoneComparisonFailed = finiteNow && notBeforeCheckedAt
+                print("ProductionOfflineReadinessAuthorityV1.publication phase=clock-time-zone finiteNow=\(finiteNow) notBeforeCheckedAt=\(notBeforeCheckedAt) timeZoneComparisonFailed=\(timeZoneComparisonFailed)")
+                #endif
                 throw MyDaySourceReadFailureV1.sourcesChanged
             }
             for observation in manifest.referenceObservations where observation.availability == .readyOffline {
                 guard let release = sources.releases.first(where: { $0.releaseID == observation.releaseID }),
                       release.expiresAt.map({ $0 > now }) ?? true else {
+                    #if DEBUG
+                    let observedRelease = sources.releases.first { $0.releaseID == observation.releaseID }
+                    let releasePresent = observedRelease != nil
+                    let unexpired = observedRelease.map { $0.expiresAt.map { $0 > now } ?? true } ?? false
+                    print("ProductionOfflineReadinessAuthorityV1.publication phase=reference-expiry releasePresent=\(releasePresent) unexpired=\(unexpired)")
+                    #endif
                     throw MyDaySourceReadFailureV1.sourcesChanged
                 }
             }

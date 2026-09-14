@@ -6,6 +6,12 @@ import UIKit
 import XCTest
 @testable import FieldEvidenceApp
 
+#if DEBUG
+private enum V23RoundReadinessTestFailure: Error {
+    case beforeFinalRead
+}
+#endif
+
 final class V23ProductionRoundReadinessTests: V23ProductionFourRootShellTestSupport {
     @MainActor
     func testActualRoundRoutesReadEveryWriterFrontierWithoutStartingOrResuming() async throws {
@@ -69,6 +75,11 @@ final class V23ProductionRoundReadinessTests: V23ProductionFourRootShellTestSupp
         try context.work.scene.open(target)
         let state = ProductionRoundSessionPresentationV1(target: target,
             scene: context.work.scene, access: context.access)
+        defer {
+            state.afterReadinessReadForTesting = nil
+            context.access.setAfterRoundReadinessMaterializationForTesting(nil)
+            context.access.setAfterRoundSessionSourceObservationForTesting(nil)
+        }
         await state.refresh()
         XCTAssertEqual(state.session, context.round)
         let before = try context.work.store.workspaceWriter.currentRevision()
@@ -84,6 +95,7 @@ final class V23ProductionRoundReadinessTests: V23ProductionFourRootShellTestSupp
             advanced = try context.successor(of: context.round, state: .active, transition: .start)
         }
         await state.refresh()
+        context.access.setAfterRoundSessionSourceObservationForTesting(nil)
         XCTAssertNil(state.session)
         XCTAssertTrue(state.couldNotLoad)
         let current = try XCTUnwrap(advanced)
@@ -100,33 +112,50 @@ final class V23ProductionRoundReadinessTests: V23ProductionFourRootShellTestSupp
             )), mutationID: MutationIDV1(rawValue: UUID()))
         }
         await state.rebuildReadiness()
+        context.access.setAfterRoundReadinessMaterializationForTesting(nil)
         XCTAssertNil(state.readiness)
         XCTAssertTrue(state.couldNotRebuild)
         let afterSiteChange = try context.work.store.workspaceWriter.currentRevision()
         await state.rebuildReadiness()
-        XCTAssertEqual(state.readiness?.session, try current.reference)
-        XCTAssertFalse(state.couldNotRebuild)
+        XCTAssertEqual(state.readiness?.session, try current.reference,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
+        XCTAssertFalse(state.couldNotRebuild,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
         XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterSiteChange)
 
+        var finalHookCalls = 0
         state.afterReadinessReadForTesting = {
+            finalHookCalls += 1
             state.afterReadinessReadForTesting = nil
             _ = try context.work.store.workspaceWriter.execute(.updateSiteTimeZone(.init(
                 siteID: context.work.sign.siteID, timeZoneID: "America/Denver", confirmedAt: Date()
             )), mutationID: MutationIDV1(rawValue: UUID()))
         }
         await state.rebuildReadiness()
+        state.afterReadinessReadForTesting = nil
+        XCTAssertEqual(finalHookCalls, 1,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
         XCTAssertNil(state.readiness)
         XCTAssertTrue(state.couldNotRebuild)
         XCTAssertEqual(state.session, current)
         let afterFinalSiteChange = try context.work.store.workspaceWriter.currentRevision()
         XCTAssertGreaterThan(afterFinalSiteChange.revision, afterSiteChange.revision)
         await state.rebuildReadiness()
-        XCTAssertEqual(state.readiness?.session, try current.reference)
-        XCTAssertFalse(state.couldNotRebuild)
+        XCTAssertEqual(finalHookCalls, 1)
+        XCTAssertEqual(state.readiness?.session, try current.reference,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
+        XCTAssertFalse(state.couldNotRebuild,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
         XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterFinalSiteChange)
 
-        state.afterReadinessReadForTesting = { fixture.presentation.receive(.sceneInactive) }
+        state.afterReadinessReadForTesting = {
+            finalHookCalls += 1
+            fixture.presentation.receive(.sceneInactive)
+        }
         await state.rebuildReadiness()
+        state.afterReadinessReadForTesting = nil
+        XCTAssertEqual(finalHookCalls, 2,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
         XCTAssertNil(state.readiness)
         XCTAssertTrue(state.couldNotRebuild)
         XCTAssertNil(fixture.presentation.roundAccess)
@@ -135,6 +164,72 @@ final class V23ProductionRoundReadinessTests: V23ProductionFourRootShellTestSupp
         XCTAssertFalse(context.work.store.modelContext.hasChanges)
         #else
         throw XCTSkip("Actual round source/publication fence observation is DEBUG-only")
+        #endif
+    }
+
+    @MainActor
+    func testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation() async throws {
+        #if DEBUG
+        let fixture = try await makeFixture("round-pre-final-hook-rejection")
+        defer { fixture.cleanUp() }
+        let context = try await V23RoundRouteHarness.make(in: fixture, label: "pre-final-hook")
+        let target = try context.target(for: context.round)
+        try context.work.scene.open(target)
+        let state = ProductionRoundSessionPresentationV1(target: target,
+            scene: context.work.scene, access: context.access)
+        defer {
+            state.afterReadinessReadForTesting = nil
+            context.access.setAfterRoundReadinessMaterializationForTesting(nil)
+        }
+        await state.refresh()
+        XCTAssertEqual(state.session, context.round)
+        let before = try context.work.store.workspaceWriter.currentRevision()
+        var materializationHookCalls = 0
+        var rejectedFinalHookCalls = 0
+        context.access.setAfterRoundReadinessMaterializationForTesting {
+            materializationHookCalls += 1
+            throw V23RoundReadinessTestFailure.beforeFinalRead
+        }
+        state.afterReadinessReadForTesting = {
+            rejectedFinalHookCalls += 1
+            _ = try context.work.store.workspaceWriter.execute(.updateSiteTimeZone(.init(
+                siteID: context.work.sign.siteID, timeZoneID: "America/Denver", confirmedAt: Date()
+            )), mutationID: MutationIDV1(rawValue: UUID()))
+        }
+        await state.rebuildReadiness()
+        state.afterReadinessReadForTesting = nil
+        context.access.setAfterRoundReadinessMaterializationForTesting(nil)
+        XCTAssertEqual(materializationHookCalls, 1)
+        XCTAssertEqual(rejectedFinalHookCalls, 0)
+        XCTAssertNil(state.readiness)
+        XCTAssertTrue(state.couldNotRebuild)
+        XCTAssertEqual(state.session, context.round)
+        XCTAssertFalse(state.couldNotLoad)
+        XCTAssertFalse(state.isRebuilding)
+        let rejection = try XCTUnwrap(state.lastReadinessFailureForTesting)
+        XCTAssertEqual(rejection.stage, "readiness-read")
+        XCTAssertEqual(rejection.errorType, String(reflecting: V23RoundReadinessTestFailure.self))
+        XCTAssertEqual(rejection.errorCode, (V23RoundReadinessTestFailure.beforeFinalRead as NSError).code)
+        XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), before)
+        XCTAssertFalse(context.work.store.modelContext.hasChanges)
+
+        var successfulFinalHookCalls = 0
+        state.afterReadinessReadForTesting = { successfulFinalHookCalls += 1 }
+        await state.rebuildReadiness()
+        state.afterReadinessReadForTesting = nil
+        XCTAssertEqual(successfulFinalHookCalls, 1,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
+        XCTAssertEqual(rejectedFinalHookCalls, 0)
+        XCTAssertEqual(materializationHookCalls, 1)
+        XCTAssertEqual(state.readiness?.session, try context.round.reference,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
+        XCTAssertFalse(state.couldNotRebuild)
+        XCTAssertNil(state.lastReadinessFailureForTesting)
+        XCTAssertEqual(state.session, context.round)
+        XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), before)
+        XCTAssertFalse(context.work.store.modelContext.hasChanges)
+        #else
+        throw XCTSkip("Readiness rejection observations and hooks are DEBUG-only")
         #endif
     }
 
@@ -148,27 +243,38 @@ final class V23ProductionRoundReadinessTests: V23ProductionFourRootShellTestSupp
         try context.work.scene.open(target)
         let state = ProductionRoundSessionPresentationV1(target: target,
             scene: context.work.scene, access: context.access)
+        defer {
+            state.afterSessionReadForTesting = nil
+            state.afterReadinessReadForTesting = nil
+        }
         var current = context.round
         state.afterSessionReadForTesting = {
             state.afterSessionReadForTesting = nil
             current = try context.successor(of: current, state: .active, transition: .start)
         }
         await state.refresh()
+        state.afterSessionReadForTesting = nil
         XCTAssertNil(state.session)
         XCTAssertTrue(state.couldNotLoad)
         await state.refresh()
         XCTAssertEqual(state.session, current)
+        var finalHookCalls = 0
         state.afterReadinessReadForTesting = {
+            finalHookCalls += 1
             state.afterReadinessReadForTesting = nil
             current = try context.successor(of: current, state: .paused, transition: .pause)
         }
         await state.rebuildReadiness()
+        state.afterReadinessReadForTesting = nil
+        XCTAssertEqual(finalHookCalls, 1,
+            state.lastReadinessFailureForTesting?.summary ?? "no captured rebuild failure")
         XCTAssertNil(state.readiness)
         XCTAssertNil(state.session)
         XCTAssertTrue(state.couldNotRebuild)
         let beforeFreshRead = try context.work.store.workspaceWriter.currentRevision()
         await state.refresh()
         await state.rebuildReadiness()
+        XCTAssertEqual(finalHookCalls, 1)
         XCTAssertEqual(state.session, current)
         XCTAssertEqual(state.readiness?.session, try current.reference)
         XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), beforeFreshRead)
@@ -219,8 +325,7 @@ final class V23ProductionRoundReadinessTests: V23ProductionFourRootShellTestSupp
         defer { window.isHidden = true; window.rootViewController = nil; previousKeyWindow?.makeKeyAndVisible() }
         host.view.layoutIfNeeded()
         await fulfillment(of: [bound], timeout: 20)
-        let visible = await waitForAccessibilityIdentifier(RoundSessionView.screenAccessibilityIdentifier,
-            in: host.view)
+        let visible = await waitForMountedScreen(RoundSessionView.screenAccessibilityIdentifier, from: host)
         XCTAssertTrue(visible)
         let scene = try XCTUnwrap(actualScene)
         XCTAssertEqual(scene.snapshot?.path(for: .work)?.targets, [target])

@@ -52,6 +52,14 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
     private var orderingSceneSnapshot: SceneNavigationSnapshotV1?
 
     #if DEBUG
+    struct ReadinessFailureObservationForTesting: Equatable {
+        let stage: String
+        let errorType: String
+        let errorCode: Int
+
+        var summary: String { "stage=\(stage) type=\(errorType) code=\(errorCode)" }
+    }
+    private(set) var lastReadinessFailureForTesting: ReadinessFailureObservationForTesting?
     var afterSessionReadForTesting: (@MainActor () throws -> Void)?
     var afterReadinessReadForTesting: (@MainActor () throws -> Void)?
     static var didCreateForTesting: (@MainActor (ProductionRoundSessionPresentationV1) -> Void)?
@@ -415,21 +423,44 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
         couldNotRebuild = false
         isRebuilding = true
         defer { if operationID == request { isRebuilding = false } }
+        #if DEBUG
+        lastReadinessFailureForTesting = nil
+        var readinessStage = "scene-before-read"
+        #endif
         do {
             try validateScene()
+            #if DEBUG
+            readinessStage = "readiness-read"
+            #endif
             let read = try await access.rebuildReadiness(for: displayed, previous: previous)
             #if DEBUG
+            readinessStage = "final-read-hook"
             try afterReadinessReadForTesting?()
             #endif
             guard operationID == request else { return }
+            #if DEBUG
+            readinessStage = "scene-before-publication"
+            #endif
             try validateScene()
+            #if DEBUG
+            readinessStage = "session-manifest-binding"
+            #endif
             guard session == displayed, read.manifest.session == (try displayed.reference) else {
                 throw AppAccessContractFailureV1.accessDenied
             }
+            #if DEBUG
+            readinessStage = "readiness-publication-fence"
+            #endif
             try access.validateReadinessForPublication(read)
             readiness = read.manifest
         } catch {
             guard operationID == request else { return }
+            #if DEBUG
+            let observation = ReadinessFailureObservationForTesting(stage: readinessStage,
+                errorType: String(reflecting: type(of: error)), errorCode: (error as NSError).code)
+            lastReadinessFailureForTesting = observation
+            print("ProductionRoundSessionPresentationV1.rebuildReadiness \(observation.summary)")
+            #endif
             readiness = nil
             couldNotRebuild = true
             do {

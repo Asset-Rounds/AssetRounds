@@ -111,7 +111,7 @@ final class V23ScheduleReplacementCommandProjectionTests: XCTestCase {
             switch sourceEvent.workInstance {
             case let .workPacket(reference):
                 let manifest = try corpus.workProjection.targetManifest(for: reference)
-                XCTAssertEqual(target.workInstance, .workPacket(try manifest.reference))
+                XCTAssertEqual(target.workInstance, .workPacket(try WorkPacketManifestReferenceV1(manifest)))
             case let .roundSession(id, revision, digest):
                 let session = try corpus.roundProjection.targetSession(for: .init(
                     workspaceID: corpus.sourceWorkspace, sessionID: id,
@@ -776,6 +776,7 @@ private enum ScheduleReplacementFixture {
         let manifestMutation = try workPacket(workspaceID: sourceWorkspace)
         let manifest: WorkPacketManifestV1
         guard case let .appendManifest(value) = manifestMutation.postImage else { fatalError() }
+        manifest = value
         let roundMutation = try round(workspaceID: sourceWorkspace, package: package)
         let round = roundMutation.session
         let calendar1 = try calendar(workspaceID: sourceWorkspace, revision: 1)
@@ -801,12 +802,12 @@ private enum ScheduleReplacementFixture {
         let startedWork = try event(
             slot: 101, release: release1, occurrenceID: occurrence1,
             basis: basis1, action: .start, predecessor: generated1,
-            work: .workPacket(try manifest.reference)
+            work: .workPacket(try WorkPacketManifestReferenceV1(manifest))
         )
         let completed = try event(
             slot: 102, release: release1, occurrenceID: occurrence1,
             basis: basis1, action: .complete, predecessor: startedWork,
-            work: .workPacket(try manifest.reference), completedAt: now.addingTimeInterval(500)
+            work: .workPacket(try WorkPacketManifestReferenceV1(manifest)), completedAt: now.addingTimeInterval(500)
         )
         let completionSHA = unknownCompletion ? digest("f") : completed.eventSHA256
         let basis2 = try basis("2027-06-02", release: release2)

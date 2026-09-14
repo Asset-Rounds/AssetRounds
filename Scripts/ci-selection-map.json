@@ -168,9 +168,10 @@
         "V23ProductionFourRootShellTests",
         "V23ProductionMyDayCommitTests",
         "V23MyDayPlanningEditorTests",
-        "V23SearchReconciliationTests"
+        "V23SearchReconciliationTests",
+        "V23NativeScreenObservationTests"
       ],
-      "methodCount": 20
+      "methodCount": 24
     },
     {
       "id": "mutation-command-codec",
@@ -192,7 +193,7 @@
       "classes": [
         "V23ProductionRoundReadinessTests"
       ],
-      "methodCount": 5
+      "methodCount": 6
     },
     {
       "id": "round-draft-ordering",
