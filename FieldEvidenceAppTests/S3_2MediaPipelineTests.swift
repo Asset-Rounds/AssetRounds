@@ -166,8 +166,13 @@ final class S3_2MediaPipelineTests: XCTestCase {
     }
 
     func testTamperedStagingBundleWithExtraFileFailsPromotionClosed() async throws {
-        let generationRoot = try makeTemporaryDirectory()
-        defer { try? fileManager.removeItem(at: generationRoot) }
+        let applicationSupport = try makeTemporaryDirectory().resolvingSymlinksInPath()
+        defer { try? fileManager.removeItem(at: applicationSupport) }
+        let generationRoot = applicationSupport.appendingPathComponent(
+            "FieldEvidenceData/generations/\(UUID().uuidString.lowercased())",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: generationRoot, withIntermediateDirectories: true)
         let normalized = try MediaNormalizerV1().normalize(
             makePNG(width: 320, height: 180, seed: 41)
         )
@@ -255,8 +260,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
 
     @MainActor
     func testWideCloseAcceptanceAndRetakePersistExactRowsStepsAndBundlesAcrossReopen() async throws {
-        let applicationSupport = try makeTemporaryDirectory()
-        defer { try? fileManager.removeItem(at: applicationSupport) }
+        let applicationSupport = try makeTemporaryDirectory().resolvingSymlinksInPath()
         let factory = StoreGenerationFactory(applicationSupportURL: applicationSupport)
         let pack = SignPack.illuminatedSignV1
         let observedAt = Date(timeIntervalSince1970: 1_768_438_923)
@@ -271,27 +275,49 @@ final class S3_2MediaPipelineTests: XCTestCase {
         var expectedWideOriginal = Data()
         var expectedWideThumbnail = Data()
 
+        var phase = "bootstrap"
+        do {
         do {
             let session = try factory.openOrBootstrapCurrent()
+            registerMediaSessionCleanup(root: applicationSupport, session: session)
             let context = session.modelContext
-            let site = Site(label: "North Campus", timeZoneID: "America/New_York")
-            let asset = Asset(
-                siteID: site.id,
-                packID: pack.packID,
-                packSchemaVersion: pack.schemaVersion,
-                packContentVersion: pack.contentVersion,
-                label: "Monument Sign"
+            phase = "writer-create"
+            let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
+            defer {
+                do { try storeCoordinator.invalidateAndReleaseWriter() }
+                catch { XCTFail("Media fixture writer release failed: \(error)") }
+            }
+            let siteID = UUID()
+            assetID = UUID()
+            let placementMutationID = try MutationIDV1(rawValue: UUID())
+            phase = "first-sign"
+            _ = try storeCoordinator.workspaceWriter.execute(
+                .createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(id: siteID, label: "North Campus", address: nil,
+                                   timeZoneID: "America/New_York"),
+                    assetID: assetID,
+                    assetLabel: "Monument Sign",
+                    packID: pack.packID,
+                    packSchemaVersion: pack.schemaVersion,
+                    packContentVersion: pack.contentVersion,
+                    createdAt: observedAt.addingTimeInterval(-100),
+                    initialPlacementMutationID: placementMutationID,
+                    initialPlacementEventID: UUID(),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+                )),
+                mutationID: placementMutationID
             )
-            context.insert(site)
-            context.insert(asset)
-            try context.save()
-            assetID = asset.id
-
-            let coordinator = CheckRunnerCoordinator(
+            let asset = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID })
+            phase = "runner-create"
+            let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+            let coordinator = try CheckRunnerCoordinator(
                 modelContext: context,
-                signPack: pack
+                packageLifecycleDependencies: storeCoordinator.packageLifecycleDependencies(),
+                packageLifecycleProfile: profile
             )
             coordinator.configureCapture(generationRootURL: session.generationRootURL)
+            phase = "begin-check"
             let draft = try coordinator.beginCheck(
                 assetID: asset.id,
                 timeZoneID: nil,
@@ -302,6 +328,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
             )
             draftID = draft.id
 
+            phase = "wide-import"
             let wideCandidate = try await coordinator.importCandidate(
                 assetID: asset.id,
                 sourceData: wideSource,
@@ -314,6 +341,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
                 wideCandidate.stagedBundle,
                 generationRoot: session.generationRootURL
             )
+            phase = "wide-accept"
             let wideEvidence = try await coordinator.accept(
                 candidate: wideCandidate,
                 assetID: asset.id
@@ -337,6 +365,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
             expectedWideOriginal = try Data(contentsOf: wideOriginalURL)
             expectedWideThumbnail = try Data(contentsOf: wideThumbnailURL)
 
+            phase = "retake-import"
             let rejectedClose = try await coordinator.importCandidate(
                 assetID: asset.id,
                 sourceData: closeSource,
@@ -347,6 +376,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
                 isDirectory: true
             )
             XCTAssertTrue(fileManager.fileExists(atPath: rejectedStagingURL.path))
+            phase = "retake"
             try await coordinator.retake(candidate: rejectedClose)
             XCTAssertFalse(fileManager.fileExists(atPath: rejectedStagingURL.path))
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<EvidenceFile>()), 1)
@@ -354,6 +384,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: wideOriginalURL), expectedWideOriginal)
             XCTAssertEqual(try Data(contentsOf: wideThumbnailURL), expectedWideThumbnail)
 
+            phase = "close-import"
             let closeCandidate = try await coordinator.importCandidate(
                 assetID: asset.id,
                 sourceData: closeSource,
@@ -365,6 +396,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
                 closeCandidate.stagedBundle,
                 generationRoot: session.generationRootURL
             )
+            phase = "close-accept"
             let closeEvidence = try await coordinator.accept(
                 candidate: closeCandidate,
                 assetID: asset.id
@@ -384,7 +416,14 @@ final class S3_2MediaPipelineTests: XCTestCase {
         }
 
         do {
+            phase = "cold-reopen"
             let reopenedSession = try factory.openOrBootstrapCurrent()
+            registerMediaSessionCleanup(root: applicationSupport, session: reopenedSession)
+            let reopenedStoreCoordinator = try StoreSessionCoordinator(validatingSession: reopenedSession)
+            defer {
+                do { try reopenedStoreCoordinator.invalidateAndReleaseWriter() }
+                catch { XCTFail("Media reopened fixture writer release failed: \(error)") }
+            }
             let reopenedContext = reopenedSession.modelContext
             let reopenedDraft = try XCTUnwrap(
                 reopenedContext.fetch(FetchDescriptor<WorkflowRecord>()).first
@@ -421,6 +460,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
             XCTAssertEqual(
                 try coordinatorPreparation(
                     context: reopenedContext,
+                    storeCoordinator: reopenedStoreCoordinator,
                     pack: pack,
                     generationRoot: reopenedSession.generationRootURL,
                     assetID: assetID
@@ -429,18 +469,40 @@ final class S3_2MediaPipelineTests: XCTestCase {
             )
             withExtendedLifetime(reopenedSession) {}
         }
+        } catch {
+            FileHandle.standardError.write(Data("S3_2 media fixture failure phase=\(phase) type=\(String(reflecting: type(of: error))) error=\(error)\n".utf8))
+            throw error
+        }
     }
 
     @MainActor
     private func coordinatorPreparation(
         context: ModelContext,
+        storeCoordinator: StoreSessionCoordinator,
         pack: SignPack,
         generationRoot: URL,
         assetID: UUID
     ) throws -> CapturePreparation {
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let coordinator = try CheckRunnerCoordinator(
+            modelContext: context,
+            packageLifecycleDependencies: storeCoordinator.packageLifecycleDependencies(),
+            packageLifecycleProfile: profile
+        )
         coordinator.configureCapture(generationRootURL: generationRoot)
         return try coordinator.prepareCapture(assetID: assetID)
+    }
+
+    @MainActor
+    private func registerMediaSessionCleanup(root: URL, session: StoreGenerationSession) {
+        addTeardownBlock { [weak session = session, root] in
+            guard session == nil else {
+                XCTFail("Media fixture cleanup requires the store session graph to be released")
+                return
+            }
+            guard FileManager.default.fileExists(atPath: root.path) else { return }
+            try FileManager.default.removeItem(at: root)
+        }
     }
 
     private func assertStagedOnly(

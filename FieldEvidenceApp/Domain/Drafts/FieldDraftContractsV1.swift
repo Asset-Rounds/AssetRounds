@@ -129,6 +129,55 @@ struct AttachmentStagingItemV1:Codable,Equatable,Hashable,Sendable{
     private struct Basis:Codable{let schemaVersion:Int;let stageID:UUID;let draftID:UUID;let workspaceID:WorkspaceID;let attachmentKind:DraftAttachmentKindV1;let scratchLeaseID:UUID;let expectedByteCount:Int64;let actualByteCount:Int64?;let contentDigest:ContentDigestV1?;let contentReference:ContentReferenceV1?;let processingJobID:UUID?;let retryClass:DraftStageRetryClassV1;let protectionState:DraftProtectionStateV1;let state:AttachmentStagingStateV1;let revision:UInt64;let mutationID:MutationIDV1}
 }
 
+/// Publishes one new ready stage and its checkpoint association as one
+/// existing-writer transaction. The enclosing journal owns the new receipt;
+/// its digest must never be embedded in this command's checkpoint payload.
+struct FieldDraftStagePublicationBundleV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let expectedCheckpoint: FieldDraftCheckpointV1
+    let readyItem: AttachmentStagingItemV1
+    let successorCheckpoint: FieldDraftCheckpointV1
+
+    init(expectedCheckpoint: FieldDraftCheckpointV1, readyItem: AttachmentStagingItemV1,
+         successorCheckpoint: FieldDraftCheckpointV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.expectedCheckpoint = expectedCheckpoint
+        self.readyItem = readyItem
+        self.successorCheckpoint = successorCheckpoint
+        try validate()
+    }
+
+    var workspaceID: WorkspaceID { expectedCheckpoint.workspaceID }
+    var mutationID: MutationIDV1 { successorCheckpoint.mutationID }
+
+    func validate() throws {
+        try expectedCheckpoint.validate()
+        try readyItem.validate()
+        try successorCheckpoint.validateSuccessor(
+            of: expectedCheckpoint,
+            expectedDraftRevision: expectedCheckpoint.draftRevision,
+            expectedBaseRevision: expectedCheckpoint.baseCanonicalRevision
+        )
+        let stageIDs = (expectedCheckpoint.stageIDs + [readyItem.stageID]).sorted {
+            $0.uuidString < $1.uuidString
+        }
+        guard schemaVersion == Self.schemaVersion,
+              expectedCheckpoint.state == .active, successorCheckpoint.state == .active,
+              readyItem.state == .readyLocal, readyItem.revision == 1,
+              readyItem.workspaceID == workspaceID,
+              readyItem.draftID == expectedCheckpoint.draftID,
+              readyItem.mutationID == mutationID,
+              !expectedCheckpoint.stageIDs.contains(readyItem.stageID),
+              successorCheckpoint.stageIDs == stageIDs,
+              successorCheckpoint.resumeAnchor == expectedCheckpoint.resumeAnchor,
+              successorCheckpoint.lastDurableMutationID == expectedCheckpoint.lastDurableMutationID,
+              successorCheckpoint.lastReceiptSHA256 == expectedCheckpoint.lastReceiptSHA256 else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+    }
+}
+
 enum DraftConflictResolutionPlanV1:String,CaseIterable,Codable,Hashable,Sendable{case reviewAndRebase="REVIEW_AND_REBASE",commitAsCopy="COMMIT_AS_COPY",continueEditing="CONTINUE_EDITING",discard="DISCARD"}
 
 enum ReviewedMyDayTargetBasisV1: Codable, Equatable, Sendable {

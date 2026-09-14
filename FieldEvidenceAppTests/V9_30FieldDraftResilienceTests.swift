@@ -208,6 +208,10 @@ private actor C36PromotionMapProbeV1: DraftContentPromotionPortV1 {
 
 @MainActor
 private final class C36TerminalWriterProbeV1: FieldDraftWritingV1 {
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1 {
+        throw FieldDraftFailureV1.invalidValue
+    }
+
     private(set) var commitApplyCount = 0
     private(set) var discardApplyCount = 0
     private(set) var lastCommitBundle: DraftCommitTerminalBundleV1?

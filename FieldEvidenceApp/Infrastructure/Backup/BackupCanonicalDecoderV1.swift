@@ -217,56 +217,195 @@ struct BackupCanonicalDecoderV1: Sendable {
 
     func decodeRecords(_ data: Data) throws -> V4BackupRecordsV1 {
         try C34SceneNavigationBackupDecoderBoundaryV1.validate()
+#if DEBUG
+        var recordsDecodePhase = "raw-records-decode"
+#endif
         do {
             let value = try decoder().decode(V4BackupRecordsV1.self, from: data)
+#if DEBUG
+            recordsDecodePhase = "validatePartyAccountability"
+#endif
             try Self.validatePartyAccountability(value)
+#if DEBUG
+            recordsDecodePhase = "validateAssetSemantics"
+#endif
             try Self.validateAssetSemantics(value)
+#if DEBUG
+            recordsDecodePhase = "validateAuthorityCriterion"
+#endif
             try Self.validateAuthorityCriterion(value)
+#if DEBUG
+            recordsDecodePhase = "validateFunctionalRelationships"
+#endif
             try Self.validateFunctionalRelationships(value)
+#if DEBUG
+            recordsDecodePhase = "validateEvidenceAssurance"
+#endif
             try Self.validateEvidenceAssurance(value)
+#if DEBUG
+            recordsDecodePhase = "validateInspectionReview"
+#endif
             try Self.validateInspectionReview(value)
+#if DEBUG
+            recordsDecodePhase = "validateWorkPackets"
+#endif
             try Self.validateWorkPackets(value)
+#if DEBUG
+            recordsDecodePhase = "validateFieldDrafts"
+#endif
             try Self.validateFieldDrafts(value)
+#if DEBUG
+            recordsDecodePhase = "validatePackageEvolution"
+#endif
             try Self.validatePackageEvolution(value)
+#if DEBUG
+            recordsDecodePhase = "validateMeasurementIntegrity"
+#endif
             try Self.validateMeasurementIntegrity(value)
+#if DEBUG
+            recordsDecodePhase = "validatePrivacyTransforms"
+#endif
             try Self.validatePrivacyTransforms(value)
+#if DEBUG
+            recordsDecodePhase = "validateClientCapabilities"
+#endif
             try Self.validateClientCapabilities(value)
+#if DEBUG
+            recordsDecodePhase = "validateRecoverabilityReceipts"
+#endif
             try Self.validateRecoverabilityReceipts(value)
+#if DEBUG
+            recordsDecodePhase = "validateFieldReferences"
+#endif
             try Self.validateFieldReferences(value)
+#if DEBUG
+            recordsDecodePhase = "validateAccessibleDocumentAssessments"
+#endif
             try Self.validateAccessibleDocumentAssessments(value)
+#if DEBUG
+            recordsDecodePhase = "validateSurveyDefinitions"
+#endif
             try Self.validateSurveyDefinitions(value)
+#if DEBUG
+            recordsDecodePhase = "validateGuidedSurveys"
+#endif
             try Self.validateGuidedSurveys(value)
+#if DEBUG
+            recordsDecodePhase = "validateAssetLocators"
+#endif
             try Self.validateAssetLocators(value)
+#if DEBUG
+            recordsDecodePhase = "validateSchedules"
+#endif
             try Self.validateSchedules(value)
+#if DEBUG
+            recordsDecodePhase = "validatePlans"
+#endif
             try Self.validatePlans(value)
+#if DEBUG
+            recordsDecodePhase = "validatePlacementPoses"
+#endif
             try Self.validatePlacementPoses(value)
+#if DEBUG
+            recordsDecodePhase = "validateC30EvidenceContext"
+#endif
             try Self.validateC30EvidenceContext(value)
+#if DEBUG
+            recordsDecodePhase = "validateC31Lighting"
+#endif
             try Self.validateC31Lighting(value)
+#if DEBUG
+            recordsDecodePhase = "validateC32AssistanceAcceptanceReceipts"
+#endif
             try Self.validateC32AssistanceAcceptanceReceipts(value)
+#if DEBUG
+            recordsDecodePhase = "validateC33TemporalEvidence"
+#endif
             try Self.validateC33TemporalEvidence(value)
+#if DEBUG
+            recordsDecodePhase = "validateC45AcceptedLabelSnapshots"
+#endif
             try Self.validateC45AcceptedLabelSnapshots(value)
+#if DEBUG
+            recordsDecodePhase = "validateC46OperationalContacts"
+#endif
             try Self.validateC46OperationalContacts(value)
+#if DEBUG
+             recordsDecodePhase = "validateC47ActivityContracts"
+#endif
              try Self.validateC47ActivityContracts(value)
+#if DEBUG
+             recordsDecodePhase = "validateC49WorkResources"
+#endif
              try Self.validateC49WorkResources(value)
+#if DEBUG
+             recordsDecodePhase = "validateC52ServiceRequests"
+#endif
              try Self.validateC52ServiceRequests(value)
+#if DEBUG
+             recordsDecodePhase = "validateC53ServiceReliability"
+#endif
              try Self.validateC53ServiceReliability(value)
+#if DEBUG
+              recordsDecodePhase = "validateC55PartsStock"
+#endif
               try Self.validateC55PartsStock(value)
+#if DEBUG
+              recordsDecodePhase = "validateC57MyDay"
+#endif
               try Self.validateC57MyDay(value)
+#if DEBUG
+              recordsDecodePhase = "validateC05EvidenceMetadata"
+#endif
               try Self.validateC05EvidenceMetadata(value)
+#if DEBUG
+              recordsDecodePhase = "validateC04ShopReportProfiles"
+#endif
               try Self.validateC04ShopReportProfiles(value)
+#if DEBUG
+              recordsDecodePhase = "validateC05RoundSessions"
+#endif
               try Self.validateC05RoundSessions(value)
+#if DEBUG
+              recordsDecodePhase = "validateC08ImportBulk"
+#endif
               try Self.validateC08ImportBulk(value)
+#if DEBUG
+             recordsDecodePhase = "validateEvidenceQuality"
+#endif
              try Self.validateEvidenceQuality(value)
+#if DEBUG
+             recordsDecodePhase = "validateFastSurveyInbox"
+#endif
              try Self.validateFastSurveyInbox(value)
+#if DEBUG
+             recordsDecodePhase = "validateReinspectionExceptionQueue"
+#endif
              try Self.validateReinspectionExceptionQueue(value)
+#if DEBUG
+            recordsDecodePhase = "validatePracticeWorkspaceProvenance"
+#endif
             try Self.validatePracticeWorkspaceProvenance(value)
+#if DEBUG
+            recordsDecodePhase = "validateLightingDayInventory"
+#endif
             try Self.validateLightingDayInventory(value)
+#if DEBUG
+            recordsDecodePhase = "canonical-reencode"
+#endif
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
+#if DEBUG
+            recordsDecodePhase = "canonical-byte-equality"
+#endif
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
             }
             return value
         } catch {
+#if DEBUG
+            let diagnosticError = error as NSError
+            FileHandle.standardError.write(Data(("Backup records decode failure phase=\(recordsDecodePhase) type=\(String(reflecting: type(of: error))) domain=\(diagnosticError.domain) code=\(diagnosticError.code)\n").utf8))
+#endif
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }

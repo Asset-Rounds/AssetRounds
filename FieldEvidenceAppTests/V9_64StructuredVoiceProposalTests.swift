@@ -458,6 +458,10 @@ private final class C56VoicePayloadApplyingProbe: VoiceReviewedFieldDraftPayload
 
 @MainActor
 private final class C56VoiceDraftWriterProbe: FieldDraftWritingV1, VoiceReviewedFieldDraftReceiptReadingV1 {
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1 {
+        throw FieldDraftFailureV1.invalidValue
+    }
+
     let generationID: UUID
     private(set) var checkpoint: FieldDraftCheckpointV1
     private(set) var receipts: [MutationIDV1: MutationReceiptV1] = [:]

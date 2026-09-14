@@ -2686,6 +2686,10 @@ private extension BackupRestoreService {
         currentOriginalRecords: V4BackupRecordsV1? = nil,
         incomingOriginalRecords: V4BackupRecordsV1? = nil
     ) throws -> V4BackupRecordsV1 {
+#if DEBUG
+        var materializationPhase = "before-c55-initial-admission"
+#endif
+        do {
         let currentOriginal = currentOriginalRecords ?? records
         let incomingOriginal = incomingOriginalRecords ?? records
         if records.recordsSchemaVersion >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
@@ -2861,9 +2865,15 @@ private extension BackupRestoreService {
         } else if records.partsStockSnapshot != nil {
             throw BackupRestoreServiceError.invalidPackage
         }
+#if DEBUG
+        materializationPhase = "c52-admission"
+#endif
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
             do {
                 if let identityDecision {
+#if DEBUG
+                    materializationPhase = "c52-identity-policy"
+#endif
                     try C52ServiceRequestRestoreIdentityPolicyV1.validate(records, identity: identityDecision)
                 }
                 let expectedWorkspaceID: UUID?
@@ -2873,6 +2883,9 @@ private extension BackupRestoreService {
                 } else {
                     expectedWorkspaceID=legacyWorkspaceID
                 }
+#if DEBUG
+                materializationPhase = "c52-canonical-rows"
+#endif
                 let values = try C52ServiceRequestBackupEnrollmentV1.canonicalRows(
                     from: records, workspaceID: expectedWorkspaceID
                 )
@@ -2888,24 +2901,39 @@ private extension BackupRestoreService {
                     || !records.serviceRequestWorkLinkEvents.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
+#if DEBUG
+        materializationPhase = "c46-admission"
+#endif
         if records.recordsSchemaVersion >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
             _ = try records.validateC46OperationalContacts()
         } else if !records.operationalContacts.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
+#if DEBUG
+        materializationPhase = "observation-time-normalization"
+#endif
         var normalized = try recordsWithObservationAndTime(records)
             .replacingOperationalContacts(records.operationalContacts)
+#if DEBUG
+        materializationPhase = "requirement-assurance-normalization"
+#endif
         normalized = try recordsWithRequirementAssurance(
             normalized,
             workspaceID: identityDecision.map { $0.targetPointer.workspaceID }
                 ?? legacyWorkspaceID
         )
+#if DEBUG
+        materializationPhase = "placement-pose-admission"
+#endif
         if !normalized.placementPoses.isEmpty {
             let destinationWorkspaceID = WorkspaceID(
                 rawValue: identityDecision?.targetPointer.workspaceID
                     ?? legacyWorkspaceID
             )
             if let identityDecision {
+#if DEBUG
+                materializationPhase = "placement-pose-rebind"
+#endif
                 normalized = try rebindingPlacementPoses(
                     in: normalized,
                     identity: identityDecision,
@@ -2924,10 +2952,16 @@ private extension BackupRestoreService {
         }
         if normalized.recordsSchemaVersion
             >= AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion {
+#if DEBUG
+            materializationPhase = "c45-validation"
+#endif
             _ = try normalized.validateC45AcceptedLabelSnapshots()
         }
         if let identityDecision,
            identityDecision.mode == .clone || identityDecision.mode == .fork {
+#if DEBUG
+            materializationPhase = "accepted-label-rebind"
+#endif
             normalized = normalized.replacingAcceptedLabelGenerationSnapshots(
                 try rebindingAcceptedLabelSnapshots(
                     normalized.acceptedLabelGenerationSnapshots,
@@ -2937,9 +2971,15 @@ private extension BackupRestoreService {
         }
         if normalized.recordsSchemaVersion >= 5,
            let identityDecision {
+#if DEBUG
+            materializationPhase = "source-assurance-previews"
+#endif
             let sourcePreviews = try sourceAssurancePreviews(
                 records: normalized, members: members
             )
+#if DEBUG
+            materializationPhase = "location-migration-rebind"
+#endif
             normalized = try rebindingLocationMigrationReceipt(
                 in: normalized,
                 identity: identityDecision,
@@ -2957,16 +2997,25 @@ private extension BackupRestoreService {
             != identityDecision.targetPointer.workspaceID,
            normalized.recordsSchemaVersion
             >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
+#if DEBUG
+            materializationPhase = "c46-cross-workspace-rebind"
+#endif
             normalized = try rebindingCrossWorkspaceReplacementOperationalContacts(
                 source: records,
                 destination: normalized,
                 identity: identityDecision
             )
+#if DEBUG
+            materializationPhase = "c46-rebound-validation"
+#endif
             _ = try normalized.validateC46OperationalContacts()
         }
         var historicReplicas = RestoreHistoricReplicaScope()
         if let identityDecision,
            normalized.recordsSchemaVersion >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
+#if DEBUG
+            materializationPhase = "c47-rebind"
+#endif
             normalized = try rebindingActivityContracts(
                 in: normalized,
                 sourceRecords: records,
@@ -2974,6 +3023,9 @@ private extension BackupRestoreService {
                 historicReplicas: &historicReplicas
             )
         } else if normalized.recordsSchemaVersion >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
+#if DEBUG
+            materializationPhase = "c47-validation"
+#endif
             _ = try normalized.validateC47ActivityContracts()
         }
         if normalized.recordsSchemaVersion
@@ -2983,6 +3035,9 @@ private extension BackupRestoreService {
             // scope, then validates the rebound canonical closure. Do not run
             // the live-writer `validateResolved` rule on that target: only the
             // restore boundary may introduce its cross-workspace provenance.
+#if DEBUG
+            materializationPhase = "c47-validation"
+#endif
             _ = try normalized.validateC47ActivityContracts()
         }
         if let identityDecision,
@@ -2991,6 +3046,9 @@ private extension BackupRestoreService {
             if identityDecision.mode == .replaceExisting,
                normalized.recordsSchemaVersion
                     >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion {
+#if DEBUG
+                materializationPhase = "c55-cross-workspace-rebind"
+#endif
                 normalized = try rebindingCrossWorkspacePartsStockReplacement(
                     in: normalized,
                     currentOriginal: currentOriginal,
@@ -3181,6 +3239,13 @@ private extension BackupRestoreService {
         reset.lightingDayInventoryWorkflows = records.lightingDayInventoryWorkflows
         reset.lightingNightWorkflows = records.lightingNightWorkflows
         return reset
+        } catch {
+#if DEBUG
+            let diagnosticError = error as NSError
+            FileHandle.standardError.write(Data(("Backup materialization failure phase=\(materializationPhase) type=\(String(reflecting: type(of: error))) domain=\(diagnosticError.domain) code=\(diagnosticError.code)\n").utf8))
+#endif
+            throw error
+        }
     }
 
     func rebindingAcceptedLabelSnapshots(

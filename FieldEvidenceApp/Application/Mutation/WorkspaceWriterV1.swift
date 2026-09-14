@@ -2329,6 +2329,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return receipt
     }
 
+    /// Initial draft readback must inspect this writer's actual row context.
+    func validateFieldDraftReadContext(_ modelContext: ModelContext) throws {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        try journalStore.validateFieldDraftReadContext(modelContext)
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }

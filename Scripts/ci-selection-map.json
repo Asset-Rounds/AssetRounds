@@ -68,9 +68,10 @@
         "V23FieldDraftStageDigestBackupTests",
         "V23FieldDraftAsyncCommitTests",
         "V23BackupManifestMemberTests",
-        "S3_2MediaPipelineTests"
+        "S3_2MediaPipelineTests",
+        "V23FieldDraftReadyStagePublicationTests"
       ],
-      "methodCount": 34
+      "methodCount": 44
     },
     {
       "id": "generation-leases-migration",
@@ -176,7 +177,7 @@
         "V23SearchReconciliationTests",
         "V23NativeScreenObservationTests"
       ],
-      "methodCount": 24
+      "methodCount": 25
     },
     {
       "id": "mutation-command-codec",

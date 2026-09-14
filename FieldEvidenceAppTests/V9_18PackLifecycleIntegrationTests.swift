@@ -2111,8 +2111,14 @@ extension V9_18PackLifecycleIntegrationTests {
         var phase = "store-reopen"
         do {
             markColdReadbackPhase("store-reopen-before")
+#if DEBUG
+            var coldOpenFactory = StoreGenerationFactory(applicationSupportURL: seed.root)
+            coldOpenFactory.coldOpenDiagnosticForTesting = true
+            let session = try coldOpenFactory.openOrBootstrapCurrent()
+#else
             let session = try StoreGenerationFactory(applicationSupportURL: seed.root)
                 .openOrBootstrapCurrent()
+#endif
             markColdReadbackPhase("store-reopen-after")
             registerSessionCleanup(root: seed.root, session: session)
             phase = "coordinator-create"
@@ -2412,7 +2418,10 @@ extension V9_18PackLifecycleIntegrationTests {
 
     private func markColdReadbackPhase(_ phase: String) {
 #if DEBUG
-        FileHandle.standardError.write(Data(("V9_18 cold-readback phase=" + phase + "\n").utf8))
+        let uptime = String(format: "%.6f", ProcessInfo.processInfo.systemUptime)
+        FileHandle.standardError.write(Data(
+            ("V9_18 cold-readback phase=" + phase + " uptimeSeconds=" + uptime + "\n").utf8
+        ))
 #endif
     }
 

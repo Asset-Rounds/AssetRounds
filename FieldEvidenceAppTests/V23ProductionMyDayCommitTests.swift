@@ -3485,3 +3485,94 @@ private struct MyDayReceiptTimeFiles: ApplicationFileAuthorityV1 {
         "myday-receipt-time/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
     }
 }
+
+#if DEBUG
+extension V23ProductionMyDayCommitTests {
+    @MainActor
+    func testMyDayAuthorizedDraftWriterRejectsReadyStageBeforeActiveOrRevokedAccessEffects() async throws {
+        let fixture = try await makeFixture("ready-stage-not-a-my-day-operation")
+        defer { fixture.cleanUp() }
+        let access = try XCTUnwrap(fixture.presentation.renderAccess)
+        let writer = fixture.coordinator.workspaceWriter
+        let context = fixture.coordinator.modelContext
+        let sourceProvider = fixture.coordinator.makeMyDaySourceProvider(accessGate: fixture.session.gate)
+        let service = fixture.coordinator.makeMyDayPlanningCommitService(sourceProvider: sourceProvider)
+        let authorizedWriter = service.draftWriterForTesting(access: access)
+        var effectCount = 0
+        service.afterEffectForTesting = { _ in
+            effectCount += 1
+            throw V23MyDayCommitTestInterruption.injected
+        }
+        service.afterZeroStagePromotionForTesting = { throw V23MyDayCommitTestInterruption.injected }
+        service.afterZeroStageDiscardForTesting = { throw V23MyDayCommitTestInterruption.injected }
+
+        let expected = try makeSourceCheckpoint(workspaceID: fixture.coordinator.workspaceID,
+                                                writer: writer, revision: 1)
+        let adapter = try writer.makeFieldDraftLifecycleAdapter(modelContext: context)
+        _ = try adapter.compareAndSwap(checkpoint: expected, expectedDraftRevision: 0,
+                                       expectedBaseRevision: expected.baseCanonicalRevision)
+        let bytes = Data([0x41])
+        let stageID = UUID()
+        let publicationID = try writer.makeMutationID()
+        let stage = try AttachmentStagingItemV1(stageID: stageID, draftID: expected.draftID,
+            workspaceID: expected.workspaceID, attachmentKind: .photo, scratchLeaseID: stageID,
+            expectedByteCount: Int64(bytes.count), actualByteCount: Int64(bytes.count),
+            contentDigest: .init(algorithm: .sha256,
+                                 hexadecimalValue: FieldDraftCanonicalCodecV1.sha256(bytes)),
+            retryClass: .none, state: .readyLocal, protectionState: .available,
+            revision: 1, mutationID: publicationID)
+        let successor = try FieldDraftCheckpointV1(draftID: expected.draftID,
+            workspaceID: expected.workspaceID, scope: expected.scope, purpose: expected.purpose,
+            codec: expected.codec, baseCanonicalRevision: expected.baseCanonicalRevision,
+            draftRevision: expected.draftRevision + 1, payloadData: Data("ready".utf8),
+            stageIDs: [stageID], resumeAnchor: expected.resumeAnchor, state: .active,
+            lastDurableMutationID: expected.lastDurableMutationID,
+            lastReceiptSHA256: expected.lastReceiptSHA256,
+            updatedAt: expected.updatedAt, mutationID: publicationID)
+        let bundle = try FieldDraftStagePublicationBundleV1(expectedCheckpoint: expected,
+                                                            readyItem: stage,
+                                                            successorCheckpoint: successor)
+        try bundle.validate()
+        let before = try writer.currentRevision()
+        func historyBytes() throws -> [[Data]] {
+            try context.fetch(FetchDescriptor<MutationReceiptRow>())
+                .sorted { $0.workspaceMutationKey < $1.workspaceMutationKey }
+                .map { row in
+                    [Data(row.workspaceMutationKey.utf8), row.envelopeData, row.receiptData,
+                     Data(row.envelopeSHA256.utf8), Data(row.receiptSHA256.utf8),
+                     row.reversalBasisData ?? Data(), row.semanticReversalData ?? Data()]
+                }
+        }
+        let beforeHistory = try historyBytes()
+        let beforeCheckpoint = try FieldDraftCanonicalCodecV1.encode(expected)
+
+        for revoked in [false, true] {
+            if revoked {
+                fixture.presentation.receive(.sceneInactive)
+                XCTAssertFalse(fixture.presentation.permitsContentPresentation)
+                XCTAssertNil(fixture.presentation.renderAccess)
+            } else {
+                XCTAssertTrue(fixture.presentation.permitsContentPresentation)
+            }
+            XCTAssertThrowsError(try authorizedWriter.publish(readyStage: bundle)) {
+                // Revocation would fail with accessDenied if the wrapper
+                // entered its authorization path before rejecting this API.
+                XCTAssertEqual($0 as? MyDayPlanningExecutionFailureV1, .unsupportedCommand)
+            }
+            XCTAssertEqual(effectCount, 0)
+            XCTAssertEqual(try writer.currentRevision(), before)
+            XCTAssertEqual(try historyBytes(), beforeHistory)
+            let checkpoint = try XCTUnwrap(adapter.currentCheckpoint(
+                workspaceID: expected.workspaceID, draftID: expected.draftID))
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(checkpoint), beforeCheckpoint)
+            XCTAssertEqual(try count(AttachmentStagingItemRow.self, in: context), 0)
+            XCTAssertEqual(try count(DraftCommitSagaRow.self, in: context), 0)
+            XCTAssertEqual(try count(DraftCommitReceiptRow.self, in: context), 0)
+            XCTAssertEqual(try count(DraftDiscardReceiptRow.self, in: context), 0)
+            XCTAssertEqual(try count(DraftContentReservationRow.self, in: context), 0)
+            XCTAssertEqual(try count(MyDayPlanRowV1.self, in: context), 0)
+            XCTAssertFalse(context.hasChanges)
+        }
+    }
+}
+#endif

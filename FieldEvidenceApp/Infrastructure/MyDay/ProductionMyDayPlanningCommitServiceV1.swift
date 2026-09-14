@@ -279,6 +279,9 @@ final class ProductionMyDayPlanningCommitServiceV1 {
     var afterEffectForTesting: (@MainActor (MyDayPlanningEffectPointV1) throws -> Void)?
     var afterZeroStagePromotionForTesting: (@MainActor @Sendable () async throws -> Void)?
     var afterZeroStageDiscardForTesting: (@MainActor @Sendable () async throws -> Void)?
+    func draftWriterForTesting(access: AppAccessPresentationV1.ContentAccess) -> any FieldDraftWritingV1 {
+        MyDayPlanningAuthorizedDraftWriterV1(service: self, access: access)
+    }
     #endif
 
     init(session: StoreSessionCoordinator, sourceProvider: ProductionMyDaySourceProviderV1,
@@ -1729,6 +1732,9 @@ private final class MyDayPlanningAuthorizedDraftWriterV1: FieldDraftWritingV1 {
         try service.afterEffectForTesting?(.terminalBundle)
         #endif
         return receipt
+    }
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1 {
+        throw MyDayPlanningExecutionFailureV1.unsupportedCommand
     }
     func append(stagingItem: AttachmentStagingItemV1, expectedRevision: UInt64) throws -> MutationReceiptV1 {
         throw MyDayPlanningExecutionFailureV1.unsupportedCommand

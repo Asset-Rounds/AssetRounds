@@ -128,6 +128,42 @@ final class FinalizationService {
     private let operationBarrier: FinalizationServiceOperationBarrier?
     private let workspaceWriter: WorkspaceWriterV1?
 
+#if DEBUG
+    private func readbackDiagnosticFailure(
+        _ stage: String,
+        details: String = "",
+        error: Error? = nil,
+        line: Int = #line
+    ) {
+        let errorDetails: String
+        if let error {
+            let value = error as NSError
+            errorDetails = " errorType=\(String(reflecting: type(of: error)))"
+                + " errorDomain=\(value.domain) errorCode=\(value.code)"
+        } else {
+            errorDetails = ""
+        }
+        let suffix = details.isEmpty ? "" : " " + details
+        FileHandle.standardError.write(Data(
+            ("FinalizationService readback-failure stage=\(stage) line=\(line)" + suffix
+                + errorDetails + "\n").utf8
+        ))
+    }
+
+    private func readbackDiagnosticCall<Value>(
+        _ stage: String,
+        line: Int = #line,
+        _ operation: () throws -> Value
+    ) throws -> Value {
+        do {
+            return try operation()
+        } catch {
+            readbackDiagnosticFailure(stage, error: error, line: line)
+            throw error
+        }
+    }
+#endif
+
     init(
         modelContext: ModelContext,
         signPack: SignPack,
@@ -178,13 +214,31 @@ final class FinalizationService {
     ) throws -> ReviewedFinalizationCommitV1? {
         guard !modelContext.hasChanges, let workspaceWriter,
               input.evidence.count <= 2 else {
+#if DEBUG
+            readbackDiagnosticFailure("entry")
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
+#if DEBUG
+        let current = try readbackDiagnosticCall("current-revision-initial") {
+            try workspaceWriter.currentRevision()
+        }
+#else
         let current = try workspaceWriter.currentRevision()
+#endif
         guard current.generationID == generationID else {
+#if DEBUG
+            readbackDiagnosticFailure("generation", details: "generationMatches=false")
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
+#if DEBUG
+        try readbackDiagnosticCall("root-identity-initial") {
+            try requireFrozenRootIdentity()
+        }
+#else
         try requireFrozenRootIdentity()
+#endif
         let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
             .filter { $0.id == input.draft.id }
         let assets = try modelContext.fetch(FetchDescriptor<Asset>())
@@ -193,7 +247,58 @@ final class FinalizationService {
             .filter { $0.id == input.site.id }
         let currentEvidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
             .filter { $0.recordID == input.draft.id }.sorted(by: evidenceOrder)
+#if DEBUG
+        let inputEvidence = try readbackDiagnosticCall("input-evidence-snapshot") {
+            try input.evidence.sorted(by: evidenceOrder).map(evidenceSnapshot)
+        }
+#else
         let inputEvidence = try input.evidence.sorted(by: evidenceOrder).map(evidenceSnapshot)
+#endif
+#if DEBUG
+        guard records.count == 1 else {
+            readbackDiagnosticFailure("current-membership-record-count")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard records[0] === input.draft else {
+            readbackDiagnosticFailure("current-membership-record-object")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard assets.count == 1 else {
+            readbackDiagnosticFailure("current-membership-asset-count")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard assets[0] === input.asset else {
+            readbackDiagnosticFailure("current-membership-asset-object")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard sites.count == 1 else {
+            readbackDiagnosticFailure("current-membership-site-count")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard sites[0] === input.site else {
+            readbackDiagnosticFailure("current-membership-site-object")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard input.draft.assetID == input.asset.id else {
+            readbackDiagnosticFailure("current-membership-draft-asset")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard input.asset.siteID == input.site.id else {
+            readbackDiagnosticFailure("current-membership-asset-site")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let currentEvidenceSnapshots = try readbackDiagnosticCall("current-evidence-snapshot") {
+            try currentEvidence.map(evidenceSnapshot)
+        }
+        guard currentEvidenceSnapshots == inputEvidence else {
+            readbackDiagnosticFailure(
+                "current-evidence-membership",
+                details: "currentEvidenceCount=\(currentEvidence.count)"
+                    + " inputEvidenceCount=\(inputEvidence.count) evidenceMatches=false"
+            )
+            throw FinalizationServiceError.preconditionFailed
+        }
+#else
         guard records.count == 1, records[0] === input.draft,
               assets.count == 1, assets[0] === input.asset,
               sites.count == 1, sites[0] === input.site,
@@ -202,11 +307,35 @@ final class FinalizationService {
               try currentEvidence.map(evidenceSnapshot) == inputEvidence else {
             throw FinalizationServiceError.preconditionFailed
         }
+#endif
         let mutationID = try MutationIDV1(rawValue: input.identifiers.mutationID)
+#if DEBUG
+        let evidence: FinalizationCommittedEvidenceV1?
+        do {
+            evidence = try workspaceWriter.finalizationEvidence(mutationID: mutationID)
+        } catch {
+            readbackDiagnosticFailure("durable-authority", error: error)
+            throw error
+        }
+        let result: FinalizationResult?
+        do {
+            result = try replayedFinalization(input)
+        } catch {
+            readbackDiagnosticFailure("replayed-finalization", error: error)
+            throw error
+        }
+#else
         let evidence = try workspaceWriter.finalizationEvidence(mutationID: mutationID)
         let result = try replayedFinalization(input)
+#endif
         guard let evidence, let result else {
             guard evidence == nil, result == nil else {
+#if DEBUG
+                readbackDiagnosticFailure(
+                    "one-sided-authority",
+                    details: "evidencePresent=\(evidence != nil) resultPresent=\(result != nil)"
+                )
+#endif
                 throw FinalizationServiceError.preconditionFailed
             }
             // A different mutation ID cannot turn an already completed record
@@ -216,6 +345,9 @@ final class FinalizationService {
             try requireFrozenRootIdentity()
             guard !modelContext.hasChanges,
                   try workspaceWriter.currentRevision() == current else {
+#if DEBUG
+                readbackDiagnosticFailure("stable-absence")
+#endif
                 throw FinalizationServiceError.preconditionFailed
             }
             return nil
@@ -239,15 +371,49 @@ final class FinalizationService {
               authority.snapshotSHA256 == result.snapshotSHA256,
               evidence.receipt.mutationID == mutationID,
               evidence.receipt.identity.workspaceID == current.workspaceID else {
+#if DEBUG
+            readbackDiagnosticFailure("receipt-binding")
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
+#if DEBUG
+        _ = try readbackDiagnosticCall("receipt-record-revision") {
+            try evidence.workflowRecordRevision(recordID: result.recordID)
+        }
+#else
         _ = try evidence.workflowRecordRevision(recordID: result.recordID)
+#endif
+#if DEBUG
+        do {
+            try validateReplayAuthority(mutationID: input.identifiers.mutationID,
+                recordID: result.recordID, reportID: result.reportID, correction: false)
+        } catch {
+            readbackDiagnosticFailure("replay-authority", error: error)
+            throw error
+        }
+#else
         try validateReplayAuthority(mutationID: input.identifiers.mutationID,
             recordID: result.recordID, reportID: result.reportID, correction: false)
+#endif
+#if DEBUG
+        let snapshotBytes = try readbackDiagnosticCall("snapshot-read-initial") {
+            try anchoredSnapshotData(result.snapshotRelativePath)
+        }
+#else
         let snapshotBytes = try anchoredSnapshotData(result.snapshotRelativePath)
+#endif
         let encoder = ReportSnapshotEncoderV1()
+#if DEBUG
+        let snapshot = try readbackDiagnosticCall("snapshot-decode") {
+            try encoder.decode(snapshotBytes)
+        }
+        let canonical = try readbackDiagnosticCall("snapshot-reencode") {
+            try encoder.encode(snapshot)
+        }
+#else
         let snapshot = try encoder.decode(snapshotBytes)
         let canonical = try encoder.encode(snapshot)
+#endif
         let reason = input.couldNotVerify.map {
             CouldNotVerifySnapshotV1(display: $0.display, key: $0.key,
                 registryVersion: signPack.couldNotVerifyReasons.version)
@@ -270,14 +436,50 @@ final class FinalizationService {
               snapshot.note == input.note,
               snapshot.couldNotVerify == reason,
               snapshot.evidence.filter({ $0.recordID == input.draft.id }) == inputEvidence else {
+#if DEBUG
+            readbackDiagnosticFailure("snapshot-binding")
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
+#if DEBUG
+        try readbackDiagnosticCall("root-identity-final") {
+            try requireFrozenRootIdentity()
+        }
+#else
         try requireFrozenRootIdentity()
+#endif
+#if DEBUG
+        guard !modelContext.hasChanges else {
+            readbackDiagnosticFailure("final-stability", details: "contextClean=false")
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let finalRevision = try readbackDiagnosticCall("current-revision-final") {
+            try workspaceWriter.currentRevision()
+        }
+        guard finalRevision == current else {
+            readbackDiagnosticFailure(
+                "final-stability",
+                details: "contextClean=true revisionMatches=false"
+            )
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let finalSnapshotBytes = try readbackDiagnosticCall("snapshot-read-final") {
+            try anchoredSnapshotData(result.snapshotRelativePath)
+        }
+        guard finalSnapshotBytes == snapshotBytes else {
+            readbackDiagnosticFailure(
+                "final-stability",
+                details: "contextClean=true revisionMatches=true snapshotMatches=false"
+            )
+            throw FinalizationServiceError.preconditionFailed
+        }
+#else
         guard !modelContext.hasChanges,
               try workspaceWriter.currentRevision() == current,
               try anchoredSnapshotData(result.snapshotRelativePath) == snapshotBytes else {
             throw FinalizationServiceError.preconditionFailed
         }
+#endif
         return ReviewedFinalizationCommitV1(result: result, receipt: evidence.receipt)
     }
 
@@ -1020,6 +1222,9 @@ final class FinalizationService {
               record.issueID == input.identifiers.issueID,
               let issueID = record.issueID,
               let parentID = record.parentRecordID else {
+#if DEBUG
+            readbackDiagnosticFailure("recheck-record-binding")
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
         let allIssues = try modelContext.fetch(FetchDescriptor<Issue>())
@@ -1050,6 +1255,14 @@ final class FinalizationService {
               insertedIssues.count == (input.identifiers.newIssueID == nil ? 0 : 1),
               parents.count == 1,
               packets.count == 1, reports.count == 1 else {
+#if DEBUG
+            readbackDiagnosticFailure(
+                "recheck-cardinality",
+                details: "issueCount=\(issues.count) insertedIssueCount=\(insertedIssues.count)"
+                    + " parentCount=\(parents.count) packetCount=\(packets.count)"
+                    + " reportCount=\(reports.count)"
+            )
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
         let issue = issues[0]
@@ -1057,6 +1270,12 @@ final class FinalizationService {
         guard let opening = originals.first(where: {
             $0.id == issue.openedByRecordID
         }), validRecheckOpening(opening, issue: issue) else {
+#if DEBUG
+            readbackDiagnosticFailure(
+                "recheck-opening",
+                details: "originalCount=\(originals.count)"
+            )
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
         var chain = [opening]
@@ -1065,11 +1284,23 @@ final class FinalizationService {
         while true {
             let children = originals.filter { $0.parentRecordID == current.id }
             guard children.count <= 1 else {
+#if DEBUG
+                readbackDiagnosticFailure(
+                    "recheck-child-cardinality",
+                    details: "childCount=\(children.count) chainCount=\(chain.count)"
+                )
+#endif
                 throw FinalizationServiceError.preconditionFailed
             }
             guard let child = children.first else { break }
             guard visited.insert(child.id).inserted,
                   validRecheckChild(child, issue: issue, parent: current) else {
+#if DEBUG
+                readbackDiagnosticFailure(
+                    "recheck-child-binding",
+                    details: "chainCount=\(chain.count)"
+                )
+#endif
                 throw FinalizationServiceError.preconditionFailed
             }
             chain.append(child)
@@ -1084,6 +1315,13 @@ final class FinalizationService {
               let issueBeforeState = reducedRecheckIssueState(ancestorChain),
               issueBeforeState.status == IssueStatus.recheckDue.rawValue,
               issueBeforeState.resolvedByRecordID == nil else {
+#if DEBUG
+            readbackDiagnosticFailure(
+                "recheck-chain",
+                details: "chainCount=\(chain.count) issueOriginalCount=\(issueOriginals.count)"
+                    + " parentCount=\(parents.count)"
+            )
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
         let issueAfter = issuePayload(issue)
@@ -1103,6 +1341,9 @@ final class FinalizationService {
         if input.outcomeKey == "original_resolved_different_issue" {
             guard let label = input.issueLabel,
                   let newIssueID = input.identifiers.newIssueID else {
+#if DEBUG
+                readbackDiagnosticFailure("recheck-different-issue-input")
+#endif
                 throw FinalizationServiceError.preconditionFailed
             }
             let value = try DifferentIssueOutcomeRule.makePlan(
@@ -1129,6 +1370,9 @@ final class FinalizationService {
         } else {
             guard input.identifiers.newIssueID == nil,
                   input.issueLabel == nil else {
+#if DEBUG
+                readbackDiagnosticFailure("recheck-standard-input")
+#endif
                 throw FinalizationServiceError.preconditionFailed
             }
             let value = try RecheckOutcomeRule.makePlan(RecheckOutcomeRuleInput(
@@ -1172,6 +1416,9 @@ final class FinalizationService {
               validDeliveredState(report),
               let snapshotData = try? anchoredSnapshotData(report.snapshotRelativePath),
               sha256(snapshotData) == report.snapshotSHA256 else {
+#if DEBUG
+            readbackDiagnosticFailure("recheck-result-binding")
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
         do {
@@ -1181,6 +1428,9 @@ final class FinalizationService {
                 signPack: signPack
             ).validate(report: report)
         } catch {
+#if DEBUG
+            readbackDiagnosticFailure("recheck-snapshot-validator", error: error)
+#endif
             throw FinalizationServiceError.preconditionFailed
         }
         return FinalizationResult(

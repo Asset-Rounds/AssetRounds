@@ -5,6 +5,7 @@ import Foundation
 @MainActor protocol FieldDraftWritingV1: AnyObject {
     func currentCheckpoint(workspaceID:WorkspaceID,draftID:UUID)throws->FieldDraftCheckpointV1?
     func compareAndSwap(checkpoint:FieldDraftCheckpointV1,expectedDraftRevision:UInt64,expectedBaseRevision:UInt64)throws->MutationReceiptV1
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1
     func append(stagingItem:AttachmentStagingItemV1,expectedRevision:UInt64)throws->MutationReceiptV1
     func append(saga:DraftCommitSagaV1,expectedRevision:UInt64)throws->MutationReceiptV1
     func append(reservation:DraftContentReservationV1,expectedRevision:UInt64)throws->MutationReceiptV1
@@ -67,6 +68,15 @@ protocol DraftContentPromotionPortV1: Sendable {
     }
 
     func append(_ item:AttachmentStagingItemV1,checkpoint:FieldDraftCheckpointV1,expectedRevision:UInt64)throws->MutationReceiptV1{try item.validate();try checkpoint.validate(authority:purposeAuthority);guard item.workspaceID==checkpoint.workspaceID,item.draftID==checkpoint.draftID,checkpoint.stageIDs.contains(item.stageID)else{throw FieldDraftFailureV1.wrongWorkspace};return try writer.append(stagingItem:item,expectedRevision:expectedRevision)}
+
+    /// Validate the frozen command before writer entry. The writer resolves
+    /// exact committed retries before comparing the current checkpoint tip.
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1 {
+        try bundle.validate()
+        try bundle.expectedCheckpoint.validate(authority: purposeAuthority)
+        try bundle.successorCheckpoint.validate(authority: purposeAuthority)
+        return try writer.publish(readyStage: bundle)
+    }
 
     func applyPackageUpgrade(
         plan: DraftUpgradePlanV1,

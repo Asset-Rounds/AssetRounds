@@ -131,6 +131,10 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     /// The composition root must provide the incumbent canonical source view.
     private let entityIdentityCanonicalResolver: (any EntityIdentityResolutionCanonicalSourceResolvingV1)?
 
+    #if DEBUG
+    var afterReadyStageInsertForTesting: (() throws -> Void)?
+    #endif
+
     init(
         modelContext: ModelContext,
         assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1? = nil,
@@ -4139,6 +4143,23 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private func applyFieldDraft(_ mutation:FieldDraftMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let affected=try mutation.affectedIdentities;switch mutation.postImage{
         case let .createCheckpoint(value):let identity=affected[0];guard case nil = try fieldDraftRow(identity) else{throw WorkspaceMutationFailureV1.sequenceCollision};modelContext.insert(try FieldDraftCheckpointRow(value))
         case let .reviseCheckpoint(value):let identity=affected[0];guard case let .checkpoint(row)?=try fieldDraftRow(identity)else{throw WorkspaceMutationFailureV1.staleEntityRevision(identity)};try row.replace(with:value,expectedRevision:mutation.expectedRevision)
+        case let .publishReadyStage(bundle):
+            let stageIdentity = try WorkspaceEntityIdentityV1(kind: .attachmentStagingItem,
+                                                               id: bundle.readyItem.stageID)
+            let checkpointIdentity = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint,
+                                                                    id: bundle.expectedCheckpoint.draftID)
+            guard case nil = try fieldDraftRow(stageIdentity) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            guard case let .checkpoint(row)? = try fieldDraftRow(checkpointIdentity),
+                  try row.value() == bundle.expectedCheckpoint else {
+                throw WorkspaceMutationFailureV1.staleEntityRevision(checkpointIdentity)
+            }
+            modelContext.insert(try AttachmentStagingItemRow(bundle.readyItem))
+            #if DEBUG
+            try afterReadyStageInsertForTesting?()
+            #endif
+            try row.replace(with: bundle.successorCheckpoint, expectedRevision: mutation.expectedRevision)
         case let .resolveConflict(value):try applyReviewedFieldDraftConflict(value)
         case let .appendStagingItem(value):let identity=affected[0];guard case nil = try fieldDraftRow(identity) else{throw WorkspaceMutationFailureV1.sequenceCollision};guard let checkpoint=try exactDraftCheckpoint(value.draftID,workspaceID:value.workspaceID),checkpoint.stageIDs.contains(value.stageID)else{throw WorkspaceMutationFailureV1.invalidCommand};modelContext.insert(try AttachmentStagingItemRow(value))
         case let .reviseStagingItem(value):let identity=affected[0];guard case let .stage(row)?=try fieldDraftRow(identity)else{throw WorkspaceMutationFailureV1.staleEntityRevision(identity)};try row.replace(with:value,expectedRevision:mutation.expectedRevision)

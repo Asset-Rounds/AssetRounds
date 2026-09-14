@@ -390,6 +390,10 @@ private actor C36AsyncContentProbeV1: DraftContentPromotionPortV1 {
 
 @MainActor
 private final class C36AsyncWriterProbeV1: FieldDraftWritingV1 {
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1 {
+        throw FieldDraftFailureV1.invalidValue
+    }
+
     private var checkpointResult: Result<FieldDraftCheckpointV1?, Error>
     private(set) var sagas: [DraftCommitSagaV1] = []
     private(set) var reservations: [DraftContentReservationV1] = []

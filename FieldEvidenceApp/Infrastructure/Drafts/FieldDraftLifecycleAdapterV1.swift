@@ -8,6 +8,47 @@ import SwiftData
     init(writer:WorkspaceWriterV1,journal:MutationJournalStoreV1,modelContext:ModelContext){self.writer=writer;self.journal=journal;context=modelContext}
     func currentCheckpoint(workspaceID:WorkspaceID,draftID:UUID)throws->FieldDraftCheckpointV1?{let id=draftID;let rows=try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>(predicate:#Predicate{$0.draftID==id}));guard rows.count<=1 else{throw FieldDraftFailureV1.invalidValue};guard let row=rows.first else{return nil};let value=try row.value();guard value.workspaceID==workspaceID else{throw FieldDraftFailureV1.wrongWorkspace};return value}
     func compareAndSwap(checkpoint value:FieldDraftCheckpointV1,expectedDraftRevision:UInt64,expectedBaseRevision:UInt64)throws->MutationReceiptV1{try execute(.init(workspaceID:value.workspaceID,expectedRevision:expectedDraftRevision,expectedBaseCanonicalRevision:expectedBaseRevision,mutationID:value.mutationID,postImage:expectedDraftRevision==0 ? .createCheckpoint(value):.reviseCheckpoint(value)))}
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1 {
+        try execute(.init(workspaceID: bundle.workspaceID,
+                          expectedRevision: bundle.expectedCheckpoint.draftRevision,
+                          expectedBaseCanonicalRevision: bundle.expectedCheckpoint.baseCanonicalRevision,
+                          mutationID: bundle.mutationID, postImage: .publishReadyStage(bundle)))
+    }
+
+    /// Initial publication-edge proof. Later stage/checkpoint successors are
+    /// authenticated through their full history, not this exact-tip predicate.
+    func readyStagePublicationEvidence(for bundle: FieldDraftStagePublicationBundleV1) throws
+        -> FieldDraftCommittedEvidenceV1? {
+        try bundle.validate()
+        try writer.validateFieldDraftReadContext(context)
+        let current = try writer.currentRevision()
+        guard current.workspaceID == bundle.workspaceID else { throw FieldDraftFailureV1.wrongWorkspace }
+        let evidence = try writer.fieldDraftEvidence(mutationID: bundle.mutationID)
+        let checkpoint = try currentCheckpoint(workspaceID: bundle.workspaceID,
+                                               draftID: bundle.expectedCheckpoint.draftID)
+        let stageID = bundle.readyItem.stageID
+        let rows = try context.fetch(FetchDescriptor<AttachmentStagingItemRow>(
+            predicate: #Predicate { $0.stageID == stageID }
+        ))
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let stage = try rows.first?.value()
+        guard let evidence else {
+            guard checkpoint == bundle.expectedCheckpoint, stage == nil else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return nil
+        }
+        let mutation = try FieldDraftMutationV1(workspaceID: bundle.workspaceID,
+            expectedRevision: bundle.expectedCheckpoint.draftRevision,
+            expectedBaseCanonicalRevision: bundle.expectedCheckpoint.baseCanonicalRevision,
+            mutationID: bundle.mutationID, postImage: .publishReadyStage(bundle))
+        guard evidence.mutation == mutation,
+              checkpoint == bundle.successorCheckpoint, stage == bundle.readyItem else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return evidence
+    }
+
     func append(stagingItem value:AttachmentStagingItemV1,expectedRevision:UInt64)throws->MutationReceiptV1{try execute(.init(workspaceID:value.workspaceID,expectedRevision:expectedRevision,expectedBaseCanonicalRevision:0,mutationID:value.mutationID,postImage:expectedRevision==0 ? .appendStagingItem(value):.reviseStagingItem(value)))}
     func append(saga value:DraftCommitSagaV1,expectedRevision:UInt64)throws->MutationReceiptV1{try execute(.init(workspaceID:value.workspaceID,expectedRevision:expectedRevision,expectedBaseCanonicalRevision:value.plan.baseCanonicalRevision,mutationID:value.mutationID,postImage:expectedRevision==0 ? .appendCommitSaga(value):.advanceCommitSaga(value)))}
     func append(reservation value:DraftContentReservationV1,expectedRevision:UInt64)throws->MutationReceiptV1{try execute(.init(workspaceID:value.workspaceID,expectedRevision:expectedRevision,expectedBaseCanonicalRevision:0,mutationID:value.mutationID,postImage:expectedRevision==0 ? .appendContentReservation(value):.reviseContentReservation(value)))}

@@ -1513,6 +1513,13 @@ final class MutationJournalStoreV1 {
 
     /// Retains the original command and receipt after live, complete authority
     /// validation. It never reconstructs a past checkpoint from current rows.
+    func validateFieldDraftReadContext(_ context: ModelContext) throws {
+        try validateCurrentWriterLease()
+        guard context === modelContext, !modelContext.hasChanges else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         try validateCurrentWriterLease()
         try validateAll()
@@ -2073,6 +2080,7 @@ final class MutationJournalStoreV1 {
         case let .applyCommitTerminal(value, _): return value.committedCheckpoint.draftID
         case let .applyDiscardTerminal(value): return value.discardedCheckpoint.draftID
         case let .resolveConflict(value): return value.successorCheckpoint.draftID
+        case let .publishReadyStage(value): return value.successorCheckpoint.draftID
         }
     }
 
@@ -2080,6 +2088,7 @@ final class MutationJournalStoreV1 {
         switch mutation.postImage {
         case let .createCheckpoint(value), let .reviseCheckpoint(value): return value
         case let .resolveConflict(value): return value.successorCheckpoint
+        case let .publishReadyStage(value): return value.successorCheckpoint
         default: return nil
         }
     }
@@ -2925,6 +2934,11 @@ final class MutationJournalStoreV1 {
                 currentEvidence = evidence
                 if requestedOriginal == evidence { foundRequested = true }
                 index += 1
+
+            case .publishReadyStage:
+                // The My Day authorized writer never issues a ready-stage
+                // publication. Generic draft history cannot grant that path.
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
 
             default:
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt

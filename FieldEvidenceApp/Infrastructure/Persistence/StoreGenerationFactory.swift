@@ -1439,10 +1439,16 @@ private extension StoreGenerationFactory {
             generationID: generationID,
             generationManifestSHA256: pointer.generationManifestSHA256
         )
+#if DEBUG
+        coldOpenDiagnostic("current-reader-lease-before")
+#endif
         let readerLease = try acquireCurrentReaderLease(
             epoch: epoch,
             expectedPointerData: try pointer.canonicalData()
         )
+#if DEBUG
+        coldOpenDiagnostic("current-reader-lease-after")
+#endif
         let generationRootURL = installedGenerationURL(id: generationID)
         let modelStoreURL = generationRootURL.appendingPathComponent(Self.modelStoreName)
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
@@ -1498,7 +1504,14 @@ private extension StoreGenerationFactory {
         case 50: container = try makeV50Container(at:modelStoreURL,migrate:false)
         case 51: container = try makeV51Container(at:modelStoreURL,migrate:false)
         case 52: container = try makeV52Container(at:modelStoreURL,migrate:false)
+#if DEBUG
+        case 53:
+            coldOpenDiagnostic("v53-container-before")
+            container = try makeV53Container(at:modelStoreURL,migrate:false)
+            coldOpenDiagnostic("v53-container-after")
+#else
         case 53: container = try makeV53Container(at:modelStoreURL,migrate:false)
+#endif
         default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
         if pointer.storeSchemaVersion == 3 {
@@ -1559,7 +1572,14 @@ private extension StoreGenerationFactory {
          }else if pointer.storeSchemaVersion == 48{_ = try requireV48Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }else if pointer.storeSchemaVersion == 49{_ = try requireV49Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }else if pointer.storeSchemaVersion == 50{_ = try requireV50Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
-         }else if manifest.storeSchemaRelease == .v53 {_ = try requireV53Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
+         }else if manifest.storeSchemaRelease == .v53 {
+#if DEBUG
+             coldOpenDiagnostic("v53-marker-before")
+#endif
+             _ = try requireV53Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
+#if DEBUG
+             coldOpenDiagnostic("v53-marker-after")
+#endif
          }else if manifest.storeSchemaRelease == .v52 {_ = try requireV52Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }else{_ = try requireV51Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }
@@ -8333,6 +8353,7 @@ struct StoreGenerationFactory {
 #if DEBUG
     private let migrationFailureInjection: StoreMigrationFailureInjection?
     private let pruneFailureInjection: StoreGenerationPruneFailureInjectionV1?
+    var coldOpenDiagnosticForTesting = false
 #endif
 
     init(
@@ -8402,6 +8423,17 @@ struct StoreGenerationFactory {
         }
         preconditionFailure("Unable to create distinct workspace and replica identities")
     }
+
+#if DEBUG
+    private func coldOpenDiagnostic(_ phase: String) {
+        guard coldOpenDiagnosticForTesting else { return }
+        let uptime = String(format: "%.6f", ProcessInfo.processInfo.systemUptime)
+        FileHandle.standardError.write(Data(
+            ("StoreGenerationFactory cold-open phase=" + phase
+                + " uptimeSeconds=" + uptime + "\n").utf8
+        ))
+    }
+#endif
 
     @MainActor
     private func reachMigrationBoundary(
@@ -12370,7 +12402,13 @@ struct StoreGenerationFactory {
 
     @MainActor
     func openOrBootstrapCurrent() throws -> StoreGenerationSession {
+#if DEBUG
+        coldOpenDiagnostic("schema-before")
+#endif
         try PersistentSchemaReleaseRegistryV1.validate()
+#if DEBUG
+        coldOpenDiagnostic("schema-after")
+#endif
         let dataRootURL = applicationSupportURL.appendingPathComponent(
             Self.dataDirectoryName,
             isDirectory: true
@@ -12385,20 +12423,53 @@ struct StoreGenerationFactory {
             throw StoreGenerationFailure.dataPointerInvalid
         }
 
+#if DEBUG
+        coldOpenDiagnostic("pointer-authority-before")
+#endif
         let pointerAuthority = try makeRestoreGenerationAuthority()
         _ = try pointerAuthority.currentGenerationID()
         _ = try pointerAuthority.retiredGenerationIDs()
+#if DEBUG
+        coldOpenDiagnostic("pointer-authority-after")
+        coldOpenDiagnostic("lease-registry-before")
+#endif
         let leaseRegistry = try makeGenerationLeaseRegistry()
+#if DEBUG
+        coldOpenDiagnostic("lease-registry-after")
+        coldOpenDiagnostic("prune-intent-before")
+#endif
         if try leaseRegistry.loadPruneIntent() != nil {
+#if DEBUG
+            coldOpenDiagnostic("prune-intent-after-present")
+            coldOpenDiagnostic("prune-reconcile-before")
+#endif
             _ = try reconcileGenerationLeasesAndPrune()
+#if DEBUG
+            coldOpenDiagnostic("prune-reconcile-after")
+#endif
         }
+#if DEBUG
+        coldOpenDiagnostic("prune-intent-check-after")
+#endif
 
         do {
+#if DEBUG
+            coldOpenDiagnostic("migration-journal-store-before")
+#endif
             let migrationStore = try StoreMigrationJournalStoreV1(
                 applicationSupportURL: applicationSupportURL
             )
+#if DEBUG
+            coldOpenDiagnostic("migration-journal-store-after")
+#endif
             let processID = (migrationIdentitySource ?? .live).makeProcessID()
+#if DEBUG
+            coldOpenDiagnostic("migration-journal-load-before")
+#endif
             if let journal = try migrationStore.loadJournal() {
+#if DEBUG
+                coldOpenDiagnostic("migration-journal-load-after-present")
+#endif
                 return try resumeMigration(
                     journal,
                     dataRootURL: dataRootURL,
@@ -12406,11 +12477,23 @@ struct StoreGenerationFactory {
                     processID: processID
                 )
             }
+#if DEBUG
+            coldOpenDiagnostic("migration-journal-load-after-absent")
+            coldOpenDiagnostic("open-current-before")
+            let session = try openCurrent(
+                in: dataRootURL,
+                store: migrationStore,
+                processID: processID
+            )
+            coldOpenDiagnostic("open-current-after")
+            return session
+#else
             return try openCurrent(
                 in: dataRootURL,
                 store: migrationStore,
                 processID: processID
             )
+#endif
         } catch let failure as StoreMigrationFailure {
             throw failure
         } catch {
@@ -12672,8 +12755,18 @@ struct StoreGenerationFactory {
         try protectPointer(at: currentURL)
         try protectPointer(at: retiredURL)
 
+#if DEBUG
+        coldOpenDiagnostic("current-pointer-decode-before")
+#endif
         let current = try decodeCurrentPointer(at: currentURL)
+#if DEBUG
+        coldOpenDiagnostic("current-pointer-decode-after")
+        coldOpenDiagnostic("retired-pointer-decode-before")
+#endif
         let retired: RetiredPointerV1 = try decodeCanonicalPointer(at: retiredURL)
+#if DEBUG
+        coldOpenDiagnostic("retired-pointer-decode-after")
+#endif
         try StorePointerSchemaRegistry.requireRetired(retired.schemaVersion)
         let currentName: String
         let currentID: UUID
@@ -12781,7 +12874,18 @@ struct StoreGenerationFactory {
                     )
                 }
             }
+#if DEBUG
+            coldOpenDiagnostic("validated-current-before")
+            let session = try openValidatedV3Current(
+                pointer: pointer,
+                dataRootURL: dataRootURL,
+                store: store
+            )
+            coldOpenDiagnostic("validated-current-after")
+            return session
+#else
             return try openValidatedV3Current(pointer: pointer, dataRootURL: dataRootURL, store: store)
+#endif
         }
     }
 
