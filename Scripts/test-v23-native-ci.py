@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Native-route protocol tests using disposable facts, never native PASS evidence."""
 import copy
+import hashlib
+import os
+import subprocess
+import time
 import importlib.util
 import json
 import re
@@ -1139,6 +1143,130 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertIn('pilot_simulator_udid="${CI_NATIVE_CREATED_SIMULATOR_UDID:-}"', cleanup)
         self.assertIn('xcrun simctl delete "$pilot_simulator_udid"', cleanup)
         self.assertIn("native-simulator-lifecycle.txt", cleanup)
+
+
+class SetupFailureEvidenceTests(unittest.TestCase):
+    @staticmethod
+    def failure_environment(provider="github"):
+        return {
+            "RUNTIME_SETUP_OUTCOME": "failure",
+            "CI_TASK_ID": "V23-INTEGRATION-20260910",
+            "CI_NATIVE_ACCEPTANCE_CONTRACT": CI.CONTRACT,
+            "CI_RUNNER_PROVIDER": provider,
+            "CI_RUNNER_LABEL": "macos-26" if provider == "github" else "bitrise-runner-Asset Roundddd",
+            "CI_S10_4_SHARED_BUILD_MODE": "none",
+            "CI_S10_4_SHARED_PAYLOAD_RUN_ID": "",
+            "CI_S10_4_EXECUTION_ROLE": "independent",
+            "CI_S10_4_PILOT_MODE": "false",
+            "CI_S10_4_SHARD_ID": "none",
+            "CI_S10_4_SEGMENT_ID": "none",
+            "WORKER_S10_4_DIAGNOSTIC_PROBE_ID": "none",
+        }
+
+    def execute_hash_step(self, overrides):
+        source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
+        hash_step = step(source, "Hash collected evidence")
+        self.assertIn("always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true')", hash_step)
+        run_body = hash_step.split("        run: |\n", 1)[1]
+        body = "\n".join(line[10:] if line.startswith("          ") else line for line in run_body.splitlines()) + "\n"
+        self.assertNotIn("${{", body)
+        # Windows' system bash may be WSL. Use Git Bash for this POSIX fixture.
+        bash = str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Git/bin/bash.exe") if os.name == "nt" else shutil.which("bash")
+        self.assertTrue(bash and Path(bash).is_file(), "a local Bash shell is required for evidence protocol tests")
+        with tempfile.TemporaryDirectory(prefix="v23 hash evidence ") as directory:
+            temporary = Path(directory)
+            artifact = temporary / "artifacts"
+            artifact.mkdir()
+            (artifact / "nested").mkdir()
+            originals = {"./native-setup.log": b"runtime missing\nprovision_exit=124\n", "./nested/original bytes.log": b"\x00retained original bytes\xff\n"}
+            for name, data in originals.items():
+                (artifact / name).write_bytes(data)
+            (artifact / "SHA256SUMS.txt").write_text("stale manifest must be replaced\n")
+            shell_file = temporary / "actual-hash-step.sh"
+            shell_file.write_bytes(body.encode())
+            shim = temporary / "bin"
+            shim.mkdir()
+            # Git for Windows provides sha256sum, but may omit Perl's shasum.
+            # Adapt only the interface; execute the real SHA256 and check tools.
+            shell_environment = {key: value for key, value in os.environ.items()
+                                 if not key.startswith(("CI_", "WORKER_", "RUNTIME_SETUP_"))}
+            available = subprocess.run([bash, "-c", "command -v shasum"], env=shell_environment, capture_output=True, text=True, timeout=15)
+            if available.returncode:
+                adapter = shim / "shasum"
+                adapter.write_bytes(b'#!/usr/bin/env bash\nset -euo pipefail\ntest "$1:$2" = -a:256\nshift 2\nexec sha256sum "$@"\n')
+                adapter.chmod(0o755)
+            shell_environment.update(overrides)
+            shell_environment.update({"CI_ARTIFACT_DIR": artifact.as_posix(), "RUNNER_TEMP": temporary.as_posix()})
+            result = subprocess.run([bash, "-c", 'fixture_bin="$(cd "$1" && pwd)"; export PATH="$fixture_bin:$PATH"; exec bash "$2"', "fixture", shim.as_posix(), shell_file.as_posix()],
+                                    env=shell_environment, capture_output=True, text=True, timeout=15)
+            files = {"./" + path.relative_to(artifact).as_posix(): path.read_bytes() for path in artifact.rglob("*") if path.is_file()}
+            for name, data in originals.items():
+                self.assertEqual(files[name], data, result.stderr)
+            return result, files
+
+    def assert_verified_manifest(self, result, files):
+        self.assertIn("./SHA256SUMS.txt", files, result.stderr)
+        actual = {}
+        for line in files["./SHA256SUMS.txt"].decode().splitlines():
+            match = re.fullmatch(r"([0-9a-f]{64}) [ *](.+)", line)
+            self.assertIsNotNone(match, line)
+            digest, name = match.groups()
+            self.assertNotIn(name, actual)
+            actual[name] = digest
+        expected = {name: hashlib.sha256(data).hexdigest() for name, data in files.items() if name != "./SHA256SUMS.txt"}
+        self.assertEqual(actual, expected)
+        self.assertEqual(list(actual), sorted(actual))
+        self.assertNotIn("FAILED", result.stdout + result.stderr)
+        for name in actual:
+            self.assertIn(name + ": OK", result.stdout)
+
+    def test_ordinary_setup_failure_retains_verified_originals_for_both_providers_and_stays_failed(self):
+        for provider in ("github", "bitrise"):
+            with self.subTest(provider=provider):
+                result, files = self.execute_hash_step(self.failure_environment(provider))
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assert_verified_manifest(result, files)
+                self.assertEqual(files["./v23-setup-failure-evidence.txt"], b"setup_elapsed_seconds=unavailable\nsetup_artifact_elapsed_seconds=unavailable\nacceptance_eligible=false\nreason=setup-failed-before-accounting\n")
+                self.assertNotIn("./artifact-budget.txt", files)
+                self.assertNotIn("./s10-4-setup-failure-evidence.txt", files)
+
+    def test_ineligible_outcomes_modes_and_unknown_bindings_cannot_enter_failure_retention(self):
+        variants = [
+            {"RUNTIME_SETUP_OUTCOME": outcome} for outcome in ("success", "cancelled", "skipped", "", "unknown")
+        ] + [
+            {"CI_TASK_ID": "S10.4"}, {"CI_NATIVE_ACCEPTANCE_CONTRACT": "none"},
+            {"CI_RUNNER_PROVIDER": "unknown"}, {"CI_RUNNER_LABEL": "macos-latest"},
+            {"CI_RUNNER_PROVIDER": "bitrise"}, {"CI_S10_4_SHARED_BUILD_MODE": "consumer"},
+            {"CI_S10_4_SHARED_PAYLOAD_RUN_ID": "123"}, {"CI_S10_4_EXECUTION_ROLE": "payload-consumer"},
+            {"CI_S10_4_PILOT_MODE": "true"}, {"CI_S10_4_SHARD_ID": "a-shard"},
+            {"CI_S10_4_SEGMENT_ID": "a-segment"}, {"WORKER_S10_4_DIAGNOSTIC_PROBE_ID": "a-probe"},
+        ]
+        variants += [{key: None} for key in self.failure_environment() if key != "CI_S10_4_SHARED_PAYLOAD_RUN_ID"]
+        for changed in variants:
+            with self.subTest(changed=changed):
+                values = self.failure_environment()
+                values.update(changed)
+                values = {key: value for key, value in values.items() if value is not None}
+                result, files = self.execute_hash_step(values)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(set(files), {"./native-setup.log", "./nested/original bytes.log"})
+
+    def test_accounted_setup_preserves_original_budget_manifest_and_over_budget_failure(self):
+        for outcome, budget, expected_returncode in (("success", 600, 0), ("failure", 600, 0), ("success", 0, 1)):
+            with self.subTest(outcome=outcome, budget=budget):
+                values = self.failure_environment()
+                values.update({"RUNTIME_SETUP_OUTCOME": outcome, "CI_SETUP_ELAPSED_SECONDS": "17",
+                               "CI_ARTIFACT_START_EPOCH": str(int(time.time())), "CI_SETUP_ARTIFACT_TIMEOUT_SECONDS": str(budget)})
+                result, files = self.execute_hash_step(values)
+                self.assertEqual(result.returncode, expected_returncode, result.stderr)
+                self.assert_verified_manifest(result, files)
+                self.assertNotIn("./v23-setup-failure-evidence.txt", files)
+                accounting = dict(line.split("=", 1) for line in files["./artifact-budget.txt"].decode().splitlines())
+                self.assertEqual(int(accounting["setup_elapsed_seconds"]), 17)
+                self.assertGreaterEqual(int(accounting["artifact_elapsed_seconds"]), 0)
+                self.assertEqual(int(accounting["setup_artifact_elapsed_seconds"]), 17 + int(accounting["artifact_elapsed_seconds"]))
+                self.assertEqual(int(accounting["setup_artifact_budget_seconds"]), budget)
+
 
 
 if __name__ == "__main__":

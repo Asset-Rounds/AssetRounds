@@ -6013,6 +6013,35 @@ jobs:
           mkdir -p "$CI_ARTIFACT_DIR"
           checksum_file="$RUNNER_TEMP/FieldEvidenceCI-checksums.txt"
           rm -f "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          # Retain ordinary V23 setup failures without inventing timing or success.
+          if [ "${RUNTIME_SETUP_OUTCOME:-}" = failure ] &&
+             [ -z "${CI_SETUP_ELAPSED_SECONDS:-}" ] &&
+             [ "${CI_TASK_ID:-}" = V23-INTEGRATION-20260910 ] &&
+             [ "${CI_NATIVE_ACCEPTANCE_CONTRACT:-}" = v23.integration.current-native.v1 ] &&
+             [ "${CI_S10_4_SHARED_BUILD_MODE:-}" = none ] &&
+             [ -z "${CI_S10_4_SHARED_PAYLOAD_RUN_ID:-}" ] &&
+             [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ] &&
+             [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+             [ "${CI_S10_4_SHARD_ID:-}" = none ] &&
+             [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+             [ "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] &&
+             { [ "${CI_RUNNER_PROVIDER:-}:${CI_RUNNER_LABEL:-}" = github:macos-26 ] ||
+               [ "${CI_RUNNER_PROVIDER:-}:${CI_RUNNER_LABEL:-}" = 'bitrise:bitrise-runner-Asset Roundddd' ]; }; then
+            printf 'setup_elapsed_seconds=unavailable\nsetup_artifact_elapsed_seconds=unavailable\nacceptance_eligible=false\nreason=setup-failed-before-accounting\n' \
+              > "$CI_ARTIFACT_DIR/v23-setup-failure-evidence.txt"
+            (
+              cd "$CI_ARTIFACT_DIR"
+              find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+                shasum -a 256 "$file"
+              done
+            ) > "$checksum_file"
+            mv "$checksum_file" "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+            (
+              cd "$CI_ARTIFACT_DIR"
+              shasum -a 256 -c SHA256SUMS.txt
+            )
+            exit 1
+          fi
           # H412 closes original setup-failure evidence without fabricating elapsed time.
           if [ "${RUNTIME_SETUP_OUTCOME:-}" = failure ] &&
              [ -z "${CI_SETUP_ELAPSED_SECONDS:-}" ] &&

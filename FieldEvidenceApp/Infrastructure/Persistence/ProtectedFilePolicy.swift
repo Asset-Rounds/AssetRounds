@@ -573,6 +573,18 @@ enum ProtectedFilePolicyV1 {
             ])
             guard values.fileProtection == .complete,
                   values.isExcludedFromBackup == disposition.isExcludedFromBackup else {
+                #if DEBUG
+                let protection = values.fileProtection
+                let exclusion = values.isExcludedFromBackup
+                let facts = "ProtectedFilePolicy resource-value-mismatch"
+                    + " protection=\(String(describing: protection))"
+                    + " protectionMatches=\(protection == .complete)"
+                    + " backupExcluded=\(String(describing: exclusion))"
+                    + " backupMatches=\(exclusion == disposition.isExcludedFromBackup)"
+                    + " expectedDirectory=\(disposition.expectsDirectory)"
+                    + " expectedBackupExcluded=\(disposition.isExcludedFromBackup)\n"
+                FileHandle.standardError.write(Data(facts.utf8))
+                #endif
                 throw ProtectedFilePolicyError.resourceValueMismatch
             }
         } catch let error as ProtectedFilePolicyError {
