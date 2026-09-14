@@ -9986,7 +9986,7 @@ struct StoreGenerationFactory {
                     canonicalUUID(from: $0)
                 }
                 guard uncertainDifference.count == difference.count else {
-                    throw GenerationLeaseRegistryFailureV1.invalidIdentity
+                    throw diagnosedGenerationLeaseInvalidIdentityV1()
                 }
                 uncertainIDs.append(contentsOf: uncertainDifference)
             }
@@ -10259,7 +10259,7 @@ struct StoreGenerationFactory {
         let provedIdentity = try StoreRestoreGenerationAuthority
             .directoryIdentity(descriptor: descriptor)
         guard expectedRootIdentity.map({ $0 == provedIdentity }) ?? true else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw diagnosedGenerationLeaseInvalidIdentityV1()
         }
         try verifyOwnedDirectory(at: root, descriptor: descriptor)
         _ = try StoreRestoreGenerationAuthority.exactGenerationEntries(
@@ -10575,7 +10575,7 @@ struct StoreGenerationFactory {
         guard try StoreRestoreGenerationAuthority.directoryIdentity(
                   descriptor: descriptor
               ) == provedIdentity else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw diagnosedGenerationLeaseInvalidIdentityV1()
         }
         if loaded.manifest.storeSchemaRelease != .v4,
            loaded.manifest.storeSchemaRelease != .v5,
@@ -10588,7 +10588,7 @@ struct StoreGenerationFactory {
            loaded.manifest.storeSchemaRelease != .v53,
            loaded.manifest.frozenIdentityDigest
             != (try frozenIdentityDigest(for: root)) {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw diagnosedGenerationLeaseInvalidIdentityV1()
         }
         return try GenerationEpochV1(
             generationID: id,
@@ -10628,7 +10628,7 @@ struct StoreGenerationFactory {
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
             )
             guard source >= 0 else {
-                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+                throw diagnosedGenerationLeaseInvalidIdentityV1()
             }
             defer { _ = Darwin.close(source) }
             expectedIdentity = try StoreRestoreGenerationAuthority
@@ -10653,12 +10653,12 @@ struct StoreGenerationFactory {
                 UInt32(RENAME_EXCL)
             ) == 0,
                   Darwin.fsync(parent) == 0 else {
-                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+                throw diagnosedGenerationLeaseInvalidIdentityV1()
             }
             let renamedIdentity = try StoreRestoreGenerationAuthority
                 .requiredDirectoryIdentity(parent: parent, name: quarantineName)
             guard renamedIdentity == expectedIdentity else {
-                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+                throw diagnosedGenerationLeaseInvalidIdentityV1()
             }
             try removeQuarantinedGeneration(
                 parent: parent,
@@ -10692,23 +10692,23 @@ struct StoreGenerationFactory {
         expectedIdentity: StoreRestoreGenerationAuthority.Identity
     ) throws {
         guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(parent: parent, name: name) == expectedIdentity else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw diagnosedGenerationLeaseInvalidIdentityV1()
         }
         let descriptor = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
-        guard descriptor >= 0 else { throw GenerationLeaseRegistryFailureV1.invalidIdentity }
+        guard descriptor >= 0 else { throw diagnosedGenerationLeaseInvalidIdentityV1() }
         defer { _ = Darwin.close(descriptor) }
         guard try StoreRestoreGenerationAuthority.directoryIdentity(descriptor: descriptor) == expectedIdentity else {
-            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            throw diagnosedGenerationLeaseInvalidIdentityV1()
         }
         try StoreRestoreGenerationAuthority.removeContents(of: descriptor, authorityCheck: {
             try self.verifyOwnedDirectory(at: self.generationsURL, descriptor: parent)
             guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(parent: parent, name: name) == expectedIdentity else {
-                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+                throw diagnosedGenerationLeaseInvalidIdentityV1()
             }
         })
         guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(parent: parent, name: name) == expectedIdentity,
               Darwin.unlinkat(parent, name, AT_REMOVEDIR) == 0,
-              Darwin.fsync(parent) == 0 else { throw GenerationLeaseRegistryFailureV1.invalidIdentity }
+              Darwin.fsync(parent) == 0 else { throw diagnosedGenerationLeaseInvalidIdentityV1() }
     }
 
     private func pruneQuarantineIdentity(
@@ -13355,3 +13355,14 @@ enum C52ServiceRequestStoreGenerationBoundaryV1 {
     }
 }
 enum C53AssetServiceReliabilityStoreGenerationBoundaryV1{static let sourcePersistentSchemaVersion=39,targetPersistentSchemaVersion=40,recordsSchemaVersion=39;static let derivedProjectionPersistent=false}
+
+/// Keeps the original lease failure while identifying its exact rejecting site.
+private func diagnosedGenerationLeaseInvalidIdentityV1(
+    function: String = #function,
+    line: Int = #line
+) -> GenerationLeaseRegistryFailureV1 {
+#if DEBUG
+    print("GenerationLeaseRegistryV1.invalidIdentity operation=\(function) line=\(line)")
+#endif
+    return .invalidIdentity
+}

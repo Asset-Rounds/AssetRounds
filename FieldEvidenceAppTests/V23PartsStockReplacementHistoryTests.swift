@@ -27,20 +27,20 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
 
     @MainActor
     func testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory() async throws {
-        let source = try V906Integration.makeHarness(
-            "c55-mixed-source", withAsset: false
-        )
-        let target = try V906Integration.makeHarness(
-            "c55-mixed-target", withAsset: false
-        )
+        let source = try publicReplacementStep("create-source") {
+            try V906Integration.makeHarness("c55-mixed-source", withAsset: false)
+        }
+        let target = try publicReplacementStep("create-target") {
+            try V906Integration.makeHarness("c55-mixed-target", withAsset: false)
+        }
         defer {
             V906Integration.remove(source.root)
             V906Integration.remove(target.root)
         }
 
-        let sourceHistory = try seedIncomingMixedHistory(
-            in: source.session, slot: 1_300
-        )
+        let sourceHistory = try publicReplacementStep("seed-incoming-mixed") {
+            try seedIncomingMixedHistory(in: source.session, slot: 1_300)
+        }
         let sourceSnapshot = try PartsStockLifecycleAdapterV1(
             modelContext: source.session.modelContext
         ).snapshotForBackup(workspaceID: source.session.workspaceIdentity.workspaceID)
@@ -64,17 +64,23 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         XCTAssertEqual(sourceSnapshot.movements.count, 2)
         XCTAssertEqual(sourceSnapshot.uses.count, 1)
 
-        try seedCurrentPart(in: target.session, slot: 1_400)
-        let archive = try V906Integration.exportStreaming(source)
+        try publicReplacementStep("seed-current-stock") {
+            try seedCurrentPart(in: target.session, slot: 1_400)
+        }
+        let archive = try publicReplacementStep("export") {
+            try V906Integration.exportStreaming(source)
+        }
         let restoredGenerationID: UUID
         let restoredHistory: MutationHistorySnapshotV1
         do {
-            let restored = try await V906Integration.restore(
-                archive,
-                into: target,
-                mode: .replaceExisting,
-                ids: V906Integration.restoreIDs(.replaceExisting, offset: 33)
-            )
+            let restored = try await publicReplacementAsyncStep("restore") {
+                try await V906Integration.restore(
+                    archive,
+                    into: target,
+                    mode: .replaceExisting,
+                    ids: V906Integration.restoreIDs(.replaceExisting, offset: 33)
+                )
+            }
             restoredGenerationID = restored.generationID
             restoredHistory = try assertMixedReplacement(
                 in: restored,
@@ -84,7 +90,9 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             )
         }
 
-        let reopened = try target.factory.openOrBootstrapCurrent()
+        let reopened = try publicReplacementStep("cold-open") {
+            try target.factory.openOrBootstrapCurrent()
+        }
         XCTAssertEqual(reopened.generationID, restoredGenerationID)
         XCTAssertEqual(
             try assertMixedReplacement(
@@ -554,13 +562,40 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let envelopes = try result.history.receipts.map {
             try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
         }
-        let retained = try XCTUnwrap(envelopes.first {
-            $0.workspaceID == fixture.targetWorkspaceID
-                && $0.mutationID == fixture.retainedCurrentMutationID
+        let targetMutationID = try XCTUnwrap(fixture.retainedCausalTargetMutationID)
+        let reversalMutationID = try XCTUnwrap(fixture.retainedCausalReversalMutationID)
+        let target = try XCTUnwrap(envelopes.first {
+            $0.workspaceID == fixture.targetWorkspaceID && $0.mutationID == targetMutationID
         })
-        XCTAssertEqual(retained.causationMutationID, fixture.removedCurrentMutationIDs.sorted {
-            $0.rawValue.uuidString < $1.rawValue.uuidString
-        }.first)
+        let reversal = try XCTUnwrap(envelopes.first {
+            $0.workspaceID == fixture.targetWorkspaceID && $0.mutationID == reversalMutationID
+        })
+        XCTAssertEqual(reversal.causationMutationID, targetMutationID)
+        XCTAssertEqual(reversal.semanticReversalExecution?.targetMutationID, targetMutationID)
+        XCTAssertEqual(reversal.sourceKind, .semanticReversal)
+        XCTAssertEqual(target.sourceKind, .localRecovery)
+        XCTAssertNil(target.causationMutationID)
+        XCTAssertTrue(Set([targetMutationID, reversalMutationID]).isDisjoint(
+            with: fixture.removedCurrentMutationIDs
+        ))
+        let targetRecord = try XCTUnwrap(result.history.receipts.first { record in
+            try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData).mutationID
+                == targetMutationID
+        })
+        let reversalRecord = try XCTUnwrap(result.history.receipts.first { record in
+            try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData).mutationID
+                == reversalMutationID
+        })
+        let basis = try ReversalBasisV1.decodeCanonical(
+            from: try XCTUnwrap(targetRecord.reversalBasisData)
+        )
+        let semantic = try SemanticReversalReceiptV1.decodeCanonical(
+            from: try XCTUnwrap(reversalRecord.semanticReversalData)
+        )
+        XCTAssertEqual(basis.targetMutationID, targetMutationID)
+        XCTAssertEqual(semantic.reversesMutationID, targetMutationID)
+        XCTAssertEqual(semantic.compensatingMutationIDs, [reversalMutationID])
+        XCTAssertEqual(semantic.reversalBasisSHA256, try basis.canonicalSHA256())
         XCTAssertEqual(
             envelopes.filter {
                 $0.workspaceID == fixture.sourceWorkspaceID
@@ -575,7 +610,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
                     && ($0.commandKind == .applyWorkResource
                         || $0.commandKind == .applyPartsStock)
             }.count,
-            fixture.incoming.history.receipts.count
+            fixture.incoming.history.receipts.count + 2
         )
     }
 
@@ -614,39 +649,78 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         )
     }
 
+    private func publicReplacementStep<T>(
+        _ phase: String,
+        _ operation: () throws -> T
+    ) rethrows -> T {
+        do {
+            return try operation()
+        } catch {
+            reportPublicReplacementFailure(error, phase: phase)
+            throw error
+        }
+    }
+
+    private func publicReplacementAsyncStep<T>(
+        _ phase: String,
+        _ operation: @MainActor () async throws -> T
+    ) async rethrows -> T {
+        do {
+            return try await operation()
+        } catch {
+            reportPublicReplacementFailure(error, phase: phase)
+            throw error
+        }
+    }
+
+    private func reportPublicReplacementFailure(_ error: Error, phase: String) {
+        let value = error as NSError
+        print("C55 public failure phase=\(phase) type=\(String(reflecting: type(of: error))) domain=\(value.domain) code=\(value.code)")
+    }
+
     @MainActor
     private func assertPublicEmptyIncomingReplacement(
         name: String,
         seedCurrentStock: Bool,
         restoreOffset: Int
     ) async throws {
-        let source = try V906Integration.makeHarness(
-            "c55-\(name)-source", withAsset: true
-        )
-        let target = try V906Integration.makeHarness(
-            "c55-\(name)-target", withAsset: true
-        )
+        let source = try publicReplacementStep("create-source") {
+            try V906Integration.makeHarness(
+                "c55-\(name)-source", withAsset: true, placementSource: .manual
+            )
+        }
+        let target = try publicReplacementStep("create-target") {
+            try V906Integration.makeHarness(
+                "c55-\(name)-target", withAsset: true, placementSource: .manual
+            )
+        }
         defer {
             V906Integration.remove(source.root)
             V906Integration.remove(target.root)
         }
         if seedCurrentStock {
-            try seedCurrentPart(in: target.session, slot: 1_100 + restoreOffset)
+            try publicReplacementStep("seed-current-stock") {
+                try seedCurrentPart(in: target.session, slot: 1_100 + restoreOffset)
+            }
         }
         let before = try PartsStockLifecycleAdapterV1(
             modelContext: target.session.modelContext
         ).snapshotForBackup(workspaceID: target.session.workspaceIdentity.workspaceID)
         XCTAssertEqual(before.parts.count, seedCurrentStock ? 1 : 0)
 
-        let archive = try V906Integration.exportStreaming(source)
+        let archive = try publicReplacementStep("export") {
+            try V906Integration.exportStreaming(source)
+        }
         let restoredGenerationID: UUID
         do {
-            let restoredSession = try await V906Integration.restore(
-                archive,
-                into: target,
-                mode: .replaceExisting,
-                ids: V906Integration.restoreIDs(.replaceExisting, offset: restoreOffset)
-            )
+            let restoredSession = try await publicReplacementAsyncStep("restore") {
+                try await V906Integration.restore(
+                    archive,
+                    into: target,
+                    mode: .replaceExisting,
+                    ids: V906Integration.restoreIDs(.replaceExisting, offset: restoreOffset)
+                )
+            }
             try assertEmptyStock(in: restoredSession)
             XCTAssertTrue(try MutationJournalStoreV1(
                 modelContext: restoredSession.modelContext,
@@ -656,7 +730,9 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             ).exportSnapshot().receipts.isEmpty)
             restoredGenerationID = restoredSession.generationID
         }
-        let reopened = try target.factory.openOrBootstrapCurrent()
+        let reopened = try publicReplacementStep("cold-open") {
+            try target.factory.openOrBootstrapCurrent()
+        }
         XCTAssertEqual(reopened.generationID, restoredGenerationID)
         try assertEmptyStock(in: reopened)
         XCTAssertTrue(try MutationJournalStoreV1(
@@ -1007,7 +1083,7 @@ private extension V23PartsStockReplacementHistoryTests {
 
     @MainActor
     struct Fixture {
-        static let fixedDate = Date(timeIntervalSince1970: 1_800_100_000)
+        nonisolated static let fixedDate = Date(timeIntervalSince1970: 1_800_100_000)
         let sourceWorkspaceID: WorkspaceID
         let targetWorkspaceID: WorkspaceID
         let targetGenerationID: UUID
@@ -1015,6 +1091,8 @@ private extension V23PartsStockReplacementHistoryTests {
         let incoming: Side
         let retainedCurrentEntry: WorkResourceEntryV1
         let retainedCurrentMutationID: MutationIDV1
+        let retainedCausalTargetMutationID: MutationIDV1?
+        let retainedCausalReversalMutationID: MutationIDV1?
         let firstIncomingEntry: WorkResourceEntryV1
         let secondIncomingEntry: WorkResourceEntryV1
         let unarchivedBaselineMutationID: MutationIDV1
@@ -1446,38 +1524,65 @@ private extension V23PartsStockReplacementHistoryTests {
                 reversals: [], returns: [],
                 abandonments: []
             )
+            var currentCommands: [WorkspaceCommandV1] = [
+                .applyPartsStock(.upsertPart(currentPart)),
+                .applyPartsStock(.upsertLocation(
+                    currentLocation, mutationID: currentLocationMutation
+                )),
+                .applyPartsStock(.appendMovement(currentOpening)),
+                .applyWorkResource(try .init(
+                    workspaceID: targetWorkspaceID,
+                    mutationID: currentCoupledMutation,
+                    postImage: currentCoupled
+                )),
+                .applyPartsStock(.use(currentUse)),
+                .applyWorkResource(try .init(
+                    workspaceID: targetWorkspaceID,
+                    mutationID: retainedMutationID,
+                    postImage: retained
+                )),
+            ]
+            var currentWorkResources = [currentCoupled, currentUseWork, retained]
+            var retainedCausalTargetMutationID: MutationIDV1? = nil
+            var retainedCausalReversalMutationID: MutationIDV1? = nil
+            if retainedCurrentCausation {
+                let targetMutation = try mutation(215)
+                let targetEntry = try work(
+                    workspaceID: targetWorkspaceID, slot: 216, subject: targetSubject,
+                    actor: targetActor, mutationID: targetMutation, expectedRevision: 0
+                )
+                let reversalMutation = try mutation(217)
+                let reversalEntry = try work(
+                    workspaceID: targetWorkspaceID, slot: 218, subject: targetSubject,
+                    actor: targetActor, mutationID: reversalMutation,
+                    expectedRevision: targetEntry.revision, predecessor: targetEntry,
+                    disposition: .reversed
+                )
+                currentCommands.append(.applyWorkResource(try .init(
+                    workspaceID: targetWorkspaceID,
+                    mutationID: targetMutation, postImage: targetEntry
+                )))
+                currentCommands.append(.applyWorkResource(try .init(
+                    workspaceID: targetWorkspaceID,
+                    mutationID: reversalMutation, postImage: reversalEntry
+                )))
+                currentWorkResources.append(contentsOf: [targetEntry, reversalEntry])
+                retainedCausalTargetMutationID = targetMutation
+                retainedCausalReversalMutationID = reversalMutation
+            }
             let currentHistory = try history(
-                commands: [
-                    .applyPartsStock(.upsertPart(currentPart)),
-                    .applyPartsStock(.upsertLocation(
-                        currentLocation, mutationID: currentLocationMutation
-                    )),
-                    .applyPartsStock(.appendMovement(currentOpening)),
-                    .applyWorkResource(try .init(
-                        workspaceID: targetWorkspaceID,
-                        mutationID: currentCoupledMutation,
-                        postImage: currentCoupled
-                    )),
-                    .applyPartsStock(.use(currentUse)),
-                    .applyWorkResource(try .init(
-                        workspaceID: targetWorkspaceID,
-                        mutationID: retainedMutationID,
-                        postImage: retained
-                    )),
-                ],
+                commands: currentCommands,
                 identities: [targetReplica],
                 generationID: currentGeneration,
                 writerID: id(9),
-                causationByIndex: retainedCurrentCausation
-                    ? [5: currentCoupledMutation]
-                    : [:]
+                semanticPair: retainedCurrentCausation ? (target: 6, reversal: 7) : nil
             )
             return Fixture(
                 sourceWorkspaceID: sourceWorkspaceID,
                 targetWorkspaceID: targetWorkspaceID,
                 targetGenerationID: targetGeneration,
                 current: Side(snapshot: currentSnapshot, history: currentHistory,
-                              workResources: [currentCoupled, currentUseWork, retained]),
+                              workResources: currentWorkResources),
                 incoming: Side(snapshot: incomingSnapshot, history: incomingHistory,
                                workResources: [
                                 firstWork, useWork, reverseWork, secondWork,
@@ -1485,6 +1590,8 @@ private extension V23PartsStockReplacementHistoryTests {
                                ]),
                 retainedCurrentEntry: retained,
                 retainedCurrentMutationID: retainedMutationID,
+                retainedCausalTargetMutationID: retainedCausalTargetMutationID,
+                retainedCausalReversalMutationID: retainedCausalReversalMutationID,
                 firstIncomingEntry: firstWork,
                 secondIncomingEntry: secondWork,
                 unarchivedBaselineMutationID: abandonedSource.mutationID,
@@ -1564,7 +1671,6 @@ private extension V23PartsStockReplacementHistoryTests {
             writerID: UUID,
             semanticPair: (target: Int, reversal: Int)? = nil,
             explicitMutationIDs: [Int: MutationIDV1] = [:],
-            causationByIndex: [Int: MutationIDV1] = [:],
             catalogBaselines: [MutationHistoryEntityRevisionV1] = []
         ) throws -> MutationHistorySnapshotV1 {
             guard let workspaceID = identities.first?.workspaceID,
@@ -1661,7 +1767,7 @@ private extension V23PartsStockReplacementHistoryTests {
                 var execution: SemanticReversalExecutionV1?
                 var replayIdentitySHA256: String?
                 var reversesMutationID: MutationIDV1?
-                var causationMutationID: MutationIDV1? = causationByIndex[offset]
+                var causationMutationID: MutationIDV1? = nil
                 if let pair = semanticPair, offset == pair.target {
                     guard commands.indices.contains(pair.reversal), pair.reversal > pair.target else {
                         throw PartsStockReplacementHistoryProjectionFailureV1.invalidSource

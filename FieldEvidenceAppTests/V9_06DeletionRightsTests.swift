@@ -416,7 +416,11 @@ enum V906Integration {
         let registeredKindPolicy: KindPolicy
     }
 
-    static func makeHarness(_ name: String, withAsset: Bool) throws -> Harness {
+    static func makeHarness(
+        _ name: String,
+        withAsset: Bool,
+        placementSource: AssetPlacementSourceV1 = .migratedBaseline
+    ) throws -> Harness {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "V9_06-\(name)-\(UUID().uuidString)", isDirectory: true
         )
@@ -453,7 +457,7 @@ enum V906Integration {
                 siteID: siteID,
                 locationNodeID: nil,
                 predecessorEventID: nil,
-                source: .migratedBaseline,
+                source: placementSource,
                 physicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: fixtureID(4)),
                 continuity: .samePhysicalInstallation,
                 pathSnapshot: LocationPathSnapshotV1(

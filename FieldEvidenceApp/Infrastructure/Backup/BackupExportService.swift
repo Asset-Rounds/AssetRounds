@@ -2416,7 +2416,9 @@ private extension BackupExportService {
                 lastLocalSequence: history.lastLocalSequence,
                 receipts: ordered,
                 quarantines: history.quarantines,
-                entityRevisions: history.entityRevisions
+                entityRevisions: history.entityRevisions.sorted {
+                    $0.identity.stableKey < $1.identity.stableKey
+                }
             )
         }
         let sourceIdentity = try currentStreamingWorkspaceIdentity()

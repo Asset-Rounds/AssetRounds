@@ -514,13 +514,27 @@ final class V23PartsStockReplacementProjectionTests: XCTestCase {
             workspaceID: sourceWorkspaceID, replicaID: ReplicaID(rawValue: Fixture.id(938))
         )
         let generationID = Fixture.id(939)
+        var admittedFrontier: [WorkspaceEntityIdentityV1: UInt64] = [
+            try WorkspaceEntityIdentityV1(
+                kind: .localPartDefinition, id: admittedPartThree.partID
+            ): 1,
+            try WorkspaceEntityIdentityV1(
+                kind: .stockStorageLocation, id: locationThree.locationID
+            ): 1,
+        ]
         let admittedReceipts = try admittedMutations.enumerated().map { offset, mutation in
-            try Self.c55HistoryRecord(
+            for image in try mutation.mutationPostImages {
+                admittedFrontier[try image.identity] = image.revision
+            }
+            return try Self.c55HistoryRecord(
                 mutation: mutation,
                 identity: replica,
                 generationID: generationID,
                 workspaceRevision: UInt64(offset),
-                localSequence: UInt64(offset + 1)
+                localSequence: UInt64(offset + 1),
+                resultingEntityRevisions: admittedFrontier.map {
+                    WorkspaceEntityRevisionV1(identity: $0.key, revision: $0.value)
+                }.sorted { $0.identity.stableKey < $1.identity.stableKey }
             )
         }
         let admittedPartRevision = MutationHistoryEntityRevisionV1(
@@ -740,7 +754,8 @@ final class V23PartsStockReplacementProjectionTests: XCTestCase {
         identity: WorkspaceReplicaIdentityV1,
         generationID: UUID,
         workspaceRevision: UInt64,
-        localSequence: UInt64
+        localSequence: UInt64,
+        resultingEntityRevisions: [WorkspaceEntityRevisionV1]
     ) throws -> MutationHistoryReceiptRecordV1 {
         let concurrency = try mutation.concurrencyIdentities
         let expected = try WorkspaceExpectedRevisionV1(
@@ -766,9 +781,7 @@ final class V23PartsStockReplacementProjectionTests: XCTestCase {
             generationID: generationID,
             writerInstanceID: Fixture.id(962),
             workspaceRevision: workspaceRevision + 1,
-            entityRevisions: try postImages.map {
-                .init(identity: try $0.identity, revision: $0.revision)
-            }
+            entityRevisions: resultingEntityRevisions
         )
         let receipt = try MutationReceiptV1(
             identity: .init(

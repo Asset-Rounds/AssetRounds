@@ -573,7 +573,7 @@ enum PartsStockReplacementHistoryProjectionV1 {
                 detectedAt: quarantine.detectedAt
             ))
         }
-        guard Set(try quarantines.map {
+        guard Set(quarantines.map {
             ReplacementHistoryCommandEmissionV1.mutationKey(workspaceID: $0.workspaceID, mutationID: $0.mutationID)
         }).count == quarantines.count else {
             throw PartsStockReplacementHistoryProjectionFailureV1.collision

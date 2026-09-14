@@ -710,7 +710,7 @@ fileprivate extension PartsStockReplacementValueProjectionV1 {
             if let baseline = baselinePartByID[partID] {
                 let expected = baseline.revision == 1
                     ? [UInt64(1)]
-                    : Array(UInt64(2)...baseline.revision)
+                    : Array((actual.first == 1 ? UInt64(1) : UInt64(2))...baseline.revision)
                 guard actual == expected,
                       revisions.max(by: { $0.revision < $1.revision }) == baseline,
                       owned == Set(revisions.filter { $0.revision > 1 }.map(PartKey.init)) else {
