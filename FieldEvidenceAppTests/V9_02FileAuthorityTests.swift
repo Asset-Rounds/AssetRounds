@@ -827,7 +827,7 @@ private extension V9_02FileAuthorityTests {
             return FailureOnlyDirectoryURLReadback(
                 protection: failureOnlyProtectionCategory(values.fileProtection),
                 backup: failureOnlyBooleanCategory(values.isExcludedFromBackup),
-                volumeProtection: failureOnlyBooleanCategory(values.volumeSupportsFileProtection),
+                volumeProtection: failureOnlyBooleanCategory(values.allValues[.volumeSupportsFileProtectionKey] as? Bool),
                 shape: failureOnlyDirectoryShapeCategory(values.isDirectory)
             )
         } catch {

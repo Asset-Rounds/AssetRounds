@@ -649,7 +649,7 @@ enum ProtectedFilePolicyV1 {
         case .some(.completeUnlessOpen): urlProtection = "completeUnlessOpen"
         case .some(.completeUntilFirstUserAuthentication): urlProtection = "completeUntilFirstUserAuthentication"
         case .some(.none): urlProtection = "none"
-        case .none: urlProtection = values == nil ? "readError" : "unknown"
+        case nil: urlProtection = values == nil ? "readError" : "unknown"
         default: urlProtection = "other"
         }
         let fileManagerProtection: String
@@ -658,13 +658,13 @@ enum ProtectedFilePolicyV1 {
         case .some(.completeUnlessOpen): fileManagerProtection = "completeUnlessOpen"
         case .some(.completeUntilFirstUserAuthentication): fileManagerProtection = "completeUntilFirstUserAuthentication"
         case .some(.none): fileManagerProtection = "none"
-        case .none: fileManagerProtection = attributes == nil ? "readError" : "unknown"
+        case nil: fileManagerProtection = attributes == nil ? "readError" : "unknown"
         default: fileManagerProtection = "other"
         }
         return DirectoryProtectionReadback(
             urlProtection: urlProtection, fileManagerProtection: fileManagerProtection,
             backupExcluded: values?.isExcludedFromBackup, isDirectory: values?.isDirectory,
-            volumeSupportsProtection: values?.volumeSupportsFileProtection
+            volumeSupportsProtection: values?.allValues[.volumeSupportsFileProtectionKey] as? Bool
         )
     }
 
