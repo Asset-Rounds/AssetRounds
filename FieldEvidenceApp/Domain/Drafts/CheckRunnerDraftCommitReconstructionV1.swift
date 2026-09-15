@@ -170,12 +170,16 @@ extension CheckRunnerPhotoDraftCodecV1 {
             terminalCheckpointUpdatedAt: attempt.terminalCheckpointUpdatedAt,
             rowMutationIDs: attempt.rowMutationIDs(stageID: ready.stageID))
         let normalized = pair.normalizedPair
+        guard let originalByteCount = Int(exactly: normalized.originalByteCount),
+              let thumbnailByteCount = Int(exactly: normalized.thumbnailByteCount) else {
+            throw FieldDraftFailureV1.invalidValue
+        }
         let command = CheckEvidenceMutationV1(evidenceID: pair.raw.intent.evidenceID,
             draftID: payload.recordID, purposeKey: payload.purposeKey,
             relativePath: normalized.originalRelativePath, mimeType: MediaContractV1.durableMIMEType,
-            byteCount: normalized.originalByteCount, sha256: normalized.originalSHA256,
+            byteCount: originalByteCount, sha256: normalized.originalSHA256,
             thumbnailRelativePath: normalized.thumbnailRelativePath,
-            thumbnailByteCount: normalized.thumbnailByteCount, thumbnailSHA256: normalized.thumbnailSHA256,
+            thumbnailByteCount: thumbnailByteCount, thumbnailSHA256: normalized.thumbnailSHA256,
             nextDraftStepKey: payload.captureStep == .wide ? WorkflowDraftStep.close.rawValue : WorkflowDraftStep.outcome.rawValue,
             createdAt: pair.raw.intent.evidenceCreatedAt)
         return .init(draftCommit: draftCommit, targetCommand: command)

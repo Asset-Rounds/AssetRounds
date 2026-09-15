@@ -210,7 +210,8 @@ final class FinalizationService {
     /// Read the frozen attempt through the existing replay and writer owners.
     /// A missing receipt beside a saved result is corruption, never absence.
     func readCommittedFinalization(
-        _ input: FinalizationServiceInput
+        _ input: FinalizationServiceInput,
+        expectedWorkflowRecordRevision: UInt64? = nil
     ) throws -> ReviewedFinalizationCommitV1? {
         guard !modelContext.hasChanges, let workspaceWriter,
               input.evidence.count <= 2 else {
@@ -352,6 +353,9 @@ final class FinalizationService {
             }
             return nil
         }
+        try requireFrozenWorkflowRecordRevision(
+            expectedWorkflowRecordRevision, recordID: input.draft.id, envelope: evidence.envelope
+        )
         guard case let .finalizeCheck(command) = evidence.envelope.command,
               let authority = command.writerAuthority,
               command.finalizationMutationID == input.identifiers.mutationID,
@@ -483,9 +487,18 @@ final class FinalizationService {
         return ReviewedFinalizationCommitV1(result: result, receipt: evidence.receipt)
     }
 
-    func finalize(_ input: FinalizationServiceInput) async throws -> FinalizationServiceOutcome {
+    func finalize(
+        _ input: FinalizationServiceInput,
+        expectedWorkflowRecordRevision: UInt64? = nil
+    ) async throws -> FinalizationServiceOutcome {
         guard !modelContext.hasChanges, let workspaceWriter else {
             throw FinalizationServiceError.preconditionFailed
+        }
+        if let expectedWorkflowRecordRevision,
+           let committed = try readCommittedFinalization(
+               input, expectedWorkflowRecordRevision: expectedWorkflowRecordRevision
+           ) {
+            return FinalizationServiceOutcome(result: committed.result, createdAuthority: false)
         }
         if let replay = try replayedFinalization(input) {
             try validateReplayAuthority(mutationID: input.identifiers.mutationID,
@@ -499,7 +512,10 @@ final class FinalizationService {
         try validateEvidenceFiles(input.evidence)
         let frozen = try freeze(input)
         let inspectionRelease = try inspectionReleaseForOriginal(frozen.intent.finalizationPayload.workflowRecordAfter)
-        let commitIntent = try writerBoundIntent(frozen.intent, inspectionRelease: inspectionRelease)
+        let commitIntent = try writerBoundIntent(
+            frozen.intent, inspectionRelease: inspectionRelease,
+            expectedWorkflowRecordRevision: expectedWorkflowRecordRevision
+        )
         guard let commitBinding = commitIntent.writerCommitBinding else {
             throw FinalizationServiceError.preconditionFailed
         }
@@ -1090,7 +1106,8 @@ final class FinalizationService {
 
     private func writerBoundIntent(
         _ intent: FinalizationIntentV1,
-        inspectionRelease: FinalizationInspectionReleaseBindingV1?
+        inspectionRelease: FinalizationInspectionReleaseBindingV1?,
+        expectedWorkflowRecordRevision: UInt64? = nil
     ) throws -> FinalizationIntentV1 {
         guard let workspaceWriter, let report = intent.finalizationPayload.reportInsert else {
             throw FinalizationServiceError.preconditionFailed
@@ -1134,6 +1151,9 @@ final class FinalizationService {
             ))
         }
         let binding = try workspaceWriter.prepareFinalizationCommit(command: command)
+        try requireFrozenWorkflowRecordRevision(
+            expectedWorkflowRecordRevision, recordID: intent.recordID, envelope: binding.envelope()
+        )
         return FinalizationIntentV1(
             completedAt: intent.completedAt, finalizationMutationID: intent.finalizationMutationID,
             finalizationPayload: intent.finalizationPayload, finalizationPayloadSHA256: intent.finalizationPayloadSHA256,
@@ -1143,6 +1163,23 @@ final class FinalizationService {
             snapshotSHA256: intent.snapshotSHA256, snapshotStagingRelativePath: intent.snapshotStagingRelativePath,
             stableRootID: intent.stableRootID, writerCommitBinding: binding
         )
+    }
+
+    /// Compare the frozen record CAS with the actual envelope. Keep its fresh
+    /// workspace revision and every other writer-owned concurrency binding.
+    private func requireFrozenWorkflowRecordRevision(
+        _ expected: UInt64?, recordID: UUID, envelope: MutationEnvelopeV1
+    ) throws {
+        guard let expected else { return }
+        let identity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: recordID)
+        guard case let .finalizeCheck(command) = envelope.command,
+              command.recordID == recordID else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let revisions = envelope.expectedRevision.entityRevisions.filter { $0.identity == identity }
+        guard revisions.count == 1, revisions.first?.revision == expected else {
+            throw WorkspaceMutationFailureV1.staleEntityRevision(identity)
+        }
     }
 
     private func replayedFinalization(

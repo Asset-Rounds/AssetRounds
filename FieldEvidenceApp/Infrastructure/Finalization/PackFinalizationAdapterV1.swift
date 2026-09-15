@@ -43,12 +43,15 @@ final class PackFinalizationAdapterV1 {
 
     func finalize(
         _ input: FinalizationServiceInput,
-        binding: PackFinalizationBindingV1
+        binding: PackFinalizationBindingV1,
+        expectedWorkflowRecordRevision: UInt64? = nil
     ) async throws -> PackFinalizationAdapterOutcomeV1 {
         try Task.checkCancellation()
         try validateBinding(input, binding: binding)
 
-        let outcome = try await service.finalize(input)
+        let outcome = try await service.finalize(
+            input, expectedWorkflowRecordRevision: expectedWorkflowRecordRevision
+        )
         let durableReceipt = try dependencies.writer.durableReceipt(
             mutationID: binding.mutationID
         )
@@ -66,11 +69,14 @@ final class PackFinalizationAdapterV1 {
 
     func readCommittedFinalization(
         _ input: FinalizationServiceInput,
-        binding: PackFinalizationBindingV1
+        binding: PackFinalizationBindingV1,
+        expectedWorkflowRecordRevision: UInt64? = nil
     ) throws -> ReviewedFinalizationCommitV1? {
         try Task.checkCancellation()
         try validateBinding(input, binding: binding)
-        guard let committed = try service.readCommittedFinalization(input) else {
+        guard let committed = try service.readCommittedFinalization(
+            input, expectedWorkflowRecordRevision: expectedWorkflowRecordRevision
+        ) else {
             guard binding.durableReceiptIdentity == nil else {
                 throw CheckRunnerCoordinatorError.packageLifecycleMismatch
             }

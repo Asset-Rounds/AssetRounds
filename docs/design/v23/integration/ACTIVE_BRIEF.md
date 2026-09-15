@@ -5,13 +5,13 @@ This is navigation and current state, not new product authority. Read the [curre
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Current diagnostic head: `29fbcbc7f25d5e6066d2d3a1427e9c0c32e43c4a`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Current diagnostic head: `f020a324e79fff4efdd6ecebab49b07fcdcdbb90`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the one existing app/project/shared scheme/design system, S10 branding and five accepted receipts; all owned drafts, frozen inputs, V30 and coordination history remain protected.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. Existing signing/distribution/submission and main-integration boundaries apply.
 
 ## Latest native evidence
 
-All five29fbcbc originals (catalog26, report81, mutation34, Round8, graph25) are terminal, sole-collected and root-sealed with complete integrity. Each reports one test-target iso8601 access error; all174 units are NotStarted. The unchanged formatter is now moved to the shared extension; native verification is due. All60 route inputs, partial warnings and earlier b0 failures/graph HTTP502 remain retained.
+All five f020a32 originals are sealed with complete integrity. Two photo-command Int64-to-Int errors leave184 units NotStarted; all warning signatures are retained with no new signature. The exact bounded conversion is authored with the frozen finalization revision check. Earlier29fb formatter failures and b0 graph HTTP502 remain retained.
 
 All five55e4655 originals are sealed with complete integrity. Capture20/graph25 builds were interrupted without compiler errors; compiled suites retain report9Pass/1Fail/1Interrupted/49NotStarted, mutation29Pass/5Fail and Round2Pass/6Fail. Report/Round diagnostic parsing is INVALID. Warning signatures match256; causal corrections are committed in b0d4f96. Parent1d catalog/correspondence passed56 units; incomplete graph evidence remains negative.
 
@@ -23,8 +23,8 @@ The83 probes exposed unavailable FileManager corroboration. The approved URL cor
 - **C36 remainder:** durable Begin and retry, codec/lifecycle adoption, restored destination correspondence, and complete field-flow/scene/focus/resume composition remain prerequisites for full feature completion. Source inventory is not implementation or acceptance.
 - **Retained recovery:** original capture20 remains intact and due after protection, including all13 V2 recovery methods. Temporary compiler timing is retired to the exact original build wrapper.
 - **Source graph:** private-init package capability and pure original-history authentication have19 paired methods, including200-item bounds, lifecycle dispositions, complete history and historical versus package-current Round frontiers. Destination representation and live effects remain due.
-- **Current source work:** Pure parent/photo commit reconstruction, ten paired cases and the formatter access correction pass71 source checks for673/32/report91 and independent source reviewC8BC9C44. All39 prior field methods and49 drafts remain exact. The committed codec definitions retain their reviewed releases.
-- **Current native questions:** Review the corrected batch before catalog26/report91/mutation34/Round8/graph25. Preserve the200-item graph and900-second watchdog. Capture20/readiness6 remain required later. Production registration and writes require complete lifecycle/live-target evidence.
+- **Current source work:** Pure parent/photo commit reconstruction is committed. The nine-path batch now enforces the frozen workflow revision in actual finalizer envelopes/replay, adds four real-store cases and corrects two byte-count conversions. Source checks72 pass for677/32/report95; independent source reviewDC4874C5 is GO; index and route review follow. All37 prior pack methods/helpers and49 drafts remain exact.
+- **Current native questions:** After review, run catalog26/report95/mutation34/Round8/graph25 for the combined correction. Preserve the200-item graph and900-second watchdog. Capture20/readiness6 remain required later. Production registration and writes require complete lifecycle/live-target evidence.
 - **Other retained work:** finish native finalization/protection, Work/Round production adoption, C55 replacement evidence, and C57 fork/mixed-history preservation. Consult their precise CURRENT_INTEGRATION workstreams when resumed.
 
 ## Working cadence

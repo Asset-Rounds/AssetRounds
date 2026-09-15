@@ -2328,6 +2328,159 @@ extension V9_18PackLifecycleIntegrationTests {
     }
 
     @MainActor
+    func testFrozenFinalizationRevisionAllowsUnrelatedWorkspaceAdvance() async throws {
+        let attempt = try await prepareReadbackCheck("frozen-finalization-unrelated",
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), evidenceCount: 0)
+        defer { attempt.harness.cleanup(fileManager: fileManager) }
+        let writer = attempt.harness.dependencies.writer
+        let identity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: attempt.input.draft.id)
+        let frozen = try writer.currentRevision()
+        let expected = try XCTUnwrap(frozen.entityRevisions.first { $0.identity == identity }).revision
+        let unrelatedMutation = try writer.makeMutationID()
+        _ = try writer.execute(try makeFirstAssetCommand(label: "frozen-finalization-other",
+            mutationID: unrelatedMutation), mutationID: unrelatedMutation)
+        let current = try writer.currentRevision()
+        XCTAssertGreaterThan(current.revision, frozen.revision)
+        XCTAssertEqual(current.entityRevisions.first { $0.identity == identity }?.revision, expected)
+
+        let outcome = try await attempt.adapter.finalize(attempt.input, binding: attempt.nilBinding,
+            expectedWorkflowRecordRevision: expected)
+        XCTAssertTrue(outcome.finalization.createdAuthority)
+        let evidence = try XCTUnwrap(writer.finalizationEvidence(mutationID: attempt.nilBinding.mutationID))
+        XCTAssertEqual(evidence.envelope.expectedRevision.workspaceRevision, current.revision)
+        XCTAssertEqual(evidence.envelope.expectedRevision.entityRevisions
+            .first { $0.identity == identity }?.revision, expected)
+        XCTAssertEqual(try evidence.workflowRecordRevision(recordID: attempt.input.draft.id), expected + 1)
+        let proof = try XCTUnwrap(attempt.adapter.readCommittedFinalization(attempt.input,
+            binding: attempt.nilBinding, expectedWorkflowRecordRevision: expected))
+        XCTAssertEqual(proof.receipt, evidence.receipt)
+        XCTAssertEqual(proof.receipt.identity, outcome.durableReceiptIdentity)
+        XCTAssertEqual(proof.result, outcome.finalization.result)
+        XCTAssertEqual(try attempt.service.readCommittedFinalization(attempt.input,
+            expectedWorkflowRecordRevision: expected), proof)
+    }
+
+    @MainActor
+    func testFrozenFinalizationRevisionRejectsStaleAttemptBeforeAnyEffect() async throws {
+        let attempt = try await prepareReadbackCheck("frozen-finalization-stale",
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), evidenceCount: 0)
+        defer { attempt.harness.cleanup(fileManager: fileManager) }
+        let writer = attempt.harness.dependencies.writer
+        let identity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: attempt.input.draft.id)
+        let beforeRevision = try writer.currentRevision()
+        let expected = try XCTUnwrap(beforeRevision.entityRevisions.first { $0.identity == identity }).revision
+        XCTAssertGreaterThan(expected, 0)
+        let beforeReceipts = try attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count
+        let beforeFiles = try readbackTree(attempt.harness.session.generationRootURL)
+        for wrong in [UInt64(0), expected + 1, UInt64.max] {
+            do {
+                _ = try await attempt.adapter.finalize(attempt.input, binding: attempt.nilBinding,
+                    expectedWorkflowRecordRevision: wrong)
+                XCTFail("A stale frozen revision must fail before journal preparation")
+            } catch {
+                XCTAssertEqual(error as? WorkspaceMutationFailureV1, .staleEntityRevision(identity))
+            }
+            XCTAssertNil(try writer.finalizationEvidence(mutationID: attempt.nilBinding.mutationID))
+            XCTAssertEqual(try writer.currentRevision(), beforeRevision)
+            XCTAssertEqual(try attempt.harness.session.modelContext.fetch(
+                FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+            XCTAssertEqual(try readbackTree(attempt.harness.session.generationRootURL), beforeFiles)
+            XCTAssertFalse(attempt.harness.session.modelContext.hasChanges)
+        }
+        let exact = try await attempt.adapter.finalize(attempt.input, binding: attempt.nilBinding,
+            expectedWorkflowRecordRevision: expected)
+        XCTAssertTrue(exact.finalization.createdAuthority)
+    }
+
+    @MainActor
+    func testFrozenFinalizationReplayRequiresOriginalExpectedRevision() async throws {
+        let attempt = try await prepareReadbackCheck("frozen-finalization-replay",
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), evidenceCount: 0)
+        defer { attempt.harness.cleanup(fileManager: fileManager) }
+        let writer = attempt.harness.dependencies.writer
+        let identity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: attempt.input.draft.id)
+        let expected = try XCTUnwrap(writer.currentRevision().entityRevisions
+            .first { $0.identity == identity }).revision
+        let original = try await attempt.adapter.finalize(attempt.input, binding: attempt.nilBinding,
+            expectedWorkflowRecordRevision: expected)
+        let evidence = try XCTUnwrap(writer.finalizationEvidence(mutationID: attempt.nilBinding.mutationID))
+        let postimageRevision = try evidence.workflowRecordRevision(recordID: attempt.input.draft.id)
+        XCTAssertEqual(postimageRevision, expected + 1)
+        let beforeRevision = try writer.currentRevision()
+        let beforeReceipts = try attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count
+        let beforeFiles = try readbackTree(attempt.harness.session.generationRootURL)
+        for wrong in [UInt64(0), postimageRevision, UInt64.max] {
+            XCTAssertThrowsError(try attempt.adapter.readCommittedFinalization(attempt.input,
+                binding: attempt.nilBinding, expectedWorkflowRecordRevision: wrong)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .staleEntityRevision(identity))
+            }
+            do {
+                _ = try await attempt.adapter.finalize(attempt.input, binding: attempt.nilBinding,
+                    expectedWorkflowRecordRevision: wrong)
+                XCTFail("Replay must authenticate the frozen preimage revision")
+            } catch {
+                XCTAssertEqual(error as? WorkspaceMutationFailureV1, .staleEntityRevision(identity))
+            }
+        }
+        let replay = try await attempt.adapter.finalize(attempt.input, binding: attempt.nilBinding,
+            expectedWorkflowRecordRevision: expected)
+        XCTAssertFalse(replay.finalization.createdAuthority)
+        XCTAssertEqual(replay.finalization.result, original.finalization.result)
+        XCTAssertEqual(replay.durableReceiptIdentity, original.durableReceiptIdentity)
+        XCTAssertEqual(try attempt.adapter.readCommittedFinalization(attempt.input,
+            binding: attempt.nilBinding, expectedWorkflowRecordRevision: expected)?.receipt, evidence.receipt)
+        XCTAssertEqual(try writer.currentRevision(), beforeRevision)
+        XCTAssertEqual(try attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+        XCTAssertEqual(try readbackTree(attempt.harness.session.generationRootURL), beforeFiles)
+        XCTAssertFalse(attempt.harness.session.modelContext.hasChanges)
+    }
+
+    @MainActor
+    func testFrozenFinalizationRevisionRejectsInterveningEvidenceAcceptance() async throws {
+        let attempt = try await prepareReadbackCheck("frozen-finalization-evidence",
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), evidenceCount: 0)
+        defer { attempt.harness.cleanup(fileManager: fileManager) }
+        let writer = attempt.harness.dependencies.writer
+        let identity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: attempt.input.draft.id)
+        let expected = try XCTUnwrap(writer.currentRevision().entityRevisions
+            .first { $0.identity == identity }).revision
+        let candidate = try await attempt.runner.importCandidate(assetID: attempt.input.asset.id,
+            sourceData: WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 211),
+            createdAt: Date(timeIntervalSince1970: 1_768_900_005))
+        _ = try await attempt.runner.accept(candidate: candidate, assetID: attempt.input.asset.id)
+        let evidence = try attempt.harness.session.modelContext.fetch(FetchDescriptor<EvidenceFile>())
+            .filter { $0.recordID == attempt.input.draft.id }
+        XCTAssertEqual(evidence.count, 1)
+        let currentInput = copyReadbackInput(attempt.input, evidence: evidence)
+        let beforeRevision = try writer.currentRevision()
+        let currentRecordRevision = try XCTUnwrap(beforeRevision.entityRevisions
+            .first { $0.identity == identity }).revision
+        XCTAssertGreaterThan(currentRecordRevision, expected)
+        let beforeReceipts = try attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count
+        let beforeFiles = try readbackTree(attempt.harness.session.generationRootURL)
+        do {
+            _ = try await attempt.adapter.finalize(currentInput, binding: attempt.nilBinding,
+                expectedWorkflowRecordRevision: expected)
+            XCTFail("Refetching current evidence cannot replace the attempt's frozen workflow revision")
+        } catch {
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .staleEntityRevision(identity))
+        }
+        XCTAssertNil(try writer.finalizationEvidence(mutationID: attempt.nilBinding.mutationID))
+        XCTAssertEqual(try writer.currentRevision(), beforeRevision)
+        XCTAssertEqual(try attempt.harness.session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>()).count, beforeReceipts)
+        XCTAssertEqual(try readbackTree(attempt.harness.session.generationRootURL), beforeFiles)
+        XCTAssertFalse(attempt.harness.session.modelContext.hasChanges)
+        let exact = try await attempt.adapter.finalize(currentInput, binding: attempt.nilBinding,
+            expectedWorkflowRecordRevision: currentRecordRevision)
+        XCTAssertTrue(exact.finalization.createdAuthority)
+    }
+
+    @MainActor
     private func prepareReadbackCheck(_ label: String, selection: CheckOutcomeSelection,
         evidenceCount: Int,
         failureInjection: FinalizationIntentStoreFailureInjection? = nil) async throws -> ReadbackAttempt {
