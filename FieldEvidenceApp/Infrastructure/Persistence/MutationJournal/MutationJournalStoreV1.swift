@@ -28,6 +28,23 @@ struct StoreMigrationLegacyAssurancePredictionV1: Equatable {
     let timestamp: Date
 }
 
+/// A successful, immutable result from the complete imported-history validator.
+/// Its initializer and captured snapshot stay file-private so another caller
+/// cannot manufacture facts or apply them to different history bytes.
+struct MutationHistoryImportedValidationFactsV1: Sendable {
+    private let snapshot: MutationHistorySnapshotV1
+    private let receiptStableKeys: [String]
+
+    fileprivate init(snapshot: MutationHistorySnapshotV1, receiptStableKeys: [String]) {
+        self.snapshot = snapshot
+        self.receiptStableKeys = receiptStableKeys
+    }
+
+    func receiptStableKeys(matching value: MutationHistorySnapshotV1) -> [String]? {
+        value == snapshot ? receiptStableKeys : nil
+    }
+}
+
 private struct StoreMigrationReceiptCollectionAnchorV1: Equatable {
     let mutationID: UUID
     let workspaceMutationKey: String
@@ -4987,6 +5004,16 @@ final class MutationJournalStoreV1 {
         _ snapshot: MutationHistorySnapshotV1,
         sourcePersistentSchemaVersion: Int? = nil
     ) throws {
+        _ = try validatedImportedSnapshotFacts(
+            snapshot,
+            sourcePersistentSchemaVersion: sourcePersistentSchemaVersion
+        )
+    }
+
+    nonisolated static func validatedImportedSnapshotFacts(
+        _ snapshot: MutationHistorySnapshotV1,
+        sourcePersistentSchemaVersion: Int? = nil
+    ) throws -> MutationHistoryImportedValidationFactsV1 {
         guard sourcePersistentSchemaVersion.map({
                   $0 >= PersistentSchemaV4.versionIdentifier.major
                     && $0 <= PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
@@ -5014,6 +5041,8 @@ final class MutationJournalStoreV1 {
         var envelopeDigestByMutation: [String: String] = [:]
         var maximumPostImageRevisionByEntity: [WorkspaceEntityIdentityV1: UInt64] = [:]
         var totalPostImageCount = 0
+        var receiptStableKeys: [String] = []
+        receiptStableKeys.reserveCapacity(snapshot.receipts.count)
         for record in snapshot.receipts {
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             try validateFinalizationAndPDFEnvelope(envelope)
@@ -5040,6 +5069,7 @@ final class MutationJournalStoreV1 {
             }
             let mutationKey = MutationWorkspaceKeyV1.value(workspaceID: receipt.identity.workspaceID, mutationID: receipt.mutationID)
             receiptsByMutation[mutationKey] = receipt
+            receiptStableKeys.append(receipt.identity.stableKey)
             envelopesByMutation[mutationKey] = envelope
             envelopeDigestByMutation[mutationKey] = receipt.envelopeSHA256
             guard receipt.postImages.count <= Self.maximumReceiptValidationCount - totalPostImageCount else {
@@ -5150,6 +5180,10 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
+        return MutationHistoryImportedValidationFactsV1(
+            snapshot: snapshot,
+            receiptStableKeys: receiptStableKeys
+        )
     }
 
     /// Materializes imported history without minting receipts. The immutable

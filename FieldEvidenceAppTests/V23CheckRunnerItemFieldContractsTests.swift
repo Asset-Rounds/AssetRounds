@@ -287,7 +287,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         let valid = try jsonObject(payload)
         let paths: [([String], Any)] = [
             (["field", "begin", "workflowReceiptReference", "workspaceID", "rawValue"], largeID(900).uuidString),
-            (["field", "begin", "workflowReceiptReference", "mutationID", "rawValue"], largeID(901).uuidString),
+            (["field", "begin", "workflowReceiptReference", "mutationID"], largeID(901).uuidString),
             (["field", "begin", "workflowReceiptReference", "receiptIdentity", "workspaceID", "rawValue"],
                 largeID(903).uuidString),
             (["field", "begin", "workflowReceiptReference", "envelopeSHA256"], "bad"),
@@ -303,7 +303,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         ]
         for (path, replacement) in paths {
             var hostile = valid
-            setJSON(&hostile, path: path, value: replacement)
+            try setJSON(&hostile, path: path, value: replacement)
             XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(hostile)), "\(path)")
         }
         for path in [
@@ -312,11 +312,11 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             ["field", "begin", "attempt"],
         ] {
             var hostile = valid
-            removeJSON(&hostile, path: path)
+            try removeJSON(&hostile, path: path)
             XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(hostile)), "\(path)")
         }
         var unknown = valid
-        setJSON(&unknown, path: ["field", "begin", "workflowReceiptReference", "future"], value: true)
+        try setJSON(&unknown, path: ["field", "begin", "workflowReceiptReference", "future"], value: true)
         XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(unknown)))
     }
 
@@ -372,13 +372,13 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             (["field", "outcome", "choice"], 7),
         ]
         for (path, value) in mutations {
-            var hostile = object; setJSON(&hostile, path: path, value: value)
+            var hostile = object; try setJSON(&hostile, path: path, value: value)
             XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(hostile)))
         }
         var missing = object; missing.removeValue(forKey: "field")
         XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(missing)))
         var nestedMissing = object
-        removeJSON(&nestedMissing, path: ["field", "preflight", "timeZoneID"])
+        try removeJSON(&nestedMissing, path: ["field", "preflight", "timeZoneID"])
         XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(nestedMissing)))
         XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(bytes + Data(" ".utf8)))
     }
@@ -472,17 +472,17 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             field: field, attempt: attempt))
         let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)).uuidString
         let zeroPaths = [
-            ["field", "begin", "attempt", "recordMutationID", "rawValue"],
-            ["field", "begin", "attempt", "timeZone", "mutationID", "rawValue"],
+            ["field", "begin", "attempt", "recordMutationID"],
+            ["field", "begin", "attempt", "timeZone", "mutationID"],
             ["finalizationAttempt", "identifiers", "mutationID"],
             ["finalizationAttempt", "identifiers", "packetID"],
             ["finalizationAttempt", "fieldDraftPlanID"],
-            ["finalizationAttempt", "preparedSagaMutationID", "rawValue"],
+            ["finalizationAttempt", "preparedSagaMutationID"],
             ["field", "wideContext", "childDraftID"],
             ["field", "wideContext", "evidenceID"],
         ]
         for path in zeroPaths {
-            var hostile = valid; setJSON(&hostile, path: path, value: zero)
+            var hostile = valid; try setJSON(&hostile, path: path, value: zero)
             XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(hostile)), "\(path)")
         }
         let aliasPairs: [([String], [String])] = [
@@ -490,13 +490,13 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             (["finalizationAttempt", "identifiers", "mutationID"], ["finalizationAttempt", "preparedSagaID"]),
             (["finalizationAttempt", "targetCommittedSagaID"], ["finalizationAttempt", "preparedSagaID"]),
             (["finalizationAttempt", "commitReceiptID"], ["field", "begin", "attempt", "recordCommand", "recordID"]),
-            (["finalizationAttempt", "preparedSagaMutationID", "rawValue"],
-                ["field", "begin", "attempt", "timeZone", "mutationID", "rawValue"]),
+            (["finalizationAttempt", "preparedSagaMutationID"],
+                ["field", "begin", "attempt", "timeZone", "mutationID"]),
             (["finalizationAttempt", "preparedSagaID"], ["finalizationAttempt", "identifiers", "issueID"]),
             (["finalizationAttempt", "identifiers", "issueID"], ["finalizationAttempt", "identifiers", "reportID"]),
         ]
         for (target, source) in aliasPairs {
-            var hostile = valid; setJSON(&hostile, path: target, value: try getJSON(hostile, path: source))
+            var hostile = valid; try setJSON(&hostile, path: target, value: try getJSON(hostile, path: source))
             XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(hostile)), "\(target)")
         }
         for (path, earlierPath) in [
@@ -510,13 +510,13 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         ] {
             var hostile = valid
             let earlier = try XCTUnwrap(try getJSON(hostile, path: earlierPath) as? Double)
-            setJSON(&hostile, path: path, value: earlier - 1)
+            try setJSON(&hostile, path: path, value: earlier - 1)
             XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(hostile)), "\(path)")
         }
         var fractional = valid
         let terminal = try XCTUnwrap(try getJSON(fractional,
             path: ["finalizationAttempt", "terminalCheckpointUpdatedAt"]) as? Double)
-        setJSON(&fractional, path: ["finalizationAttempt", "terminalCheckpointUpdatedAt"],
+        try setJSON(&fractional, path: ["finalizationAttempt", "terminalCheckpointUpdatedAt"],
             value: terminal + 0.25)
         let fractionalValue = try payloadJSONDecoder().decode(CheckRunnerItemDraftPayloadV1.self,
             from: canonical(fractional))
@@ -535,7 +535,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         var reversedBeginEffects = prepared
         let recordCommittedAt = try XCTUnwrap(try getJSON(prepared,
             path: ["field", "begin", "attempt", "recordCommittedAt"]) as? Double)
-        setJSON(&reversedBeginEffects, path: ["field", "begin", "attempt", "timeZone", "committedAt"],
+        try setJSON(&reversedBeginEffects, path: ["field", "begin", "attempt", "timeZone", "committedAt"],
             value: recordCommittedAt + 1_000)
         let reversedTimeZoneAt = try XCTUnwrap(try getJSON(reversedBeginEffects,
             path: ["field", "begin", "attempt", "timeZone", "committedAt"]) as? Double)
@@ -549,7 +549,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             field: try .init(preflight: boundField.preflight, begin: boundField.begin,
                 outcome: boundField.outcome, wideContext: pendingSlot(id: largeID(6_900), step: .wide),
                 closeDetail: pendingSlot(id: largeID(6_901), step: .close), semanticAnchor: .wideContext)))
-        setJSON(&pendingAlias, path: ["field", "closeDetail", "childDraftID"],
+        try setJSON(&pendingAlias, path: ["field", "closeDetail", "childDraftID"],
             value: largeID(6_900).uuidString)
         XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(pendingAlias)))
     }
@@ -574,7 +574,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             (["finalizationAttempt", "expectedWorkflowRecordRevision"], 0),
         ]
         for (path, value) in drifts {
-            var hostile = valid; setJSON(&hostile, path: path, value: value)
+            var hostile = valid; try setJSON(&hostile, path: path, value: value)
             var rejected = false
             do {
                 let decoded = try CheckRunnerItemDraftPayloadV1.decode(canonical(hostile))
@@ -599,7 +599,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             ["finalizationAttempt", "future"], ["finalizationAttempt", "identifiers", "future"],
             ["finalizationAttempt", "sourceApp", "future"],
         ] {
-            var hostile = valid; setJSON(&hostile, path: path, value: true)
+            var hostile = valid; try setJSON(&hostile, path: path, value: true)
             XCTAssertThrowsError(try CheckRunnerItemDraftPayloadV1.decode(canonical(hostile)), "\(path)")
         }
     }
@@ -642,16 +642,16 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             XCTAssertEqual(Set(phaseObject.keys), keys)
             XCTAssertEqual(phaseObject["tag"] as? String, tag)
             for key in keys {
-                var missing = original; removeJSON(&missing, path: ["phase", key])
+                var missing = original; try removeJSON(&missing, path: ["phase", key])
                 XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, missing), key)
             }
             for badTag in ["PROCESSING", "COMMITTED", "rawReady"] {
-                var bad = original; setJSON(&bad, path: ["phase", "tag"], value: badTag)
+                var bad = original; try setJSON(&bad, path: ["phase", "tag"], value: badTag)
                 XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, bad), badTag)
             }
-            var premature = original; setJSON(&premature, path: ["phase", prematureKey], value: NSNull())
+            var premature = original; try setJSON(&premature, path: ["phase", prematureKey], value: NSNull())
             XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, premature))
-            var unknown = original; setJSON(&unknown, path: ["phase", "receiptSHA256"], value: String(repeating: "a", count: 64))
+            var unknown = original; try setJSON(&unknown, path: ["phase", "receiptSHA256"], value: String(repeating: "a", count: 64))
             XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, unknown))
         }
     }
@@ -722,7 +722,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             (["readyItem", "stageSHA256"], String(repeating: "f", count: 64)),
         ]
         for (path, value) in mutations {
-            var bad = original; setJSON(&bad, path: path, value: value)
+            var bad = original; try setJSON(&bad, path: path, value: value)
             XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoRawReadyV1.self, bad), path.joined(separator: "."))
         }
         let item = f.raw.readyItem
@@ -735,7 +735,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         XCTAssertThrowsError(try CheckRunnerPhotoRawReadyV1(intent: f.intent, inspection: f.raw.inspection,
             readyItem: processing, stagePublicationMutationID: f.intent.stageMutationID,
             originalProvenance: f.raw.originalProvenance))
-        var unknown = original; setJSON(&unknown, path: ["readyItem", "createdAt"], value: 1_800_000_201_000)
+        var unknown = original; try setJSON(&unknown, path: ["readyItem", "createdAt"], value: 1_800_000_201_000)
         XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoRawReadyV1.self, unknown))
         XCTAssertEqual(f.raw.originalProvenance.recordedAt,
             try CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(f.intent.stageCreatedAt))
@@ -755,8 +755,8 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         maximum["thumbnailByteCount"] = MediaContractV1.thumbnailByteCountMaximum
         maximum["thumbnailPixelWidth"] = MediaContractV1.thumbnailLongestEdgeMaximum
         maximum["thumbnailPixelHeight"] = MediaContractV1.thumbnailLongestEdgeMaximum
-        setJSON(&maximum, path: ["thumbnailDerivative", "pixelWidth"], value: 512)
-        setJSON(&maximum, path: ["thumbnailDerivative", "pixelHeight"], value: 512)
+        try setJSON(&maximum, path: ["thumbnailDerivative", "pixelWidth"], value: 512)
+        try setJSON(&maximum, path: ["thumbnailDerivative", "pixelHeight"], value: 512)
         XCTAssertNoThrow(try decodeObject(CheckRunnerPhotoNormalizedPairV1.self, maximum))
         let mutations: [([String], Any)] = [
             (["originalRelativePath"], "../original.jpg"),
@@ -774,7 +774,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             (["thumbnailDerivative", "pixelWidth"], 11),
         ]
         for (path, value) in mutations {
-            var bad = original; setJSON(&bad, path: path, value: value)
+            var bad = original; try setJSON(&bad, path: path, value: value)
             XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoNormalizedPairV1.self, bad), path.joined(separator: "."))
         }
         XCTAssertEqual(f.pair.normalizedPair.sanitizedDerivative.sanitizerID, "assetrounds.media-normalizer.metadata")
@@ -803,10 +803,10 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
                 f.pair.pairPublicationMarkerSHA256)
         }
         var wrongSource = try jsonObject(f.pair)
-        setJSON(&wrongSource, path: ["normalizedPair", "sourceBinding", "contentID"], value: "wrong-raw-content")
+        try setJSON(&wrongSource, path: ["normalizedPair", "sourceBinding", "contentID"], value: "wrong-raw-content")
         XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairReadyV1.self, wrongSource))
         var wrongEvidence = try jsonObject(f.pair)
-        setJSON(&wrongEvidence, path: ["normalizedPair", "evidenceID"], value: largeID(4_102).uuidString)
+        try setJSON(&wrongEvidence, path: ["normalizedPair", "evidenceID"], value: largeID(4_102).uuidString)
         XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairReadyV1.self, wrongEvidence))
         let bytes = try CheckRunnerPhotoDraftPayloadV1.encode(baseline)
         XCTAssertEqual(try CheckRunnerPhotoDraftPayloadV1.encode(CheckRunnerPhotoDraftPayloadV1.decode(bytes)), bytes)
@@ -858,6 +858,9 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
     func testPhotoChildPreparedAttemptRejectsAliasesWrongOutputsAndTimeRegressions() throws {
         let f = try photoFixture()
         let original = try jsonObject(f.attempt)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(
+            decodeObject(CheckRunnerPhotoCommitAttemptV1.self, original)),
+            try FieldDraftCanonicalCodecV1.encode(f.attempt))
         let idKeys = ["planID", "preparedSagaID", "contentPromotedSagaID", "targetCommittedSagaID",
             "draftRetirePendingSagaID", "draftRetiredSagaID", "commitReceiptID", "targetMutationID",
             "reservationMutationID", "preparedSagaMutationID", "contentPromotedSagaMutationID",
@@ -884,6 +887,8 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         wrongOutputs["outputKeys"] = try [WorkspaceEntityIdentityV1(kind: .workflowRecord, id: largeID(4_201)).stableKey,
             WorkspaceEntityIdentityV1(kind: .evidenceFile, id: f.intent.evidenceID).stableKey].sorted()
         let differentTarget = try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, wrongOutputs)
+        XCTAssertNotEqual(differentTarget.outputKeys, f.attempt.outputKeys)
+        XCTAssertEqual(differentTarget.targetMutationID, f.attempt.targetMutationID)
         XCTAssertThrowsError(try differentTarget.validate(raw: f.raw, recordID: f.parentFixture.attempt.recordCommand.recordID))
         for key in ["promotionAt", "contentPromotedUpdatedAt", "targetCommittedUpdatedAt",
                     "draftRetirePendingUpdatedAt", "draftRetiredUpdatedAt", "terminalCheckpointUpdatedAt", "reservationReviewAfter"] {
@@ -948,6 +953,9 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             equalTimes[key] = f.intent.stageCreatedAt.timeIntervalSince1970 * 1_000
         }
         let equalAttempt = try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, equalTimes)
+        XCTAssertEqual(equalAttempt.allocatedIDs, f.attempt.allocatedIDs)
+        XCTAssertEqual(equalAttempt.outputKeys, f.attempt.outputKeys)
+        XCTAssertEqual(equalAttempt.expectedWorkflowRecordRevision, f.attempt.expectedWorkflowRecordRevision)
         let equalPayload = try photoPayload(f, phase: .preparedCommit(f.pair, equalAttempt))
         XCTAssertNoThrow(try equalPayload.validateCommitPreparation(pairReadyCheckpointUpdatedAt: f.intent.stageCreatedAt))
         let bytes = try CheckRunnerPhotoDraftPayloadV1.encode(equalPayload)
@@ -977,7 +985,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             ["phase", "pair", "normalizedPair", "sanitizedDerivative"],
             ["phase", "pair", "normalizedPair", "thumbnailDerivative"], ["phase", "attempt"]]
         for path in objects {
-            var bad = original; setJSON(&bad, path: path + ["unexpected"], value: true)
+            var bad = original; try setJSON(&bad, path: path + ["unexpected"], value: true)
             XCTAssertThrowsError(try CheckRunnerPhotoDraftPayloadV1.decode(canonical(bad)), path.joined(separator: "."))
         }
         for key in original.keys {
@@ -986,7 +994,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         }
         var schema = original; schema["schemaVersion"] = 2
         XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, schema))
-        var wrongType = original; setJSON(&wrongType, path: ["phase", "attempt", "promotionAt"], value: "now")
+        var wrongType = original; try setJSON(&wrongType, path: ["phase", "attempt", "promotionAt"], value: "now")
         XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, wrongType))
         XCTAssertEqual(try CheckRunnerPhotoDraftPayloadV1.encode(CheckRunnerPhotoDraftPayloadV1.decode(bytes)), bytes)
     }
@@ -1102,10 +1110,10 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.decode(parentBytes + Data([0x20])))
         XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.decode(photoBytes + Data([0x20])))
         var parentObject = try jsonObject(f.parent)
-        setJSON(&parentObject, path: ["field", "preflight", "unexpected"], value: true)
+        try setJSON(&parentObject, path: ["field", "preflight", "unexpected"], value: true)
         XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.decode(canonical(parentObject)))
         var photoObject = try jsonObject(child)
-        setJSON(&photoObject, path: ["phase", "pair", "raw", "inspection", "unexpected"], value: true)
+        try setJSON(&photoObject, path: ["phase", "pair", "raw", "inspection", "unexpected"], value: true)
         XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.decode(canonical(photoObject)))
     }
 
@@ -1388,8 +1396,10 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         let payload = try reconstructionParentPayload(selection: .couldNotVerify(reasonKey: reason.key, note: "original"), seed: 95_000)
         let checkpoint = try reconstructionParentCheckpoint(payload)
         var changedRaw = try jsonObject(payload)
-        setJSON(&changedRaw, path: ["field", "outcome", "couldNotVerifyNote"], value: "changed editor")
-        let changedPayload = try CheckRunnerItemDraftCodecV1.decode(canonical(changedRaw))
+        try setJSON(&changedRaw, path: ["field", "outcome", "couldNotVerifyNote"], value: "changed editor")
+        let changedPayload = try decodeObject(CheckRunnerItemDraftPayloadV1.self, changedRaw)
+        XCTAssertEqual(changedPayload.finalizationAttempt, payload.finalizationAttempt)
+        XCTAssertNotEqual(changedPayload.field.outcome.couldNotVerifyNote, payload.field.outcome.couldNotVerifyNote)
         let changedCheckpoint = try reconstructionParentCheckpoint(changedPayload)
         XCTAssertThrowsError(try reconstructParent(changedCheckpoint))
         let driftPack = SignPack(schemaVersion: pack.schemaVersion,
@@ -1989,7 +1999,10 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
 
     private func decodeObject<Value: Codable>(_ type: Value.Type,
         _ object: [String: Any]) throws -> Value {
-        try FieldDraftCanonicalCodecV1.decode(type, from: canonical(object))
+        // Dictionary transport is for semantic fixture mutations. Only the
+        // incumbent encoder supplies bytes for the strict canonical decoder.
+        let value = try payloadJSONDecoder().decode(type, from: canonical(object))
+        return try FieldDraftCanonicalCodecV1.decode(type, from: FieldDraftCanonicalCodecV1.encode(value))
     }
 
     private func payloadJSONDecoder() -> JSONDecoder {
@@ -1998,19 +2011,19 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         return decoder
     }
 
-    private func setJSON(_ object: inout [String: Any], path: [String], value: Any) {
+    private func setJSON(_ object: inout [String: Any], path: [String], value: Any) throws {
         precondition(!path.isEmpty)
         if path.count == 1 { object[path[0]] = value; return }
-        var child = object[path[0]] as! [String: Any]
-        setJSON(&child, path: Array(path.dropFirst()), value: value)
+        var child = try XCTUnwrap(object[path[0]] as? [String: Any], "fixture JSON path is not an object: \(path)")
+        try setJSON(&child, path: Array(path.dropFirst()), value: value)
         object[path[0]] = child
     }
 
-    private func removeJSON(_ object: inout [String: Any], path: [String]) {
+    private func removeJSON(_ object: inout [String: Any], path: [String]) throws {
         precondition(!path.isEmpty)
         if path.count == 1 { object.removeValue(forKey: path[0]); return }
-        var child = object[path[0]] as! [String: Any]
-        removeJSON(&child, path: Array(path.dropFirst()))
+        var child = try XCTUnwrap(object[path[0]] as? [String: Any], "fixture JSON path is not an object: \(path)")
+        try removeJSON(&child, path: Array(path.dropFirst()))
         object[path[0]] = child
     }
 

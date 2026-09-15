@@ -1314,6 +1314,214 @@ final class CheckRunnerCoordinator {
         return attempt
     }
 
+    /// Initial durable recovery only. Both original reads and the authenticated
+    /// PREPARED checkpoint are checked before either target effect is attempted.
+    func resumeFrozenBegin(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> CheckRunnerBeginStateV1 {
+        let first = try initialBeginEvidence(parentCheckpoint, progress: progress, publishedRelease: publishedRelease)
+        guard case .prepared = first.payload.field.begin else { throw FieldDraftFailureV1.invalidValue }
+        let writer = try frozenBeginDependencies(progress: progress).writer
+        if first.attempt.timeZone != nil, first.timeZone == nil {
+            _ = try writer.commitFrozenCheckRunnerTimeZone(first.attempt)
+        }
+        let afterZone = try initialBeginEvidence(parentCheckpoint, progress: progress, publishedRelease: publishedRelease)
+        if afterZone.workflow == nil {
+            _ = try writer.commitFrozenCheckRunnerDraft(afterZone.attempt)
+        }
+        let saved = try initialBeginEvidence(parentCheckpoint, progress: progress, publishedRelease: publishedRelease)
+        guard let workflow = saved.workflow else { throw FieldDraftFailureV1.missingReceipt }
+        let bound = CheckRunnerBeginStateV1.bound(attempt: saved.attempt,
+            workflowReceiptReference: try .init(evidence: workflow),
+            timeZoneReceiptReference: try saved.timeZone.map { try CheckRunnerBeginReceiptReferenceV1(evidence: $0) })
+        try bound.validate()
+        return bound
+    }
+
+    /// Acknowledges a saved initial BOUND checkpoint. Later child/finalizer
+    /// state is deliberately reserved for the complete bound-chain reader.
+    func validateInitialBoundBegin(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        let saved = try initialBeginEvidence(parentCheckpoint, progress: progress, publishedRelease: publishedRelease)
+        guard case let .bound(_, workflow, zone) = saved.payload.field.begin,
+              let original = saved.workflow else { throw FieldDraftFailureV1.missingReceipt }
+        try workflow.validate(evidence: original)
+        if let zone, let originalZone = saved.timeZone { try zone.validate(evidence: originalZone) }
+    }
+
+    private func initialBeginEvidence(_ checkpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws
+        -> (payload: CheckRunnerItemDraftPayloadV1, attempt: CheckRunnerFrozenBeginAttemptV1,
+            workflow: CheckRunnerBeginCommittedEvidenceV1?, timeZone: CheckRunnerBeginCommittedEvidenceV1?) {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let payload = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            checkpoint, writer: dependencies.writer, context: modelContext)
+        guard checkpoint.state == .active, payload.phase == .editing,
+              payload.field.wideContext == nil, payload.field.closeDetail == nil,
+              let attempt = payload.field.begin.attempt else { throw FieldDraftFailureV1.invalidValue }
+        let read = try progress.read(sourceDraftID: attempt.source.sourceCheckpoint.draftID)
+        try progress.validateForPublication(read)
+        try attempt.source.validate(read: read, publishedRelease: publishedRelease, signPack: signPack)
+        try validateFrozenBeginContext(attempt.source, dependencies: dependencies)
+        let asset = try requiredAsset(id: attempt.source.assetID)
+        let command = attempt.recordCommand
+        guard payload.field.preflight.afterDarkAccepted, payload.field.preflight.safePositionAccepted,
+              let observedAt = command.observedAtUTC, let offset = command.utcOffsetMinutes,
+              let localDate = command.localDate, let localTime = command.localTime,
+              try validatedParentRecordID(assetID: asset.id, requestedStage: attempt.source.requestedEntry.stage,
+                                          issueID: command.issueID) == command.parentRecordID else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        if attempt.timeZone != nil {
+            guard payload.field.preflight.isTimeZoneConfirmed,
+                  payload.field.preflight.confirmedTimeZoneID?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    == attempt.resolvedSiteTimeZoneID else { throw CheckRunnerCoordinatorError.invalidTimeZoneID }
+        }
+        // Reuse frozen civil fields. Recovery must not rerun the time-zone
+        // database or sample another command ID while checking today's package.
+        let expectedCommand = try prepareDraftCommand(asset: asset,
+            requestedStage: attempt.source.requestedEntry.stage, issueID: command.issueID,
+            parentRecordID: command.parentRecordID,
+            timeContext: .init(observedAtUTC: observedAt, timeZoneID: attempt.resolvedSiteTimeZoneID,
+                               utcOffsetMinutes: offset, localDate: localDate, localTime: localTime),
+            acknowledgementSnapshots: acknowledgementSnapshots(for: asset), startedAt: command.startedAt,
+            recordID: command.recordID)
+        guard try FieldDraftCanonicalCodecV1.encode(expectedCommand) == FieldDraftCanonicalCodecV1.encode(command) else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+        let writer = dependencies.writer
+        let workflow = try writer.checkRunnerBeginEvidence(workspaceID: attempt.sourceWorkspaceID,
+                                                           mutationID: attempt.recordMutationID)
+        if let workflow {
+            try requireOriginalBegin(workflow, command: .createCheckDraft(command), workspaceID: attempt.sourceWorkspaceID,
+                mutationID: attempt.recordMutationID, revisions: attempt.recordExpectedEntityRevisions,
+                committedAt: attempt.recordCommittedAt)
+        }
+        let zoneEvidence = try attempt.timeZone.flatMap {
+            try writer.checkRunnerBeginEvidence(workspaceID: attempt.sourceWorkspaceID, mutationID: $0.mutationID)
+        }
+        if let zone = attempt.timeZone, let zoneEvidence {
+            try requireOriginalBegin(zoneEvidence, command: .updateSiteTimeZone(zone.command),
+                workspaceID: attempt.sourceWorkspaceID, mutationID: zone.mutationID,
+                revisions: [.init(identity: try .init(kind: .site, id: zone.command.siteID), revision: zone.expectedSiteRevision)],
+                committedAt: zone.committedAt)
+        }
+        guard workflow == nil || attempt.timeZone == nil || zoneEvidence != nil else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        let current = try writer.currentRevision()
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        let site = try requiredSite(id: attempt.siteID)
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: site.id)
+        if let zone = attempt.timeZone {
+            if zoneEvidence == nil {
+                guard site.timeZoneID == nil, known[siteIdentity, default: 0] == zone.expectedSiteRevision else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(siteIdentity)
+                }
+            } else {
+                guard site.timeZoneID == zone.command.timeZoneID, site.updatedAt == zone.command.confirmedAt,
+                      known[siteIdentity, default: 0] == zone.expectedSiteRevision + 1 else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(siteIdentity)
+                }
+            }
+        } else if site.timeZoneID != attempt.resolvedSiteTimeZoneID {
+            throw WorkspaceMutationFailureV1.staleEntityRevision(siteIdentity)
+        }
+        let recordID = command.recordID
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == recordID }))
+        if workflow == nil {
+            guard records.isEmpty, attempt.recordExpectedEntityRevisions.allSatisfy({ known[$0.identity, default: 0] == $0.revision }) else {
+                throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+            }
+        } else {
+            guard records.count == 1, let record = records.first,
+                  known[try .init(kind: .workflowRecord, id: recordID), default: 0] == 1 else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            try requireInitialBeginRecord(record, command: command)
+        }
+        try validateInitialBeginAccess(attempt, workflow: workflow)
+        return (payload, attempt, workflow, zoneEvidence)
+    }
+
+    private func validateInitialBeginAccess(_ attempt: CheckRunnerFrozenBeginAttemptV1,
+                                            workflow: CheckRunnerBeginCommittedEvidenceV1?) throws {
+        guard let workflow else {
+            let decision = try accessDecision(assetID: attempt.source.assetID,
+                requestedStage: attempt.source.requestedEntry.stage, issueID: attempt.recordCommand.issueID)
+            guard decision == .allow else { throw CheckRunnerCoordinatorError.accessDenied(decision) }
+            return
+        }
+        guard try existingDraft(assetID: attempt.source.assetID)?.id == attempt.recordCommand.recordID,
+              let entry = draftAccessEntry(for: attempt.source.requestedEntry.stage) else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        guard let draftAccessState else { return }
+        // The original receipt proves when this exact draft was created.
+        // startedAt carries the user's observation instant, which may be later.
+        let proof = RepositoryValidatedDraftV1(draftID: attempt.recordCommand.recordID,
+            assetID: attempt.source.assetID, issueID: attempt.recordCommand.issueID, entry: entry,
+            createdAt: workflow.receipt.committedAt, gateCheckedAt: clock.now())
+        let decision = try evaluateDraftAccess(state: draftAccessState(), entry: entry, existingDraft: proof)
+        guard decision == .allow || decision == .continueExisting else {
+            throw CheckRunnerCoordinatorError.accessDenied(decision)
+        }
+    }
+
+    private func requireOriginalBegin(_ original: CheckRunnerBeginCommittedEvidenceV1,
+        command: WorkspaceCommandV1, workspaceID: WorkspaceID, mutationID: MutationIDV1,
+        revisions: [WorkspaceEntityRevisionV1], committedAt: Date) throws {
+        guard original.envelope.workspaceID == workspaceID, original.envelope.mutationID == mutationID,
+              original.envelope.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(command)),
+              original.envelope.expectedRevision.entityRevisions == revisions,
+              original.receipt.committedAt == committedAt else { throw FieldDraftFailureV1.digestMismatch }
+    }
+
+    private func requireInitialBeginRecord(_ record: WorkflowRecord, command: CheckDraftMutationV1) throws {
+        let id = record.id
+        guard record.schemaVersion == 1, record.revisionKind == WorkflowRevisionKind.original.rawValue,
+              record.recordRevisionRootID == id, record.revisesRecordID == nil, record.evidenceSourceRecordID == nil,
+              record.state == WorkflowState.draft.rawValue, record.packetID == nil, record.completedAt == nil,
+              record.outcomeKey == nil, record.couldNotVerifyKey == nil, record.couldNotVerifyDisplaySnapshot == nil,
+              record.couldNotVerifyRegistryVersion == nil, record.workPerformedLocalDate == nil,
+              record.workDescription == nil, record.note == nil, record.finalizationMutationID == nil,
+              try modelContext.fetch(FetchDescriptor<EvidenceFile>(predicate: #Predicate { $0.recordID == id })).isEmpty else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        let actual = CheckDraftMutationV1(recordID: record.id, assetID: record.assetID, issueID: record.issueID,
+            parentRecordID: record.parentRecordID, stage: record.stage, draftStepKey: record.draftStepKey,
+            startedAt: record.startedAt, observedAtUTC: record.observedAtUTC, timeZoneID: record.timeZoneID,
+            utcOffsetMinutes: record.utcOffsetMinutes, localDate: record.localDate, localTime: record.localTime,
+            afterDarkAcknowledgementKey: record.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: record.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: record.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: record.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: record.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: record.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: record.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: record.safePositionAcknowledgementAccepted,
+            packID: record.packID, packSchemaVersion: record.packSchemaVersion, packContentVersion: record.packContentVersion,
+            pdfTemplateID: record.pdfTemplateID, pdfTemplateVersion: record.pdfTemplateVersion,
+            observationBasis: command.observationBasis, temporalContext: command.temporalContext)
+        guard try FieldDraftCanonicalCodecV1.encode(actual) == FieldDraftCanonicalCodecV1.encode(command) else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+        let observations = try modelContext.fetch(FetchDescriptor<ObservationAndTimeRow>(predicate: #Predicate { $0.recordID == id }))
+        let basis = try command.observationBasis ?? ObservationAndTimeLegacyMigrationV1.observationBasis(
+            couldNotVerifyKey: nil, displaySnapshot: nil, registryVersion: nil)
+        let temporal = try command.temporalContext ?? ObservationAndTimeLegacyMigrationV1.temporalContext(
+            observedAtUTC: command.observedAtUTC, recordedAtUTC: command.startedAt, timeZoneID: command.timeZoneID,
+            utcOffsetMinutes: command.utcOffsetMinutes, localDate: command.localDate, localTime: command.localTime)
+        guard observations.count == 1, let basis, let temporal,
+              observations[0].schemaVersion == ObservationAndTimeRow.currentSchemaVersion,
+              observations[0].observationBasisV1Data == (try ObservationAndTimeCodecV1.encode(basis)),
+              observations[0].temporalContextV1Data == (try ObservationAndTimeCodecV1.encode(temporal)) else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+    }
+
     private func frozenBeginDependencies(
         progress: ProductionRepetitiveCaptureProgressServiceV2
     ) throws -> WorkspacePackageLifecycleDependenciesV1 {
@@ -1333,6 +1541,16 @@ final class CheckRunnerCoordinator {
         _ source: CheckRunnerRoundItemSourceV1,
         dependencies: WorkspacePackageLifecycleDependenciesV1
     ) throws {
+        try validateFrozenBeginContext(source, dependencies: dependencies)
+        let decision = try accessDecision(assetID: source.assetID,
+            requestedStage: source.requestedEntry.stage, issueID: source.requestedEntry.issueID)
+        guard decision == .allow else { throw CheckRunnerCoordinatorError.accessDenied(decision) }
+    }
+
+    private func validateFrozenBeginContext(
+        _ source: CheckRunnerRoundItemSourceV1,
+        dependencies: WorkspacePackageLifecycleDependenciesV1
+    ) throws {
         try source.validate()
         let asset = try requiredAsset(id: source.assetID)
         guard source.roundAtEntry.workspaceID == dependencies.workspaceID,
@@ -1344,9 +1562,6 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
         _ = try requiredSite(id: asset.siteID)
-        let decision = try accessDecision(assetID: source.assetID,
-            requestedStage: source.requestedEntry.stage, issueID: source.requestedEntry.issueID)
-        guard decision == .allow else { throw CheckRunnerCoordinatorError.accessDenied(decision) }
     }
 
     func beginOrResumeDraft(
@@ -2056,7 +2271,8 @@ final class CheckRunnerCoordinator {
             afterDark: SignPack.Acknowledgement,
             safePosition: SignPack.Acknowledgement
         )?,
-        startedAt: Date
+        startedAt: Date,
+        recordID: UUID? = nil
     ) throws -> CheckDraftMutationV1 {
         let pdfTemplate = try activeLifecycleProfile().pdfTemplate
         guard signPack.packID == asset.packID,
@@ -2065,7 +2281,7 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
 
-        let id = idSource.makeID()
+        let id = recordID ?? idSource.makeID()
         return CheckDraftMutationV1(
             recordID: id,
             assetID: asset.id,

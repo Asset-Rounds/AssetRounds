@@ -2748,6 +2748,22 @@ enum C04ShopReportProfileBackupEnrollmentV1 {
     }
 }
 
+struct C05RoundSessionValidationFactsV1: Sendable {
+    private let recordsSchemaVersion: Int
+    private let roundSessions: [RoundSessionV1]
+
+    fileprivate init(_ records: V4BackupRecordsV1) {
+        recordsSchemaVersion = records.recordsSchemaVersion
+        roundSessions = records.roundSessions
+    }
+
+    func validatedRoundSessions(matching records: V4BackupRecordsV1) -> [RoundSessionV1]? {
+        guard records.recordsSchemaVersion == recordsSchemaVersion,
+              records.roundSessions == roundSessions else { return nil }
+        return roundSessions
+    }
+}
+
 enum C05RoundSessionBackupEnrollmentV1 {
     static let persistentSchemaVersion = 45
     static let recordsSchemaVersion = 44
@@ -2755,11 +2771,17 @@ enum C05RoundSessionBackupEnrollmentV1 {
     static let canonicalRowKinds = ["RoundSessionRevisionRowV1"]
 
     static func validate(_ records: V4BackupRecordsV1) throws {
+        _ = try validatedFacts(records)
+    }
+
+    static func validatedFacts(
+        _ records: V4BackupRecordsV1
+    ) throws -> C05RoundSessionValidationFactsV1 {
         if records.recordsSchemaVersion < recordsSchemaVersion {
             guard records.roundSessions.isEmpty else {
                 throw RoundSessionFailureV1.staleRevision
             }
-            return
+            return C05RoundSessionValidationFactsV1(records)
         }
         guard records.recordsSchemaVersion >= recordsSchemaVersion,
               durableFamilyCount == canonicalRowKinds.count else {
@@ -2793,6 +2815,7 @@ enum C05RoundSessionBackupEnrollmentV1 {
                 sessionID: first.sessionID
             )
         }
+        return C05RoundSessionValidationFactsV1(records)
     }
 }
 

@@ -2946,6 +2946,20 @@ struct RoundSessionMutationV1: Codable, Equatable, Sendable {
 
     init(workspaceID: WorkspaceID, expectedRevision: UInt64, mutationID: MutationIDV1, session: RoundSessionV1) throws {
         try session.validateIntrinsic()
+        try self.init(
+            workspaceID: workspaceID,
+            expectedRevision: expectedRevision,
+            mutationID: mutationID,
+            intrinsicValidatedSession: session
+        )
+    }
+
+    private init(
+        workspaceID: WorkspaceID,
+        expectedRevision: UInt64,
+        mutationID: MutationIDV1,
+        intrinsicValidatedSession session: RoundSessionV1
+    ) throws {
         guard expectedRevision < UInt64.max, workspaceID == session.workspaceID,
               mutationID == session.mutationID, session.revision == expectedRevision + 1,
               (expectedRevision == 0) == (session.predecessor == nil),
@@ -2961,7 +2975,16 @@ struct RoundSessionMutationV1: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        try self.init(workspaceID: c.decode(WorkspaceID.self, forKey: .workspaceID), expectedRevision: c.decode(UInt64.self, forKey: .expectedRevision), mutationID: c.decode(MutationIDV1.self, forKey: .mutationID), session: c.decode(RoundSessionV1.self, forKey: .session))
+        let workspaceID = try c.decode(WorkspaceID.self, forKey: .workspaceID)
+        let expectedRevision = try c.decode(UInt64.self, forKey: .expectedRevision)
+        let mutationID = try c.decode(MutationIDV1.self, forKey: .mutationID)
+        let session = try c.decode(RoundSessionV1.self, forKey: .session)
+        try self.init(
+            workspaceID: workspaceID,
+            expectedRevision: expectedRevision,
+            mutationID: mutationID,
+            intrinsicValidatedSession: session
+        )
     }
 }
 

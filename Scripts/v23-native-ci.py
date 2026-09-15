@@ -327,8 +327,17 @@ def resolve_selection(default, selection_map, selection_id):
         and groups[-1].get("classes") == ["V23RepetitiveCaptureSourcePackageTests",
                                          "V23RepetitiveCaptureSourceGraphReviewTests"]
     )
+    report_partition_layout = [{'id': 'c36-checkrunner-foundations', 'classes': ['V23CheckRunnerEditableFieldValuesTests', 'V23CheckRunnerBeginHistoryTests']}, {'id': 'c36-frozen-begin-preparation', 'classes': ['V23CheckRunnerFrozenBeginPreparationTests']}, {'id': 'c36-frozen-begin-writer', 'classes': ['V23CheckRunnerFrozenBeginWriterTests']}, {'id': 'c36-durable-begin', 'classes': ['V23CheckRunnerDurableInitialBeginTests']}, {'id': 'c36-field-contracts', 'classes': ['V23CheckRunnerItemFieldContractsTests']}]
+    report_partition_shape = (
+        isinstance(groups, list) and len(groups) == 37 and groups[30] == c36_group
+        and isinstance(groups[31], dict) and groups[31].get("id") == "c36-source-graph"
+        and groups[31].get("classes") == ["V23RepetitiveCaptureSourcePackageTests", "V23RepetitiveCaptureSourceGraphReviewTests"]
+        and [{k: g.get(k) for k in ("id", "classes")} for g in groups[32:] if isinstance(g, dict)] == report_partition_layout
+        and len([g for g in groups[:32] if isinstance(g, dict) and g.get("id") == "report-camera-recovery"
+                 and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
+    )
     require(isinstance(groups, list) and
-            (len(groups) == 30 or (len(groups) == 31 and groups[-1] == c36_group) or source_graph_shape),
+            (len(groups) == 30 or (len(groups) == 31 and groups[-1] == c36_group) or source_graph_shape or report_partition_shape),
             "selection group count")
     defaults = set(default["unitTestSelectors"])
     default_classes = {selection_class(item) for item in defaults}

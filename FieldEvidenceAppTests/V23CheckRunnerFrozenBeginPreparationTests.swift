@@ -33,15 +33,15 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             try decoded.validate(read: h.read, publishedRelease: h.publishedRelease, signPack: h.signPack)
             XCTAssertEqual(try h.snapshot(), before)
 
-            var unknown = try jsonObject(bytes)
+            var unknown = try frozenBeginJSONObject(bytes)
             unknown["futureSourceAuthority"] = true
             assertSourceDecodeFails(unknown)
-            var nested = try jsonObject(bytes)
+            var nested = try frozenBeginJSONObject(bytes)
             var request = try XCTUnwrap(nested["requestedEntry"] as? [String: Any])
             request["futureRequestAuthority"] = true
             nested["requestedEntry"] = request
             assertSourceDecodeFails(nested)
-            var relationship = try jsonObject(bytes)
+            var relationship = try frozenBeginJSONObject(bytes)
             relationship["entryProgressCheckpoint"] = relationship["sourceCheckpoint"]
             assertSourceDecodeFails(relationship)
             XCTAssertEqual(try h.snapshot(), before)
@@ -155,7 +155,7 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 confirmedTimeZoneID: "America/New_York",
                 afterDarkAccepted: true, safePositionAccepted: true
             )
-            let otherRelease = try shippingRelease(stage: .recheck)
+            let otherRelease = try frozenBeginShippingRelease(stage: .recheck)
             let cases: [(String, InspectionPackageReleaseV1, BeginDraftSubmission)] = [
                 ("missing-observation", h.publishedRelease, .init(
                     assetID: valid.assetID, requestedStage: .check, issueID: nil,
@@ -318,7 +318,7 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(decoded, attempt)
             XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(decoded), bytes)
 
-            let top = try jsonObject(bytes)
+            let top = try frozenBeginJSONObject(bytes)
             XCTAssertEqual(Set(top.keys), Set([
                 "source", "sourceWorkspaceID", "recordCommand", "recordMutationID",
                 "recordExpectedEntityRevisions", "recordCommittedAt", "timeZone",
@@ -395,7 +395,7 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             for (label, mutate) in mutations {
                 let hostile = try mutate(top)
                 XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(
-                    CheckRunnerFrozenBeginAttemptV1.self, from: jsonData(hostile)
+                    CheckRunnerFrozenBeginAttemptV1.self, from: frozenBeginJSONData(hostile)
                 ), label)
             }
             XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(source),
@@ -409,13 +409,13 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
         _ object: [String: Any], file: StaticString = #filePath, line: UInt = #line
     ) {
         XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(
-            CheckRunnerRoundItemSourceV1.self, from: jsonData(object)
+            CheckRunnerRoundItemSourceV1.self, from: frozenBeginJSONData(object)
         ), file: file, line: line)
     }
 }
 
 @MainActor
-private func withFrozenBeginFixture<Value>(
+func withFrozenBeginFixture<Value>(
     _ label: String, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
     _ body: (FrozenBeginFixture) throws -> Value
 ) throws -> Value {
@@ -447,7 +447,7 @@ private func withFrozenBeginFixture<Value>(
 }
 
 @MainActor
-private final class FrozenBeginFixture {
+final class FrozenBeginFixture {
     struct SiteAnchor: Equatable { let id: UUID; let label: String; let timeZoneID: String?; let updatedAt: Date }
     struct AssetAnchor: Equatable {
         let id: UUID; let siteID: UUID; let packID: String
@@ -524,7 +524,7 @@ private final class FrozenBeginFixture {
         )
         profile = localProfile
         signPack = localProfile.package
-        let localRelease = try shippingRelease(stage: entry.stage)
+        let localRelease = try frozenBeginShippingRelease(stage: entry.stage)
         publishedRelease = localRelease
         try Self.installPublishedRelease(localRelease, in: localCoordinator, context: localSession.modelContext)
 
@@ -813,6 +813,23 @@ private final class FrozenBeginFixture {
             createdAt: opening.startedAt, updatedAt: parent.completedAt ?? parent.startedAt
         )
         context.insert(opening); context.insert(parent); context.insert(issue)
+        for record in [opening, parent] {
+            let basis = try XCTUnwrap(ObservationAndTimeLegacyMigrationV1.observationBasis(
+                couldNotVerifyKey: record.couldNotVerifyKey,
+                displaySnapshot: record.couldNotVerifyDisplaySnapshot,
+                registryVersion: record.couldNotVerifyRegistryVersion
+            ))
+            let temporal = try XCTUnwrap(ObservationAndTimeLegacyMigrationV1.temporalContext(
+                observedAtUTC: record.observedAtUTC, recordedAtUTC: record.startedAt,
+                timeZoneID: record.timeZoneID, utcOffsetMinutes: record.utcOffsetMinutes,
+                localDate: record.localDate, localTime: record.localTime
+            ))
+            context.insert(try ObservationAndTimeRow(
+                recordID: record.id, observationBasis: basis, temporalContext: temporal
+            ))
+        }
+        XCTAssertEqual(Set(try ObservationAndTimeRowStoreV1.validatedIndex(in: context).keys),
+                       Set([openingID, parentID]))
         for identity in try [
             WorkspaceEntityIdentityV1(kind: .workflowRecord, id: openingID),
             WorkspaceEntityIdentityV1(kind: .workflowRecord, id: parentID),
@@ -891,7 +908,7 @@ private final class FrozenBeginFixture {
     }
 }
 
-private final class FrozenBeginCountingIDs: ApplicationIDSource, @unchecked Sendable {
+final class FrozenBeginCountingIDs: ApplicationIDSource, @unchecked Sendable {
     private let lock = NSLock()
     private var queued: [UUID] = []
     private var count = 0
@@ -911,7 +928,7 @@ private final class FrozenBeginCountingIDs: ApplicationIDSource, @unchecked Send
     }
 }
 
-private final class FrozenBeginClock: ApplicationClock, @unchecked Sendable {
+final class FrozenBeginClock: ApplicationClock, @unchecked Sendable {
     let value: Date
     var millisecondValue: Date {
         Date(timeIntervalSince1970: floor(value.timeIntervalSince1970 * 1_000) / 1_000)
@@ -920,7 +937,7 @@ private final class FrozenBeginClock: ApplicationClock, @unchecked Sendable {
     func now() -> Date { value }
 }
 
-private actor FrozenBeginAuthentication: LocalAuthenticationClient {
+actor FrozenBeginAuthentication: LocalAuthenticationClient {
     func availability() -> LocalAuthenticationAvailabilityV1 {
         .systemValue(status: .available, biometry: .faceID)
     }
@@ -930,7 +947,7 @@ private actor FrozenBeginAuthentication: LocalAuthenticationClient {
     func cancel(attemptID: UUID) {}
 }
 
-private func shippingRelease(stage: WorkflowStage) throws -> InspectionPackageReleaseV1 {
+func frozenBeginShippingRelease(stage: WorkflowStage) throws -> InspectionPackageReleaseV1 {
     let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
     let workflow = try ShippingIlluminatedSignAdapterV1.finalizationWorkflow(
         from: .illuminatedSignV1, stage: stage
@@ -940,15 +957,15 @@ private func shippingRelease(stage: WorkflowStage) throws -> InspectionPackageRe
     ).release
 }
 
-private func beginPreparationUUID(_ value: Int) -> UUID {
+func beginPreparationUUID(_ value: Int) -> UUID {
     UUID(uuidString: String(format: "00000000-0000-4000-8000-%012x", value))!
 }
 
-private func jsonObject(_ data: Data) throws -> [String: Any] {
+func frozenBeginJSONObject(_ data: Data) throws -> [String: Any] {
     try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }
 
-private func jsonData(_ object: [String: Any]) throws -> Data {
+func frozenBeginJSONData(_ object: [String: Any]) throws -> Data {
     try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
 }
 

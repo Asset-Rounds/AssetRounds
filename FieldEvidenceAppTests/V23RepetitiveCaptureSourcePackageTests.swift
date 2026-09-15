@@ -16,6 +16,10 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
         XCTAssertEqual(package.records.roundSessions, fixture.rounds)
         XCTAssertEqual(package.records.fieldDrafts.count, fixture.checkpoints.count)
         XCTAssertEqual(package.records.mutationHistory, fixture.history)
+        XCTAssertTrue(package.records.accessibleDocumentAssessments.isEmpty)
+        XCTAssertTrue(package.records.surveyDefinitions.isEmpty && package.records.guidedSurveys.isEmpty)
+        XCTAssertTrue(package.records.schedules.isEmpty && package.records.plans.isEmpty
+            && package.records.placementPoses.isEmpty)
         let stock = try XCTUnwrap(package.records.partsStockSnapshot)
         try stock.validate()
         XCTAssertEqual(stock.workspaceID, fixture.workspaceID)
@@ -26,6 +30,26 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
             try MutationReceiptV1.decodeCanonical(from: $0.receiptData).identity.stableKey
         }
         XCTAssertEqual(receiptKeys, receiptKeys.sorted())
+        let historyFacts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(
+            fixture.history
+        )
+        XCTAssertEqual(historyFacts.receiptStableKeys(matching: fixture.history), receiptKeys)
+        let reorderedHistory = MutationHistorySnapshotV1(
+            workspaceRevision: fixture.history.workspaceRevision,
+            lastLocalSequence: fixture.history.lastLocalSequence,
+            receipts: Array(fixture.history.receipts.reversed()),
+            quarantines: fixture.history.quarantines,
+            entityRevisions: fixture.history.entityRevisions
+        )
+        XCTAssertNil(historyFacts.receiptStableKeys(matching: reorderedHistory))
+
+        let roundFacts = try C05RoundSessionBackupEnrollmentV1.validatedFacts(package.records)
+        XCTAssertEqual(roundFacts.validatedRoundSessions(matching: package.records), fixture.rounds)
+        let reorderedRounds = package.records.replacingRoundSessions(
+            Array(package.records.roundSessions.reversed())
+        )
+        XCTAssertNil(roundFacts.validatedRoundSessions(matching: reorderedRounds))
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(reorderedRounds))
         XCTAssertEqual(package.manifestJSONSHA256,
                        KernelCanonicalHashV1.sha256(try fixture.memberData("manifest.json")))
         XCTAssertEqual(package.recordsJSONSHA256,
@@ -35,8 +59,79 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
         // and visit snapshots. Its ordinary reader must preserve those instants.
         let recordsData = try fixture.memberData("records.json")
         let recordsObject = try XCTUnwrap(JSONSerialization.jsonObject(with: recordsData) as? [String: Any])
+        var futureRecords = recordsObject
+        futureRecords["recordsSchemaVersion"] = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion + 1
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(
+            JSONSerialization.data(withJSONObject: futureRecords, options: [.sortedKeys, .withoutEscapingSlashes])))
         let roundObjects = try XCTUnwrap(recordsObject["roundSessions"] as? [[String: Any]])
         XCTAssertEqual(roundObjects.count, fixture.rounds.count)
+        let roundMutationBaseline = try JSONSerialization.data(
+            withJSONObject: recordsObject,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        )
+        XCTAssertEqual(roundMutationBaseline, recordsData)
+        XCTAssertEqual(
+            try BackupCanonicalDecoderV1().decodeRecords(roundMutationBaseline).roundSessions,
+            fixture.rounds
+        )
+        var brokenDigestRounds = roundObjects
+        brokenDigestRounds[0]["sessionSHA256"] = String(repeating: "f", count: 64)
+        var brokenDigestRecords = recordsObject
+        brokenDigestRecords["roundSessions"] = brokenDigestRounds
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(
+            JSONSerialization.data(withJSONObject: brokenDigestRecords,
+                options: [.sortedKeys, .withoutEscapingSlashes])))
+
+        var brokenPredecessorRounds = roundObjects
+        var predecessor = try XCTUnwrap(brokenPredecessorRounds[1]["predecessor"] as? [String: Any])
+        predecessor["sessionSHA256"] = String(repeating: "e", count: 64)
+        brokenPredecessorRounds[1]["predecessor"] = predecessor
+        var brokenPredecessorRecords = recordsObject
+        brokenPredecessorRecords["roundSessions"] = brokenPredecessorRounds
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(
+            JSONSerialization.data(withJSONObject: brokenPredecessorRecords,
+                options: [.sortedKeys, .withoutEscapingSlashes])))
+
+        // WorkspaceID's canonical wire shape is {"rawValue": UUID}. Build a
+        // fully valid foreign-owned revision (including actor and digest)
+        // instead of relying on a scalar decoding failure. Its workspace key
+        // sorts before this fixture's key, so C05 reaches the split-history
+        // closure and rejects the remaining original history beginning at r2.
+        let originalRoot = fixture.rounds[0]
+        let foreignWorkspaceID = WorkspaceID(
+            rawValue: RepetitiveCaptureSourcePackageFixture.id(0)
+        )
+        let foreignActorReference = try LocalActorReferenceV1(
+            actorReferenceID: originalRoot.recordedBy.actor.actorReferenceID,
+            workspaceID: foreignWorkspaceID,
+            partyID: originalRoot.recordedBy.actor.partyID,
+            displayName: originalRoot.recordedBy.actor.displayName
+        )
+        let foreignActor = try ActorSnapshotV1(
+            snapshotID: originalRoot.recordedBy.snapshotID,
+            workspaceID: foreignWorkspaceID,
+            actor: foreignActorReference,
+            responsibility: originalRoot.recordedBy.responsibility,
+            displayNameAtTime: originalRoot.recordedBy.displayNameAtTime,
+            capturedAt: originalRoot.recordedBy.capturedAt
+        )
+        let foreignRoot = try RoundSessionV1(
+            workspaceID: foreignWorkspaceID,
+            sessionID: originalRoot.sessionID,
+            revision: originalRoot.revision,
+            mutationID: originalRoot.mutationID,
+            state: originalRoot.state,
+            transition: originalRoot.transition,
+            transitionItemID: originalRoot.transitionItemID,
+            items: originalRoot.items,
+            recordedBy: foreignActor,
+            recordedAt: originalRoot.recordedAt
+        )
+        XCTAssertNoThrow(try foreignRoot.validateIntrinsic())
+        var foreignOwnedRounds = fixture.rounds
+        foreignOwnedRounds[0] = foreignRoot
+        let foreignOwnedRecords = package.records.replacingRoundSessions(foreignOwnedRounds)
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(foreignOwnedRecords))
         var visitedDates = 0
         for (index, expected) in fixture.rounds.enumerated() {
             XCTAssertEqual(try XCTUnwrap(roundObjects[index]["recordedAt"] as? NSNumber).doubleValue,
@@ -109,6 +204,44 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
         })
         XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
             stagedPackageURL: missingHistory, using: BackupPackageValidatorV1()))
+
+        // The encoder may reuse identities decoded by the complete imported-
+        // snapshot validator, but canonical ordering remains mandatory.
+        XCTAssertThrowsError(try fixture.package(named: "reordered-history",
+                                                  recordsMutation: { object in
+            var history = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
+            var receipts = try XCTUnwrap(history["receipts"] as? [[String: Any]])
+            receipts.reverse()
+            history["receipts"] = receipts
+            object["mutationHistory"] = history
+        }))
+        XCTAssertThrowsError(try fixture.package(named: "duplicate-history",
+                                                  recordsMutation: { object in
+            var history = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
+            var receipts = try XCTUnwrap(history["receipts"] as? [[String: Any]])
+            receipts.append(try XCTUnwrap(receipts.first))
+            history["receipts"] = receipts
+            object["mutationHistory"] = history
+        }))
+        XCTAssertThrowsError(try fixture.package(named: "noncanonical-receipt",
+                                                  recordsMutation: { object in
+            var history = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
+            var receipts = try XCTUnwrap(history["receipts"] as? [[String: Any]])
+            var receiptData = try XCTUnwrap(Data(base64Encoded:
+                try XCTUnwrap(receipts[0]["receiptData"] as? String)))
+            receiptData.append(0x20)
+            receipts[0]["receiptData"] = receiptData.base64EncodedString()
+            history["receipts"] = receipts
+            object["mutationHistory"] = history
+        }))
+        XCTAssertThrowsError(try fixture.package(named: "mismatched-envelope-receipt",
+                                                  recordsMutation: { object in
+            var history = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
+            var receipts = try XCTUnwrap(history["receipts"] as? [[String: Any]])
+            receipts[0]["receiptData"] = receipts[1]["receiptData"]
+            history["receipts"] = receipts
+            object["mutationHistory"] = history
+        }))
     }
 
     func testActualFactoryRejectsNoncanonicalTruncatedMemberDescriptorAndSchemaDrift() throws {

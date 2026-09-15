@@ -2347,6 +2347,91 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return try journalStore.checkRunnerBeginEvidence(workspaceID: workspaceID, mutationID: mutationID)
     }
 
+    /// Low-level frozen Begin effect. The parent owner must first persist
+    /// PREPARED and prove current source/access; this method grants neither.
+    func commitFrozenCheckRunnerTimeZone(
+        _ attempt: CheckRunnerFrozenBeginAttemptV1
+    ) throws -> CheckRunnerBeginCommittedEvidenceV1 {
+        try attempt.validate()
+        guard let zone = attempt.timeZone else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let expected = [WorkspaceEntityRevisionV1(
+            identity: try .init(kind: .site, id: zone.command.siteID),
+            revision: zone.expectedSiteRevision)]
+        return try commitFrozenCheckRunnerBegin(command: .updateSiteTimeZone(zone.command),
+            workspaceID: attempt.sourceWorkspaceID, mutationID: zone.mutationID,
+            entityRevisions: expected, committedAt: zone.committedAt)
+    }
+
+    /// Receipt recovery precedes current target CAS. An original receipt may
+    /// belong to an earlier generation; each new effect uses this live writer.
+    func commitFrozenCheckRunnerDraft(
+        _ attempt: CheckRunnerFrozenBeginAttemptV1
+    ) throws -> CheckRunnerBeginCommittedEvidenceV1 {
+        try attempt.validate()
+        if let zone = attempt.timeZone {
+            guard let original = try checkRunnerBeginEvidence(
+                workspaceID: attempt.sourceWorkspaceID, mutationID: zone.mutationID) else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            try requireFrozenCheckRunnerBegin(original, command: .updateSiteTimeZone(zone.command),
+                workspaceID: attempt.sourceWorkspaceID, mutationID: zone.mutationID,
+                entityRevisions: [.init(identity: try .init(kind: .site, id: zone.command.siteID),
+                                         revision: zone.expectedSiteRevision)],
+                committedAt: zone.committedAt)
+        }
+        return try commitFrozenCheckRunnerBegin(command: .createCheckDraft(attempt.recordCommand),
+            workspaceID: attempt.sourceWorkspaceID, mutationID: attempt.recordMutationID,
+            entityRevisions: attempt.recordExpectedEntityRevisions,
+            committedAt: attempt.recordCommittedAt)
+    }
+
+    private func commitFrozenCheckRunnerBegin(
+        command: WorkspaceCommandV1, workspaceID: WorkspaceID, mutationID: MutationIDV1,
+        entityRevisions: [WorkspaceEntityRevisionV1], committedAt: Date
+    ) throws -> CheckRunnerBeginCommittedEvidenceV1 {
+        let current = try currentRevision()
+        guard current.workspaceID == workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        if let original = try checkRunnerBeginEvidence(workspaceID: workspaceID, mutationID: mutationID) {
+            try requireFrozenCheckRunnerBegin(original, command: command,
+                workspaceID: workspaceID, mutationID: mutationID,
+                entityRevisions: entityRevisions, committedAt: committedAt)
+            return original
+        }
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        guard entityRevisions.allSatisfy({ known[$0.identity, default: 0] == $0.revision }) else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: workspaceID,
+            generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision, entityRevisions: entityRevisions)
+        _ = try executeInternal(.init(mutationID: mutationID, expectedRevision: expected, command: command),
+            reversalPlan: nil, semanticReversalExecution: nil, semanticReversalReplayIdentitySHA256: nil,
+            occurredAtOverride: committedAt)
+        guard let original = try checkRunnerBeginEvidence(workspaceID: workspaceID, mutationID: mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try requireFrozenCheckRunnerBegin(original, command: command,
+            workspaceID: workspaceID, mutationID: mutationID,
+            entityRevisions: entityRevisions, committedAt: committedAt)
+        return original
+    }
+
+    /// A semantic mismatch is a read failure. Never call checkedReplay or
+    /// resolveReplay to compare a saved attempt: those can quarantine history.
+    private func requireFrozenCheckRunnerBegin(
+        _ original: CheckRunnerBeginCommittedEvidenceV1, command: WorkspaceCommandV1,
+        workspaceID: WorkspaceID, mutationID: MutationIDV1,
+        entityRevisions: [WorkspaceEntityRevisionV1], committedAt: Date
+    ) throws {
+        guard original.envelope.workspaceID == workspaceID,
+              original.envelope.mutationID == mutationID,
+              original.envelope.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(command)),
+              original.envelope.expectedRevision.entityRevisions == entityRevisions,
+              original.receipt.committedAt == committedAt else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }

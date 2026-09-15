@@ -27,6 +27,11 @@ enum BackupCanonicalEncodingErrorV1: Error, Equatable {
 }
 
 struct BackupCanonicalEncoderV1: Sendable {
+    private struct OrdinaryRecordsValidationFacts: Sendable {
+        let records: V4BackupRecordsV1
+        let receiptStableKeys: [String]?
+    }
+
     func encodeRecordsOffMain(
         _ records: V4BackupRecordsV1,
         context: ResumableLocalJobExecutionContextV1? = nil
@@ -64,13 +69,14 @@ struct BackupCanonicalEncoderV1: Sendable {
 #if DEBUG
             phase = "record-validation"
 #endif
-            guard Self.valid(records) else {
+            guard let validation = try? Self.ordinaryValidationFacts(records),
+                  Self.valid(validation) else {
                 throw BackupCanonicalEncodingErrorV1.invalidRecords
             }
 #if DEBUG
             phase = "record-fields"
 #endif
-            let fields = try Self.recordFields(records)
+            let fields = try Self.recordFields(validation)
 #if DEBUG
             phase = "canonical-json"
 #endif
@@ -228,7 +234,8 @@ struct BackupCanonicalEncoderV1: Sendable {
     }
 
     private static func recordFields(
-        _ records: V4BackupRecordsV1
+        _ records: V4BackupRecordsV1,
+        ordinaryValidation: OrdinaryRecordsValidationFacts? = nil
     ) throws -> [String: CanonicalJSONValueV1] {
         var fields: [String: CanonicalJSONValueV1] = [
             "assets": .array(records.assets.map(Self.asset)),
@@ -425,9 +432,24 @@ struct BackupCanonicalEncoderV1: Sendable {
             )
         }
         if records.recordsSchemaVersion >= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion {
-            try C05RoundSessionBackupEnrollmentV1.validate(records)
+            let rounds: [RoundSessionV1]
+            if ordinaryValidation != nil {
+                let roundFacts = try C05RoundSessionBackupEnrollmentV1.validatedFacts(records)
+                guard let validated = roundFacts.validatedRoundSessions(matching: records) else {
+                    throw BackupCanonicalEncodingErrorV1.invalidRecords
+                }
+                rounds = validated
+            } else {
+                try C05RoundSessionBackupEnrollmentV1.validate(records)
+                rounds = records.roundSessions
+            }
             fields["roundSessions"] = .array(
-                try records.roundSessions.map(Self.roundSessionCanonicalValue)
+                try rounds.map {
+                    if ordinaryValidation != nil {
+                        return try Self.roundSessionCanonicalValueAfterIntrinsicValidation($0)
+                    }
+                    return try Self.roundSessionCanonicalValue($0)
+                }
             )
         }
         if records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion {
@@ -472,9 +494,18 @@ struct BackupCanonicalEncoderV1: Sendable {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
         if let mutationHistory = records.mutationHistory {
-            fields["mutationHistory"] = try Self.mutationHistory(mutationHistory)
+            fields["mutationHistory"] = try Self.mutationHistory(
+                mutationHistory,
+                receiptStableKeys: ordinaryValidation?.receiptStableKeys
+            )
         }
         return fields
+    }
+
+    private static func recordFields(
+        _ validation: OrdinaryRecordsValidationFacts
+    ) throws -> [String: CanonicalJSONValueV1] {
+        try recordFields(validation.records, ordinaryValidation: validation)
     }
 
     func encodeManifest(_ manifest: V4BackupManifestV1) throws -> EncodedBackupJSONV1 {
@@ -559,6 +590,12 @@ private extension BackupCanonicalEncoderV1 {
         _ value: RoundSessionV1
     ) throws -> CanonicalJSONValueV1 {
         try value.validateIntrinsic()
+        return try roundSessionCanonicalValueAfterIntrinsicValidation(value)
+    }
+
+    static func roundSessionCanonicalValueAfterIntrinsicValidation(
+        _ value: RoundSessionV1
+    ) throws -> CanonicalJSONValueV1 {
         let data = try RoundSessionCanonicalCodecV1.encode(value)
         let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
         return try canonicalPartsStockJSON(object)
@@ -709,7 +746,33 @@ private extension BackupCanonicalEncoderV1 {
         return value
     }
 
-    static func valid(_ records: V4BackupRecordsV1) -> Bool {
+    static func ordinaryValidationFacts(
+        _ records: V4BackupRecordsV1
+    ) throws -> OrdinaryRecordsValidationFacts {
+        let receiptStableKeys: [String]?
+        if let history = records.mutationHistory {
+            let historyFacts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(history)
+            guard let keys = historyFacts.receiptStableKeys(matching: history) else {
+                throw BackupCanonicalEncodingErrorV1.invalidRecords
+            }
+            receiptStableKeys = keys
+        } else {
+            receiptStableKeys = nil
+        }
+        return OrdinaryRecordsValidationFacts(
+            records: records,
+            receiptStableKeys: receiptStableKeys
+        )
+    }
+
+    static func valid(_ validation: OrdinaryRecordsValidationFacts) -> Bool {
+        valid(validation.records, receiptStableKeys: validation.receiptStableKeys)
+    }
+
+    static func valid(
+        _ records: V4BackupRecordsV1,
+        receiptStableKeys: [String]? = nil
+    ) -> Bool {
         let ledgerIsValid: Bool
         switch (
             records.recordsSchemaVersion,
@@ -729,9 +792,14 @@ private extension BackupCanonicalEncoderV1 {
              (15, let ledger?, let history?), (16, let ledger?, let history?),
              (17, let ledger?, let history?), (18, let ledger?, let history?), (19, let ledger?, let history?),
              (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?), (36, let ledger?, let history?), (37, let ledger?, let history?), (38, let ledger?, let history?), (39, let ledger?, let history?), (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
+            let historyWasValidated = receiptStableKeys != nil
+                || (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
             ledgerIsValid = recordPredicate("deletion-ledger", (try? ledger.validate()) != nil)
-                && recordPredicate("mutation-history", (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil)
-                && recordPredicate("mutation-history-order", validMutationHistoryOrder(history))
+                && recordPredicate("mutation-history", historyWasValidated)
+                && recordPredicate(
+                    "mutation-history-order",
+                    validMutationHistoryOrder(history, receiptStableKeys: receiptStableKeys)
+                )
         default:
             ledgerIsValid = false
         }
@@ -2370,9 +2438,10 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     static func mutationHistory(
-        _ value: MutationHistorySnapshotV1
+        _ value: MutationHistorySnapshotV1,
+        receiptStableKeys: [String]? = nil
     ) throws -> CanonicalJSONValueV1 {
-        guard validMutationHistoryOrder(value),
+        guard validMutationHistoryOrder(value, receiptStableKeys: receiptStableKeys),
               value.workspaceRevision <= UInt64(Int.max),
               value.lastLocalSequence <= UInt64(Int.max) else {
             throw BackupCanonicalEncodingErrorV1.invalidRecords
@@ -2435,7 +2504,8 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     static func validMutationHistoryOrder(
-        _ value: MutationHistorySnapshotV1
+        _ value: MutationHistorySnapshotV1,
+        receiptStableKeys prevalidatedReceiptStableKeys: [String]? = nil
     ) -> Bool {
         guard recordPredicate("history-schema", value.schemaVersion == MutationHistorySnapshotV1.schemaVersion),
               recordPredicate("history-receipt-count", value.receipts.count
@@ -2463,18 +2533,25 @@ private extension BackupCanonicalEncoderV1 {
             return false
         }
         let receiptKeys: [String]
-        do {
-            receiptKeys = try value.receipts.map {
-                try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
-                    .identity.stableKey
+        if let prevalidatedReceiptStableKeys {
+            guard prevalidatedReceiptStableKeys.count == value.receipts.count else {
+                return false
             }
-        } catch {
+            receiptKeys = prevalidatedReceiptStableKeys
+        } else {
+            do {
+                receiptKeys = try value.receipts.map {
+                    try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+                        .identity.stableKey
+                }
+            } catch {
 #if DEBUG
-            FileHandle.standardError.write(Data(
-                "BackupCanonicalEncoderV1.valid failed predicate=history-receipt-decode\n".utf8
-            ))
+                FileHandle.standardError.write(Data(
+                    "BackupCanonicalEncoderV1.valid failed predicate=history-receipt-decode\n".utf8
+                ))
 #endif
-            return false
+                return false
+            }
         }
         let quarantineKeys = value.quarantines.map {
             "\($0.workspaceID.rawValue.uuidString.lowercased()):\($0.mutationID.uuidString.lowercased())"

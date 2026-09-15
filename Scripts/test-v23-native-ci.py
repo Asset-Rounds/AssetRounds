@@ -95,6 +95,108 @@ def diagnostic_line(base_kind="database", **changes):
         key + "=" + values[key] for key in CI.SIMULATOR_DIAGNOSTIC_FIELDS) + "\n"
 
 
+
+# Exact inverse used only by historical admission checks. Actual partition checks
+# below read the committed candidates directly through CI.read_json.
+REPORT_PARTITION_ALIASES = {'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterCommitsOriginalTimeAndReplaysWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterCommitsOriginalTimeAndReplaysWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRecoversSavedTimeZoneBeforeRecheckDraft': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRecoversSavedTimeZoneBeforeRecheckDraft', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsReceiptBodyTimeAndRevisionChangesWithoutQuarantine': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsReceiptBodyTimeAndRevisionChangesWithoutQuarantine', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterUsesFreshWorkspaceCASButRejectsStaleTarget': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterUsesFreshWorkspaceCASButRejectsStaleTarget', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsMissingOrChangedTimeZoneProofBeforeDraft': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsMissingOrChangedTimeZoneProofBeforeDraft', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsDirtyAndRetiredSessionsWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsDirtyAndRetiredSessionsWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsChangedSiteAndInitialPostimage': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsChangedSiteAndInitialPostimage', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess'}
+REPORT_PARTITION_GROUPS = [{'id': 'c36-checkrunner-foundations', 'classes': ['V23CheckRunnerEditableFieldValuesTests', 'V23CheckRunnerBeginHistoryTests'], 'methodCount': 14}, {'id': 'c36-frozen-begin-preparation', 'classes': ['V23CheckRunnerFrozenBeginPreparationTests'], 'methodCount': 6}, {'id': 'c36-frozen-begin-writer', 'classes': ['V23CheckRunnerFrozenBeginWriterTests'], 'methodCount': 6}, {'id': 'c36-durable-begin', 'classes': ['V23CheckRunnerDurableInitialBeginTests'], 'methodCount': 9}, {'id': 'c36-field-contracts', 'classes': ['V23CheckRunnerItemFieldContractsTests'], 'methodCount': 49}]
+PREPARTITION_REPORT = {'id': 'report-camera-recovery', 'classes': ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests', 'V23CheckRunnerEditableFieldValuesTests', 'V23CheckRunnerBeginHistoryTests', 'V23CheckRunnerFrozenBeginPreparationTests', 'V23CheckRunnerItemFieldContractsTests'], 'methodCount': 110}
+
+def prepartition_values(default, mapping):
+    if len(mapping.get('groups', [])) != 37:
+        raise AssertionError('expected actual37 report partition')
+    if mapping['groups'][32:] != REPORT_PARTITION_GROUPS:
+        raise AssertionError('changed report partition groups')
+    expected_aliases = set(REPORT_PARTITION_ALIASES)
+    if {s for s in default['unitTestSelectors'] if s.split('/')[1] in
+            ('V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests')} != expected_aliases:
+        raise AssertionError('changed report partition aliases')
+    prior, prior_map = copy.deepcopy(default), copy.deepcopy(mapping)
+    prior['unitTestSelectors'] = [REPORT_PARTITION_ALIASES.get(s,s) for s in prior['unitTestSelectors']]
+    prior_map['groups'] = prior_map['groups'][:32]
+    group = next(g for g in prior_map['groups'] if g['id']=='report-camera-recovery')
+    if group != {'id': 'report-camera-recovery', 'classes': ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests'], 'methodCount': 26}:
+        raise AssertionError('changed retained report group')
+    group.update(copy.deepcopy(PREPARTITION_REPORT))
+    if CI.sha256(CI.canonical(prior)) != '612FA6C2014FAEBA66E9479B39D15539740394964A46B1AC558BC159C9F48500' or CI.sha256(CI.canonical(prior_map)) != 'EB3636645D15460F179DAA1FE30AFA47BC110A3BB66A371FA69F488C54EFDF67':
+        raise AssertionError('prepartition exact source hash differs')
+    return prior, prior_map
+
+def prepartition_read_json(path):
+    prior, mapping = prepartition_values(CI.read_json(ROOT / 'Scripts/ci-selection.json'),
+                                         CI.read_json(ROOT / CI.SELECTION_MAP_PATH))
+    if path == ROOT / 'Scripts/ci-selection.json': return prior
+    if path == ROOT / CI.SELECTION_MAP_PATH: return mapping
+    raise AssertionError('foreign historical source path')
+
+def frozen_begin_suite_source():
+    return '\n'.join((ROOT / 'FieldEvidenceAppTests' / (name+'.swift')).read_text(encoding='utf-8') for name in (
+        'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
+
+def prepartition_workflow(workflow):
+    for group in REPORT_PARTITION_GROUPS:
+        choice='          - '+group['id']+'\n'
+        if workflow.count(choice)!=1: raise AssertionError('missing exact report workflow choice')
+        workflow=workflow.replace(choice,'')
+    workflow=workflow.replace('all 692 methods across 37 bounded groups','all 618 methods across 32 bounded groups')
+    if CI.sha256(workflow.encode()) != '2C4DF68D3A0EA8ABC3DFB72BF7197BAF83FF327DB65DA0ECA543749C42D3D14C':
+        raise AssertionError('changed prepartition workflow')
+    return workflow
+
+class ReportPartitionTests(unittest.TestCase):
+    def test_actual_whole_class_partition_preserves_692_methods_and_all_prior_members(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        prior, prior_map=prepartition_values(default,mapping)
+        self.assertEqual(len(default['unitTestSelectors']),692)
+        self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
+        seen=[]
+        for group in mapping['groups']:
+            actual=CI.resolve_selection(default,mapping,group['id'])
+            self.assertEqual({k:actual[k] for k in CI.BUDGET_KEYS},{k:prior[k] for k in CI.BUDGET_KEYS})
+            members=actual['unitTestSelectors']; seen.extend(members)
+            self.assertEqual(len(members),group['methodCount'])
+            for klass in (group['classes'] if group['id'] in [g['id'] for g in REPORT_PARTITION_GROUPS] else []):
+                source=(ROOT / 'FieldEvidenceAppTests' / (klass+'.swift')).read_text(encoding='utf-8')
+                declared=re.findall(r'^    func (test\w+)\(',source,re.M)
+                self.assertEqual({s.rsplit('/',1)[1] for s in members if s.split('/')[1]==klass},set(declared))
+            if group['id'] not in ['report-camera-recovery']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
+                self.assertEqual(actual,CI.resolve_selection(prior,prior_map,group['id']))
+        self.assertEqual(len(seen),len(set(seen)))
+        self.assertEqual(set(seen),set(default['unitTestSelectors']))
+        report=[s for s in seen if s.split('/')[1] in {c for g in [mapping['groups'][13]]+REPORT_PARTITION_GROUPS for c in g['classes']}]
+        self.assertEqual({REPORT_PARTITION_ALIASES.get(s,s) for s in report},
+                         set(CI.resolve_selection(prior,prior_map,'report-camera-recovery')['unitTestSelectors']))
+        workflow=(ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        prepartition_workflow(workflow)
+        field=workflow.split('      native_selection_id:\n',1)[1].split('      s10_4_minimum_core_smoke_id:',1)[0]
+        self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],
+                         [mapping['defaultSelectionID']]+[g['id'] for g in mapping['groups']])
+
+    def test_actual_partition_rejects_missing_duplicate_foreign_and_changed_class_groups(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json'); mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        for mutate in (lambda m:m['groups'].pop(),lambda m:m['groups'].append(copy.deepcopy(m['groups'][-1])),
+                       lambda m:m['groups'][-1].update(id='foreign'),lambda m:m['groups'][-1]['classes'].pop(),
+                       lambda m:m['groups'][-1]['classes'].append('V23CheckRunnerBeginHistoryTests'),
+                       lambda m:m['groups'][-1].update(methodCount=48)):
+            hostile=copy.deepcopy(mapping); mutate(hostile)
+            with self.assertRaises(ValueError): CI.resolve_selection(default,hostile,'c36-field-contracts')
+        for mutate in (lambda p:p['unitTestSelectors'].pop(),lambda p:p['unitTestSelectors'].append(p['unitTestSelectors'][-1]),
+                       lambda p:p['unitTestSelectors'].append('FieldEvidenceAppTests/ForeignTests/testForeign')):
+            hostile=copy.deepcopy(default); mutate(hostile)
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile,mapping,'c36-durable-begin')
+
+    def test_historical_inverse_rejects_same_count_reorder_alias_and_map_substitution(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json'); mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        hostile=copy.deepcopy(default)
+        hostile['unitTestSelectors'][0],hostile['unitTestSelectors'][1]=hostile['unitTestSelectors'][1],hostile['unitTestSelectors'][0]
+        with self.assertRaises(AssertionError):prepartition_values(hostile,mapping)
+        hostile=copy.deepcopy(default); hostile['unitTestSelectors'][-1]=hostile['unitTestSelectors'][-1].replace('testDurableInitialBegin','testForeign')
+        with self.assertRaises(AssertionError):prepartition_values(hostile,mapping)
+        hostile=copy.deepcopy(mapping); hostile['groups'][0]['classes'].reverse()
+        hostile['groups'][0]['id']='foreign'
+        with self.assertRaises(AssertionError):prepartition_values(default,hostile)
+
 class AdmissionTests(unittest.TestCase):
     def test_both_providers_and_all_supported_tiers_use_same_contract(self):
         for provider in ("github", "bitrise"):
@@ -581,10 +683,108 @@ class WorkflowWiringTests(unittest.TestCase):
             'testCompactReferenceLongLifecycleKeepsBoundedPayloadAndCompleteHistory',
         ]]
 
+    def durable_initial_begin_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/' + name for name in ['testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects', 'testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck', 'testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck', 'testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss', 'testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect', 'testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects', 'testDurableInitialBeginRejectsChangedSiteAndInitialPostimage', 'testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts', 'testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess']]
+
+    def prior_durable_begin_pool(self, default):
+        self.assertEqual(len(default['unitTestSelectors']), 692)
+        self.assertEqual(default['unitTestSelectors'][683:], self.durable_initial_begin_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:683]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '98F484B4B3A4158ADC9B0D289A4C83A88196A0693AEF3782B784B4A26F9F6F42')
+        return prior
+
+    def prior_durable_begin_map(self, mapping):
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 110)
+        group['methodCount'] = 101
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'A3C6FFF48031FDA76F49E5B644CD5A3461F14888E545F0B6356B92E5E685EAA4')
+        return prior
+
+    def test_durable_initial_begin_admission_preserves_every_prior_selector_and_group(self):
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
+        prior, prior_map = self.prior_durable_begin_pool(default), self.prior_durable_begin_map(mapping)
+        appended = self.durable_initial_begin_append()
+        source = frozen_begin_suite_source()
+        declared = re.findall(r'^    func (test\w+)\(', source, re.M)
+        self.assertEqual([name for name in declared if name.startswith('testDurableInitialBegin')],
+                         [name.rsplit('/', 1)[1] for name in appended])
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        hostile = copy.deepcopy(default)
+        hostile['unitTestSelectors'][0], hostile['unitTestSelectors'][1] = hostile['unitTestSelectors'][1], hostile['unitTestSelectors'][0]
+        with self.assertRaises(AssertionError): self.prior_durable_begin_pool(hostile)
+        for mutate in (lambda g: g.update(methodCount=109), lambda g: g['classes'].pop(),
+                       lambda g: g['classes'].append('V23CheckRunnerFrozenBeginPreparationTests')):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def frozen_begin_writer_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/' + name for name in ['testFrozenBeginWriterCommitsOriginalTimeAndReplaysWithoutEffects', 'testFrozenBeginWriterRecoversSavedTimeZoneBeforeRecheckDraft', 'testFrozenBeginWriterRejectsReceiptBodyTimeAndRevisionChangesWithoutQuarantine', 'testFrozenBeginWriterUsesFreshWorkspaceCASButRejectsStaleTarget', 'testFrozenBeginWriterRejectsMissingOrChangedTimeZoneProofBeforeDraft', 'testFrozenBeginWriterRejectsDirtyAndRetiredSessionsWithoutEffects']]
+
+    def prior_2197d6d_pool(self, default):
+        if len(default['unitTestSelectors']) == 692:
+            default = self.prior_durable_begin_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 683)
+        self.assertEqual(default['unitTestSelectors'][677:], self.frozen_begin_writer_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:677]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'ED924EF87843A6B7EAE8FEFD272623FB27745708FC6073F2310684549B7B5A4A')
+        return prior
+
+    def prior_2197d6d_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 110:
+            mapping = self.prior_durable_begin_map(mapping)
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 101)
+        group['methodCount'] = 95
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '11970E5F7F8A198F3A4044EE420117D30C014C2749AD49314E510DD68AC3C1FB')
+        return prior
+
+    def test_frozen_begin_writer_admission_preserves_every_prior_selector_and_group(self):
+        default = self.prior_durable_begin_pool(prepartition_read_json(ROOT / 'Scripts/ci-selection.json'))
+        mapping = self.prior_durable_begin_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
+        prior, prior_map = self.prior_2197d6d_pool(default), self.prior_2197d6d_map(mapping)
+        appended = self.frozen_begin_writer_append()
+        source = frozen_begin_suite_source()
+        declared = re.findall(r'^    func (test\w+)\(', source, re.M)
+        self.assertEqual([name for name in declared if name.startswith('testFrozenBeginWriter')],
+                         [name.rsplit('/', 1)[1] for name in appended])
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        hostile = copy.deepcopy(default)
+        hostile['unitTestSelectors'][0], hostile['unitTestSelectors'][1] = hostile['unitTestSelectors'][1], hostile['unitTestSelectors'][0]
+        with self.assertRaises(AssertionError): self.prior_2197d6d_pool(hostile)
+        for mutate in (lambda g: g.update(methodCount=100), lambda g: g['classes'].pop(),
+                       lambda g: g['classes'].append('V23CheckRunnerFrozenBeginPreparationTests')):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
     def frozen_finalization_revision_append(self):
         return ['FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/' + name for name in ['testFrozenFinalizationRevisionAllowsUnrelatedWorkspaceAdvance', 'testFrozenFinalizationRevisionRejectsStaleAttemptBeforeAnyEffect', 'testFrozenFinalizationReplayRequiresOriginalExpectedRevision', 'testFrozenFinalizationRevisionRejectsInterveningEvidenceAcceptance']]
 
     def prior_f020a32_pool(self, default):
+        if len(default['unitTestSelectors']) in (683, 692):
+            default = self.prior_2197d6d_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 677)
         self.assertEqual(default['unitTestSelectors'][673:], self.frozen_finalization_revision_append())
         prior = copy.deepcopy(default)
@@ -593,6 +793,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_f020a32_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (101, 110):
+            mapping = self.prior_2197d6d_map(mapping)
         prior = copy.deepcopy(mapping)
         group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
         self.assertEqual(group['methodCount'], 95)
@@ -601,8 +803,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_frozen_finalization_revision_admission_preserves_every_prior_selector_and_group(self):
-        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default = self.prior_2197d6d_pool(prepartition_read_json(ROOT / 'Scripts/ci-selection.json'))
+        mapping = self.prior_2197d6d_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
         prior, prior_map = self.prior_f020a32_pool(default), self.prior_f020a32_map(mapping)
         appended = self.frozen_finalization_revision_append()
         source = (ROOT / 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift').read_text(encoding='utf-8')
@@ -646,7 +848,7 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_29fbcbc_pool(self, default):
-        if len(default['unitTestSelectors']) == 677:
+        if len(default['unitTestSelectors']) in (677, 683, 692):
             default = self.prior_f020a32_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 673)
         self.assertEqual(default['unitTestSelectors'][663:], self.commit_reconstruction_append())
@@ -656,7 +858,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_29fbcbc_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 95:
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (95, 101, 110):
             mapping = self.prior_f020a32_map(mapping)
         prior = copy.deepcopy(mapping)
         group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
@@ -666,8 +868,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_commit_reconstruction_admission_preserves_prior_pool_map_and_complete_source_class(self):
-        default = self.prior_f020a32_pool(CI.read_json(ROOT / 'Scripts/ci-selection.json'))
-        mapping = self.prior_f020a32_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))
+        default = self.prior_f020a32_pool(prepartition_read_json(ROOT / 'Scripts/ci-selection.json'))
+        mapping = self.prior_f020a32_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
         prior, prior_map = self.prior_29fbcbc_pool(default), self.prior_29fbcbc_map(mapping)
         appended = self.commit_reconstruction_append()
         source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
@@ -715,7 +917,7 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_b0d4f96_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 663)
         self.assertEqual(default['unitTestSelectors'][654:], self.codec_definitions_append())
@@ -725,7 +927,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_b0d4f96_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = copy.deepcopy(mapping)
         group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
@@ -735,8 +937,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_codec_definitions_admission_preserves_prior_pool_map_and_complete_source_class(self):
-        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
         default, mapping = self.prior_29fbcbc_pool(default), self.prior_29fbcbc_map(mapping)
         prior, prior_map = self.prior_b0d4f96_pool(default), self.prior_b0d4f96_map(mapping)
         appended = self.codec_definitions_append()
@@ -787,7 +989,7 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_55e4655_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) == 663:
             default = self.prior_b0d4f96_pool(default)
@@ -799,7 +1001,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_55e4655_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 81:
             mapping = self.prior_b0d4f96_map(mapping)
@@ -811,8 +1013,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_child_payload_admission_preserves_prior_pool_map_and_complete_source_class(self):
-        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
         default, mapping = self.prior_b0d4f96_pool(default), self.prior_b0d4f96_map(mapping)
         prior, prior_map = self.prior_55e4655_pool(default), self.prior_55e4655_map(mapping)
         appended = self.child_payload_append()
@@ -860,7 +1062,7 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_1d4a731_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (654, 663):
             default = self.prior_55e4655_pool(default)
@@ -872,7 +1074,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_1d4a731_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (72, 81):
             mapping = self.prior_55e4655_map(mapping)
@@ -884,8 +1086,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_parent_payload_admission_preserves_prior_pool_map_and_complete_source_class(self):
-        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
         default, mapping = self.prior_55e4655_pool(default), self.prior_55e4655_map(mapping)
         prior, prior_map = self.prior_1d4a731_pool(default), self.prior_1d4a731_map(mapping)
         appended = self.parent_payload_append()
@@ -929,7 +1131,7 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_83def91_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (642, 654, 663):
             default = self.prior_1d4a731_pool(default)
@@ -941,7 +1143,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_83def91_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (60, 72, 81):
             mapping = self.prior_1d4a731_map(mapping)
@@ -954,8 +1156,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_parent_field_admission_preserves_prior_pool_map_and_complete_source_class(self):
-        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
         default, mapping = self.prior_1d4a731_pool(default), self.prior_1d4a731_map(mapping)
         prior, prior_map = self.prior_83def91_pool(default), self.prior_83def91_map(mapping)
         appended = self.parent_field_append()
@@ -983,7 +1185,7 @@ class WorkflowWiringTests(unittest.TestCase):
             with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
 
     def prior_4977aa4_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (633, 642, 654, 663):
             default = self.prior_83def91_pool(default)
@@ -995,7 +1197,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_4977aa4_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (51, 60, 72, 81):
             mapping = self.prior_83def91_map(mapping)
@@ -1009,8 +1211,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_compact_reference_admission_preserves_all_prior_methods_and_full_source_pairs(self):
-        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
         default, mapping = self.prior_83def91_pool(default), self.prior_83def91_map(mapping)
         prior, prior_map = self.prior_4977aa4_pool(default), self.prior_4977aa4_map(mapping)
         appended = self.compact_reference_append()
@@ -1047,7 +1249,7 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_d97bc81_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (624, 633, 642, 654, 663):
             default = self.prior_4977aa4_pool(default)
@@ -1058,7 +1260,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_d97bc81_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         if mapping['groups'][-1]['methodCount'] == 25:
             mapping = self.prior_4977aa4_map(mapping)
@@ -1074,6 +1276,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_d97bc81_workflow(self, workflow):
+        workflow = prepartition_workflow(workflow)
         self.assertEqual(workflow.count('          - c36-source-graph\n'), 1)
         prior = workflow.replace('          - c36-source-graph\n', '').replace(
             'all 618 methods across 32 bounded groups', 'all 590 methods across 31 bounded groups')
@@ -1081,8 +1284,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_simulator_and_source_graph_admission_retains_exact_prior_and_full_pairs(self):
-        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
         default, mapping = self.prior_4977aa4_pool(default), self.prior_4977aa4_map(mapping)
         prior, prior_map = self.prior_d97bc81_pool(default), self.prior_d97bc81_map(mapping)
         workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
@@ -1102,7 +1305,7 @@ class WorkflowWiringTests(unittest.TestCase):
             bundle, klass, method = selector.split('/')
             source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
             self.assertEqual(len(re.findall(r'\bfunc\s+' + re.escape(method) + r'\s*\(', source)), 1)
-        choice_field = workflow.split('      native_selection_id:\n', 1)[1].split(
+        choice_field = prepartition_workflow(workflow).split('      native_selection_id:\n', 1)[1].split(
             '      s10_4_minimum_core_smoke_id:', 1)[0]
         choices = [line.strip()[2:] for line in choice_field.splitlines() if line.startswith('          - ')]
         self.assertEqual(choices, [mapping['defaultSelectionID']] + [g['id'] for g in mapping['groups']])
@@ -1126,7 +1329,7 @@ class WorkflowWiringTests(unittest.TestCase):
             with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'c36-source-graph')
 
     def prior_aa94e7f_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (618, 624, 633, 642, 654, 663):
             default = self.prior_d97bc81_pool(default)
@@ -1137,7 +1340,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_aa94e7f_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         if len(mapping['groups']) == 32:
             mapping = self.prior_d97bc81_map(mapping)
@@ -1154,8 +1357,8 @@ class WorkflowWiringTests(unittest.TestCase):
         prior_workflow = workflow.replace('          - c36-restore-correspondence\n', '').replace(
             'all 590 methods across 31 bounded groups', 'all 426 methods across 30 bounded groups')
         self.assertEqual(CI.sha256(prior_workflow.encode()), '468D3740CDAF6866AD8214C0D5C21BB61EE2AEA25EE0FA01DB63AE9A5DD1F846')
-        default = self.prior_d97bc81_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))
-        mapping = self.prior_d97bc81_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))
+        default = self.prior_d97bc81_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))
+        mapping = self.prior_d97bc81_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
         choice_field = workflow.split('      native_selection_id:\n', 1)[1].split(
             '      s10_4_minimum_core_smoke_id:', 1)[0]
         choices = [line.strip()[2:] for line in choice_field.splitlines()
@@ -1201,7 +1404,7 @@ class WorkflowWiringTests(unittest.TestCase):
                 CI.resolve_selection(default, hostile, 'c36-restore-correspondence')
 
     def prior_63409d1_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 560)
         prior = copy.deepcopy(default)
@@ -1210,7 +1413,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_63409d1_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior["groups"]), 30)
@@ -1222,15 +1425,15 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_frozen_begin_preparation_preserves_exact_prior_pool_map_and_pairs(self):
-        default = self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))
-        mapping = self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))
+        default = self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))
+        mapping = self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
         prior = self.prior_63409d1_pool(default)
         prior_map = self.prior_63409d1_map(mapping)
         methods = ['testCaptureSourceUsesAuthenticatedEntryAndClosedCanonicalRoundTripWithoutEffects', 'testPrepareCheckFreezesStoredZoneCompleteCommandAndSourceCASWithoutEffects', 'testPrepareRecheckFreezesExplicitIssueParentAndOptionalZoneCommandWithoutEffects', 'testInvalidPreflightRequestPackageAndAccessAllocateNoIDsOrEffects', 'testChangedSourceForeignOwnerDirtyContextCompatibilityAndInvalidSessionFailWithoutPreparationEffects', 'testFrozenContractsRejectMalformedClosedBytesAndEncodeNoDestinationAuthority']
         appended = ['FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/' + method for method in methods]
         self.assertEqual(default['unitTestSelectors'], prior['unitTestSelectors'] + appended)
-        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift').read_text(encoding='utf-8')
-        self.assertEqual(re.findall(r"\bfunc\s+(test\w+)\s*\(", source), methods)
+        source = frozen_begin_suite_source()
+        self.assertEqual(re.findall(r"\bfunc\s+(test\w+)\s*\(", source), methods + [name.rsplit("/", 1)[1] for name in self.frozen_begin_writer_append() + self.durable_initial_begin_append()])
         self.assertEqual({k: v for k, v in default.items() if k != 'unitTestSelectors'},
                          {k: v for k, v in prior.items() if k != 'unitTestSelectors'})
         for group in mapping['groups']:
@@ -1242,7 +1445,7 @@ class WorkflowWiringTests(unittest.TestCase):
                 self.assertEqual(actual, expected)
 
     def prior_d3be307_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 554)
         prior = copy.deepcopy(default)
@@ -1251,7 +1454,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_d3be307_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior["groups"]), 30)
@@ -1263,8 +1466,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_begin_history_admission_preserves_exact_prior_pool_map_and_pairs(self):
-        default = self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json")))
-        mapping = self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH)))
+        default = self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json")))
+        mapping = self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)))
         prior = self.prior_d3be307_pool(default)
         prior_map = self.prior_d3be307_map(mapping)
         methods = ['testShippingBeginReturnsExactTimeZoneAndDraftHistoryWithoutCollapsingRevisionSnapshot', 'testExplicitWorkspaceNamespaceDistinguishesSameMutationIDAndReturnsAbsence', 'testDirtyContextDeniesHistoricalPresenceWithoutChangingRows', 'testInvalidatedWriterDeniesHistoricalRead', 'testSelectedQuarantineDeniesHistoricalPresenceWithoutChangingHistory', 'testWholeJournalCorruptionDeniesSelectedPresenceAndAbsenceWithoutWriting', 'testTypedEvidenceRejectsUnsupportedMismatchedAndGenericValidWrongEffects']
@@ -1289,7 +1492,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_bf6a1bc_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         prior = copy.deepcopy(default)
@@ -1298,7 +1501,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_bf6a1bc_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior["groups"]), 30)
@@ -1312,8 +1515,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_bf6_semantic_validation_stock_and_editable_fields_preserve_prior_pool_and_map(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         prior = self.prior_bf6a1bc_pool(default)
         prior_map = self.prior_bf6a1bc_map(mapping)
         fields, stock, semantic = ['FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testAllSelectionCasesHaveLiveInverseAndExactCanonicalBytes', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testClosedDecodingRejectsUnknownAssociatedMissingTagChoiceAndTypes', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testRawEditableStringsRoundTripWithoutBlanketFieldCapsOrNormalization', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testPreflightDefaultsAndIncumbentSnapshotInitialValuesRemainExact', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testIncumbentInitialAndPrimaryCategoryTraceMatchesEditableValue', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testIncumbentCouldNotVerifyCallbacksPreserveHighlightAndRawOverflow', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testEveryIncumbentRecheckNoteCallbackIncludingIrrelevantAndNilSelection'], ['FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection'], ['FieldEvidenceAppTests/V23StoreSemanticValidationTests/testCurrentV53ValidationTraversesEveryLayerWithoutRetainingPredecessorBytesAndColdReopens', 'FieldEvidenceAppTests/V23StoreSemanticValidationTests/testEarlyAndLatestCanonicalRowCorruptionKeepTypedFailureAndColdOpenTargetMismatchWithoutRepair', 'FieldEvidenceAppTests/V23StoreSemanticValidationTests/testLowReleaseCanonicalProjectionsRetainExactNestedPredecessorBytes']
@@ -1344,7 +1547,7 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_b69a7ed_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         prior = self.prior_bf6a1bc_pool(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:524]
@@ -1352,7 +1555,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_b69a7ed_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_bf6a1bc_map(mapping)
         self.assertEqual(len(prior["groups"]), 30)
@@ -1367,8 +1570,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_b69_atomic_publication_admission_retains_exact_prior_pool_map_and_pairs(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         prior = self.prior_b69a7ed_pool(default)
         prior_map = self.prior_b69a7ed_map(mapping)
         default = self.prior_bf6a1bc_pool(default)
@@ -1395,7 +1598,7 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_05b38c1_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         prior = self.prior_b69a7ed_pool(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:514]
@@ -1403,7 +1606,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_05b38c1_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_b69a7ed_map(mapping)
         self.assertEqual(len(prior["groups"]), 30)
@@ -1418,8 +1621,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_05b_media_and_precision_admission_preserves_exact_pool_map_and_methods(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         prior = self.prior_05b38c1_pool(default)
         prior_map = self.prior_05b38c1_map(mapping)
         default = self.prior_b69a7ed_pool(default)
@@ -1449,7 +1652,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return ['FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor']
 
     def prior_af2df5f_pool(self, default):
-        if len(default['unitTestSelectors']) in (673, 677):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
             default = self.prior_29fbcbc_pool(default)
         prior = self.prior_05b38c1_pool(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:504]
@@ -1457,7 +1660,7 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_af2df5f_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_05b38c1_map(mapping)
         self.assertEqual(len(prior["groups"]), 30)
@@ -1470,8 +1673,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_af2_corrections_preserve_exact_pool_map_and_complete_resolver_c55_pairs(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         prior = self.prior_af2df5f_pool(default)
         prior_map = self.prior_af2df5f_map(mapping)
         default = self.prior_05b38c1_pool(default)
@@ -1505,7 +1708,7 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_47d433e_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_af2df5f_map(mapping)
         group = next(g for g in prior["groups"] if g["id"] == "report-camera-recovery")
@@ -1516,8 +1719,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_finalization_readback_preserves_exact_47d_pool_and_complete_new_methods(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(len(mapping["groups"]), 30)
         prior = copy.deepcopy(default)
@@ -1547,7 +1750,7 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_0e90d6c_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_47d433e_map(mapping)
         archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
@@ -1559,8 +1762,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_archive_async_admission_preserves_exact_0e_pool_and_complete_pairs(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
@@ -1587,7 +1790,7 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_ff8ae4c_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_0e90d6c_map(mapping)
         codec = next(g for g in prior["groups"] if g["id"] == "mutation-command-codec")
@@ -1598,8 +1801,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_c55_admission_preserves_exact_ff8_pool_and_complete_paired_classes(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
@@ -1632,7 +1835,7 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_f86664a_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_ff8ae4c_map(mapping)
         reference = next(g for g in prior["groups"] if g["id"] == "reference-owner-replacement")
@@ -1642,8 +1845,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_command_plan_admission_preserves_exact_f86664a_pool_and_map(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
@@ -1663,7 +1866,7 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in expected])
 
     def prior_12e5742_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_f86664a_map(mapping)
         archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
@@ -1673,8 +1876,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_stage_digest_admission_preserves_exact_12e5742_pool_and_map(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
@@ -1696,7 +1899,7 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_bea52c7_map(self, mapping):
-        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
             mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_12e5742_map(mapping)
         app = next(g for g in prior["groups"] if g["id"] == "app-myday-production")
@@ -1709,8 +1912,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_native_observation_admission_preserves_exact_bea52c7_pool_and_map(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
@@ -1741,8 +1944,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return groups[:count]
 
     def test_reference_owner_admission_preserves_exact_698_pool_and_adds_complete_classes(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
@@ -1767,8 +1970,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(declared, selected, klass)
 
     def test_schedule_admission_preserves_exact_4d_pool_and_map(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(len(mapping["groups"]), 30)
         prior_pool = copy.deepcopy(default)
@@ -1783,8 +1986,8 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertEqual(CI.sha256(CI.canonical(prior_map)), '718D0A2573BDE2DCD581DEBF178FD54718387A22560D94E4EC81363A13A71A0F')
 
     def test_work_round_capture_and_descriptor_admission_preserves_821f_pool(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:298])),
                          "5ABC2B0E9AD06346872CEFE60223FAD2E2AC775AAB2C691A6EAC98F026EDFB0C")
@@ -1881,8 +2084,8 @@ class WorkflowWiringTests(unittest.TestCase):
                 CI.source_binding(root)
 
     def test_closed_selection_map_partitions_default_without_overrides(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         groups = [CI.resolve_selection(default, mapping, group["id"])
                   for group in mapping["groups"]]
         self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 547)
@@ -1906,8 +2109,8 @@ class WorkflowWiringTests(unittest.TestCase):
             CI.resolve_selection(default, omission, "notification-controls")
 
     def test_app_myday_selection_is_additive_and_preserves_original_partition(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         selected = CI.resolve_selection(default, mapping, "app-myday-production")
         expected = ['FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactorySettingTransactionsCompleteAndReopenWithoutRepair', 'FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactoryKeepsStartupUnopenedAndBindsItsExactGateOnce', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testActualNativeShellRestoresEachPersistedRootAndPreservesAcceptedTabIdentities', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testActualStartupRestoresReadyReportIntoExistingDetailAndBackPersistsThroughScenePort', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testProductionSavePersistsExactCommitRowsReceiptsAndNoContentReservations', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testPlanningRequiresItsExactGateAndSessionBeforeAnyDraftWrite', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testTodayEditorAddsOrdersEstimatesRemovesAndSavesWithoutChangingSourceWork', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testPostEffectSaveFailureRetainsExactAttemptWithoutPublishingSuccessAndRetriesOnce', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testCarryoverConflictEditorReviewsActualActiveAndPreTargetSavePrefixesThenSavesSameDraft', 'FieldEvidenceAppTests/V23SearchReconciliationTests/testGuardedProjectionDropRejectsRevokedAndWrongConsumerTokensWithoutChangingBytes', 'FieldEvidenceAppTests/V23SearchReconciliationTests/testActualRebuildRevocationBeforeProjectionDropPreservesOldBytesAndFreshRetryCompletes']
         location = 'FieldEvidenceAppTests/V9_08GenerationLeaseTests/testReplacementLocationHistoryRetainsCurrentSchemaValidationAndRejectsInvalidReferences'
@@ -1943,8 +2146,8 @@ class WorkflowWiringTests(unittest.TestCase):
             CI.resolve_selection(default, duplicate, "app-myday-production")
 
     def test_command_codec_selection_retains_original_pool_and_closed_partition(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         selected = CI.resolve_selection(default, mapping, "mutation-command-codec")
         names = ['testV10_02G01CanonicalEnvelopeReceiptBytesAndAtomicCommit', 'testCanonicalWorkAuthorityRoundTripsAndRequiresOriginalV53Source', 'testCanonicalWorkImportRejectsResealedEnvelopeAndUnchangedSourceRevisionForgery', 'testCanonicalWorkRejectsHostileCommandAndAuthorityBytes', 'testFinalizationLegacyEnvelopeAndSchemaOneIntentRoundTripWithoutWriterBinding', 'testFinalizationSchemaTwoAdmitsMigratedBaselineAndRejectsHostileBindings', 'testReviewedDraftEnvelopeRetainsExactPortableLocksAndCanonicalBytes', 'testMutationEnvelopeByteGateRejectsOversizeBeforeDecodeAndAdmitsBoundaryToDecoder', 'testFinalizationInspectionBindingPreservesAbsentBytesAndRejectsHostileCoding', 'testWorkspaceCommandDecoderDispatchesEveryCaseAndRejectsHostileGrammar', 'testFinalizationCorrectionBindingPreservesCanonicalDecodeAndEncoderReentry']
         expected = ["FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/" + name for name in names]
@@ -1966,8 +2169,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(name) + r"\s*\(", source)), 1)
 
     def test_ingress_regressions_extend_exact_owner_and_preserve_prior_pool(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         names = ['testPhysicalIngressResumedEraseRejectsUnrelatedControlBeforeFrozenEffects', 'testPhysicalIngressFrozenEraseTerminalReplayNeverOpensDeletedPayload', 'testPhysicalIngressResumedEraseRejectsWellFormedMismatchedTerminalBeforeOtherTargetDeletion', 'testPhysicalIngressFrozenEraseRejectsReplacedTargetPayloadBeforeDeletion', 'testPhysicalIngressReplaceAdmitsWholeRootBeforeTargetPayloadHash']
         appended = ["FieldEvidenceAppTests/V9_15AppLockLifecycleTests/" + name for name in names]
         self.assertEqual(default["unitTestSelectors"][282:287], appended)
@@ -1996,8 +2199,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(name) + r"\s*\(", source)), 1)
 
     def test_runtime_receipt_and_inventory_regressions_extend_exact_prior_pool(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         appended = ['FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterQuantizesFractionalCommitClockAndReplaysExactJournalTime', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterRejectsInvalidCommitClockBeforeAnyCanonicalEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressInitialAdmissionSnapshotUsesFixedControlInventories', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFinalInventoryRejectsLateUnrelatedControlAndPreservesExistingReadyIntent']
         self.assertEqual(default["unitTestSelectors"][287:291], appended)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:287])), "89A305B5914EA4747B0FF7D992BF976BF99B6A4B502419A2B020079DDDBDE29E")
@@ -2024,8 +2227,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def test_first_sign_and_unpublished_recovery_extend_exact_f4_pool(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         appended = ['FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignQuantizesGeneratedClockAndColdReplayPreservesExactBytes', 'FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignRejectsInvalidGeneratedClockWithoutCanonicalEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressMissingClaimedDirectoryWithoutEraseRecordRemainsDenied', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressInterruptedUnpublishedEraseRejectsReplacementOriginalDirectory', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressMalformedUnrelatedControlBlocksResumedEraseBeforeFirstEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressChangedFrozenPublicationBlocksBeforeUnpublishedEraseEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFrozenMismatchPreflightDoesNotSettleEarlierRecoverableStates']
         self.assertEqual(default["unitTestSelectors"][291:298], appended)
         self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:291])), "F3207A7DE463625F01D239D2F2AAE394F31880AB12A2E089C3881FF46B6AC0CA")
@@ -2053,8 +2256,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def test_closed_map_rejects_unselected_classes_and_workflow_choices_match(self):
-        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))))
-        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
         unknown = copy.deepcopy(mapping)
         unknown["groups"][0]["classes"].append("UnselectedAuthorityTests")
         with self.assertRaisesRegex(ValueError, "selection group contains unselected class"):
