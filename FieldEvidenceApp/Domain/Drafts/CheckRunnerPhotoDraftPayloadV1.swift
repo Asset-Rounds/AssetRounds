@@ -322,46 +322,12 @@ struct CheckRunnerPhotoPairReadyV1: Codable, Equatable, Sendable, FieldDraftVali
         }
     }
 
-    /// Acyclic marker basis for the existing pair owner. A matching payload
-    /// claim still needs the complete owned marker and exact byte read-back.
+    /// A matching payload claim still needs the complete owned publication
+    /// and exact byte read-back from the existing pair owner.
     static func markerSHA256(childDraftID: UUID, parentDraftID: UUID, raw: CheckRunnerPhotoRawReadyV1,
                              normalizedPair: CheckRunnerPhotoNormalizedPairV1) throws -> String {
-        try [childDraftID, parentDraftID].forEach(FieldDraftValidationV1.id)
-        try raw.validate(); try normalizedPair.validate()
-        guard childDraftID != parentDraftID, raw.readyItem.draftID == childDraftID,
-              normalizedPair.evidenceID == raw.intent.evidenceID,
-              normalizedPair.sourceBinding.contentID == raw.inspection.rawContentID,
-              normalizedPair.sourceBinding.digest == raw.inspection.sourceSHA256 else {
-            throw FieldDraftFailureV1.digestMismatch
-        }
-        return try FieldDraftCanonicalCodecV1.sha256(MarkerBasis(schemaVersion: 1,
-            childDraftID: childDraftID, parentDraftID: parentDraftID, stageID: raw.intent.stageID,
-            evidenceID: raw.intent.evidenceID, rawStageSHA256: raw.readyItem.stageSHA256,
-            sourceByteCount: raw.inspection.sourceByteCount,
-            sourceSHA256: raw.inspection.sourceSHA256.hexadecimalValue,
-            detectedUTI: raw.inspection.detectedUTI, sourceMediaType: raw.inspection.sourceMediaType,
-            sourcePixelWidth: raw.inspection.pixelWidth, sourcePixelHeight: raw.inspection.pixelHeight,
-            profileID: CheckRunnerPhotoSourceMetadataProfileV1.profileID,
-            profileVersion: CheckRunnerPhotoSourceMetadataProfileV1.profileVersion,
-            normalizedPair: normalizedPair))
-    }
-
-    private struct MarkerBasis: Encodable {
-        let schemaVersion: Int
-        let childDraftID: UUID
-        let parentDraftID: UUID
-        let stageID: UUID
-        let evidenceID: UUID
-        let rawStageSHA256: String
-        let sourceByteCount: Int64
-        let sourceSHA256: String
-        let detectedUTI: String
-        let sourceMediaType: String
-        let sourcePixelWidth: Int
-        let sourcePixelHeight: Int
-        let profileID: String
-        let profileVersion: String
-        let normalizedPair: CheckRunnerPhotoNormalizedPairV1
+        try FieldDraftCanonicalCodecV1.sha256(CheckRunnerPhotoPairPublicationMarkerV1(
+            childDraftID: childDraftID, parentDraftID: parentDraftID, raw: raw, normalizedPair: normalizedPair))
     }
 
     private enum CodingKeys: String, CodingKey, CaseIterable { case raw, normalizedPair, pairPublicationMarkerSHA256 }
@@ -371,6 +337,99 @@ struct CheckRunnerPhotoPairReadyV1: Codable, Equatable, Sendable, FieldDraftVali
         try self.init(raw: c.decode(CheckRunnerPhotoRawReadyV1.self, forKey: .raw),
             normalizedPair: c.decode(CheckRunnerPhotoNormalizedPairV1.self, forKey: .normalizedPair),
             pairPublicationMarkerSHA256: c.decode(String.self, forKey: .pairPublicationMarkerSHA256))
+    }
+}
+
+/// Temporary recovery metadata in the sole media owner's staging directory.
+/// Its canonical fields are the original acyclic PairReady marker basis.
+/// Decoding this value grants no receipt, evidence association or target effect.
+struct CheckRunnerPhotoPairPublicationMarkerV1: Codable, Equatable, Sendable, FieldDraftValidatableV1 {
+    let schemaVersion: Int
+    let childDraftID: UUID
+    let parentDraftID: UUID
+    let stageID: UUID
+    let evidenceID: UUID
+    let rawStageSHA256: String
+    let sourceByteCount: Int64
+    let sourceSHA256: String
+    let detectedUTI: String
+    let sourceMediaType: String
+    let sourcePixelWidth: Int
+    let sourcePixelHeight: Int
+    let profileID: String
+    let profileVersion: String
+    let normalizedPair: CheckRunnerPhotoNormalizedPairV1
+
+    init(childDraftID: UUID, parentDraftID: UUID, raw: CheckRunnerPhotoRawReadyV1,
+         normalizedPair: CheckRunnerPhotoNormalizedPairV1) throws {
+        try raw.validate(); try normalizedPair.validate()
+        guard raw.readyItem.draftID == childDraftID,
+              normalizedPair.evidenceID == raw.intent.evidenceID,
+              normalizedPair.sourceBinding.contentID == raw.inspection.rawContentID,
+              normalizedPair.sourceBinding.digest == raw.inspection.sourceSHA256 else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+        schemaVersion = 1
+        self.childDraftID = childDraftID; self.parentDraftID = parentDraftID
+        stageID = raw.intent.stageID; evidenceID = raw.intent.evidenceID
+        rawStageSHA256 = raw.readyItem.stageSHA256
+        sourceByteCount = raw.inspection.sourceByteCount
+        sourceSHA256 = raw.inspection.sourceSHA256.hexadecimalValue
+        detectedUTI = raw.inspection.detectedUTI; sourceMediaType = raw.inspection.sourceMediaType
+        sourcePixelWidth = raw.inspection.pixelWidth; sourcePixelHeight = raw.inspection.pixelHeight
+        profileID = CheckRunnerPhotoSourceMetadataProfileV1.profileID
+        profileVersion = CheckRunnerPhotoSourceMetadataProfileV1.profileVersion
+        self.normalizedPair = normalizedPair
+        try validate()
+    }
+
+    func validate() throws {
+        try [childDraftID, parentDraftID, stageID, evidenceID].forEach(FieldDraftValidationV1.id)
+        try [rawStageSHA256, sourceSHA256].forEach(FieldDraftValidationV1.digest)
+        try CheckRunnerPhotoValueValidationV1.sourceCount(sourceByteCount)
+        _ = try CheckRunnerPhotoValueValidationV1.sourcePixelCount(width: sourcePixelWidth, height: sourcePixelHeight)
+        try normalizedPair.validate()
+        guard schemaVersion == 1, childDraftID != parentDraftID,
+              normalizedPair.evidenceID == evidenceID,
+              normalizedPair.sourceBinding.digest.hexadecimalValue == sourceSHA256,
+              sourceMediaType == (try CheckRunnerPhotoSourceMetadataProfileV1.mediaType(for: detectedUTI)),
+              profileID == CheckRunnerPhotoSourceMetadataProfileV1.profileID,
+              profileVersion == CheckRunnerPhotoSourceMetadataProfileV1.profileVersion else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+    }
+
+    func validate(childDraftID: UUID, parentDraftID: UUID, raw: CheckRunnerPhotoRawReadyV1) throws {
+        guard self == (try Self(childDraftID: childDraftID, parentDraftID: parentDraftID,
+                               raw: raw, normalizedPair: normalizedPair)) else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, childDraftID, parentDraftID, stageID, evidenceID, rawStageSHA256
+        case sourceByteCount, sourceSHA256, detectedUTI, sourceMediaType, sourcePixelWidth, sourcePixelHeight
+        case profileID, profileVersion, normalizedPair
+    }
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        childDraftID = try c.decode(UUID.self, forKey: .childDraftID)
+        parentDraftID = try c.decode(UUID.self, forKey: .parentDraftID)
+        stageID = try c.decode(UUID.self, forKey: .stageID)
+        evidenceID = try c.decode(UUID.self, forKey: .evidenceID)
+        rawStageSHA256 = try c.decode(String.self, forKey: .rawStageSHA256)
+        sourceByteCount = try c.decode(Int64.self, forKey: .sourceByteCount)
+        sourceSHA256 = try c.decode(String.self, forKey: .sourceSHA256)
+        detectedUTI = try c.decode(String.self, forKey: .detectedUTI)
+        sourceMediaType = try c.decode(String.self, forKey: .sourceMediaType)
+        sourcePixelWidth = try c.decode(Int.self, forKey: .sourcePixelWidth)
+        sourcePixelHeight = try c.decode(Int.self, forKey: .sourcePixelHeight)
+        profileID = try c.decode(String.self, forKey: .profileID)
+        profileVersion = try c.decode(String.self, forKey: .profileVersion)
+        normalizedPair = try c.decode(CheckRunnerPhotoNormalizedPairV1.self, forKey: .normalizedPair)
+        try validate()
     }
 }
 

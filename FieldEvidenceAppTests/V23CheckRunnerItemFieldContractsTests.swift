@@ -785,8 +785,90 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
     func testPhotoChildPairMarkerBindsParentChildRawAndBothOutputs() throws {
         let f = try photoFixture()
         let baseline = try photoPayload(f, phase: .pairReady(f.pair))
-        XCTAssertEqual(f.pair.pairPublicationMarkerSHA256, try CheckRunnerPhotoPairReadyV1.markerSHA256(
-            childDraftID: f.childDraftID, parentDraftID: f.parentDraftID, raw: f.raw, normalizedPair: f.pair.normalizedPair))
+        let marker = try CheckRunnerPhotoPairPublicationMarkerV1(childDraftID: f.childDraftID,
+            parentDraftID: f.parentDraftID, raw: f.raw, normalizedPair: f.pair.normalizedPair)
+        let markerBytes = try FieldDraftCanonicalCodecV1.encode(marker)
+        let legacyBasis = LegacyPhotoPairMarkerBasis(schemaVersion: 1,
+            childDraftID: f.childDraftID, parentDraftID: f.parentDraftID,
+            stageID: f.raw.intent.stageID, evidenceID: f.raw.intent.evidenceID,
+            rawStageSHA256: f.raw.readyItem.stageSHA256,
+            sourceByteCount: f.raw.inspection.sourceByteCount,
+            sourceSHA256: f.raw.inspection.sourceSHA256.hexadecimalValue,
+            detectedUTI: f.raw.inspection.detectedUTI,
+            sourceMediaType: f.raw.inspection.sourceMediaType,
+            sourcePixelWidth: f.raw.inspection.pixelWidth,
+            sourcePixelHeight: f.raw.inspection.pixelHeight,
+            profileID: CheckRunnerPhotoSourceMetadataProfileV1.profileID,
+            profileVersion: CheckRunnerPhotoSourceMetadataProfileV1.profileVersion,
+            normalizedPair: f.pair.normalizedPair)
+        let legacyBytes = try FieldDraftCanonicalCodecV1.encode(legacyBasis)
+        XCTAssertEqual(markerBytes, legacyBytes)
+        XCTAssertEqual(f.pair.pairPublicationMarkerSHA256,
+            FieldDraftCanonicalCodecV1.sha256(legacyBytes))
+        XCTAssertEqual(f.pair.pairPublicationMarkerSHA256,
+            try CheckRunnerPhotoPairReadyV1.markerSHA256(childDraftID: f.childDraftID,
+                parentDraftID: f.parentDraftID, raw: f.raw,
+                normalizedPair: f.pair.normalizedPair))
+        let decodedMarker = try FieldDraftCanonicalCodecV1.decode(
+            CheckRunnerPhotoPairPublicationMarkerV1.self, from: markerBytes)
+        XCTAssertEqual(decodedMarker, marker)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(decodedMarker), markerBytes)
+        XCTAssertNoThrow(try marker.validate(childDraftID: f.childDraftID,
+            parentDraftID: f.parentDraftID, raw: f.raw))
+
+        let markerObject = try jsonObject(marker)
+        var unknownTop = markerObject
+        unknownTop["futureReceiptAuthority"] = true
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairPublicationMarkerV1.self, unknownTop))
+        var unknownNested = markerObject
+        try setJSON(&unknownNested, path: ["normalizedPair", "futurePairAuthority"], value: true)
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairPublicationMarkerV1.self, unknownNested))
+        var missingNested = markerObject
+        try removeJSON(&missingNested, path: ["normalizedPair", "originalSHA256"])
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairPublicationMarkerV1.self, missingNested))
+        for key in markerObject.keys.sorted() {
+            var missing = markerObject
+            missing.removeValue(forKey: key)
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairPublicationMarkerV1.self, missing), key)
+        }
+        let invalidMarkerValues: [([String], Any)] = [
+            (["schemaVersion"], 2),
+            (["childDraftID"], f.parentDraftID.uuidString),
+            (["rawStageSHA256"], "bad"),
+            (["sourceByteCount"], 0),
+            (["sourceSHA256"], String(repeating: "d", count: 64)),
+            (["detectedUTI"], "public.png"),
+            (["sourceMediaType"], "image/png"),
+            (["sourcePixelWidth"], 0),
+            (["sourcePixelHeight"], MediaContractV1.sourceAxisMaximum + 1),
+            (["profileID"], "different-profile"),
+            (["profileVersion"], "2"),
+            (["normalizedPair", "evidenceID"], largeID(4_102).uuidString),
+            (["normalizedPair", "sourceBinding", "digest", "hexadecimalValue"],
+                String(repeating: "d", count: 64)),
+        ]
+        for (path, value) in invalidMarkerValues {
+            var invalid = markerObject
+            try setJSON(&invalid, path: path, value: value)
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairPublicationMarkerV1.self, invalid),
+                path.joined(separator: "."))
+        }
+        XCTAssertThrowsError(try marker.validate(childDraftID: largeID(4_100),
+            parentDraftID: f.parentDraftID, raw: f.raw))
+        XCTAssertThrowsError(try marker.validate(childDraftID: f.childDraftID,
+            parentDraftID: largeID(4_100), raw: f.raw))
+        XCTAssertThrowsError(try marker.validate(childDraftID: f.childDraftID,
+            parentDraftID: f.parentDraftID, raw: photoFixture(recheck: true).raw))
+        for (key, value) in [("sourceByteCount", 513), ("sourcePixelWidth", 21),
+                             ("sourcePixelHeight", 11)] {
+            var structurallyValid = markerObject
+            structurallyValid[key] = value
+            let changed = try decodeObject(CheckRunnerPhotoPairPublicationMarkerV1.self,
+                structurallyValid)
+            XCTAssertNoThrow(try changed.validate())
+            XCTAssertThrowsError(try changed.validate(childDraftID: f.childDraftID,
+                parentDraftID: f.parentDraftID, raw: f.raw), key)
+        }
         XCTAssertNotEqual(f.pair.pairPublicationMarkerSHA256, try CheckRunnerPhotoPairReadyV1.markerSHA256(
             childDraftID: f.childDraftID, parentDraftID: largeID(4_100), raw: f.raw, normalizedPair: f.pair.normalizedPair))
         XCTAssertThrowsError(try CheckRunnerPhotoPairReadyV1.markerSHA256(childDraftID: largeID(4_101),
@@ -2142,6 +2224,25 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         let attempt: CheckRunnerPhotoCommitAttemptV1
     }
 
+    /// Exact pre-extraction MarkerBasis shape retained as a compatibility oracle.
+    private struct LegacyPhotoPairMarkerBasis: Encodable {
+        let schemaVersion: Int
+        let childDraftID: UUID
+        let parentDraftID: UUID
+        let stageID: UUID
+        let evidenceID: UUID
+        let rawStageSHA256: String
+        let sourceByteCount: Int64
+        let sourceSHA256: String
+        let detectedUTI: String
+        let sourceMediaType: String
+        let sourcePixelWidth: Int
+        let sourcePixelHeight: Int
+        let profileID: String
+        let profileVersion: String
+        let normalizedPair: CheckRunnerPhotoNormalizedPairV1
+    }
+
     private func photoFixture(recheck: Bool = false, step: WorkflowDraftStep = .wide,
                               origin: OriginalContentOriginV1 = .humanCapture) throws -> PhotoFixture {
         let parent = try parentFixture(recheck: recheck, includesTimeZone: recheck)
@@ -2293,10 +2394,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         XCTAssertEqual(timeZoneEvidence.envelope.expectedRevision.entityRevisions,
             [WorkspaceEntityRevisionV1(identity: siteIdentity, revision: timeZoneAttempt.expectedSiteRevision)])
         XCTAssertEqual(timeZoneEvidence.receipt.committedAt, actualAttempt.timeZone?.committedAt)
-        _ = try writer.execute(.createCheckDraft(fixture.parentFixture.attempt.recordCommand),
-            mutationID: fixture.parentFixture.attempt.recordMutationID)
-        let workflowEvidence = try XCTUnwrap(writer.checkRunnerBeginEvidence(workspaceID: workspaceID,
-            mutationID: fixture.parentFixture.attempt.recordMutationID))
+        let workflowEvidence = try writer.commitFrozenCheckRunnerDraft(actualAttempt)
         XCTAssertEqual(workflowEvidence.envelope.expectedRevision.entityRevisions, expectedRecordRevisions)
         XCTAssertEqual(workflowEvidence.receipt.committedAt, actualAttempt.recordCommittedAt)
         let workflowReference = try CheckRunnerBeginReceiptReferenceV1(evidence: workflowEvidence)

@@ -28,6 +28,16 @@ struct CheckRunnerPhotoMediaReadbackV1: Equatable, Sendable {
     let normalizedPair: CheckRunnerPhotoNormalizedPairV1
 }
 
+/// Physical staging facts. The application must authenticate the original
+/// rawReady/parent receipts and revalidate their live ownership after awaiting.
+/// This value is not a pairReady receipt or accepted evidence.
+struct CheckRunnerPhotoStagedPairReadbackV1: Equatable, Sendable {
+    let marker: CheckRunnerPhotoPairPublicationMarkerV1
+    let markerBytes: Data
+    let markerSHA256: String
+    let staged: StagedEvidenceBundle
+}
+
 extension EvidenceBundleStore {
     /// C23 immutable originals never relocate or advance a locator revision.
     /// This is the owner's fixed mapping, independent of manifest expectations.
@@ -159,6 +169,10 @@ enum EvidenceBundleStoreFailurePoint: Equatable, Sendable {
     case assetLabelPublicationBeforeMarkerCommit
     case derivativeStagingWrite
     case derivativeAtomicPublicationMove
+    case checkRunnerPhotoOriginalWritten
+    case checkRunnerPhotoThumbnailWritten
+    case checkRunnerPhotoMarkerWritten
+    case checkRunnerPhotoPublished
 }
 
 final class EvidenceBundleStoreFailureInjection: @unchecked Sendable {
@@ -1167,6 +1181,232 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
+    /// Consult this before invoking the normalizer. rawReady deliberately has
+    /// no pair claim: the closed marker supplies the candidate pair, which is
+    /// checked against the exact raw binding and both actual canonical JPEGs.
+    func readStagedCheckRunnerPhotoPair(
+        childDraftID: UUID,
+        parentDraftID: UUID,
+        raw: CheckRunnerPhotoRawReadyV1,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
+    ) throws -> CheckRunnerPhotoStagedPairReadbackV1? {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try requireProducerAuthority()
+        try Task.checkCancellation()
+        try raw.validate()
+        try [childDraftID, parentDraftID].forEach(FieldDraftValidationV1.id)
+        guard raw.readyItem.draftID == childDraftID, childDraftID != parentDraftID else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        return try withGenerationRootAuthority { authority in
+            guard authority.generationIdentity.device == expectedGenerationRootIdentity.device,
+                  authority.generationIdentity.inode == expectedGenerationRootIdentity.inode else {
+                throw EvidenceBundleStoreError.generationRootInvalid
+            }
+            return try readCheckRunnerPhotoPairLocked(childDraftID: childDraftID,
+                parentDraftID: parentDraftID, raw: raw, directoryURL: paths(for: raw.intent.evidenceID).stagingDirectoryURL)
+        }
+    }
+
+    /// Publishes operational staging only. No checkpoint, stage row, receipt or
+    /// evidence association is created. An exact earlier publication wins.
+    func stageOrAdoptCheckRunnerPhotoPair(
+        childDraftID: UUID,
+        parentDraftID: UUID,
+        raw: CheckRunnerPhotoRawReadyV1,
+        normalized: NormalizedMediaWithSourceFactsV1,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
+    ) throws -> CheckRunnerPhotoStagedPairReadbackV1 {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try requireProducerAuthority()
+        try Task.checkCancellation()
+        try raw.validate()
+        try [childDraftID, parentDraftID].forEach(FieldDraftValidationV1.id)
+        guard raw.readyItem.draftID == childDraftID, childDraftID != parentDraftID else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        return try withGenerationRootAuthority { authority in
+            guard authority.generationIdentity.device == expectedGenerationRootIdentity.device,
+                  authority.generationIdentity.inode == expectedGenerationRootIdentity.inode else {
+                throw EvidenceBundleStoreError.generationRootInvalid
+            }
+            let bundlePaths = paths(for: raw.intent.evidenceID)
+            guard try itemType(at: bundlePaths.promotedDirectoryURL) == nil else {
+                throw EvidenceBundleStoreError.promotedBundleAlreadyExists
+            }
+            if let existing = try readCheckRunnerPhotoPairLocked(childDraftID: childDraftID,
+                parentDraftID: parentDraftID, raw: raw, directoryURL: bundlePaths.stagingDirectoryURL) {
+                return existing
+            }
+            let inspection = raw.inspection
+            guard normalized.sourceFacts == MediaSourceFactsV1(sourceTypeIdentifier: inspection.detectedUTI,
+                pixelWidth: inspection.pixelWidth, pixelHeight: inspection.pixelHeight,
+                byteCount: Int(inspection.sourceByteCount)) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            let pair = try checkRunnerPhotoPair(raw: raw, original: normalized.normalized.originalJPEG,
+                                                thumbnail: normalized.normalized.thumbnailJPEG)
+            let marker = try CheckRunnerPhotoPairPublicationMarkerV1(childDraftID: childDraftID,
+                parentDraftID: parentDraftID, raw: raw, normalizedPair: pair)
+            let markerBytes = try FieldDraftCanonicalCodecV1.encode(marker)
+            guard markerBytes.count <= FieldDraftLimitsV1.maximumCanonicalBytes else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            try ensureDirectory(relativeComponents: [".staging", "evidence"])
+            let privateURL = bundlePaths.stagingDirectoryURL.deletingLastPathComponent()
+                .appendingPathComponent(".\(raw.intent.evidenceID.uuidString.lowercased()).pair.tmp", isDirectory: true)
+            var privateIdentity: FileIdentity?
+            var published = false
+            do {
+                try createCheckRunnerPhotoPrivateDirectory(at: privateURL, identity: &privateIdentity)
+                try Task.checkCancellation()
+                try writeProtectedStagingFile(normalized.normalized.originalJPEG,
+                    to: privateURL.appendingPathComponent("original.jpg"), cancellationChecks: true)
+                try checkCheckRunnerPhotoBoundary(.checkRunnerPhotoOriginalWritten)
+                try writeProtectedStagingFile(normalized.normalized.thumbnailJPEG,
+                    to: privateURL.appendingPathComponent("thumbnail.jpg"), cancellationChecks: true)
+                try checkCheckRunnerPhotoBoundary(.checkRunnerPhotoThumbnailWritten)
+                try withOwnedDirectory(at: privateURL) { descriptor in
+                    guard Set(try directoryNames(descriptor)) == ["original.jpg", "thumbnail.jpg"],
+                          try readCheckRunnerPhotoPairFiles(raw: raw, expectedPair: pair,
+                            directoryURL: privateURL, descriptor: descriptor) == pair else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                }
+                // The marker is last; private or unmarked files never adopt.
+                try writeProtectedStagingFile(markerBytes,
+                    to: privateURL.appendingPathComponent("pair-publication.json"), cancellationChecks: true)
+                try checkCheckRunnerPhotoBoundary(.checkRunnerPhotoMarkerWritten)
+                guard let verified = try readCheckRunnerPhotoPairLocked(childDraftID: childDraftID,
+                    parentDraftID: parentDraftID, raw: raw, directoryURL: privateURL),
+                    verified.marker == marker, verified.markerBytes == markerBytes else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                try Task.checkCancellation()
+                guard let privateIdentity, try directoryIdentity(at: privateURL) == privateIdentity else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                try reproveGenerationRoot(authority)
+                try moveDirectoryNoReplace(from: privateURL, to: bundlePaths.stagingDirectoryURL, didMove: &published)
+                try checkCheckRunnerPhotoBoundary(.checkRunnerPhotoPublished)
+                guard let result = try readCheckRunnerPhotoPairLocked(childDraftID: childDraftID,
+                    parentDraftID: parentDraftID, raw: raw, directoryURL: bundlePaths.stagingDirectoryURL),
+                    result.markerBytes == markerBytes else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                return result
+            } catch {
+                // After the visibility point, preserve bytes for lost-ack
+                // adoption. Before it, only this call's exact inode is owned.
+                if !published, let privateIdentity {
+                    try withParentDescriptor(of: privateURL) { parent, leaf in
+                        try quarantineDirectoryAndRemove(parent: parent, name: leaf, expectedIdentity: privateIdentity)
+                    }
+                }
+                throw error
+            }
+        }
+    }
+
+    private func checkCheckRunnerPhotoBoundary(_ point: EvidenceBundleStoreFailurePoint) throws {
+        try Task.checkCancellation()
+        if failureInjection?.consume(point) == true { throw EvidenceBundleStoreError.fileOperationFailed }
+    }
+
+    private func createCheckRunnerPhotoPrivateDirectory(at url: URL, identity: inout FileIdentity?) throws {
+        try withParentDescriptor(of: url) { parent, leaf in
+            guard Darwin.mkdirat(parent, leaf, mode_t(0o700)) == 0 else {
+                throw EvidenceBundleStoreError.stagingBundleAlreadyExists
+            }
+            let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            defer { _ = Darwin.close(descriptor) }
+            let created = try directoryIdentity(descriptor)
+            identity = created
+            guard try directoryIdentity(parent: parent, name: leaf) == created,
+                  Darwin.fsync(descriptor) == 0, Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            try applyDirectoryPolicy(.stagingDirectory, at: url)
+            guard try directoryIdentity(descriptor) == created,
+                  try directoryIdentity(parent: parent, name: leaf) == created else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        }
+    }
+
+    private func checkRunnerPhotoPair(raw: CheckRunnerPhotoRawReadyV1,
+                                     original: Data, thumbnail: Data) throws -> CheckRunnerPhotoNormalizedPairV1 {
+        try Task.checkCancellation()
+        let originalFacts = try validateCanonicalJPEG(original, kind: .original)
+        try Task.checkCancellation()
+        let thumbnailFacts = try validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+        let bundlePaths = paths(for: raw.intent.evidenceID)
+        return try .init(evidenceID: raw.intent.evidenceID,
+            originalRelativePath: bundlePaths.originalRelativePath, originalByteCount: Int64(original.count),
+            originalSHA256: sha256(original), originalPixelWidth: originalFacts.pixelWidth,
+            originalPixelHeight: originalFacts.pixelHeight, thumbnailRelativePath: bundlePaths.thumbnailRelativePath,
+            thumbnailByteCount: Int64(thumbnail.count), thumbnailSHA256: sha256(thumbnail),
+            thumbnailPixelWidth: thumbnailFacts.pixelWidth, thumbnailPixelHeight: thumbnailFacts.pixelHeight,
+            sourceBinding: .init(contentID: raw.inspection.rawContentID, digest: raw.inspection.sourceSHA256),
+            sanitizedDerivative: CheckRunnerPhotoSourceMetadataProfileV1.sanitizedDerivative(),
+            thumbnailDerivative: CheckRunnerPhotoSourceMetadataProfileV1.thumbnailDerivative(
+                pixelWidth: thumbnailFacts.pixelWidth, pixelHeight: thumbnailFacts.pixelHeight))
+    }
+
+    private func readCheckRunnerPhotoPairLocked(childDraftID: UUID, parentDraftID: UUID,
+        raw: CheckRunnerPhotoRawReadyV1, directoryURL: URL) throws -> CheckRunnerPhotoStagedPairReadbackV1? {
+        try Task.checkCancellation()
+        guard let type = try itemType(at: directoryURL) else { return nil }
+        guard type == .typeDirectory else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+        return try withOwnedDirectory(at: directoryURL) { descriptor in
+            let identity = try directoryIdentity(descriptor)
+            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: directoryURL)
+            let names: Set<String> = ["original.jpg", "thumbnail.jpg", "pair-publication.json"]
+            guard Set(try directoryNames(descriptor)) == names else {
+                throw EvidenceBundleStoreError.bundleShapeInvalid
+            }
+            let markerBytes = try readProtectedRegularFile(.stagingFile,
+                at: directoryURL.appendingPathComponent("pair-publication.json"), parent: descriptor,
+                name: "pair-publication.json", maximumBytes: Int64(FieldDraftLimitsV1.maximumCanonicalBytes),
+                cancellationChecks: true)
+            let marker = try FieldDraftCanonicalCodecV1.decode(CheckRunnerPhotoPairPublicationMarkerV1.self,
+                                                             from: markerBytes)
+            try marker.validate(childDraftID: childDraftID, parentDraftID: parentDraftID, raw: raw)
+            let observed = try readCheckRunnerPhotoPairFiles(raw: raw, expectedPair: marker.normalizedPair,
+                                                            directoryURL: directoryURL, descriptor: descriptor)
+            // A fresh descriptor avoids sharing readdir's consumed offset.
+            let finalNames = try withOwnedDirectory(at: directoryURL) { Set(try directoryNames($0)) }
+            guard observed == marker.normalizedPair, finalNames == names,
+                  try directoryIdentity(descriptor) == identity,
+                  try directoryIdentity(at: directoryURL) == identity else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            let bundlePaths = paths(for: raw.intent.evidenceID)
+            let staged = StagedEvidenceBundle(evidenceID: raw.intent.evidenceID,
+                stagingDirectoryRelativePath: bundlePaths.stagingDirectoryRelativePath,
+                originalRelativePath: observed.originalRelativePath, thumbnailRelativePath: observed.thumbnailRelativePath,
+                originalByteCount: Int(observed.originalByteCount), thumbnailByteCount: Int(observed.thumbnailByteCount),
+                originalSHA256: observed.originalSHA256, thumbnailSHA256: observed.thumbnailSHA256)
+            try Task.checkCancellation()
+            return .init(marker: marker, markerBytes: markerBytes,
+                         markerSHA256: FieldDraftCanonicalCodecV1.sha256(markerBytes), staged: staged)
+        }
+    }
+
+    private func readCheckRunnerPhotoPairFiles(raw: CheckRunnerPhotoRawReadyV1,
+        expectedPair: CheckRunnerPhotoNormalizedPairV1, directoryURL: URL, descriptor: Int32) throws
+        -> CheckRunnerPhotoNormalizedPairV1 {
+        try expectedPair.validate()
+        let original = try readProtectedRegularFile(.stagingFile,
+            at: directoryURL.appendingPathComponent("original.jpg"), parent: descriptor,
+            name: "original.jpg", maximumBytes: expectedPair.originalByteCount, cancellationChecks: true)
+        let thumbnail = try readProtectedRegularFile(.stagingFile,
+            at: directoryURL.appendingPathComponent("thumbnail.jpg"), parent: descriptor,
+            name: "thumbnail.jpg", maximumBytes: expectedPair.thumbnailByteCount, cancellationChecks: true)
+        return try checkRunnerPhotoPair(raw: raw, original: original, thumbnail: thumbnail)
+    }
+
     func stage(
         evidenceID: UUID,
         input: EvidenceBundleInput
@@ -2076,7 +2316,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     private func writeProtectedFile(
         _ data: Data,
         to url: URL,
-        policy: OwnedFileKindV1
+        policy: OwnedFileKindV1,
+        cancellationChecks: Bool = false
     ) throws {
         let temporaryName = ".\(url.lastPathComponent).\(UUID().uuidString.lowercased()).tmp"
         let temporaryURL = url
@@ -2108,10 +2349,11 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                     guard let base = raw.baseAddress else { return }
                     var offset = 0
                     while offset < raw.count {
+                        if cancellationChecks { try Task.checkCancellation() }
                         let count = Darwin.write(
                             descriptor,
                             base.advanced(by: offset),
-                            raw.count - offset
+                            cancellationChecks ? min(raw.count - offset, 64 * 1024) : raw.count - offset
                         )
                         if count > 0 {
                             offset += count
@@ -2122,6 +2364,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                         }
                     }
                 }
+                if cancellationChecks { try Task.checkCancellation() }
                 guard Darwin.fsync(descriptor) == 0 else {
                     throw EvidenceBundleStoreError.fileOperationFailed
                 }
@@ -2168,9 +2411,10 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     private func writeProtectedStagingFile(
         _ data: Data,
-        to url: URL
+        to url: URL,
+        cancellationChecks: Bool = false
     ) throws {
-        try writeProtectedFile(data, to: url, policy: .stagingFile)
+        try writeProtectedFile(data, to: url, policy: .stagingFile, cancellationChecks: cancellationChecks)
     }
 
     private func writeProtectedImmutableFile(
@@ -2437,7 +2681,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         at url: URL,
         parent: Int32,
         name: String,
-        maximumBytes: Int64? = nil
+        maximumBytes: Int64? = nil,
+        cancellationChecks: Bool = false
     ) throws -> Data {
         do {
             let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
@@ -2466,10 +2711,16 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             var data = Data()
             var buffer = [UInt8](repeating: 0, count: 64 * 1024)
             while true {
+                if cancellationChecks { try Task.checkCancellation() }
                 let count = buffer.withUnsafeMutableBytes { raw in
                     Darwin.read(descriptor, raw.baseAddress, raw.count)
                 }
                 if count > 0 {
+                    if let maximumBytes {
+                        guard Int64(data.count) <= maximumBytes - Int64(count) else {
+                            throw EvidenceBundleStoreError.bundleFactsMismatch
+                        }
+                    }
                     data.append(contentsOf: buffer.prefix(count))
                 } else if count == 0 {
                     break
@@ -2482,11 +2733,16 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                   (after.st_mode & S_IFMT) == S_IFREG,
                   after.st_nlink == 1,
                   FileIdentity(device: after.st_dev, inode: after.st_ino) == expected,
+                  try regularIdentity(parent: parent, name: name) == expected,
+                  try regularIdentity(at: url) == expected,
+                  try directoryIdentity(parent) == parentExpected,
                   before.st_size == after.st_size,
                   data.count == Int(after.st_size) else {
                 throw EvidenceBundleStoreError.bundleFactsMismatch
             }
             return data
+        } catch let error as CancellationError {
+            throw error
         } catch let error as EvidenceBundleStoreError {
             throw error
         } catch {

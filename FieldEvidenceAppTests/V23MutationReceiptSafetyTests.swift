@@ -1180,10 +1180,16 @@ private enum ReceiptSafetyLighting {
             requiredPPE: [], confirmedPPE: [], emergencyReadiness: .confirmed,
             trafficSafety: .noTrafficExposure, observerSafety: .authorizedAccessibleVantage,
             recordedBy: actor, recordedAt: nightDate)
+        let comparableMedia = try ContentReferenceV1(
+            workspaceID: workspace.rawValue.uuidString.lowercased(),
+            contentID: nightContext.evidenceID, byteLength: 1, mediaType: "image/jpeg",
+            digests: .init([.init(algorithm: .sha256,
+                hexadecimalValue: nightContext.evidenceSHA256)]),
+            byteRole: .immutableOriginal, createdAt: ISO8601DateFormatter().string(from: nightDate))
         let delta = try LightingNightDeltaV1(luminaireID: luminaireID, assetID: assetID, assetRevision: 1,
             zoneID: zoneID, controlGroupID: groupID, observation: .init(nightObservation),
             expectedControl: .noDeclaredExpectation, observedControl: .appearedOn,
-            issueKinds: [], comparableMedia: [], temporaryLight: .notObserved,
+            issueKinds: [], comparableMedia: [comparableMedia], temporaryLight: .notObserved,
             weatherContext: .notObserved, surfaceContext: .notObserved, measurement: nil,
             cameraBandingRecordedWithoutFlickerClaim: false)
         let night = try LightingNightWorkflowV1(recordID: id(320), workflowID: id(321),

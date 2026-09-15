@@ -172,6 +172,182 @@ final class S3_2MediaPipelineTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: rawURL), source)
         XCTAssertEqual(try Data(contentsOf: originalURL), normalized.originalJPEG)
         XCTAssertEqual(try Data(contentsOf: thumbnailURL), normalized.thumbnailJPEG)
+        try await verifyStagedPhotoPairReadbacks(raw: raw, wrongRaw: wrongRaw,
+            normalized: .init(sourceFacts: normalizer.inspectSource(source), normalized: normalized))
+    }
+
+    private func verifyStagedPhotoPairReadbacks(raw: CheckRunnerPhotoRawReadyV1,
+        wrongRaw: CheckRunnerPhotoRawReadyV1, normalized: NormalizedMediaWithSourceFactsV1) async throws {
+        let applicationSupport = try makeTemporaryDirectory().resolvingSymlinksInPath()
+        defer { try? fileManager.removeItem(at: applicationSupport) }
+        let root = applicationSupport.appendingPathComponent(
+            "FieldEvidenceData/generations/\(UUID().uuidString.lowercased())", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        let rootIdentity = (device: identity.device, inode: identity.inode)
+        let childID = raw.readyItem.draftID, parentID = UUID()
+        let store = EvidenceBundleStore(generationRootURL: root)
+        let id = raw.intent.evidenceID.uuidString.lowercased()
+        let directory = root.appendingPathComponent(".staging/evidence/\(id)", isDirectory: true)
+        let privateDirectory = root.appendingPathComponent(".staging/evidence/.\(id).pair.tmp", isDirectory: true)
+        let original = directory.appendingPathComponent("original.jpg")
+        let thumbnail = directory.appendingPathComponent("thumbnail.jpg")
+        let marker = directory.appendingPathComponent("pair-publication.json")
+        let names: Set<String> = ["original.jpg", "thumbnail.jpg", "pair-publication.json"]
+        func read(_ selected: EvidenceBundleStore? = nil,
+                  parent: UUID? = nil, source: CheckRunnerPhotoRawReadyV1? = nil) async throws
+            -> CheckRunnerPhotoStagedPairReadbackV1? {
+            try await (selected ?? store).readStagedCheckRunnerPhotoPair(childDraftID: childID,
+                parentDraftID: parent ?? parentID, raw: source ?? raw,
+                expectedGenerationRootIdentity: rootIdentity)
+        }
+        func publish(_ selected: EvidenceBundleStore? = nil,
+                     input: NormalizedMediaWithSourceFactsV1? = nil) async throws -> CheckRunnerPhotoStagedPairReadbackV1 {
+            try await (selected ?? store).stageOrAdoptCheckRunnerPhotoPair(childDraftID: childID,
+                parentDraftID: parentID, raw: raw, normalized: input ?? normalized,
+                expectedGenerationRootIdentity: rootIdentity)
+        }
+        func reject(_ message: String, parent: UUID? = nil, source: CheckRunnerPhotoRawReadyV1? = nil) async {
+            do { _ = try await read(parent: parent, source: source); XCTFail(message) } catch {}
+        }
+        let absent = try await read()
+        XCTAssertNil(absent)
+        XCTAssertEqual(try fileManager.subpathsOfDirectory(atPath: root.path), [])
+        let published = try await publish()
+        XCTAssertEqual(Set(try fileManager.contentsOfDirectory(atPath: directory.path)), names)
+        XCTAssertFalse(fileManager.fileExists(atPath: privateDirectory.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("evidence/\(id)").path))
+        XCTAssertEqual(try Data(contentsOf: original), normalized.normalized.originalJPEG)
+        XCTAssertEqual(try Data(contentsOf: thumbnail), normalized.normalized.thumbnailJPEG)
+        XCTAssertEqual(try Data(contentsOf: marker), published.markerBytes)
+        XCTAssertEqual(published.markerSHA256, sha256(published.markerBytes))
+        XCTAssertEqual(published.marker.childDraftID, childID)
+        XCTAssertEqual(published.marker.parentDraftID, parentID)
+        XCTAssertEqual(published.marker.stageID, raw.intent.stageID)
+        XCTAssertEqual(published.staged.evidenceID, raw.intent.evidenceID)
+        XCTAssertEqual(published.markerSHA256, try CheckRunnerPhotoPairReadyV1.markerSHA256(
+            childDraftID: childID, parentDraftID: parentID, raw: raw,
+            normalizedPair: published.marker.normalizedPair))
+        let coldStore = EvidenceBundleStore(generationRootURL: root)
+        let cold = try await read(coldStore)
+        XCTAssertEqual(cold, published)
+        // Exact adoption reads no new normalization output. Even a deliberately
+        // unusable unused input cannot replace a valid earlier publication.
+        let unused = NormalizedMediaWithSourceFactsV1(
+            sourceFacts: .init(sourceTypeIdentifier: "unused", pixelWidth: 0, pixelHeight: 0, byteCount: 0),
+            normalized: .init(originalJPEG: Data(), thumbnailJPEG: Data()))
+        let adopted = try await publish(coldStore, input: unused)
+        XCTAssertEqual(adopted, published)
+        await reject("A different parent cannot adopt this pair", parent: UUID())
+        await reject("A marker must match the actual retained raw inspection", source: wrongRaw)
+        do {
+            _ = try await store.readStagedCheckRunnerPhotoPair(childDraftID: childID, parentDraftID: parentID,
+                raw: raw, expectedGenerationRootIdentity: (identity.device, identity.inode &+ 1))
+            XCTFail("A changed root must not publish staging facts")
+        } catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .generationRootInvalid) }
+        do {
+            _ = try await store.promote(published.staged)
+            XCTFail("Legacy promotion must reject the extra staging marker")
+        } catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .bundleShapeInvalid) }
+        XCTAssertEqual(Set(try fileManager.contentsOfDirectory(atPath: directory.path)), names)
+        let retainedFiles = [(original, normalized.normalized.originalJPEG),
+                             (thumbnail, normalized.normalized.thumbnailJPEG), (marker, published.markerBytes)]
+        for (url, bytes) in retainedFiles {
+            let retained = applicationSupport.appendingPathComponent("retained-\(url.lastPathComponent)")
+            try fileManager.moveItem(at: url, to: retained)
+            await reject("Every missing pair member must fail without recreation")
+            do { _ = try await publish(); XCTFail("Partial staging must not be overwritten") } catch {}
+            XCTAssertFalse(fileManager.fileExists(atPath: url.path))
+            XCTAssertEqual(try Data(contentsOf: retained), bytes)
+            try fileManager.moveItem(at: retained, to: url)
+            var changed = bytes; changed[changed.count - 1] ^= 1
+            try changed.write(to: url)
+            await reject("Changed pair or marker bytes cannot be repaired on read")
+            do { _ = try await publish(); XCTFail("Divergent staging must not be overwritten") } catch {}
+            XCTAssertEqual(try Data(contentsOf: url), changed)
+            try bytes.write(to: url)
+        }
+        let extra = directory.appendingPathComponent("unexpected.bin")
+        try Data([1, 2, 3]).write(to: extra)
+        await reject("Unknown staging members must remain a conflict")
+        XCTAssertEqual(try Data(contentsOf: extra), Data([1, 2, 3]))
+        try fileManager.removeItem(at: extra)
+        let retainedOriginal = applicationSupport.appendingPathComponent("retained-original.jpg")
+        try fileManager.moveItem(at: original, to: retainedOriginal)
+        try fileManager.createSymbolicLink(at: original, withDestinationURL: retainedOriginal)
+        await reject("A symlink does not own normalized JPEG bytes")
+        XCTAssertEqual(try Data(contentsOf: retainedOriginal), normalized.normalized.originalJPEG)
+        try fileManager.removeItem(at: original)
+        try fileManager.moveItem(at: retainedOriginal, to: original)
+        for (url, maximum, bytes) in [
+            (original, MediaContractV1.originalByteCountMaximum, normalized.normalized.originalJPEG),
+            (thumbnail, MediaContractV1.thumbnailByteCountMaximum, normalized.normalized.thumbnailJPEG),
+            (marker, FieldDraftLimitsV1.maximumCanonicalBytes, published.markerBytes)
+        ] {
+            // Sparse oversize files exercise stat admission without allocating
+            // a second maximum-size Data fixture in the test process.
+            let handle = try FileHandle(forWritingTo: url)
+            try handle.seek(toOffset: UInt64(maximum))
+            try handle.write(contentsOf: Data([0]))
+            try handle.close()
+            await reject("Oversize members must fail before unbounded allocation")
+            XCTAssertEqual((try fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue,
+                           maximum + 1)
+            try bytes.write(to: url)
+        }
+        let cancelRead = Task<CheckRunnerPhotoStagedPairReadbackV1?, Error> {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await store.readStagedCheckRunnerPhotoPair(childDraftID: childID, parentDraftID: parentID,
+                raw: raw, expectedGenerationRootIdentity: rootIdentity)
+        }
+        do { _ = try await cancelRead.value; XCTFail("Cancelled reads must not return a witness") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        let afterHostile = try await read()
+        XCTAssertEqual(afterHostile, published)
+        for (url, bytes) in retainedFiles { XCTAssertEqual(try Data(contentsOf: url), bytes) }
+        try fileManager.removeItem(at: directory)
+        let cancelledWrite = Task<CheckRunnerPhotoStagedPairReadbackV1, Error> {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await store.stageOrAdoptCheckRunnerPhotoPair(childDraftID: childID, parentDraftID: parentID,
+                raw: raw, normalized: normalized, expectedGenerationRootIdentity: rootIdentity)
+        }
+        do { _ = try await cancelledWrite.value; XCTFail("Cancelled staging must not start writing") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertFalse(fileManager.fileExists(atPath: directory.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: privateDirectory.path))
+        try fileManager.createDirectory(at: privateDirectory, withIntermediateDirectories: false)
+        let sentinel = privateDirectory.appendingPathComponent("unowned.bin")
+        try Data([7, 8, 9]).write(to: sentinel)
+        do { _ = try await publish(); XCTFail("A preexisting private directory must not be reused or cleaned") }
+        catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .stagingBundleAlreadyExists) }
+        XCTAssertEqual(try Data(contentsOf: sentinel), Data([7, 8, 9]))
+        try fileManager.removeItem(at: privateDirectory)
+        let boundaries: [EvidenceBundleStoreFailurePoint] = [.checkRunnerPhotoOriginalWritten,
+            .checkRunnerPhotoThumbnailWritten, .checkRunnerPhotoMarkerWritten, .checkRunnerPhotoPublished]
+        for point in boundaries {
+            let injected = EvidenceBundleStore(generationRootURL: root,
+                failureInjection: .init(failOnceAt: point))
+            do { _ = try await publish(injected); XCTFail("The requested publication boundary must interrupt") }
+            catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .fileOperationFailed) }
+            XCTAssertFalse(fileManager.fileExists(atPath: privateDirectory.path))
+            XCTAssertEqual(fileManager.fileExists(atPath: directory.path), point == .checkRunnerPhotoPublished)
+            let reopened = EvidenceBundleStore(generationRootURL: root)
+            let recovered = try await read(reopened)
+            if point == .checkRunnerPhotoPublished {
+                XCTAssertEqual(recovered, published)
+                XCTAssertEqual(Set(try fileManager.contentsOfDirectory(atPath: directory.path)), names)
+                let adoptedAgain = try await publish(reopened, input: unused)
+                XCTAssertEqual(adoptedAgain, published)
+            } else {
+                XCTAssertNil(recovered)
+                let regenerated = try await publish(reopened)
+                XCTAssertEqual(regenerated, published)
+            }
+            for (url, bytes) in retainedFiles { XCTAssertEqual(try Data(contentsOf: url), bytes) }
+            try fileManager.removeItem(at: directory)
+        }
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: directory.deletingLastPathComponent().path), [])
+        XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("evidence/\(id)").path))
     }
 
     func testSourceInspectionPreservesInvalidInputFailurePrecedence() throws {

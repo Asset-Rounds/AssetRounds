@@ -1516,8 +1516,7 @@ struct FieldDraftMutationReceiptV1: Codable, Equatable, Sendable {
             throw WorkspaceMutationFailureV1.invalidReceipt
         }
         if case .publishReadyStage = mutation.postImage {
-            guard Set(expected.keys) == Set(concurrency),
-                  Set(resulting.keys) == Set(affected) else {
+            guard Set(expected.keys) == Set(concurrency) else {
                 throw WorkspaceMutationFailureV1.invalidReceipt
             }
         }

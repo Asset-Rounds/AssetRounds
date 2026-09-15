@@ -124,12 +124,32 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         let fixture = try ReadyStageFixture()
         let node = try ReadyStageStoreNode(workspaceID: fixture.workspaceID)
         defer { node.removeClosedFiles() }
-        try node.withSession { session in
+        let unrelated = try FieldDraftCheckpointV1(draftID: Self.id(92),
+            workspaceID: fixture.workspaceID, scope: fixture.expected.scope,
+            purpose: fixture.expected.purpose, codec: fixture.expected.codec,
+            baseCanonicalRevision: fixture.expected.baseCanonicalRevision,
+            draftRevision: 1, payloadData: Data("unrelated durable checkpoint".utf8),
+            stageIDs: [], resumeAnchor: fixture.expected.resumeAnchor, state: .active,
+            updatedAt: ReadyStageFixture.date, mutationID: .init(rawValue: Self.id(93)))
+        let unrelatedIdentity = try WorkspaceEntityIdentityV1(
+            kind: .fieldDraftCheckpoint, id: unrelated.draftID)
+        let original = try node.withSession { session in
+            _ = try session.lifecycle.compareAndSwap(checkpoint: unrelated,
+                expectedDraftRevision: 0, expectedBaseRevision: unrelated.baseCanonicalRevision)
             _ = try session.lifecycle.compareAndSwap(checkpoint: fixture.expected,
                 expectedDraftRevision: 0, expectedBaseRevision: fixture.expected.baseCanonicalRevision)
             let receipt = try session.lifecycle.publish(readyStage: fixture.bundle)
             let mutation = try fixture.publicationMutation()
-            _ = try FieldDraftMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+            let typed = try FieldDraftMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+            XCTAssertEqual(Set(receipt.resultingRevision.entityRevisions.map(\.identity)),
+                           Set(typed.affectedIdentities + [unrelatedIdentity]))
+            XCTAssertEqual(receipt.resultingRevision.entityRevisions.first {
+                $0.identity == unrelatedIdentity
+            }?.revision, unrelated.draftRevision)
+            XCTAssertEqual(try session.lifecycle.currentCheckpoint(workspaceID: fixture.workspaceID,
+                draftID: unrelated.draftID), unrelated)
+            XCTAssertEqual(receipt.postImages, try mutation.postImage.mutationPostImages)
+            XCTAssertFalse(typed.affectedIdentities.contains(unrelatedIdentity))
             let extraExpected = try receiptWithExtraIdentity(receipt, mutation: mutation,
                                                              inExpected: true, inResult: false)
             try extraExpected.validate()
@@ -139,9 +159,32 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
             let extraResult = try receiptWithExtraIdentity(receipt, mutation: mutation,
                                                            inExpected: false, inResult: true)
             try extraResult.validate()
-            XCTAssertThrowsError(try FieldDraftMutationReceiptV1(
-                mutation: mutation, mutationReceipt: extraResult
-            )) { XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReceipt) }
+            // A standalone wrapper cannot authenticate unrelated workspace state.
+            // The retained journal must reject a replacement for its original receipt.
+            let row = try XCTUnwrap(session.context.fetch(FetchDescriptor<MutationReceiptRow>())
+                .first { $0.mutationID == receipt.mutationID.rawValue })
+            let originalBytes = row.receiptData
+            row.receiptData = try extraResult.canonicalData()
+            try session.context.save()
+            XCTAssertThrowsError(try session.journal.validateAll())
+            XCTAssertThrowsError(try session.lifecycle.readyStagePublicationEvidence(for: fixture.bundle))
+            XCTAssertEqual(row.receiptData, try extraResult.canonicalData())
+            row.receiptData = originalBytes
+            try session.context.save()
+            try session.journal.validateAll()
+            try assertPublicationAffectedResultGuards(receipt, mutation: mutation)
+            XCTAssertEqual(try XCTUnwrap(session.lifecycle.readyStagePublicationEvidence(
+                for: fixture.bundle)).receipt, receipt)
+            return receipt
+        }
+        try node.withSession { session in
+            let receipt = try session.lifecycle.publish(readyStage: fixture.bundle)
+            XCTAssertEqual(receipt, original)
+            XCTAssertEqual(try session.lifecycle.currentCheckpoint(workspaceID: fixture.workspaceID,
+                draftID: unrelated.draftID), unrelated)
+            _ = try FieldDraftMutationReceiptV1(mutation: fixture.publicationMutation(),
+                                                mutationReceipt: receipt)
+            try session.journal.validateAll()
         }
     }
 
@@ -296,23 +339,31 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
 
     func testAtomicPublicationBackupValidatesRejectsMissingHalvesAndRestoresSameWorkspaceCold()
         async throws {
+        var step = "create source harness"
+        var finished = false
+        defer { if !finished { XCTFail("Atomic publication stopped at: \(step)") } }
         let source = try BackupHarness(name: "source")
         defer { source.removeFiles() }
+        step = "create atomic backup"
         let package = try await makeAtomicBackup(in: source)
         XCTAssertTrue(source.sessionsAreReleased)
+        step = "validate exported package"
         let validated = try BackupPackageValidatorV1().validate(stagedPackageURL: package.directory)
         XCTAssertEqual(validated.records.fieldDrafts.count, 2)
         XCTAssertEqual(validated.members[package.memberPath], package.bytes)
+        step = "decode archived checkpoint"
         let archivedCheckpoint = try FieldDraftCanonicalCodecV1.decode(
             FieldDraftCheckpointV1.self,
             from: XCTUnwrap(validated.records.fieldDrafts.first { $0.kind == .checkpoint })
                 .canonicalData)
+        step = "decode archived staging item"
         let archivedStage = try FieldDraftCanonicalCodecV1.decode(
             AttachmentStagingItemV1.self,
             from: XCTUnwrap(validated.records.fieldDrafts.first { $0.kind == .stagingItem })
                 .canonicalData)
         XCTAssertEqual(archivedCheckpoint, package.bundle.successorCheckpoint)
         XCTAssertEqual(archivedStage, package.bundle.readyItem)
+        step = "authenticate original publication history"
         let history = try XCTUnwrap(validated.records.mutationHistory).receipts.filter {
             try MutationReceiptV1.decodeCanonical(from: $0.receiptData).mutationID
                 == package.bundle.mutationID
@@ -321,10 +372,13 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         try assertOriginalPublicationHistory(try XCTUnwrap(history.first), package: package)
 
         for removedKind in [V16BackupFieldDraftRecordV1.Kind.stagingItem, .checkpoint] {
+            step = "prepare missing-\(removedKind.rawValue) negative package"
             let missingRow = source.root.appendingPathComponent(
                 "missing-\(removedKind.rawValue)-row", isDirectory: true)
             try FileManager.default.copyItem(at: package.directory, to: missingRow)
+            step = "rewrite missing-\(removedKind.rawValue) negative package"
             let rewritten = try removeFieldDraftRowAndRehashPackage(at: missingRow, kind: removedKind)
+            step = "decode missing-\(removedKind.rawValue) records"
             let decodable = try BackupCanonicalDecoderV1().decodeRecords(rewritten)
             XCTAssertEqual(decodable.fieldDrafts.count, 1)
             XCTAssertEqual(decodable.fieldDrafts.first?.kind,
@@ -333,6 +387,7 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
                 XCTAssertEqual($0 as? BackupPackageValidationErrorV1, .invalidPackage)
             }
         }
+        step = "prepare missing-stage-bytes negative package"
         let missingBytes = source.root.appendingPathComponent("missing-stage-bytes", isDirectory: true)
         try FileManager.default.copyItem(at: package.directory, to: missingBytes)
         try FileManager.default.removeItem(at: missingBytes.appendingPathComponent(package.memberPath))
@@ -340,19 +395,28 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
             XCTAssertEqual($0 as? BackupPackageValidationErrorV1, .invalidPackage)
         }
 
+        step = "create restore target"
         let target = try BackupHarness(name: "target", identity: package.identity)
         defer { target.removeFiles() }
+        step = "restore and assert hot atomic pair"
         try await restoreAndAssertHotAtomicPair(package, in: target)
         XCTAssertTrue(target.sessionsAreReleased)
+        step = "reopen and assert cold atomic pair"
         try await assertColdAtomicPair(package, in: target)
         XCTAssertTrue(target.sessionsAreReleased)
+        finished = true
     }
 
     private func restoreAndAssertHotAtomicPair(_ package: AtomicBackupPackage,
                                                in target: BackupHarness) async throws {
+        var step = "open target session"
+        var finished = false
+        defer { if !finished { XCTFail("Hot atomic restore stopped at: \(step)") } }
         let current = try target.openSession()
+        step = "stage and validate archive"
         let imported = try BackupImportService(generationRootURL: current.generationRootURL,
             scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: package.archive)
+        step = "restore validated archive"
         let restored = try await BackupRestoreService(applicationSupportURL: target.support,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
             .restore(validatedPackage: imported, currentModelContext: current.modelContext,
@@ -360,29 +424,38 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
                 currentGenerationRootURL: current.generationRootURL)
         target.observeRestoredSession(restored)
         XCTAssertEqual(restored.workspaceIdentity, package.identity)
+        step = "read restored pair and original history"
         try assertRestoredAtomicPair(restored.modelContext, package: package)
         try assertOriginalPublicationHistory(
             publicationHistory(in: restored.modelContext, mutationID: package.bundle.mutationID),
             package: package)
+        step = "read restored staging bytes"
         let restoredBytes = try await DraftAttachmentStagingAdapterV1(
             applicationSupportURL: target.support, workspaceID: restored.workspaceID)
             .data(stageID: package.bundle.readyItem.stageID)
         XCTAssertEqual(restoredBytes, package.bytes)
+        finished = true
     }
 
     private func assertColdAtomicPair(_ package: AtomicBackupPackage,
                                       in target: BackupHarness) async throws {
+        var step = "open cold target session"
+        var finished = false
+        defer { if !finished { XCTFail("Cold atomic restore stopped at: \(step)") } }
         XCTAssertTrue(target.sessionsAreReleased)
         let cold = try target.openSession()
         XCTAssertEqual(cold.workspaceIdentity, package.identity)
+        step = "read cold pair and original history"
         try assertRestoredAtomicPair(cold.modelContext, package: package)
         try assertOriginalPublicationHistory(
             publicationHistory(in: cold.modelContext, mutationID: package.bundle.mutationID),
             package: package)
+        step = "read cold staging bytes"
         let coldBytes = try await DraftAttachmentStagingAdapterV1(
             applicationSupportURL: target.support, workspaceID: cold.workspaceID)
             .data(stageID: package.bundle.readyItem.stageID)
         XCTAssertEqual(coldBytes, package.bytes)
+        finished = true
     }
 
     private func publicationHistory(in context: ModelContext, mutationID: MutationIDV1) throws
@@ -419,26 +492,40 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
     }
 
     func testEveryIncumbentFieldDraftPayloadCaseStillCanonicalRoundTrips() throws {
+        var step = "construct C36 fixture"
+        var finished = false
+        defer { if !finished { XCTFail("Incumbent payload roundtrip stopped at: \(step)") } }
         let value = try C36FieldDraftTestSupportV1.makeFixture(seed: 936_000)
+        step = "construct incumbent conflict payload"
         let conflict = try incumbentConflictPayload()
-        let payloads: [FieldDraftMutationPayloadV1] = [
-            .createCheckpoint(value.activeCheckpoint), .reviseCheckpoint(value.committingCheckpoint),
-            .appendStagingItem(value.readyItem), .reviseStagingItem(value.committedItem),
-            .appendCommitSaga(value.preparedSaga), .advanceCommitSaga(value.promotedSaga),
-            .appendContentReservation(value.reservation),
-            .reviseContentReservation(value.quarantinedReservation),
-            .applyCommitTerminal(value.commitTerminalBundle, expectedSagaRevision: 4),
-            .applyDiscardTerminal(value.discardTerminalBundle), .resolveConflict(conflict)
+        let payloads: [(String, FieldDraftMutationPayloadV1)] = [
+            ("createCheckpoint", .createCheckpoint(value.activeCheckpoint)),
+            ("reviseCheckpoint", .reviseCheckpoint(value.committingCheckpoint)),
+            ("appendStagingItem", .appendStagingItem(value.readyItem)),
+            ("reviseStagingItem", .reviseStagingItem(value.committedItem)),
+            ("appendCommitSaga", .appendCommitSaga(value.preparedSaga)),
+            ("advanceCommitSaga", .advanceCommitSaga(value.promotedSaga)),
+            ("appendContentReservation", .appendContentReservation(value.reservation)),
+            ("reviseContentReservation", .reviseContentReservation(value.quarantinedReservation)),
+            ("applyCommitTerminal", .applyCommitTerminal(value.commitTerminalBundle, expectedSagaRevision: 4)),
+            ("applyDiscardTerminal", .applyDiscardTerminal(value.discardTerminalBundle)),
+            ("resolveConflict", .resolveConflict(conflict))
         ]
         XCTAssertEqual(payloads.count, 11)
-        for payload in payloads {
+        for (name, payload) in payloads {
+            step = "\(name): validate original"
             try payload.validate()
+            step = "\(name): canonical encode"
             let data = try WorkspaceMutationCanonicalV1.data(payload)
+            step = "\(name): decode"
             let decoded = try JSONDecoder.fieldDraft.decode(FieldDraftMutationPayloadV1.self, from: data)
+            step = "\(name): validate decoded"
             try decoded.validate()
-            XCTAssertEqual(decoded, payload)
-            XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(decoded), data)
+            XCTAssertEqual(decoded, payload, name)
+            step = "\(name): canonical re-encode"
+            XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(decoded), data, name)
         }
+        finished = true
     }
 
     private func assertExactPublication(_ receipt: MutationReceiptV1,
@@ -462,12 +549,21 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         var resultRows = receipt.resultingRevision.entityRevisions
         if inExpected { expectedRows.append(.init(identity: extra, revision: 0)) }
         if inResult { resultRows.append(.init(identity: extra, revision: 1)) }
+        return try publicationReceipt(receipt, mutation: mutation,
+            expectedRows: expectedRows, resultRows: resultRows)
+    }
+
+    private func publicationReceipt(_ receipt: MutationReceiptV1,
+                                     mutation: FieldDraftMutationV1,
+                                     expectedRows: [WorkspaceEntityRevisionV1]? = nil,
+                                     resultRows: [WorkspaceEntityRevisionV1]? = nil,
+                                     images: [MutationPostImageV1]? = nil) throws -> MutationReceiptV1 {
         let writerID = Self.id(95)
         let expected = try WorkspaceExpectedRevisionV1(
             workspaceID: receipt.expectedRevision.workspaceID,
             generationID: receipt.expectedRevision.generationID, writerInstanceID: writerID,
             workspaceRevision: receipt.expectedRevision.workspaceRevision,
-            entityRevisions: expectedRows
+            entityRevisions: expectedRows ?? receipt.expectedRevision.entityRevisions
         )
         let envelope = try MutationEnvelopeV1(request: .init(
             mutationID: mutation.mutationID, expectedRevision: expected,
@@ -478,15 +574,79 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
             workspaceID: receipt.resultingRevision.workspaceID,
             generationID: receipt.resultingRevision.generationID, writerInstanceID: writerID,
             workspaceRevision: receipt.resultingRevision.workspaceRevision,
-            entityRevisions: resultRows
+            entityRevisions: resultRows ?? receipt.resultingRevision.entityRevisions
         ))
         return try MutationReceiptV1(identity: receipt.identity, envelope: envelope,
-            resultingRevision: resulting, postImages: receipt.postImages,
+            resultingRevision: resulting, postImages: images ?? receipt.postImages,
             committedAt: receipt.committedAt)
     }
 
+    private func assertPublicationAffectedResultGuards(_ receipt: MutationReceiptV1,
+                                                       mutation: FieldDraftMutationV1) throws {
+        for image in receipt.postImages {
+            let identity = try image.identity
+            let missing = receipt.resultingRevision.entityRevisions.filter { $0.identity != identity }
+            XCTAssertThrowsError(try publicationReceipt(receipt, mutation: mutation,
+                resultRows: missing), "Missing affected identity: \(identity.stableKey)")
+            let wrong = receipt.resultingRevision.entityRevisions.map {
+                $0.identity == identity
+                    ? WorkspaceEntityRevisionV1(identity: identity, revision: $0.revision + 1) : $0
+            }
+            XCTAssertThrowsError(try publicationReceipt(receipt, mutation: mutation,
+                resultRows: wrong), "Wrong affected revision: \(identity.stableKey)")
+        }
+        let changedImages: [MutationPostImageV1] = receipt.postImages.map { image in
+            if case let .attachmentStagingItem(id, concurrency, revision, _) = image {
+                return .attachmentStagingItem(id: id, concurrencyIdentity: concurrency,
+                    revision: revision, semanticSHA256: ReadyStageFixture.digest("e"))
+            }
+            return image
+        }
+        let changed = try publicationReceipt(receipt, mutation: mutation, images: changedImages)
+        try changed.validate()
+        XCTAssertThrowsError(try FieldDraftMutationReceiptV1(mutation: mutation,
+                                                            mutationReceipt: changed))
+        let extraIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: Self.id(94))
+        let extraImage = MutationPostImageV1.site(id: extraIdentity.id, revision: 1,
+                                                 semanticSHA256: ReadyStageFixture.digest("e"))
+        let extra = try publicationReceipt(receipt, mutation: mutation,
+            expectedRows: receipt.expectedRevision.entityRevisions + [.init(identity: extraIdentity, revision: 0)],
+            resultRows: receipt.resultingRevision.entityRevisions + [.init(identity: extraIdentity, revision: 1)],
+            images: receipt.postImages + [extraImage])
+        try extra.validate()
+        XCTAssertThrowsError(try FieldDraftMutationReceiptV1(mutation: mutation, mutationReceipt: extra))
+
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: receipt.canonicalData())
+            as? [String: Any])
+        let wrongMutationID = try JSONSerialization.jsonObject(with:
+            WorkspaceMutationCanonicalV1.data(MutationIDV1(rawValue: Self.id(98))))
+        for (key, value) in [("commandBodySHA256", ReadyStageFixture.digest("f") as Any),
+                             ("mutationID", wrongMutationID)] {
+            var object = original
+            object[key] = value
+            let altered = try JSONDecoder.fieldDraft.decode(MutationReceiptV1.self,
+                from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+            try altered.validate()
+            XCTAssertThrowsError(try FieldDraftMutationReceiptV1(mutation: mutation,
+                mutationReceipt: altered), key)
+        }
+        var foreignObject = original
+        var foreignIdentity = try XCTUnwrap(foreignObject["identity"] as? [String: Any])
+        foreignIdentity["workspaceID"] = try JSONSerialization.jsonObject(with:
+            WorkspaceMutationCanonicalV1.data(WorkspaceID(rawValue: Self.id(99))))
+        foreignObject["identity"] = foreignIdentity
+        let foreign = try JSONDecoder.fieldDraft.decode(MutationReceiptV1.self,
+            from: JSONSerialization.data(withJSONObject: foreignObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try FieldDraftMutationReceiptV1(mutation: mutation,
+                                                            mutationReceipt: foreign))
+    }
+
     private func makeAtomicBackup(in harness: BackupHarness) async throws -> AtomicBackupPackage {
+        var step = "open source session"
+        var finished = false
+        defer { if !finished { XCTFail("Atomic backup creation stopped at: \(step)") } }
         let session = try harness.openSession()
+        step = "create source coordinator"
         let coordinator = try StoreSessionCoordinator(validatingSession: session)
         defer {
             do { try coordinator.invalidateAndReleaseWriter() }
@@ -495,20 +655,26 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         let workspace = coordinator.workspaceID
         let bytes = Data("atomic ready-stage owned bytes".utf8)
         let draftID = Self.id(110)
+        step = "create staging adapter"
         let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: harness.support,
             workspaceID: workspace, clock: { ReadyStageFixture.date })
+        step = "write raw staging bytes"
         let item = try await staging.stage(data: bytes, draftID: draftID,
             workspaceID: workspace, attachmentKind: .photo)
+        step = "construct base C36 fixture"
         let base = try C36FieldDraftTestSupportV1.makeFixture(seed: 936_100)
+        step = "construct expected checkpoint"
         let expected = try FieldDraftCheckpointV1(draftID: draftID, workspaceID: workspace,
             scope: base.activeCheckpoint.scope, purpose: base.activeCheckpoint.purpose,
             codec: base.activeCheckpoint.codec, baseCanonicalRevision: 0, draftRevision: 1,
             payloadData: base.activeCheckpoint.payloadData, stageIDs: [],
             resumeAnchor: base.activeCheckpoint.resumeAnchor, state: .active,
             updatedAt: ReadyStageFixture.date, mutationID: .init(rawValue: Self.id(111)))
+        step = "commit expected checkpoint"
         _ = try coordinator.workspaceWriter.commitFieldDraft(.init(workspaceID: workspace,
             expectedRevision: 0, expectedBaseCanonicalRevision: 0,
             mutationID: expected.mutationID, postImage: .createCheckpoint(expected)))
+        step = "construct publication bundle"
         let successor = try FieldDraftCheckpointV1(draftID: draftID, workspaceID: workspace,
             scope: expected.scope, purpose: expected.purpose, codec: expected.codec,
             baseCanonicalRevision: 0, draftRevision: 2, payloadData: expected.payloadData,
@@ -519,24 +685,32 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         let mutation = try FieldDraftMutationV1(workspaceID: workspace, expectedRevision: 1,
             expectedBaseCanonicalRevision: 0, mutationID: item.mutationID,
             postImage: .publishReadyStage(bundle))
+        step = "commit atomic publication"
         let receipt = try coordinator.workspaceWriter.commitFieldDraft(mutation)
+        step = "create export directory"
         let exportRoot = harness.root.appendingPathComponent("export", isDirectory: true)
         try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
         let exporter = BackupExportService(modelContext: session.modelContext,
             generationRootURL: session.generationRootURL,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
             now: { ReadyStageFixture.date.addingTimeInterval(60) })
+        step = "prepare backup export"
         let preview = try exporter.prepare()
+        step = "export archive"
         let archive = try exporter.export(previewID: preview.id, to: exportRoot)
         let directory = harness.root.appendingPathComponent("decoded.fieldrecordbackup", isDirectory: true)
+        step = "extract exported archive"
         _ = try StreamingArchiveService().extract(archive, to: directory)
         let memberPath = "draft-staging/\(draftID.uuidString.lowercased())/"
             + "\(item.stageID.uuidString.lowercased()).bin"
-        return .init(archive: archive, directory: directory, bytes: bytes,
+        step = "capture original publication history"
+        let result = AtomicBackupPackage(archive: archive, directory: directory, bytes: bytes,
                      memberPath: memberPath, bundle: bundle, receipt: receipt,
                      identity: session.workspaceIdentity,
                      historyRecord: try publicationHistory(in: session.modelContext,
                                                            mutationID: bundle.mutationID))
+        finished = true
+        return result
     }
 
     private func removeFieldDraftRowAndRehashPackage(at package: URL,
@@ -851,7 +1025,7 @@ private struct AtomicBackupPackage {
 private final class BackupHarness {
     let root: URL
     let support: URL
-    let factory: StoreGenerationFactory
+    private var factory: StoreGenerationFactory?
     private weak var openedSession: StoreGenerationSession?
     private weak var restoredSession: StoreGenerationSession?
     var sessionsAreReleased: Bool { openedSession == nil && restoredSession == nil }
@@ -868,7 +1042,8 @@ private final class BackupHarness {
 
     func openSession() throws -> StoreGenerationSession {
         XCTAssertTrue(sessionsAreReleased, "Cold open requires all previous store graphs released")
-        let session = try factory.openOrBootstrapCurrent()
+        let session = try XCTUnwrap(factory, "Backup harness has already been closed")
+            .openOrBootstrapCurrent()
         openedSession = session
         return session
     }
@@ -880,6 +1055,7 @@ private final class BackupHarness {
             XCTFail("Atomic backup cleanup requires every store session graph to be released")
             return
         }
+        factory = nil
         do { try FileManager.default.removeItem(at: root) }
         catch { XCTFail("Atomic backup cleanup failed: \(error)") }
     }
