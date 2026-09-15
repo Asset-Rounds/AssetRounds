@@ -913,6 +913,12 @@ extension DraftAttachmentStagingAdapterV1 {
         "draft-content-\(workspaceID.rawValue.uuidString.lowercased())-\(digest.hexadecimalValue)"
     }
 
+    static func iso8601(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
+    }
+
     static func relativeStageDirectory(draftID: UUID, stageID: UUID) -> String {
         "draft-\(draftID.uuidString.lowercased())/stage-\(stageID.uuidString.lowercased())"
     }
@@ -1087,12 +1093,6 @@ private extension DraftAttachmentStagingAdapterV1 {
         case .video: return "video/mp4"
         case .file: return "application/octet-stream"
         }
-    }
-
-    static func iso8601(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
     }
 
     static func deterministicUUID(_ material: String) -> UUID {

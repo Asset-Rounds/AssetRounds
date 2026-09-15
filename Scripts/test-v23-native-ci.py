@@ -581,6 +581,72 @@ class WorkflowWiringTests(unittest.TestCase):
             'testCompactReferenceLongLifecycleKeepsBoundedPayloadAndCompleteHistory',
         ]]
 
+    def commit_reconstruction_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name for name in [
+            'testParentCommitReconstructionDerivesExactOutputsForAllSevenOutcomes',
+            'testParentCommitReconstructionReusesFrozenSagasAndRowMutationsAfterColdDecode',
+            'testParentCommitReconstructionRejectsUnpreparedAndNonCommittingCheckpoints',
+            'testParentCommitReconstructionRejectsUnusableTerminalRevisionTimeAndMutation',
+            'testParentCommitReconstructionRequiresExactPackageAndPreparedOutcome',
+            'testPhotoCommitReconstructionBindsBothStepsAndFrozenReadyStage',
+            'testPhotoCommitReconstructionReusesFrozenSagasRowsAndCommandsAfterColdDecode',
+            'testPhotoCommitReconstructionRejectsIncompletePhasesAndNonCommittingStates',
+            'testPhotoCommitReconstructionRejectsRehashedEnvelopeAndUnusableTerminalInputs',
+            'testCommitReconstructionDerivesHashesFromTheEnclosingCheckpointWithoutRewritingPayload',
+        ]]
+
+    def prior_29fbcbc_pool(self, default):
+        self.assertEqual(len(default['unitTestSelectors']), 673)
+        self.assertEqual(default['unitTestSelectors'][663:], self.commit_reconstruction_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:663]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'BBFBF0FF5B833CDEE3F9124624BEB25510A9C0694EDB5B490862F672DBA62688')
+        return prior
+
+    def prior_29fbcbc_map(self, mapping):
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 91)
+        group['methodCount'] = 81
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '8DF851FA1F1FFAB265DF84E4E84E5145EEFEFCF485F33D2E1C9659162295851A')
+        return prior
+
+    def test_commit_reconstruction_admission_preserves_prior_pool_map_and_complete_source_class(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        prior, prior_map = self.prior_29fbcbc_pool(default), self.prior_29fbcbc_map(mapping)
+        appended = self.commit_reconstruction_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
+        actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
+                  for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
+        self.assertEqual(actual, self.parent_field_append() + self.parent_payload_append() + self.child_payload_append() + self.codec_definitions_append() + appended)
+        self.assertEqual(len(actual), 49)
+        self.assertEqual(len(actual), len(set(actual)))
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        for selectors in (
+            [prior['unitTestSelectors'][1], prior['unitTestSelectors'][0]] + prior['unitTestSelectors'][2:] + appended,
+            prior['unitTestSelectors'][:5] + appended + prior['unitTestSelectors'][5:],
+        ):
+            hostile = copy.deepcopy(default); hostile['unitTestSelectors'] = selectors
+            with self.assertRaises(AssertionError): self.prior_29fbcbc_pool(hostile)
+        for mutate in (
+            lambda g: g.update(methodCount=90),
+            lambda g: g['classes'].pop(),
+            lambda g: g['classes'].append('V23CheckRunnerItemFieldContractsTests'),
+            lambda g: g['classes'].append('V23CheckRunnerBeginReceiptReferenceTests'),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
     def codec_definitions_append(self):
         return ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name for name in [
             'testCodecDefinitionsBindTheCombinedGrammarAndRequiredPhotoProfile',
@@ -595,6 +661,8 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_b0d4f96_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 663)
         self.assertEqual(default['unitTestSelectors'][654:], self.codec_definitions_append())
         prior = copy.deepcopy(default)
@@ -603,6 +671,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_b0d4f96_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = copy.deepcopy(mapping)
         group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
         self.assertEqual(group['methodCount'], 81)
@@ -613,12 +683,13 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_codec_definitions_admission_preserves_prior_pool_map_and_complete_source_class(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_29fbcbc_pool(default), self.prior_29fbcbc_map(mapping)
         prior, prior_map = self.prior_b0d4f96_pool(default), self.prior_b0d4f96_map(mapping)
         appended = self.codec_definitions_append()
         source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
         actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
                   for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
-        self.assertEqual(actual, self.parent_field_append() + self.parent_payload_append() + self.child_payload_append() + appended)
+        self.assertEqual(actual, self.parent_field_append() + self.parent_payload_append() + self.child_payload_append() + appended + self.commit_reconstruction_append())
         self.assertEqual(len(actual), len(set(actual)))
         for group in mapping['groups']:
             expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
@@ -662,6 +733,8 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_55e4655_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) == 663:
             default = self.prior_b0d4f96_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 654)
@@ -672,6 +745,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_55e4655_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 81:
             mapping = self.prior_b0d4f96_map(mapping)
         prior = copy.deepcopy(mapping)
@@ -690,7 +765,7 @@ class WorkflowWiringTests(unittest.TestCase):
         source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
         actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
                   for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
-        self.assertEqual(actual, self.parent_field_append() + self.parent_payload_append() + appended + self.codec_definitions_append())
+        self.assertEqual(actual, self.parent_field_append() + self.parent_payload_append() + appended + self.codec_definitions_append() + self.commit_reconstruction_append())
         self.assertEqual(len(actual), len(set(actual)))
         for group in mapping['groups']:
             expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
@@ -731,6 +806,8 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_1d4a731_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (654, 663):
             default = self.prior_55e4655_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 642)
@@ -741,6 +818,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_1d4a731_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (72, 81):
             mapping = self.prior_55e4655_map(mapping)
         prior = copy.deepcopy(mapping)
@@ -759,7 +838,7 @@ class WorkflowWiringTests(unittest.TestCase):
         source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
         actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
                   for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
-        self.assertEqual(actual, self.parent_field_append() + appended + self.child_payload_append() + self.codec_definitions_append())
+        self.assertEqual(actual, self.parent_field_append() + appended + self.child_payload_append() + self.codec_definitions_append() + self.commit_reconstruction_append())
         for group in mapping['groups']:
             expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
             if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
@@ -796,6 +875,8 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_83def91_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (642, 654, 663):
             default = self.prior_1d4a731_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 633)
@@ -806,6 +887,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_83def91_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (60, 72, 81):
             mapping = self.prior_1d4a731_map(mapping)
         prior = copy.deepcopy(mapping)
@@ -825,7 +908,7 @@ class WorkflowWiringTests(unittest.TestCase):
         source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
         actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
                   for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
-        self.assertEqual(actual, appended + self.parent_payload_append() + self.child_payload_append() + self.codec_definitions_append())
+        self.assertEqual(actual, appended + self.parent_payload_append() + self.child_payload_append() + self.codec_definitions_append() + self.commit_reconstruction_append())
         for group in mapping['groups']:
             expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
             if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
@@ -846,6 +929,8 @@ class WorkflowWiringTests(unittest.TestCase):
             with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
 
     def prior_4977aa4_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (633, 642, 654, 663):
             default = self.prior_83def91_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 624)
@@ -856,6 +941,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_4977aa4_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (51, 60, 72, 81):
             mapping = self.prior_83def91_map(mapping)
         prior = copy.deepcopy(mapping)
@@ -906,6 +993,8 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_d97bc81_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (624, 633, 642, 654, 663):
             default = self.prior_4977aa4_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 618)
@@ -915,6 +1004,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_d97bc81_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         if mapping['groups'][-1]['methodCount'] == 25:
             mapping = self.prior_4977aa4_map(mapping)
         prior = copy.deepcopy(mapping)
@@ -981,6 +1072,8 @@ class WorkflowWiringTests(unittest.TestCase):
             with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'c36-source-graph')
 
     def prior_aa94e7f_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         if len(default['unitTestSelectors']) in (618, 624, 633, 642, 654, 663):
             default = self.prior_d97bc81_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 590)
@@ -990,6 +1083,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_aa94e7f_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         if len(mapping['groups']) == 32:
             mapping = self.prior_d97bc81_map(mapping)
         prior = copy.deepcopy(mapping)
@@ -1052,6 +1147,8 @@ class WorkflowWiringTests(unittest.TestCase):
                 CI.resolve_selection(default, hostile, 'c36-restore-correspondence')
 
     def prior_63409d1_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 560)
         prior = copy.deepcopy(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:554]
@@ -1059,6 +1156,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_63409d1_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior["groups"]), 30)
         group = next(g for g in prior["groups"] if g["id"] == 'report-camera-recovery')
@@ -1089,6 +1188,8 @@ class WorkflowWiringTests(unittest.TestCase):
                 self.assertEqual(actual, expected)
 
     def prior_d3be307_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 554)
         prior = copy.deepcopy(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:547]
@@ -1096,6 +1197,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_d3be307_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior["groups"]), 30)
         group = next(g for g in prior["groups"] if g["id"] == 'report-camera-recovery')
@@ -1132,6 +1235,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_bf6a1bc_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 547)
         prior = copy.deepcopy(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:535]
@@ -1139,6 +1244,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_bf6a1bc_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior["groups"]), 30)
         for group_id, old_count, new_count, klass in [('archive-contracts', 44, 47, 'V23StoreSemanticValidationTests'), ('mutation-command-codec', 32, 34, None), ('report-camera-recovery', 22, 29, 'V23CheckRunnerEditableFieldValuesTests')]:
@@ -1183,12 +1290,16 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_b69a7ed_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         prior = self.prior_bf6a1bc_pool(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:524]
         self.assertEqual(CI.sha256(CI.canonical(prior)), '8E4C8E00E1368725B0298AEA9348D588642AACC47E80B9B482E15B55AA772515')
         return prior
 
     def prior_b69a7ed_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_bf6a1bc_map(mapping)
         self.assertEqual(len(prior["groups"]), 30)
         archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
@@ -1230,12 +1341,16 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_05b38c1_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         prior = self.prior_b69a7ed_pool(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:514]
         self.assertEqual(CI.sha256(CI.canonical(prior)), '49396D1F0A6B5CBB36EB9965E26B5DE3291F7F550DBF2C4E346A07329C1CD3B8')
         return prior
 
     def prior_05b38c1_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_b69a7ed_map(mapping)
         self.assertEqual(len(prior["groups"]), 30)
         archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
@@ -1280,12 +1395,16 @@ class WorkflowWiringTests(unittest.TestCase):
         return ['FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor']
 
     def prior_af2df5f_pool(self, default):
+        if len(default['unitTestSelectors']) == 673:
+            default = self.prior_29fbcbc_pool(default)
         prior = self.prior_05b38c1_pool(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:504]
         self.assertEqual(CI.sha256(CI.canonical(prior)), '42333C57BC5A301D897D9C74C39B7A1AD99A70393EE2F155B584A659DA65A333')
         return prior
 
     def prior_af2df5f_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_05b38c1_map(mapping)
         self.assertEqual(len(prior["groups"]), 30)
         for group_id, current, original in (("mutation-command-codec", 32, 29),
@@ -1332,6 +1451,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_47d433e_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_af2df5f_map(mapping)
         group = next(g for g in prior["groups"] if g["id"] == "report-camera-recovery")
         self.assertEqual(group["methodCount"], 14)
@@ -1372,6 +1493,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_0e90d6c_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_47d433e_map(mapping)
         archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
         self.assertEqual(archive["methodCount"], 25)
@@ -1410,6 +1533,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_ff8ae4c_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_0e90d6c_map(mapping)
         codec = next(g for g in prior["groups"] if g["id"] == "mutation-command-codec")
         self.assertEqual(codec["methodCount"], 29)
@@ -1453,6 +1578,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_f86664a_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_ff8ae4c_map(mapping)
         reference = next(g for g in prior["groups"] if g["id"] == "reference-owner-replacement")
         self.assertEqual(reference["methodCount"], 51)
@@ -1482,6 +1609,8 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in expected])
 
     def prior_12e5742_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_f86664a_map(mapping)
         archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
         self.assertEqual(archive["methodCount"], 11)
@@ -1513,6 +1642,8 @@ class WorkflowWiringTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
 
     def prior_bea52c7_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 91:
+            mapping = self.prior_29fbcbc_map(mapping)
         prior = self.prior_12e5742_map(mapping)
         app = next(g for g in prior["groups"] if g["id"] == "app-myday-production")
         self.assertEqual(app["methodCount"], 24)

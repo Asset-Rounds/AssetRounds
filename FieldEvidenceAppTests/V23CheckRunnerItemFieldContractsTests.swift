@@ -1275,6 +1275,301 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         }
     }
 
+    func testParentCommitReconstructionDerivesExactOutputsForAllSevenOutcomes() throws {
+        let label = try XCTUnwrap(pack.issueLabels.first)
+        let reason = try XCTUnwrap(pack.couldNotVerifyReasons.entries.first)
+        let rows: [(Bool, CheckOutcomeSelection, Int)] = [
+            (false, .noVisibleIssue, 3), (false, .visibleIssue(labelKey: label.key), 4),
+            (false, .couldNotVerify(reasonKey: reason.key, note: "unavailable"), 3),
+            (true, .resolved(note: "resolved"), 4), (true, .issueStillVisible(note: "retained"), 4),
+            (true, .originalResolvedDifferentIssue(labelKey: label.key, note: "different"), 5),
+            (true, .couldNotVerify(reasonKey: reason.key, note: "unavailable"), 4),
+        ]
+        for (index, row) in rows.enumerated() {
+            let payload = try reconstructionParentPayload(recheck: row.0, selection: row.1, seed: 90_000 + index * 100)
+            let checkpoint = try reconstructionParentCheckpoint(payload)
+            let value = try reconstructParent(checkpoint)
+            let attempt = try XCTUnwrap(payload.finalizationAttempt)
+            guard case let .bound(begin, _, _) = payload.field.begin else { return XCTFail("Missing fixture Begin") }
+            var expected = try [
+                WorkspaceEntityIdentityV1(kind: .workflowRecord, id: begin.recordCommand.recordID).stableKey,
+                WorkspaceEntityIdentityV1(kind: .packet, id: attempt.identifiers.packetID).stableKey,
+                WorkspaceEntityIdentityV1(kind: .report, id: attempt.identifiers.reportID).stableKey,
+            ]
+            for issueID in [attempt.identifiers.issueID, attempt.identifiers.newIssueID].compactMap({ $0 }) {
+                expected.append(try WorkspaceEntityIdentityV1(kind: .issue, id: issueID).stableKey)
+            }
+            XCTAssertEqual(value.plan.outputKeys, expected.sorted())
+            XCTAssertEqual(value.plan.outputKeys.count, row.2)
+            XCTAssertFalse(value.plan.outputKeys.contains { $0.contains(attempt.identifiers.stableRootID.uuidString.lowercased()) })
+            XCTAssertEqual(value.plan.targetCommandKind, .finalizeCheck)
+            XCTAssertEqual(value.plan.planID, attempt.fieldDraftPlanID)
+            XCTAssertEqual(value.plan.mutationID.rawValue, attempt.identifiers.mutationID)
+            XCTAssertEqual(value.plan.expectedTargetRevision, 7)
+            XCTAssertEqual(value.items, [])
+            XCTAssertEqual(value.plan.stageDigests, [])
+            XCTAssertEqual(value.rowMutationIDs.reservationByStageID, [:])
+        }
+    }
+
+    func testParentCommitReconstructionReusesFrozenSagasAndRowMutationsAfterColdDecode() throws {
+        let fixture = try parentFixture(recheck: true, includesTimeZone: true)
+        let selection = CheckOutcomeSelection.resolved(note: "e\u{301} retained")
+        let field = try preparedField(fixture: fixture,
+            outcome: .init(selection: .resolved(note: "e\u{301} retained"), recheckNote: " e\u{301} retained "),
+            mediaCount: 2, seed: 93_000)
+        let payload = try CheckRunnerItemDraftPayloadV1(prepared: fixture.source, field: field,
+            attempt: finalizationAttempt(fixture: fixture, field: field, selection: selection, seed: 92_000))
+        let checkpoint = try reconstructionParentCheckpoint(payload)
+        let cold = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,
+            from: FieldDraftCanonicalCodecV1.encode(checkpoint))
+        let value = try reconstructParent(cold)
+        XCTAssertEqual(value, try reconstructParent(checkpoint))
+        let attempt = try XCTUnwrap(payload.finalizationAttempt)
+        XCTAssertEqual(attempt.normalizedOutcome.selection, selection)
+        XCTAssertEqual(Data(payload.field.outcome.recheckNote.utf8), Data(" e\u{301} retained ".utf8))
+        XCTAssertEqual(value.sagas.map(\.sagaID), [attempt.preparedSagaID, attempt.contentPromotedSagaID,
+            attempt.targetCommittedSagaID, attempt.draftRetirePendingSagaID, attempt.draftRetiredSagaID])
+        XCTAssertEqual(value.sagas.map(\.state), [.prepared, .contentPromotedUnbound, .targetCommitted, .draftRetirePending, .draftRetired])
+        XCTAssertEqual(value.sagas.map(\.revision), [1, 2, 3, 4, 5])
+        XCTAssertEqual(value.sagas.map(\.predecessorSagaID), [nil, attempt.preparedSagaID,
+            attempt.contentPromotedSagaID, attempt.targetCommittedSagaID, attempt.draftRetirePendingSagaID])
+        XCTAssertEqual(value.sagas.map(\.mutationID), [attempt.preparedSagaMutationID,
+            attempt.contentPromotedSagaMutationID, attempt.targetCommittedSagaMutationID,
+            attempt.draftRetirePendingSagaMutationID, attempt.terminalBundleMutationID])
+        XCTAssertEqual(value.sagas.map(\.updatedAt), [attempt.preparedSagaUpdatedAt,
+            attempt.contentPromotedSagaUpdatedAt, attempt.targetCommittedSagaUpdatedAt,
+            attempt.draftRetirePendingSagaUpdatedAt, attempt.draftRetiredSagaUpdatedAt])
+        for event in value.sagas {
+            XCTAssertEqual(event.plan, value.plan)
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(DraftCommitSagaV1.self,
+                from: FieldDraftCanonicalCodecV1.encode(event)), event)
+        }
+        XCTAssertEqual(value.commitReceiptID, attempt.commitReceiptID)
+        XCTAssertEqual(value.terminalCheckpointUpdatedAt, attempt.terminalCheckpointUpdatedAt)
+        XCTAssertEqual(value.retired.mutationID, value.rowMutationIDs.terminalBundleMutationID)
+    }
+
+    func testParentCommitReconstructionRejectsUnpreparedAndNonCommittingCheckpoints() throws {
+        let payload = try reconstructionParentPayload(seed: 93_000)
+        let checkpoint = try reconstructionParentCheckpoint(payload)
+        for state in FieldDraftStateV1.allCases where state != .committing {
+            let other = try reconstructionCheckpoint(checkpoint, state: state)
+            try other.validate(authority: CheckRunnerDraftPurposeAuthorityV1())
+            XCTAssertThrowsError(try reconstructParent(other), state.rawValue)
+        }
+        let editing = try CheckRunnerItemDraftPayloadV1(editing: payload.source, field: payload.field)
+        let unprepared = try reconstructionCheckpoint(codecParentCheckpoint(editing), state: .committing)
+        XCTAssertThrowsError(try reconstructParent(unprepared))
+        let beforeBegin = try CheckRunnerItemDraftPayloadV1(editing: payload.source, field: parentField(begin: .notBegun))
+        XCTAssertThrowsError(try reconstructParent(reconstructionCheckpoint(codecParentCheckpoint(beforeBegin), state: .committing)))
+    }
+
+    func testParentCommitReconstructionRejectsUnusableTerminalRevisionTimeAndMutation() throws {
+        let payload = try reconstructionParentPayload(seed: 94_000)
+        let checkpoint = try reconstructionParentCheckpoint(payload)
+        let attempt = try XCTUnwrap(payload.finalizationAttempt)
+        let candidates = try [
+            reconstructionCheckpoint(checkpoint, revision: UInt64.max),
+            reconstructionCheckpoint(checkpoint, updatedAt: attempt.terminalCheckpointUpdatedAt.addingTimeInterval(0.001)),
+            reconstructionCheckpoint(checkpoint, mutationID: attempt.terminalBundleMutationID),
+        ]
+        for candidate in candidates {
+            try candidate.validate(authority: CheckRunnerDraftPurposeAuthorityV1())
+            XCTAssertThrowsError(try reconstructParent(candidate))
+        }
+        let lastUsable = try reconstructionCheckpoint(checkpoint, revision: UInt64.max - 1,
+            updatedAt: attempt.terminalCheckpointUpdatedAt)
+        XCTAssertEqual(try reconstructParent(lastUsable).plan.draftRevision, UInt64.max - 1)
+    }
+
+    func testParentCommitReconstructionRequiresExactPackageAndPreparedOutcome() throws {
+        let reason = try XCTUnwrap(pack.couldNotVerifyReasons.entries.first)
+        let payload = try reconstructionParentPayload(selection: .couldNotVerify(reasonKey: reason.key, note: "original"), seed: 95_000)
+        let checkpoint = try reconstructionParentCheckpoint(payload)
+        var changedRaw = try jsonObject(payload)
+        setJSON(&changedRaw, path: ["field", "outcome", "couldNotVerifyNote"], value: "changed editor")
+        let changedPayload = try CheckRunnerItemDraftCodecV1.decode(canonical(changedRaw))
+        let changedCheckpoint = try reconstructionParentCheckpoint(changedPayload)
+        XCTAssertThrowsError(try reconstructParent(changedCheckpoint))
+        let driftPack = SignPack(schemaVersion: pack.schemaVersion,
+            packID: "fixture.reconstruction.wrong-package.v1", contentVersion: pack.contentVersion,
+            nouns: pack.nouns, evidencePurposes: pack.evidencePurposes, acknowledgements: pack.acknowledgements,
+            issueLabels: pack.issueLabels, couldNotVerifyReasons: pack.couldNotVerifyReasons,
+            stageDisplays: pack.stageDisplays, outcomeDisplays: pack.outcomeDisplays, disclaimer: pack.disclaimer)
+        let driftProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: driftPack)
+        XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.reconstructFinalizationCommit(from: checkpoint,
+            signPack: driftPack, activeLifecycleProfile: { driftProfile }))
+        XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.reconstructFinalizationCommit(from: checkpoint,
+            signPack: pack, activeLifecycleProfile: { driftProfile }))
+        XCTAssertNoThrow(try reconstructParent(checkpoint))
+    }
+
+    func testPhotoCommitReconstructionBindsBothStepsAndFrozenReadyStage() throws {
+        for recheck in [false, true] {
+            for step in [WorkflowDraftStep.wide, .close] {
+                for origin in [OriginalContentOriginV1.humanCapture, .localImport] {
+                    let fixture = try photoFixture(recheck: recheck, step: step, origin: origin)
+                    let payload = try photoPayload(fixture, phase: .preparedCommit(fixture.pair, fixture.attempt))
+                    let checkpoint = try codecPhotoCheckpoint(payload)
+                    let value = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint)
+                    let commit = value.draftCommit, command = value.targetCommand
+                    XCTAssertEqual(commit.items, [fixture.raw.readyItem])
+                    XCTAssertEqual(commit.items[0].state, .readyLocal)
+                    XCTAssertEqual(commit.plan.stageDigests, [fixture.raw.readyItem.stageSHA256])
+                    XCTAssertEqual(commit.plan.targetCommandKind, .acceptCheckEvidence)
+                    XCTAssertEqual(commit.plan.planID, fixture.attempt.planID)
+                    XCTAssertEqual(commit.plan.outputKeys, fixture.attempt.outputKeys)
+                    XCTAssertEqual(commit.plan.expectedTargetRevision, fixture.attempt.expectedWorkflowRecordRevision)
+                    XCTAssertEqual(commit.rowMutationIDs.reservationByStageID, [fixture.intent.stageID: fixture.attempt.reservationMutationID])
+                    XCTAssertEqual(command.draftID, fixture.parentFixture.attempt.recordCommand.recordID)
+                    XCTAssertNotEqual(command.draftID, fixture.childDraftID)
+                    XCTAssertEqual(command.evidenceID, fixture.intent.evidenceID)
+                    XCTAssertEqual(commit.plan.mutationID.rawValue, command.evidenceID)
+                    XCTAssertEqual(command.purposeKey, step == .wide ? "wide_context" : "close_detail")
+                    XCTAssertEqual(command.nextDraftStepKey, step == .wide ? WorkflowDraftStep.close.rawValue : WorkflowDraftStep.outcome.rawValue)
+                    XCTAssertEqual(command.relativePath, fixture.pair.normalizedPair.originalRelativePath)
+                    XCTAssertEqual(command.mimeType, "image/jpeg")
+                    XCTAssertEqual(command.byteCount, 128)
+                    XCTAssertEqual(command.sha256, String(repeating: "c", count: 64))
+                    XCTAssertEqual(command.thumbnailRelativePath, fixture.pair.normalizedPair.thumbnailRelativePath)
+                    XCTAssertEqual(command.thumbnailByteCount, 64)
+                    XCTAssertEqual(command.thumbnailSHA256, String(repeating: "e", count: 64))
+                    XCTAssertEqual(command.createdAt, Date(timeIntervalSince1970: 1_800_000_200))
+                }
+            }
+        }
+    }
+
+    func testPhotoCommitReconstructionReusesFrozenSagasRowsAndCommandsAfterColdDecode() throws {
+        let fixture = try photoFixture(recheck: true, step: .close, origin: .localImport)
+        let payload = try photoPayload(fixture, phase: .preparedCommit(fixture.pair, fixture.attempt))
+        let checkpoint = try codecPhotoCheckpoint(payload)
+        let cold = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,
+            from: FieldDraftCanonicalCodecV1.encode(checkpoint))
+        let first = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint)
+        XCTAssertEqual(try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: cold), first)
+        let value = first.draftCommit, attempt = fixture.attempt
+        XCTAssertEqual(value.sagas.map(\.state), [.prepared, .contentPromotedUnbound, .targetCommitted, .draftRetirePending, .draftRetired])
+        XCTAssertEqual(value.sagas.map(\.sagaID), [attempt.preparedSagaID, attempt.contentPromotedSagaID,
+            attempt.targetCommittedSagaID, attempt.draftRetirePendingSagaID, attempt.draftRetiredSagaID])
+        XCTAssertEqual(value.sagas.map(\.revision), [1, 2, 3, 4, 5])
+        XCTAssertEqual(value.sagas.map(\.predecessorSagaID), [nil, attempt.preparedSagaID,
+            attempt.contentPromotedSagaID, attempt.targetCommittedSagaID, attempt.draftRetirePendingSagaID])
+        XCTAssertEqual(value.sagas.map(\.mutationID), [attempt.preparedSagaMutationID,
+            attempt.contentPromotedSagaMutationID, attempt.targetCommittedSagaMutationID,
+            attempt.draftRetirePendingSagaMutationID, attempt.terminalBundleMutationID])
+        XCTAssertEqual(value.sagas.map(\.updatedAt), [attempt.preparedUpdatedAt, attempt.contentPromotedUpdatedAt,
+            attempt.targetCommittedUpdatedAt, attempt.draftRetirePendingUpdatedAt, attempt.draftRetiredUpdatedAt])
+        for (prior, next) in zip(value.sagas, value.sagas.dropFirst()) { try next.validateSuccessor(of: prior) }
+        XCTAssertEqual(value.commitReceiptID, attempt.commitReceiptID)
+        XCTAssertEqual(value.terminalCheckpointUpdatedAt, attempt.terminalCheckpointUpdatedAt)
+        XCTAssertEqual(value.retired.mutationID, value.rowMutationIDs.terminalBundleMutationID)
+        XCTAssertEqual(value.plan.payloadSHA256, checkpoint.payloadSHA256)
+    }
+
+    func testPhotoCommitReconstructionRejectsIncompletePhasesAndNonCommittingStates() throws {
+        let fixture = try photoFixture()
+        for phase in [CheckRunnerPhotoDurablePhaseV1.awaitingRawStage(fixture.intent),
+                      .rawReady(fixture.raw), .pairReady(fixture.pair)] {
+            let payload = try photoPayload(fixture, phase: phase)
+            let checkpoint = try reconstructionCheckpoint(codecPhotoCheckpoint(payload), state: .committing)
+            XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint))
+        }
+        let payload = try photoPayload(fixture, phase: .preparedCommit(fixture.pair, fixture.attempt))
+        let committing = try codecPhotoCheckpoint(payload)
+        for state in FieldDraftStateV1.allCases where state != .committing {
+            let checkpoint = try reconstructionCheckpoint(committing, state: state)
+            try checkpoint.validate(authority: CheckRunnerDraftPurposeAuthorityV1())
+            XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint), state.rawValue)
+        }
+    }
+
+    func testPhotoCommitReconstructionRejectsRehashedEnvelopeAndUnusableTerminalInputs() throws {
+        let fixture = try photoFixture()
+        let payload = try photoPayload(fixture, phase: .preparedCommit(fixture.pair, fixture.attempt))
+        let checkpoint = try codecPhotoCheckpoint(payload)
+        let candidates = try [
+            codecRehashedCheckpoint(checkpoint, draftID: largeID(98_001)),
+            codecRehashedCheckpoint(checkpoint, baseCanonicalRevision: checkpoint.baseCanonicalRevision + 1),
+            codecRehashedCheckpoint(checkpoint, stageIDs: []),
+            reconstructionCheckpoint(checkpoint, revision: UInt64.max),
+            reconstructionCheckpoint(checkpoint, updatedAt: fixture.attempt.terminalCheckpointUpdatedAt.addingTimeInterval(0.001)),
+            reconstructionCheckpoint(checkpoint, mutationID: fixture.attempt.terminalBundleMutationID),
+        ]
+        for candidate in candidates {
+            try candidate.validate(authority: CheckRunnerDraftPurposeAuthorityV1())
+            XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: candidate))
+        }
+        let lastUsable = try reconstructionCheckpoint(checkpoint, revision: UInt64.max - 1,
+            updatedAt: fixture.attempt.terminalCheckpointUpdatedAt)
+        XCTAssertEqual(try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: lastUsable).draftCommit.plan.draftRevision, UInt64.max - 1)
+    }
+
+    func testCommitReconstructionDerivesHashesFromTheEnclosingCheckpointWithoutRewritingPayload() throws {
+        let parentPayload = try reconstructionParentPayload(seed: 99_000)
+        let parentCheckpoint = try reconstructionParentCheckpoint(parentPayload)
+        let parent = try reconstructParent(parentCheckpoint)
+        let parentOther = try reconstructParent(reconstructionCheckpoint(parentCheckpoint, revision: parentCheckpoint.draftRevision + 1))
+        let fixture = try photoFixture()
+        let photoValue = try photoPayload(fixture, phase: .preparedCommit(fixture.pair, fixture.attempt))
+        let photoCheckpoint = try codecPhotoCheckpoint(photoValue)
+        let child = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: photoCheckpoint).draftCommit
+        let childOther = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(
+            from: reconstructionCheckpoint(photoCheckpoint, revision: photoCheckpoint.draftRevision + 1)).draftCommit
+        for (value, other) in [(parent, parentOther), (child, childOther)] {
+            XCTAssertEqual(value.checkpoint.payloadData, other.checkpoint.payloadData)
+            XCTAssertEqual(value.plan.payloadSHA256, value.checkpoint.payloadSHA256)
+            XCTAssertEqual(value.plan.baseCanonicalRevision, value.checkpoint.baseCanonicalRevision)
+            XCTAssertEqual(value.plan.draftRevision, value.checkpoint.draftRevision)
+            XCTAssertEqual(value.plan.planID, other.plan.planID)
+            XCTAssertEqual(value.plan.mutationID, other.plan.mutationID)
+            XCTAssertEqual(value.sagas.map(\.sagaID), other.sagas.map(\.sagaID))
+            XCTAssertEqual(value.sagas.map(\.updatedAt), other.sagas.map(\.updatedAt))
+            XCTAssertNotEqual(value.plan.planSHA256, other.plan.planSHA256)
+            for (first, second) in zip(value.sagas, other.sagas) { XCTAssertNotEqual(first.sagaSHA256, second.sagaSHA256) }
+        }
+        XCTAssertNotEqual(parent.plan.baseCanonicalRevision, parent.plan.expectedTargetRevision)
+        XCTAssertEqual(parent.plan.expectedTargetRevision, 7)
+        XCTAssertEqual(try CheckRunnerItemDraftCodecV1.encode(parentPayload), parent.checkpoint.payloadData)
+        XCTAssertEqual(try CheckRunnerPhotoDraftCodecV1.encode(photoValue), child.checkpoint.payloadData)
+    }
+
+    private func reconstructionParentPayload(recheck: Bool = false,
+        selection: CheckOutcomeSelection? = nil, seed: Int) throws -> CheckRunnerItemDraftPayloadV1 {
+        let selected = selection ?? (recheck ? .resolved(note: nil) : .noVisibleIssue)
+        let fixture = try parentFixture(recheck: recheck, includesTimeZone: recheck)
+        let count: Int
+        if case .couldNotVerify = selected { count = 0 } else { count = 2 }
+        let field = try preparedField(fixture: fixture, outcome: editableOutcome(selected), mediaCount: count, seed: seed + 1_000)
+        let attempt = try finalizationAttempt(fixture: fixture, field: field, selection: selected, seed: seed)
+        return try .init(prepared: fixture.source, field: field, attempt: attempt)
+    }
+
+    private func reconstructionParentCheckpoint(_ payload: CheckRunnerItemDraftPayloadV1) throws -> FieldDraftCheckpointV1 {
+        let attempt = try XCTUnwrap(payload.finalizationAttempt)
+        return try reconstructionCheckpoint(codecParentCheckpoint(payload), state: .committing, revision: 4,
+            updatedAt: attempt.preparedSagaUpdatedAt)
+    }
+
+    private func reconstructParent(_ checkpoint: FieldDraftCheckpointV1) throws -> CheckRunnerDraftCommitReconstructionV1 {
+        try CheckRunnerItemDraftCodecV1.reconstructFinalizationCommit(from: checkpoint,
+            signPack: pack, activeLifecycleProfile: { try self.profile })
+    }
+
+    private func reconstructionCheckpoint(_ value: FieldDraftCheckpointV1, state: FieldDraftStateV1? = nil,
+        revision: UInt64? = nil, updatedAt: Date? = nil, mutationID: MutationIDV1? = nil) throws -> FieldDraftCheckpointV1 {
+        let state = state ?? value.state
+        let terminal = state == .committed || state == .discarded
+        return try .init(draftID: value.draftID, workspaceID: value.workspaceID, scope: value.scope,
+            purpose: value.purpose, codec: value.codec, baseCanonicalRevision: value.baseCanonicalRevision,
+            draftRevision: revision ?? value.draftRevision, payloadData: value.payloadData,
+            stageIDs: value.stageIDs, resumeAnchor: value.resumeAnchor, state: state,
+            lastDurableMutationID: terminal ? value.mutationID : value.lastDurableMutationID,
+            lastReceiptSHA256: terminal ? String(repeating: "7", count: 64) : value.lastReceiptSHA256,
+            updatedAt: updatedAt ?? value.updatedAt, mutationID: mutationID ?? value.mutationID)
+    }
+
     private func codecParentCheckpoint(_ payload: CheckRunnerItemDraftPayloadV1) throws -> FieldDraftCheckpointV1 {
         try .init(draftID: largeID(80_000), workspaceID: payload.source.roundAtEntry.workspaceID,
             scope: CheckRunnerItemDraftCodecV1.scope(source: payload.source), purpose: .inspectionReview,
