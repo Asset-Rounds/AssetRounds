@@ -2358,6 +2358,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return try journalStore.checkRunnerPhotoEvidence(workspaceID: workspaceID, mutationID: mutationID)
     }
 
+    /// Joins retained child terminal history under this live writer's lease.
+    /// Parent/source, current workflow and media admission remain separate.
+    func checkRunnerPhotoCommitEvidence(
+        workspaceID: WorkspaceID,
+        draftID: UUID
+    ) throws -> CheckRunnerPhotoCommitEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        return try journalStore.checkRunnerPhotoCommitEvidence(workspaceID: workspaceID, draftID: draftID)
+    }
+
     /// Low-level frozen Begin effect. The parent owner must first persist
     /// PREPARED and prove current source/access; this method grants neither.
     func commitFrozenCheckRunnerTimeZone(

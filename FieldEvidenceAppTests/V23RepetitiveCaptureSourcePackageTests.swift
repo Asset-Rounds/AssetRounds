@@ -1,14 +1,53 @@
 import Foundation
+import CoreFoundation
 import XCTest
 
 @testable import FieldEvidenceApp
 
 final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
     func testOrdinaryDirectoryPackageIsValidatedAndBoundToExactCanonicalMembers() throws {
+        // Exercise both the bulk-copy and scalar-escape paths through the
+        // shipping renderer, including normalization before either path.
+        let stringCases: [(String, String)] = [
+            ("", "\"\""), ("receipt+/=", "\"receipt+/=\""),
+            ("e\u{301} / 🧭", "\"é / 🧭\""),
+            ("e\u{301}\n\"\\", "\"é\\n\\\"\\\\\""),
+            ("\u{7f}\u{2028}\u{2029}", "\"\u{7f}\u{2028}\u{2029}\""),
+        ]
+        for (raw, expected) in stringCases {
+            XCTAssertEqual(try CanonicalJSONV1.encode(.string(raw)), Data(expected.utf8))
+        }
+        for scalarValue in UInt32(0)..<UInt32(32) {
+            let scalar = try XCTUnwrap(UnicodeScalar(scalarValue))
+            let shortEscapes: [UInt32: String] = [8: "\\b", 9: "\\t", 10: "\\n", 12: "\\f", 13: "\\r"]
+            let escaped = shortEscapes[scalarValue] ?? String(format: "\\u%04x", scalarValue)
+            XCTAssertEqual(try CanonicalJSONV1.encode(.string("a" + String(scalar) + "é")),
+                           Data(("\"a" + escaped + "é\"").utf8))
+        }
+        let largePayload = Data(repeating: 0xfb, count: 393_216).base64EncodedString()
+        XCTAssertEqual(largePayload.utf8.count, 524_288)
+        XCTAssertEqual(try CanonicalJSONV1.encode(.string(largePayload)),
+                       Data(("\"" + largePayload + "\"").utf8))
+        XCTAssertEqual(try CanonicalJSONV1.encode(.string(largePayload + "\n")),
+                       Data(("\"" + largePayload + "\\n\"").utf8))
+        let transportValues: [Any] = [true, false, NSNull(), -2, [Any]()]
+        let transportObject: [String: Any] = [
+            "recordID": 1, "recordedAt": "e\u{301}", "values": transportValues,
+        ]
+        XCTAssertEqual(try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(transportObject),
+                       Data("{\"recordID\":1,\"recordedAt\":\"é\",\"values\":[true,false,null,-2,[]]}".utf8))
+        XCTAssertThrowsError(try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(1.5))
+
         let fixture = try RepetitiveCaptureSourcePackageFixture()
         defer { fixture.removePackages() }
 
         let package = try fixture.validatedPackage()
+        let canonicalRecords = try BackupCanonicalEncoderV1().encodeRecords(package.records).data
+        XCTAssertEqual(try fixture.memberData("records.json"), canonicalRecords)
+        let unchangedMutation = try fixture.validatedPackage { _ in }
+        XCTAssertEqual(unchangedMutation.records, package.records)
+        XCTAssertEqual(unchangedMutation.recordsJSONSHA256, package.recordsJSONSHA256)
+        XCTAssertEqual(try fixture.memberData("records.json"), canonicalRecords)
 
         XCTAssertEqual(package.source.workspaceID, fixture.workspaceID.rawValue)
         XCTAssertEqual(package.source.persistentSchemaVersion, 45)
@@ -65,10 +104,7 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
             JSONSerialization.data(withJSONObject: futureRecords, options: [.sortedKeys, .withoutEscapingSlashes])))
         let roundObjects = try XCTUnwrap(recordsObject["roundSessions"] as? [[String: Any]])
         XCTAssertEqual(roundObjects.count, fixture.rounds.count)
-        let roundMutationBaseline = try JSONSerialization.data(
-            withJSONObject: recordsObject,
-            options: [.sortedKeys, .withoutEscapingSlashes]
-        )
+        let roundMutationBaseline = try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(recordsObject)
         XCTAssertEqual(roundMutationBaseline, recordsData)
         XCTAssertEqual(
             try BackupCanonicalDecoderV1().decodeRecords(roundMutationBaseline).roundSessions,
@@ -445,7 +481,8 @@ final class RepetitiveCaptureSourcePackageFixture {
 
     func validatedPackage(recordsMutation: ((inout [String: Any]) throws -> Void)? = nil)
         throws -> ValidatedRepetitiveCaptureSourcePackageV2 {
-        let value = try package(named: UUID().uuidString, recordsMutation: recordsMutation)
+        let value = try writePackage(named: UUID().uuidString,
+            recordsMutation: recordsMutation, validateRecordsBeforeWriting: false)
         phaseTrace?("package-validator-start")
         let validated = try ValidatedRepetitiveCaptureSourcePackageV2.validate(
             stagedPackageURL: value, using: BackupPackageValidatorV1())
@@ -456,22 +493,37 @@ final class RepetitiveCaptureSourcePackageFixture {
     func package(named name: String,
                  sourceMutation: ((inout [String: Any]) throws -> Void)? = nil,
                  recordsMutation: ((inout [String: Any]) throws -> Void)? = nil) throws -> URL {
+        try writePackage(named: name, sourceMutation: sourceMutation,
+            recordsMutation: recordsMutation, validateRecordsBeforeWriting: true)
+    }
+
+    private func writePackage(named name: String,
+                 sourceMutation: ((inout [String: Any]) throws -> Void)? = nil,
+                 recordsMutation: ((inout [String: Any]) throws -> Void)? = nil,
+                 validateRecordsBeforeWriting: Bool) throws -> URL {
         let directory = root.appendingPathComponent("\(name).fieldrecordbackup", isDirectory: true)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         phaseTrace?("records-encoder-start")
         let encodedRecords = try BackupCanonicalEncoderV1().encodeRecords(records).data
         phaseTrace?("records-encoder-complete")
-        var recordsObject = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: encodedRecords) as? [String: Any])
-        phaseTrace?("records-json-object-complete")
-        try recordsMutation?(&recordsObject)
-        let mutatedRecordsData = try JSONSerialization.data(withJSONObject: recordsObject,
-            options: [.sortedKeys, .withoutEscapingSlashes])
-        phaseTrace?("raw-decode-start")
-        let decodedRecords = try BackupCanonicalDecoderV1().decodeRecords(mutatedRecordsData)
-        phaseTrace?("raw-decode-complete")
-        let recordsData = try BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data
-        phaseTrace?("records-reencode-complete")
+        let recordsData: Data
+        if let recordsMutation {
+            var recordsObject = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: encodedRecords) as? [String: Any])
+            phaseTrace?("records-json-object-complete")
+            try recordsMutation(&recordsObject)
+            recordsData = try Self.canonicalJSONData(recordsObject)
+        } else {
+            recordsData = encodedRecords
+        }
+        // Public package-only fixtures retain their existing strict validation.
+        // validatedPackage performs it through the actual package validator
+        // immediately below, on the exact bytes written here.
+        if validateRecordsBeforeWriting {
+            phaseTrace?("raw-decode-start")
+            _ = try BackupCanonicalDecoderV1().decodeRecords(recordsData)
+            phaseTrace?("raw-decode-complete")
+        }
         try recordsData.write(to: directory.appendingPathComponent("records.json"), options: .atomic)
 
         var sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(
@@ -489,6 +541,24 @@ final class RepetitiveCaptureSourcePackageFixture {
         try BackupCanonicalEncoderV1().encodeManifest(manifest).data.write(
             to: directory.appendingPathComponent("manifest.json"), options: .atomic)
         return directory
+    }
+
+    static func canonicalJSONData(_ object: Any) throws -> Data {
+        func value(_ object: Any) throws -> CanonicalJSONValueV1 {
+            if object is NSNull { return .null }
+            if let object = object as? [String: Any] { return .object(try object.mapValues(value)) }
+            if let object = object as? [Any] { return .array(try object.map(value)) }
+            if let object = object as? String { return .string(object) }
+            if let object = object as? NSNumber {
+                if CFGetTypeID(object) == CFBooleanGetTypeID() { return .bool(object.boolValue) }
+                guard let integer = Int(object.stringValue) else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
+                return .integer(integer)
+            }
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        return try CanonicalJSONV1.encode(value(object))
     }
 
     func package(named name: String,

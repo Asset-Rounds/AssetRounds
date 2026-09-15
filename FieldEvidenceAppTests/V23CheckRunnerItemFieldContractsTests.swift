@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
@@ -1458,15 +1459,16 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testPhotoCommitReconstructionReusesFrozenSagasRowsAndCommandsAfterColdDecode() throws {
-        let fixture = try photoFixture(recheck: true, step: .close, origin: .localImport)
-        let payload = try photoPayload(fixture, phase: .preparedCommit(fixture.pair, fixture.attempt))
+        let codecFixture = try photoFixture(recheck: true, step: .close, origin: .localImport)
+        let payload = try photoPayload(codecFixture, phase: .preparedCommit(codecFixture.pair, codecFixture.attempt))
         let checkpoint = try codecPhotoCheckpoint(payload)
         let cold = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,
             from: FieldDraftCanonicalCodecV1.encode(checkpoint))
         let first = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint)
         XCTAssertEqual(try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: cold), first)
-        let value = first.draftCommit, attempt = fixture.attempt
+        let value = first.draftCommit, attempt = codecFixture.attempt
         XCTAssertEqual(value.sagas.map(\.state), [.prepared, .contentPromotedUnbound, .targetCommitted, .draftRetirePending, .draftRetired])
         XCTAssertEqual(value.sagas.map(\.sagaID), [attempt.preparedSagaID, attempt.contentPromotedSagaID,
             attempt.targetCommittedSagaID, attempt.draftRetirePendingSagaID, attempt.draftRetiredSagaID])
@@ -1483,6 +1485,143 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         XCTAssertEqual(value.terminalCheckpointUpdatedAt, attempt.terminalCheckpointUpdatedAt)
         XCTAssertEqual(value.retired.mutationID, value.rowMutationIDs.terminalBundleMutationID)
         XCTAssertEqual(value.plan.payloadSHA256, checkpoint.payloadSHA256)
+
+        let fixture = try photoFixture()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V23-photo-commit-read-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: fixture.parent.source.roundAtEntry.workspaceID,
+            replicaID: .init(rawValue: largeID(70_001)))
+        let factory = StoreGenerationFactory(applicationSupportURL: root, pointerEnrichmentIdentity: identity)
+        let clock = FrozenBeginClock(value: Date(timeIntervalSince1970: 1_800_001_000))
+        var session: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        var coordinator: StoreSessionCoordinator? = try StoreSessionCoordinator(
+            validatingSession: try XCTUnwrap(session), clock: clock)
+        defer { try? coordinator?.invalidateAndReleaseWriter() }
+        let stored = try persistPhotoCommit(fixture, coordinator: try XCTUnwrap(coordinator))
+        let writer = try XCTUnwrap(coordinator).workspaceWriter
+        let before = try writer.sourceMutationHistorySnapshot()
+        let actual = try XCTUnwrap(writer.checkRunnerPhotoCommitEvidence(
+            workspaceID: stored.checkpoint.workspaceID, draftID: stored.checkpoint.draftID))
+        XCTAssertEqual(actual, stored.evidence)
+        XCTAssertEqual(actual.committing.mutation, stored.history.first {
+            if case let .reviseCheckpoint(value) = $0.mutation.postImage { return value.state == .committing }; return false
+        }?.mutation)
+        XCTAssertEqual(actual.terminal.mutation.mutationID, fixture.attempt.terminalBundleMutationID)
+        XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), before)
+        XCTAssertNil(try writer.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
+            draftID: largeID(70_002)))
+        XCTAssertNil(try writer.checkRunnerPhotoCommitEvidence(workspaceID: WorkspaceID(rawValue: largeID(70_003)),
+            draftID: stored.checkpoint.draftID))
+        XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), before)
+
+        let laterID = largeID(70_004)
+        let laterCommand = CheckEvidenceMutationV1(evidenceID: laterID,
+            draftID: fixture.parentFixture.attempt.recordCommand.recordID, purposeKey: "later_history",
+            relativePath: "evidence/later.jpg", mimeType: "image/jpeg", byteCount: 1,
+            sha256: String(repeating: "1", count: 64), thumbnailRelativePath: "evidence/later-thumb.jpg",
+            thumbnailByteCount: 1, thumbnailSHA256: String(repeating: "2", count: 64),
+            nextDraftStepKey: WorkflowDraftStep.outcome.rawValue,
+            createdAt: fixture.attempt.terminalCheckpointUpdatedAt.addingTimeInterval(1))
+        _ = try writer.execute(.acceptCheckEvidence(laterCommand), mutationID: .init(rawValue: laterID))
+        XCTAssertEqual(try writer.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
+            draftID: stored.checkpoint.draftID), stored.evidence)
+        let laterTarget = try XCTUnwrap(writer.checkRunnerPhotoEvidence(workspaceID: stored.checkpoint.workspaceID,
+            mutationID: .init(rawValue: laterID)))
+
+        let pure = { (history: [FieldDraftCommittedEvidenceV1], checkpoint: FieldDraftCheckpointV1,
+                      sagas: [DraftCommitSagaV1], reservations: [DraftContentReservationV1],
+                      stages: [AttachmentStagingItemV1], receipts: [DraftCommitReceiptV1],
+                      target: CheckRunnerPhotoCommittedEvidenceV1) throws in
+            try CheckRunnerPhotoCommitEvidenceV1(history: history, checkpoint: checkpoint, sagas: sagas,
+                reservations: reservations, stages: stages, receipts: receipts, target: target)
+        }
+        let changedReservation = try DraftContentReservationV1(reservationID: stored.reservation.reservationID,
+            workspaceID: stored.reservation.workspaceID, draftID: stored.reservation.draftID,
+            stageID: stored.reservation.stageID, commitPlanSHA256: stored.reservation.commitPlanSHA256,
+            mutationID: stored.reservation.mutationID, contentDigest: stored.reservation.contentDigest,
+            locator: stored.reservation.locator, createdAt: stored.reservation.createdAt,
+            reviewAfter: stored.reservation.reviewAfter.addingTimeInterval(1),
+            reconciliationState: stored.reservation.reconciliationState, revision: stored.reservation.revision)
+        let changedReceipt = try DraftCommitReceiptV1(receiptID: stored.receipt.receiptID,
+            workspaceID: stored.receipt.workspaceID, draftID: stored.receipt.draftID,
+            sagaID: stored.receipt.sagaID, commitPlanSHA256: stored.receipt.commitPlanSHA256,
+            sagaEventSHA256Chain: stored.receipt.sagaEventSHA256Chain,
+            targetMutationID: stored.receipt.targetMutationID,
+            targetReceiptSHA256: String(repeating: "f", count: 64),
+            consumedStageToContentID: stored.receipt.consumedStageToContentID,
+            committedAt: stored.receipt.committedAt, revision: stored.receipt.revision,
+            mutationID: stored.receipt.mutationID)
+        let unrelatedStage = try photoFixture(step: .close).raw.readyItem
+        XCTAssertEqual(try pure(stored.history, stored.checkpoint, stored.sagas, [stored.reservation],
+            [stored.stage], [stored.receipt], stored.target), stored.evidence)
+        let readyHistory = stored.history.filter { $0.mutation.mutationID != stored.stage.mutationID }
+        let readyEvidence = try pure(readyHistory, stored.checkpoint, stored.sagas, [stored.reservation],
+            [fixture.raw.readyItem], [stored.receipt], stored.target)
+        XCTAssertEqual(readyEvidence.stage, fixture.raw.readyItem)
+        XCTAssertEqual(readyEvidence.reconstruction, stored.evidence.reconstruction)
+        for changed in [Array(stored.history.dropFirst()), stored.history + [stored.history[0]],
+                        stored.history.filter { $0.mutation.mutationID != fixture.attempt.terminalBundleMutationID }] {
+            XCTAssertThrowsError(try pure(changed, stored.checkpoint, stored.sagas, [stored.reservation],
+                [stored.stage], [stored.receipt], stored.target))
+        }
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, Array(stored.sagas.dropLast()),
+            [stored.reservation], [stored.stage], [stored.receipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [],
+            [stored.stage], [stored.receipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [stored.reservation],
+            [], [stored.receipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [stored.reservation],
+            [stored.stage], [], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [stored.reservation],
+            [stored.stage], [stored.receipt], laterTarget))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [changedReservation],
+            [stored.stage], [stored.receipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [stored.reservation],
+            [unrelatedStage], [stored.receipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [stored.reservation],
+            [stored.stage], [changedReceipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas,
+            [stored.reservation, stored.reservation], [stored.stage], [stored.receipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [stored.reservation],
+            [stored.stage, stored.stage], [stored.receipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.checkpoint, stored.sagas, [stored.reservation],
+            [stored.stage], [stored.receipt, stored.receipt], stored.target))
+        XCTAssertThrowsError(try pure(stored.history, stored.evidence.reconstruction.draftCommit.checkpoint,
+            stored.sagas, [stored.reservation], [stored.stage], [stored.receipt], stored.target))
+
+        try coordinator?.invalidateAndReleaseWriter(); coordinator = nil; session = nil
+        session = try factory.openOrBootstrapCurrent()
+        coordinator = try StoreSessionCoordinator(validatingSession: try XCTUnwrap(session), clock: clock)
+        let reopenedWriter = try XCTUnwrap(coordinator).workspaceWriter
+        let reopenedBefore = try reopenedWriter.sourceMutationHistorySnapshot()
+        XCTAssertEqual(try reopenedWriter.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
+            draftID: stored.checkpoint.draftID), stored.evidence)
+        XCTAssertEqual(try reopenedWriter.sourceMutationHistorySnapshot(), reopenedBefore)
+        let quarantine = MutationQuarantineRow(workspaceID: stored.checkpoint.workspaceID,
+            mutationID: fixture.attempt.terminalBundleMutationID, identityDomain: .mutationEnvelope,
+            acceptedIdentitySHA256: actual.terminal.receipt.envelopeSHA256,
+            conflictingIdentitySHA256: String(repeating: "f", count: 64), detectedAt: Date())
+        try XCTUnwrap(session).modelContext.insert(quarantine)
+        try XCTUnwrap(session).modelContext.save()
+        XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
+            draftID: stored.checkpoint.draftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        let context = try XCTUnwrap(session).modelContext
+        context.delete(quarantine); try context.save()
+        let row = try XCTUnwrap(context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+            $0.mutationID == fixture.attempt.terminalBundleMutationID.rawValue
+        })
+        let originalReceiptData = row.receiptData
+        row.receiptData = Data("{}".utf8); try context.save()
+        XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
+            draftID: stored.checkpoint.draftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(row.receiptData, Data("{}".utf8))
+        row.receiptData = originalReceiptData; try context.save()
     }
 
     func testPhotoCommitReconstructionRejectsIncompletePhasesAndNonCommittingStates() throws {
@@ -1702,6 +1841,136 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             sourceBinding: fixture.parent.source, workflowStage: fixture.parent.source.requestedEntry.stage,
             captureStep: fixture.step, purposeKey: fixture.step == .wide ? "wide_context" : "close_detail",
             origin: fixture.origin, phase: phase)
+    }
+
+    private struct StoredPhotoCommit {
+        let history: [FieldDraftCommittedEvidenceV1]
+        let checkpoint: FieldDraftCheckpointV1
+        let sagas: [DraftCommitSagaV1]
+        let reservation: DraftContentReservationV1
+        let stage: AttachmentStagingItemV1
+        let receipt: DraftCommitReceiptV1
+        let target: CheckRunnerPhotoCommittedEvidenceV1
+        let evidence: CheckRunnerPhotoCommitEvidenceV1
+    }
+
+    @MainActor
+    private func persistPhotoCommit(_ fixture: PhotoFixture,
+                                    coordinator: StoreSessionCoordinator) throws -> StoredPhotoCommit {
+        let writer = coordinator.workspaceWriter
+        let workspaceID = fixture.parent.source.roundAtEntry.workspaceID
+        let firstMutation = try MutationIDV1(rawValue: largeID(71_000))
+        let selection = fixture.parent.source.itemAtEntry.selection
+        _ = try writer.execute(.createFirstSign(.init(siteID: selection.siteID,
+            newSite: .init(id: selection.siteID, label: "Photo evidence site", address: "10 Main",
+                timeZoneID: fixture.parentFixture.attempt.resolvedSiteTimeZoneID),
+            assetID: fixture.parent.source.assetID, assetLabel: selection.labelAtSelection,
+            packID: fixture.parent.source.legacyPackageIdentity.packageID,
+            packSchemaVersion: fixture.parent.source.legacyPackageIdentity.schemaVersion,
+            packContentVersion: fixture.parent.source.legacyPackageIdentity.contentVersion,
+            createdAt: fixture.parentFixture.attempt.recordCommand.startedAt.addingTimeInterval(-1),
+            initialPlacementMutationID: firstMutation, initialPlacementEventID: largeID(71_010),
+            initialPhysicalEpisodeID: try .init(rawValue: largeID(71_011)))), mutationID: firstMutation)
+        _ = try writer.execute(.createCheckDraft(fixture.parentFixture.attempt.recordCommand),
+            mutationID: fixture.parentFixture.attempt.recordMutationID)
+        let adapter = try writer.makeFieldDraftLifecycleAdapter(modelContext: coordinator.modelContext)
+
+        let awaiting = try photoCheckpoint(fixture, phase: .awaitingRawStage(fixture.intent), revision: 1,
+            state: .active, updatedAt: fixture.intent.stageCreatedAt, mutationID: .init(rawValue: largeID(71_001)))
+        _ = try adapter.compareAndSwap(checkpoint: awaiting, expectedDraftRevision: 0,
+            expectedBaseRevision: awaiting.baseCanonicalRevision)
+        let raw = try photoCheckpoint(fixture, phase: .rawReady(fixture.raw), revision: 2, state: .active,
+            updatedAt: fixture.intent.stageCreatedAt, mutationID: fixture.raw.stagePublicationMutationID)
+        _ = try adapter.publish(readyStage: .init(expectedCheckpoint: awaiting,
+            readyItem: fixture.raw.readyItem, successorCheckpoint: raw))
+        let pair = try photoCheckpoint(fixture, phase: .pairReady(fixture.pair), revision: 3, state: .active,
+            updatedAt: fixture.intent.stageCreatedAt, mutationID: .init(rawValue: largeID(71_003)))
+        _ = try adapter.compareAndSwap(checkpoint: pair, expectedDraftRevision: 2,
+            expectedBaseRevision: pair.baseCanonicalRevision)
+        let committing = try photoCheckpoint(fixture, phase: .preparedCommit(fixture.pair, fixture.attempt),
+            revision: 4, state: .committing, updatedAt: fixture.attempt.preparedUpdatedAt,
+            mutationID: .init(rawValue: largeID(71_004)))
+        _ = try adapter.compareAndSwap(checkpoint: committing, expectedDraftRevision: 3,
+            expectedBaseRevision: committing.baseCanonicalRevision)
+
+        let reconstruction = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: committing)
+        let commit = reconstruction.draftCommit
+        _ = try adapter.append(saga: commit.sagas[0], expectedRevision: 0)
+        let reference = try ContentReferenceV1(workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: fixture.raw.inspection.rawContentID, byteLength: fixture.raw.inspection.sourceByteCount,
+            mediaType: fixture.raw.inspection.sourceMediaType,
+            digests: .init([fixture.raw.inspection.sourceSHA256]), byteRole: .immutableOriginal,
+            createdAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(fixture.attempt.promotionAt))
+        let stage = try AttachmentStagingItemV1(stageID: fixture.raw.readyItem.stageID,
+            draftID: fixture.raw.readyItem.draftID, workspaceID: fixture.raw.readyItem.workspaceID,
+            attachmentKind: fixture.raw.readyItem.attachmentKind,
+            scratchLeaseID: fixture.raw.readyItem.scratchLeaseID,
+            expectedByteCount: fixture.raw.readyItem.expectedByteCount,
+            actualByteCount: fixture.raw.readyItem.actualByteCount,
+            contentDigest: fixture.raw.readyItem.contentDigest, contentReference: reference,
+            processingJobID: fixture.raw.readyItem.processingJobID, retryClass: fixture.raw.readyItem.retryClass,
+            state: .committed, protectionState: fixture.raw.readyItem.protectionState,
+            revision: fixture.raw.readyItem.revision + 1,
+            mutationID: .init(rawValue: DraftAttachmentStagingAdapterV1.deterministicUUID(
+                "stage-mutation\u{1f}\(fixture.intent.stageID.uuidString.lowercased())\u{1f}2\u{1f}COMMITTED\u{1f}\(fixture.raw.inspection.sourceSHA256.hexadecimalValue)")))
+        _ = try adapter.append(stagingItem: stage, expectedRevision: fixture.raw.readyItem.revision)
+        let locator = try ContentLocatorV1(locatorID: "photo-child-raw-v1",
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(), contentID: fixture.raw.inspection.rawContentID,
+            locatorRevision: 0, contentDigest: fixture.raw.inspection.sourceSHA256,
+            expectedByteLength: fixture.raw.inspection.sourceByteCount)
+        let reservation = try DraftContentReservationV1(reservationID:
+            DraftAttachmentStagingAdapterV1.deterministicUUID(
+                "reservation\u{1f}\(commit.plan.planSHA256)\u{1f}\(fixture.intent.stageID.uuidString.lowercased())"),
+            workspaceID: workspaceID, draftID: fixture.childDraftID, stageID: fixture.intent.stageID,
+            commitPlanSHA256: commit.plan.planSHA256, mutationID: fixture.attempt.reservationMutationID,
+            contentDigest: fixture.raw.inspection.sourceSHA256, locator: locator,
+            createdAt: fixture.attempt.promotionAt, reviewAfter: fixture.attempt.reservationReviewAfter,
+            reconciliationState: .reserved, revision: 1)
+        _ = try adapter.append(reservation: reservation, expectedRevision: 0)
+        _ = try adapter.append(saga: commit.sagas[1], expectedRevision: 1)
+        _ = try writer.execute(.acceptCheckEvidence(reconstruction.targetCommand),
+            mutationID: commit.plan.mutationID)
+        let target = try XCTUnwrap(writer.checkRunnerPhotoEvidence(workspaceID: workspaceID,
+            mutationID: commit.plan.mutationID))
+        _ = try adapter.append(saga: commit.sagas[2], expectedRevision: 2)
+        _ = try adapter.append(saga: commit.sagas[3], expectedRevision: 3)
+        let receipt = try DraftCommitReceiptV1(receiptID: commit.commitReceiptID, workspaceID: workspaceID,
+            draftID: fixture.childDraftID, sagaID: commit.retired.sagaID,
+            commitPlanSHA256: commit.plan.planSHA256, sagaEventSHA256Chain: commit.sagas.map(\.sagaSHA256),
+            targetMutationID: commit.plan.mutationID, targetReceiptSHA256: target.receipt.resultSHA256,
+            consumedStageToContentID: [fixture.intent.stageID.uuidString: locator.contentID],
+            committedAt: target.receipt.committedAt, mutationID: commit.rowMutationIDs.terminalBundleMutationID)
+        let terminal = try FieldDraftCheckpointV1(draftID: committing.draftID, workspaceID: workspaceID,
+            scope: committing.scope, purpose: committing.purpose, codec: committing.codec,
+            baseCanonicalRevision: committing.baseCanonicalRevision, draftRevision: 5,
+            payloadData: committing.payloadData, stageIDs: committing.stageIDs, resumeAnchor: committing.resumeAnchor,
+            state: .committed, lastDurableMutationID: commit.rowMutationIDs.terminalBundleMutationID,
+            lastReceiptSHA256: receipt.receiptSHA256, updatedAt: commit.terminalCheckpointUpdatedAt,
+            mutationID: commit.rowMutationIDs.terminalBundleMutationID)
+        _ = try adapter.apply(commitTerminalBundle: .init(retiredSaga: commit.retired,
+            committedCheckpoint: terminal, receipt: receipt), expectedDraftRevision: 4, expectedSagaRevision: 4)
+        let mutationIDs = [awaiting.mutationID, raw.mutationID, pair.mutationID, committing.mutationID,
+            commit.sagas[0].mutationID, stage.mutationID, reservation.mutationID, commit.sagas[1].mutationID,
+            commit.sagas[2].mutationID, commit.sagas[3].mutationID, commit.rowMutationIDs.terminalBundleMutationID]
+        let history = try mutationIDs.map { try XCTUnwrap(writer.fieldDraftEvidence(mutationID: $0)) }
+        let evidence = try XCTUnwrap(writer.checkRunnerPhotoCommitEvidence(workspaceID: workspaceID,
+            draftID: fixture.childDraftID))
+        return StoredPhotoCommit(history: history, checkpoint: terminal, sagas: commit.sagas,
+            reservation: reservation, stage: stage, receipt: receipt, target: target, evidence: evidence)
+    }
+
+    private func photoCheckpoint(_ fixture: PhotoFixture, phase: CheckRunnerPhotoDurablePhaseV1,
+                                 revision: UInt64, state: FieldDraftStateV1, updatedAt: Date,
+                                 mutationID: MutationIDV1) throws -> FieldDraftCheckpointV1 {
+        let payload = try photoPayload(fixture, phase: phase)
+        return try FieldDraftCheckpointV1(draftID: fixture.childDraftID,
+            workspaceID: fixture.parent.source.roundAtEntry.workspaceID,
+            scope: CheckRunnerPhotoDraftCodecV1.scope(payload: payload), purpose: .inspectionReview,
+            codec: CheckRunnerPhotoDraftCodecV1.release(),
+            baseCanonicalRevision: fixture.parent.source.roundAtEntry.revision, draftRevision: revision,
+            payloadData: CheckRunnerPhotoDraftCodecV1.encode(payload), stageIDs: phase.declaredStageIDs,
+            resumeAnchor: CheckRunnerPhotoDraftCodecV1.resumeAnchor(payload: payload), state: state,
+            updatedAt: updatedAt, mutationID: mutationID)
     }
 
     private func photoParent(_ fixture: PhotoFixture, slot: CheckRunnerPhotoSlotV1?) throws -> CheckRunnerItemDraftPayloadV1 {

@@ -1597,6 +1597,108 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// A single clean read joins original child commands with their physical
+    /// terminal rows. Historical namespaces and generations are kept intact;
+    /// this does not supply parent, media or current workflow authority.
+    func checkRunnerPhotoCommitEvidence(
+        workspaceID: WorkspaceID,
+        draftID: UUID
+    ) throws -> CheckRunnerPhotoCommitEvidenceV1? {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        let workspaceUUID = workspaceID.rawValue
+        var receiptDescriptor = FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceID == workspaceUUID },
+            sortBy: [SortDescriptor(\.receiptIdentity)]
+        )
+        receiptDescriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
+        let rows = try modelContext.fetch(receiptDescriptor)
+        guard rows.count <= Self.maximumReceiptValidationCount else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return try validateCheckRunnerBeginHistoryValue {
+            // Decode each selected field command once after complete validation.
+            // My Day's local approval restriction is not a child-history rule.
+            var history: [FieldDraftCommittedEvidenceV1] = []
+            var originalEnvelopes: [MutationIDV1: (MutationReceiptRow, MutationEnvelopeV1)] = [:]
+            for row in rows {
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+                guard envelope.workspaceID == workspaceID,
+                      originalEnvelopes.updateValue((row, envelope), forKey: envelope.mutationID) == nil else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                guard case let .applyFieldDraft(mutation) = envelope.command,
+                      mutation.workspaceID == workspaceID, fieldDraftMutationDraftID(mutation) == draftID else { continue }
+                history.append(try FieldDraftCommittedEvidenceV1(envelope: envelope,
+                    receipt: validate(row: row, expectedEnvelope: nil)))
+            }
+            var checkpoints = FetchDescriptor<FieldDraftCheckpointRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == draftID })
+            checkpoints.fetchLimit = 2
+            var sagas = FetchDescriptor<DraftCommitSagaRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == draftID })
+            sagas.fetchLimit = Self.maximumReceiptValidationCount + 1
+            var reservations = FetchDescriptor<DraftContentReservationRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == draftID })
+            reservations.fetchLimit = Self.maximumReceiptValidationCount + 1
+            var stages = FetchDescriptor<AttachmentStagingItemRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == draftID })
+            stages.fetchLimit = FieldDraftLimitsV1.maximumStageItems + 1
+            var terminals = FetchDescriptor<DraftCommitReceiptRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == draftID })
+            terminals.fetchLimit = 2
+            let checkpointRows = try modelContext.fetch(checkpoints)
+            let sagaRows = try modelContext.fetch(sagas)
+            let reservationRows = try modelContext.fetch(reservations)
+            let stageRows = try modelContext.fetch(stages)
+            let terminalRows = try modelContext.fetch(terminals)
+            guard checkpointRows.count <= 1, sagaRows.count <= Self.maximumReceiptValidationCount,
+                  reservationRows.count <= Self.maximumReceiptValidationCount,
+                  stageRows.count <= FieldDraftLimitsV1.maximumStageItems, terminalRows.count <= 1 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            if history.isEmpty && checkpointRows.isEmpty && sagaRows.isEmpty
+                && reservationRows.isEmpty && stageRows.isEmpty && terminalRows.isEmpty { return nil }
+            guard let checkpointRow = checkpointRows.first else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let checkpoint = try checkpointRow.value()
+            guard checkpoint.state == .committed, checkpoint.draftRevision > 1 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let originals = history.compactMap { evidence -> FieldDraftCheckpointV1? in
+                guard case let .reviseCheckpoint(value) = evidence.mutation.postImage,
+                      value.draftRevision == checkpoint.draftRevision - 1, value.state == .committing else { return nil }
+                return value
+            }
+            guard originals.count == 1, let original = originals.first else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let reconstructed = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: original)
+            let targetMutationID = reconstructed.draftCommit.plan.mutationID
+            let selectedMutations = Set(history.map { $0.mutation.mutationID.rawValue } + [targetMutationID.rawValue])
+            var quarantines = FetchDescriptor<MutationQuarantineRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID })
+            quarantines.fetchLimit = Self.maximumReceiptValidationCount + 1
+            let quarantineRows = try modelContext.fetch(quarantines)
+            guard quarantineRows.count <= Self.maximumReceiptValidationCount else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard !quarantineRows.contains(where: { selectedMutations.contains($0.mutationID) }) else {
+                throw WorkspaceMutationFailureV1.mutationIDQuarantined
+            }
+            guard let (targetRow, targetEnvelope) = originalEnvelopes[targetMutationID] else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let target = try CheckRunnerPhotoCommittedEvidenceV1(envelope: targetEnvelope,
+                receipt: validate(row: targetRow, expectedEnvelope: nil))
+            return try CheckRunnerPhotoCommitEvidenceV1(history: history, checkpoint: checkpoint,
+                sagas: sagaRows.map { try $0.value() }, reservations: reservationRows.map { try $0.value() },
+                stages: stageRows.map { try $0.value() }, receipts: terminalRows.map { try $0.value() }, target: target)
+        }
+    }
+
     /// This reader reports malformed retained values as corrupt history. Lease,
     /// dirty-context and selected-quarantine checks stay outside this mapping;
     /// existing policy and sequence-collision failures retain their identity.

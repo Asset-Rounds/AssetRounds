@@ -33,6 +33,71 @@ PROTOCOL_PATHS = (
 )
 SELECTION_MAP_PATH = "Scripts/ci-selection-map.json"
 DEFAULT_SELECTION_ID = "default-132"
+DURABLE_BEGIN_PARENT_ID = "c36-durable-begin"
+DURABLE_BEGIN_PARENT_SELECTORS = (
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects",
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck",
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck",
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss",
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect",
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects",
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsChangedSiteAndInitialPostimage",
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts",
+    "FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess",
+)
+DURABLE_BEGIN_METHOD_PARTITIONS = (
+    ("c36-durable-begin-lifecycle", (
+        DURABLE_BEGIN_PARENT_SELECTORS[0],
+        DURABLE_BEGIN_PARENT_SELECTORS[1],
+        DURABLE_BEGIN_PARENT_SELECTORS[2],
+        DURABLE_BEGIN_PARENT_SELECTORS[3],
+        DURABLE_BEGIN_PARENT_SELECTORS[7],
+    )),
+    ("c36-durable-begin-guards", (
+        DURABLE_BEGIN_PARENT_SELECTORS[4],
+        DURABLE_BEGIN_PARENT_SELECTORS[5],
+        DURABLE_BEGIN_PARENT_SELECTORS[6],
+        DURABLE_BEGIN_PARENT_SELECTORS[8],
+    )),
+)
+DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
+DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
+SOURCE_GRAPH_PARENT_ID = "c36-source-graph"
+SOURCE_GRAPH_PARENT_SELECTORS = (
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourcePackageTests/testOrdinaryDirectoryPackageIsValidatedAndBoundToExactCanonicalMembers",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourcePackageTests/testPackageCapabilityRejectsTamperedRecordsAndMissingRequiredSourceAuthority",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourcePackageTests/testActualFactoryRejectsNoncanonicalTruncatedMemberDescriptorAndSchemaDrift",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourcePackageTests/testActualFactoryPropagatesCancellationWithoutPublishingCapability",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testValidatedPackageYieldsOrderedCompleteGraphWithCompletedAndPendingEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testAuthenticDiscardedSourceRetainsOriginalGraphAndExactTerminalDisposition",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testDiscardedSourceRejectsOmittedDisplacedAndDuplicateCurrentDiscardReceipt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testForeignWorkspaceOriginalHistoryDoesNotCreateOrTaintSourceGraph",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testAuthenticLaterActivePayloadAndDiscardPendingRemainHistoricalReviewOnly",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testDiscardedHistoricalGraphPreservesCapturedFrontierAndAuthenticatesLaterRound",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testSameScopeHistoricalGraphsAreAllowedButCompetingUnchangedGraphsAreRejected",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testBranchOrphanAndCheckpointAfterPendingEffectAreRejected",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testCanonicalEnvelopeAndTypedReceiptSubstitutionAreRejected",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testRequiredEnvelopeQuarantineIsRejectedWhileUnrelatedAndForeignAreAllowed",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testRequiredSemanticReplayQuarantineIsRejectedAfterValidReversalAuthentication",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testMaximumCaptureGraphAuthenticatesTwoStepsForAllTwoHundredItems",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testRehashedPackageCannotOmitAnyCurrentProgressOrEntireSourceGraph",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testRehashedPackageCannotOmitAuthenticatedRoundTail",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testRehashedPackageCannotDropCheckpointHistoryTailOrAlterCurrentCanonicalRow",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testCompactReferenceAuthenticatesSourceAndAllOriginalCurrentFrontiers",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testCompactReferenceRejectsCanonicalRecomputedSourceAndFrontierSubstitutions",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testCompactReferencePreservesDisposedStateAndSeparateRoundFrontiers",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testCompactReferenceSeparatesGraphsAndIgnoresUnrelatedHistory",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testCompactReferenceMaximumGraphFitsPayloadBound",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testCompactReferenceLongLifecycleKeepsBoundedPayloadAndCompleteHistory",
+)
+SOURCE_GRAPH_METHOD_PARTITIONS = (
+    ("c36-source-graph-regular", tuple(
+        selector for selector in SOURCE_GRAPH_PARENT_SELECTORS
+        if selector not in (SOURCE_GRAPH_PARENT_SELECTORS[15], SOURCE_GRAPH_PARENT_SELECTORS[23])
+    )),
+    ("c36-source-graph-compact-maximum", (SOURCE_GRAPH_PARENT_SELECTORS[23],)),
+    ("c36-source-graph-complete-maximum", (SOURCE_GRAPH_PARENT_SELECTORS[15],)),
+)
 SIMULATOR_DIAGNOSTIC_POLICY_PATH = "docs/design/v23/integration/SIMULATOR_FILE_PROTECTION_DIAGNOSTIC.json"
 SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88FE83F14348F6FECA69FBFE7DB58F1"
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
@@ -366,6 +431,50 @@ def resolve_selection(default, selection_map, selection_id):
         validate_selection(derived)
         resolved[group_id] = derived
     require(covered == defaults, "selection groups must cover default exactly")
+    if report_partition_shape:
+        # Method partitions are source constants derived only after the complete
+        # 37-group class map has passed every identity, overlap and coverage gate.
+        require(sha256(canonical(default)) == DURABLE_BEGIN_BASE_POOL_SHA256
+                and sha256(canonical(selection_map)) == DURABLE_BEGIN_BASE_MAP_SHA256,
+                "durable begin exact base pool/map")
+        parent_members = tuple(resolved[DURABLE_BEGIN_PARENT_ID]["unitTestSelectors"])
+        require(parent_members == DURABLE_BEGIN_PARENT_SELECTORS,
+                "durable begin exact ordered parent")
+        partition_ids = tuple(item[0] for item in DURABLE_BEGIN_METHOD_PARTITIONS)
+        partition_members = tuple(member for _, members in DURABLE_BEGIN_METHOD_PARTITIONS
+                                  for member in members)
+        require(len(partition_ids) == len(set(partition_ids)) == 2
+                and not (set(partition_ids) & (ids | {DEFAULT_SELECTION_ID})),
+                "durable begin fixed partition IDs")
+        require(len(partition_members) == len(set(partition_members)) == 9
+                and set(partition_members) == set(parent_members),
+                "durable begin complete disjoint union")
+        for partition_id, members in DURABLE_BEGIN_METHOD_PARTITIONS:
+            require(tuple(item for item in parent_members if item in set(members)) == members,
+                    "durable begin fixed ordered partition members")
+            derived = dict(default)
+            derived["unitTestSelectors"] = list(members)
+            validate_selection(derived)
+            resolved[partition_id] = derived
+        graph_parent_members = tuple(resolved[SOURCE_GRAPH_PARENT_ID]["unitTestSelectors"])
+        require(graph_parent_members == SOURCE_GRAPH_PARENT_SELECTORS,
+                "source graph exact ordered parent")
+        graph_partition_ids = tuple(item[0] for item in SOURCE_GRAPH_METHOD_PARTITIONS)
+        graph_partition_members = tuple(member for _, members in SOURCE_GRAPH_METHOD_PARTITIONS
+                                        for member in members)
+        require(len(graph_partition_ids) == len(set(graph_partition_ids)) == 3
+                and not (set(graph_partition_ids) & (ids | set(partition_ids) | {DEFAULT_SELECTION_ID})),
+                "source graph fixed partition IDs")
+        require(len(graph_partition_members) == len(set(graph_partition_members)) == 25
+                and set(graph_partition_members) == set(graph_parent_members),
+                "source graph complete disjoint union")
+        for partition_id, members in SOURCE_GRAPH_METHOD_PARTITIONS:
+            require(tuple(item for item in graph_parent_members if item in set(members)) == members,
+                    "source graph fixed ordered partition members")
+            derived = dict(default)
+            derived["unitTestSelectors"] = list(members)
+            validate_selection(derived)
+            resolved[partition_id] = derived
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")

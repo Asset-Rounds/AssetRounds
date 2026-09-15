@@ -115,6 +115,10 @@ final class V23CheckRunnerFrozenBeginWriterTests: XCTestCase {
             let saved = try h.snapshot()
             XCTAssertNil(try writer.checkRunnerPhotoEvidence(workspaceID: h.workspaceID,
                 mutationID: .init(rawValue: beginPreparationUUID(9_539))))
+            XCTAssertNil(try writer.checkRunnerPhotoCommitEvidence(workspaceID: h.workspaceID,
+                draftID: beginPreparationUUID(9_539)))
+            XCTAssertNil(try writer.checkRunnerPhotoCommitEvidence(
+                workspaceID: .init(rawValue: beginPreparationUUID(9_538)), draftID: beginPreparationUUID(9_539)))
             XCTAssertThrowsError(try writer.checkRunnerPhotoEvidence(workspaceID: h.workspaceID,
                 mutationID: attempt.recordMutationID)) {
                 XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
@@ -184,6 +188,8 @@ final class V23CheckRunnerFrozenBeginWriterTests: XCTestCase {
             XCTAssertThrowsError(try writer.commitFrozenCheckRunnerDraft(attempt))
             XCTAssertThrowsError(try writer.checkRunnerPhotoEvidence(workspaceID: h.workspaceID,
                 mutationID: attempt.recordMutationID))
+            XCTAssertThrowsError(try writer.checkRunnerPhotoCommitEvidence(workspaceID: h.workspaceID,
+                draftID: beginPreparationUUID(9_559)))
             XCTAssertEqual(try h.rowSnapshot(), dirty)
             h.context.rollback()
             let rows = try h.rowSnapshot()
@@ -192,6 +198,8 @@ final class V23CheckRunnerFrozenBeginWriterTests: XCTestCase {
             XCTAssertThrowsError(try writer.commitFrozenCheckRunnerDraft(attempt))
             XCTAssertThrowsError(try writer.checkRunnerPhotoEvidence(workspaceID: h.workspaceID,
                 mutationID: attempt.recordMutationID))
+            XCTAssertThrowsError(try writer.checkRunnerPhotoCommitEvidence(workspaceID: h.workspaceID,
+                draftID: beginPreparationUUID(9_559)))
             XCTAssertEqual(try h.rowSnapshot(), rows)
         }
     }

@@ -100,6 +100,8 @@ def diagnostic_line(base_kind="database", **changes):
 # below read the committed candidates directly through CI.read_json.
 REPORT_PARTITION_ALIASES = {'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterCommitsOriginalTimeAndReplaysWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterCommitsOriginalTimeAndReplaysWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRecoversSavedTimeZoneBeforeRecheckDraft': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRecoversSavedTimeZoneBeforeRecheckDraft', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsReceiptBodyTimeAndRevisionChangesWithoutQuarantine': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsReceiptBodyTimeAndRevisionChangesWithoutQuarantine', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterUsesFreshWorkspaceCASButRejectsStaleTarget': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterUsesFreshWorkspaceCASButRejectsStaleTarget', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsMissingOrChangedTimeZoneProofBeforeDraft': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsMissingOrChangedTimeZoneProofBeforeDraft', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsDirtyAndRetiredSessionsWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsDirtyAndRetiredSessionsWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsChangedSiteAndInitialPostimage': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsChangedSiteAndInitialPostimage', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess'}
 REPORT_PARTITION_GROUPS = [{'id': 'c36-checkrunner-foundations', 'classes': ['V23CheckRunnerEditableFieldValuesTests', 'V23CheckRunnerBeginHistoryTests'], 'methodCount': 14}, {'id': 'c36-frozen-begin-preparation', 'classes': ['V23CheckRunnerFrozenBeginPreparationTests'], 'methodCount': 6}, {'id': 'c36-frozen-begin-writer', 'classes': ['V23CheckRunnerFrozenBeginWriterTests'], 'methodCount': 6}, {'id': 'c36-durable-begin', 'classes': ['V23CheckRunnerDurableInitialBeginTests'], 'methodCount': 9}, {'id': 'c36-field-contracts', 'classes': ['V23CheckRunnerItemFieldContractsTests'], 'methodCount': 49}]
+DURABLE_PARTITION_CHOICES = ['c36-durable-begin-lifecycle', 'c36-durable-begin-guards']
+SOURCE_GRAPH_PARTITION_CHOICES = ['c36-source-graph-regular', 'c36-source-graph-compact-maximum', 'c36-source-graph-complete-maximum']
 PREPARTITION_REPORT = {'id': 'report-camera-recovery', 'classes': ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests', 'V23CheckRunnerEditableFieldValuesTests', 'V23CheckRunnerBeginHistoryTests', 'V23CheckRunnerFrozenBeginPreparationTests', 'V23CheckRunnerItemFieldContractsTests'], 'methodCount': 110}
 
 def prepartition_values(default, mapping):
@@ -134,6 +136,10 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    for partition_id in SOURCE_GRAPH_PARTITION_CHOICES+DURABLE_PARTITION_CHOICES:
+        choice='          - '+partition_id+'\n'
+        if workflow.count(choice)!=1: raise AssertionError('missing exact durable workflow choice')
+        workflow=workflow.replace(choice,'')
     for group in REPORT_PARTITION_GROUPS:
         choice='          - '+group['id']+'\n'
         if workflow.count(choice)!=1: raise AssertionError('missing exact report workflow choice')
@@ -170,8 +176,103 @@ class ReportPartitionTests(unittest.TestCase):
         workflow=(ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
         prepartition_workflow(workflow)
         field=workflow.split('      native_selection_id:\n',1)[1].split('      s10_4_minimum_core_smoke_id:',1)[0]
-        self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],
-                         [mapping['defaultSelectionID']]+[g['id'] for g in mapping['groups']])
+        expected=[mapping['defaultSelectionID']]
+        for group in mapping['groups']:
+            expected.append(group['id'])
+            if group['id']=='c36-source-graph': expected.extend(SOURCE_GRAPH_PARTITION_CHOICES)
+            if group['id']=='c36-durable-begin': expected.extend(DURABLE_PARTITION_CHOICES)
+        self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
+
+    def test_actual_durable_method_partitions_are_fixed_complete_and_keep_n8_budgets(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        parent=CI.resolve_selection(default,mapping,CI.DURABLE_BEGIN_PARENT_ID)
+        self.assertEqual(tuple(parent['unitTestSelectors']),CI.DURABLE_BEGIN_PARENT_SELECTORS)
+        seen=[]
+        for partition_id,members in CI.DURABLE_BEGIN_METHOD_PARTITIONS:
+            actual=CI.resolve_selection(default,mapping,partition_id)
+            self.assertEqual(tuple(actual['unitTestSelectors']),members)
+            self.assertEqual(tuple(actual[k] for k in CI.BUDGET_KEYS),CI.TIERS['N8'])
+            seen.extend(actual['unitTestSelectors'])
+        self.assertEqual(len(seen),len(set(seen)))
+        self.assertEqual(set(seen),set(parent['unitTestSelectors']))
+        source=(ROOT/'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests.swift').read_text(encoding='utf-8')
+        declared={'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/'+name
+                  for name in re.findall(r'^    func (test\w+)\(',source,re.M)}
+        self.assertEqual(declared,set(CI.DURABLE_BEGIN_PARENT_SELECTORS))
+
+    def test_durable_method_partitions_reject_missing_duplicate_foreign_reordered_and_unknown(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        parent=list(CI.DURABLE_BEGIN_PARENT_SELECTORS)
+        cases=[]
+        missing=copy.deepcopy(default);missing['unitTestSelectors'].remove(parent[0]);cases.append(missing)
+        duplicate=copy.deepcopy(default);duplicate['unitTestSelectors'].append(parent[0]);cases.append(duplicate)
+        foreign=copy.deepcopy(default);foreign['unitTestSelectors'].append(
+            'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testForeign');cases.append(foreign)
+        reordered=copy.deepcopy(default)
+        positions=[reordered['unitTestSelectors'].index(item) for item in parent]
+        reordered['unitTestSelectors'][positions[0]],reordered['unitTestSelectors'][positions[1]]=parent[1],parent[0]
+        cases.append(reordered)
+        for hostile in cases:
+            with self.subTest(case=cases.index(hostile)),self.assertRaises(ValueError):
+                CI.resolve_selection(hostile,mapping,DURABLE_PARTITION_CHOICES[0])
+        with self.assertRaisesRegex(ValueError,'unknown selection ID'):
+            CI.resolve_selection(default,mapping,'c36-durable-begin-unknown')
+
+    def test_durable_partitions_reject_budget_or_whole_map_changes(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        bad_budget=copy.deepcopy(default);bad_budget['testTimeoutSeconds']=1200
+        with self.assertRaisesRegex(ValueError,'budgets'):
+            CI.resolve_selection(bad_budget,mapping,DURABLE_PARTITION_CHOICES[0])
+        for mutate in (lambda m:m['groups'].pop(),
+                       lambda m:m['groups'].append(copy.deepcopy(m['groups'][-1])),
+                       lambda m:m['groups'][32]['classes'].reverse()):
+            hostile=copy.deepcopy(mapping);mutate(hostile)
+            with self.subTest(mutate=mutate),self.assertRaises(ValueError):
+                CI.resolve_selection(default,hostile,DURABLE_PARTITION_CHOICES[1])
+
+    def test_actual_source_graph_partitions_are_fixed_23_1_1_complete_and_keep_n8_budgets(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        parent=CI.resolve_selection(default,mapping,CI.SOURCE_GRAPH_PARENT_ID)
+        self.assertEqual(tuple(parent['unitTestSelectors']),CI.SOURCE_GRAPH_PARENT_SELECTORS)
+        seen=[]
+        for (partition_id,members),count in zip(CI.SOURCE_GRAPH_METHOD_PARTITIONS,(23,1,1)):
+            actual=CI.resolve_selection(default,mapping,partition_id)
+            self.assertEqual(len(actual['unitTestSelectors']),count)
+            self.assertEqual(tuple(actual['unitTestSelectors']),members)
+            self.assertEqual(tuple(actual[k] for k in CI.BUDGET_KEYS),CI.TIERS['N8'])
+            seen.extend(actual['unitTestSelectors'])
+        self.assertEqual(len(seen),len(set(seen)))
+        self.assertEqual(set(seen),set(parent['unitTestSelectors']))
+        for selector in CI.SOURCE_GRAPH_PARENT_SELECTORS:
+            bundle,klass,method=selector.split('/')
+            source=(ROOT/bundle/(klass+'.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'\bfunc\s+'+re.escape(method)+r'\s*\(',source)),1)
+
+    def test_source_graph_partitions_reject_missing_duplicate_foreign_reordered_unknown_and_map_change(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        parent=list(CI.SOURCE_GRAPH_PARENT_SELECTORS)
+        cases=[]
+        missing=copy.deepcopy(default);missing['unitTestSelectors'].remove(parent[0]);cases.append(missing)
+        duplicate=copy.deepcopy(default);duplicate['unitTestSelectors'].append(parent[0]);cases.append(duplicate)
+        foreign=copy.deepcopy(default);foreign['unitTestSelectors'].append(
+            'FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testForeign');cases.append(foreign)
+        reordered=copy.deepcopy(default)
+        positions=[reordered['unitTestSelectors'].index(item) for item in parent[:2]]
+        reordered['unitTestSelectors'][positions[0]],reordered['unitTestSelectors'][positions[1]]=parent[1],parent[0]
+        cases.append(reordered)
+        for hostile in cases:
+            with self.subTest(case=cases.index(hostile)),self.assertRaises(ValueError):
+                CI.resolve_selection(hostile,mapping,SOURCE_GRAPH_PARTITION_CHOICES[0])
+        changed_map=copy.deepcopy(mapping);changed_map['groups'][31]['methodCount']=24
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default,changed_map,SOURCE_GRAPH_PARTITION_CHOICES[1])
+        with self.assertRaisesRegex(ValueError,'unknown selection ID'):
+            CI.resolve_selection(default,mapping,'c36-source-graph-unknown')
 
     def test_actual_partition_rejects_missing_duplicate_foreign_and_changed_class_groups(self):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json'); mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)

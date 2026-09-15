@@ -1044,6 +1044,12 @@ enum CanonicalJSONV1 {
 
     private static func quoted(_ value: String) throws -> String {
         let normalized = value.precomposedStringWithCanonicalMapping
+        // Canonical receipt/payload strings are commonly large base64 values.
+        // Copy strings without JSON escapes in one operation after the same
+        // normalization; retain the scalar escape path for every other value.
+        if normalized.utf8.allSatisfy({ $0 >= 0x20 && $0 != 0x22 && $0 != 0x5c }) {
+            return "\"" + normalized + "\""
+        }
         var result = "\""
         for scalar in normalized.unicodeScalars {
             switch scalar.value {
