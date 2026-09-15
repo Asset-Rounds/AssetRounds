@@ -10,7 +10,7 @@ import XCTest
 final class S3_2MediaPipelineTests: XCTestCase {
     private let fileManager = FileManager.default
 
-    func testSourceInspectionRetainsOriginalFactsAndExactNormalizedOutputs() throws {
+    func testSourceInspectionRetainsOriginalFactsAndExactNormalizedOutputs() async throws {
         let normalizer = MediaNormalizerV1()
         let source = try makePNG(width: 40, height: 20, seed: 53, orientation: 6)
         let sourceDigest = sha256(source)
@@ -37,6 +37,141 @@ final class S3_2MediaPipelineTests: XCTestCase {
         XCTAssertEqual(jpegFacts.pixelWidth, normalizedFacts.pixelWidth)
         XCTAssertEqual(jpegFacts.pixelHeight, normalizedFacts.pixelHeight)
         XCTAssertEqual(jpegFacts.byteCount, result.normalized.originalJPEG.count)
+        try await verifyCommittedPhotoMediaReadbacks(source: source, normalized: result.normalized)
+    }
+
+    private func verifyCommittedPhotoMediaReadbacks(source: Data, normalized: NormalizedMediaV1) async throws {
+        let applicationSupport = try makeTemporaryDirectory().resolvingSymlinksInPath()
+        defer { try? fileManager.removeItem(at: applicationSupport) }
+        let root = applicationSupport.appendingPathComponent(
+            "FieldEvidenceData/generations/\(UUID().uuidString.lowercased())", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        let workspace = WorkspaceID(rawValue: UUID())
+        let childID = UUID(), stageID = UUID(), evidenceID = UUID()
+        let date = Date(timeIntervalSince1970: 1_789_323_456)
+        let normalizer = MediaNormalizerV1()
+        let inspection = try CheckRunnerPhotoSourceInspectionV1(facts: normalizer.inspectSource(source),
+            sourceSHA256: .init(algorithm: .sha256, hexadecimalValue: sha256(source)),
+            workspaceID: workspace, provenanceID: "photo-media-read-original")
+        let intent = try CheckRunnerPhotoRawStageIntentV1(stageID: stageID,
+            stageMutationID: .init(rawValue: UUID()), stageCreatedAt: date,
+            expectedSourceByteCount: Int64(source.count), provenanceID: inspection.provenanceID,
+            evidenceID: evidenceID, evidenceCreatedAt: date)
+        let ready = try AttachmentStagingItemV1(stageID: stageID, draftID: childID,
+            workspaceID: workspace, attachmentKind: .photo, scratchLeaseID: stageID,
+            expectedByteCount: Int64(source.count), actualByteCount: Int64(source.count),
+            contentDigest: inspection.sourceSHA256, retryClass: .none, state: .readyLocal,
+            protectionState: .available, revision: 1, mutationID: intent.stageMutationID)
+        let provenance = try ContentOriginalProvenanceV1(provenanceID: inspection.provenanceID,
+            workspaceID: workspace.rawValue.uuidString.lowercased(), contentID: inspection.rawContentID,
+            contentDigest: inspection.sourceSHA256, origin: .humanCapture,
+            recordedAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(date))
+        let raw = try CheckRunnerPhotoRawReadyV1(intent: intent, inspection: inspection,
+            readyItem: ready, stagePublicationMutationID: intent.stageMutationID,
+            originalProvenance: provenance)
+        let store = EvidenceBundleStore(generationRootURL: root)
+        let request = try DraftImmutableContentWriteRequestV1(workspaceID: workspace,
+            contentID: inspection.rawContentID, digest: inspection.sourceSHA256,
+            byteLength: inspection.sourceByteCount, mediaType: inspection.sourceMediaType,
+            mutationID: .init(rawValue: UUID()),
+            createdAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(date.addingTimeInterval(1)))
+        let written = try await store.persistImmutableOriginal(bytes: source, request: request)
+        try written.validate(request: request, bytes: source)
+        let reference = try ContentReferenceV1(workspaceID: written.workspaceID.rawValue.uuidString.lowercased(),
+            contentID: written.contentID, byteLength: written.byteLength, mediaType: written.mediaType,
+            digests: .init([written.digest]), byteRole: written.byteRole, createdAt: written.createdAt)
+        let staged = try await store.stage(evidenceID: evidenceID, normalized: normalized)
+        let promoted = try await store.promote(staged)
+        let originalPixels = try normalizer.validateCanonicalJPEG(normalized.originalJPEG, kind: .original)
+        let thumbnailPixels = try normalizer.validateCanonicalJPEG(normalized.thumbnailJPEG, kind: .thumbnail)
+        func expectedPair(originalWidth: Int? = nil) throws -> CheckRunnerPhotoNormalizedPairV1 {
+            try .init(evidenceID: evidenceID, originalRelativePath: promoted.originalRelativePath,
+                originalByteCount: Int64(promoted.originalByteCount), originalSHA256: promoted.originalSHA256,
+                originalPixelWidth: originalWidth ?? originalPixels.pixelWidth,
+                originalPixelHeight: originalPixels.pixelHeight,
+                thumbnailRelativePath: promoted.thumbnailRelativePath,
+                thumbnailByteCount: Int64(promoted.thumbnailByteCount), thumbnailSHA256: promoted.thumbnailSHA256,
+                thumbnailPixelWidth: thumbnailPixels.pixelWidth, thumbnailPixelHeight: thumbnailPixels.pixelHeight,
+                sourceBinding: .init(contentID: inspection.rawContentID, digest: inspection.sourceSHA256),
+                sanitizedDerivative: CheckRunnerPhotoSourceMetadataProfileV1.sanitizedDerivative(),
+                thumbnailDerivative: CheckRunnerPhotoSourceMetadataProfileV1.thumbnailDerivative(
+                    pixelWidth: thumbnailPixels.pixelWidth, pixelHeight: thumbnailPixels.pixelHeight))
+        }
+        let pair = try expectedPair()
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        func read(pair expected: CheckRunnerPhotoNormalizedPairV1? = nil,
+                  raw sourceClaim: CheckRunnerPhotoRawReadyV1? = nil) async throws -> CheckRunnerPhotoMediaReadbackV1 {
+            try await store.readCheckRunnerPhotoMedia(raw: sourceClaim ?? raw, pair: expected ?? pair,
+                reference: reference, expectedGenerationRootIdentity: (identity.device, identity.inode))
+        }
+        func reject(_ message: String, pair expected: CheckRunnerPhotoNormalizedPairV1? = nil,
+                    raw sourceClaim: CheckRunnerPhotoRawReadyV1? = nil) async {
+            do { _ = try await read(pair: expected, raw: sourceClaim); XCTFail(message) }
+            catch { /* The exact owned bytes or their expected facts were rejected. */ }
+        }
+        let membersBefore = try fileManager.subpathsOfDirectory(atPath: root.path).sorted()
+        let readback = try await read()
+        XCTAssertEqual(readback.rawReference, reference)
+        XCTAssertEqual(readback.sourceInspection, inspection)
+        XCTAssertEqual(readback.normalizedPair, pair)
+        let reopened = EvidenceBundleStore(generationRootURL: root)
+        let coldRead = try await reopened.readCheckRunnerPhotoMedia(raw: raw, pair: pair,
+            reference: reference, expectedGenerationRootIdentity: (identity.device, identity.inode))
+        XCTAssertEqual(coldRead, readback)
+        XCTAssertEqual(try fileManager.subpathsOfDirectory(atPath: root.path).sorted(), membersBefore)
+        await reject("Declared pixels must match the actual canonical JPEG",
+            pair: try expectedPair(originalWidth: originalPixels.pixelWidth + 1))
+        let wrongInspection = try CheckRunnerPhotoSourceInspectionV1(
+            sourceByteCount: inspection.sourceByteCount, sourceSHA256: inspection.sourceSHA256,
+            detectedUTI: inspection.detectedUTI, sourceMediaType: inspection.sourceMediaType,
+            pixelWidth: inspection.pixelWidth + 1, pixelHeight: inspection.pixelHeight,
+            decodedPixelCount: Int64((inspection.pixelWidth + 1) * inspection.pixelHeight),
+            frameCount: 1, rawContentID: inspection.rawContentID, provenanceID: inspection.provenanceID)
+        let wrongRaw = try CheckRunnerPhotoRawReadyV1(intent: intent, inspection: wrongInspection,
+            readyItem: ready, stagePublicationMutationID: intent.stageMutationID, originalProvenance: provenance)
+        await reject("Source inspection must be repeated on the actual original bytes", raw: wrongRaw)
+        do {
+            _ = try await store.readCheckRunnerPhotoMedia(raw: raw, pair: pair, reference: reference,
+                expectedGenerationRootIdentity: (identity.device, identity.inode &+ 1))
+            XCTFail("A different generation inode must not supply media evidence")
+        } catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .generationRootInvalid) }
+
+        let rawURL = root.appendingPathComponent(written.relativePath)
+        let originalURL = root.appendingPathComponent(promoted.originalRelativePath)
+        let thumbnailURL = root.appendingPathComponent(promoted.thumbnailRelativePath)
+        for (url, bytes) in [(rawURL, source), (originalURL, normalized.originalJPEG),
+                             (thumbnailURL, normalized.thumbnailJPEG)] {
+            let hidden = url.appendingPathExtension("retained")
+            try fileManager.moveItem(at: url, to: hidden)
+            await reject("Missing owned media must fail without recreation")
+            XCTAssertFalse(fileManager.fileExists(atPath: url.path))
+            XCTAssertEqual(try Data(contentsOf: hidden), bytes)
+            try fileManager.moveItem(at: hidden, to: url)
+            var changed = bytes
+            changed[changed.count - 1] ^= 1
+            try changed.write(to: url)
+            await reject("Changed raw or JPEG bytes must fail without repair")
+            XCTAssertEqual(try Data(contentsOf: url), changed)
+            try bytes.write(to: url)
+        }
+        let hiddenRaw = rawURL.appendingPathExtension("retained")
+        try fileManager.moveItem(at: rawURL, to: hiddenRaw)
+        try fileManager.createSymbolicLink(at: rawURL, withDestinationURL: hiddenRaw)
+        await reject("A symlink cannot supply raw source authority")
+        XCTAssertEqual(try Data(contentsOf: hiddenRaw), source)
+        try fileManager.removeItem(at: rawURL)
+        try fileManager.moveItem(at: hiddenRaw, to: rawURL)
+        let marker = originalURL.deletingLastPathComponent().appendingPathComponent("pair-publication.json")
+        try Data("unexpected final marker".utf8).write(to: marker)
+        await reject("The committed evidence bundle must retain its exact two-file shape")
+        XCTAssertTrue(fileManager.fileExists(atPath: marker.path))
+        try fileManager.removeItem(at: marker)
+        let finalRead = try await read()
+        XCTAssertEqual(finalRead, readback)
+        XCTAssertEqual(try fileManager.subpathsOfDirectory(atPath: root.path).sorted(), membersBefore)
+        XCTAssertEqual(try Data(contentsOf: rawURL), source)
+        XCTAssertEqual(try Data(contentsOf: originalURL), normalized.originalJPEG)
+        XCTAssertEqual(try Data(contentsOf: thumbnailURL), normalized.thumbnailJPEG)
     }
 
     func testSourceInspectionPreservesInvalidInputFailurePrecedence() throws {

@@ -20,6 +20,14 @@ struct EvidenceBundleInput: Sendable {
     let thumbnailJPEG: Data
 }
 
+/// Fresh physical facts only. The application must retain and revalidate the
+/// original checkpoint, receipt, live generation and source that requested them.
+struct CheckRunnerPhotoMediaReadbackV1: Equatable, Sendable {
+    let rawReference: ContentReferenceV1
+    let sourceInspection: CheckRunnerPhotoSourceInspectionV1
+    let normalizedPair: CheckRunnerPhotoNormalizedPairV1
+}
+
 extension EvidenceBundleStore {
     /// C23 immutable originals never relocate or advance a locator revision.
     /// This is the owner's fixed mapping, independent of manifest expectations.
@@ -1438,6 +1446,70 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return promoted
     }
 
+    /// A committed PairReady claim replaces the staging marker after promotion.
+    /// Reopen the exact immutable raw source and the incumbent two-file bundle;
+    /// this read never normalizes, repairs, publishes or creates directories.
+    func readCheckRunnerPhotoMedia(
+        raw: CheckRunnerPhotoRawReadyV1,
+        pair: CheckRunnerPhotoNormalizedPairV1,
+        reference: ContentReferenceV1,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
+    ) throws -> CheckRunnerPhotoMediaReadbackV1 {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try raw.validate()
+        try pair.validate()
+        guard pair.evidenceID == raw.intent.evidenceID,
+              pair.sourceBinding.contentID == raw.inspection.rawContentID,
+              pair.sourceBinding.digest == raw.inspection.sourceSHA256,
+              reference.workspaceID == raw.readyItem.workspaceID.rawValue.uuidString.lowercased(),
+              reference.contentID == raw.inspection.rawContentID,
+              reference.byteLength == raw.inspection.sourceByteCount,
+              reference.mediaType == raw.inspection.sourceMediaType,
+              reference.digests == (try ContentDigestSetV1([raw.inspection.sourceSHA256])),
+              reference.byteRole == .immutableOriginal else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        return try withGenerationRootAuthority { authority in
+            guard authority.generationIdentity.device == expectedGenerationRootIdentity.device,
+                  authority.generationIdentity.inode == expectedGenerationRootIdentity.inode else {
+                throw EvidenceBundleStoreError.generationRootInvalid
+            }
+            try Task.checkCancellation()
+            // Finish the raw-data lifetime before reopening the normalized pair.
+            let sourceFacts = try { () throws -> MediaSourceFactsV1 in
+                let bytes = try readEvidenceDerivativeSource(reference)
+                return try MediaNormalizerV1().inspectSource(bytes)
+            }()
+            let inspected = try CheckRunnerPhotoSourceInspectionV1(
+                facts: sourceFacts,
+                sourceSHA256: raw.inspection.sourceSHA256,
+                workspaceID: raw.readyItem.workspaceID,
+                provenanceID: raw.inspection.provenanceID)
+            guard inspected == raw.inspection else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            try Task.checkCancellation()
+            let bundlePaths = paths(for: pair.evidenceID)
+            let facts = try verifyBundle(directoryURL: bundlePaths.promotedDirectoryURL,
+                evidenceID: pair.evidenceID, paths: bundlePaths)
+            guard pair.originalRelativePath == bundlePaths.originalRelativePath,
+                  pair.thumbnailRelativePath == bundlePaths.thumbnailRelativePath,
+                  pair.originalByteCount == Int64(facts.originalByteCount),
+                  pair.thumbnailByteCount == Int64(facts.thumbnailByteCount),
+                  pair.originalSHA256 == facts.originalSHA256,
+                  pair.thumbnailSHA256 == facts.thumbnailSHA256,
+                  pair.originalPixelWidth == facts.originalPixels.pixelWidth,
+                  pair.originalPixelHeight == facts.originalPixels.pixelHeight,
+                  pair.thumbnailPixelWidth == facts.thumbnailPixels.pixelWidth,
+                  pair.thumbnailPixelHeight == facts.thumbnailPixels.pixelHeight else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            return .init(rawReference: reference, sourceInspection: inspected,
+                normalizedPair: pair)
+        }
+    }
+
     func reconcile(authorities: [EvidenceBundleAuthority]) throws {
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
@@ -1572,6 +1644,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         let thumbnailByteCount: Int
         let originalSHA256: String
         let thumbnailSHA256: String
+        let originalPixels: CanonicalJPEGFactsV1
+        let thumbnailPixels: CanonicalJPEGFactsV1
     }
 
     nonisolated private func paths(for evidenceID: UUID) -> BundlePaths {
@@ -1687,20 +1761,23 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             )
             return (original, thumbnail)
         }
-        try validateCanonicalJPEG(original, kind: .original)
-        try validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+        let originalPixels = try validateCanonicalJPEG(original, kind: .original)
+        let thumbnailPixels = try validateCanonicalJPEG(thumbnail, kind: .thumbnail)
         return BundleFacts(
             originalByteCount: original.count,
             thumbnailByteCount: thumbnail.count,
             originalSHA256: sha256(original),
-            thumbnailSHA256: sha256(thumbnail)
+            thumbnailSHA256: sha256(thumbnail),
+            originalPixels: originalPixels,
+            thumbnailPixels: thumbnailPixels
         )
     }
 
+    @discardableResult
     nonisolated private func validateCanonicalJPEG(
         _ data: Data,
         kind: MediaContractV1.OutputKind
-    ) throws {
+    ) throws -> CanonicalJPEGFactsV1 {
         let facts: CanonicalJPEGFactsV1
         do {
             facts = try MediaNormalizerV1().validateCanonicalJPEG(data, kind: kind)
@@ -1714,6 +1791,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
               facts.pixelHeight <= kind.longestEdgeMaximum else {
             throw EvidenceBundleStoreError.canonicalJPEGInvalid
         }
+        return facts
     }
 
     private struct GenerationRootAuthority {

@@ -92,6 +92,12 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(current.value.currentTarget.laterPhotos, [])
             XCTAssertNil(current.value.currentTarget.finalization)
             try current.service.validateForPublication(current.value)
+            XCTAssertEqual(current.mediaValue.targetRead.currentTarget,
+                current.value.currentTarget)
+            XCTAssertEqual(current.mediaValue.media.sourceInspection.sourceSHA256,
+                current.mediaValue.media.rawReference.digests.digest(for: .sha256))
+            XCTAssertEqual(current.mediaValue.media.rawReference.byteLength,
+                Int64(current.sourceData.count))
 
             do {
                 _ = try await h.runner.finalize(assetID: h.assetID,
@@ -105,6 +111,12 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 parentDraftID: current.value.parentCheckpoint.draftID,
                 childDraftID: current.value.parent.slot.childDraftID))
             XCTAssertNil(stillAtClose.currentTarget.finalization)
+            let stillAtCloseMediaRead = try await current.service.readCurrentPhotoMedia(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID)
+            let stillAtCloseMedia = try XCTUnwrap(stillAtCloseMediaRead)
+            XCTAssertNil(stillAtCloseMedia.targetRead.currentTarget.finalization)
+            try await current.service.validateForPublication(stillAtCloseMedia)
             _ = try await h.runner.finalize(assetID: h.assetID,
                 selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil),
                 completedAt: Date(timeIntervalSince1970: 1_789_323_472),
@@ -116,6 +128,14 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(finalizedAtClose.currentTarget.laterPhotos, [])
             XCTAssertNotNil(finalizedAtClose.currentTarget.finalization)
             try current.service.validateForPublication(finalizedAtClose)
+            let finalizedAtCloseMediaRead = try await current.service.readCurrentPhotoMedia(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID)
+            let finalizedAtCloseMedia = try XCTUnwrap(finalizedAtCloseMediaRead)
+            XCTAssertEqual(finalizedAtCloseMedia.targetRead.currentTarget,
+                finalizedAtClose.currentTarget)
+            XCTAssertEqual(finalizedAtCloseMedia.media, current.mediaValue.media)
+            try await current.service.validateForPublication(finalizedAtCloseMedia)
             let finalization = try XCTUnwrap(finalizedAtClose.currentTarget.finalization)
             var command = try XCTUnwrap(JSONSerialization.jsonObject(with:
                 WorkspaceMutationCanonicalV1.data(finalization.envelope.command)) as? [String: Any])
@@ -341,6 +361,16 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(refreshed.historicalSource, source)
             XCTAssertThrowsError(try current.service.validateForPublication(current.value))
             try current.service.validateForPublication(refreshed)
+            do {
+                try await current.service.validateForPublication(current.mediaValue)
+                XCTFail("Saved media read must reject a later source revision")
+            } catch {}
+            let refreshedMediaRead = try await current.service.readCurrentPhotoMedia(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID)
+            let refreshedMedia = try XCTUnwrap(refreshedMediaRead)
+            XCTAssertEqual(refreshedMedia.targetRead.currentTarget, refreshed.currentTarget)
+            try await current.service.validateForPublication(refreshedMedia)
             XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: latest,
                 publishedRelease: h.publishedRelease, signPack: h.signPack))
             XCTAssertThrowsError(try h.captureSource())
@@ -371,6 +401,10 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 publishedRelease: h.publishedRelease, requestedEntry: .check
             ))
             XCTAssertThrowsError(try foreignService.validateForPublication(current.value))
+            do {
+                try await foreignService.validateForPublication(current.mediaValue)
+                XCTFail("Foreign media-read owner must reject publication")
+            } catch {}
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.snapshot(), before)
 
@@ -389,6 +423,14 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 [closeCandidate.id])
             XCTAssertNotNil(finalizedAtOutcome.currentTarget.finalization)
             try current.service.validateForPublication(finalizedAtOutcome)
+            let finalizedAtOutcomeMediaRead = try await current.service.readCurrentPhotoMedia(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID)
+            let finalizedAtOutcomeMedia = try XCTUnwrap(finalizedAtOutcomeMediaRead)
+            XCTAssertEqual(finalizedAtOutcomeMedia.targetRead.currentTarget,
+                finalizedAtOutcome.currentTarget)
+            XCTAssertEqual(finalizedAtOutcomeMedia.media, current.mediaValue.media)
+            try await current.service.validateForPublication(finalizedAtOutcomeMedia)
         }
 
         try await withAsyncFrozenBeginFixture("dirty-context", entry: .check,
@@ -407,6 +449,10 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 publishedRelease: h.publishedRelease, submission: h.validSubmission()
             ))
             XCTAssertThrowsError(try current.service.validateForPublication(current.value))
+            do {
+                try await current.service.validateForPublication(current.mediaValue)
+                XCTFail("Dirty context must reject media publication validation")
+            } catch {}
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.rowSnapshot(), before)
             XCTAssertTrue(h.context.hasChanges)
@@ -434,6 +480,10 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(try h.rowSnapshot(), before)
             try h.closeCoordinator()
             XCTAssertThrowsError(try current.service.validateForPublication(current.value))
+            do {
+                try await current.service.validateForPublication(current.mediaValue)
+                XCTFail("Invalidated session must reject media publication validation")
+            } catch {}
             XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
                 publishedRelease: h.publishedRelease, signPack: h.signPack))
             XCTAssertThrowsError(try h.runner.prepareFrozenBegin(
@@ -482,6 +532,12 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 parentDraftID: current.value.parentCheckpoint.draftID,
                 childDraftID: current.value.parent.slot.childDraftID))
             try current.service.validateForPublication(pendingCurrent)
+            let pendingMediaRead = try await current.service.readCurrentPhotoMedia(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID)
+            let pendingMedia = try XCTUnwrap(pendingMediaRead)
+            XCTAssertEqual(pendingMedia.targetRead.currentTarget, pendingCurrent.currentTarget)
+            try await current.service.validateForPublication(pendingMedia)
             XCTAssertThrowsError(try h.captureSource())
             XCTAssertEqual(try h.snapshot(), before)
 
@@ -498,6 +554,12 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 childDraftID: current.value.parent.slot.childDraftID))
             XCTAssertEqual(completedCurrent.historicalSource, source)
             try current.service.validateForPublication(completedCurrent)
+            let completedMediaRead = try await current.service.readCurrentPhotoMedia(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID)
+            let completedMedia = try XCTUnwrap(completedMediaRead)
+            XCTAssertEqual(completedMedia.targetRead.currentTarget, completedCurrent.currentTarget)
+            try await current.service.validateForPublication(completedMedia)
             XCTAssertThrowsError(try h.captureSource())
             XCTAssertThrowsError(try h.runner.prepareFrozenBegin(source: source, progress: h.progress,
                 publishedRelease: h.publishedRelease, submission: h.validSubmission()))
@@ -519,6 +581,74 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertThrowsError(try current.service.readCurrentPhotoTarget(
                 parentDraftID: current.value.parentCheckpoint.draftID,
                 childDraftID: current.value.parent.slot.childDraftID))
+            do {
+                _ = try await current.service.readCurrentPhotoMedia(
+                    parentDraftID: current.value.parentCheckpoint.draftID,
+                    childDraftID: current.value.parent.slot.childDraftID)
+                XCTFail("Externally closed Round must reject media read")
+            } catch {}
+            XCTAssertEqual(h.ids.callCount, idCalls)
+            XCTAssertEqual(try h.snapshot(), before)
+        }
+
+        try await withAsyncFrozenBeginFixture("missing-current-raw", entry: .check,
+                                   storedTimeZoneID: "America/New_York") { h in
+            let current = try await h.persistCurrentPhotoApplicationFixture()
+            let before = try h.snapshot(), idCalls = h.ids.callCount
+            let raw = current.mediaValue.media.rawReference
+            let rawURL = h.session.generationRootURL
+                .appendingPathComponent("content", isDirectory: true)
+                .appendingPathComponent(raw.workspaceID, isDirectory: true)
+                .appendingPathComponent(raw.contentID, isDirectory: true)
+                .appendingPathComponent("original.bin")
+            XCTAssertNotNil(try current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
+            var hostileRaw = current.sourceData
+            hostileRaw[hostileRaw.startIndex] ^= 0xff
+            try hostileRaw.write(to: rawURL, options: [])
+            do {
+                _ = try await current.service.readCurrentPhotoMedia(
+                    parentDraftID: current.value.parentCheckpoint.draftID,
+                    childDraftID: current.value.parent.slot.childDraftID)
+                XCTFail("Tampered immutable original must reject media read")
+            } catch {}
+            try FileManager.default.removeItem(at: rawURL)
+            do {
+                _ = try await current.service.readCurrentPhotoMedia(
+                    parentDraftID: current.value.parentCheckpoint.draftID,
+                    childDraftID: current.value.parent.slot.childDraftID)
+                XCTFail("Missing immutable original must reject media read")
+            } catch {}
+            XCTAssertEqual(h.ids.callCount, idCalls)
+            XCTAssertEqual(try h.snapshot(), before)
+        }
+
+        try await withAsyncFrozenBeginFixture("tampered-current-jpeg", entry: .check,
+                                   storedTimeZoneID: "America/New_York") { h in
+            let current = try await h.persistCurrentPhotoApplicationFixture()
+            let before = try h.snapshot(), idCalls = h.ids.callCount
+            let originalURL = h.session.generationRootURL.appendingPathComponent(
+                current.mediaValue.media.normalizedPair.originalRelativePath)
+            var hostile = try Data(contentsOf: originalURL)
+            hostile[hostile.startIndex] ^= 0xff
+            try hostile.write(to: originalURL, options: [])
+            XCTAssertNotNil(try current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
+            do {
+                _ = try await current.service.readCurrentPhotoMedia(
+                    parentDraftID: current.value.parentCheckpoint.draftID,
+                    childDraftID: current.value.parent.slot.childDraftID)
+                XCTFail("Tampered promoted JPEG must reject media read")
+            } catch {}
+            try FileManager.default.removeItem(at: originalURL)
+            do {
+                _ = try await current.service.readCurrentPhotoMedia(
+                    parentDraftID: current.value.parentCheckpoint.draftID,
+                    childDraftID: current.value.parent.slot.childDraftID)
+                XCTFail("Missing promoted JPEG must reject media read")
+            } catch {}
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.snapshot(), before)
         }
@@ -758,6 +888,8 @@ final class FrozenBeginFixture {
     struct CurrentPhotoApplicationFixture {
         let service: ProductionCheckRunnerItemDraftServiceV1
         let value: CurrentPhotoTargetReadV1
+        let mediaValue: CurrentPhotoMediaReadV1
+        let sourceData: Data
     }
 
     init(root: URL, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?) throws {
@@ -926,7 +1058,7 @@ final class FrozenBeginFixture {
         XCTAssertNil(attempt.timeZone)
 
         runner.configureCapture(generationRootURL: session.generationRootURL)
-        let sourceData = WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 201)
+        let sourceData = try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 201)
         let media = try MediaNormalizerV1().normalizeWithSourceFacts(sourceData)
         let evidenceCreatedAt = bound.updatedAt.addingTimeInterval(1)
         let candidate = try await runner.importCandidate(assetID: source.assetID,
@@ -1071,12 +1203,22 @@ final class FrozenBeginFixture {
         let reconstruction = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: committing)
         let commit = reconstruction.draftCommit
         _ = try adapter.append(saga: commit.sagas[0], expectedRevision: 0)
+        let rawRequest = try DraftImmutableContentWriteRequestV1(
+            workspaceID: workspaceID, contentID: inspection.rawContentID,
+            digest: inspection.sourceSHA256, byteLength: inspection.sourceByteCount,
+            mediaType: inspection.sourceMediaType,
+            mutationID: commitAttempt.reservationMutationID,
+            createdAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(
+                commitAttempt.promotionAt))
+        let rawReceipt = try await EvidenceBundleStore(
+            generationRootURL: session.generationRootURL
+        ).persistImmutableOriginal(bytes: sourceData, request: rawRequest)
+        try rawReceipt.validate(request: rawRequest, bytes: sourceData)
         let reference = try ContentReferenceV1(
-            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
-            contentID: inspection.rawContentID, byteLength: inspection.sourceByteCount,
-            mediaType: inspection.sourceMediaType, digests: .init([inspection.sourceSHA256]),
-            byteRole: .immutableOriginal,
-            createdAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(commitAttempt.promotionAt))
+            workspaceID: rawReceipt.workspaceID.rawValue.uuidString.lowercased(),
+            contentID: rawReceipt.contentID, byteLength: rawReceipt.byteLength,
+            mediaType: rawReceipt.mediaType, digests: .init([rawReceipt.digest]),
+            byteRole: rawReceipt.byteRole, createdAt: rawReceipt.createdAt)
         let committedStage = try AttachmentStagingItemV1(stageID: ready.stageID,
             draftID: ready.draftID, workspaceID: ready.workspaceID,
             attachmentKind: ready.attachmentKind, scratchLeaseID: ready.scratchLeaseID,
@@ -1088,7 +1230,7 @@ final class FrozenBeginFixture {
             mutationID: .init(rawValue: DraftAttachmentStagingAdapterV1.deterministicUUID(
                 "stage-mutation\u{1f}\(stageID.uuidString.lowercased())\u{1f}2\u{1f}COMMITTED\u{1f}\(inspection.sourceSHA256.hexadecimalValue)")))
         _ = try adapter.append(stagingItem: committedStage, expectedRevision: ready.revision)
-        let locator = try ContentLocatorV1(locatorID: "application-photo-current-v1",
+        let locator = try ContentLocatorV1(locatorID: rawReceipt.locatorID,
             workspaceID: workspaceID.rawValue.uuidString.lowercased(),
             contentID: inspection.rawContentID, locatorRevision: 0,
             contentDigest: inspection.sourceSHA256,
@@ -1160,9 +1302,18 @@ final class FrozenBeginFixture {
         let value = try XCTUnwrap(service.readCurrentPhotoTarget(
             parentDraftID: parentCommitted.draftID, childDraftID: childDraftID))
         try service.validateForPublication(value)
+        let mediaRead = try await service.readCurrentPhotoMedia(
+            parentDraftID: parentCommitted.draftID, childDraftID: childDraftID)
+        let mediaValue = try XCTUnwrap(mediaRead)
+        try await service.validateForPublication(mediaValue)
+        XCTAssertEqual(mediaValue.targetRead.currentTarget, value.currentTarget)
+        XCTAssertEqual(mediaValue.media.rawReference, reference)
+        XCTAssertEqual(mediaValue.media.sourceInspection, inspection)
+        XCTAssertEqual(mediaValue.media.normalizedPair, normalized)
         XCTAssertEqual(ids.callCount, idCalls)
         XCTAssertEqual(try snapshot(), beforeRead)
-        return .init(service: service, value: value)
+        return .init(service: service, value: value, mediaValue: mediaValue,
+            sourceData: sourceData)
     }
 
     private func parentSuccessor(_ predecessor: FieldDraftCheckpointV1,

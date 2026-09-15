@@ -1519,7 +1519,8 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         }
         defer { try? coordinator?.invalidateAndReleaseWriter() }
         let stored = try observe("persistPhotoCommit") {
-            try persistPhotoCommit(fixture, coordinator: try XCTUnwrap(coordinator))
+            try persistPhotoCommit(fixture, coordinator: try XCTUnwrap(coordinator),
+                beginCommittedAt: clock.millisecondValue)
         }
         let writer = try XCTUnwrap(coordinator).workspaceWriter
         let before = try observe("initialSnapshotAndReads") { try writer.sourceMutationHistorySnapshot() }
@@ -2233,7 +2234,8 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
 
     @MainActor
     private func persistPhotoCommit(_ fixture: PhotoFixture,
-                                    coordinator: StoreSessionCoordinator) throws -> StoredPhotoCommit {
+                                    coordinator: StoreSessionCoordinator,
+                                    beginCommittedAt: Date) throws -> StoredPhotoCommit {
         let writer = coordinator.workspaceWriter
         let workspaceID = fixture.parent.source.roundAtEntry.workspaceID
         let firstMutation = try MutationIDV1(rawValue: largeID(71_000))
@@ -2265,12 +2267,12 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             confirmedAt: fixture.parentFixture.attempt.recordCommand.startedAt)
         let timeZoneAttempt = try CheckRunnerBeginTimeZoneAttemptV1(command: zoneCommand,
             mutationID: zoneMutationID, expectedSiteRevision: known[siteIdentity, default: 0],
-            committedAt: clock.millisecondValue)
+            committedAt: beginCommittedAt)
         let actualAttempt = try CheckRunnerFrozenBeginAttemptV1(source: fixture.parent.source,
             sourceWorkspaceID: workspaceID, recordCommand: fixture.parentFixture.attempt.recordCommand,
             recordMutationID: fixture.parentFixture.attempt.recordMutationID,
             recordExpectedEntityRevisions: expectedRecordRevisions,
-            recordCommittedAt: clock.millisecondValue, timeZone: timeZoneAttempt,
+            recordCommittedAt: beginCommittedAt, timeZone: timeZoneAttempt,
             siteID: fixture.parentFixture.attempt.siteID,
             resolvedSiteTimeZoneID: fixture.parentFixture.attempt.resolvedSiteTimeZoneID)
         let adapter = try writer.makeFieldDraftLifecycleAdapter(modelContext: coordinator.modelContext)

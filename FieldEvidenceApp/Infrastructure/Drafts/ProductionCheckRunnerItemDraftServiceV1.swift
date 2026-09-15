@@ -16,6 +16,11 @@ struct CurrentPhotoTargetReadV1 {
     fileprivate let revision: WorkspaceRevisionV1
 }
 
+struct CurrentPhotoMediaReadV1 {
+    let targetRead: CurrentPhotoTargetReadV1
+    let media: CheckRunnerPhotoMediaReadbackV1
+}
+
 /// Initial parent/Begin persistence only. No production factory registers this
 /// owner until the remaining child, restore and lifecycle prerequisites pass.
 @MainActor
@@ -128,6 +133,28 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
               refreshed.currentTarget == value.currentTarget else {
             throw ScanToWorkFailureV1.stale
         }
+    }
+
+    /// Fresh physical bytes are joined only to the complete authenticated
+    /// current target. A missing/corrupt owned file is an error, never repair.
+    func readCurrentPhotoMedia(parentDraftID: UUID, childDraftID: UUID) async throws
+        -> CurrentPhotoMediaReadV1? {
+        guard let target = try readCurrentPhotoTarget(parentDraftID: parentDraftID,
+            childDraftID: childDraftID) else { return nil }
+        let media = try await coordinator.readCheckRunnerPhotoMedia(
+            target: target.currentTarget, progress: progress)
+        try validateForPublication(target)
+        return .init(targetRead: target, media: media)
+    }
+
+    /// A saved filesystem observation is not a publication capability. Repeat
+    /// the logical and physical reads, closing the owner interval after await.
+    func validateForPublication(_ value: CurrentPhotoMediaReadV1) async throws {
+        try validateForPublication(value.targetRead)
+        let observed = try await coordinator.readCheckRunnerPhotoMedia(
+            target: value.targetRead.currentTarget, progress: progress)
+        try validateForPublication(value.targetRead)
+        guard observed == value.media else { throw ScanToWorkFailureV1.stale }
     }
 
     /// Explicit Begin freezes once. A repeated request observes the saved

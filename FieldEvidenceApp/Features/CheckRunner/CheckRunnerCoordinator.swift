@@ -1239,6 +1239,56 @@ final class CheckRunnerCoordinator {
         _ = try frozenBeginDependencies(progress: progress)
     }
 
+    /// Reuses the configured physical owner for the receipt-backed committed
+    /// photo. The application closes the historical source/target read again
+    /// after this actor boundary before it publishes the returned facts.
+    func readCheckRunnerPhotoMedia(
+        target: CheckRunnerPhotoCurrentTargetEvidenceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2
+    ) async throws -> CheckRunnerPhotoMediaReadbackV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let revision = try dependencies.writer.currentRevision()
+        guard target.parent.checkpoint.workspaceID == dependencies.workspaceID,
+              captureGenerationRootURL == dependencies.generationRootURL,
+              let store = evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        let child = target.parent.child
+        let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(
+            child.reconstruction.draftCommit.checkpoint)
+        guard case let .preparedCommit(pair, attempt) = payload.phase else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        let reference = try ContentReferenceV1(
+            workspaceID: child.reservation.locator.workspaceID,
+            contentID: pair.raw.inspection.rawContentID,
+            byteLength: pair.raw.inspection.sourceByteCount,
+            mediaType: pair.raw.inspection.sourceMediaType,
+            digests: .init([pair.raw.inspection.sourceSHA256]),
+            byteRole: .immutableOriginal,
+            createdAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(attempt.promotionAt))
+        if let recorded = child.stage.contentReference {
+            guard recorded == reference else { throw FieldDraftFailureV1.digestMismatch }
+        }
+        let root = dependencies.generationRootURL
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        try Task.checkCancellation()
+        let media = try await store.readCheckRunnerPhotoMedia(raw: pair.raw,
+            pair: pair.normalizedPair, reference: reference,
+            expectedGenerationRootIdentity: (rootIdentity.device, rootIdentity.inode))
+        try Task.checkCancellation()
+        let closing = try frozenBeginDependencies(progress: progress)
+        guard closing.writer === dependencies.writer,
+              closing.generationID == dependencies.generationID,
+              closing.generationRootURL == root,
+              captureGenerationRootURL == root, evidenceBundleStore === store,
+              try closing.writer.currentRevision() == revision,
+              try ReportPDFAnchoredFile.rootIdentity(at: root) == rootIdentity else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        return media
+    }
+
     /// Produces source inputs only. The eventual parent owner must retain this
     /// exact value before any effect; this method does not perform retry/resume.
     func prepareFrozenBegin(
