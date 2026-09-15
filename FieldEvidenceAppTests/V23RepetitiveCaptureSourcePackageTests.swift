@@ -16,6 +16,16 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
         XCTAssertEqual(package.records.roundSessions, fixture.rounds)
         XCTAssertEqual(package.records.fieldDrafts.count, fixture.checkpoints.count)
         XCTAssertEqual(package.records.mutationHistory, fixture.history)
+        let stock = try XCTUnwrap(package.records.partsStockSnapshot)
+        try stock.validate()
+        XCTAssertEqual(stock.workspaceID, fixture.workspaceID)
+        XCTAssertTrue(stock.parts.isEmpty && stock.locations.isEmpty && stock.movements.isEmpty
+            && stock.uses.isEmpty && stock.reversals.isEmpty && stock.returns.isEmpty
+            && stock.abandonments.isEmpty)
+        let receiptKeys = try fixture.history.receipts.map {
+            try MutationReceiptV1.decodeCanonical(from: $0.receiptData).identity.stableKey
+        }
+        XCTAssertEqual(receiptKeys, receiptKeys.sorted())
         XCTAssertEqual(package.manifestJSONSHA256,
                        KernelCanonicalHashV1.sha256(try fixture.memberData("manifest.json")))
         XCTAssertEqual(package.recordsJSONSHA256,
@@ -235,6 +245,9 @@ final class RepetitiveCaptureSourcePackageFixture {
             assets: [], deletionLedger: .empty, evidenceFiles: [], issues: [],
             mutationHistory: history, packets: [], recordsSchemaVersion: 44,
             reports: [], sites: [], workflowRecords: [],
+            partsStockSnapshot: try .init(workspaceID: workspaceID,
+                parts: [], locations: [], movements: [], uses: [], reversals: [],
+                returns: [], abandonments: []),
             roundSessions: rounds)
     }
 
@@ -788,6 +801,14 @@ final class RepetitiveCaptureSourcePackageFixture {
             recordedAt: date.addingTimeInterval(Double(prior.revision)))
     }
 
+    private static func canonicalReceipts(_ records: [MutationHistoryReceiptRecordV1]) throws
+        -> [MutationHistoryReceiptRecordV1] {
+        let keyed: [(String, MutationHistoryReceiptRecordV1)] = try records.map { record in
+            (try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity.stableKey, record)
+        }
+        return keyed.sorted { $0.0 < $1.0 }.map { $0.1 }
+    }
+
     private static func combining(_ primary: MutationHistorySnapshotV1,
                                   _ foreign: MutationHistorySnapshotV1) throws
         -> MutationHistorySnapshotV1 {
@@ -804,7 +825,7 @@ final class RepetitiveCaptureSourcePackageFixture {
         let value = MutationHistorySnapshotV1(
             workspaceRevision: primary.workspaceRevision,
             lastLocalSequence: primary.lastLocalSequence,
-            receipts: primary.receipts + foreign.receipts,
+            receipts: try canonicalReceipts(primary.receipts + foreign.receipts),
             quarantines: primary.quarantines + foreign.quarantines,
             entityRevisions: projections.values.sorted {
                 $0.identity.stableKey < $1.identity.stableKey
@@ -953,12 +974,16 @@ final class RepetitiveCaptureSourcePackageFixture {
         }
 
         func snapshot() throws -> MutationHistorySnapshotV1 {
+            let receipts: [MutationHistoryReceiptRecordV1] = try events.map { event in
+                .init(envelopeData: try event.envelope.canonicalData(),
+                    receiptData: try event.receipt.canonicalData(),
+                    reversalBasisData: event.reversalBasisData,
+                    semanticReversalData: event.semanticReversalData)
+            }
             let value = MutationHistorySnapshotV1(
                 workspaceRevision: UInt64(events.count), lastLocalSequence: UInt64(events.count),
-                receipts: try events.map { .init(envelopeData: try $0.envelope.canonicalData(),
-                    receiptData: try $0.receipt.canonicalData(),
-                    reversalBasisData: $0.reversalBasisData,
-                    semanticReversalData: $0.semanticReversalData) }, quarantines: [],
+                receipts: try RepetitiveCaptureSourcePackageFixture.canonicalReceipts(receipts),
+                quarantines: [],
                 entityRevisions: revisions.map { .init(identity: $0.key, revision: $0.value) }
                     .sorted { $0.identity.stableKey < $1.identity.stableKey })
             try MutationJournalStoreV1.validateImportedSnapshot(value,

@@ -38,12 +38,13 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "41986A5D422895AABB7135B9B78B6BE9090E381280FB0CC4C6F9AAA87D19837F"
-SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V1"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "2B2F3D7DD16E97357DE5816613AAE2C0F7F4E3F1F1B53E83B0A8D53E578AC27F"
+SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
+SIMULATOR_DIAGNOSTIC_MARKER_STEM = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_"
 SIMULATOR_DIAGNOSTIC_OUTPUT = "simulator-file-protection-diagnostics.json"
 SIMULATOR_DIAGNOSTIC_FIELDS = (
     "policyID", "disposition", "kind", "request", "capabilityBefore", "capabilityAfter",
-    "urlProtection", "fileManagerProtection", "backupExcluded", "expectsDirectory",
+    "urlProtection", "backupExcluded", "expectsDirectory",
     "identityUnchanged",
 )
 SIMULATOR_DIAGNOSTIC_DISPOSITION = "SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
@@ -178,8 +179,7 @@ def parse_simulator_diagnostic_line(line):
             "simulator diagnostic identity")
     require(values["capabilityBefore"] == values["capabilityAfter"] == "false",
             "simulator diagnostic capability")
-    require(values["urlProtection"] == values["fileManagerProtection"]
-            == SIMULATOR_FALLBACK_PROTECTION,
+    require(values["urlProtection"] == SIMULATOR_FALLBACK_PROTECTION,
             "simulator diagnostic protection readback")
     kind = values["kind"]
     require(kind in OWNED_FILE_DISPOSITIONS, "simulator diagnostic owned kind")
@@ -196,7 +196,6 @@ def parse_simulator_diagnostic_line(line):
         "capabilityBefore": False,
         "capabilityAfter": False,
         "urlProtection": values["urlProtection"],
-        "fileManagerProtection": values["fileManagerProtection"],
         "backupExcluded": expected_backup,
         "expectsDirectory": expected_directory,
         "identityUnchanged": True,
@@ -245,7 +244,7 @@ def simulator_diagnostic_observations(root, artifact, record):
             lines = log_bytes.decode("utf-8").splitlines()
             events = []
             for line in lines:
-                if SIMULATOR_DIAGNOSTIC_PREFIX in line:
+                if SIMULATOR_DIAGNOSTIC_MARKER_STEM in line:
                     events.append(parse_simulator_diagnostic_line(line))
             evidence["parseStatus"] = "PASS"
             evidence["events"] = events

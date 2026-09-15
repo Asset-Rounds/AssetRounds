@@ -28,6 +28,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
             .fieldDraftStagingFile,
             .temporaryFile,
             .generationPointerTemporary,
+            .generationLeaseDirectory,
             .generationLeaseControl,
             .generationLeaseControlTemporary,
             .generationLeaseOwnerLock,
@@ -116,7 +117,9 @@ final class V9_02FileAuthorityTests: XCTestCase {
             }
             for protection in ["complete", "completeUnlessOpen", "none", "unknown", "other", "readError"] {
                 XCTAssertFalse(allowed(false, facts(url: protection)), protection)
-                XCTAssertFalse(allowed(false, facts(manager: protection)), protection)
+                // FileManager remains a retained diagnostic observation. The
+                // approved predicate uses the separately reconstructed URL.
+                XCTAssertTrue(allowed(false, facts(manager: protection)), protection)
             }
             // Even the admitted fallback is denied on a supported volume.
             for protection in ["completeUntilFirstUserAuthentication", "completeUnlessOpen", "none", "unknown"] {
@@ -1183,11 +1186,8 @@ private extension V9_02FileAuthorityTests {
             .fileProtectionKey, .isExcludedFromBackupKey, .isDirectoryKey,
             .volumeSupportsFileProtectionKey,
         ])
-        let attributes = try fileManager.attributesOfItem(atPath: url.path)
         XCTAssertEqual(values.allValues[.volumeSupportsFileProtectionKey] as? Bool, false, file: file, line: line)
         XCTAssertEqual(values.fileProtection, .completeUntilFirstUserAuthentication, file: file, line: line)
-        XCTAssertEqual(attributes[.protectionKey] as? FileProtectionType,
-            .completeUntilFirstUserAuthentication, file: file, line: line)
         XCTAssertEqual(values.isExcludedFromBackup,
             ProtectedFilePolicyV1.disposition(for: kind).isExcludedFromBackup, file: file, line: line)
         XCTAssertEqual(values.isDirectory,

@@ -85,7 +85,6 @@ def diagnostic_line(base_kind="database", **changes):
         "capabilityBefore": "false",
         "capabilityAfter": "false",
         "urlProtection": CI.SIMULATOR_FALLBACK_PROTECTION,
-        "fileManagerProtection": CI.SIMULATOR_FALLBACK_PROTECTION,
         "backupExcluded": str(backup).lower(),
         "expectsDirectory": str(directory).lower(),
         "identityUnchanged": "true",
@@ -328,13 +327,17 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
             ("policyID", "foreign"), ("disposition", "VERIFIED_COMPLETE"),
             ("kind", "foreignKind"), ("request", "none"),
             ("capabilityBefore", "true"), ("capabilityAfter", "unknown"),
-            ("urlProtection", "complete"), ("fileManagerProtection", "none"),
+            ("urlProtection", "complete"),
             ("backupExcluded", "true"), ("expectsDirectory", "true"),
             ("identityUnchanged", "false"),
         ):
             variants.append((field, diagnostic_line("database", **{field: value})))
         valid = diagnostic_line().strip()
         variants += [
+            ("old-v1-marker", valid.replace(CI.SIMULATOR_DIAGNOSTIC_PREFIX,
+                                             "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V1", 1) + "\n"),
+            ("removed-file-manager-field", valid.replace(
+                " backupExcluded=", " fileManagerProtection=completeUntilFirstUserAuthentication backupExcluded=", 1) + "\n"),
             ("duplicate", valid + " kind=database\n"),
             ("missing", valid.rsplit(" ", 1)[0] + "\n"),
             ("reordered", valid.replace(" policyID=", " PLACEHOLDER=").replace(
@@ -345,6 +348,21 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
         for name, line in variants:
             with self.subTest(name=name), self.assertRaises(ValueError):
                 CI.parse_simulator_diagnostic_line(line)
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        for marker in ("V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V1",
+                       "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_FOREIGN"):
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory(
+                    prefix="v23-simulator-stale-marker-") as directory:
+                artifact = Path(directory)
+                (artifact / "test-smoke.log").write_text(
+                    diagnostic_line().replace(CI.SIMULATOR_DIAGNOSTIC_PREFIX, marker, 1),
+                    encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "log parse"):
+                    CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+                retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+                self.assertEqual(retained["parseStatus"], "INVALID")
+                self.assertFalse(retained["zeroUseObserved"])
+                self.assertEqual(retained["events"], [])
 
     def test_absent_log_is_unavailable_and_malformed_log_is_persisted_before_failure(self):
         record = CI.admission(selection(), environment(), HEAD, "worker")
@@ -555,7 +573,67 @@ class WorkflowWiringTests(unittest.TestCase):
             'testCompactReferenceLongLifecycleKeepsBoundedPayloadAndCompleteHistory',
         ]]
 
+    def parent_field_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name for name in [
+            'testAllSixSnapshotsUseShippingResolverAndCheckRecheckMatrix',
+            'testSnapshotsHaveExactCanonicalRoundTripAndResolverInverse',
+            'testInverseRejectsEveryStaleDisplayKeyVersionAndNoncanonicalNoteClaim',
+            'testPrepareProjectsRawNotesWithoutMutatingEditorOrIrrelevantFields',
+            'testPendingAndCommittedSlotsValidateExactPurposeAndSameChildReplacement',
+            'testTwoSlotsRequireDistinctChildAndEvidenceIdentitiesAndValidLinkage',
+            'testClosedSnapshotDecoderRejectsUnknownTagKeyAssociatedMissingAndType',
+            'testClosedPhotoSlotDecoderRejectsUnknownTagKeyAssociatedMissingAndType',
+            'testAllSemanticAnchorsProduceExactResumeAnchorStrings',
+        ]]
+
+    def prior_83def91_pool(self, default):
+        self.assertEqual(len(default['unitTestSelectors']), 633)
+        self.assertEqual(default['unitTestSelectors'][624:], self.parent_field_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:624]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '84ACB41C376A984B63A084C3D5B6575C9E00FC89DBD483F442F910E73F085468')
+        return prior
+
+    def prior_83def91_map(self, mapping):
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 51)
+        self.assertEqual(group['classes'].pop(), 'V23CheckRunnerItemFieldContractsTests')
+        group['methodCount'] = 42
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '227423ABFFD531551C55711ED7B8307E70D16278D7BEE9E66B21EBB3E7A5205E')
+        return prior
+
+    def test_parent_field_admission_preserves_prior_pool_map_and_complete_source_class(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        prior, prior_map = self.prior_83def91_pool(default), self.prior_83def91_map(mapping)
+        appended = self.parent_field_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
+        actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
+                  for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
+        self.assertEqual(actual, appended)
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        for mutate in (
+            lambda g: g.update(methodCount=50),
+            lambda g: g['classes'].pop(),
+            lambda g: g['classes'].append('V23CheckRunnerItemFieldContractsTests'),
+            lambda g: g['classes'].append('V23CheckRunnerBeginReceiptReferenceTests'),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
     def prior_4977aa4_pool(self, default):
+        if len(default['unitTestSelectors']) == 633:
+            default = self.prior_83def91_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 624)
         self.assertEqual(default['unitTestSelectors'][618:], self.compact_reference_append())
         prior = copy.deepcopy(default)
@@ -564,6 +642,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_4977aa4_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 51:
+            mapping = self.prior_83def91_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior['groups']), 32)
         self.assertEqual(prior['groups'][-1], {
@@ -576,6 +656,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_compact_reference_admission_preserves_all_prior_methods_and_full_source_pairs(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_83def91_pool(default), self.prior_83def91_map(mapping)
         prior, prior_map = self.prior_4977aa4_pool(default), self.prior_4977aa4_map(mapping)
         appended = self.compact_reference_append()
         source = (ROOT / 'FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests.swift').read_text(encoding='utf-8')
@@ -611,7 +692,7 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_d97bc81_pool(self, default):
-        if len(default['unitTestSelectors']) == 624:
+        if len(default['unitTestSelectors']) in (624, 633):
             default = self.prior_4977aa4_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 618)
         prior = copy.deepcopy(default)
@@ -686,7 +767,7 @@ class WorkflowWiringTests(unittest.TestCase):
             with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'c36-source-graph')
 
     def prior_aa94e7f_pool(self, default):
-        if len(default['unitTestSelectors']) in (618, 624):
+        if len(default['unitTestSelectors']) in (618, 624, 633):
             default = self.prior_d97bc81_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 590)
         prior = copy.deepcopy(default)

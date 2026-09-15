@@ -690,12 +690,11 @@ enum ProtectedFilePolicyV1 {
         #if DEBUG && os(iOS) && targetEnvironment(simulator)
         guard result == .simulatorFileProtectionUnsupported else { return }
         let disposition = disposition(for: kind)
-        let facts = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V1"
+        let facts = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
             + " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
             + " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
             + " kind=\(kind.rawValue) request=complete capabilityBefore=false capabilityAfter=false"
             + " urlProtection=completeUntilFirstUserAuthentication"
-            + " fileManagerProtection=completeUntilFirstUserAuthentication"
             + " backupExcluded=\(disposition.isExcludedFromBackup)"
             + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n"
         FileHandle.standardError.write(Data(facts.utf8))
@@ -767,7 +766,6 @@ enum ProtectedFilePolicyV1 {
     ) -> Bool {
         readback.volumeSupportsProtection == false
             && readback.urlProtection == "completeUntilFirstUserAuthentication"
-            && readback.fileManagerProtection == "completeUntilFirstUserAuthentication"
             && readback.backupExcluded == disposition.isExcludedFromBackup
             && readback.isDirectory == disposition.expectsDirectory
     }

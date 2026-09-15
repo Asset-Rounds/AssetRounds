@@ -29,7 +29,8 @@ final class V23CheckRunnerBeginReceiptReferenceTests: XCTestCase {
             XCTAssertEqual(decoded, reference)
             try decoded.validate(evidence: evidence)
             XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(decoded), data)
-            XCTAssertEqual(try receiptReferenceJSON(receiptReferenceObject(reference)), data)
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(
+                receiptReferenceDecode(receiptReferenceObject(reference))), data)
             XCTAssertEqual(try receiptReferenceObject(reference).keys.sorted(), [
                 "beginPostimageIdentity", "beginPostimageRevision", "beginPostimageSemanticSHA256",
                 "commandBodySHA256", "committedAt", "envelopeSHA256", "expectedWorkspaceRevision",
@@ -113,7 +114,8 @@ final class V23CheckRunnerBeginReceiptReferenceTests: XCTestCase {
     func testClosedReferenceRejectsMalformedShapeAndNestedIdentityKeys() throws {
         let reference = try CheckRunnerBeginReceiptReferenceV1(evidence: receiptReferenceEvidence(record: false))
         let base = try receiptReferenceObject(reference)
-        XCTAssertEqual(try receiptReferenceJSON(base), try FieldDraftCanonicalCodecV1.encode(reference))
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(receiptReferenceDecode(base)),
+            try FieldDraftCanonicalCodecV1.encode(reference))
         var variants: [[String: Any]] = []
         var unknown = base
         unknown["future"] = true

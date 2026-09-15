@@ -120,9 +120,10 @@
         "V9_18PackLifecycleIntegrationTests",
         "V23CheckRunnerEditableFieldValuesTests",
         "V23CheckRunnerBeginHistoryTests",
-        "V23CheckRunnerFrozenBeginPreparationTests"
+        "V23CheckRunnerFrozenBeginPreparationTests",
+        "V23CheckRunnerItemFieldContractsTests"
       ],
-      "methodCount": 42
+      "methodCount": 51
     },
     {
       "id": "legacy-lifecycle-recovery",
