@@ -5,13 +5,13 @@ This is navigation and current state, not new product authority. Read the [curre
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Current diagnostic head: `3d63ed1cc560e1e898fde90a9dec686950305012`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Current diagnostic head: `4977aa4fcb5c0893ab704ab9bfa29fd4cd09fa3e`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the one existing app/project/shared scheme/design system, S10 branding and five accepted receipts; all owned drafts, frozen inputs, V30 and coordination history remain protected.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. Existing signing/distribution/submission and main-integration boundaries apply.
 
 ## Latest native evidence
 
-Three originals at3d63ed1 are terminal, sole-collected and root-audited under batch74ED7D3C: [catalog26](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34917052443), [correspondence30](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34917066192), and [source-graph19](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34917078682). All share21 compiler diagnostics on the private validation helper; all75 units are NotStarted. Simulator observations remain UNAVAILABLE, never zero-use or protection success.
+All three4977aa4 originals are terminal, sole-collected and root-audited under batch85DEB7BF: [catalog26](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34919893991), [correspondence30](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34919906826), and [source-graph19](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34919918821). The21 access errors are gone. All expose four fixture/compiler errors with all75 NotStarted; Simulator observations remain UNAVAILABLE. Typed inference and nonescaping-forwarding corrections are now paired with the compact-reference batch. All prior failures and warnings remain retained.
 
 Earlier original [34906332015](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34906332015) compiled with zero Swift errors and passed15/17 units, exposing the two V9_02 protection mismatches. All originals and warning evidence remain retained; provider qualification and acceptance remain false.
 
@@ -23,8 +23,8 @@ The directory probes show all three setter routes returning success while uncach
 - **C36 remainder:** durable Begin and retry, parent codec, restored destination correspondence, and complete field-flow/scene/focus/resume composition remain prerequisites for full feature completion. Source inventory is not implementation or acceptance.
 - **Retained recovery:** original capture20 remains intact and due after protection, including all13 V2 recovery methods. Temporary compiler timing is retired to the exact original build wrapper.
 - **Source graph:** private-init package capability and pure original-history authentication have19 paired methods, including200-item bounds, lifecycle dispositions, complete history and historical versus package-current Round frontiers. Destination representation and live effects remain due.
-- **Current correction:** the shared validation helper's module visibility has source GO; an isolated HEAD-derived restore caller adds three explicit result discards for two new warning signatures. Exact inverses preserve all validation/filesystem behavior and49 drafts. The same26/30/19 questions,618/32 selection and11 protocol paths remain required; source/index/route review precedes a corrected-head run.
-- **Other retained work:** finish the unresolved native finalization/protection diagnoses, Work/Round production adoption, C55 replacement evidence, and C57 fork/mixed-history preservation. Keep all existing drafts and source reviews; consult their precise CURRENT_INTEGRATION workstreams when resumed.
+- **Current source work:** compact complete-history references are authored from the sealed source graph with bounded checkpoint frontiers and paired hostile/scale checks. Same-workspace byte preservation, explicit safe review, repeated-fork correspondence and later journal reauthentication remain adoption gates. Six paired methods append to the exact618 prefix, yielding624/32 with all66 source protocol checks passing. Native reference execution and fixture compiler closure remain due; all49 drafts and retained acceptance gates stay protected.
+- **Other retained work:** finish native finalization/protection, Work/Round production adoption, C55 replacement evidence, and C57 fork/mixed-history preservation. Consult their precise CURRENT_INTEGRATION workstreams when resumed.
 
 ## Working cadence
 

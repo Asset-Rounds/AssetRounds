@@ -226,13 +226,15 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         let unrelatedFixture = try RepetitiveCaptureSourcePackageFixture(
             includeUnrelatedHistory: true)
         defer { unrelatedFixture.removePackages() }
-        let unrelatedEnvelope = try XCTUnwrap(try unrelatedFixture.history.receipts.compactMap {
-            let envelope = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
+        let unrelatedEnvelopes: [MutationEnvelopeV1] = try unrelatedFixture.history.receipts.compactMap {
+            record -> MutationEnvelopeV1? in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             guard case let .applyFieldDraft(mutation) = envelope.command,
                   case let .createCheckpoint(checkpoint) = mutation.postImage,
                   checkpoint.purpose == .inspectionReview else { return nil }
             return envelope
-        }.first)
+        }
+        let unrelatedEnvelope = try XCTUnwrap(unrelatedEnvelopes.first)
         let unrelatedReviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
             sourcePackage: package(unrelatedFixture, quarantining: unrelatedEnvelope,
                                    domain: .mutationEnvelope))
@@ -276,12 +278,13 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         let unrelatedFixture = try RepetitiveCaptureSourcePackageFixture(
             includeUnrelatedHistory: true)
         defer { unrelatedFixture.removePackages() }
-        let unrelatedSemanticEnvelope = try XCTUnwrap(
-            try unrelatedFixture.history.receipts.compactMap {
-                let envelope = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
+        let unrelatedSemanticEnvelopes: [MutationEnvelopeV1] =
+            try unrelatedFixture.history.receipts.compactMap { record -> MutationEnvelopeV1? in
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
                 guard envelope.semanticReversalReplayIdentitySHA256 != nil else { return nil }
                 return envelope
-            }.first)
+            }
+        let unrelatedSemanticEnvelope = try XCTUnwrap(unrelatedSemanticEnvelopes.first)
         let unrelatedReviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
             sourcePackage: package(
                 unrelatedFixture, quarantining: unrelatedSemanticEnvelope,
@@ -294,13 +297,14 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         let foreignFixture = try RepetitiveCaptureSourcePackageFixture(
             includeForeignOriginal: true)
         defer { foreignFixture.removePackages() }
-        let foreignSemanticEnvelope = try XCTUnwrap(
-            try foreignFixture.history.receipts.compactMap {
-                let envelope = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
+        let foreignSemanticEnvelopes: [MutationEnvelopeV1] =
+            try foreignFixture.history.receipts.compactMap { record -> MutationEnvelopeV1? in
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
                 guard envelope.workspaceID != foreignFixture.workspaceID,
                       envelope.semanticReversalReplayIdentitySHA256 != nil else { return nil }
                 return envelope
-            }.first)
+            }
+        let foreignSemanticEnvelope = try XCTUnwrap(foreignSemanticEnvelopes.first)
         let foreignReviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
             sourcePackage: package(
                 foreignFixture, quarantining: foreignSemanticEnvelope,
@@ -545,9 +549,251 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: altered)
         }())
     }
+    func testCompactReferenceAuthenticatesSourceAndAllOriginalCurrentFrontiers() throws {
+        for sourceOnly in [true, false] {
+            let fixture = try RepetitiveCaptureSourcePackageFixture(sourceOnly: sourceOnly)
+            defer { fixture.removePackages() }
+            let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
+                sourcePackage: fixture.validatedPackage())
+            let reference = try XCTUnwrap(
+                RepetitiveCaptureSourceGraphReviewV2.references(from: reviewed).first)
+            try reference.validate(against: reviewed)
+            let graph = try XCTUnwrap(reviewed.graphs.first)
+            XCTAssertEqual(reference.value.checkpoints.count, sourceOnly ? 1 : 4)
+            XCTAssertEqual(reference.value.sourceWorkspaceID, fixture.workspaceID)
+            XCTAssertEqual(reference.value.sourceDraftID, graph.chain.sourceCheckpoint.draftID)
+            XCTAssertEqual(reference.value.requiredHistory.recordCount, fixture.history.receipts.count)
+            XCTAssertEqual(reference.value.roundHistory.recordCount, fixture.rounds.count)
+            for (frontier, checkpoint) in zip(reference.value.checkpoints, graph.checkpoints) {
+                XCTAssertEqual(frontier.draftID, checkpoint.original.draftID)
+                XCTAssertEqual(frontier.original.checkpointSHA256, checkpoint.original.checkpointSHA256)
+                XCTAssertEqual(frontier.current.checkpointSHA256, checkpoint.current.checkpointSHA256)
+                XCTAssertEqual(frontier.current.state, checkpoint.current.state)
+                XCTAssertEqual(frontier.lifecycle.recordCount, checkpoint.lifecycle.count)
+                let first = try XCTUnwrap(checkpoint.lifecycle.first)
+                let last = try XCTUnwrap(checkpoint.lifecycle.last)
+                XCTAssertEqual(frontier.original.record.receiptIdentity, first.receipt.identity)
+                XCTAssertEqual(frontier.original.record.envelopeSHA256,
+                               KernelCanonicalHashV1.sha256(first.original.envelopeData))
+                XCTAssertEqual(frontier.current.record.receiptSHA256,
+                               KernelCanonicalHashV1.sha256(last.original.receiptData))
+            }
+            let data = try FieldDraftCanonicalCodecV1.encode(reference)
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(
+                RepetitiveCaptureSourceGraphReferenceV2.self, from: data), reference)
+            let text = try XCTUnwrap(String(data: data, encoding: .utf8))
+            XCTAssertFalse(text.contains("\"payloadData\""))
+            XCTAssertFalse(text.contains("\"envelopeData\""))
+            XCTAssertFalse(text.contains("\"receiptData\""))
+            if !sourceOnly {
+                XCTAssertTrue(try XCTUnwrap(graph.chain.nodes.last).isPendingRoundEffect)
+                XCTAssertEqual(reference.value.historicalRound.record.mutationID,
+                               graph.chain.currentRound.mutationID)
+            }
+        }
+    }
+
+    func testCompactReferenceRejectsCanonicalRecomputedSourceAndFrontierSubstitutions() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture()
+        defer { fixture.removePackages() }
+        let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
+            sourcePackage: fixture.validatedPackage())
+        let reference = try XCTUnwrap(
+            RepetitiveCaptureSourceGraphReviewV2.references(from: reviewed).first)
+        let mutations: [(inout [String: Any]) throws -> Void] = [
+            { $0["sourcePersistentSchemaVersion"] = 44 },
+            { $0["recordsJSONSHA256"] = String(repeating: "f", count: 64) },
+            { value in
+                var history = try XCTUnwrap(value["roundHistory"] as? [String: Any])
+                history["recordsSHA256"] = String(repeating: "f", count: 64)
+                value["roundHistory"] = history
+            },
+            { value in
+                var rows = try XCTUnwrap(value["checkpoints"] as? [[String: Any]])
+                var current = try XCTUnwrap(rows[0]["current"] as? [String: Any])
+                current["checkpointSHA256"] = String(repeating: "f", count: 64)
+                rows[0]["current"] = current
+                value["checkpoints"] = rows
+            },
+            { value in
+                var rows = try XCTUnwrap(value["checkpoints"] as? [[String: Any]])
+                var original = try XCTUnwrap(rows[0]["original"] as? [String: Any])
+                var record = try XCTUnwrap(original["record"] as? [String: Any])
+                record["receiptSHA256"] = String(repeating: "f", count: 64)
+                original["record"] = record
+                rows[0]["original"] = original
+                value["checkpoints"] = rows
+            },
+            { value in
+                var rows = try XCTUnwrap(value["checkpoints"] as? [[String: Any]])
+                let removed = rows.removeLast()
+                let lifecycle = try XCTUnwrap(removed["lifecycle"] as? [String: Any])
+                let removedCount = try XCTUnwrap(lifecycle["recordCount"] as? Int)
+                var history = try XCTUnwrap(value["requiredHistory"] as? [String: Any])
+                history["recordCount"] = try XCTUnwrap(history["recordCount"] as? Int) - removedCount
+                history["recordsSHA256"] = String(repeating: "f", count: 64)
+                value["requiredHistory"] = history
+                value["checkpoints"] = rows
+            },
+            { value in
+                var rows = try XCTUnwrap(value["checkpoints"] as? [[String: Any]])
+                rows.swapAt(1, 2)
+                for index in rows.indices { rows[index]["position"] = index }
+                value["checkpoints"] = rows
+            }
+        ]
+        for mutation in mutations {
+            // These are canonical, internally rehashed values. Shape validity
+            // alone must never authenticate their claimed source completeness.
+            let forged = try modifiedReference(reference, mutation: mutation)
+            XCTAssertNoThrow(try forged.validate())
+            XCTAssertThrowsError(try forged.validate(against: reviewed))
+        }
+        XCTAssertThrowsError(try modifiedReference(reference) { value in
+            var rows = try XCTUnwrap(value["checkpoints"] as? [[String: Any]])
+            rows[1]["draftID"] = rows[0]["draftID"]
+            value["checkpoints"] = rows
+        })
+    }
+
+    func testCompactReferencePreservesDisposedStateAndSeparateRoundFrontiers() throws {
+        let fixtures = [
+            try RepetitiveCaptureSourcePackageFixture(laterActiveSource: true),
+            try RepetitiveCaptureSourcePackageFixture(discardPendingSource: true),
+            try RepetitiveCaptureSourcePackageFixture(discardSource: true,
+                                                      laterRoundAfterDisposition: true)
+        ]
+        defer { fixtures.forEach { $0.removePackages() } }
+        let states: [FieldDraftStateV1] = [.active, .discardPending, .discarded]
+        for (fixture, state) in zip(fixtures, states) {
+            let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
+                sourcePackage: fixture.validatedPackage())
+            let graph = try XCTUnwrap(reviewed.graphs.first)
+            let reference = try XCTUnwrap(
+                RepetitiveCaptureSourceGraphReviewV2.references(from: reviewed).first)
+            try reference.validate(against: reviewed)
+            let frontier = try XCTUnwrap(reference.value.checkpoints.first)
+            XCTAssertEqual(frontier.original.state, .active)
+            XCTAssertEqual(frontier.current.state, state)
+            XCTAssertEqual(frontier.current.draftRevision, graph.checkpoints.first?.current.draftRevision)
+            XCTAssertFalse(reference.value.isUnchangedActiveSource)
+            XCTAssertEqual(reference.value.historicalRound.canonicalSHA256,
+                           try RoundSessionCanonicalCodecV1.sha256(graph.chain.currentRound))
+            XCTAssertEqual(reference.value.packageCurrentRound.canonicalSHA256,
+                           try RoundSessionCanonicalCodecV1.sha256(graph.packageCurrentRound))
+            if state == .discarded {
+                XCTAssertEqual(reference.value.historicalRound.revision, 3)
+                XCTAssertEqual(reference.value.packageCurrentRound.revision, 4)
+                XCTAssertEqual(reference.value.roundHistory.recordCount, 4)
+                XCTAssertTrue(try XCTUnwrap(graph.chain.nodes.last).isPendingRoundEffect)
+            }
+        }
+    }
+
+    func testCompactReferenceSeparatesGraphsAndIgnoresUnrelatedHistory() throws {
+        let fixtures = [
+            try RepetitiveCaptureSourcePackageFixture(),
+            try RepetitiveCaptureSourcePackageFixture(includeForeignOriginal: true,
+                                                      includeUnrelatedHistory: true),
+            try RepetitiveCaptureSourcePackageFixture(laterActiveSource: true,
+                secondSameScopeGraph: true, secondGraphIsHistorical: true)
+        ]
+        defer { fixtures.forEach { $0.removePackages() } }
+        let reviews = try fixtures.map {
+            try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: $0.validatedPackage())
+        }
+        let allReferences = try reviews.map { try RepetitiveCaptureSourceGraphReviewV2.references(from: $0) }
+        let base = try XCTUnwrap(allReferences[0].first)
+        let unrelated = try XCTUnwrap(allReferences[1].first)
+        XCTAssertEqual(base.value.checkpoints, unrelated.value.checkpoints)
+        XCTAssertEqual(base.value.roundHistory, unrelated.value.roundHistory)
+        XCTAssertEqual(base.value.requiredHistory, unrelated.value.requiredHistory)
+        XCTAssertNotEqual(base.value.recordsJSONSHA256, unrelated.value.recordsJSONSHA256)
+        XCTAssertLessThan(unrelated.value.requiredHistory.recordCount, fixtures[1].history.receipts.count)
+        XCTAssertEqual(allReferences[2].count, 2)
+        XCTAssertEqual(Set(allReferences[2].map { $0.value.sourceDraftID }).count, 2)
+        for (reference, graph) in zip(allReferences[2], reviews[2].graphs) {
+            try reference.validate(against: reviews[2])
+            XCTAssertEqual(reference.value.checkpoints.map(\.draftID), graph.checkpoints.map { $0.original.draftID })
+            XCTAssertEqual(reference.value.requiredHistory.recordCount,
+                graph.checkpoints.reduce(0) { $0 + $1.lifecycle.count } + fixtures[2].rounds.count)
+        }
+        XCTAssertEqual(allReferences[2][0].value.roundHistory, allReferences[2][1].value.roundHistory)
+        XCTAssertNotEqual(allReferences[2][0].value.requiredHistory, allReferences[2][1].value.requiredHistory)
+    }
+
+    func testCompactReferenceMaximumGraphFitsPayloadBound() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture(
+            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection)
+        defer { fixture.removePackages() }
+        let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
+            sourcePackage: fixture.validatedPackage())
+        let reference = try XCTUnwrap(
+            RepetitiveCaptureSourceGraphReviewV2.references(from: reviewed).first)
+        try reference.validate(against: reviewed)
+        let data = try FieldDraftCanonicalCodecV1.encode(reference)
+        XCTAssertEqual(reference.value.checkpoints.count, 401)
+        XCTAssertEqual(reference.value.requiredHistory.recordCount, 603)
+        XCTAssertEqual(reference.value.roundHistory.recordCount, 202)
+        XCTAssertLessThanOrEqual(data.count, FieldDraftLimitsV1.maximumPayloadBytes)
+        // IDs and digests have fixed width. The allowance below exceeds the
+        // maximum growth of every integer/state field per frontier, plus all
+        // outer scalars, even when each is sized independently at its maximum.
+        let maximumScalarGrowth = reference.value.checkpoints.count * 256 + 4_096
+        XCTAssertLessThanOrEqual(data.count + maximumScalarGrowth, FieldDraftLimitsV1.maximumPayloadBytes)
+        print("C36_SOURCE_REFERENCE_METRICS kind=maximum frontiers=401 history=603 bytes=\(data.count) scalarUpperBound=\(data.count + maximumScalarGrowth)")
+    }
+
+    func testCompactReferenceLongLifecycleKeepsBoundedPayloadAndCompleteHistory() throws {
+        let fixtures = [
+            try RepetitiveCaptureSourcePackageFixture(laterActiveSource: true),
+            try RepetitiveCaptureSourcePackageFixture(laterActiveSource: true,
+                                                      extraActiveSourceRevisions: 512)
+        ]
+        defer { fixtures.forEach { $0.removePackages() } }
+        let reviews = try fixtures.map {
+            try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: $0.validatedPackage())
+        }
+        let references = try reviews.map {
+            try XCTUnwrap(RepetitiveCaptureSourceGraphReviewV2.references(from: $0).first)
+        }
+        let short = references[0], long = references[1]
+        try short.validate(against: reviews[0])
+        try long.validate(against: reviews[1])
+        XCTAssertEqual(short.value.checkpoints.count, long.value.checkpoints.count)
+        XCTAssertEqual(long.value.checkpoints.first?.lifecycle.recordCount, 514)
+        XCTAssertEqual(long.value.checkpoints.first?.current.draftRevision, 514)
+        XCTAssertEqual(long.value.requiredHistory.recordCount, short.value.requiredHistory.recordCount + 512)
+        XCTAssertEqual(long.value.requiredHistory.recordCount, fixtures[1].history.receipts.count)
+        XCTAssertNotEqual(long.value.checkpoints.first?.lifecycle.recordsSHA256,
+                          short.value.checkpoints.first?.lifecycle.recordsSHA256)
+        XCTAssertNotEqual(long.value.requiredHistory.recordsSHA256, short.value.requiredHistory.recordsSHA256)
+        let shortBytes = try FieldDraftCanonicalCodecV1.encode(short).count
+        let longBytes = try FieldDraftCanonicalCodecV1.encode(long).count
+        XCTAssertLessThan(abs(longBytes - shortBytes), 128)
+        XCTAssertThrowsError(try long.validate(against: reviews[0]))
+        XCTAssertThrowsError(try short.validate(against: reviews[1]))
+        print("C36_SOURCE_REFERENCE_METRICS kind=longLifecycle history=\(long.value.requiredHistory.recordCount) bytes=\(longBytes) shortBytes=\(shortBytes)")
+    }
 }
 
 private extension V23RepetitiveCaptureSourceGraphReviewTests {
+    func modifiedReference(_ reference: RepetitiveCaptureSourceGraphReferenceV2,
+                           mutation: (inout [String: Any]) throws -> Void) throws
+        -> RepetitiveCaptureSourceGraphReferenceV2 {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: FieldDraftCanonicalCodecV1.encode(reference)) as? [String: Any])
+        var value = try XCTUnwrap(object["value"] as? [String: Any])
+        try mutation(&value)
+        object["value"] = value
+        object["referenceSHA256"] = KernelCanonicalHashV1.sha256(try JSONSerialization.data(
+            withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes]))
+        let data = try JSONSerialization.data(withJSONObject: object,
+                                              options: [.sortedKeys, .withoutEscapingSlashes])
+        return try FieldDraftCanonicalCodecV1.decode(RepetitiveCaptureSourceGraphReferenceV2.self,
+                                                    from: data)
+    }
+
     func package(
         _ fixture: RepetitiveCaptureSourcePackageFixture,
         quarantining envelope: MutationEnvelopeV1,

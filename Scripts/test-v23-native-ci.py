@@ -545,6 +545,58 @@ class CheckpointTests(unittest.TestCase):
 
 
 class WorkflowWiringTests(unittest.TestCase):
+    def compact_reference_append(self):
+        return ['FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/' + name for name in [
+            'testCompactReferenceAuthenticatesSourceAndAllOriginalCurrentFrontiers',
+            'testCompactReferenceRejectsCanonicalRecomputedSourceAndFrontierSubstitutions',
+            'testCompactReferencePreservesDisposedStateAndSeparateRoundFrontiers',
+            'testCompactReferenceSeparatesGraphsAndIgnoresUnrelatedHistory',
+            'testCompactReferenceMaximumGraphFitsPayloadBound',
+            'testCompactReferenceLongLifecycleKeepsBoundedPayloadAndCompleteHistory',
+        ]]
+
+    def prior_4977aa4_pool(self, default):
+        self.assertEqual(len(default['unitTestSelectors']), 624)
+        self.assertEqual(default['unitTestSelectors'][618:], self.compact_reference_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:618]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'F5F33EAD1F1FF485A686F60D0EFAB37C012ADDD7953AF55BAB6D3440F3E907F3')
+        return prior
+
+    def prior_4977aa4_map(self, mapping):
+        prior = copy.deepcopy(mapping)
+        self.assertEqual(len(prior['groups']), 32)
+        self.assertEqual(prior['groups'][-1], {
+            'id': 'c36-source-graph', 'classes': ['V23RepetitiveCaptureSourcePackageTests',
+                'V23RepetitiveCaptureSourceGraphReviewTests'], 'methodCount': 25})
+        prior['groups'][-1]['methodCount'] = 19
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '21818651B2031F06DA47DB194A40D6349F28EC380D5740CF0BF5590E5035E876')
+        return prior
+
+    def test_compact_reference_admission_preserves_all_prior_methods_and_full_source_pairs(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        prior, prior_map = self.prior_4977aa4_pool(default), self.prior_4977aa4_map(mapping)
+        appended = self.compact_reference_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests.swift').read_text(encoding='utf-8')
+        names = re.findall(r'^    func (test\w+)\(', source, re.M)
+        self.assertEqual(len(names), 21)
+        self.assertEqual(len(names), len(set(names)))
+        actual = ['FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/' + n for n in names]
+        retained = [s for s in prior['unitTestSelectors'] if '/V23RepetitiveCaptureSourceGraphReviewTests/' in s]
+        self.assertEqual(actual, retained + appended)
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'c36-source-graph': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]], appended + ['FieldEvidenceAppTests/Foreign/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'c36-source-graph')
+        hostile_map = copy.deepcopy(mapping)
+        hostile_map['groups'][-1]['methodCount'] = 24
+        with self.assertRaises(ValueError): CI.resolve_selection(default, hostile_map, 'c36-source-graph')
+
     def diagnostic_authority_append(self):
         return ['FieldEvidenceAppTests/V9_02FileAuthorityTests/' + name for name in [
             'testSimulatorDiagnosticClassifierRejectsEveryNonexactFact',
@@ -559,6 +611,8 @@ class WorkflowWiringTests(unittest.TestCase):
         ]]
 
     def prior_d97bc81_pool(self, default):
+        if len(default['unitTestSelectors']) == 624:
+            default = self.prior_4977aa4_pool(default)
         self.assertEqual(len(default['unitTestSelectors']), 618)
         prior = copy.deepcopy(default)
         prior['unitTestSelectors'] = prior['unitTestSelectors'][:590]
@@ -566,6 +620,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_d97bc81_map(self, mapping):
+        if mapping['groups'][-1]['methodCount'] == 25:
+            mapping = self.prior_4977aa4_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior['groups']), 32)
         self.assertEqual(prior['groups'].pop(), {
@@ -587,6 +643,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_simulator_and_source_graph_admission_retains_exact_prior_and_full_pairs(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_4977aa4_pool(default), self.prior_4977aa4_map(mapping)
         prior, prior_map = self.prior_d97bc81_pool(default), self.prior_d97bc81_map(mapping)
         workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
         self.prior_d97bc81_workflow(workflow)
@@ -595,6 +652,8 @@ class WorkflowWiringTests(unittest.TestCase):
                              ('V23RepetitiveCaptureSourceGraphReviewTests', 15)]:
             source = (ROOT / 'FieldEvidenceAppTests' / (klass + '.swift')).read_text(encoding='utf-8')
             names = re.findall(r'^    func (test\w+)\(', source, re.M)
+            names = [name for name in names if 'FieldEvidenceAppTests/' + klass + '/' + name
+                     not in self.compact_reference_append()]
             self.assertEqual(len(names), count)
             self.assertEqual(len(names), len(set(names)))
             graphs.extend('FieldEvidenceAppTests/' + klass + '/' + name for name in names)
@@ -627,7 +686,7 @@ class WorkflowWiringTests(unittest.TestCase):
             with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'c36-source-graph')
 
     def prior_aa94e7f_pool(self, default):
-        if len(default['unitTestSelectors']) == 618:
+        if len(default['unitTestSelectors']) in (618, 624):
             default = self.prior_d97bc81_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 590)
         prior = copy.deepcopy(default)

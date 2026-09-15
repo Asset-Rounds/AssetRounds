@@ -145,7 +145,16 @@ final class RepetitiveCaptureSourcePackageFixture {
          directDiscardedSource: Bool = false,
          staleExtraDiscardReceipt: Bool = false,
          foreignHistoryOnly: Bool = false,
-         boundaryItemCount: Int? = nil) throws {
+         boundaryItemCount: Int? = nil, sourceOnly: Bool = false,
+         extraActiveSourceRevisions: Int = 0) throws {
+        guard (0...512).contains(extraActiveSourceRevisions),
+              extraActiveSourceRevisions == 0 || laterActiveSource,
+              !sourceOnly || (!discardSource && !includeForeignOriginal && !laterActiveSource &&
+                !discardPendingSource && !laterRoundAfterDisposition && !secondSameScopeGraph &&
+                !secondGraphIsHistorical && !addBranch && !addOrphan && !addAfterPending &&
+                !includeUnrelatedHistory && !semanticRequiredPair && !extraCurrentV2Row &&
+                !directDiscardedSource && !staleExtraDiscardReceipt && !foreignHistoryOnly &&
+                boundaryItemCount == nil) else { throw WorkspaceMutationFailureV1.invalidCommand }
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("v23-c36-source-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -197,7 +206,8 @@ final class RepetitiveCaptureSourcePackageFixture {
                 semanticRequiredPair: semanticRequiredPair,
                 extraCurrentV2Row: extraCurrentV2Row,
                 directDiscardedSource: directDiscardedSource,
-                staleExtraDiscardReceipt: staleExtraDiscardReceipt)
+                staleExtraDiscardReceipt: staleExtraDiscardReceipt,
+                sourceOnly: sourceOnly, extraActiveSourceRevisions: extraActiveSourceRevisions)
         }
         rounds = graph.rounds
         checkpoints = graph.checkpoints
@@ -268,7 +278,9 @@ final class RepetitiveCaptureSourcePackageFixture {
 
     func package(named name: String,
                  _ sourceMutation: (inout [String: Any]) throws -> Void) throws -> URL {
-        try package(named: name, sourceMutation: sourceMutation)
+        try withoutActuallyEscaping(sourceMutation) { mutation in
+            try package(named: name, sourceMutation: mutation)
+        }
     }
 
     func memberData(_ name: String) throws -> Data {
@@ -324,7 +336,9 @@ final class RepetitiveCaptureSourcePackageFixture {
         semanticRequiredPair: Bool,
         extraCurrentV2Row: Bool,
         directDiscardedSource: Bool,
-        staleExtraDiscardReceipt: Bool
+        staleExtraDiscardReceipt: Bool,
+        sourceOnly: Bool = false,
+        extraActiveSourceRevisions: Int = 0
     ) throws
         -> GraphValues {
         guard [discardSource, laterActiveSource, discardPendingSource, directDiscardedSource]
@@ -406,19 +420,24 @@ final class RepetitiveCaptureSourcePackageFixture {
         }
 
         var builder = HistoryBuilder(workspaceID: workspaceID)
-        try builder.append(.applyRoundSession(roundMutations[0]))
-        try builder.append(.applyRoundSession(roundMutations[1]))
+        _ = try builder.append(.applyRoundSession(roundMutations[0]))
+        _ = try builder.append(.applyRoundSession(roundMutations[1]))
+        if sourceOnly {
+            _ = try builder.append(.applyFieldDraft(fieldMutation(sourceCheckpoint)))
+            return .init(rounds: [draft, active], checkpoints: [sourceCheckpoint],
+                         history: try builder.snapshot(), additionalRows: [])
+        }
         if semanticRequiredPair {
             _ = try builder.appendSemanticReversalPair(
                 target: .applyFieldDraft(fieldMutation(sourceCheckpoint)),
                 reversal: .applyFieldDraft(fieldMutation(first)))
         } else {
-            try builder.append(.applyFieldDraft(fieldMutation(sourceCheckpoint)))
-            try builder.append(.applyFieldDraft(fieldMutation(first)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(sourceCheckpoint)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(first)))
         }
         if let secondSource, let secondFirst {
-            try builder.append(.applyFieldDraft(fieldMutation(secondSource)))
-            try builder.append(.applyFieldDraft(fieldMutation(secondFirst)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(secondSource)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(secondFirst)))
         }
         let visitReceipt = try builder.append(.applyRoundSession(roundMutations[2])).receipt
         let typedVisitReceipt = try RoundSessionMutationReceiptV1(
@@ -431,7 +450,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 selectedStableID: items[1].selection.assetID.uuidString.lowercased()))
         let keep = try checkpoint(id: 202, workspaceID: workspaceID, scope: scope,
             payload: .progress(keepStep), anchor: keepStep.resumeAnchor)
-        try builder.append(.applyFieldDraft(fieldMutation(keep)))
+        _ = try builder.append(.applyFieldDraft(fieldMutation(keep)))
         let pendingMutation = try RoundSessionMutationV1(workspaceID: workspaceID,
             expectedRevision: 3, mutationID: pendingVisit.mutationID, session: pendingVisit)
         let pendingStep = try RepetitiveCaptureProgressStepV2(
@@ -442,7 +461,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 selectedStableID: items[1].selection.assetID.uuidString.lowercased()))
         let pending = try checkpoint(id: 203, workspaceID: workspaceID, scope: scope,
             payload: .progress(pendingStep), anchor: pendingStep.resumeAnchor)
-        try builder.append(.applyFieldDraft(fieldMutation(pending)))
+        _ = try builder.append(.applyFieldDraft(fieldMutation(pending)))
         var currentCheckpoints = [sourceCheckpoint, first, keep, pending]
         if let secondSource, let secondFirst {
             currentCheckpoints += [secondSource, secondFirst]
@@ -462,7 +481,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 resumeAnchor: keepStep.resumeAnchor)
             let branch = try checkpoint(id: 600, workspaceID: workspaceID, scope: scope,
                 payload: .progress(step), anchor: step.resumeAnchor)
-            try builder.append(.applyFieldDraft(fieldMutation(branch)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(branch)))
             currentCheckpoints.append(branch)
         }
         if addOrphan {
@@ -475,7 +494,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 resumeAnchor: firstStep.resumeAnchor)
             let orphan = try checkpoint(id: 611, workspaceID: workspaceID, scope: scope,
                 payload: .progress(step), anchor: step.resumeAnchor)
-            try builder.append(.applyFieldDraft(fieldMutation(orphan)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(orphan)))
             currentCheckpoints.append(orphan)
         }
         if addAfterPending {
@@ -492,7 +511,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 resumeAnchor: .init(sectionID: "facts", selectedStableID: nil))
             let after = try checkpoint(id: 620, workspaceID: workspaceID, scope: scope,
                 payload: .progress(step), anchor: step.resumeAnchor)
-            try builder.append(.applyFieldDraft(fieldMutation(after)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(after)))
             currentCheckpoints.append(after)
         }
         var additionalRows: [V16BackupFieldDraftRecordV1] = []
@@ -516,13 +535,25 @@ final class RepetitiveCaptureSourcePackageFixture {
             additionalRows += [try row(unrelated), try row(compensating)]
         }
         if laterActiveSource {
-            let changed = try revisedActiveSource(
+            var changed = try revisedActiveSource(
                 sourceCheckpoint, round: active, revision: 2, mutationSeed: 400)
             let mutation = try FieldDraftMutationV1(
                 workspaceID: workspaceID, expectedRevision: 1,
                 expectedBaseCanonicalRevision: 0, mutationID: changed.mutationID,
                 postImage: .reviseCheckpoint(changed))
-            try builder.append(.applyFieldDraft(mutation))
+            _ = try builder.append(.applyFieldDraft(mutation))
+            for offset in 0..<extraActiveSourceRevisions {
+                let predecessor = changed
+                changed = try revisedCheckpoint(sourceCheckpoint,
+                    revision: predecessor.draftRevision + 1, state: .active,
+                    mutationID: .init(rawValue: id(20_000 + offset)),
+                    payloadData: predecessor.payloadData)
+                let successor = try FieldDraftMutationV1(
+                    workspaceID: workspaceID, expectedRevision: predecessor.draftRevision,
+                    expectedBaseCanonicalRevision: 0, mutationID: changed.mutationID,
+                    postImage: .reviseCheckpoint(changed))
+                _ = try builder.append(.applyFieldDraft(successor))
+            }
             currentCheckpoints[0] = changed
         } else if discardPendingSource {
             let discardPending = try revisedCheckpoint(
@@ -532,7 +563,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 workspaceID: workspaceID, expectedRevision: 1,
                 expectedBaseCanonicalRevision: 0, mutationID: discardPending.mutationID,
                 postImage: .reviseCheckpoint(discardPending))
-            try builder.append(.applyFieldDraft(mutation))
+            _ = try builder.append(.applyFieldDraft(mutation))
             currentCheckpoints[0] = discardPending
         } else if discardSource {
             let discardPending = try FieldDraftCheckpointV1(
@@ -546,7 +577,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 workspaceID: workspaceID, expectedRevision: 1,
                 expectedBaseCanonicalRevision: 0, mutationID: discardPending.mutationID,
                 postImage: .reviseCheckpoint(discardPending))
-            try builder.append(.applyFieldDraft(pendingDiscardMutation))
+            _ = try builder.append(.applyFieldDraft(pendingDiscardMutation))
             let plan = try DraftDiscardPlanV1(
                 planID: id(401), workspaceID: workspaceID,
                 draftID: sourceCheckpoint.draftID, expectedDraftRevision: 2,
@@ -573,7 +604,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 workspaceID: workspaceID, expectedRevision: 2,
                 expectedBaseCanonicalRevision: 0, mutationID: terminalMutationID,
                 postImage: .applyDiscardTerminal(bundle))
-            try builder.append(.applyFieldDraft(terminal))
+            _ = try builder.append(.applyFieldDraft(terminal))
             currentCheckpoints[0] = discarded
             additionalRows = [.init(kind: .discardReceipt, id: receipt.receiptID,
                 workspaceID: workspaceID.rawValue, revision: receipt.revision,
@@ -606,7 +637,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 workspaceID: workspaceID, expectedRevision: 1,
                 expectedBaseCanonicalRevision: 0, mutationID: mutationID,
                 postImage: .reviseCheckpoint(direct))
-            try builder.append(.applyFieldDraft(mutation))
+            _ = try builder.append(.applyFieldDraft(mutation))
             currentCheckpoints[0] = direct
         }
         if secondGraphIsHistorical, let original = secondSource {
@@ -619,7 +650,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 workspaceID: workspaceID, expectedRevision: 1,
                 expectedBaseCanonicalRevision: 0, mutationID: changed.mutationID,
                 postImage: .reviseCheckpoint(changed))
-            try builder.append(.applyFieldDraft(mutation))
+            _ = try builder.append(.applyFieldDraft(mutation))
             currentCheckpoints[index] = changed
         }
         var packageRounds = [draft, active, visited]
@@ -634,7 +665,7 @@ final class RepetitiveCaptureSourcePackageFixture {
             let mutation = try RoundSessionMutationV1(
                 workspaceID: workspaceID, expectedRevision: 3,
                 mutationID: later.mutationID, session: later)
-            try builder.append(.applyRoundSession(mutation))
+            _ = try builder.append(.applyRoundSession(mutation))
             packageRounds.append(later)
         }
         return .init(rounds: packageRounds,
@@ -686,13 +717,13 @@ final class RepetitiveCaptureSourcePackageFixture {
                 selectedStableID: active.items[0].selection.assetID.uuidString.lowercased()))
         var builder = HistoryBuilder(workspaceID: workspaceID)
         var rounds = [draft, active]
-        try builder.append(.applyRoundSession(.init(
+        _ = try builder.append(.applyRoundSession(.init(
             workspaceID: workspaceID, expectedRevision: 0,
             mutationID: draft.mutationID, session: draft)))
-        try builder.append(.applyRoundSession(.init(
+        _ = try builder.append(.applyRoundSession(.init(
             workspaceID: workspaceID, expectedRevision: 1,
             mutationID: active.mutationID, session: active)))
-        try builder.append(.applyFieldDraft(fieldMutation(source)))
+        _ = try builder.append(.applyFieldDraft(fieldMutation(source)))
 
         var checkpoints = [source]
         var current = active
@@ -715,7 +746,7 @@ final class RepetitiveCaptureSourcePackageFixture {
             let entry = try checkpoint(
                 id: 16_000 + index * 2, workspaceID: workspaceID, scope: scope,
                 payload: .progress(entryStep), anchor: entryStep.resumeAnchor)
-            try builder.append(.applyFieldDraft(fieldMutation(entry)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(entry)))
             let receipt = try builder.append(.applyRoundSession(mutation)).receipt
             let typed = try RoundSessionMutationReceiptV1(
                 mutation: mutation, mutationReceipt: receipt)
@@ -732,7 +763,7 @@ final class RepetitiveCaptureSourcePackageFixture {
             let keep = try checkpoint(
                 id: 16_001 + index * 2, workspaceID: workspaceID, scope: scope,
                 payload: .progress(keepStep), anchor: keepStep.resumeAnchor)
-            try builder.append(.applyFieldDraft(fieldMutation(keep)))
+            _ = try builder.append(.applyFieldDraft(fieldMutation(keep)))
             checkpoints += [entry, keep]
             current = visited
             prior = keep

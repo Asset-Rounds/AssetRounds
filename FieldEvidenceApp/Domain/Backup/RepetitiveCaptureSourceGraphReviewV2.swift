@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct RepetitiveCaptureSourceHistoryRecordV2: Equatable, Sendable {
@@ -29,6 +30,19 @@ struct ReviewedRepetitiveCaptureSourceGraphsV2: Equatable, Sendable {
     let recordsJSONSHA256: String
     let graphs: [ReviewedRepetitiveCaptureSourceGraphV2]
     let requiredHistory: [RepetitiveCaptureSourceHistoryRecordV2]
+
+    fileprivate init(sourceWorkspaceID: WorkspaceID, sourcePersistentSchemaVersion: Int,
+                     sourceRecordsSchemaVersion: Int, manifestJSONSHA256: String,
+                     recordsJSONSHA256: String, graphs: [ReviewedRepetitiveCaptureSourceGraphV2],
+                     requiredHistory: [RepetitiveCaptureSourceHistoryRecordV2]) {
+        self.sourceWorkspaceID = sourceWorkspaceID
+        self.sourcePersistentSchemaVersion = sourcePersistentSchemaVersion
+        self.sourceRecordsSchemaVersion = sourceRecordsSchemaVersion
+        self.manifestJSONSHA256 = manifestJSONSHA256
+        self.recordsJSONSHA256 = recordsJSONSHA256
+        self.graphs = graphs
+        self.requiredHistory = requiredHistory
+    }
 }
 
 /// Authenticates original C36 graphs inside a complete validated package. This
@@ -405,4 +419,282 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
         lhs.uuidString.lowercased() < rhs.uuidString.lowercased()
     }
     private static func invalid() -> WorkspaceMutationFailureV1 { .receiptHistoryCorrupt }
+}
+
+/// A bounded commitment to original source evidence. Decoding or validating its
+/// shape grants no receipt, current readiness, destination identity or writer authority.
+struct RepetitiveCaptureSourceGraphReferenceV2: Codable, Equatable, Sendable,
+    FieldDraftValidatableV1 {
+    static let format = "assetrounds.c36.source-graph-reference.v1"
+    static let maximumFrontiers = 1 + 2 * ScanToWorkLimitsV1.maximumSelection
+
+    struct HistoryCommitment: Codable, Equatable, Sendable {
+        let recordCount: Int
+        let recordsSHA256: String
+
+        fileprivate func validate() throws {
+            guard recordCount > 0,
+                  recordCount <= MutationJournalStoreV1.maximumReceiptValidationCount else {
+                throw FieldDraftFailureV1.limitExceeded
+            }
+            try FieldDraftValidationV1.digest(recordsSHA256)
+        }
+    }
+
+    struct RecordAnchor: Codable, Equatable, Sendable {
+        let mutationID: MutationIDV1
+        let receiptIdentity: MutationReceiptIdentityV1
+        let envelopeSHA256: String
+        let receiptSHA256: String
+
+        fileprivate init(_ record: RepetitiveCaptureSourceHistoryRecordV2) {
+            mutationID = record.envelope.mutationID
+            receiptIdentity = record.receipt.identity
+            envelopeSHA256 = FieldDraftCanonicalCodecV1.sha256(record.original.envelopeData)
+            receiptSHA256 = FieldDraftCanonicalCodecV1.sha256(record.original.receiptData)
+        }
+
+        fileprivate func validate(workspaceID: WorkspaceID) throws {
+            try receiptIdentity.validate()
+            try FieldDraftValidationV1.digest(envelopeSHA256)
+            try FieldDraftValidationV1.digest(receiptSHA256)
+            guard receiptIdentity.workspaceID == workspaceID else {
+                throw FieldDraftFailureV1.invalidValue
+            }
+        }
+    }
+
+    struct CheckpointTip: Codable, Equatable, Sendable {
+        let draftRevision: UInt64
+        let state: FieldDraftStateV1
+        let checkpointSHA256: String
+        let record: RecordAnchor
+
+        fileprivate init(_ checkpoint: FieldDraftCheckpointV1,
+                         record: RepetitiveCaptureSourceHistoryRecordV2) {
+            draftRevision = checkpoint.draftRevision
+            state = checkpoint.state
+            checkpointSHA256 = checkpoint.checkpointSHA256
+            self.record = .init(record)
+        }
+    }
+
+    struct CheckpointFrontier: Codable, Equatable, Sendable {
+        /// Zero is the source; remaining positions follow the exact progress chain.
+        let position: Int
+        let draftID: UUID
+        let original: CheckpointTip
+        let current: CheckpointTip
+        let lifecycle: HistoryCommitment
+    }
+
+    struct RoundTip: Codable, Equatable, Sendable {
+        let revision: UInt64
+        let canonicalSHA256: String
+        let record: RecordAnchor
+    }
+
+    struct Value: Codable, Equatable, Sendable {
+        let format: String
+        let sourceWorkspaceID: WorkspaceID
+        let sourcePersistentSchemaVersion: Int
+        let sourceRecordsSchemaVersion: Int
+        let manifestJSONSHA256: String
+        let recordsJSONSHA256: String
+        let sourceDraftID: UUID
+        let checkpoints: [CheckpointFrontier]
+        let roundSessionID: UUID
+        let historicalRound: RoundTip
+        let packageCurrentRound: RoundTip
+        let roundHistory: HistoryCommitment
+        let requiredHistory: HistoryCommitment
+        let isUnchangedActiveSource: Bool
+    }
+
+    let value: Value
+    let referenceSHA256: String
+
+    fileprivate init(value: Value) throws {
+        self.value = value
+        referenceSHA256 = try FieldDraftCanonicalCodecV1.sha256(value)
+        try validate()
+    }
+
+    func validate() throws {
+        try FieldDraftValidationV1.workspace(value.sourceWorkspaceID)
+        try FieldDraftValidationV1.id(value.sourceDraftID)
+        try FieldDraftValidationV1.id(value.roundSessionID)
+        for digest in [value.manifestJSONSHA256, value.recordsJSONSHA256, referenceSHA256] {
+            try FieldDraftValidationV1.digest(digest)
+        }
+        guard value.format == Self.format, value.sourcePersistentSchemaVersion > 0,
+              value.sourceRecordsSchemaVersion > 0, !value.checkpoints.isEmpty,
+              value.checkpoints.count <= Self.maximumFrontiers,
+              value.checkpoints.first?.draftID == value.sourceDraftID,
+              Set(value.checkpoints.map(\.draftID)).count == value.checkpoints.count else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        var lifecycleCount = 0
+        for (position, frontier) in value.checkpoints.enumerated() {
+            try FieldDraftValidationV1.id(frontier.draftID)
+            try frontier.lifecycle.validate()
+            guard frontier.position == position, frontier.original.draftRevision == 1,
+                  frontier.original.state == .active,
+                  frontier.current.draftRevision >= frontier.original.draftRevision else {
+                throw FieldDraftFailureV1.invalidValue
+            }
+            for tip in [frontier.original, frontier.current] {
+                try FieldDraftValidationV1.digest(tip.checkpointSHA256)
+                try tip.record.validate(workspaceID: value.sourceWorkspaceID)
+            }
+            lifecycleCount += frontier.lifecycle.recordCount
+        }
+        for tip in [value.historicalRound, value.packageCurrentRound] {
+            try FieldDraftValidationV1.revision(tip.revision)
+            try FieldDraftValidationV1.digest(tip.canonicalSHA256)
+            try tip.record.validate(workspaceID: value.sourceWorkspaceID)
+        }
+        try value.roundHistory.validate()
+        try value.requiredHistory.validate()
+        guard value.historicalRound.revision <= value.packageCurrentRound.revision,
+              value.requiredHistory.recordCount == lifecycleCount + value.roundHistory.recordCount,
+              referenceSHA256 == (try FieldDraftCanonicalCodecV1.sha256(value)),
+              try FieldDraftCanonicalCodecV1.encode(self).count <= FieldDraftLimitsV1.maximumPayloadBytes else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+    }
+
+    /// Equality with a fresh derivation proves the commitment belongs to this
+    /// sealed package review. It does not authenticate a later destination row.
+    func validate(against reviewed: ReviewedRepetitiveCaptureSourceGraphsV2) throws {
+        try validate()
+        let references = try RepetitiveCaptureSourceGraphReviewV2.references(from: reviewed)
+        guard references.first(where: { $0.value.sourceDraftID == value.sourceDraftID }) == self else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+    }
+}
+
+extension RepetitiveCaptureSourceGraphReviewV2 {
+    /// The aggregate's initializer is sealed to this file. No caller-supplied
+    /// graph/history arrays can enter this source-reference construction boundary.
+    static func references(from reviewed: ReviewedRepetitiveCaptureSourceGraphsV2) throws
+        -> [RepetitiveCaptureSourceGraphReferenceV2] {
+        typealias Reference = RepetitiveCaptureSourceGraphReferenceV2
+        var roundsBySession: [UUID: [RepetitiveCaptureSourceHistoryRecordV2]] = [:]
+        for record in reviewed.requiredHistory {
+            if case let .applyRoundSession(mutation) = record.envelope.command {
+                roundsBySession[mutation.session.sessionID, default: []].append(record)
+            }
+        }
+        // Shared-session history is hashed once, even when several historical
+        // graphs use it. Each graph's union commits to the same complete chunk.
+        var roundEvidence: [UUID: SourceReferenceRoundEvidence] = [:]
+        for (sessionID, records) in roundsBySession {
+            let commitment = try sourceHistoryCommitment(records, role: "round")
+            roundEvidence[sessionID] = .init(commitment: commitment,
+                records: Dictionary(uniqueKeysWithValues: records.map { ($0.envelope.mutationID, $0) }))
+        }
+        return try reviewed.graphs.map { graph in
+            let sessionID = graph.packageCurrentRound.sessionID
+            guard let rounds = roundEvidence[sessionID] else { throw invalid() }
+            let frontiers = try graph.checkpoints.enumerated().map { position, checkpoint in
+                guard let first = checkpoint.lifecycle.first, let last = checkpoint.lifecycle.last else {
+                    throw invalid()
+                }
+                return Reference.CheckpointFrontier(position: position,
+                    draftID: checkpoint.original.draftID,
+                    original: .init(checkpoint.original, record: first),
+                    current: .init(checkpoint.current, record: last),
+                    lifecycle: try sourceHistoryCommitment(checkpoint.lifecycle, role: "checkpoint"))
+            }
+            let unionChunks = frontiers.map {
+                SourceReferenceHistoryChunk(role: "checkpoint", position: $0.position,
+                    objectID: $0.draftID, commitment: $0.lifecycle)
+            } + [.init(role: "round", position: frontiers.count,
+                       objectID: sessionID, commitment: rounds.commitment)]
+            let unionCount = unionChunks.reduce(0) { $0 + $1.commitment.recordCount }
+            // Checkpoint lifecycle records and Round records have disjoint
+            // command kinds; unique draft membership makes these chunks disjoint.
+            let union = Reference.HistoryCommitment(recordCount: unionCount,
+                recordsSHA256: try sourceCommitmentDigest(
+                    role: "union", count: unionCount, frames: unionChunks))
+            return try Reference(value: .init(format: Reference.format,
+                sourceWorkspaceID: reviewed.sourceWorkspaceID,
+                sourcePersistentSchemaVersion: reviewed.sourcePersistentSchemaVersion,
+                sourceRecordsSchemaVersion: reviewed.sourceRecordsSchemaVersion,
+                manifestJSONSHA256: reviewed.manifestJSONSHA256,
+                recordsJSONSHA256: reviewed.recordsJSONSHA256,
+                sourceDraftID: graph.chain.sourceCheckpoint.draftID, checkpoints: frontiers,
+                roundSessionID: sessionID,
+                historicalRound: try sourceReferenceRoundTip(graph.chain.currentRound, evidence: rounds),
+                packageCurrentRound: try sourceReferenceRoundTip(graph.packageCurrentRound, evidence: rounds),
+                roundHistory: rounds.commitment, requiredHistory: union,
+                isUnchangedActiveSource: graph.isUnchangedActiveSource))
+        }
+    }
+
+    private struct SourceReferenceRoundEvidence {
+        let commitment: RepetitiveCaptureSourceGraphReferenceV2.HistoryCommitment
+        let records: [MutationIDV1: RepetitiveCaptureSourceHistoryRecordV2]
+    }
+
+    private struct SourceReferenceHistoryChunk: Encodable {
+        let role: String
+        let position: Int
+        let objectID: UUID
+        let commitment: RepetitiveCaptureSourceGraphReferenceV2.HistoryCommitment
+    }
+
+    private static func sourceReferenceRoundTip(_ round: RoundSessionV1,
+                                                evidence: SourceReferenceRoundEvidence) throws
+        -> RepetitiveCaptureSourceGraphReferenceV2.RoundTip {
+        guard let record = evidence.records[round.mutationID],
+              case let .applyRoundSession(mutation) = record.envelope.command,
+              mutation.session == round else { throw invalid() }
+        return .init(revision: round.revision,
+                     canonicalSHA256: try RoundSessionCanonicalCodecV1.sha256(round),
+                     record: .init(record))
+    }
+
+    private static func sourceHistoryCommitment(_ records: [RepetitiveCaptureSourceHistoryRecordV2],
+                                                role: String) throws
+        -> RepetitiveCaptureSourceGraphReferenceV2.HistoryCommitment {
+        guard !records.isEmpty,
+              records.count <= MutationJournalStoreV1.maximumReceiptValidationCount else { throw invalid() }
+        // One small record anchor is encoded at a time; raw history and its
+        // potentially large postimages are never copied into the reference.
+        let digest = try sourceCommitmentDigest(role: role, count: records.count,
+            frames: records.lazy.map { RepetitiveCaptureSourceGraphReferenceV2.RecordAnchor($0) })
+        return .init(recordCount: records.count, recordsSHA256: digest)
+    }
+
+    /// Frozen encoding: F(domain UTF8), U64BE(record count), then F(canonical
+    /// frame) for each frame. F(bytes) is U64BE(byte count) followed by bytes.
+    /// Lifecycle/Round frames use authenticated history order. Union frames use
+    /// checkpoint chain order followed by the full Round-history commitment.
+    private static func sourceCommitmentDigest<Frames: Sequence>(role: String, count: Int,
+                                                                 frames: Frames) throws -> String
+        where Frames.Element: Encodable {
+        guard count > 0, count <= MutationJournalStoreV1.maximumReceiptValidationCount else {
+            throw invalid()
+        }
+        var hasher = SHA256()
+        sourceCommitmentFrame(Data("assetrounds.c36.source-history.\(role).v1".utf8), into: &hasher)
+        sourceCommitmentInteger(UInt64(count), into: &hasher)
+        for frame in frames {
+            sourceCommitmentFrame(try FieldDraftCanonicalCodecV1.encode(frame), into: &hasher)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func sourceCommitmentFrame(_ bytes: Data, into hasher: inout SHA256) {
+        sourceCommitmentInteger(UInt64(bytes.count), into: &hasher)
+        hasher.update(data: bytes)
+    }
+
+    private static func sourceCommitmentInteger(_ value: UInt64, into hasher: inout SHA256) {
+        var bigEndian = value.bigEndian
+        withUnsafeBytes(of: &bigEndian) { hasher.update(data: Data($0)) }
+    }
 }
