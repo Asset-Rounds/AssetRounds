@@ -1,6 +1,21 @@
 import Foundation
 import SwiftData
 
+/// Read-only application projection for one authenticated parent/photo target.
+/// The private owner and revision binding must be rechecked before a later actor
+/// uses the value; the projection itself grants no media or mutation authority.
+fileprivate final class CurrentPhotoTargetReadOwnerV1 {}
+
+struct CurrentPhotoTargetReadV1 {
+    let parentCheckpoint: FieldDraftCheckpointV1
+    let parent: CheckRunnerPhotoParentEvidenceV1
+    let historicalSource: CheckRunnerRoundItemSourceV1
+    let currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1
+
+    fileprivate let owner: CurrentPhotoTargetReadOwnerV1
+    fileprivate let revision: WorkspaceRevisionV1
+}
+
 /// Initial parent/Begin persistence only. No production factory registers this
 /// owner until the remaining child, restore and lifecycle prerequisites pass.
 @MainActor
@@ -13,6 +28,7 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     private let publishedRelease: InspectionPackageReleaseV1
     private let clock: any ApplicationClock
     private let ids: any ApplicationIDSource
+    private let currentPhotoReadOwner = CurrentPhotoTargetReadOwnerV1()
 
     init(session: StoreSessionCoordinator, progress: ProductionRepetitiveCaptureProgressServiceV2,
          coordinator: CheckRunnerCoordinator, publishedRelease: InspectionPackageReleaseV1,
@@ -59,6 +75,59 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         let checkpoint = try row.value()
         _ = try Self.authenticateCurrent(checkpoint, writer: current.workspaceWriter, context: current.modelContext)
         return checkpoint
+    }
+
+    /// Joins the authenticated current parent to its original committed child,
+    /// current workflow/evidence frontier and original Round ENTRY. The returned
+    /// value is observational only and carries no raw-media or effect authority.
+    func readCurrentPhotoTarget(parentDraftID: UUID, childDraftID: UUID) throws
+        -> CurrentPhotoTargetReadV1? {
+        let current = try currentSession()
+        let revision = try current.workspaceWriter.currentRevision()
+        let target = try current.workspaceWriter.checkRunnerPhotoCurrentTargetEvidence(
+            workspaceID: workspaceID, parentDraftID: parentDraftID,
+            childDraftID: childDraftID)
+        guard let target else {
+            guard try currentSession().workspaceWriter.currentRevision() == revision else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            return nil
+        }
+        let parentCheckpoint = target.parent.checkpoint
+        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parentCheckpoint)
+        let source = payload.source
+        let progressRead = try progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
+        try coordinator.validateHistoricalCheckRunnerSource(source, read: progressRead,
+            progress: progress, publishedRelease: publishedRelease)
+
+        // Close the synchronous read interval with fresh owner, historical
+        // source, exact checkpoint and workspace revision checks.
+        guard try read(draftID: parentDraftID) == parentCheckpoint,
+              try current.workspaceWriter.currentRevision() == revision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        return .init(parentCheckpoint: parentCheckpoint, parent: target.parent,
+            historicalSource: source, currentTarget: target,
+            owner: currentPhotoReadOwner, revision: revision)
+    }
+
+    /// Required immediately before a later publication or actor uses a saved
+    /// projection. This repeats every live owner/source/target check.
+    func validateForPublication(_ value: CurrentPhotoTargetReadV1) throws {
+        guard value.owner === currentPhotoReadOwner else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let current = try currentSession()
+        guard try current.workspaceWriter.currentRevision() == value.revision,
+              let refreshed = try readCurrentPhotoTarget(
+                parentDraftID: value.parentCheckpoint.draftID,
+                childDraftID: value.parent.slot.childDraftID),
+              refreshed.parentCheckpoint == value.parentCheckpoint,
+              refreshed.parent == value.parent,
+              refreshed.historicalSource == value.historicalSource,
+              refreshed.currentTarget == value.currentTarget else {
+            throw ScanToWorkFailureV1.stale
+        }
     }
 
     /// Explicit Begin freezes once. A repeated request observes the saved

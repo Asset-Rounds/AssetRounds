@@ -6,8 +6,8 @@ import XCTest
 
 @MainActor
 final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
-    func testCaptureSourceUsesAuthenticatedEntryAndClosedCanonicalRoundTripWithoutEffects() throws {
-        try withFrozenBeginFixture("capture-source", entry: .check, storedTimeZoneID: "America/Chicago") { h in
+    func testCaptureSourceUsesAuthenticatedEntryAndClosedCanonicalRoundTripWithoutEffects() async throws {
+        try await withAsyncFrozenBeginFixture("capture-source", entry: .check, storedTimeZoneID: "America/Chicago") { h in
             let before = try h.snapshot()
             let idCalls = h.ids.callCount
             let source = try h.captureSource()
@@ -33,6 +33,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             try decoded.validate(read: h.read, publishedRelease: h.publishedRelease, signPack: h.signPack)
             try h.progress.validateHistoricalCheckRunnerSource(decoded, read: h.read,
                 publishedRelease: h.publishedRelease, signPack: h.signPack)
+            try h.runner.validateHistoricalCheckRunnerSource(decoded, read: h.read,
+                progress: h.progress, publishedRelease: h.publishedRelease)
             XCTAssertEqual(try h.snapshot(), before)
 
             var unknown = try frozenBeginJSONObject(bytes)
@@ -80,11 +82,63 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 publishedRelease: frozenBeginShippingRelease(stage: .recheck), signPack: h.signPack))
             XCTAssertEqual(try h.snapshot(), before)
             XCTAssertEqual(h.ids.callCount, idCalls)
+
+            let current = try await h.persistCurrentPhotoApplicationFixture()
+            XCTAssertEqual(current.value.historicalSource, source)
+            XCTAssertEqual(current.value.parentCheckpoint, current.value.parent.checkpoint)
+            XCTAssertEqual(current.value.currentTarget.parent, current.value.parent)
+            XCTAssertEqual(current.value.currentTarget.evidence.id,
+                current.value.parent.child.target.command.evidenceID)
+            XCTAssertEqual(current.value.currentTarget.laterPhotos, [])
+            XCTAssertNil(current.value.currentTarget.finalization)
+            try current.service.validateForPublication(current.value)
+
+            do {
+                _ = try await h.runner.finalize(assetID: h.assetID,
+                    selection: .noVisibleIssue,
+                    completedAt: Date(timeIntervalSince1970: 1_789_323_470),
+                    snapshotCreatedAt: Date(timeIntervalSince1970: 1_789_323_471),
+                    sourceApp: .init(build: "photo-current-hostile", version: "1.0"))
+                XCTFail("Non-CNV finalization must reject the close frontier")
+            } catch {}
+            let stillAtClose = try XCTUnwrap(current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
+            XCTAssertNil(stillAtClose.currentTarget.finalization)
+            _ = try await h.runner.finalize(assetID: h.assetID,
+                selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil),
+                completedAt: Date(timeIntervalSince1970: 1_789_323_472),
+                snapshotCreatedAt: Date(timeIntervalSince1970: 1_789_323_473),
+                sourceApp: .init(build: "photo-current-close-cnv", version: "1.0"))
+            let finalizedAtClose = try XCTUnwrap(current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
+            XCTAssertEqual(finalizedAtClose.currentTarget.laterPhotos, [])
+            XCTAssertNotNil(finalizedAtClose.currentTarget.finalization)
+            try current.service.validateForPublication(finalizedAtClose)
+            let finalization = try XCTUnwrap(finalizedAtClose.currentTarget.finalization)
+            var command = try XCTUnwrap(JSONSerialization.jsonObject(with:
+                WorkspaceMutationCanonicalV1.data(finalization.envelope.command)) as? [String: Any])
+            var finalize = try XCTUnwrap(command["finalizeCheck"] as? [String: Any])
+            var value = try XCTUnwrap(finalize["_0"] as? [String: Any])
+            var authority = try XCTUnwrap(value["writerAuthority"] as? [String: Any])
+            var binding = try XCTUnwrap(authority["sourceBinding"] as? [String: Any])
+            binding["sourceRecordID"] = beginPreparationUUID(39_999).uuidString
+            authority["sourceBinding"] = binding; value["writerAuthority"] = authority
+            finalize["_0"] = value; command["finalizeCheck"] = finalize
+            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .millisecondsSince1970
+            let hostileCommand = try decoder.decode(WorkspaceCommandV1.self,
+                from: JSONSerialization.data(withJSONObject: command))
+            guard case let .finalizeCheck(hostileValue) = hostileCommand,
+                  let hostileAuthority = hostileValue.writerAuthority else {
+                return XCTFail("Expected hostile finalization authority")
+            }
+            XCTAssertThrowsError(try hostileAuthority.validate(command: hostileCommand))
         }
     }
 
-    func testPrepareCheckFreezesStoredZoneCompleteCommandAndSourceCASWithoutEffects() throws {
-        try withFrozenBeginFixture("stored-zone-check", entry: .check,
+    func testPrepareCheckFreezesStoredZoneCompleteCommandAndSourceCASWithoutEffects() async throws {
+        try await withAsyncFrozenBeginFixture("stored-zone-check", entry: .check,
                                    storedTimeZoneID: "America/Chicago") { h in
             let source = try h.captureSource()
             let before = try h.snapshot()
@@ -118,6 +172,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(attempt.recordCommand,
                            try h.expectedCommand(recordID: recordID, observedAt: submittedAt,
                                                  timeZoneID: "America/Chicago", parentID: nil))
+            try h.runner.validateHistoricalCheckRunnerSource(source, read: h.read,
+                progress: h.progress, publishedRelease: h.publishedRelease)
 
             let sourceBytes = try FieldDraftCanonicalCodecV1.encode(source)
             let attemptBytes = try FieldDraftCanonicalCodecV1.encode(attempt)
@@ -131,9 +187,9 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
         }
     }
 
-    func testPrepareRecheckFreezesExplicitIssueParentAndOptionalZoneCommandWithoutEffects() throws {
+    func testPrepareRecheckFreezesExplicitIssueParentAndOptionalZoneCommandWithoutEffects() async throws {
         let issueID = beginPreparationUUID(9_101)
-        try withFrozenBeginFixture("missing-zone-recheck", entry: .recheck(issueID: issueID),
+        try await withAsyncFrozenBeginFixture("missing-zone-recheck", entry: .recheck(issueID: issueID),
                                    storedTimeZoneID: nil) { h in
             let source = try h.captureSource()
             let before = try h.snapshot()
@@ -177,12 +233,14 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(zone.expectedSiteRevision, try XCTUnwrap(
                 current.entityRevisions.first { $0.identity == siteIdentity }
             ).revision)
+            try h.runner.validateHistoricalCheckRunnerSource(source, read: h.read,
+                progress: h.progress, publishedRelease: h.publishedRelease)
             XCTAssertEqual(try h.snapshot(), before)
         }
     }
 
-    func testInvalidPreflightRequestPackageAndAccessAllocateNoIDsOrEffects() throws {
-        try withFrozenBeginFixture("invalid-preflight", entry: .check, storedTimeZoneID: nil) { h in
+    func testInvalidPreflightRequestPackageAndAccessAllocateNoIDsOrEffects() async throws {
+        try await withAsyncFrozenBeginFixture("invalid-preflight", entry: .check, storedTimeZoneID: nil) { h in
             let source = try h.captureSource()
             let valid = BeginDraftSubmission(
                 assetID: h.assetID, requestedStage: .check, issueID: nil,
@@ -191,6 +249,10 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 afterDarkAccepted: true, safePositionAccepted: true
             )
             let otherRelease = try frozenBeginShippingRelease(stage: .recheck)
+            try h.runner.validateHistoricalCheckRunnerSource(source, read: h.read,
+                progress: h.progress, publishedRelease: h.publishedRelease)
+            XCTAssertThrowsError(try h.runner.validateHistoricalCheckRunnerSource(source, read: h.read,
+                progress: h.progress, publishedRelease: otherRelease))
             let cases: [(String, InspectionPackageReleaseV1, BeginDraftSubmission)] = [
                 ("missing-observation", h.publishedRelease, .init(
                     assetID: valid.assetID, requestedStage: .check, issueID: nil,
@@ -253,10 +315,11 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
         }
     }
 
-    func testChangedSourceForeignOwnerDirtyContextCompatibilityAndInvalidSessionFailWithoutPreparationEffects() throws {
-        try withFrozenBeginFixture("changed-source", entry: .check,
+    func testChangedSourceForeignOwnerDirtyContextCompatibilityAndInvalidSessionFailWithoutPreparationEffects() async throws {
+        try await withAsyncFrozenBeginFixture("changed-source", entry: .check,
                                    storedTimeZoneID: "America/New_York") { h in
             let source = try h.captureSource()
+            let current = try await h.persistCurrentPhotoApplicationFixture()
             let latest = try h.progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
             try h.progress.validateHistoricalCheckRunnerSource(source, read: latest,
                 publishedRelease: h.publishedRelease, signPack: h.signPack)
@@ -270,6 +333,14 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             let idCalls = h.ids.callCount
             try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
                 publishedRelease: h.publishedRelease, signPack: h.signPack)
+            try h.runner.validateHistoricalCheckRunnerSource(source, read: h.read,
+                progress: h.progress, publishedRelease: h.publishedRelease)
+            let refreshed = try XCTUnwrap(current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
+            XCTAssertEqual(refreshed.historicalSource, source)
+            XCTAssertThrowsError(try current.service.validateForPublication(current.value))
+            try current.service.validateForPublication(refreshed)
             XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: latest,
                 publishedRelease: h.publishedRelease, signPack: h.signPack))
             XCTAssertThrowsError(try h.captureSource())
@@ -281,12 +352,16 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(try h.snapshot(), before)
         }
 
-        try withFrozenBeginFixture("foreign-owner", entry: .check,
+        try await withAsyncFrozenBeginFixture("foreign-owner", entry: .check,
                                    storedTimeZoneID: "America/New_York") { h in
             let source = try h.captureSource()
+            let current = try await h.persistCurrentPhotoApplicationFixture()
             let foreignProgress = try h.coordinator.makeRepetitiveCaptureProgressService(
                 transitions: h.transitions
             )
+            let foreignService = try ProductionCheckRunnerItemDraftServiceV1(session: h.coordinator,
+                progress: foreignProgress, coordinator: h.runner,
+                publishedRelease: h.publishedRelease, clock: h.clock, ids: h.ids)
             let before = try h.snapshot()
             let idCalls = h.ids.callCount
             XCTAssertThrowsError(try foreignProgress.validateHistoricalCheckRunnerSource(source, read: h.read,
@@ -295,13 +370,31 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 read: h.read, progress: foreignProgress, itemID: h.itemID,
                 publishedRelease: h.publishedRelease, requestedEntry: .check
             ))
+            XCTAssertThrowsError(try foreignService.validateForPublication(current.value))
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.snapshot(), before)
+
+            let closeCandidate = try await h.runner.importCandidate(assetID: h.assetID,
+                sourceData: WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 202),
+                createdAt: Date(timeIntervalSince1970: 1_789_323_480))
+            _ = try await h.runner.accept(candidate: closeCandidate, assetID: h.assetID)
+            _ = try await h.runner.finalize(assetID: h.assetID, selection: .noVisibleIssue,
+                completedAt: Date(timeIntervalSince1970: 1_789_323_481),
+                snapshotCreatedAt: Date(timeIntervalSince1970: 1_789_323_482),
+                sourceApp: .init(build: "photo-current-outcome", version: "1.0"))
+            let finalizedAtOutcome = try XCTUnwrap(current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
+            XCTAssertEqual(finalizedAtOutcome.currentTarget.laterPhotos.map(\.command.evidenceID),
+                [closeCandidate.id])
+            XCTAssertNotNil(finalizedAtOutcome.currentTarget.finalization)
+            try current.service.validateForPublication(finalizedAtOutcome)
         }
 
-        try withFrozenBeginFixture("dirty-context", entry: .check,
+        try await withAsyncFrozenBeginFixture("dirty-context", entry: .check,
                                    storedTimeZoneID: "America/New_York") { h in
             let source = try h.captureSource()
+            let current = try await h.persistCurrentPhotoApplicationFixture()
             let site = try XCTUnwrap(h.context.fetch(FetchDescriptor<Site>()).first { $0.id == h.siteID })
             site.label = "Unsaved hostile label"
             XCTAssertTrue(h.context.hasChanges)
@@ -313,15 +406,17 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 source: source, progress: h.progress,
                 publishedRelease: h.publishedRelease, submission: h.validSubmission()
             ))
+            XCTAssertThrowsError(try current.service.validateForPublication(current.value))
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.rowSnapshot(), before)
             XCTAssertTrue(h.context.hasChanges)
             h.context.rollback()
         }
 
-        try withFrozenBeginFixture("invalid-session", entry: .check,
+        try await withAsyncFrozenBeginFixture("invalid-session", entry: .check,
                                    storedTimeZoneID: "America/New_York") { h in
             let source = try h.captureSource()
+            let current = try await h.persistCurrentPhotoApplicationFixture()
             let compatibility = CheckRunnerCoordinator(
                 modelContext: h.context, signPack: h.signPack,
                 clock: h.clock, idSource: h.ids
@@ -338,6 +433,7 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.rowSnapshot(), before)
             try h.closeCoordinator()
+            XCTAssertThrowsError(try current.service.validateForPublication(current.value))
             XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
                 publishedRelease: h.publishedRelease, signPack: h.signPack))
             XCTAssertThrowsError(try h.runner.prepareFrozenBegin(
@@ -348,9 +444,10 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(try h.rowSnapshot(), before)
         }
 
-        try withFrozenBeginFixture("completed-item-history", entry: .check,
+        try await withAsyncFrozenBeginFixture("completed-item-history", entry: .check,
                                    storedTimeZoneID: "America/New_York") { h in
             let source = try h.captureSource()
+            let current = try await h.persistCurrentPhotoApplicationFixture()
             let entry = try XCTUnwrap(h.read.chain.nodes.last)
             let round = h.read.chain.currentRound
             // This fixture proves journal/source correspondence. Finalization's
@@ -381,6 +478,10 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             // The pending later effect does not erase the already receipted ENTRY.
             try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
                 publishedRelease: h.publishedRelease, signPack: h.signPack)
+            let pendingCurrent = try XCTUnwrap(current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
+            try current.service.validateForPublication(pendingCurrent)
             XCTAssertThrowsError(try h.captureSource())
             XCTAssertEqual(try h.snapshot(), before)
 
@@ -392,6 +493,11 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             before = try h.snapshot()
             try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
                 publishedRelease: h.publishedRelease, signPack: h.signPack)
+            let completedCurrent = try XCTUnwrap(current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
+            XCTAssertEqual(completedCurrent.historicalSource, source)
+            try current.service.validateForPublication(completedCurrent)
             XCTAssertThrowsError(try h.captureSource())
             XCTAssertThrowsError(try h.runner.prepareFrozenBegin(source: source, progress: h.progress,
                 publishedRelease: h.publishedRelease, submission: h.validSubmission()))
@@ -410,13 +516,16 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertThrowsError(try h.progress.read(sourceDraftID: source.sourceCheckpoint.draftID))
             XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
                 publishedRelease: h.publishedRelease, signPack: h.signPack))
+            XCTAssertThrowsError(try current.service.readCurrentPhotoTarget(
+                parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID))
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.snapshot(), before)
         }
     }
 
-    func testFrozenContractsRejectMalformedClosedBytesAndEncodeNoDestinationAuthority() throws {
-        try withFrozenBeginFixture("closed-contract", entry: .check, storedTimeZoneID: nil) { h in
+    func testFrozenContractsRejectMalformedClosedBytesAndEncodeNoDestinationAuthority() async throws {
+        try await withAsyncFrozenBeginFixture("closed-contract", entry: .check, storedTimeZoneID: nil) { h in
             let source = try h.captureSource()
             let recordID = beginPreparationUUID(9_301)
             let zoneID = beginPreparationUUID(9_302)
@@ -432,6 +541,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             )
             XCTAssertEqual(decoded, attempt)
             XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(decoded), bytes)
+            try h.runner.validateHistoricalCheckRunnerSource(source, read: h.read,
+                progress: h.progress, publishedRelease: h.publishedRelease)
 
             let top = try frozenBeginJSONObject(bytes)
             XCTAssertEqual(try decodeFrozenBeginJSON(CheckRunnerFrozenBeginAttemptV1.self, object: top), attempt)
@@ -565,6 +676,36 @@ func withFrozenBeginFixture<Value>(
 }
 
 @MainActor
+func withAsyncFrozenBeginFixture<Value>(
+    _ label: String, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
+    _ body: (FrozenBeginFixture) async throws -> Value
+) async throws -> Value {
+    var root: URL?
+    do {
+        let fixtureRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V23-frozen-begin-\(label)-\(UUID().uuidString)", isDirectory: true
+        )
+        root = fixtureRoot
+        let fixture = try FrozenBeginFixture(
+            root: fixtureRoot, entry: entry, storedTimeZoneID: storedTimeZoneID
+        )
+        let value: Value
+        do {
+            value = try await body(fixture)
+            try fixture.closeCoordinator()
+        } catch {
+            try? fixture.closeCoordinator()
+            throw error
+        }
+        if let root { try FileManager.default.removeItem(at: root) }
+        return value
+    } catch {
+        if let root { try? FileManager.default.removeItem(at: root) }
+        throw error
+    }
+}
+
+@MainActor
 final class FrozenBeginFixture {
     struct SiteAnchor: Equatable { let id: UUID; let label: String; let timeZoneID: String?; let updatedAt: Date }
     struct AssetAnchor: Equatable {
@@ -613,6 +754,11 @@ final class FrozenBeginFixture {
 
     var context: ModelContext { session.modelContext }
     var workspaceID: WorkspaceID { session.workspaceID }
+
+    struct CurrentPhotoApplicationFixture {
+        let service: ProductionCheckRunnerItemDraftServiceV1
+        let value: CurrentPhotoTargetReadV1
+    }
 
     init(root: URL, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?) throws {
         self.root = root
@@ -749,6 +895,287 @@ final class FrozenBeginFixture {
         )
         _ = try localCoordinator.workspaceWriter.sourceMutationHistorySnapshot()
         XCTAssertFalse(localSession.modelContext.hasChanges)
+    }
+
+    /// Installs one production-shaped parent/child commit using this fixture's
+    /// authenticated ENTRY, durable Begin, genuine normalized JPEG promotion,
+    /// and receipts written through the production writer and draft adapter.
+    func persistCurrentPhotoApplicationFixture() async throws -> CurrentPhotoApplicationFixture {
+        let service = try ProductionCheckRunnerItemDraftServiceV1(session: coordinator,
+            progress: progress, coordinator: runner, publishedRelease: publishedRelease,
+            clock: clock, ids: ids)
+        let source = try captureSource()
+        let site = try XCTUnwrap(context.fetch(FetchDescriptor<Site>()).first { $0.id == siteID })
+        let resolvedTimeZoneID = site.timeZoneID ?? "America/New_York"
+        let created = try service.create(source: source, preflight: .init(
+            timeZoneID: resolvedTimeZoneID, isTimeZoneConfirmed: true,
+            confirmedTimeZoneID: resolvedTimeZoneID,
+            afterDarkAccepted: true, safePositionAccepted: true))
+        let prepared = try service.prepareBegin(draftID: created.draftID,
+            expectedCheckpointSHA256: created.checkpointSHA256,
+            observedAtUTC: Date(timeIntervalSince1970: 1_789_323_456))
+        let bound = try service.resumeInitialBegin(draftID: prepared.draftID)
+        let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(bound)
+        guard case .bound = parent.field.begin, let attempt = parent.field.begin.attempt else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        XCTAssertEqual(parent.source, source)
+        XCTAssertEqual(parent.field.preflight.timeZoneID, resolvedTimeZoneID)
+        XCTAssertEqual(parent.field.preflight.confirmedTimeZoneID, resolvedTimeZoneID)
+        XCTAssertEqual(attempt.resolvedSiteTimeZoneID, resolvedTimeZoneID)
+        XCTAssertNil(attempt.timeZone)
+
+        runner.configureCapture(generationRootURL: session.generationRootURL)
+        let sourceData = WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 201)
+        let media = try MediaNormalizerV1().normalizeWithSourceFacts(sourceData)
+        let evidenceCreatedAt = bound.updatedAt.addingTimeInterval(1)
+        let candidate = try await runner.importCandidate(assetID: source.assetID,
+            sourceData: sourceData, createdAt: evidenceCreatedAt)
+        let originalFacts = try MediaNormalizerV1().validateCanonicalJPEG(
+            media.normalized.originalJPEG, kind: .original)
+        let thumbnailFacts = try MediaNormalizerV1().validateCanonicalJPEG(
+            media.normalized.thumbnailJPEG, kind: .thumbnail)
+        let childDraftID = beginPreparationUUID(30_001)
+        let stageID = beginPreparationUUID(30_002)
+        let evidenceID = candidate.id
+        let intent = try CheckRunnerPhotoRawStageIntentV1(stageID: stageID,
+            stageMutationID: .init(rawValue: beginPreparationUUID(30_004)),
+            stageCreatedAt: bound.updatedAt.addingTimeInterval(2),
+            expectedSourceByteCount: Int64(sourceData.count),
+            provenanceID: "application-photo-current", evidenceID: evidenceID,
+            evidenceCreatedAt: evidenceCreatedAt)
+        let inspection = try CheckRunnerPhotoSourceInspectionV1(
+            facts: media.sourceFacts,
+            sourceSHA256: .init(algorithm: .sha256,
+                hexadecimalValue: KernelCanonicalHashV1.sha256(sourceData)),
+            workspaceID: workspaceID, provenanceID: intent.provenanceID)
+        let ready = try AttachmentStagingItemV1(stageID: stageID, draftID: childDraftID,
+            workspaceID: workspaceID, attachmentKind: .photo, scratchLeaseID: stageID,
+            expectedByteCount: Int64(sourceData.count), actualByteCount: Int64(sourceData.count),
+            contentDigest: inspection.sourceSHA256, retryClass: .none, state: .readyLocal,
+            protectionState: .available, revision: 1, mutationID: intent.stageMutationID)
+        let provenance = try ContentOriginalProvenanceV1(provenanceID: intent.provenanceID,
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: inspection.rawContentID, contentDigest: inspection.sourceSHA256,
+            origin: .humanCapture,
+            recordedAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(intent.stageCreatedAt))
+        let raw = try CheckRunnerPhotoRawReadyV1(intent: intent, inspection: inspection,
+            readyItem: ready, stagePublicationMutationID: intent.stageMutationID,
+            originalProvenance: provenance)
+        XCTAssertEqual(candidate.stagedBundle.originalByteCount, media.normalized.originalJPEG.count)
+        XCTAssertEqual(candidate.stagedBundle.thumbnailByteCount, media.normalized.thumbnailJPEG.count)
+        XCTAssertEqual(candidate.stagedBundle.originalSHA256,
+            KernelCanonicalHashV1.sha256(media.normalized.originalJPEG))
+        XCTAssertEqual(candidate.stagedBundle.thumbnailSHA256,
+            KernelCanonicalHashV1.sha256(media.normalized.thumbnailJPEG))
+        let normalized = try CheckRunnerPhotoNormalizedPairV1(evidenceID: evidenceID,
+            originalRelativePath: candidate.stagedBundle.originalRelativePath,
+            originalByteCount: Int64(candidate.stagedBundle.originalByteCount),
+            originalSHA256: candidate.stagedBundle.originalSHA256,
+            originalPixelWidth: originalFacts.pixelWidth,
+            originalPixelHeight: originalFacts.pixelHeight,
+            thumbnailRelativePath: candidate.stagedBundle.thumbnailRelativePath,
+            thumbnailByteCount: Int64(candidate.stagedBundle.thumbnailByteCount),
+            thumbnailSHA256: candidate.stagedBundle.thumbnailSHA256,
+            thumbnailPixelWidth: thumbnailFacts.pixelWidth,
+            thumbnailPixelHeight: thumbnailFacts.pixelHeight,
+            sourceBinding: .init(contentID: inspection.rawContentID,
+                digest: inspection.sourceSHA256),
+            sanitizedDerivative: CheckRunnerPhotoSourceMetadataProfileV1.sanitizedDerivative(),
+            thumbnailDerivative: CheckRunnerPhotoSourceMetadataProfileV1.thumbnailDerivative(
+                pixelWidth: thumbnailFacts.pixelWidth, pixelHeight: thumbnailFacts.pixelHeight))
+        let pair = try CheckRunnerPhotoPairReadyV1(raw: raw, normalizedPair: normalized,
+            pairPublicationMarkerSHA256: CheckRunnerPhotoPairReadyV1.markerSHA256(
+                childDraftID: childDraftID, parentDraftID: bound.draftID,
+                raw: raw, normalizedPair: normalized))
+        let workflowIdentity = try WorkspaceEntityIdentityV1(kind: .workflowRecord,
+            id: attempt.recordCommand.recordID)
+        let evidenceIdentity = try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: evidenceID)
+        let commitAttempt = try CheckRunnerPhotoCommitAttemptV1(
+            planID: beginPreparationUUID(30_010), expectedWorkflowRecordRevision: 1,
+            targetMutationID: .init(rawValue: evidenceID),
+            outputKeys: [workflowIdentity.stableKey, evidenceIdentity.stableKey].sorted(),
+            reservationMutationID: .init(rawValue: beginPreparationUUID(30_011)),
+            reservationReviewAfter: bound.updatedAt.addingTimeInterval(20),
+            preparedSagaID: beginPreparationUUID(30_012),
+            preparedSagaMutationID: .init(rawValue: beginPreparationUUID(30_013)),
+            preparedUpdatedAt: bound.updatedAt.addingTimeInterval(4),
+            contentPromotedSagaID: beginPreparationUUID(30_014),
+            contentPromotedSagaMutationID: .init(rawValue: beginPreparationUUID(30_015)),
+            contentPromotedUpdatedAt: bound.updatedAt.addingTimeInterval(6),
+            targetCommittedSagaID: beginPreparationUUID(30_016),
+            targetCommittedSagaMutationID: .init(rawValue: beginPreparationUUID(30_017)),
+            targetCommittedUpdatedAt: bound.updatedAt.addingTimeInterval(7),
+            draftRetirePendingSagaID: beginPreparationUUID(30_018),
+            draftRetirePendingSagaMutationID: .init(rawValue: beginPreparationUUID(30_019)),
+            draftRetirePendingUpdatedAt: bound.updatedAt.addingTimeInterval(8),
+            draftRetiredSagaID: beginPreparationUUID(30_020),
+            draftRetiredUpdatedAt: bound.updatedAt.addingTimeInterval(9),
+            commitReceiptID: beginPreparationUUID(30_021),
+            terminalBundleMutationID: .init(rawValue: beginPreparationUUID(30_022)),
+            terminalCheckpointUpdatedAt: bound.updatedAt.addingTimeInterval(10),
+            promotionAt: bound.updatedAt.addingTimeInterval(5))
+        let pendingSlot = CheckRunnerPhotoSlotV1.pending(childDraftID: childDraftID,
+            captureStep: .wide, purposeKey: "wide_context")
+        let pendingField = try CheckRunnerItemFieldStateV1(preflight: parent.field.preflight,
+            begin: parent.field.begin, outcome: parent.field.outcome, wideContext: pendingSlot,
+            closeDetail: parent.field.closeDetail, semanticAnchor: parent.field.semanticAnchor)
+        let pendingPayload = try CheckRunnerItemDraftPayloadV1(editing: source, field: pendingField)
+        let parentPending = try parentSuccessor(bound, payload: pendingPayload,
+            updatedAt: bound.updatedAt.addingTimeInterval(1),
+            mutationID: .init(rawValue: beginPreparationUUID(30_030)))
+        let adapter = try coordinator.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: context)
+        _ = try adapter.compareAndSwap(checkpoint: parentPending,
+            expectedDraftRevision: bound.draftRevision,
+            expectedBaseRevision: bound.baseCanonicalRevision)
+
+        func photoCheckpoint(_ phase: CheckRunnerPhotoDurablePhaseV1, revision: UInt64,
+                             state: FieldDraftStateV1, updatedAt: Date,
+                             mutationID: MutationIDV1) throws -> FieldDraftCheckpointV1 {
+            let payload = try CheckRunnerPhotoDraftPayloadV1(workspaceID: workspaceID,
+                childDraftID: childDraftID, parentDraftID: bound.draftID,
+                recordID: attempt.recordCommand.recordID, assetID: source.assetID,
+                sourceBinding: source, workflowStage: source.requestedEntry.stage,
+                captureStep: .wide, purposeKey: "wide_context",
+                origin: .humanCapture, phase: phase)
+            return try FieldDraftCheckpointV1(draftID: childDraftID, workspaceID: workspaceID,
+                scope: CheckRunnerPhotoDraftCodecV1.scope(payload: payload),
+                purpose: .inspectionReview, codec: CheckRunnerPhotoDraftCodecV1.release(),
+                baseCanonicalRevision: source.roundAtEntry.revision, draftRevision: revision,
+                payloadData: CheckRunnerPhotoDraftCodecV1.encode(payload),
+                stageIDs: phase.declaredStageIDs,
+                resumeAnchor: CheckRunnerPhotoDraftCodecV1.resumeAnchor(payload: payload),
+                state: state, updatedAt: updatedAt, mutationID: mutationID)
+        }
+        let awaiting = try photoCheckpoint(.awaitingRawStage(intent), revision: 1,
+            state: .active, updatedAt: intent.stageCreatedAt,
+            mutationID: .init(rawValue: beginPreparationUUID(30_040)))
+        _ = try adapter.compareAndSwap(checkpoint: awaiting, expectedDraftRevision: 0,
+            expectedBaseRevision: awaiting.baseCanonicalRevision)
+        let rawCheckpoint = try photoCheckpoint(.rawReady(raw), revision: 2,
+            state: .active, updatedAt: intent.stageCreatedAt,
+            mutationID: raw.stagePublicationMutationID)
+        _ = try adapter.publish(readyStage: .init(expectedCheckpoint: awaiting,
+            readyItem: ready, successorCheckpoint: rawCheckpoint))
+        let pairCheckpoint = try photoCheckpoint(.pairReady(pair), revision: 3,
+            state: .active, updatedAt: intent.stageCreatedAt,
+            mutationID: .init(rawValue: beginPreparationUUID(30_041)))
+        _ = try adapter.compareAndSwap(checkpoint: pairCheckpoint, expectedDraftRevision: 2,
+            expectedBaseRevision: pairCheckpoint.baseCanonicalRevision)
+        let committing = try photoCheckpoint(.preparedCommit(pair, commitAttempt), revision: 4,
+            state: .committing, updatedAt: commitAttempt.preparedUpdatedAt,
+            mutationID: .init(rawValue: beginPreparationUUID(30_042)))
+        _ = try adapter.compareAndSwap(checkpoint: committing, expectedDraftRevision: 3,
+            expectedBaseRevision: committing.baseCanonicalRevision)
+
+        let reconstruction = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: committing)
+        let commit = reconstruction.draftCommit
+        _ = try adapter.append(saga: commit.sagas[0], expectedRevision: 0)
+        let reference = try ContentReferenceV1(
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: inspection.rawContentID, byteLength: inspection.sourceByteCount,
+            mediaType: inspection.sourceMediaType, digests: .init([inspection.sourceSHA256]),
+            byteRole: .immutableOriginal,
+            createdAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(commitAttempt.promotionAt))
+        let committedStage = try AttachmentStagingItemV1(stageID: ready.stageID,
+            draftID: ready.draftID, workspaceID: ready.workspaceID,
+            attachmentKind: ready.attachmentKind, scratchLeaseID: ready.scratchLeaseID,
+            expectedByteCount: ready.expectedByteCount, actualByteCount: ready.actualByteCount,
+            contentDigest: ready.contentDigest, contentReference: reference,
+            processingJobID: ready.processingJobID, retryClass: ready.retryClass,
+            state: .committed, protectionState: ready.protectionState,
+            revision: ready.revision + 1,
+            mutationID: .init(rawValue: DraftAttachmentStagingAdapterV1.deterministicUUID(
+                "stage-mutation\u{1f}\(stageID.uuidString.lowercased())\u{1f}2\u{1f}COMMITTED\u{1f}\(inspection.sourceSHA256.hexadecimalValue)")))
+        _ = try adapter.append(stagingItem: committedStage, expectedRevision: ready.revision)
+        let locator = try ContentLocatorV1(locatorID: "application-photo-current-v1",
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: inspection.rawContentID, locatorRevision: 0,
+            contentDigest: inspection.sourceSHA256,
+            expectedByteLength: inspection.sourceByteCount)
+        let reservation = try DraftContentReservationV1(
+            reservationID: DraftAttachmentStagingAdapterV1.deterministicUUID(
+                "reservation\u{1f}\(commit.plan.planSHA256)\u{1f}\(stageID.uuidString.lowercased())"),
+            workspaceID: workspaceID, draftID: childDraftID, stageID: stageID,
+            commitPlanSHA256: commit.plan.planSHA256,
+            mutationID: commitAttempt.reservationMutationID,
+            contentDigest: inspection.sourceSHA256, locator: locator,
+            createdAt: commitAttempt.promotionAt,
+            reviewAfter: commitAttempt.reservationReviewAfter,
+            reconciliationState: .reserved, revision: 1)
+        _ = try adapter.append(reservation: reservation, expectedRevision: 0)
+        _ = try adapter.append(saga: commit.sagas[1], expectedRevision: 1)
+        let accepted = try await runner.accept(candidate: candidate, assetID: source.assetID)
+        XCTAssertEqual(accepted.id, reconstruction.targetCommand.evidenceID)
+        XCTAssertEqual(accepted.sha256, reconstruction.targetCommand.sha256)
+        XCTAssertEqual(accepted.thumbnailSHA256, reconstruction.targetCommand.thumbnailSHA256)
+        let target = try XCTUnwrap(coordinator.workspaceWriter.checkRunnerPhotoEvidence(
+            workspaceID: workspaceID, mutationID: commit.plan.mutationID))
+        _ = try adapter.append(saga: commit.sagas[2], expectedRevision: 2)
+        _ = try adapter.append(saga: commit.sagas[3], expectedRevision: 3)
+        let receipt = try DraftCommitReceiptV1(receiptID: commit.commitReceiptID,
+            workspaceID: workspaceID, draftID: childDraftID, sagaID: commit.retired.sagaID,
+            commitPlanSHA256: commit.plan.planSHA256,
+            sagaEventSHA256Chain: commit.sagas.map(\.sagaSHA256),
+            targetMutationID: commit.plan.mutationID,
+            targetReceiptSHA256: target.receipt.resultSHA256,
+            consumedStageToContentID: [stageID.uuidString: locator.contentID],
+            committedAt: target.receipt.committedAt,
+            mutationID: commit.rowMutationIDs.terminalBundleMutationID)
+        let terminal = try FieldDraftCheckpointV1(draftID: childDraftID,
+            workspaceID: workspaceID, scope: committing.scope, purpose: committing.purpose,
+            codec: committing.codec, baseCanonicalRevision: committing.baseCanonicalRevision,
+            draftRevision: 5, payloadData: committing.payloadData,
+            stageIDs: committing.stageIDs, resumeAnchor: committing.resumeAnchor,
+            state: .committed, lastDurableMutationID: commit.rowMutationIDs.terminalBundleMutationID,
+            lastReceiptSHA256: receipt.receiptSHA256,
+            updatedAt: commit.terminalCheckpointUpdatedAt,
+            mutationID: commit.rowMutationIDs.terminalBundleMutationID)
+        _ = try adapter.apply(commitTerminalBundle: .init(retiredSaga: commit.retired,
+            committedCheckpoint: terminal, receipt: receipt),
+            expectedDraftRevision: 4, expectedSagaRevision: 4)
+        let committedSlot = CheckRunnerPhotoSlotV1.committed(childDraftID: childDraftID,
+            captureStep: .wide, purposeKey: "wide_context",
+            committedChildDraftRevision: terminal.draftRevision,
+            committedChildCheckpointSHA256: terminal.checkpointSHA256,
+            childCommitReceiptID: receipt.receiptID,
+            childCommitReceiptSHA256: receipt.receiptSHA256,
+            evidenceID: target.command.evidenceID,
+            targetMutationID: target.receipt.mutationID,
+            targetReceiptSHA256: target.receipt.resultSHA256)
+        let committedField = try CheckRunnerItemFieldStateV1(preflight: parent.field.preflight,
+            begin: parent.field.begin, outcome: parent.field.outcome,
+            wideContext: committedSlot, closeDetail: parent.field.closeDetail,
+            semanticAnchor: parent.field.semanticAnchor)
+        let committedPayload = try CheckRunnerItemDraftPayloadV1(editing: source,
+            field: committedField)
+        let parentCommitted = try parentSuccessor(parentPending, payload: committedPayload,
+            updatedAt: commit.terminalCheckpointUpdatedAt,
+            mutationID: .init(rawValue: beginPreparationUUID(30_031)))
+        _ = try adapter.compareAndSwap(checkpoint: parentCommitted,
+            expectedDraftRevision: parentPending.draftRevision,
+            expectedBaseRevision: parentPending.baseCanonicalRevision)
+        let beforeRead = try snapshot()
+        let idCalls = ids.callCount
+        let value = try XCTUnwrap(service.readCurrentPhotoTarget(
+            parentDraftID: parentCommitted.draftID, childDraftID: childDraftID))
+        try service.validateForPublication(value)
+        XCTAssertEqual(ids.callCount, idCalls)
+        XCTAssertEqual(try snapshot(), beforeRead)
+        return .init(service: service, value: value)
+    }
+
+    private func parentSuccessor(_ predecessor: FieldDraftCheckpointV1,
+        payload: CheckRunnerItemDraftPayloadV1, updatedAt: Date,
+        mutationID: MutationIDV1) throws -> FieldDraftCheckpointV1 {
+        try FieldDraftCheckpointV1(draftID: predecessor.draftID,
+            workspaceID: predecessor.workspaceID, scope: predecessor.scope,
+            purpose: predecessor.purpose, codec: predecessor.codec,
+            baseCanonicalRevision: predecessor.baseCanonicalRevision,
+            draftRevision: predecessor.draftRevision + 1,
+            payloadData: CheckRunnerItemDraftCodecV1.encode(payload), stageIDs: [],
+            resumeAnchor: CheckRunnerItemDraftCodecV1.resumeAnchor(payload: payload),
+            state: .active, updatedAt: updatedAt, mutationID: mutationID)
     }
 
     func captureSource() throws -> CheckRunnerRoundItemSourceV1 {

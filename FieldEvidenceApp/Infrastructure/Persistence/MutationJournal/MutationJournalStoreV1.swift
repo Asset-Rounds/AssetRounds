@@ -1717,6 +1717,14 @@ final class MutationJournalStoreV1 {
         try validateCurrentWriterLease()
         guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
         try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        return try readCheckRunnerPhotoParentEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID)
+    }
+
+    /// Call only within an already validated, synchronous clean journal read.
+    private func readCheckRunnerPhotoParentEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID
+    ) throws -> CheckRunnerPhotoParentEvidenceV1? {
         return try validateCheckRunnerBeginHistoryValue {
             let workspaceUUID = workspaceID.rawValue
             var descriptor = FetchDescriptor<MutationReceiptRow>(
@@ -1786,6 +1794,90 @@ final class MutationJournalStoreV1 {
             return try .init(history: history, checkpoint: checkpoint, child: child,
                              workflow: workflow, timeZone: timeZone)
         }
+    }
+
+    /// Joins the original parent/child to this namespace's current projection.
+    /// Foreign immutable history requires a future explicit destination mapping.
+    func checkRunnerPhotoCurrentTargetEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID,
+        writerInstanceID: UUID
+    ) throws -> CheckRunnerPhotoCurrentTargetEvidenceV1? {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        let before = try currentRevision(writerInstanceID: writerInstanceID)
+        try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        let value: CheckRunnerPhotoCurrentTargetEvidenceV1? = try validateCheckRunnerBeginHistoryValue {
+            guard let parent = try readCheckRunnerPhotoParentEvidence(workspaceID: workspaceID,
+                parentDraftID: parentDraftID, childDraftID: childDraftID) else { return nil }
+            let original = parent.child.target
+            guard original.envelope.workspaceID == workspaceID else {
+                throw WorkspaceMutationFailureV1.wrongWorkspace
+            }
+            let recordID = original.command.draftID, evidenceID = original.command.evidenceID
+            let workflowIdentity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: recordID)
+            let evidenceIdentity = try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: evidenceID)
+            var successors: [(MutationEnvelopeV1, MutationReceiptV1)] = []
+            for row in try boundedCurrentWorkspaceReceiptRows() {
+                let receipt = try validate(row: row, expectedEnvelope: nil)
+                guard receipt.resultingRevision.workspaceRevision
+                    > original.receipt.resultingRevision.workspaceRevision else { continue }
+                guard try receipt.postImages.contains(where: {
+                    let affected = try $0.identity
+                    return affected == workflowIdentity || affected == evidenceIdentity
+                }) else { continue }
+                successors.append((try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData), receipt))
+            }
+            successors.sort {
+                let left = $0.1, right = $1.1
+                if left.resultingRevision.workspaceRevision != right.resultingRevision.workspaceRevision {
+                    return left.resultingRevision.workspaceRevision < right.resultingRevision.workspaceRevision
+                }
+                return left.identity.stableKey < right.identity.stableKey
+            }
+            let selected = Set(successors.map { $0.1.mutationID.rawValue })
+            let workspaceUUID = workspaceID.rawValue
+            var quarantines = FetchDescriptor<MutationQuarantineRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID })
+            quarantines.fetchLimit = Self.maximumReceiptValidationCount + 1
+            let quarantineRows = try modelContext.fetch(quarantines)
+            guard quarantineRows.count <= Self.maximumReceiptValidationCount else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard !quarantineRows.contains(where: { selected.contains($0.mutationID) }) else {
+                throw WorkspaceMutationFailureV1.mutationIDQuarantined
+            }
+            var workflowRows = FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == recordID })
+            workflowRows.fetchLimit = 2
+            var evidenceRows = FetchDescriptor<EvidenceFile>(predicate: #Predicate { $0.id == evidenceID })
+            evidenceRows.fetchLimit = 2
+            let workflows = try modelContext.fetch(workflowRows), evidenceFiles = try modelContext.fetch(evidenceRows)
+            let workflowRevisions = before.entityRevisions.filter { $0.identity == workflowIdentity }
+            let evidenceRevisions = before.entityRevisions.filter { $0.identity == evidenceIdentity }
+            guard workflows.count == 1, let workflowRow = workflows.first,
+                  evidenceFiles.count == 1, let evidenceRow = evidenceFiles.first,
+                  workflowRevisions.count == 1, let workflowRevision = workflowRevisions.first?.revision,
+                  evidenceRevisions.count == 1, evidenceRevisions[0].revision == 1 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let observation = try ObservationAndTimeRowStoreV1.requireRow(recordID: recordID, in: modelContext)
+            let workflow = v4WorkflowDTO(workflowRow).replacingObservationAndTime(
+                basisData: observation.observationBasisV1Data, temporalData: observation.temporalContextV1Data)
+            let evidence = V4BackupEvidenceFileDTO(id: evidenceRow.id, schemaVersion: evidenceRow.schemaVersion,
+                recordID: evidenceRow.recordID, purposeKey: evidenceRow.purposeKey,
+                relativePath: evidenceRow.relativePath, mimeType: evidenceRow.mimeType,
+                byteCount: evidenceRow.byteCount, sha256: evidenceRow.sha256, createdAt: evidenceRow.createdAt,
+                thumbnailRelativePath: evidenceRow.thumbnailRelativePath,
+                thumbnailByteCount: evidenceRow.thumbnailByteCount, thumbnailSHA256: evidenceRow.thumbnailSHA256)
+            return try .init(parent: parent, workflow: workflow,
+                workflowPostImage: currentPostImage(identity: workflowIdentity, revision: workflowRevision),
+                evidence: evidence, evidencePostImage: currentPostImage(identity: evidenceIdentity, revision: 1),
+                laterReceipts: successors)
+        }
+        guard !modelContext.hasChanges, try currentRevision(writerInstanceID: writerInstanceID) == before else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return value
     }
 
     private func validateCheckRunnerBeginHistoryValue<Value>(

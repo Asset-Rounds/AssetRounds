@@ -2380,6 +2380,18 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             parentDraftID: parentDraftID, childDraftID: childDraftID)
     }
 
+    /// Reads the exact current target chain without granting media or adoption.
+    func checkRunnerPhotoCurrentTargetEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID
+    ) throws -> CheckRunnerPhotoCurrentTargetEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        let before = try currentRevision()
+        let value = try journalStore.checkRunnerPhotoCurrentTargetEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID, writerInstanceID: writerInstanceID)
+        guard isActive, try currentRevision() == before else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return value
+    }
+
     /// Low-level frozen Begin effect. The parent owner must first persist
     /// PREPARED and prove current source/access; this method grants neither.
     func commitFrozenCheckRunnerTimeZone(

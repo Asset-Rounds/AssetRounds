@@ -1225,6 +1225,20 @@ final class CheckRunnerCoordinator {
         return source
     }
 
+    /// Supplies this coordinator's private shipping package to the existing
+    /// historical ENTRY validator. This is a read acknowledgement only.
+    func validateHistoricalCheckRunnerSource(
+        _ source: CheckRunnerRoundItemSourceV1,
+        read: ProductionRepetitiveCaptureReadV2,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1
+    ) throws {
+        _ = try frozenBeginDependencies(progress: progress)
+        try progress.validateHistoricalCheckRunnerSource(source, read: read,
+            publishedRelease: publishedRelease, signPack: signPack)
+        _ = try frozenBeginDependencies(progress: progress)
+    }
+
     /// Produces source inputs only. The eventual parent owner must retain this
     /// exact value before any effect; this method does not perform retry/resume.
     func prepareFrozenBegin(

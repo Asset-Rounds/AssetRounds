@@ -1547,6 +1547,96 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             CheckRunnerItemDraftCodecV1.validateCheckpoint(stored.parentCheckpoint).field.wideContext))
         XCTAssertEqual(parentActual.child.creating.mutation.mutationID, stored.history[0].mutation.mutationID)
         XCTAssertEqual(parentActual.child, stored.evidence)
+        let readCurrentPhoto = {
+            try writer.checkRunnerPhotoCurrentTargetEvidence(workspaceID: stored.parentCheckpoint.workspaceID,
+                parentDraftID: fixture.parentDraftID, childDraftID: fixture.childDraftID)
+        }
+        let currentPhoto = try observe("currentPhotoInitial") { try XCTUnwrap(readCurrentPhoto()) }
+        XCTAssertEqual(currentPhoto.parent, parentActual)
+        XCTAssertEqual(currentPhoto.workflow.id, actual.target.command.draftID)
+        XCTAssertEqual(currentPhoto.workflow.draftStepKey, WorkflowDraftStep.close.rawValue)
+        XCTAssertTrue(actual.target.receipt.postImages.contains(currentPhoto.workflowPostImage))
+        XCTAssertTrue(actual.target.receipt.postImages.contains(currentPhoto.evidencePostImage))
+        XCTAssertEqual(currentPhoto.evidence.id, actual.target.command.evidenceID)
+        XCTAssertEqual(currentPhoto.evidencePostImage.revision, 1)
+        XCTAssertTrue(currentPhoto.laterPhotos.isEmpty)
+        XCTAssertNil(currentPhoto.finalization)
+        let workflowChanges: [(String, Any)] = [
+            ("assetID", largeID(70_020).uuidString.lowercased()), ("stage", WorkflowStage.recheck.rawValue),
+            ("packContentVersion", currentPhoto.workflow.packContentVersion + 1),
+            ("draftStepKey", WorkflowDraftStep.review.rawValue),
+            ("recordRevisionRootID", largeID(70_021).uuidString.lowercased()),
+            ("observationBasisV1Data", Data("changed".utf8).base64EncodedString()),
+        ]
+        for (key, value) in workflowChanges {
+            var object = try jsonObject(currentPhoto.workflow); object[key] = value
+            let changed = try decodeObject(V4BackupWorkflowRecordDTO.self, object)
+            XCTAssertThrowsError(try CheckRunnerPhotoCurrentTargetEvidenceV1(parent: currentPhoto.parent,
+                workflow: changed, workflowPostImage: currentPhoto.workflowPostImage,
+                evidence: currentPhoto.evidence, evidencePostImage: currentPhoto.evidencePostImage,
+                laterReceipts: []), key)
+        }
+        let evidenceChanges: [(String, Any)] = [
+            ("recordID", largeID(70_022).uuidString.lowercased()), ("purposeKey", "close_detail"),
+            ("byteCount", currentPhoto.evidence.byteCount + 1), ("sha256", String(repeating: "f", count: 64)),
+            ("relativePath", "evidence/replaced.jpg"),
+        ]
+        for (key, value) in evidenceChanges {
+            var object = try jsonObject(currentPhoto.evidence); object[key] = value
+            let changed = try decodeObject(V4BackupEvidenceFileDTO.self, object)
+            XCTAssertThrowsError(try CheckRunnerPhotoCurrentTargetEvidenceV1(parent: currentPhoto.parent,
+                workflow: currentPhoto.workflow, workflowPostImage: currentPhoto.workflowPostImage,
+                evidence: changed, evidencePostImage: currentPhoto.evidencePostImage,
+                laterReceipts: []), key)
+        }
+        XCTAssertThrowsError(try writer.checkRunnerPhotoCurrentTargetEvidence(
+            workspaceID: WorkspaceID(rawValue: largeID(70_003)), parentDraftID: fixture.parentDraftID,
+            childDraftID: fixture.childDraftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .wrongWorkspace)
+        }
+        XCTAssertNil(try writer.checkRunnerPhotoCurrentTargetEvidence(workspaceID: stored.parentCheckpoint.workspaceID,
+            parentDraftID: fixture.parentDraftID, childDraftID: largeID(70_002)))
+        XCTAssertThrowsError(try writer.checkRunnerPhotoCurrentTargetEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+            childDraftID: stored.missingSelectedChildID))
+        XCTAssertThrowsError(try writer.checkRunnerPhotoCurrentTargetEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: stored.partialParentDraftID,
+            childDraftID: fixture.childDraftID))
+        // Deliberately corrupt only this disposable store's physical target.
+        // Restore exact values after each denial; receipt history never changes.
+        let currentContext = try XCTUnwrap(session).modelContext
+        let originalEvidenceRow = try XCTUnwrap(currentContext.fetch(FetchDescriptor<EvidenceFile>()).first {
+            $0.id == currentPhoto.evidence.id
+        })
+        originalEvidenceRow.byteCount += 1
+        XCTAssertThrowsError(try readCurrentPhoto()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+        }
+        try observe("currentPhotoChangedEvidence") { try currentContext.save() }
+        XCTAssertThrowsError(try readCurrentPhoto())
+        originalEvidenceRow.byteCount = currentPhoto.evidence.byteCount
+        try observe("currentPhotoRestoreEvidence") { try currentContext.save() }
+        XCTAssertEqual(try readCurrentPhoto(), currentPhoto)
+        let workflowRevisionRow = try XCTUnwrap(currentContext.fetch(FetchDescriptor<EntityMutationRevisionRow>()).first {
+            $0.entityID == currentPhoto.workflow.id && $0.kind == WorkspaceEntityKindV1.workflowRecord.rawValue
+        })
+        let exactWorkflowRevision = workflowRevisionRow.revision
+        workflowRevisionRow.revision += 1
+        try observe("currentPhotoRevisionGap") { try currentContext.save() }
+        XCTAssertThrowsError(try readCurrentPhoto())
+        workflowRevisionRow.revision = exactWorkflowRevision
+        try observe("currentPhotoRestoreRevision") { try currentContext.save() }
+        currentContext.delete(originalEvidenceRow)
+        try observe("currentPhotoMissingEvidence") { try currentContext.save() }
+        XCTAssertThrowsError(try readCurrentPhoto())
+        let image = currentPhoto.evidence
+        currentContext.insert(EvidenceFile(id: image.id, recordID: image.recordID, purposeKey: image.purposeKey,
+            relativePath: image.relativePath, mimeType: image.mimeType, byteCount: image.byteCount,
+            sha256: image.sha256, createdAt: image.createdAt, thumbnailRelativePath: image.thumbnailRelativePath,
+            thumbnailByteCount: image.thumbnailByteCount, thumbnailSHA256: image.thumbnailSHA256))
+        try observe("currentPhotoRestoreEvidence") { try currentContext.save() }
+        XCTAssertEqual(try readCurrentPhoto(), currentPhoto)
+        XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), before)
         let parentPreparedReceipt = stored.parentHistory[1].receipt
         XCTAssertEqual(parentPreparedReceipt.resultingRevision.generationID,
             stored.timeZoneEvidence.receipt.resultingRevision.generationID)
@@ -1595,6 +1685,51 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             try writer.sourceMutationHistorySnapshot()
         }, before)
 
+        let closeID = largeID(70_005)
+        let closeCommand = CheckEvidenceMutationV1(evidenceID: closeID,
+            draftID: fixture.parentFixture.attempt.recordCommand.recordID, purposeKey: "close_detail",
+            relativePath: "evidence/close.jpg", mimeType: "image/jpeg", byteCount: 1,
+            sha256: String(repeating: "3", count: 64), thumbnailRelativePath: "evidence/close-thumb.jpg",
+            thumbnailByteCount: 1, thumbnailSHA256: String(repeating: "4", count: 64),
+            nextDraftStepKey: WorkflowDraftStep.outcome.rawValue,
+            createdAt: fixture.attempt.terminalCheckpointUpdatedAt.addingTimeInterval(0.5))
+        _ = try observe("currentPhotoCloseSuccessor") {
+            try writer.execute(.acceptCheckEvidence(closeCommand), mutationID: .init(rawValue: closeID))
+        }
+        let closeOriginal = try XCTUnwrap(writer.checkRunnerPhotoEvidence(workspaceID: stored.checkpoint.workspaceID,
+            mutationID: .init(rawValue: closeID)))
+        let currentAfterClose = try observe("currentPhotoCloseSuccessor") { try XCTUnwrap(readCurrentPhoto()) }
+        XCTAssertEqual(currentAfterClose.parent, currentPhoto.parent)
+        XCTAssertEqual(currentAfterClose.evidence, currentPhoto.evidence)
+        XCTAssertEqual(currentAfterClose.evidencePostImage, currentPhoto.evidencePostImage)
+        XCTAssertEqual(currentAfterClose.workflow.draftStepKey, WorkflowDraftStep.outcome.rawValue)
+        XCTAssertEqual(currentAfterClose.workflowPostImage.revision, currentPhoto.workflowPostImage.revision + 1)
+        XCTAssertEqual(currentAfterClose.laterPhotos, [closeOriginal])
+        XCTAssertNil(currentAfterClose.finalization)
+        let closePair = (closeOriginal.envelope, closeOriginal.receipt)
+        let rebuildCurrent = { (pairs: [(MutationEnvelopeV1, MutationReceiptV1)]) throws in
+            try CheckRunnerPhotoCurrentTargetEvidenceV1(parent: currentAfterClose.parent,
+                workflow: currentAfterClose.workflow, workflowPostImage: currentAfterClose.workflowPostImage,
+                evidence: currentAfterClose.evidence, evidencePostImage: currentAfterClose.evidencePostImage,
+                laterReceipts: pairs)
+        }
+        XCTAssertEqual(try rebuildCurrent([closePair]), currentAfterClose)
+        XCTAssertThrowsError(try rebuildCurrent([]))
+        XCTAssertThrowsError(try rebuildCurrent([closePair, closePair]))
+        XCTAssertThrowsError(try rebuildCurrent([(actual.target.envelope, actual.target.receipt)]))
+        let closeQuarantine = MutationQuarantineRow(workspaceID: stored.checkpoint.workspaceID,
+            mutationID: closeOriginal.receipt.mutationID, identityDomain: .mutationEnvelope,
+            acceptedIdentitySHA256: closeOriginal.receipt.envelopeSHA256,
+            conflictingIdentitySHA256: String(repeating: "e", count: 64), detectedAt: Date())
+        currentContext.insert(closeQuarantine)
+        try observe("currentPhotoQuarantinedSuccessor") { try currentContext.save() }
+        XCTAssertThrowsError(try readCurrentPhoto()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        currentContext.delete(closeQuarantine)
+        try observe("currentPhotoRestoreSuccessor") { try currentContext.save() }
+        XCTAssertEqual(try readCurrentPhoto(), currentAfterClose)
+
         let laterID = largeID(70_004)
         let laterCommand = CheckEvidenceMutationV1(evidenceID: laterID,
             draftID: fixture.parentFixture.attempt.recordCommand.recordID, purposeKey: "later_history",
@@ -1614,6 +1749,12 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             try XCTUnwrap(writer.checkRunnerPhotoEvidence(workspaceID: stored.checkpoint.workspaceID,
                 mutationID: .init(rawValue: laterID)))
         }
+        // The original child remains historical evidence, but the unrelated
+        // extra accept cannot authorize this current target, even at outcome.
+        XCTAssertThrowsError(try readCurrentPhoto()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertThrowsError(try rebuildCurrent([closePair, (laterTarget.envelope, laterTarget.receipt)]))
 
         let pure = { (history: [FieldDraftCommittedEvidenceV1], checkpoint: FieldDraftCheckpointV1,
                       sagas: [DraftCommitSagaV1], reservations: [DraftContentReservationV1],
@@ -1749,6 +1890,11 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             try reopenedWriter.checkRunnerPhotoParentEvidence(workspaceID: stored.parentCheckpoint.workspaceID,
                 parentDraftID: fixture.parentDraftID, childDraftID: fixture.childDraftID)
         }, stored.parentEvidence)
+        XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoCurrentTargetEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+            childDraftID: fixture.childDraftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
         XCTAssertEqual(try observe("reopenedReads") {
             try reopenedWriter.sourceMutationHistorySnapshot()
         }, reopenedBefore)
@@ -1760,6 +1906,11 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         try observe("quarantineSaveAndRead") { try XCTUnwrap(session).modelContext.save() }
         XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
             draftID: stored.checkpoint.draftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoCurrentTargetEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+            childDraftID: fixture.childDraftID)) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
         }
         let context = try XCTUnwrap(session).modelContext
@@ -1785,6 +1936,11 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         context.insert(parentQuarantine)
         try observe("quarantineSaveAndRead") { try context.save() }
         XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoParentEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+            childDraftID: fixture.childDraftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoCurrentTargetEvidence(
             workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
             childDraftID: fixture.childDraftID)) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)

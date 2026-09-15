@@ -192,6 +192,8 @@ final class V23CheckRunnerFrozenBeginWriterTests: XCTestCase {
                 draftID: beginPreparationUUID(9_559)))
             XCTAssertThrowsError(try writer.checkRunnerPhotoParentEvidence(workspaceID: h.workspaceID,
                 parentDraftID: beginPreparationUUID(9_558), childDraftID: beginPreparationUUID(9_559)))
+            XCTAssertThrowsError(try writer.checkRunnerPhotoCurrentTargetEvidence(workspaceID: h.workspaceID,
+                parentDraftID: beginPreparationUUID(9_558), childDraftID: beginPreparationUUID(9_559)))
             XCTAssertEqual(try h.rowSnapshot(), dirty)
             h.context.rollback()
             let rows = try h.rowSnapshot()
@@ -203,6 +205,8 @@ final class V23CheckRunnerFrozenBeginWriterTests: XCTestCase {
             XCTAssertThrowsError(try writer.checkRunnerPhotoCommitEvidence(workspaceID: h.workspaceID,
                 draftID: beginPreparationUUID(9_559)))
             XCTAssertThrowsError(try writer.checkRunnerPhotoParentEvidence(workspaceID: h.workspaceID,
+                parentDraftID: beginPreparationUUID(9_558), childDraftID: beginPreparationUUID(9_559)))
+            XCTAssertThrowsError(try writer.checkRunnerPhotoCurrentTargetEvidence(workspaceID: h.workspaceID,
                 parentDraftID: beginPreparationUUID(9_558), childDraftID: beginPreparationUUID(9_559)))
             XCTAssertEqual(try h.rowSnapshot(), rows)
         }
