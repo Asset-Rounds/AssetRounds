@@ -123,7 +123,7 @@
         "V23CheckRunnerFrozenBeginPreparationTests",
         "V23CheckRunnerItemFieldContractsTests"
       ],
-      "methodCount": 72
+      "methodCount": 81
     },
     {
       "id": "legacy-lifecycle-recovery",

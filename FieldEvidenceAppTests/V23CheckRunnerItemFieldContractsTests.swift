@@ -1018,6 +1018,296 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
                        try FieldDraftCanonicalCodecV1.encode(f.raw))
     }
 
+    func testCodecDefinitionsBindTheCombinedGrammarAndRequiredPhotoProfile() throws {
+        let parent = try CheckRunnerItemDraftCodecV1.definition()
+        let photo = try CheckRunnerPhotoDraftCodecV1.definition()
+        XCTAssertEqual(parent.codec.codecID, "assetrounds.check-runner-item.v1")
+        XCTAssertEqual(photo.codec.codecID, "assetrounds.check-runner-photo.v1")
+        XCTAssertEqual(parent.codec.codecVersion, 1)
+        XCTAssertEqual(photo.codec.codecVersion, 1)
+        XCTAssertEqual(parent.codec.releaseSHA256, "e2f9c5cfa69006a5dc7f3bb86c36a030998afc1c8f8b421def6981dd42f72292")
+        XCTAssertEqual(photo.codec.releaseSHA256, "91ab8725776d6c6508e2e1b937fbe4a89df487a99a58c4203328ba8e5bb4f5d2")
+        XCTAssertEqual(parent.codec.releaseSHA256,
+            FieldDraftCanonicalCodecV1.sha256(Data(CheckRunnerItemDraftCodecV1.grammarDescriptor.utf8)))
+        XCTAssertEqual(photo.codec.releaseSHA256,
+            FieldDraftCanonicalCodecV1.sha256(Data(CheckRunnerPhotoDraftCodecV1.grammarDescriptor.utf8)))
+        XCTAssertEqual(CheckRunnerItemDraftCodecV1.grammarDescriptor.split(separator: "\n").dropFirst(2),
+                       CheckRunnerPhotoDraftCodecV1.grammarDescriptor.split(separator: "\n").dropFirst(2))
+        XCTAssertNotEqual(parent.codec, photo.codec)
+        for definition in [parent, photo] {
+            XCTAssertEqual(definition.purpose, .inspectionReview)
+            XCTAssertEqual(definition.maximumPayloadBytes, 2_097_152)
+            XCTAssertEqual(definition.retention, .retireAfterCommit)
+            XCTAssertNoThrow(try definition.validate())
+        }
+        XCTAssertEqual(parent.maximumStageItems, 0)
+        XCTAssertEqual(parent.targetCommandKind, .finalizeCheck)
+        XCTAssertEqual(parent.attachmentKinds, [])
+        XCTAssertEqual(parent.privacyClass, .workspacePrivate)
+        XCTAssertEqual(photo.maximumStageItems, 1)
+        XCTAssertEqual(photo.targetCommandKind, .acceptCheckEvidence)
+        XCTAssertEqual(photo.attachmentKinds, [.photo])
+        XCTAssertEqual(photo.privacyClass, .restrictedEvidence)
+        XCTAssertEqual(CheckRunnerPhotoSourceMetadataProfileV1.sourceUTIToMediaType,
+            ["public.jpeg": "image/jpeg", "public.heic": "image/heic", "public.heif": "image/heif", "public.png": "image/png"])
+        XCTAssertTrue(CheckRunnerPhotoDraftCodecV1.grammarDescriptor.contains("media.rawByteCount=1...83886080;frameCount=1"))
+    }
+
+    func testCodecPurposeAuthorityRejectsWrongPurposesAndEveryModifiedReleaseComponent() throws {
+        let authority = try CheckRunnerDraftPurposeAuthorityV1()
+        let parent = try CheckRunnerItemDraftCodecV1.definition()
+        let photo = try CheckRunnerPhotoDraftCodecV1.definition()
+        XCTAssertEqual(try authority.require(.inspectionReview, codec: parent.codec), parent)
+        XCTAssertEqual(try authority.require(.inspectionReview, codec: photo.codec), photo)
+        for purpose in DraftPurposeV1.allCases where purpose != .inspectionReview {
+            for codec in [parent.codec, photo.codec] {
+                XCTAssertThrowsError(try authority.require(purpose, codec: codec)) {
+                    XCTAssertEqual($0 as? FieldDraftFailureV1, .unknownPurpose)
+                }
+            }
+        }
+        for (codec, other) in [(parent.codec, photo.codec), (photo.codec, parent.codec)] {
+            let altered = [
+                try DraftPayloadCodecReleaseV1(codecID: codec.codecID + ".unknown", codecVersion: codec.codecVersion,
+                    releaseSHA256: codec.releaseSHA256),
+                try DraftPayloadCodecReleaseV1(codecID: codec.codecID, codecVersion: codec.codecVersion + 1,
+                    releaseSHA256: codec.releaseSHA256),
+                try DraftPayloadCodecReleaseV1(codecID: codec.codecID, codecVersion: codec.codecVersion,
+                    releaseSHA256: String(repeating: "f", count: 64)),
+                try DraftPayloadCodecReleaseV1(codecID: codec.codecID, codecVersion: codec.codecVersion,
+                    releaseSHA256: other.releaseSHA256),
+            ]
+            for value in altered {
+                XCTAssertThrowsError(try authority.require(.inspectionReview, codec: value)) {
+                    XCTAssertEqual($0 as? FieldDraftFailureV1, .unknownCodec)
+                }
+            }
+        }
+        XCTAssertThrowsError(try authority.require(.inspectionReview, codec: RepetitiveCaptureDraftCodecV1.release())) {
+            XCTAssertEqual($0 as? FieldDraftFailureV1, .unknownCodec)
+        }
+    }
+
+    func testReleasedCodecsPreservePayloadBytesAndRejectCrossRoleOrNoncanonicalInput() throws {
+        let f = try photoFixture()
+        let child = try photoPayload(f, phase: .preparedCommit(f.pair, f.attempt))
+        let parentBytes = try CheckRunnerItemDraftCodecV1.encode(f.parent)
+        let photoBytes = try CheckRunnerPhotoDraftCodecV1.encode(child)
+        XCTAssertEqual(parentBytes, try CheckRunnerItemDraftPayloadV1.encode(f.parent))
+        XCTAssertEqual(photoBytes, try CheckRunnerPhotoDraftPayloadV1.encode(child))
+        XCTAssertEqual(try CheckRunnerItemDraftCodecV1.encode(CheckRunnerItemDraftCodecV1.decode(parentBytes)), parentBytes)
+        XCTAssertEqual(try CheckRunnerPhotoDraftCodecV1.encode(CheckRunnerPhotoDraftCodecV1.decode(photoBytes)), photoBytes)
+        XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.decode(photoBytes))
+        XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.decode(parentBytes))
+        XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.decode(parentBytes + Data([0x20])))
+        XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.decode(photoBytes + Data([0x20])))
+        var parentObject = try jsonObject(f.parent)
+        setJSON(&parentObject, path: ["field", "preflight", "unexpected"], value: true)
+        XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.decode(canonical(parentObject)))
+        var photoObject = try jsonObject(child)
+        setJSON(&photoObject, path: ["phase", "pair", "raw", "inspection", "unexpected"], value: true)
+        XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.decode(canonical(photoObject)))
+    }
+
+    func testReleasedCodecLimitsUseCompleteUTF8PayloadBytes() throws {
+        let fixture = try parentFixture(recheck: false, includesTimeZone: false)
+        func payload(_ note: String) throws -> CheckRunnerItemDraftPayloadV1 {
+            try .init(editing: fixture.source, field: parentField(begin: .notBegun,
+                outcome: .init(selection: nil, couldNotVerifyNote: note, recheckNote: "")))
+        }
+        let prefix = " \t/e\u{301}\n"
+        let baseline = try CheckRunnerItemDraftCodecV1.encode(payload(prefix)).count
+        let note = prefix + String(repeating: "a", count: CheckRunnerItemDraftCodecV1.maximumPayloadBytes - baseline)
+        let bytes = try CheckRunnerItemDraftCodecV1.encode(payload(note))
+        XCTAssertEqual(bytes.count, 2_097_152)
+        let decoded = try CheckRunnerItemDraftCodecV1.decode(bytes)
+        XCTAssertEqual(Data(decoded.field.outcome.couldNotVerifyNote.utf8), Data(note.utf8))
+        XCTAssertEqual(try CheckRunnerItemDraftCodecV1.encode(decoded), bytes)
+        XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.encode(payload(note + "é"))) {
+            XCTAssertEqual($0 as? FieldDraftFailureV1, .limitExceeded)
+        }
+        for invalid in [Data(), Data(repeating: 0x20, count: 2_097_153)] {
+            XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.decode(invalid)) {
+                XCTAssertEqual($0 as? FieldDraftFailureV1, .limitExceeded)
+            }
+            XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.decode(invalid)) {
+                XCTAssertEqual($0 as? FieldDraftFailureV1, .limitExceeded)
+            }
+        }
+    }
+
+    func testParentCodecCheckpointBindsPreBeginScopeBaseAndAllSemanticAnchors() throws {
+        let f = try parentFixture(recheck: false, includesTimeZone: false)
+        let expectedScope = try DraftScopeKeyV1(scopeKind: "INSPECTION_REVIEW", stableComponentIDs: [
+            f.source.roundAtEntry.sessionID.uuidString.lowercased(), f.source.originalItem.itemID.uuidString.lowercased()])
+        for anchor in CheckRunnerItemSemanticAnchorV1.allCases {
+            let field = try CheckRunnerItemFieldStateV1(preflight: .init(), begin: .notBegun, outcome: .init(),
+                wideContext: nil, closeDetail: nil, semanticAnchor: anchor)
+            let payload = try CheckRunnerItemDraftPayloadV1(editing: f.source, field: field)
+            let checkpoint = try codecParentCheckpoint(payload)
+            XCTAssertNil(payload.field.begin.attempt)
+            XCTAssertEqual(checkpoint.scope, expectedScope)
+            XCTAssertFalse(checkpoint.scope.stableComponentIDs.contains(f.attempt.recordCommand.recordID.uuidString.lowercased()))
+            XCTAssertEqual(checkpoint.baseCanonicalRevision, f.source.roundAtEntry.revision)
+            XCTAssertEqual(checkpoint.stageIDs, [])
+            XCTAssertEqual(checkpoint.resumeAnchor.sectionID, anchor.rawValue.lowercased())
+            XCTAssertEqual(checkpoint.resumeAnchor.selectedStableID, f.source.assetID.uuidString.lowercased())
+            XCTAssertNil(checkpoint.resumeAnchor.fieldID)
+            XCTAssertNil(checkpoint.resumeAnchor.boundedPosition)
+            XCTAssertEqual(try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint), payload)
+        }
+    }
+
+    func testParentCodecRejectsRehashedEnvelopeSubstitutionsAndPhotoRole() throws {
+        let f = try parentFixture(recheck: false, includesTimeZone: false)
+        let payload = try CheckRunnerItemDraftPayloadV1(editing: f.source, field: parentField(begin: .notBegun))
+        let checkpoint = try codecParentCheckpoint(payload)
+        let hostile = [
+            try codecRehashedCheckpoint(checkpoint, workspaceID: .init(rawValue: largeID(81_001))),
+            try codecRehashedCheckpoint(checkpoint, scope: .init(scopeKind: "INSPECTION_REVIEW", stableComponentIDs: [
+                f.source.roundAtEntry.sessionID.uuidString.lowercased(), f.attempt.recordCommand.recordID.uuidString.lowercased()])),
+            try codecRehashedCheckpoint(checkpoint, scope: .init(scopeKind: "OTHER", stableComponentIDs: checkpoint.scope.stableComponentIDs)),
+            try codecRehashedCheckpoint(checkpoint, baseCanonicalRevision: checkpoint.baseCanonicalRevision + 1),
+            try codecRehashedCheckpoint(checkpoint, resumeAnchor: .init(sectionID: "review",
+                selectedStableID: f.source.assetID.uuidString.lowercased())),
+            try codecRehashedCheckpoint(checkpoint, resumeAnchor: .init(sectionID: "preflight",
+                selectedStableID: largeID(81_002).uuidString.lowercased())),
+            try codecRehashedCheckpoint(checkpoint, resumeAnchor: .init(sectionID: "preflight", fieldID: "unexpected",
+                selectedStableID: f.source.assetID.uuidString.lowercased())),
+            try codecRehashedCheckpoint(checkpoint, stageIDs: [largeID(81_003)]),
+        ]
+        for value in hostile {
+            XCTAssertNoThrow(try value.validate())
+            XCTAssertEqual(value.payloadSHA256, checkpoint.payloadSHA256)
+            XCTAssertNotEqual(value.checkpointSHA256, checkpoint.checkpointSHA256)
+            XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.validateCheckpoint(value))
+        }
+        let crossed = try codecRehashedCheckpoint(checkpoint, codec: CheckRunnerPhotoDraftCodecV1.release())
+        XCTAssertNoThrow(try crossed.validate(authority: CheckRunnerDraftPurposeAuthorityV1()))
+        XCTAssertThrowsError(try CheckRunnerItemDraftCodecV1.validateCheckpoint(crossed)) {
+            XCTAssertEqual($0 as? FieldDraftFailureV1, .unknownCodec)
+        }
+    }
+
+    func testPhotoCodecCheckpointBindsBothStepsAndAllFourDurablePhases() throws {
+        for recheck in [false, true] {
+            for step in [WorkflowDraftStep.wide, .close] {
+                let f = try photoFixture(recheck: recheck, step: step)
+                let phases: [CheckRunnerPhotoDurablePhaseV1] = [
+                    .awaitingRawStage(f.intent), .rawReady(f.raw), .pairReady(f.pair), .preparedCommit(f.pair, f.attempt)]
+                let expectedScope = try DraftScopeKeyV1(scopeKind: "INSPECTION_REVIEW_PHOTO", stableComponentIDs: [
+                    f.parentDraftID.uuidString.lowercased(), f.childDraftID.uuidString.lowercased()])
+                for (index, phase) in phases.enumerated() {
+                    let payload = try photoPayload(f, phase: phase)
+                    let checkpoint = try codecPhotoCheckpoint(payload)
+                    XCTAssertEqual(checkpoint.scope, expectedScope)
+                    XCTAssertEqual(checkpoint.draftID, f.childDraftID)
+                    XCTAssertEqual(checkpoint.workspaceID, f.parent.source.roundAtEntry.workspaceID)
+                    XCTAssertEqual(checkpoint.baseCanonicalRevision, f.parent.source.roundAtEntry.revision)
+                    XCTAssertEqual(checkpoint.stageIDs, index == 0 ? [] : [f.intent.stageID])
+                    XCTAssertEqual(checkpoint.resumeAnchor.sectionID, step == .wide ? "wide_context" : "close_detail")
+                    XCTAssertEqual(checkpoint.resumeAnchor.selectedStableID, f.parent.source.assetID.uuidString.lowercased())
+                    XCTAssertNil(checkpoint.resumeAnchor.fieldID)
+                    XCTAssertNil(checkpoint.resumeAnchor.boundedPosition)
+                    XCTAssertEqual(try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint), payload)
+                    XCTAssertEqual(try CheckRunnerPhotoDraftCodecV1.encode(
+                        CheckRunnerPhotoDraftCodecV1.decode(checkpoint.payloadData)), checkpoint.payloadData)
+                }
+            }
+        }
+    }
+
+    func testPhotoCodecRejectsRehashedIdentityScopeBaseAnchorStageAndRoleSubstitutions() throws {
+        let f = try photoFixture(step: .close)
+        let payload = try photoPayload(f, phase: .rawReady(f.raw))
+        let checkpoint = try codecPhotoCheckpoint(payload)
+        let hostile = [
+            try codecRehashedCheckpoint(checkpoint, draftID: largeID(82_001)),
+            try codecRehashedCheckpoint(checkpoint, workspaceID: .init(rawValue: largeID(82_002))),
+            try codecRehashedCheckpoint(checkpoint, scope: .init(scopeKind: "INSPECTION_REVIEW_PHOTO", stableComponentIDs: [
+                largeID(82_003).uuidString.lowercased(), f.childDraftID.uuidString.lowercased()])),
+            try codecRehashedCheckpoint(checkpoint, scope: .init(scopeKind: "INSPECTION_REVIEW_PHOTO", stableComponentIDs: [
+                f.parentDraftID.uuidString.lowercased(), largeID(82_004).uuidString.lowercased()])),
+            try codecRehashedCheckpoint(checkpoint, scope: .init(scopeKind: "INSPECTION_REVIEW", stableComponentIDs: checkpoint.scope.stableComponentIDs)),
+            try codecRehashedCheckpoint(checkpoint, baseCanonicalRevision: checkpoint.baseCanonicalRevision + 1),
+            try codecRehashedCheckpoint(checkpoint, resumeAnchor: .init(sectionID: "wide_context",
+                selectedStableID: payload.assetID.uuidString.lowercased())),
+            try codecRehashedCheckpoint(checkpoint, resumeAnchor: .init(sectionID: "close_detail",
+                selectedStableID: largeID(82_005).uuidString.lowercased())),
+            try codecRehashedCheckpoint(checkpoint, resumeAnchor: .init(sectionID: "close_detail", fieldID: "processing",
+                selectedStableID: payload.assetID.uuidString.lowercased(), boundedPosition: 1)),
+            try codecRehashedCheckpoint(checkpoint, stageIDs: []),
+            try codecRehashedCheckpoint(checkpoint, stageIDs: [largeID(82_006)]),
+            try codecRehashedCheckpoint(checkpoint, stageIDs: [f.intent.stageID, largeID(82_007)]),
+        ]
+        for value in hostile {
+            XCTAssertNoThrow(try value.validate())
+            XCTAssertEqual(value.payloadSHA256, checkpoint.payloadSHA256)
+            XCTAssertNotEqual(value.checkpointSHA256, checkpoint.checkpointSHA256)
+            XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(value))
+        }
+        let awaiting = try codecPhotoCheckpoint(photoPayload(f, phase: .awaitingRawStage(f.intent)))
+        let prematureStage = try codecRehashedCheckpoint(awaiting, stageIDs: [f.intent.stageID])
+        XCTAssertNoThrow(try prematureStage.validate(authority: CheckRunnerDraftPurposeAuthorityV1()))
+        XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(prematureStage))
+        let crossed = try codecRehashedCheckpoint(awaiting, codec: CheckRunnerItemDraftCodecV1.release())
+        XCTAssertNoThrow(try crossed.validate(authority: CheckRunnerDraftPurposeAuthorityV1()))
+        XCTAssertThrowsError(try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(crossed)) {
+            XCTAssertEqual($0 as? FieldDraftFailureV1, .unknownCodec)
+        }
+    }
+
+    func testCodecEnvelopeValidationPreservesRecoveryStateWithoutGrantingLifecycleAuthority() throws {
+        let f = try photoFixture()
+        let parent = try codecParentCheckpoint(f.parent)
+        let child = try codecPhotoCheckpoint(photoPayload(f, phase: .rawReady(f.raw)))
+        // These are stored value envelopes, not a sequence of permitted writes.
+        // The writer and authenticated history remain responsible for transitions.
+        for state in [FieldDraftStateV1.conflicted, .recoveryRequired, .discardPending] {
+            let parentValue = try codecRehashedCheckpoint(parent, state: state)
+            let childValue = try codecRehashedCheckpoint(child, state: state)
+            XCTAssertEqual(try CheckRunnerItemDraftCodecV1.validateCheckpoint(parentValue), f.parent)
+            XCTAssertEqual(try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(childValue).phase, .rawReady(f.raw))
+            XCTAssertEqual(parentValue.state, state)
+            XCTAssertEqual(childValue.state, state)
+            XCTAssertNil(parentValue.lastReceiptSHA256)
+            XCTAssertNil(childValue.lastReceiptSHA256)
+        }
+    }
+
+    private func codecParentCheckpoint(_ payload: CheckRunnerItemDraftPayloadV1) throws -> FieldDraftCheckpointV1 {
+        try .init(draftID: largeID(80_000), workspaceID: payload.source.roundAtEntry.workspaceID,
+            scope: CheckRunnerItemDraftCodecV1.scope(source: payload.source), purpose: .inspectionReview,
+            codec: CheckRunnerItemDraftCodecV1.release(), baseCanonicalRevision: payload.source.roundAtEntry.revision,
+            draftRevision: 1, payloadData: CheckRunnerItemDraftCodecV1.encode(payload), stageIDs: [],
+            resumeAnchor: CheckRunnerItemDraftCodecV1.resumeAnchor(payload: payload), state: .active,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_250), mutationID: .init(rawValue: largeID(80_001)))
+    }
+
+    private func codecPhotoCheckpoint(_ payload: CheckRunnerPhotoDraftPayloadV1) throws -> FieldDraftCheckpointV1 {
+        try .init(draftID: payload.childDraftID, workspaceID: payload.workspaceID,
+            scope: CheckRunnerPhotoDraftCodecV1.scope(payload: payload), purpose: .inspectionReview,
+            codec: CheckRunnerPhotoDraftCodecV1.release(), baseCanonicalRevision: payload.sourceBinding.roundAtEntry.revision,
+            draftRevision: 1, payloadData: CheckRunnerPhotoDraftCodecV1.encode(payload), stageIDs: payload.phase.declaredStageIDs,
+            resumeAnchor: CheckRunnerPhotoDraftCodecV1.resumeAnchor(payload: payload),
+            state: payload.phase.attempt == nil ? .active : .committing,
+            updatedAt: payload.phase.attempt?.preparedUpdatedAt ?? payload.phase.intent.stageCreatedAt,
+            mutationID: .init(rawValue: largeID(80_002)))
+    }
+
+    private func codecRehashedCheckpoint(_ value: FieldDraftCheckpointV1, draftID: UUID? = nil,
+        workspaceID: WorkspaceID? = nil, scope: DraftScopeKeyV1? = nil, codec: DraftPayloadCodecReleaseV1? = nil,
+        baseCanonicalRevision: UInt64? = nil, stageIDs: [UUID]? = nil,
+        resumeAnchor: DraftResumeAnchorV1? = nil, state: FieldDraftStateV1? = nil) throws -> FieldDraftCheckpointV1 {
+        try .init(draftID: draftID ?? value.draftID, workspaceID: workspaceID ?? value.workspaceID,
+            scope: scope ?? value.scope, purpose: value.purpose, codec: codec ?? value.codec,
+            baseCanonicalRevision: baseCanonicalRevision ?? value.baseCanonicalRevision,
+            draftRevision: value.draftRevision, payloadData: value.payloadData, stageIDs: stageIDs ?? value.stageIDs,
+            resumeAnchor: resumeAnchor ?? value.resumeAnchor, state: state ?? value.state,
+            lastDurableMutationID: value.lastDurableMutationID, lastReceiptSHA256: value.lastReceiptSHA256,
+            updatedAt: value.updatedAt, mutationID: value.mutationID)
+    }
+
     private struct PhotoFixture {
         let parentFixture: ParentFixture
         let parent: CheckRunnerItemDraftPayloadV1

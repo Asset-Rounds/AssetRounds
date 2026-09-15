@@ -908,6 +908,11 @@ extension DraftAttachmentStagingAdapterV1 {
 // enumerates the same draft-owned staging root.  They do not expose a mutable
 // writer or a filesystem handle.
 extension DraftAttachmentStagingAdapterV1 {
+    /// Shared pure identity for inspected raw content and the existing stage promotion.
+    static func contentID(workspaceID: WorkspaceID, digest: ContentDigestV1) -> String {
+        "draft-content-\(workspaceID.rawValue.uuidString.lowercased())-\(digest.hexadecimalValue)"
+    }
+
     static func relativeStageDirectory(draftID: UUID, stageID: UUID) -> String {
         "draft-\(draftID.uuidString.lowercased())/stage-\(stageID.uuidString.lowercased())"
     }
@@ -1082,10 +1087,6 @@ private extension DraftAttachmentStagingAdapterV1 {
         case .video: return "video/mp4"
         case .file: return "application/octet-stream"
         }
-    }
-
-    static func contentID(workspaceID: WorkspaceID, digest: ContentDigestV1) -> String {
-        "draft-content-\(workspaceID.rawValue.uuidString.lowercased())-\(digest.hexadecimalValue)"
     }
 
     static func iso8601(_ date: Date) -> String {
