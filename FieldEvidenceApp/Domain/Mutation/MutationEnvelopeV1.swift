@@ -93,10 +93,16 @@ struct MutationEnvelopeV1: Codable, Equatable, Sendable {
         self.semanticReversalReplayIdentitySHA256 = semanticReversalReplayIdentitySHA256
         self.semanticReversalExecution = semanticReversalExecution
         commandBodySHA256 = try WorkspaceMutationCanonicalV1.sha256(request.command)
-        try validate()
+        try validate(commandDigest: commandBodySHA256)
     }
 
     func validate() throws {
+        try validate(commandDigest: WorkspaceMutationCanonicalV1.sha256(command))
+    }
+
+    // The constructor already computed this immutable command's digest. Public
+    // validation still computes it at the original predicate, in the same order.
+    private func validate(commandDigest: @autoclosure () throws -> String) throws {
         try expectedRevision.validate()
         try semanticReversalExecution?.validate()
         guard (try? WorkspaceReplicaIdentityV1(
@@ -150,7 +156,7 @@ struct MutationEnvelopeV1: Codable, Equatable, Sendable {
               !(reversalPlanDigest != nil && semanticReversalExecution != nil),
               (semanticReversalExecution != nil) == (semanticReversalReplayIdentitySHA256 != nil),
               semanticReversalReplayIdentitySHA256 == expectedSemanticReplayDigest,
-              commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(command)),
+              commandBodySHA256 == (try commandDigest()),
               (sourceKind == .semanticReversal) == (causationMutationID != nil),
               (sourceKind == .semanticReversal) == (semanticReversalExecution != nil),
               semanticReversalExecution?.targetMutationID == causationMutationID,
@@ -184,7 +190,7 @@ struct MutationEnvelopeV1: Codable, Equatable, Sendable {
         decoder.dateDecodingStrategy = .millisecondsSince1970
         let value = try decoder.decode(Self.self, from: data)
         try value.validate()
-        guard try value.canonicalData() == data else {
+        guard try WorkspaceMutationCanonicalV1.data(value) == data else {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
         return value

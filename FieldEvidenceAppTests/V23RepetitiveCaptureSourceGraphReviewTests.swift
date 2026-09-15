@@ -316,12 +316,20 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
     }
 
     func testMaximumCaptureGraphAuthenticatesTwoStepsForAllTwoHundredItems() throws {
+        let started = ProcessInfo.processInfo.systemUptime
+        let trace: (String) -> Void = { phase in
+            let elapsed = Int((ProcessInfo.processInfo.systemUptime - started) * 1_000)
+            print("C36_SOURCE_GRAPH_PHASE kind=maximumGraph phase=\(phase) elapsedMillis=\(elapsed)")
+        }
         let fixture = try RepetitiveCaptureSourcePackageFixture(
-            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection)
+            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection, phaseTrace: trace)
         defer { fixture.removePackages() }
 
+        let package = try fixture.validatedPackage()
+        trace("graph-review-start")
         let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: fixture.validatedPackage())
+            sourcePackage: package)
+        trace("graph-review-complete")
 
         let graph = try XCTUnwrap(reviewed.graphs.first)
         XCTAssertEqual(reviewed.graphs.count, 1)
@@ -723,15 +731,26 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
     }
 
     func testCompactReferenceMaximumGraphFitsPayloadBound() throws {
+        let started = ProcessInfo.processInfo.systemUptime
+        let trace: (String) -> Void = { phase in
+            let elapsed = Int((ProcessInfo.processInfo.systemUptime - started) * 1_000)
+            print("C36_SOURCE_GRAPH_PHASE kind=compactReference phase=\(phase) elapsedMillis=\(elapsed)")
+        }
         let fixture = try RepetitiveCaptureSourcePackageFixture(
-            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection)
+            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection, phaseTrace: trace)
         defer { fixture.removePackages() }
+        let package = try fixture.validatedPackage()
+        trace("graph-review-start")
         let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: fixture.validatedPackage())
+            sourcePackage: package)
+        trace("graph-review-complete")
         let reference = try XCTUnwrap(
             RepetitiveCaptureSourceGraphReviewV2.references(from: reviewed).first)
+        trace("references-complete")
         try reference.validate(against: reviewed)
+        trace("reference-validation-complete")
         let data = try FieldDraftCanonicalCodecV1.encode(reference)
+        trace("reference-encoding-complete")
         XCTAssertEqual(reference.value.checkpoints.count, 401)
         XCTAssertEqual(reference.value.requiredHistory.recordCount, 603)
         XCTAssertEqual(reference.value.roundHistory.recordCount, 202)

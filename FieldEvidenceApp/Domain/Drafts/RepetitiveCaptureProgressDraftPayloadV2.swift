@@ -286,31 +286,32 @@ enum RepetitiveCaptureProgressChainReviewV2 {
         }
         let candidates = try progressCheckpoints(workspaceID).filter { $0.scope == source.scope }
         guard candidates.count <= launch.round.items.count * 2 + 1 else { throw FieldDraftFailureV1.limitExceeded }
-        var remaining: [UUID: FieldDraftCheckpointV1] = [:]
+        let sourceReference = try RepetitiveCaptureSourceCheckpointReferenceV1(source: source)
+        var remaining: [UUID: (checkpoint: FieldDraftCheckpointV1, step: RepetitiveCaptureProgressStepV2)] = [:]
+        var successors: [UUID?: [UUID]] = [:]
         for candidate in candidates {
             if candidate.draftID == source.draftID {
                 guard candidate == source else { throw ScanToWorkFailureV1.stale }
             } else {
                 guard case let .progress(step) = try RepetitiveCaptureProgressDraftCodecV2.decode(candidate.payloadData),
-                      step.source == (try .init(source: source)),
-                      remaining.updateValue(candidate, forKey: candidate.draftID) == nil else {
+                      step.source == sourceReference,
+                      remaining.updateValue((candidate, step), forKey: candidate.draftID) == nil else {
                     throw ScanToWorkFailureV1.authorityMismatch
                 }
+                successors[step.prior?.draftID, default: []].append(candidate.draftID)
             }
         }
         var nodes: [ReviewedRepetitiveCaptureProgressNodeV2] = []
         var mutationIDs = Set([source.mutationID, launch.round.mutationID])
         while !remaining.isEmpty {
             let priorID = nodes.last?.checkpoint.draftID
-            let next = try remaining.values.filter {
-                guard case let .progress(step) = try RepetitiveCaptureProgressDraftCodecV2.decode($0.payloadData) else { return false }
-                return step.prior?.draftID == priorID
-            }
-            guard next.count == 1, let checkpoint = next.first,
+            let next = successors[priorID, default: []].compactMap { remaining[$0] }
+            guard next.count == 1, let candidate = next.first,
                   nodes.last?.isPendingRoundEffect != true else { throw ScanToWorkFailureV1.authorityMismatch }
+            let checkpoint = candidate.checkpoint
+            let step = candidate.step
             let (authenticated, receipt) = try authenticatedProgressCheckpoint(workspaceID, checkpoint.draftID)
             guard authenticated == checkpoint,
-                  case let .progress(step) = try RepetitiveCaptureProgressDraftCodecV2.decode(checkpoint.payloadData),
                   checkpoint.resumeAnchor == step.resumeAnchor,
                   mutationIDs.insert(checkpoint.mutationID).inserted else { throw ScanToWorkFailureV1.authorityMismatch }
             try step.validate(sourceCheckpoint: source, priorCheckpoint: nodes.last?.checkpoint)

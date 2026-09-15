@@ -621,8 +621,9 @@ enum OfflineReadinessManifestReducerV1 {
         let fallback: OfflineReadinessManualFallbackV1 = .doNotStart
         let packageReady = input.observedPackage == input.expectedPackage
         rows.append(try row("package", .package, true, packageReady ? .satisfied : .mismatch, packageReady ? nil : .packageMismatch, packageReady ? nil : .restoreExactPackage, packageReady ? nil : fallback))
+        let observedAssetIDs = Set(input.observedAssetIDs)
         for asset in input.selectedAssets {
-            let present = input.observedAssetIDs.contains(asset.assetID)
+            let present = observedAssetIDs.contains(asset.assetID)
             rows.append(try row("asset-\(asset.assetID.uuidString.lowercased())", .selectedAsset, true, present ? .satisfied : .missing, present ? nil : .selectedAssetMismatch, present ? nil : .reselectAssets, present ? nil : fallback))
         }
         for guidanceID in input.guidanceReferenceIDs {

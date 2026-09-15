@@ -262,7 +262,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
                 "beginPostimageSemanticSHA256", "committedAt", "sourceKind",
             ]))
             XCTAssertEqual(fixture.workflowReference.commandBodySHA256,
-                try WorkspaceMutationCanonicalV1.sha256(.createCheckDraft(fixture.attempt.recordCommand)))
+                try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.createCheckDraft(fixture.attempt.recordCommand)))
             XCTAssertEqual(fixture.workflowReference.beginPostimageRevision, 1)
             XCTAssertEqual(fixture.workflowEvidence.receipt.expectedRevision.entityRevisions.map(\.identity.stableKey),
                 fixture.workflowEvidence.receipt.expectedRevision.entityRevisions.map(\.identity.stableKey).sorted())
@@ -270,7 +270,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
                 fixture.workflowEvidence.receipt.resultingRevision.entityRevisions.map(\.identity.stableKey).sorted())
             if let frozen = fixture.attempt.timeZone, let reference = fixture.timeZoneReference {
                 XCTAssertEqual(reference.commandBodySHA256,
-                    try WorkspaceMutationCanonicalV1.sha256(.updateSiteTimeZone(frozen.command)))
+                    try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.updateSiteTimeZone(frozen.command)))
                 XCTAssertEqual(reference.beginPostimageRevision, frozen.expectedSiteRevision + 1)
             } else {
                 XCTAssertNil(fixture.timeZoneReference)

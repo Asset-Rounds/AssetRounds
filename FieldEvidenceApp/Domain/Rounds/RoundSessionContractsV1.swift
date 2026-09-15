@@ -296,6 +296,11 @@ struct RoundSessionV1: Codable, Equatable, Sendable {
     }
     func validateSuccessor(of prior: Self) throws {
         try prior.validateIntrinsic(); try validateIntrinsic()
+        try validateSuccessorOfValidatedRound(prior)
+    }
+    // Only the history validator shares this file-local edge check after both
+    // immutable nodes have passed their complete intrinsic validation.
+    fileprivate func validateSuccessorOfValidatedRound(_ prior: Self) throws {
         guard predecessor == (try prior.reference), workspaceID == prior.workspaceID, sessionID == prior.sessionID,
               prior.revision < UInt64.max, revision == prior.revision + 1,
               mutationID != prior.mutationID, recordedAt >= prior.recordedAt,
@@ -425,7 +430,7 @@ enum RoundSessionHistoryValidatorV1 {
             guard value.workspaceID == workspaceID, value.sessionID == sessionID,
                   value.revision == UInt64(index + 1) else { throw RoundSessionFailureV1.staleRevision }
             if index == 0 { guard value.predecessor == nil else { throw RoundSessionFailureV1.staleRevision } }
-            else { try value.validateSuccessor(of: history[index - 1]) }
+            else { try value.validateSuccessorOfValidatedRound(history[index - 1]) }
         }
         return history.last
     }

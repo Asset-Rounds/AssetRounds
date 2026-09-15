@@ -5005,7 +5005,7 @@ final class MutationJournalStoreV1 {
                       minimumPersistentSchemaVersion(for: envelope.command) <= $0
                   }) ?? true,
                   receipt.mutationID == envelope.mutationID,
-                  receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
+                  receipt.envelopeSHA256 == KernelCanonicalHashV1.sha256(record.envelopeData),
                   receipt.identity.workspaceID == envelope.workspaceID,
                   receipt.identity.replicaID == envelope.replicaID,
                   receipt.contentDependencyIDs == envelope.contentDependencyIDs,

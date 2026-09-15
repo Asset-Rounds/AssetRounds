@@ -195,6 +195,7 @@ final class RepetitiveCaptureSourcePackageFixture {
     private let source: V4BackupSourceV1
     private let records: V4BackupRecordsV1
     private let fileManager = FileManager.default
+    private let phaseTrace: ((String) -> Void)?
 
     init(discardSource: Bool = false, includeForeignOriginal: Bool = false,
          laterActiveSource: Bool = false, discardPendingSource: Bool = false,
@@ -210,7 +211,8 @@ final class RepetitiveCaptureSourcePackageFixture {
          staleExtraDiscardReceipt: Bool = false,
          foreignHistoryOnly: Bool = false,
          boundaryItemCount: Int? = nil, sourceOnly: Bool = false,
-         extraActiveSourceRevisions: Int = 0) throws {
+         extraActiveSourceRevisions: Int = 0,
+         phaseTrace: ((String) -> Void)? = nil) throws {
         guard (0...512).contains(extraActiveSourceRevisions),
               extraActiveSourceRevisions == 0 || laterActiveSource,
               !sourceOnly || (!discardSource && !includeForeignOriginal && !laterActiveSource &&
@@ -219,6 +221,8 @@ final class RepetitiveCaptureSourcePackageFixture {
                 !includeUnrelatedHistory && !semanticRequiredPair && !extraCurrentV2Row &&
                 !directDiscardedSource && !staleExtraDiscardReceipt && !foreignHistoryOnly &&
                 boundaryItemCount == nil) else { throw WorkspaceMutationFailureV1.invalidCommand }
+        self.phaseTrace = phaseTrace
+        phaseTrace?("fixture-start")
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("v23-c36-source-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -255,7 +259,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
             graph = try Self.makeBoundaryGraph(
-                workspaceID: workspaceID, itemCount: boundaryItemCount)
+                workspaceID: workspaceID, itemCount: boundaryItemCount, phaseTrace: phaseTrace)
         } else {
             graph = try Self.makeGraph(
                 workspaceID: workspaceID, discardSource: discardSource,
@@ -303,13 +307,17 @@ final class RepetitiveCaptureSourcePackageFixture {
                 parts: [], locations: [], movements: [], uses: [], reversals: [],
                 returns: [], abandonments: []),
             roundSessions: rounds)
+        phaseTrace?("fixture-complete")
     }
 
     func validatedPackage(recordsMutation: ((inout [String: Any]) throws -> Void)? = nil)
         throws -> ValidatedRepetitiveCaptureSourcePackageV2 {
         let value = try package(named: UUID().uuidString, recordsMutation: recordsMutation)
-        return try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+        phaseTrace?("package-validator-start")
+        let validated = try ValidatedRepetitiveCaptureSourcePackageV2.validate(
             stagedPackageURL: value, using: BackupPackageValidatorV1())
+        phaseTrace?("package-validator-complete")
+        return validated
     }
 
     func package(named name: String,
@@ -317,13 +325,20 @@ final class RepetitiveCaptureSourcePackageFixture {
                  recordsMutation: ((inout [String: Any]) throws -> Void)? = nil) throws -> URL {
         let directory = root.appendingPathComponent("\(name).fieldrecordbackup", isDirectory: true)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        phaseTrace?("records-encoder-start")
+        let encodedRecords = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        phaseTrace?("records-encoder-complete")
         var recordsObject = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: try BackupCanonicalEncoderV1().encodeRecords(records).data) as? [String: Any])
+            with: encodedRecords) as? [String: Any])
+        phaseTrace?("records-json-object-complete")
         try recordsMutation?(&recordsObject)
         let mutatedRecordsData = try JSONSerialization.data(withJSONObject: recordsObject,
             options: [.sortedKeys, .withoutEscapingSlashes])
+        phaseTrace?("raw-decode-start")
         let decodedRecords = try BackupCanonicalDecoderV1().decodeRecords(mutatedRecordsData)
+        phaseTrace?("raw-decode-complete")
         let recordsData = try BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data
+        phaseTrace?("records-reencode-complete")
         try recordsData.write(to: directory.appendingPathComponent("records.json"), options: .atomic)
 
         var sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(
@@ -740,7 +755,8 @@ final class RepetitiveCaptureSourcePackageFixture {
                      additionalRows: additionalRows)
     }
 
-    private static func makeBoundaryGraph(workspaceID: WorkspaceID, itemCount: Int) throws
+    private static func makeBoundaryGraph(workspaceID: WorkspaceID, itemCount: Int,
+                                          phaseTrace: ((String) -> Void)?) throws
         -> GraphValues {
         guard itemCount == ScanToWorkLimitsV1.maximumSelection else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -768,13 +784,16 @@ final class RepetitiveCaptureSourcePackageFixture {
             revision: 2, mutationID: .init(rawValue: id(14_002)), state: .active,
             transition: .start, items: items, recordedBy: actor,
             recordedAt: date.addingTimeInterval(1))
+        phaseTrace?("readiness-manifest-start")
         let ready = try readiness(round: active)
+        phaseTrace?("readiness-manifest-complete")
+        let readyProofs: [ScanToWorkOfflineReadinessProofV1] = try active.items.map {
+            try .init(manifest: ready, assetID: $0.selection.assetID)
+        }
+        phaseTrace?("readiness-proofs-complete")
         let planID = id(10_001)
         let launch = try RepetitiveCaptureLaunchSourceV2(
-            planID: planID, round: active,
-            readiness: active.items.map {
-                try .init(manifest: ready, assetID: $0.selection.assetID)
-            })
+            planID: planID, round: active, readiness: readyProofs)
         let scope = try RepetitiveCaptureDraftCodecV1.scope(
             planID: planID, round: active.reference)
         let source = try checkpoint(
@@ -795,6 +814,7 @@ final class RepetitiveCaptureSourcePackageFixture {
         var checkpoints = [source]
         var current = active
         var prior: FieldDraftCheckpointV1?
+        phaseTrace?("progress-construction-start")
         for index in 0..<itemCount {
             let visited = try visitingRound(
                 current, itemIndex: index, actor: actor,
@@ -834,9 +854,13 @@ final class RepetitiveCaptureSourcePackageFixture {
             checkpoints += [entry, keep]
             current = visited
             prior = keep
+            if (index + 1).isMultiple(of: 50) {
+                phaseTrace?("progress-construction-\(index + 1)-items")
+            }
         }
+        phaseTrace?("progress-construction-complete")
         return .init(rounds: rounds, checkpoints: checkpoints,
-                     history: try builder.snapshot(), additionalRows: [])
+                     history: try builder.snapshot(phaseTrace: phaseTrace), additionalRows: [])
     }
 
     private static func visitingRound(
@@ -1027,21 +1051,25 @@ final class RepetitiveCaptureSourcePackageFixture {
                 }.sorted { $0.identity.stableKey < $1.identity.stableKey })
         }
 
-        func snapshot() throws -> MutationHistorySnapshotV1 {
+        func snapshot(phaseTrace: ((String) -> Void)? = nil) throws -> MutationHistorySnapshotV1 {
+            phaseTrace?("history-envelope-encoding-start")
             let receipts: [MutationHistoryReceiptRecordV1] = try events.map { event in
                 .init(envelopeData: try event.envelope.canonicalData(),
                     receiptData: try event.receipt.canonicalData(),
                     reversalBasisData: event.reversalBasisData,
                     semanticReversalData: event.semanticReversalData)
             }
+            phaseTrace?("history-envelope-encoding-complete")
             let value = MutationHistorySnapshotV1(
                 workspaceRevision: UInt64(events.count), lastLocalSequence: UInt64(events.count),
                 receipts: try RepetitiveCaptureSourcePackageFixture.canonicalReceipts(receipts),
                 quarantines: [],
                 entityRevisions: revisions.map { .init(identity: $0.key, revision: $0.value) }
                     .sorted { $0.identity.stableKey < $1.identity.stableKey })
+            phaseTrace?("history-canonical-receipts-complete")
             try MutationJournalStoreV1.validateImportedSnapshot(value,
                                                                  sourcePersistentSchemaVersion: 45)
+            phaseTrace?("history-snapshot-validation-complete")
             return value
         }
 
