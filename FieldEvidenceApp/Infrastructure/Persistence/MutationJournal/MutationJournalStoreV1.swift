@@ -1567,6 +1567,36 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// The live reader owns admission; original workspace and generation bytes
+    /// remain historical evidence and are never rebound to the current store.
+    func checkRunnerPhotoEvidence(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) throws -> CheckRunnerPhotoCommittedEvidenceV1? {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        let key = MutationWorkspaceKeyV1.value(workspaceID: workspaceID, mutationID: mutationID)
+        guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        )).isEmpty else {
+            throw WorkspaceMutationFailureV1.mutationIDQuarantined
+        }
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        ))
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard let row = rows.first else { return nil }
+        return try validateCheckRunnerBeginHistoryValue {
+            let receipt = try validate(row: row, expectedEnvelope: nil)
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard envelope.workspaceID == workspaceID, envelope.mutationID == mutationID else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return try CheckRunnerPhotoCommittedEvidenceV1(envelope: envelope, receipt: receipt)
+        }
+    }
+
     /// This reader reports malformed retained values as corrupt history. Lease,
     /// dirty-context and selected-quarantine checks stay outside this mapping;
     /// existing policy and sequence-collision failures retain their identity.

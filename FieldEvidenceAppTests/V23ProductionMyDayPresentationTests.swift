@@ -255,7 +255,23 @@ struct V23ProductionMyDayPresentationHarness {
         case .some(.lifecycle(_)): failure = "lifecycle"
         }
         let elapsed = (DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
-        print("V23 production-startup unpublished phase=\(phase) elapsedMs=\(elapsed) route=\(router.recoveryBootstrapState) failure=\(failure) busy=\(presentation.isBusy) enabled=\(String(describing: presentation.settingIsEnabled)) myDayAccess=\(presentation.myDayAccess != nil)")
+#if DEBUG
+        let runtimeFacts: String
+        if let observation = router.runtimeObservation {
+            let end = observation.endedAtUptimeNanoseconds
+            let phaseElapsed = ((end ?? DispatchTime.now().uptimeNanoseconds)
+                - observation.startedAtUptimeNanoseconds) / 1_000_000
+            runtimeFacts = " startupPhase=\(observation.phase.rawValue)"
+                + " startupPhaseStartedAt=\(observation.startedAtUptimeNanoseconds)"
+                + " startupPhaseEndedAt=\(String(describing: end))"
+                + " startupPhaseElapsedMs=\(phaseElapsed)"
+        } else {
+            runtimeFacts = " startupPhase=none"
+        }
+#else
+        let runtimeFacts = ""
+#endif
+        print("V23 production-startup unpublished phase=\(phase) elapsedMs=\(elapsed) route=\(router.recoveryBootstrapState) failure=\(failure) busy=\(presentation.isBusy) enabled=\(String(describing: presentation.settingIsEnabled)) myDayAccess=\(presentation.myDayAccess != nil)\(runtimeFacts)")
     }
 
     func cleanUp() {

@@ -746,7 +746,7 @@ private extension BackupCanonicalEncoderV1 {
         return value
     }
 
-    static func ordinaryValidationFacts(
+    private static func ordinaryValidationFacts(
         _ records: V4BackupRecordsV1
     ) throws -> OrdinaryRecordsValidationFacts {
         let receiptStableKeys: [String]?
@@ -765,7 +765,7 @@ private extension BackupCanonicalEncoderV1 {
         )
     }
 
-    static func valid(_ validation: OrdinaryRecordsValidationFacts) -> Bool {
+    private static func valid(_ validation: OrdinaryRecordsValidationFacts) -> Bool {
         valid(validation.records, receiptStableKeys: validation.receiptStableKeys)
     }
 

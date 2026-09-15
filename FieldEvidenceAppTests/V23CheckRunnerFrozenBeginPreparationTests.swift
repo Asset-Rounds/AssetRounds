@@ -319,6 +319,9 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(decoded), bytes)
 
             let top = try frozenBeginJSONObject(bytes)
+            XCTAssertEqual(try decodeFrozenBeginJSON(CheckRunnerFrozenBeginAttemptV1.self, object: top), attempt)
+            XCTAssertEqual(try decodeFrozenBeginJSON(CheckRunnerRoundItemSourceV1.self,
+                object: frozenBeginJSONObject(FieldDraftCanonicalCodecV1.encode(source))), source)
             XCTAssertEqual(Set(top.keys), Set([
                 "source", "sourceWorkspaceID", "recordCommand", "recordMutationID",
                 "recordExpectedEntityRevisions", "recordCommittedAt", "timeZone",
@@ -394,8 +397,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
 
             for (label, mutate) in mutations {
                 let hostile = try mutate(top)
-                XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(
-                    CheckRunnerFrozenBeginAttemptV1.self, from: frozenBeginJSONData(hostile)
+                XCTAssertThrowsError(try decodeFrozenBeginJSON(
+                    CheckRunnerFrozenBeginAttemptV1.self, object: hostile
                 ), label)
             }
             XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(source),
@@ -408,8 +411,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
     private func assertSourceDecodeFails(
         _ object: [String: Any], file: StaticString = #filePath, line: UInt = #line
     ) {
-        XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(
-            CheckRunnerRoundItemSourceV1.self, from: frozenBeginJSONData(object)
+        XCTAssertThrowsError(try decodeFrozenBeginJSON(
+            CheckRunnerRoundItemSourceV1.self, object: object
         ), file: file, line: line)
     }
 }
@@ -965,8 +968,14 @@ func frozenBeginJSONObject(_ data: Data) throws -> [String: Any] {
     try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }
 
-func frozenBeginJSONData(_ object: [String: Any]) throws -> Data {
-    try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+/// Semantic fixture mutations still pass closed typed decoding and the real
+/// canonical codec. Transport formatting must not mask their target predicate.
+func decodeFrozenBeginJSON<Value: Codable>(_ type: Value.Type, object: [String: Any]) throws -> Value {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .millisecondsSince1970
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])
+    let value = try decoder.decode(type, from: data)
+    return try FieldDraftCanonicalCodecV1.decode(type, from: FieldDraftCanonicalCodecV1.encode(value))
 }
 
 private func jsonKeys(_ value: Any) -> Set<String> {

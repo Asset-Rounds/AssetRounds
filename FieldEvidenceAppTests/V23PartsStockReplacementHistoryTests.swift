@@ -33,7 +33,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         }
         registerPublicFixtureCleanup(source)
         let target = try publicReplacementStep("create-target") {
-            try V906Integration.makeHarness("c55-mixed-target", withAsset: false)
+            try V906Integration.makeHarness("c55-mixed-target", withAsset: true)
         }
         registerPublicFixtureCleanup(target)
 
@@ -341,7 +341,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         }
         registerPublicFixtureCleanup(source)
         let target = try publicReplacementStep("policy-create-target") {
-            try V906Integration.makeHarness("c55-policy-target", withAsset: false)
+            try V906Integration.makeHarness("c55-policy-target", withAsset: true)
         }
         registerPublicFixtureCleanup(target)
         let sourceRecords = try publicReplacementStep("policy-current-records") {
@@ -1552,6 +1552,15 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
                 contentDeletedAt: Fixture.fixedDate,
                 createdAt: Fixture.fixedDate
             ))
+            try DeletionLedgerStore(context: session.modelContext).stageUnion([
+                try DeletionLedgerEntryV2(
+                    identity: DeletionIdentityV2(
+                        kind: .packet,
+                        id: V906Integration.id(slot + 24)
+                    ),
+                    deletedAt: Fixture.fixedDate
+                )
+            ])
             try V906Integration.adoptSeededDeletionBaseline(session)
             phase = "mixed-journal-init"
             let journal = try MutationJournalStoreV1(

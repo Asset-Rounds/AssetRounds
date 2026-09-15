@@ -124,10 +124,13 @@ final class V23CheckRunnerDurableInitialBeginTests: XCTestCase {
         try withFrozenBeginFixture("durable-forged-command", entry: .check, storedTimeZoneID: nil) { h in
             let (service, prepared, attempt) = try durablePreparedBegin(h, recordID: 9_641, zoneID: 9_642)
             var object = try frozenBeginJSONObject(FieldDraftCanonicalCodecV1.encode(attempt))
+            XCTAssertEqual(try decodeFrozenBeginJSON(CheckRunnerFrozenBeginAttemptV1.self, object: object), attempt)
             var command = try XCTUnwrap(object["recordCommand"] as? [String: Any])
             command["afterDarkAcknowledgementCopy"] = "Foreign but well-formed package text"
             object["recordCommand"] = command
-            let changed = try FieldDraftCanonicalCodecV1.decode(CheckRunnerFrozenBeginAttemptV1.self, from: frozenBeginJSONData(object))
+            let changed = try decodeFrozenBeginJSON(CheckRunnerFrozenBeginAttemptV1.self, object: object)
+            XCTAssertNotEqual(changed.recordCommand.afterDarkAcknowledgementCopy,
+                              attempt.recordCommand.afterDarkAcknowledgementCopy)
             let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(prepared)
             let field = payload.field
             let forged = try CheckRunnerItemDraftPayloadV1(editing: payload.source, field: .init(
@@ -142,8 +145,11 @@ final class V23CheckRunnerDurableInitialBeginTests: XCTestCase {
                                    storedTimeZoneID: "America/New_York") { h in
             let (service, prepared, attempt) = try durablePreparedBegin(h, recordID: 9_644)
             var command = try frozenBeginJSONObject(FieldDraftCanonicalCodecV1.encode(attempt.recordCommand))
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(decodeFrozenBeginJSON(CheckDraftMutationV1.self,
+                object: command)), try FieldDraftCanonicalCodecV1.encode(attempt.recordCommand))
             command["recordID"] = beginPreparationUUID(9_645).uuidString.lowercased()
-            let foreign = try FieldDraftCanonicalCodecV1.decode(CheckDraftMutationV1.self, from: frozenBeginJSONData(command))
+            let foreign = try decodeFrozenBeginJSON(CheckDraftMutationV1.self, object: command)
+            XCTAssertNotEqual(foreign.recordID, attempt.recordCommand.recordID)
             _ = try h.coordinator.workspaceWriter.execute(.createCheckDraft(foreign),
                 mutationID: .init(rawValue: foreign.recordID))
             let before = try h.snapshot()

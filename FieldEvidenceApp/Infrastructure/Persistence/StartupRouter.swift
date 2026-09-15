@@ -22,6 +22,29 @@ enum StartupStep: String, CaseIterable, Sendable {
     case media
     case pdf
 }
+#if DEBUG
+enum StartupRuntimeObservationPhaseV1: String, Equatable, Sendable {
+    case preflight
+    case erase
+    case restore
+    case currentOpen
+    case fieldDraft
+    case finalization
+    case deletion
+    case media
+    case pdf
+    case sourceHistory
+    case diagnostics
+    case commerce
+    case ready
+}
+
+struct StartupRuntimeObservationV1: Equatable, Sendable {
+    let phase: StartupRuntimeObservationPhaseV1
+    let startedAtUptimeNanoseconds: UInt64
+    var endedAtUptimeNanoseconds: UInt64?
+}
+#endif
 
 /// Read-only bootstrap input for the Recovery Center. It deliberately carries
 /// no store session or recovery action, so a support projection cannot bypass
@@ -48,6 +71,9 @@ final class StartupRouter: ObservableObject {
     }
 
     @Published private(set) var route: Route = .checking
+#if DEBUG
+    private(set) var runtimeObservation: StartupRuntimeObservationV1?
+#endif
     private(set) var maintenanceRestoreSession: StoreGenerationSession?
     private(set) var maintenanceEraseSession: StoreGenerationSession?
     var maintenanceDiagnosticsStore: DiagnosticsStore { diagnosticsStore }
@@ -626,11 +652,38 @@ final class StartupRouter: ObservableObject {
         try bindStartupAccessGate(gate)
         return .content(gate, try await gate.beginContentRead(for: .startupRecovery))
     }
+#if DEBUG
+    private func beginRuntimeObservation(_ phase: StartupRuntimeObservationPhaseV1) {
+        let now = DispatchTime.now().uptimeNanoseconds
+        if var current = runtimeObservation, current.endedAtUptimeNanoseconds == nil {
+            current.endedAtUptimeNanoseconds = now
+            runtimeObservation = current
+        }
+        runtimeObservation = StartupRuntimeObservationV1(
+            phase: phase,
+            startedAtUptimeNanoseconds: now,
+            endedAtUptimeNanoseconds: nil
+        )
+    }
+
+    private func endRuntimeObservation(_ phase: StartupRuntimeObservationPhaseV1) {
+        guard var current = runtimeObservation,
+              current.phase == phase,
+              current.endedAtUptimeNanoseconds == nil else {
+            return
+        }
+        current.endedAtUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
+        runtimeObservation = current
+    }
+#endif
 
     private func runStartup(authorization: StartupAuthorization?) async {
         guard !isRunning else {
             return
         }
+#if DEBUG
+        beginRuntimeObservation(.preflight)
+#endif
         lastStartupAccessFailure = nil
         do { try await authorization?.validate() }
         catch { lastStartupAccessFailure = error; return }
@@ -679,6 +732,9 @@ final class StartupRouter: ObservableObject {
             // clear before reservation. Their abandoned-staging cleanup must
             // not mistake its bound candidate for an ordinary restore.
             let resumesAggregate = try generationFactory.hasAggregateMigrationReservation()
+#if DEBUG
+            beginRuntimeObservation(.erase)
+#endif
             didBeginStep(.erase)
             let erasedSession: StoreGenerationSession?
             do {
@@ -694,6 +750,9 @@ final class StartupRouter: ObservableObject {
             }
             try await requireCurrentOperationAndAccess(operation)
 
+#if DEBUG
+            beginRuntimeObservation(.restore)
+#endif
             didBeginStep(.restore)
             let restoredSession: StoreGenerationSession?
             do {
@@ -709,6 +768,9 @@ final class StartupRouter: ObservableObject {
             }
             try await requireCurrentOperationAndAccess(operation)
 
+#if DEBUG
+            beginRuntimeObservation(.currentOpen)
+#endif
             didBeginStep(.currentOpen)
             let session: StoreGenerationSession
             if let restoredSession {
@@ -727,6 +789,9 @@ final class StartupRouter: ObservableObject {
                 switch result {
                 case .ready(let current): session = current
                 case .awaitingIndependentValidation(let pending):
+#if DEBUG
+                    endRuntimeObservation(.currentOpen)
+#endif
                     route = .awaitingIndependentValidation(pending)
                     return
                 }
@@ -737,6 +802,9 @@ final class StartupRouter: ObservableObject {
             } catch {
                 throw StartupMaintenanceReason.dataPointerInvalid
             }
+#if DEBUG
+            beginRuntimeObservation(.fieldDraft)
+#endif
             didBeginStep(.fieldDraft)
             do {
                 _ = try DraftCommitSagaRecoveryV1(
@@ -746,6 +814,9 @@ final class StartupRouter: ObservableObject {
                 throw StartupMaintenanceReason.fieldDraftInconsistent
             }
 
+#if DEBUG
+            beginRuntimeObservation(.finalization)
+#endif
             didBeginStep(.finalization)
             // V2 effects and receipts are one transaction, so the journal is
             // already coherent before file-intent recovery. Keep this sole
@@ -769,6 +840,9 @@ final class StartupRouter: ObservableObject {
             }
             try await requireCurrentOperationAndAccess(operation, owner: owner)
 
+#if DEBUG
+            beginRuntimeObservation(.deletion)
+#endif
             didBeginStep(.deletion)
             do {
                 _ = try await WholeSignDeletionService(
@@ -781,6 +855,9 @@ final class StartupRouter: ObservableObject {
             }
             try await requireCurrentOperationAndAccess(operation, owner: owner)
 
+#if DEBUG
+            beginRuntimeObservation(.media)
+#endif
             didBeginStep(.media)
             do {
                 let descriptor = FetchDescriptor<EvidenceFile>()
@@ -808,6 +885,9 @@ final class StartupRouter: ObservableObject {
             }
             try await requireCurrentOperationAndAccess(operation, owner: owner)
 
+#if DEBUG
+            beginRuntimeObservation(.pdf)
+#endif
             didBeginStep(.pdf)
             let reportRecoveryService: ReportRecoveryService
             do {
@@ -823,6 +903,9 @@ final class StartupRouter: ObservableObject {
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
 
+#if DEBUG
+            beginRuntimeObservation(.sourceHistory)
+#endif
             _ = try coordinator.workspaceWriter.sourceMutationHistorySnapshot()
             try await requireCurrentOperationAndAccess(operation, owner: owner)
             if authorization?.permitsPublication == false {
@@ -830,8 +913,14 @@ final class StartupRouter: ObservableObject {
                 operationOwnedWriter = nil
                 return
             }
+#if DEBUG
+            beginRuntimeObservation(.diagnostics)
+#endif
             await diagnosticsStore.prepare()
             try await requireCurrentOperationAndAccess(operation, owner: owner)
+#if DEBUG
+            beginRuntimeObservation(.commerce)
+#endif
             do {
                 try await installCommerceProcessor(operation: operation, owner: owner)
             } catch {
@@ -840,11 +929,17 @@ final class StartupRouter: ObservableObject {
             try await requireCurrentOperationAndAccess(operation, owner: owner)
             publishedWriter = owner
             operationOwnedWriter = nil
+#if DEBUG
+            beginRuntimeObservation(.ready)
+#endif
             route = .ready(
                 coordinator,
                 diagnosticsStore,
                 reportRecoveryService
             )
+#if DEBUG
+            endRuntimeObservation(.ready)
+#endif
         } catch {
             retainWriterCleanup(error, owner: unpublishedOwner)
             guard operationID == operation else {

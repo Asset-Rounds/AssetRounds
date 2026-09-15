@@ -9255,6 +9255,14 @@ private extension BackupRestoreService {
         partsStockOperationID: UUID,
         partsStockCompletedAt: Date
     ) throws {
+#if DEBUG
+        var restoreStagingPhase = "validate-records"
+        var restoreStagingPhaseStartedAt = DispatchTime.now().uptimeNanoseconds
+        func beginRestoreStagingPhase(_ phase: String) {
+            restoreStagingPhase = phase
+            restoreStagingPhaseStartedAt = DispatchTime.now().uptimeNanoseconds
+        }
+#endif
         do {
             if records.recordsSchemaVersion
                 >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
@@ -9268,6 +9276,9 @@ private extension BackupRestoreService {
                 )
                 _ = try records.validateC47ActivityContracts()
             }
+#if DEBUG
+            beginRestoreStagingPhase("create-staging")
+#endif
             try generationFactory.createRestoreStagingGeneration(
                 id: generationID,
                 authority: generationAuthority,
@@ -9288,6 +9299,9 @@ private extension BackupRestoreService {
                           let materializedSnapshot = records.partsStockSnapshot else {
                         throw BackupRestoreServiceError.invalidPackage
                     }
+#if DEBUG
+                    beginRestoreStagingPhase("c55-materialize")
+#endif
                     let receipt = try PartsStockLifecycleAdapterV1(modelContext: context)
                         .materializeRestoreStaging(
                             sourceSnapshot,
@@ -9311,6 +9325,9 @@ private extension BackupRestoreService {
                 } else if records.partsStockSnapshot != nil {
                     throw BackupRestoreServiceError.invalidPackage
                 }
+#if DEBUG
+                beginRestoreStagingPhase("insert-records")
+#endif
                 try insert(
                     records,
                     into: context,
@@ -9318,7 +9335,13 @@ private extension BackupRestoreService {
                     identityDecision: identityDecision,
                     legacyDestinationIdentity: legacyDestinationIdentity
                 )
+#if DEBUG
+                beginRestoreStagingPhase("factory-save")
+#endif
             }
+#if DEBUG
+            beginRestoreStagingPhase("write-members")
+#endif
             try writeMembers(
                 value,
                 records: records,
@@ -9327,6 +9350,9 @@ private extension BackupRestoreService {
                 ),
                 generationID: generationID
             )
+#if DEBUG
+            beginRestoreStagingPhase("protect-tree")
+#endif
             try protectGenerationTree(
                 id: generationID,
                 root: generationFactory.restoreStagingGenerationURL(id: generationID),
@@ -9334,6 +9360,19 @@ private extension BackupRestoreService {
             )
         } catch {
             let originalError = error
+#if DEBUG
+            let diagnosticError = originalError as NSError
+            let restoreStagingPhaseElapsedMilliseconds =
+                (DispatchTime.now().uptimeNanoseconds - restoreStagingPhaseStartedAt) / 1_000_000
+            FileHandle.standardError.write(Data((
+                "BackupRestoreService.materialize failure"
+                    + " phase=\(restoreStagingPhase)"
+                    + " elapsedMillis=\(restoreStagingPhaseElapsedMilliseconds)"
+                    + " type=\(String(reflecting: type(of: originalError)))"
+                    + " domain=\(diagnosticError.domain)"
+                    + " code=\(diagnosticError.code)\n"
+            ).utf8))
+#endif
             let cleanupError: Error?
             do {
                 try generationFactory.removeRestoreStagingGeneration(

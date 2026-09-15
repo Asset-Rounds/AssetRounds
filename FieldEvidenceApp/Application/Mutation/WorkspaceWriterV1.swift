@@ -2347,6 +2347,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return try journalStore.checkRunnerBeginEvidence(workspaceID: workspaceID, mutationID: mutationID)
     }
 
+    /// Reads an immutable accepted-photo original in its historical namespace.
+    /// Child terminal and current target correspondence remain caller duties.
+    func checkRunnerPhotoEvidence(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) throws -> CheckRunnerPhotoCommittedEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        return try journalStore.checkRunnerPhotoEvidence(workspaceID: workspaceID, mutationID: mutationID)
+    }
+
     /// Low-level frozen Begin effect. The parent owner must first persist
     /// PREPARED and prove current source/access; this method grants neither.
     func commitFrozenCheckRunnerTimeZone(

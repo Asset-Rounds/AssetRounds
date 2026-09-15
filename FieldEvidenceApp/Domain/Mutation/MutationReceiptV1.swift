@@ -1612,6 +1612,90 @@ struct CheckRunnerBeginCommittedEvidenceV1: Equatable, Sendable {
     }
 }
 
+/// Original accepted photo evidence. The journal authenticates retained history;
+/// a caller must still join the child terminal receipt and current target history.
+/// A later workflow step does not change this immutable original evidence.
+struct CheckRunnerPhotoCommittedEvidenceV1: Equatable, Sendable {
+    let envelope: MutationEnvelopeV1
+    let receipt: MutationReceiptV1
+    let command: CheckEvidenceMutationV1
+
+    var envelopeSHA256: String { receipt.envelopeSHA256 }
+
+    init(envelope: MutationEnvelopeV1, receipt: MutationReceiptV1) throws {
+        try envelope.validate()
+        try receipt.validate()
+        guard case let .acceptCheckEvidence(command) = envelope.command,
+              envelope.mutationID.rawValue == command.evidenceID,
+              receipt.mutationID == envelope.mutationID,
+              receipt.identity.workspaceID == envelope.workspaceID,
+              receipt.identity.replicaID == envelope.replicaID,
+              receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
+              receipt.commandBodySHA256 == envelope.commandBodySHA256,
+              receipt.expectedRevision == envelope.expectedRevision,
+              receipt.contentDependencyIDs == envelope.contentDependencyIDs,
+              receipt.sourceKind == envelope.sourceKind,
+              receipt.causationMutationID == envelope.causationMutationID,
+              receipt.correlationID == envelope.correlationID,
+              envelope.reversalPlanDigest == nil,
+              envelope.semanticReversalReplayIdentitySHA256 == nil,
+              envelope.semanticReversalExecution == nil,
+              receipt.reversesMutationID == nil,
+              receipt.postImages.count == 2 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let workflow = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: command.draftID)
+        let evidence = try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: command.evidenceID)
+        let before = receipt.expectedRevision.entityRevisions
+        let after = receipt.resultingRevision.entityRevisions
+        let workflowBefore = before.filter { $0.identity == workflow }
+        let evidenceBefore = before.filter { $0.identity == evidence }
+        let workflowAfter = after.filter { $0.identity == workflow }
+        let evidenceAfter = after.filter { $0.identity == evidence }
+        guard before.count == 2,
+              workflowBefore.count == 1, workflowBefore[0].revision > 0,
+              workflowBefore[0].revision < UInt64.max,
+              evidenceBefore.count == 1, evidenceBefore[0].revision == 0,
+              workflowAfter.count == 1,
+              workflowAfter[0].revision == workflowBefore[0].revision + 1,
+              evidenceAfter.count == 1, evidenceAfter[0].revision == 1 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let images = receipt.postImages
+        guard let workflowImage = images.first(where: {
+            if case let .workflowRecord(id, _, _) = $0 { return id == command.draftID }
+            return false
+        }), workflowImage.revision == workflowAfter[0].revision else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        // This is the incumbent EvidenceFile DTO and semantic digest basis.
+        // The workflow image is mutable and needs its separate history join.
+        let dto = V4BackupEvidenceFileDTO(
+            id: command.evidenceID, schemaVersion: 1, recordID: command.draftID,
+            purposeKey: command.purposeKey, relativePath: command.relativePath,
+            mimeType: command.mimeType, byteCount: command.byteCount, sha256: command.sha256,
+            createdAt: command.createdAt, thumbnailRelativePath: command.thumbnailRelativePath,
+            thumbnailByteCount: command.thumbnailByteCount, thumbnailSHA256: command.thumbnailSHA256
+        )
+        let digest = try WorkspaceMutationCanonicalV1.sha256(
+            EvidencePostImageDigestBasis(identity: evidence, revision: 1, value: dto)
+        )
+        guard images.contains(.evidenceFile(id: command.evidenceID, revision: 1,
+                                           semanticSHA256: digest)) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        self.envelope = envelope
+        self.receipt = receipt
+        self.command = command
+    }
+
+    private struct EvidencePostImageDigestBasis: Codable {
+        let identity: WorkspaceEntityIdentityV1
+        let revision: UInt64
+        let value: V4BackupEvidenceFileDTO
+    }
+}
+
 /// Authenticated original field-draft command evidence. The journal supplies
 /// these values from its canonical envelope and receipt bytes, never a live
 /// checkpoint reconstruction.
