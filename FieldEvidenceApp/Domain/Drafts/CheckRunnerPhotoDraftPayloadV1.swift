@@ -199,9 +199,15 @@ struct CheckRunnerPhotoRawReadyV1: Codable, Equatable, Sendable, FieldDraftValid
     init(from decoder: Decoder) throws {
         try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        let readyDecoder = try c.superDecoder(forKey: .readyItem)
+        try ClosedContractDecodingV1.rejectUnknownKeys(readyDecoder, allowed: [
+            "schemaVersion", "stageID", "draftID", "workspaceID", "attachmentKind", "scratchLeaseID",
+            "expectedByteCount", "actualByteCount", "contentDigest", "contentReference", "processingJobID",
+            "retryClass", "protectionState", "state", "revision", "mutationID", "stageSHA256"
+        ])
         try self.init(intent: c.decode(CheckRunnerPhotoRawStageIntentV1.self, forKey: .intent),
             inspection: c.decode(CheckRunnerPhotoSourceInspectionV1.self, forKey: .inspection),
-            readyItem: c.decode(AttachmentStagingItemV1.self, forKey: .readyItem),
+            readyItem: AttachmentStagingItemV1(from: readyDecoder),
             stagePublicationMutationID: c.decode(MutationIDV1.self, forKey: .stagePublicationMutationID),
             originalProvenance: c.decode(ContentOriginalProvenanceV1.self, forKey: .originalProvenance))
     }

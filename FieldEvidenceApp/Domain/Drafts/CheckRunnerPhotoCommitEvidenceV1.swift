@@ -4,6 +4,7 @@ import Foundation
 /// checkpoint. This value grants no media access, parent-slot replacement,
 /// destination mapping or new effect. Those owners must perform their joins.
 struct CheckRunnerPhotoCommitEvidenceV1: Equatable, Sendable {
+    let creating: FieldDraftCommittedEvidenceV1
     let committing: FieldDraftCommittedEvidenceV1
     let terminal: FieldDraftCommittedEvidenceV1
     let reconstruction: CheckRunnerPhotoCommitReconstructionV1
@@ -185,6 +186,7 @@ struct CheckRunnerPhotoCommitEvidenceV1: Equatable, Sendable {
               required == Set(history.map { $0.mutation.mutationID }) else { throw failure }
         try checkpoint.validateSuccessor(of: original, expectedDraftRevision: original.draftRevision,
                                          expectedBaseRevision: original.baseCanonicalRevision)
+        self.creating = checkpoints[0].0
         self.committing = committing; self.terminal = terminal; self.reconstruction = reconstruction
         self.target = target; self.reservation = reservation; self.stage = stage
     }
@@ -200,7 +202,7 @@ struct CheckRunnerPhotoCommitEvidenceV1: Equatable, Sendable {
 
     /// Workspace revision order is meaningful within one original generation.
     /// Across restored generations, exact command/revision joins govern instead.
-    private static func requireOrder(_ earlier: MutationReceiptV1, _ later: MutationReceiptV1) throws {
+    static func requireOrder(_ earlier: MutationReceiptV1, _ later: MutationReceiptV1) throws {
         guard earlier.identity.workspaceID == later.identity.workspaceID else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }

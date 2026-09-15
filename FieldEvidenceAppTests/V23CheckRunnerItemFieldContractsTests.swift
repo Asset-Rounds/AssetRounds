@@ -1486,6 +1486,22 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         XCTAssertEqual(value.retired.mutationID, value.rowMutationIDs.terminalBundleMutationID)
         XCTAssertEqual(value.plan.payloadSHA256, checkpoint.payloadSHA256)
 
+        func observe<T>(_ boundary: String, _ operation: () throws -> T) throws -> T {
+#if DEBUG
+            do {
+                return try operation()
+            } catch {
+                let nsError = error as NSError
+                let detail = "V23_FIELD_BOUNDARY boundary=\(boundary) reflectedType=\(String(reflecting: type(of: error))) domain=\(nsError.domain) code=\(nsError.code)"
+                FileHandle.standardError.write(Data((detail + "\n").utf8))
+                XCTFail(detail)
+                throw error
+            }
+#else
+            return try operation()
+#endif
+        }
+
         let fixture = try photoFixture()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V23-photo-commit-read-\(UUID().uuidString)", isDirectory: true)
@@ -1495,26 +1511,89 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             replicaID: .init(rawValue: largeID(70_001)))
         let factory = StoreGenerationFactory(applicationSupportURL: root, pointerEnrichmentIdentity: identity)
         let clock = FrozenBeginClock(value: Date(timeIntervalSince1970: 1_800_001_000))
-        var session: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
-        var coordinator: StoreSessionCoordinator? = try StoreSessionCoordinator(
-            validatingSession: try XCTUnwrap(session), clock: clock)
+        var session: StoreGenerationSession? = try observe("openInitial") {
+            try factory.openOrBootstrapCurrent()
+        }
+        var coordinator: StoreSessionCoordinator? = try observe("coordinatorInitial") {
+            try StoreSessionCoordinator(validatingSession: try XCTUnwrap(session), clock: clock)
+        }
         defer { try? coordinator?.invalidateAndReleaseWriter() }
-        let stored = try persistPhotoCommit(fixture, coordinator: try XCTUnwrap(coordinator))
+        let stored = try observe("persistPhotoCommit") {
+            try persistPhotoCommit(fixture, coordinator: try XCTUnwrap(coordinator))
+        }
         let writer = try XCTUnwrap(coordinator).workspaceWriter
-        let before = try writer.sourceMutationHistorySnapshot()
-        let actual = try XCTUnwrap(writer.checkRunnerPhotoCommitEvidence(
-            workspaceID: stored.checkpoint.workspaceID, draftID: stored.checkpoint.draftID))
+        let before = try observe("initialSnapshotAndReads") { try writer.sourceMutationHistorySnapshot() }
+        let actual = try observe("initialSnapshotAndReads") {
+            try XCTUnwrap(writer.checkRunnerPhotoCommitEvidence(
+                workspaceID: stored.checkpoint.workspaceID, draftID: stored.checkpoint.draftID))
+        }
         XCTAssertEqual(actual, stored.evidence)
         XCTAssertEqual(actual.committing.mutation, stored.history.first {
             if case let .reviseCheckpoint(value) = $0.mutation.postImage { return value.state == .committing }; return false
         }?.mutation)
         XCTAssertEqual(actual.terminal.mutation.mutationID, fixture.attempt.terminalBundleMutationID)
-        XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), before)
-        XCTAssertNil(try writer.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
-            draftID: largeID(70_002)))
-        XCTAssertNil(try writer.checkRunnerPhotoCommitEvidence(workspaceID: WorkspaceID(rawValue: largeID(70_003)),
-            draftID: stored.checkpoint.draftID))
-        XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), before)
+        XCTAssertEqual(try observe("initialSnapshotAndReads") {
+            try writer.sourceMutationHistorySnapshot()
+        }, before)
+        let parentActual = try observe("initialSnapshotAndReads") {
+            try XCTUnwrap(writer.checkRunnerPhotoParentEvidence(
+                workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+                childDraftID: fixture.childDraftID))
+        }
+        XCTAssertEqual(parentActual, stored.parentEvidence)
+        XCTAssertEqual(parentActual.checkpoint, stored.parentCheckpoint)
+        XCTAssertEqual(parentActual.pending.mutation.mutationID, stored.parentPendingCheckpoint.mutationID)
+        XCTAssertEqual(parentActual.slot, try XCTUnwrap(
+            CheckRunnerItemDraftCodecV1.validateCheckpoint(stored.parentCheckpoint).field.wideContext))
+        XCTAssertEqual(parentActual.child.creating.mutation.mutationID, stored.history[0].mutation.mutationID)
+        XCTAssertEqual(parentActual.child, stored.evidence)
+        let parentPreparedReceipt = stored.parentHistory[1].receipt
+        XCTAssertEqual(parentPreparedReceipt.resultingRevision.generationID,
+            stored.timeZoneEvidence.receipt.resultingRevision.generationID)
+        XCTAssertLessThan(parentPreparedReceipt.resultingRevision.workspaceRevision,
+            stored.timeZoneEvidence.receipt.resultingRevision.workspaceRevision)
+        XCTAssertLessThan(stored.timeZoneEvidence.receipt.resultingRevision.workspaceRevision,
+            stored.workflowEvidence.receipt.resultingRevision.workspaceRevision)
+        XCTAssertLessThan(stored.parentEvidence.pending.receipt.resultingRevision.workspaceRevision,
+            stored.evidence.creating.receipt.resultingRevision.workspaceRevision)
+        XCTAssertLessThan(stored.evidence.terminal.receipt.resultingRevision.workspaceRevision,
+            stored.parentHistory[4].receipt.resultingRevision.workspaceRevision)
+        XCTAssertEqual(try observe("initialSnapshotAndReads") {
+            try writer.sourceMutationHistorySnapshot()
+        }, before)
+        XCTAssertNil(try observe("initialSnapshotAndReads") {
+            try writer.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
+                draftID: largeID(70_002))
+        })
+        XCTAssertNil(try observe("initialSnapshotAndReads") {
+            try writer.checkRunnerPhotoCommitEvidence(workspaceID: WorkspaceID(rawValue: largeID(70_003)),
+                draftID: stored.checkpoint.draftID)
+        })
+        XCTAssertNil(try observe("initialSnapshotAndReads") {
+            try writer.checkRunnerPhotoParentEvidence(workspaceID: stored.parentCheckpoint.workspaceID,
+                parentDraftID: largeID(70_002), childDraftID: fixture.childDraftID)
+        })
+        XCTAssertNil(try observe("initialSnapshotAndReads") {
+            try writer.checkRunnerPhotoParentEvidence(workspaceID: stored.parentCheckpoint.workspaceID,
+                parentDraftID: fixture.parentDraftID, childDraftID: largeID(70_002))
+        })
+        XCTAssertNil(try observe("initialSnapshotAndReads") {
+            try writer.checkRunnerPhotoParentEvidence(workspaceID: WorkspaceID(rawValue: largeID(70_003)),
+                parentDraftID: fixture.parentDraftID, childDraftID: fixture.childDraftID)
+        })
+        XCTAssertThrowsError(try writer.checkRunnerPhotoParentEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+            childDraftID: stored.missingSelectedChildID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertThrowsError(try writer.checkRunnerPhotoParentEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: stored.partialParentDraftID,
+            childDraftID: largeID(70_002))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(try observe("initialSnapshotAndReads") {
+            try writer.sourceMutationHistorySnapshot()
+        }, before)
 
         let laterID = largeID(70_004)
         let laterCommand = CheckEvidenceMutationV1(evidenceID: laterID,
@@ -1524,11 +1603,17 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             thumbnailByteCount: 1, thumbnailSHA256: String(repeating: "2", count: 64),
             nextDraftStepKey: WorkflowDraftStep.outcome.rawValue,
             createdAt: fixture.attempt.terminalCheckpointUpdatedAt.addingTimeInterval(1))
-        _ = try writer.execute(.acceptCheckEvidence(laterCommand), mutationID: .init(rawValue: laterID))
-        XCTAssertEqual(try writer.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
-            draftID: stored.checkpoint.draftID), stored.evidence)
-        let laterTarget = try XCTUnwrap(writer.checkRunnerPhotoEvidence(workspaceID: stored.checkpoint.workspaceID,
-            mutationID: .init(rawValue: laterID)))
+        _ = try observe("laterMutationAndRead") {
+            try writer.execute(.acceptCheckEvidence(laterCommand), mutationID: .init(rawValue: laterID))
+        }
+        XCTAssertEqual(try observe("laterMutationAndRead") {
+            try writer.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
+                draftID: stored.checkpoint.draftID)
+        }, stored.evidence)
+        let laterTarget = try observe("laterMutationAndRead") {
+            try XCTUnwrap(writer.checkRunnerPhotoEvidence(workspaceID: stored.checkpoint.workspaceID,
+                mutationID: .init(rawValue: laterID)))
+        }
 
         let pure = { (history: [FieldDraftCommittedEvidenceV1], checkpoint: FieldDraftCheckpointV1,
                       sagas: [DraftCommitSagaV1], reservations: [DraftContentReservationV1],
@@ -1536,6 +1621,13 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
                       target: CheckRunnerPhotoCommittedEvidenceV1) throws in
             try CheckRunnerPhotoCommitEvidenceV1(history: history, checkpoint: checkpoint, sagas: sagas,
                 reservations: reservations, stages: stages, receipts: receipts, target: target)
+        }
+        let parentPure = { (history: [FieldDraftCommittedEvidenceV1], checkpoint: FieldDraftCheckpointV1,
+                            child: CheckRunnerPhotoCommitEvidenceV1,
+                            workflow: CheckRunnerBeginCommittedEvidenceV1,
+                            timeZone: CheckRunnerBeginCommittedEvidenceV1?) throws in
+            try CheckRunnerPhotoParentEvidenceV1(history: history, checkpoint: checkpoint,
+                child: child, workflow: workflow, timeZone: timeZone)
         }
         let changedReservation = try DraftContentReservationV1(reservationID: stored.reservation.reservationID,
             workspaceID: stored.reservation.workspaceID, draftID: stored.reservation.draftID,
@@ -1590,38 +1682,159 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             [stored.stage], [stored.receipt, stored.receipt], stored.target))
         XCTAssertThrowsError(try pure(stored.history, stored.evidence.reconstruction.draftCommit.checkpoint,
             stored.sagas, [stored.reservation], [stored.stage], [stored.receipt], stored.target))
+        XCTAssertEqual(try parentPure(stored.parentHistory, stored.parentCheckpoint,
+            stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence), stored.parentEvidence)
+        XCTAssertEqual(try parentPure(Array(stored.parentHistory.reversed()), stored.parentCheckpoint,
+            stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence), stored.parentEvidence)
+        let pendingParent = try parentPure(Array(stored.parentHistory.prefix(4)),
+            stored.parentPendingCheckpoint, stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence)
+        XCTAssertEqual(pendingParent.pending.mutation.mutationID, stored.parentPendingCheckpoint.mutationID)
+        XCTAssertEqual(pendingParent.slot, stored.parentEvidence.slot)
+        XCTAssertEqual(pendingParent.child, stored.evidence)
+        let pendingPayload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(stored.parentPendingCheckpoint)
+        XCTAssertEqual(pendingPayload.field.outcome.couldNotVerifyNote, "raw pending note")
+        let currentParentPayload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(stored.parentCheckpoint)
+        XCTAssertEqual(currentParentPayload.field.outcome.couldNotVerifyNote, "raw retry note")
+        let wrongParentTime = try parentCheckpoint(fixture, payload: currentParentPayload,
+            revision: stored.parentCheckpoint.draftRevision,
+            updatedAt: stored.parentCheckpoint.updatedAt.addingTimeInterval(0.001),
+            mutationID: stored.parentCheckpoint.mutationID)
+        XCTAssertThrowsError(try parentPure(stored.parentHistory, wrongParentTime,
+            stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence))
+        let wrongCurrentSlot = try parentCheckpoint(fixture,
+            payload: parentPayload(fixture, begin: currentParentPayload.field.begin,
+                slot: pendingSlot(id: fixture.childDraftID, step: fixture.step),
+                outcome: currentParentPayload.field.outcome),
+            revision: stored.parentCheckpoint.draftRevision, updatedAt: stored.parentCheckpoint.updatedAt,
+            mutationID: stored.parentCheckpoint.mutationID)
+        XCTAssertThrowsError(try parentPure(stored.parentHistory, wrongCurrentSlot,
+            stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence))
+        for index in stored.parentHistory.indices {
+            var missing = stored.parentHistory
+            missing.remove(at: index)
+            XCTAssertThrowsError(try parentPure(missing, stored.parentCheckpoint,
+                stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence), "missing parent revision \(index + 1)")
+        }
+        XCTAssertThrowsError(try parentPure(stored.parentHistory + [stored.parentHistory[0]],
+            stored.parentCheckpoint, stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence))
+        XCTAssertThrowsError(try parentPure(stored.parentHistory + [stored.history[0]],
+            stored.parentCheckpoint, stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence))
+        XCTAssertThrowsError(try parentPure(stored.parentHistory, stored.checkpoint,
+            stored.evidence, stored.workflowEvidence, stored.timeZoneEvidence))
+        XCTAssertThrowsError(try parentPure(stored.parentHistory, stored.parentCheckpoint,
+            stored.evidence, fixture.parentFixture.workflowEvidence, stored.timeZoneEvidence))
+        XCTAssertThrowsError(try parentPure(stored.parentHistory, stored.parentCheckpoint,
+            stored.evidence, stored.workflowEvidence, nil))
+        XCTAssertThrowsError(try parentPure(stored.parentHistory, stored.parentCheckpoint,
+            stored.evidence, stored.workflowEvidence, fixture.parentFixture.workflowEvidence))
+        XCTAssertThrowsError(try CheckRunnerPhotoParentEvidenceV1(history: stored.parentHistory,
+            checkpoint: stored.parentCheckpoint, child: stored.evidence, workflow: stored.workflowEvidence,
+            timeZone: fixture.parentFixture.workflowEvidence))
 
-        try coordinator?.invalidateAndReleaseWriter(); coordinator = nil; session = nil
-        session = try factory.openOrBootstrapCurrent()
-        coordinator = try StoreSessionCoordinator(validatingSession: try XCTUnwrap(session), clock: clock)
+        try observe("explicitClose") { try coordinator?.invalidateAndReleaseWriter() }
+        coordinator = nil; session = nil
+        session = try observe("openReopened") { try factory.openOrBootstrapCurrent() }
+        coordinator = try observe("coordinatorReopened") {
+            try StoreSessionCoordinator(validatingSession: try XCTUnwrap(session), clock: clock)
+        }
         let reopenedWriter = try XCTUnwrap(coordinator).workspaceWriter
-        let reopenedBefore = try reopenedWriter.sourceMutationHistorySnapshot()
-        XCTAssertEqual(try reopenedWriter.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
-            draftID: stored.checkpoint.draftID), stored.evidence)
-        XCTAssertEqual(try reopenedWriter.sourceMutationHistorySnapshot(), reopenedBefore)
+        let reopenedBefore = try observe("reopenedReads") {
+            try reopenedWriter.sourceMutationHistorySnapshot()
+        }
+        XCTAssertEqual(try observe("reopenedReads") {
+            try reopenedWriter.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
+                draftID: stored.checkpoint.draftID)
+        }, stored.evidence)
+        XCTAssertEqual(try observe("reopenedReads") {
+            try reopenedWriter.checkRunnerPhotoParentEvidence(workspaceID: stored.parentCheckpoint.workspaceID,
+                parentDraftID: fixture.parentDraftID, childDraftID: fixture.childDraftID)
+        }, stored.parentEvidence)
+        XCTAssertEqual(try observe("reopenedReads") {
+            try reopenedWriter.sourceMutationHistorySnapshot()
+        }, reopenedBefore)
         let quarantine = MutationQuarantineRow(workspaceID: stored.checkpoint.workspaceID,
             mutationID: fixture.attempt.terminalBundleMutationID, identityDomain: .mutationEnvelope,
             acceptedIdentitySHA256: actual.terminal.receipt.envelopeSHA256,
             conflictingIdentitySHA256: String(repeating: "f", count: 64), detectedAt: Date())
         try XCTUnwrap(session).modelContext.insert(quarantine)
-        try XCTUnwrap(session).modelContext.save()
+        try observe("quarantineSaveAndRead") { try XCTUnwrap(session).modelContext.save() }
         XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
             draftID: stored.checkpoint.draftID)) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
         }
         let context = try XCTUnwrap(session).modelContext
-        context.delete(quarantine); try context.save()
+        context.delete(quarantine)
+        try observe("receiptRestoreSave") { try context.save() }
         let row = try XCTUnwrap(context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
             $0.mutationID == fixture.attempt.terminalBundleMutationID.rawValue
         })
         let originalReceiptData = row.receiptData
-        row.receiptData = Data("{}".utf8); try context.save()
+        row.receiptData = Data("{}".utf8)
+        try observe("receiptCorruptionSaveAndRead") { try context.save() }
         XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoCommitEvidence(workspaceID: stored.checkpoint.workspaceID,
             draftID: stored.checkpoint.draftID)) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
         }
         XCTAssertEqual(row.receiptData, Data("{}".utf8))
-        row.receiptData = originalReceiptData; try context.save()
+        row.receiptData = originalReceiptData
+        try observe("receiptRestoreSave") { try context.save() }
+        let parentQuarantine = MutationQuarantineRow(workspaceID: stored.parentCheckpoint.workspaceID,
+            mutationID: stored.parentPendingCheckpoint.mutationID, identityDomain: .mutationEnvelope,
+            acceptedIdentitySHA256: stored.parentEvidence.pending.receipt.envelopeSHA256,
+            conflictingIdentitySHA256: String(repeating: "e", count: 64), detectedAt: Date())
+        context.insert(parentQuarantine)
+        try observe("quarantineSaveAndRead") { try context.save() }
+        XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoParentEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+            childDraftID: fixture.childDraftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        context.delete(parentQuarantine)
+        try observe("receiptRestoreSave") { try context.save() }
+        let parentRow = try XCTUnwrap(context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+            $0.mutationID == stored.parentPendingCheckpoint.mutationID.rawValue
+        })
+        let originalParentReceiptData = parentRow.receiptData
+        parentRow.receiptData = Data("{}".utf8)
+        try observe("receiptCorruptionSaveAndRead") { try context.save() }
+        XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoParentEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+            childDraftID: fixture.childDraftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(parentRow.receiptData, Data("{}".utf8))
+        parentRow.receiptData = originalParentReceiptData
+        try observe("receiptRestoreSave") { try context.save() }
+        // The test owns this disposable store. Remove only the physical parent
+        // and retain every original receipt, then restore the exact value using
+        // the existing row constructor after the no-effect corruption check.
+        let physicalParent = try XCTUnwrap(context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).first {
+            $0.draftID == fixture.parentDraftID
+        })
+        context.delete(physicalParent)
+        try observe("physicalMissingSaveAndRead") { try context.save() }
+        let missingPhysicalBefore = try observe("physicalMissingSaveAndRead") {
+            try reopenedWriter.sourceMutationHistorySnapshot()
+        }
+        XCTAssertThrowsError(try reopenedWriter.checkRunnerPhotoParentEvidence(
+            workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+            childDraftID: fixture.childDraftID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertFalse(context.hasChanges)
+        XCTAssertEqual(try observe("physicalMissingSaveAndRead") {
+            try reopenedWriter.sourceMutationHistorySnapshot()
+        }, missingPhysicalBefore)
+        context.insert(try FieldDraftCheckpointRow(stored.parentCheckpoint))
+        try observe("receiptRestoreSave") { try context.save() }
+        XCTAssertEqual(try observe("reopenedReads") {
+            try reopenedWriter.checkRunnerPhotoParentEvidence(
+                workspaceID: stored.parentCheckpoint.workspaceID, parentDraftID: fixture.parentDraftID,
+                childDraftID: fixture.childDraftID)
+        }, stored.parentEvidence)
+        XCTAssertEqual(try observe("reopenedReads") {
+            try reopenedWriter.sourceMutationHistorySnapshot()
+        }, reopenedBefore)
     }
 
     func testPhotoCommitReconstructionRejectsIncompletePhasesAndNonCommittingStates() throws {
@@ -1852,6 +2065,14 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         let receipt: DraftCommitReceiptV1
         let target: CheckRunnerPhotoCommittedEvidenceV1
         let evidence: CheckRunnerPhotoCommitEvidenceV1
+        let parentHistory: [FieldDraftCommittedEvidenceV1]
+        let parentPendingCheckpoint: FieldDraftCheckpointV1
+        let parentCheckpoint: FieldDraftCheckpointV1
+        let workflowEvidence: CheckRunnerBeginCommittedEvidenceV1
+        let timeZoneEvidence: CheckRunnerBeginCommittedEvidenceV1
+        let parentEvidence: CheckRunnerPhotoParentEvidenceV1
+        let missingSelectedChildID: UUID
+        let partialParentDraftID: UUID
     }
 
     @MainActor
@@ -1863,7 +2084,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         let selection = fixture.parent.source.itemAtEntry.selection
         _ = try writer.execute(.createFirstSign(.init(siteID: selection.siteID,
             newSite: .init(id: selection.siteID, label: "Photo evidence site", address: "10 Main",
-                timeZoneID: fixture.parentFixture.attempt.resolvedSiteTimeZoneID),
+                timeZoneID: nil),
             assetID: fixture.parent.source.assetID, assetLabel: selection.labelAtSelection,
             packID: fixture.parent.source.legacyPackageIdentity.packageID,
             packSchemaVersion: fixture.parent.source.legacyPackageIdentity.schemaVersion,
@@ -1871,9 +2092,76 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             createdAt: fixture.parentFixture.attempt.recordCommand.startedAt.addingTimeInterval(-1),
             initialPlacementMutationID: firstMutation, initialPlacementEventID: largeID(71_010),
             initialPhysicalEpisodeID: try .init(rawValue: largeID(71_011)))), mutationID: firstMutation)
+        let current = try writer.currentRevision()
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: selection.siteID)
+        let recordTargets = try [
+            WorkspaceEntityIdentityV1(kind: .workflowRecord,
+                id: fixture.parentFixture.attempt.recordCommand.recordID),
+            WorkspaceEntityIdentityV1(kind: .asset, id: fixture.parentFixture.attempt.recordCommand.assetID),
+        ].sorted { $0.stableKey < $1.stableKey }
+        let expectedRecordRevisions = recordTargets.map {
+            WorkspaceEntityRevisionV1(identity: $0, revision: known[$0, default: 0])
+        }
+        let zoneMutationID = try MutationIDV1(rawValue: largeID(72_000))
+        let zoneCommand = SiteTimeZoneMutationV1(siteID: selection.siteID,
+            timeZoneID: fixture.parentFixture.attempt.resolvedSiteTimeZoneID,
+            confirmedAt: fixture.parentFixture.attempt.recordCommand.startedAt)
+        let timeZoneAttempt = try CheckRunnerBeginTimeZoneAttemptV1(command: zoneCommand,
+            mutationID: zoneMutationID, expectedSiteRevision: known[siteIdentity, default: 0],
+            committedAt: clock.millisecondValue)
+        let actualAttempt = try CheckRunnerFrozenBeginAttemptV1(source: fixture.parent.source,
+            sourceWorkspaceID: workspaceID, recordCommand: fixture.parentFixture.attempt.recordCommand,
+            recordMutationID: fixture.parentFixture.attempt.recordMutationID,
+            recordExpectedEntityRevisions: expectedRecordRevisions,
+            recordCommittedAt: clock.millisecondValue, timeZone: timeZoneAttempt,
+            siteID: fixture.parentFixture.attempt.siteID,
+            resolvedSiteTimeZoneID: fixture.parentFixture.attempt.resolvedSiteTimeZoneID)
+        let adapter = try writer.makeFieldDraftLifecycleAdapter(modelContext: coordinator.modelContext)
+
+        let parentNotBegun = try parentCheckpoint(fixture,
+            payload: parentPayload(fixture, begin: .notBegun, slot: nil), revision: 1,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_190), mutationID: .init(rawValue: largeID(72_001)))
+        _ = try adapter.compareAndSwap(checkpoint: parentNotBegun, expectedDraftRevision: 0,
+            expectedBaseRevision: parentNotBegun.baseCanonicalRevision)
+        let parentPrepared = try parentCheckpoint(fixture,
+            payload: parentPayload(fixture, begin: .prepared(attempt: actualAttempt), slot: nil), revision: 2,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_195), mutationID: .init(rawValue: largeID(72_002)))
+        _ = try adapter.compareAndSwap(checkpoint: parentPrepared, expectedDraftRevision: 1,
+            expectedBaseRevision: parentPrepared.baseCanonicalRevision)
+        _ = try writer.execute(.updateSiteTimeZone(zoneCommand), mutationID: zoneMutationID)
+        let timeZoneEvidence = try XCTUnwrap(writer.checkRunnerBeginEvidence(workspaceID: workspaceID,
+            mutationID: zoneMutationID))
+        XCTAssertEqual(timeZoneEvidence.envelope.expectedRevision.entityRevisions,
+            [WorkspaceEntityRevisionV1(identity: siteIdentity, revision: timeZoneAttempt.expectedSiteRevision)])
+        XCTAssertEqual(timeZoneEvidence.receipt.committedAt, actualAttempt.timeZone?.committedAt)
         _ = try writer.execute(.createCheckDraft(fixture.parentFixture.attempt.recordCommand),
             mutationID: fixture.parentFixture.attempt.recordMutationID)
-        let adapter = try writer.makeFieldDraftLifecycleAdapter(modelContext: coordinator.modelContext)
+        let workflowEvidence = try XCTUnwrap(writer.checkRunnerBeginEvidence(workspaceID: workspaceID,
+            mutationID: fixture.parentFixture.attempt.recordMutationID))
+        XCTAssertEqual(workflowEvidence.envelope.expectedRevision.entityRevisions, expectedRecordRevisions)
+        XCTAssertEqual(workflowEvidence.receipt.committedAt, actualAttempt.recordCommittedAt)
+        let workflowReference = try CheckRunnerBeginReceiptReferenceV1(evidence: workflowEvidence)
+        let timeZoneReference = try CheckRunnerBeginReceiptReferenceV1(evidence: timeZoneEvidence)
+        let parentBound = try parentCheckpoint(fixture,
+            payload: parentPayload(fixture, begin: .bound(attempt: actualAttempt,
+                workflowReceiptReference: workflowReference, timeZoneReceiptReference: timeZoneReference), slot: nil), revision: 3,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_198), mutationID: .init(rawValue: largeID(72_003)))
+        _ = try adapter.compareAndSwap(checkpoint: parentBound, expectedDraftRevision: 2,
+            expectedBaseRevision: parentBound.baseCanonicalRevision)
+        let missingSelectedChildID = largeID(72_100)
+        let missingSelectedSlot = pendingSlot(id: missingSelectedChildID,
+            step: fixture.step == .wide ? .close : .wide)
+        let parentPending = try parentCheckpoint(fixture,
+            payload: parentPayload(fixture, begin: .bound(attempt: actualAttempt,
+                workflowReceiptReference: workflowReference, timeZoneReceiptReference: timeZoneReference),
+                slot: pendingSlot(id: fixture.childDraftID, step: fixture.step),
+                otherSlot: missingSelectedSlot,
+                outcome: .init(selection: nil, couldNotVerifyNote: "raw pending note", recheckNote: "raw recheck note")),
+            revision: 4, updatedAt: Date(timeIntervalSince1970: 1_800_000_199),
+            mutationID: .init(rawValue: largeID(72_004)))
+        _ = try adapter.compareAndSwap(checkpoint: parentPending, expectedDraftRevision: 3,
+            expectedBaseRevision: parentPending.baseCanonicalRevision)
 
         let awaiting = try photoCheckpoint(fixture, phase: .awaitingRawStage(fixture.intent), revision: 1,
             state: .active, updatedAt: fixture.intent.stageCreatedAt, mutationID: .init(rawValue: largeID(71_001)))
@@ -1949,14 +2237,77 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             mutationID: commit.rowMutationIDs.terminalBundleMutationID)
         _ = try adapter.apply(commitTerminalBundle: .init(retiredSaga: commit.retired,
             committedCheckpoint: terminal, receipt: receipt), expectedDraftRevision: 4, expectedSagaRevision: 4)
+        let committedSlot = CheckRunnerPhotoSlotV1.committed(childDraftID: fixture.childDraftID,
+            captureStep: fixture.step, purposeKey: fixture.step == .wide ? "wide_context" : "close_detail",
+            committedChildDraftRevision: terminal.draftRevision,
+            committedChildCheckpointSHA256: terminal.checkpointSHA256,
+            childCommitReceiptID: receipt.receiptID, childCommitReceiptSHA256: receipt.receiptSHA256,
+            evidenceID: target.command.evidenceID, targetMutationID: target.receipt.mutationID,
+            targetReceiptSHA256: target.receipt.resultSHA256)
+        let parentCommitted = try parentCheckpoint(fixture,
+            payload: parentPayload(fixture, begin: .bound(attempt: actualAttempt,
+                workflowReceiptReference: workflowReference, timeZoneReceiptReference: timeZoneReference),
+                slot: committedSlot,
+                otherSlot: missingSelectedSlot,
+                outcome: .init(selection: nil, couldNotVerifyNote: "raw committed note", recheckNote: "raw recheck note")),
+            revision: 5, updatedAt: fixture.attempt.terminalCheckpointUpdatedAt,
+            mutationID: .init(rawValue: largeID(72_005)))
+        _ = try adapter.compareAndSwap(checkpoint: parentCommitted, expectedDraftRevision: 4,
+            expectedBaseRevision: parentCommitted.baseCanonicalRevision)
+        let parentRetry = try parentCheckpoint(fixture,
+            payload: parentPayload(fixture, begin: .bound(attempt: actualAttempt,
+                workflowReceiptReference: workflowReference, timeZoneReceiptReference: timeZoneReference), slot: committedSlot,
+                otherSlot: missingSelectedSlot,
+                outcome: .init(selection: nil, couldNotVerifyNote: "raw retry note", recheckNote: "raw recheck note")),
+            revision: 6, updatedAt: fixture.attempt.terminalCheckpointUpdatedAt,
+            mutationID: .init(rawValue: largeID(72_006)))
+        _ = try adapter.compareAndSwap(checkpoint: parentRetry, expectedDraftRevision: 5,
+            expectedBaseRevision: parentRetry.baseCanonicalRevision)
+        let partialParentDraftID = largeID(72_200)
+        let partialParent = try parentCheckpoint(fixture,
+            payload: parentPayload(fixture, begin: .notBegun, slot: nil), revision: 1,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_210), mutationID: .init(rawValue: largeID(72_201)),
+            draftID: partialParentDraftID)
+        _ = try adapter.compareAndSwap(checkpoint: partialParent, expectedDraftRevision: 0,
+            expectedBaseRevision: partialParent.baseCanonicalRevision)
         let mutationIDs = [awaiting.mutationID, raw.mutationID, pair.mutationID, committing.mutationID,
             commit.sagas[0].mutationID, stage.mutationID, reservation.mutationID, commit.sagas[1].mutationID,
             commit.sagas[2].mutationID, commit.sagas[3].mutationID, commit.rowMutationIDs.terminalBundleMutationID]
         let history = try mutationIDs.map { try XCTUnwrap(writer.fieldDraftEvidence(mutationID: $0)) }
         let evidence = try XCTUnwrap(writer.checkRunnerPhotoCommitEvidence(workspaceID: workspaceID,
             draftID: fixture.childDraftID))
+        let parentMutationIDs = [parentNotBegun.mutationID, parentPrepared.mutationID, parentBound.mutationID,
+            parentPending.mutationID, parentCommitted.mutationID, parentRetry.mutationID]
+        let parentHistory = try parentMutationIDs.map { try XCTUnwrap(writer.fieldDraftEvidence(mutationID: $0)) }
+        let parentEvidence = try XCTUnwrap(writer.checkRunnerPhotoParentEvidence(workspaceID: workspaceID,
+            parentDraftID: fixture.parentDraftID, childDraftID: fixture.childDraftID))
         return StoredPhotoCommit(history: history, checkpoint: terminal, sagas: commit.sagas,
-            reservation: reservation, stage: stage, receipt: receipt, target: target, evidence: evidence)
+            reservation: reservation, stage: stage, receipt: receipt, target: target, evidence: evidence,
+            parentHistory: parentHistory, parentPendingCheckpoint: parentPending, parentCheckpoint: parentRetry,
+            workflowEvidence: workflowEvidence, timeZoneEvidence: timeZoneEvidence, parentEvidence: parentEvidence,
+            missingSelectedChildID: missingSelectedChildID, partialParentDraftID: partialParentDraftID)
+    }
+
+    private func parentPayload(_ fixture: PhotoFixture, begin: CheckRunnerBeginStateV1,
+                               slot: CheckRunnerPhotoSlotV1?,
+                               otherSlot: CheckRunnerPhotoSlotV1? = nil,
+                               outcome: CheckRunnerEditableOutcomeV1 = .init()) throws -> CheckRunnerItemDraftPayloadV1 {
+        let original = fixture.parent.field
+        let field = try CheckRunnerItemFieldStateV1(preflight: original.preflight, begin: begin, outcome: outcome,
+            wideContext: fixture.step == .wide ? slot : otherSlot,
+            closeDetail: fixture.step == .close ? slot : otherSlot, semanticAnchor: original.semanticAnchor)
+        return try .init(editing: fixture.parent.source, field: field)
+    }
+
+    private func parentCheckpoint(_ fixture: PhotoFixture, payload: CheckRunnerItemDraftPayloadV1,
+                                  revision: UInt64, updatedAt: Date,
+                                  mutationID: MutationIDV1, draftID: UUID? = nil) throws -> FieldDraftCheckpointV1 {
+        try .init(draftID: draftID ?? fixture.parentDraftID, workspaceID: payload.source.roundAtEntry.workspaceID,
+            scope: CheckRunnerItemDraftCodecV1.scope(source: payload.source), purpose: .inspectionReview,
+            codec: CheckRunnerItemDraftCodecV1.release(), baseCanonicalRevision: payload.source.roundAtEntry.revision,
+            draftRevision: revision, payloadData: CheckRunnerItemDraftCodecV1.encode(payload), stageIDs: [],
+            resumeAnchor: CheckRunnerItemDraftCodecV1.resumeAnchor(payload: payload), state: .active,
+            updatedAt: updatedAt, mutationID: mutationID)
     }
 
     private func photoCheckpoint(_ fixture: PhotoFixture, phase: CheckRunnerPhotoDurablePhaseV1,

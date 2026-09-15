@@ -30,6 +30,7 @@ struct BackupCanonicalEncoderV1: Sendable {
     private struct OrdinaryRecordsValidationFacts: Sendable {
         let records: V4BackupRecordsV1
         let receiptStableKeys: [String]?
+        let importedHistoryFacts: MutationHistoryImportedValidationFactsV1?
     }
 
     func encodeRecordsOffMain(
@@ -750,28 +751,34 @@ private extension BackupCanonicalEncoderV1 {
         _ records: V4BackupRecordsV1
     ) throws -> OrdinaryRecordsValidationFacts {
         let receiptStableKeys: [String]?
+        let importedHistoryFacts: MutationHistoryImportedValidationFactsV1?
         if let history = records.mutationHistory {
             let historyFacts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(history)
             guard let keys = historyFacts.receiptStableKeys(matching: history) else {
                 throw BackupCanonicalEncodingErrorV1.invalidRecords
             }
             receiptStableKeys = keys
+            importedHistoryFacts = historyFacts
         } else {
             receiptStableKeys = nil
+            importedHistoryFacts = nil
         }
         return OrdinaryRecordsValidationFacts(
             records: records,
-            receiptStableKeys: receiptStableKeys
+            receiptStableKeys: receiptStableKeys,
+            importedHistoryFacts: importedHistoryFacts
         )
     }
 
     private static func valid(_ validation: OrdinaryRecordsValidationFacts) -> Bool {
-        valid(validation.records, receiptStableKeys: validation.receiptStableKeys)
+        valid(validation.records, receiptStableKeys: validation.receiptStableKeys,
+              importedHistoryFacts: validation.importedHistoryFacts)
     }
 
     static func valid(
         _ records: V4BackupRecordsV1,
-        receiptStableKeys: [String]? = nil
+        receiptStableKeys: [String]? = nil,
+        importedHistoryFacts: MutationHistoryImportedValidationFactsV1? = nil
     ) -> Bool {
         let ledgerIsValid: Bool
         switch (
@@ -839,7 +846,7 @@ private extension BackupCanonicalEncoderV1 {
             && recordPredicate("validC04ShopReportProfiles", validC04ShopReportProfiles(records))
              && recordPredicate("C52ServiceRequestBackupDecodingBoundaryV1", (try? C52ServiceRequestBackupDecodingBoundaryV1.validate(records)) != nil)
              && recordPredicate("validC53ServiceReliability", validC53ServiceReliability(records))
-             && recordPredicate("validC55PartsStock", validC55PartsStock(records))
+             && recordPredicate("validC55PartsStock", validC55PartsStock(records, importedHistoryFacts: importedHistoryFacts))
              && recordPredicate("ReinspectionExceptionQueueBackupEnrollmentV1", (try? ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)) != nil)
             && recordPredicate("assets-ids", sortedUniqueIDs(records.assets.map(\.id)))
             && recordPredicate("assets-schema", records.assets.allSatisfy({ $0.schemaVersion == 1 }))
@@ -1539,8 +1546,13 @@ private extension BackupCanonicalEncoderV1 {
         return (try? C53ServiceReliabilityBackupEnrollmentV1.validate(records: records)) != nil
     }
 
-    static func validC55PartsStock(_ records: V4BackupRecordsV1) -> Bool {
-        (try? C55PartsStockBackupEnrollmentV1.validate(records)) != nil
+    static func validC55PartsStock(
+        _ records: V4BackupRecordsV1,
+        importedHistoryFacts: MutationHistoryImportedValidationFactsV1? = nil
+    ) -> Bool {
+        (try? C55PartsStockBackupEnrollmentV1.validate(
+            records, importedHistoryFacts: importedHistoryFacts
+        )) != nil
     }
 
     static func validC04ShopReportProfiles(_ records: V4BackupRecordsV1) -> Bool {
@@ -2122,6 +2134,7 @@ private extension BackupCanonicalEncoderV1 {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
              (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
              (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12), (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21), (4, 23, 22), (4, 24, 23), (4, 25, 24), (4, 26, 25), (4, 27, 26), (4, 28, 27), (4, 29, 28), (4, 30, 29), (4, 31, 30), (4, 32, 31), (4, 33, 32), (4, 34, 33), (4, 35, 34), (4, 36, 35),
+             (4, C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion, C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion),
              (4, LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion, LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion):
             schemaPairIsValid = true
         default:

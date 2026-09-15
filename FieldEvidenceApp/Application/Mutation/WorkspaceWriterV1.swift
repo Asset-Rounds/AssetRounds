@@ -2369,6 +2369,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return try journalStore.checkRunnerPhotoCommitEvidence(workspaceID: workspaceID, draftID: draftID)
     }
 
+    /// Reads the original parent-slot relationship under this current lease.
+    /// The returned reference does not authorize media access or adoption.
+    func checkRunnerPhotoParentEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID
+    ) throws -> CheckRunnerPhotoParentEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        return try journalStore.checkRunnerPhotoParentEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID)
+    }
+
     /// Low-level frozen Begin effect. The parent owner must first persist
     /// PREPARED and prove current source/access; this method grants neither.
     func commitFrozenCheckRunnerTimeZone(

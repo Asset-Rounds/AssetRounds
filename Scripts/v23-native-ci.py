@@ -5,12 +5,17 @@ The incumbent workflow owns native commands, budgets, credentials and uploads.
 This module has no API client and never dispatches, retries or promotes a run.
 """
 import argparse
+import base64
+import contextlib
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import signal
+import stat
 import subprocess
+import time
 
 
 CONTRACT = "v23.integration.current-native.v1"
@@ -103,10 +108,27 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "DCC681AB85DFDB8FDCCB1D500BC48EC11F6225EC03A2A36A9CD05DDF52367AF2"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "4D8C2972669F6FAFEF8839AA56C226912858A48549A46A0E5EB6AC64BB6517D1"
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 SIMULATOR_DIAGNOSTIC_MARKER_STEM = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_"
 SIMULATOR_DIAGNOSTIC_OUTPUT = "simulator-file-protection-diagnostics.json"
+SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS = "simulator-file-protection-transport-status.json"
+SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY = "simulator-file-protection-transport"
+SIMULATOR_DIAGNOSTIC_APP_DIRECTORY = "Library/Caches/AssetRoundsNativeDiagnostics"
+SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID = "com.palatis3.fieldrecord"
+SIMULATOR_DIAGNOSTIC_FRAME_SCHEMA = "v23-simulator-file-protection-frame-v1"
+SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA = "v23-simulator-file-protection-transport-v1"
+SIMULATOR_DIAGNOSTIC_MAX_FILES = 64
+SIMULATOR_DIAGNOSTIC_MAX_EVENTS = 100_000
+SIMULATOR_DIAGNOSTIC_MAX_TOTAL_EVENTS = SIMULATOR_DIAGNOSTIC_MAX_FILES * SIMULATOR_DIAGNOSTIC_MAX_EVENTS
+SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES = 8 * 1024
+SIMULATOR_DIAGNOSTIC_MAX_FILE_BYTES = (
+    SIMULATOR_DIAGNOSTIC_MAX_EVENTS * SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES
+)
+SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES = 1024 * 1024 * 1024
+SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS = 3
+SIMULATOR_DIAGNOSTIC_WORK_SECONDS = 2.5
+SIMULATOR_DIAGNOSTIC_COPY_CHUNK_BYTES = 64 * 1024
 SIMULATOR_DIAGNOSTIC_FIELDS = (
     "policyID", "disposition", "kind", "request", "capabilityBefore", "capabilityAfter",
     "urlProtection", "backupExcluded", "expectsDirectory",
@@ -267,6 +289,249 @@ def parse_simulator_diagnostic_line(line):
     }
 
 
+def _transport_status_path(artifact):
+    return artifact / SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS
+
+
+def _transport_directory(artifact):
+    return artifact / SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY
+
+
+def _write_transport_status(artifact, value, replace=False):
+    path = _transport_status_path(artifact)
+    temporary = artifact / (SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS + ".next")
+    require(not temporary.exists() and not temporary.is_symlink(),
+            "diagnostic transport temporary status exists")
+    if replace:
+        require(path.is_file() and not path.is_symlink(), "diagnostic transport status replacement")
+    else:
+        require(not path.exists() and not path.is_symlink(), "diagnostic transport status exists")
+    try:
+        with temporary.open("xb") as stream:
+            stream.write(canonical(value))
+            stream.flush()
+            os.fsync(stream.fileno())
+        if replace:
+            os.replace(temporary, path)
+        else:
+            os.link(temporary, path)
+            temporary.unlink()
+    finally:
+        if temporary.exists() and not temporary.is_symlink():
+            temporary.unlink()
+
+
+class _DiagnosticCollectionDeadline(Exception):
+    pass
+
+
+@contextlib.contextmanager
+def _diagnostic_real_time_limit(seconds):
+    """Interrupt blocking local I/O on the native POSIX runner."""
+    if (seconds <= 0 or not hasattr(signal, "SIGALRM")
+            or not hasattr(signal, "setitimer")):
+        if seconds <= 0:
+            raise _DiagnosticCollectionDeadline("diagnostic collection deadline")
+        yield
+        return
+    previous = signal.getsignal(signal.SIGALRM)
+    def expired(_signum, _frame):
+        raise _DiagnosticCollectionDeadline("diagnostic collection deadline")
+    signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def _require_collection_time(started, monotonic):
+    if monotonic() - started >= SIMULATOR_DIAGNOSTIC_WORK_SECONDS:
+        raise _DiagnosticCollectionDeadline("diagnostic collection deadline")
+
+
+def collect_simulator_diagnostic_transport(root, artifact, environment, interrupted=False,
+                                           run=subprocess.run, monotonic=time.monotonic,
+                                           read_chunk=None):
+    """Collect closed app-container originals; never parse, repair, or infer a PASS."""
+    started = monotonic()
+    source_path = root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH
+    source_sha = None
+    udid = environment.get("CI_SIMULATOR_UDID")
+    base = {
+        "schema": SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA,
+        "status": "INTERRUPTED" if interrupted else "UNAVAILABLE",
+        "simulatorUDID": udid,
+        "appBundleID": SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID,
+        "appRelativeDirectory": SIMULATOR_DIAGNOSTIC_APP_DIRECTORY,
+        "sourcePath": SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+        "sourceSHA256": source_sha,
+        "files": [],
+        "fileCount": 0,
+        "totalBytes": 0,
+        "inventorySHA256": sha256(canonical([])),
+        "collectionBoundSeconds": SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS,
+    }
+    if interrupted:
+        base["error"] = "native command interrupted"
+    output_dir = _transport_directory(artifact)
+    originals = []
+    active = None
+    require(artifact.is_dir() and not artifact.is_symlink(), "diagnostic artifact directory")
+    _write_transport_status(artifact, base)
+    def retain(status, error):
+        base.update({
+            "status": status,
+            "error": error,
+            "files": originals,
+            "fileCount": len(originals),
+            "totalBytes": sum(value["bytes"] for value in originals),
+            "inventorySHA256": sha256(canonical(originals)),
+        })
+        _write_transport_status(artifact, base, replace=True)
+    remaining = SIMULATOR_DIAGNOSTIC_WORK_SECONDS - (monotonic() - started)
+    try:
+        with _diagnostic_real_time_limit(remaining):
+            source_sha = (sha256(source_path.read_bytes())
+                          if source_path.is_file() and not source_path.is_symlink() else None)
+            selected = key_values(artifact / "simulator-selection.txt")
+            require(re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", udid or ""),
+                    "diagnostic Simulator UDID")
+            require(environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID") == udid,
+                    "diagnostic created Simulator")
+            require(selected == {
+                "runtime": "iOS 26.2", "runtime_build": "23C54", "name": "iPhone 17",
+                "udid": udid, "initial_state": "Shutdown",
+            }, "diagnostic fresh Simulator selection")
+            require(source_sha is not None, "diagnostic source binding")
+            base["sourceSHA256"] = source_sha
+            retain("INTERRUPTED" if interrupted else "UNAVAILABLE",
+                   "native command interrupted" if interrupted else "diagnostic collection incomplete")
+            completed = run(
+                ["xcrun", "simctl", "get_app_container", udid,
+                 SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID, "data"],
+                capture_output=True, text=True, timeout=min(2, max(0.001, remaining)), check=False,
+            )
+            _require_collection_time(started, monotonic)
+            require(completed.returncode == 0 and completed.stderr == "", "diagnostic app container unavailable")
+            require(completed.stdout.endswith("\n") and completed.stdout.count("\n") == 1,
+                    "diagnostic app container output")
+            container = Path(completed.stdout[:-1])
+            require(container.is_absolute() and container.is_dir() and not container.is_symlink(),
+                    "diagnostic app container")
+            require(container.resolve(strict=True) == container, "diagnostic physical app container")
+            leaf = container / SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+            if leaf.exists() or leaf.is_symlink():
+                require(leaf.is_dir() and not leaf.is_symlink() and leaf.resolve(strict=True) == leaf,
+                        "unsafe diagnostic app directory")
+                entries = sorted(leaf.iterdir(), key=lambda value: value.name)
+            else:
+                entries = []
+            require(len(entries) <= SIMULATOR_DIAGNOSTIC_MAX_FILES, "diagnostic transport file count")
+            output_dir.mkdir(mode=0o700)
+            total = 0
+            name_pattern = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.jsonl")
+            reader = read_chunk or (lambda stream, count: stream.read(count))
+            for source in entries:
+                _require_collection_time(started, monotonic)
+                info = source.lstat()
+                require(name_pattern.fullmatch(source.name) is not None, "diagnostic transport file name")
+                require(stat.S_ISREG(info.st_mode) and not source.is_symlink() and info.st_nlink == 1,
+                        "unsafe diagnostic transport file")
+                require(0 <= info.st_size <= SIMULATOR_DIAGNOSTIC_MAX_FILE_BYTES,
+                        "diagnostic transport file size")
+                total += info.st_size
+                require(total <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES, "diagnostic transport total size")
+                target = output_dir / source.name
+                digest = hashlib.sha256()
+                active = {"name": source.name, "bytes": 0, "sha256": digest.hexdigest().upper()}
+                with source.open("rb", buffering=0) as incoming, target.open("xb", buffering=0) as outgoing:
+                    while True:
+                        _require_collection_time(started, monotonic)
+                        chunk = reader(incoming, SIMULATOR_DIAGNOSTIC_COPY_CHUNK_BYTES)
+                        if not chunk:
+                            break
+                        require(isinstance(chunk, bytes)
+                                and len(chunk) <= SIMULATOR_DIAGNOSTIC_COPY_CHUNK_BYTES,
+                                "diagnostic transport copy chunk")
+                        written = outgoing.write(chunk)
+                        require(type(written) is int and 0 <= written <= len(chunk),
+                                "diagnostic transport copy write")
+                        digest.update(chunk[:written])
+                        active.update(bytes=active["bytes"] + written,
+                                      sha256=digest.hexdigest().upper())
+                        require(written == len(chunk), "diagnostic transport short write")
+                        _require_collection_time(started, monotonic)
+                    outgoing.flush()
+                    os.fsync(outgoing.fileno())
+                originals.append(active)
+                active = None
+                retain("INTERRUPTED" if interrupted else "UNSAFE",
+                       "native command interrupted" if interrupted else "diagnostic collection incomplete")
+                after = source.lstat()
+                require((after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+                        == (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns),
+                        "diagnostic transport changed during collection")
+                require(originals[-1]["bytes"] == info.st_size,
+                        "diagnostic transport copy size")
+            _require_collection_time(started, monotonic)
+            base.update({
+                "status": "INTERRUPTED" if interrupted else ("AVAILABLE" if originals else "ZERO_USE"),
+                "files": originals,
+                "fileCount": len(originals),
+                "totalBytes": sum(value["bytes"] for value in originals),
+                "inventorySHA256": sha256(canonical(originals)),
+            })
+            if not interrupted:
+                base.pop("error", None)
+    except (_DiagnosticCollectionDeadline, OSError, subprocess.SubprocessError, ValueError) as error:
+        if active is not None:
+            originals.append(active)
+            active = None
+        base["status"] = "INTERRUPTED" if interrupted else (
+            "UNAVAILABLE" if "unavailable" in str(error) else "UNSAFE")
+        base["error"] = str(error)
+        base["files"] = originals
+        base["fileCount"] = len(originals)
+        base["totalBytes"] = sum(value["bytes"] for value in originals)
+        base["inventorySHA256"] = sha256(canonical(originals))
+    _write_transport_status(artifact, base, replace=True)
+    return base
+
+
+def _strict_frame(line):
+    require(0 < len(line) <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, "diagnostic frame size")
+    require(line.endswith(b"\n") and b"\n" not in line[:-1] and b"\r" not in line,
+            "diagnostic frame delimiter")
+    value = json.loads(line[:-1].decode("utf-8"), object_pairs_hook=unique_pairs)
+    require(type(value) is dict and set(value) == {
+        "schema", "streamID", "sequence", "payloadBase64", "payloadByteCount", "payloadSHA256"
+    }, "diagnostic frame fields")
+    stream_id = value["streamID"]
+    require(value["schema"] == SIMULATOR_DIAGNOSTIC_FRAME_SCHEMA
+            and isinstance(stream_id, str)
+            and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", stream_id),
+            "diagnostic frame identity")
+    require(type(value["sequence"]) is int and value["sequence"] > 0,
+            "diagnostic frame sequence")
+    require(type(value["payloadByteCount"]) is int and 0 < value["payloadByteCount"] <= 4096,
+            "diagnostic payload byte count")
+    require(isinstance(value["payloadSHA256"], str)
+            and re.fullmatch(r"[0-9A-F]{64}", value["payloadSHA256"]),
+            "diagnostic payload digest")
+    try:
+        payload = base64.b64decode(value["payloadBase64"], validate=True)
+    except (ValueError, TypeError) as error:
+        raise ValueError("invalid V23 native evidence: diagnostic payload base64") from error
+    require(len(payload) == value["payloadByteCount"]
+            and sha256(payload) == value["payloadSHA256"], "diagnostic payload binding")
+    require(payload.endswith(b"\n") and b"\n" not in payload[:-1] and b"\r" not in payload,
+            "diagnostic payload delimiter")
+    event = parse_simulator_diagnostic_line(payload.decode("utf-8"))
+    return value, payload, event
+
+
 def simulator_diagnostic_observations(root, artifact, record):
     binding = simulator_diagnostic_policy_binding(root)
     require(record.get("simulatorFileProtectionDiagnosticPolicy") == binding,
@@ -284,6 +549,7 @@ def simulator_diagnostic_observations(root, artifact, record):
         "runID": record.get("runID"),
         "runAttempt": record.get("runAttempt"),
         "testLog": {"availability": "UNAVAILABLE", "path": "test-smoke.log", "sha256": None},
+        "transport": {"availability": "UNAVAILABLE"},
         "parseStatus": "UNAVAILABLE",
         "events": [],
         "eventCount": 0,
@@ -295,32 +561,131 @@ def simulator_diagnostic_observations(root, artifact, record):
         "releaseReady": False,
     }
     parse_error = None
+    log_bytes = None
+    log_error = None
     if log_path.exists() or log_path.is_symlink():
         if not log_path.is_file() or log_path.is_symlink():
             evidence["testLog"]["availability"] = "UNSAFE"
-            evidence["parseStatus"] = "INVALID"
-            evidence["parseError"] = "unsafe simulator diagnostic test log"
-            parse_error = ValueError(evidence["parseError"])
-            return evidence, parse_error
-        log_bytes = log_path.read_bytes()
-        evidence["testLog"] = {"availability": "AVAILABLE", "path": "test-smoke.log",
-                               "sha256": sha256(log_bytes)}
-        try:
-            lines = log_bytes.decode("utf-8").splitlines()
+            log_error = ValueError("unsafe simulator diagnostic test log")
+        else:
+            try:
+                log_bytes = log_path.read_bytes()
+                evidence["testLog"] = {
+                    "availability": "AVAILABLE", "path": "test-smoke.log",
+                    "sha256": sha256(log_bytes),
+                }
+            except OSError as error:
+                evidence["testLog"]["availability"] = "UNSAFE"
+                log_error = error
+    try:
+        require(SIMULATOR_DIAGNOSTIC_MARKER_STEM.encode() not in (log_bytes or b""),
+            "console-only simulator diagnostic marker")
+        status = read_json(_transport_status_path(artifact))
+        evidence["transport"] = status
+        exact_status_keys = {
+            "schema", "status", "simulatorUDID", "appBundleID", "appRelativeDirectory",
+            "sourcePath", "sourceSHA256", "files", "fileCount", "totalBytes",
+            "inventorySHA256", "collectionBoundSeconds",
+        }
+        require(set(status) in (exact_status_keys, exact_status_keys | {"error"}),
+                "diagnostic transport status fields")
+        require(status["schema"] == SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA
+                and status["appBundleID"] == SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID
+                and status["appRelativeDirectory"] == SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+                and status["sourcePath"] == SIMULATOR_DIAGNOSTIC_SOURCE_PATH
+                and status["sourceSHA256"] == binding["allowanceSourceSHA256"]
+                and status["collectionBoundSeconds"] == 3,
+                "diagnostic transport binding")
+        require(status["status"] in {
+            "AVAILABLE", "ZERO_USE", "UNAVAILABLE", "UNSAFE", "INTERRUPTED"
+        }, "diagnostic transport status")
+        files = status["files"]
+        require(type(files) is list and len(files) <= SIMULATOR_DIAGNOSTIC_MAX_FILES,
+                "diagnostic transport inventory")
+        for item in files:
+            require(type(item) is dict and set(item) == {"name", "bytes", "sha256"}
+                    and isinstance(item["name"], str)
+                    and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.jsonl",
+                                     item["name"])
+                    and type(item["bytes"]) is int
+                    and 0 <= item["bytes"] <= SIMULATOR_DIAGNOSTIC_MAX_FILE_BYTES
+                    and isinstance(item["sha256"], str)
+                    and re.fullmatch(r"[0-9A-F]{64}", item["sha256"]),
+                    "diagnostic transport inventory fields")
+        require(type(status["fileCount"]) is int
+                and status["fileCount"] == len(files)
+                and type(status["totalBytes"]) is int
+                and status["totalBytes"] == sum(value["bytes"] for value in files)
+                and status["totalBytes"] <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES
+                and status["inventorySHA256"] == sha256(canonical(files)),
+                "diagnostic transport inventory")
+        require((status["status"] in {"AVAILABLE", "ZERO_USE"}) == ("error" not in status),
+                "diagnostic transport error classification")
+        require(status["status"] in {"AVAILABLE", "ZERO_USE"},
+                "diagnostic transport unavailable")
+        selected_simulator = key_values(artifact / "simulator-selection.txt")
+        require(status["simulatorUDID"] == selected_simulator.get("udid")
+                and selected_simulator.get("initial_state") == "Shutdown",
+                "diagnostic transport Simulator binding")
+        if log_error is not None:
+            raise log_error
+        transport_dir = _transport_directory(artifact)
+        if status["status"] == "ZERO_USE":
+            require(files == [] and status["totalBytes"] == 0,
+                    "diagnostic zero-use inventory")
+            require(not transport_dir.exists() or (
+                transport_dir.is_dir() and not transport_dir.is_symlink()
+                and list(transport_dir.iterdir()) == []), "diagnostic zero-use directory")
             events = []
-            for line in lines:
-                if SIMULATOR_DIAGNOSTIC_MARKER_STEM in line:
-                    events.append(parse_simulator_diagnostic_line(line))
-            evidence["parseStatus"] = "PASS"
-            evidence["events"] = events
-            evidence["eventCount"] = len(events)
-            evidence["zeroUseObserved"] = not events
-        except (UnicodeDecodeError, ValueError) as error:
-            evidence["parseStatus"] = "INVALID"
-            evidence["events"] = events if "events" in locals() else []
-            evidence["eventCount"] = len(evidence["events"])
-            evidence["parseError"] = str(error)
-            parse_error = error
+            raw_records = []
+        else:
+            require(files and transport_dir.is_dir() and not transport_dir.is_symlink(),
+                    "diagnostic transport directory")
+            require(sorted(value.name for value in transport_dir.iterdir())
+                    == [value["name"] for value in files], "diagnostic transport members")
+            events, raw_records, seen_streams = [], [], set()
+            expected_names = []
+            for item in files:
+                name = item["name"]
+                path = transport_dir / name
+                info = path.lstat()
+                require(stat.S_ISREG(info.st_mode) and not path.is_symlink() and info.st_nlink == 1,
+                        "unsafe diagnostic transport member")
+                raw = path.read_bytes()
+                require(len(raw) == item["bytes"] and sha256(raw) == item["sha256"]
+                        and 0 < len(raw) <= SIMULATOR_DIAGNOSTIC_MAX_FILE_BYTES,
+                        "diagnostic transport member binding")
+                lines = raw.splitlines(keepends=True)
+                require(lines and len(lines) <= SIMULATOR_DIAGNOSTIC_MAX_EVENTS
+                        and len(events) + len(lines) <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_EVENTS,
+                        "diagnostic event count")
+                stream_id = name[:-6]
+                require(stream_id not in seen_streams, "duplicate diagnostic stream")
+                seen_streams.add(stream_id)
+                for expected_sequence, line in enumerate(lines, 1):
+                    frame, payload, event = _strict_frame(line)
+                    require(frame["streamID"] == stream_id
+                            and frame["sequence"] == expected_sequence,
+                            "diagnostic stream sequence")
+                    events.append(event)
+                    raw_records.append({
+                        "streamID": stream_id, "sequence": expected_sequence,
+                        "payloadByteCount": len(payload), "payloadSHA256": sha256(payload),
+                    })
+                expected_names.append(name)
+            require(expected_names == sorted(expected_names), "diagnostic inventory order")
+        evidence["parseStatus"] = "PASS"
+        evidence["events"] = events
+        evidence["rawRecords"] = raw_records
+        evidence["eventCount"] = len(events)
+        evidence["zeroUseObserved"] = status["status"] == "ZERO_USE"
+    except (UnicodeDecodeError, json.JSONDecodeError, OSError, TypeError, ValueError) as error:
+        evidence["parseStatus"] = "INVALID"
+        evidence["events"] = events if "events" in locals() else []
+        evidence["rawRecords"] = raw_records if "raw_records" in locals() else []
+        evidence["eventCount"] = len(evidence["events"])
+        evidence["parseError"] = str(error)
+        parse_error = error
     return evidence, parse_error
 
 
@@ -331,7 +696,7 @@ def persist_simulator_diagnostic_observations(root, artifact, record):
     with output.open("xb") as stream:
         stream.write(canonical(evidence))
     if parse_error is not None:
-        raise ValueError("invalid V23 native evidence: simulator diagnostic log parse") from parse_error
+        raise ValueError("invalid V23 native evidence: simulator diagnostic transport parse") from parse_error
     return evidence
 
 
@@ -696,11 +1061,18 @@ def verify_checkpoint(root, artifact, record, selection, environment):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("admit", "verify", "select"))
+    parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics"))
     parser.add_argument("--stage", choices=("dispatch", "worker"), default="worker")
     parser.add_argument("--output")
+    parser.add_argument("--interrupted", action="store_true")
     args = parser.parse_args()
     root = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+    if args.command == "collect-diagnostics":
+        artifact = Path(os.environ["CI_ARTIFACT_DIR"])
+        collect_simulator_diagnostic_transport(
+            root, artifact, os.environ, interrupted=args.interrupted
+        )
+        return
     selection, selection_record = selected_input(root, os.environ)
     if args.command == "select":
         require(args.output is not None, "selection output")

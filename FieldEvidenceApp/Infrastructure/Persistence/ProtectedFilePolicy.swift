@@ -2,8 +2,8 @@ import Darwin
 import Foundation
 
 #if DEBUG
-/// Every policy diagnostic shares one writer so concurrent readbacks cannot
-/// splice bytes into a V2 disposition record. This grants no file authority.
+/// Serializes policy prose within this process. XCTest owns other console
+/// producers, so strict Simulator disposition records use a separate journal.
 final class ProtectedFileDiagnosticWriterV1: @unchecked Sendable {
     private let lock = NSLock()
     private let fileHandle: FileHandle
@@ -14,6 +14,134 @@ final class ProtectedFileDiagnosticWriterV1: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         fileHandle.write(Data(facts.utf8))
+    }
+}
+#endif
+
+#if DEBUG && os(iOS) && targetEnvironment(simulator)
+enum ProtectedFileDiagnosticTransportErrorV1: Error, Equatable {
+    case unavailable
+    case unsafeJournal
+    case invalidPayload
+    case appendFailed
+    case synchronizeFailed
+    case poisonedStream
+}
+
+/// Diagnostic transport only. Its private process stream never supplies file
+/// protection authority, and a failed write cannot authorize an unsupported result.
+final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
+    private let lock = NSLock()
+    private let cachesURL: URL?
+    private let streamID: UUID
+    private let append: @Sendable (Int32, Data) throws -> Void
+    private let synchronize: @Sendable (Int32) throws -> Void
+    private var cachesDescriptor: Int32 = -1
+    private var directoryDescriptor: Int32 = -1
+    private var fileDescriptor: Int32 = -1
+    private var sequence = 0
+    private var byteCount: Int64 = 0
+    private var poisoned = false
+    private static let directoryName = "AssetRoundsNativeDiagnostics"
+
+    init(
+        cachesURL: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
+        streamID: UUID = UUID(),
+        append: @escaping @Sendable (Int32, Data) throws -> Void = { descriptor, data in
+            let written = data.withUnsafeBytes { bytes in
+                Darwin.write(descriptor, bytes.baseAddress, bytes.count)
+            }
+            guard written == data.count else { throw ProtectedFileDiagnosticTransportErrorV1.appendFailed }
+        },
+        synchronize: @escaping @Sendable (Int32) throws -> Void = { descriptor in
+            guard Darwin.fsync(descriptor) == 0 else {
+                throw ProtectedFileDiagnosticTransportErrorV1.synchronizeFailed
+            }
+        }
+    ) {
+        self.cachesURL = cachesURL
+        self.streamID = streamID
+        self.append = append
+        self.synchronize = synchronize
+    }
+
+    deinit {
+        if fileDescriptor >= 0 { Darwin.close(fileDescriptor) }
+        if directoryDescriptor >= 0 { Darwin.close(directoryDescriptor) }
+        if cachesDescriptor >= 0 { Darwin.close(cachesDescriptor) }
+    }
+
+    func write(_ payload: Data) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !poisoned else { throw ProtectedFileDiagnosticTransportErrorV1.poisonedStream }
+        do {
+            guard !payload.isEmpty, payload.count <= 4_096,
+                  payload.last == 10,
+                  !payload.dropLast().contains(10), !payload.contains(13),
+                  String(data: payload, encoding: .utf8) != nil,
+                  sequence < 100_000 else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
+            if fileDescriptor < 0 { try openJournal() }
+            try verifyJournal()
+            let next = sequence + 1
+            var frame = try JSONSerialization.data(withJSONObject: [
+                "schema": "v23-simulator-file-protection-frame-v1",
+                "streamID": streamID.uuidString.lowercased(),
+                "sequence": next,
+                "payloadBase64": payload.base64EncodedString(),
+                "payloadByteCount": payload.count,
+                "payloadSHA256": KernelCanonicalHashV1.sha256(payload).uppercased(),
+            ], options: [.sortedKeys, .withoutEscapingSlashes])
+            frame.append(10)
+            try append(fileDescriptor, frame)
+            byteCount += Int64(frame.count)
+            try synchronize(fileDescriptor)
+            try verifyJournal()
+            sequence = next
+        } catch {
+            poisoned = true
+            throw error
+        }
+    }
+
+    private var fileName: String { streamID.uuidString.lowercased() + ".jsonl" }
+
+    private func openJournal() throws {
+        guard let cachesURL, cachesURL.isFileURL else {
+            throw ProtectedFileDiagnosticTransportErrorV1.unavailable
+        }
+        cachesDescriptor = Darwin.open(cachesURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard cachesDescriptor >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+        let created = Darwin.mkdirat(cachesDescriptor, Self.directoryName, mode_t(0o700))
+        guard created == 0 || errno == EEXIST else {
+            throw ProtectedFileDiagnosticTransportErrorV1.unavailable
+        }
+        directoryDescriptor = Darwin.openat(cachesDescriptor, Self.directoryName,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard directoryDescriptor >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+        fileDescriptor = Darwin.openat(directoryDescriptor, fileName,
+            O_WRONLY | O_APPEND | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
+        guard fileDescriptor >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+        try verifyJournal()
+    }
+
+    private func verifyJournal() throws {
+        var directory = stat(), namedDirectory = stat(), file = stat(), namedFile = stat()
+        guard Darwin.fstat(directoryDescriptor, &directory) == 0,
+              Darwin.fstatat(cachesDescriptor, Self.directoryName, &namedDirectory, AT_SYMLINK_NOFOLLOW) == 0,
+              directory.st_mode & S_IFMT == S_IFDIR,
+              namedDirectory.st_mode & S_IFMT == S_IFDIR,
+              directory.st_dev == namedDirectory.st_dev, directory.st_ino == namedDirectory.st_ino,
+              Darwin.fstat(fileDescriptor, &file) == 0,
+              Darwin.fstatat(directoryDescriptor, fileName, &namedFile, AT_SYMLINK_NOFOLLOW) == 0,
+              file.st_mode & S_IFMT == S_IFREG, namedFile.st_mode & S_IFMT == S_IFREG,
+              file.st_nlink == 1, namedFile.st_nlink == 1,
+              file.st_dev == namedFile.st_dev, file.st_ino == namedFile.st_ino,
+              file.st_size == byteCount, namedFile.st_size == byteCount else {
+            throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal
+        }
     }
 }
 #endif
@@ -131,6 +259,10 @@ enum ProtectedFilePolicyV1 {
     private static let diagnosticWriter = ProtectedFileDiagnosticWriterV1(fileHandle: .standardError)
     #endif
 
+    #if DEBUG && os(iOS) && targetEnvironment(simulator)
+    private static let diagnosticJournal = ProtectedFileSimulatorDiagnosticJournalV1()
+    #endif
+
     /// C27 adds database rows only. Locator representations are references,
     /// never authority for creating a new app-owned file class.
     static func validateAssetLocatorPersistencePosture() throws {
@@ -239,7 +371,7 @@ enum ProtectedFilePolicyV1 {
         authorityCheck: () throws -> Void = {}
     ) throws -> ProtectedFileVerificationDispositionV1 {
         let result = try applyAndVerifyResult(kind, at: url, authorityCheck: authorityCheck)
-        emitVerificationDisposition(result, kind: kind)
+        try emitVerificationDisposition(result, kind: kind)
         return result
     }
 
@@ -392,7 +524,7 @@ enum ProtectedFilePolicyV1 {
         guard before == after else {
             throw ProtectedFilePolicyError.identityChanged
         }
-        emitVerificationDisposition(result, kind: kind)
+        try emitVerificationDisposition(result, kind: kind)
         return result
     }
 
@@ -402,7 +534,7 @@ enum ProtectedFilePolicyV1 {
         at url: URL
     ) throws -> ProtectedFileVerificationDispositionV1 {
         let result = try verifyResult(kind, at: url)
-        emitVerificationDisposition(result, kind: kind)
+        try emitVerificationDisposition(result, kind: kind)
         return result
     }
 
@@ -471,7 +603,7 @@ enum ProtectedFilePolicyV1 {
             throw ProtectedFilePolicyError.identityChanged
         }
         try authorityCheck()
-        emitVerificationDisposition(result, kind: kind)
+        try emitVerificationDisposition(result, kind: kind)
     }
 
     private struct LeafIdentity: Equatable {
@@ -706,7 +838,7 @@ enum ProtectedFilePolicyV1 {
     private static func emitVerificationDisposition(
         _ result: ProtectedFileVerificationDispositionV1,
         kind: OwnedFileKindV1
-    ) {
+    ) throws {
         #if DEBUG && os(iOS) && targetEnvironment(simulator)
         guard result == .simulatorFileProtectionUnsupported else { return }
         let disposition = disposition(for: kind)
@@ -717,7 +849,7 @@ enum ProtectedFilePolicyV1 {
             + " urlProtection=completeUntilFirstUserAuthentication"
             + " backupExcluded=\(disposition.isExcludedFromBackup)"
             + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n"
-        diagnosticWriter.write(facts)
+        try diagnosticJournal.write(Data(facts.utf8))
         #endif
     }
 

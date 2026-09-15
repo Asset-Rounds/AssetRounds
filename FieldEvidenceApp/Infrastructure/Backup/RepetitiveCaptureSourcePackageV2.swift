@@ -23,8 +23,9 @@ struct ValidatedRepetitiveCaptureSourcePackageV2: Equatable, Sendable {
         using validator: BackupPackageValidatorV1,
         cancellation: StreamingArchiveCancellationV1 = .none
     ) throws -> Self {
-        let package = try validator.validate(stagedPackageURL: stagedPackageURL,
-                                             cancellation: cancellation)
+        let validation = try validator.validateWithCanonicalFacts(
+            stagedPackageURL: stagedPackageURL, cancellation: cancellation)
+        let package = validation.package
         try cancellation.checkpoint()
         let entries = package.manifest.entries.filter { $0.path == "records.json" }
         guard package.manifest.source.workspaceID != nil,
@@ -39,13 +40,13 @@ struct ValidatedRepetitiveCaptureSourcePackageV2: Equatable, Sendable {
         // package boundary; no caller-selected subset can enter this capability.
         let encoder = BackupCanonicalEncoderV1()
         let manifest = try encoder.encodeManifest(package.manifest)
-        let records = try encoder.encodeRecords(package.records)
-        guard manifest.sha256 == manifestDescriptor.sha256,
+        guard let records = validation.recordsFacts.descriptor(matching: package.records),
+              manifest.sha256 == manifestDescriptor.sha256,
               Int64(manifest.data.count) == manifestDescriptor.byteCount,
               records.sha256 == entry.sha256,
-              records.data.count == entry.byteCount,
+              records.byteCount == entry.byteCount,
               records.sha256 == recordsDescriptor.sha256,
-              Int64(records.data.count) == recordsDescriptor.byteCount else {
+              Int64(records.byteCount) == recordsDescriptor.byteCount else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
         try cancellation.checkpoint()

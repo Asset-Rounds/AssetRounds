@@ -42,8 +42,100 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
         defer { fixture.removePackages() }
 
         let package = try fixture.validatedPackage()
+        let c05ManifestData = try fixture.memberData("manifest.json")
+        let manifest = try BackupCanonicalDecoderV1().decodeManifest(c05ManifestData)
+        XCTAssertEqual(manifest.backupSchemaVersion, 4)
+        XCTAssertEqual(manifest.source.persistentSchemaVersion,
+                       C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion)
+        XCTAssertEqual(manifest.source.recordsSchemaVersion,
+                       C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeManifest(manifest).data, c05ManifestData)
+        let c05ManifestObject = try XCTUnwrap(JSONSerialization.jsonObject(with: c05ManifestData) as? [String: Any])
+        XCTAssertEqual(try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(c05ManifestObject), c05ManifestData)
+        for (persistentVersion, recordsVersion) in [(44, 44), (45, 43), (45, 45), (46, 44)] {
+            let changedSource = V4BackupSourceV1(appBuild: manifest.source.appBuild,
+                appVersion: manifest.source.appVersion, persistentSchemaVersion: persistentVersion,
+                replicaID: manifest.source.replicaID, recordsSchemaVersion: recordsVersion,
+                sourceGenerationID: manifest.source.sourceGenerationID, workspaceID: manifest.source.workspaceID)
+            let changed = V4BackupManifestV1(backupSchemaVersion: manifest.backupSchemaVersion,
+                consumedEvaluationRootIDs: manifest.consumedEvaluationRootIDs,
+                declaredPayloadByteCount: manifest.declaredPayloadByteCount, entries: manifest.entries,
+                exportedAt: manifest.exportedAt, packs: manifest.packs, source: changedSource)
+            XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeManifest(changed))
+            let invalidPackage = try fixture.package(named: "invalid-c05-pair-\(persistentVersion)-\(recordsVersion)")
+            var invalidObject = c05ManifestObject
+            var invalidSource = try XCTUnwrap(invalidObject["source"] as? [String: Any])
+            invalidSource["persistentSchemaVersion"] = persistentVersion
+            invalidSource["recordsSchemaVersion"] = recordsVersion
+            invalidObject["source"] = invalidSource
+            try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(invalidObject).write(
+                to: invalidPackage.appendingPathComponent("manifest.json"), options: .atomic)
+            XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+                stagedPackageURL: invalidPackage, using: BackupPackageValidatorV1()))
+            try FileManager.default.removeItem(at: invalidPackage)
+        }
         let canonicalRecords = try BackupCanonicalEncoderV1().encodeRecords(package.records).data
         XCTAssertEqual(try fixture.memberData("records.json"), canonicalRecords)
+        let canonicalDecoder = BackupCanonicalDecoderV1()
+        let decodedWithFacts = try canonicalDecoder.decodeRecordsWithFacts(canonicalRecords)
+        XCTAssertEqual(decodedWithFacts.records, package.records)
+        XCTAssertEqual(try canonicalDecoder.decodeRecords(canonicalRecords), decodedWithFacts.records)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(decodedWithFacts.records).data,
+                       canonicalRecords)
+        let canonicalFacts = decodedWithFacts.facts
+        let canonicalDescriptor = try XCTUnwrap(canonicalFacts.descriptor(matching: package.records))
+        XCTAssertEqual(canonicalDescriptor.sha256, CanonicalJSONV1.sha256(canonicalRecords))
+        XCTAssertEqual(canonicalDescriptor.byteCount, canonicalRecords.count)
+        XCTAssertEqual(canonicalFacts.records(matching: package.records), package.records)
+        XCTAssertEqual(try canonicalDecoder.canonicalRoundTripRecords(package.records,
+                       reusing: canonicalFacts), package.records)
+        XCTAssertEqual(try canonicalDecoder.canonicalRoundTripRecords(package.records), package.records)
+
+        // A change outside the six reused families cannot borrow their proof.
+        // Use ordinary Codable transport only to build a different typed value.
+        let factsTransport = try JSONEncoder.canonicalV1.encode(package.records)
+        XCTAssertEqual(try JSONDecoder.canonicalV1.decode(V4BackupRecordsV1.self, from: factsTransport),
+                       package.records)
+        var changedFactsObject = try XCTUnwrap(JSONSerialization.jsonObject(with: factsTransport)
+                                              as? [String: Any])
+        let unrelatedSite = V4BackupSiteDTO(id: RepetitiveCaptureSourcePackageFixture.id(99_001),
+            schemaVersion: 1, label: "Unrelated site", address: nil, timeZoneID: "America/New_York",
+            createdAt: Date(timeIntervalSince1970: 1_000), updatedAt: Date(timeIntervalSince1970: 1_000))
+        changedFactsObject["sites"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder.canonicalV1.encode([unrelatedSite]))
+        let changedUnrelatedRecords = try JSONDecoder.canonicalV1.decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: changedFactsObject))
+        XCTAssertEqual(changedUnrelatedRecords.roundSessions, package.records.roundSessions)
+        XCTAssertEqual(changedUnrelatedRecords.mutationHistory, package.records.mutationHistory)
+        XCTAssertNil(canonicalFacts.records(matching: changedUnrelatedRecords))
+        XCTAssertNil(canonicalFacts.descriptor(matching: changedUnrelatedRecords))
+        XCTAssertEqual(try canonicalDecoder.canonicalRoundTripRecords(changedUnrelatedRecords,
+                       reusing: canonicalFacts), changedUnrelatedRecords)
+        XCTAssertEqual(try canonicalDecoder.canonicalRoundTripRecords(changedUnrelatedRecords),
+                       changedUnrelatedRecords)
+        changedFactsObject.removeValue(forKey: "mutationHistory")
+        let missingHistoryRecords = try JSONDecoder.canonicalV1.decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: changedFactsObject))
+        XCTAssertNil(canonicalFacts.records(matching: missingHistoryRecords))
+        XCTAssertNil(canonicalFacts.descriptor(matching: missingHistoryRecords))
+        XCTAssertThrowsError(try canonicalDecoder.canonicalRoundTripRecords(missingHistoryRecords,
+                             reusing: canonicalFacts))
+        XCTAssertThrowsError(try canonicalDecoder.canonicalRoundTripRecords(missingHistoryRecords))
+
+        let realValidation = try BackupPackageValidatorV1().validateWithCanonicalFacts(
+            stagedPackageURL: package.validatedPackage.stagedPackageURL)
+        XCTAssertEqual(realValidation.package, package.validatedPackage)
+        let validatedDescriptor = try XCTUnwrap(realValidation.recordsFacts.descriptor(
+            matching: realValidation.package.records))
+        let recordsEntry = try XCTUnwrap(realValidation.package.manifest.entries.first {
+            $0.path == "records.json"
+        })
+        let memberDescriptor = try XCTUnwrap(realValidation.package.members.descriptors["records.json"])
+        XCTAssertEqual(validatedDescriptor.sha256, package.recordsJSONSHA256)
+        XCTAssertEqual(validatedDescriptor.sha256, recordsEntry.sha256)
+        XCTAssertEqual(validatedDescriptor.byteCount, recordsEntry.byteCount)
+        XCTAssertEqual(validatedDescriptor.sha256, memberDescriptor.sha256)
+        XCTAssertEqual(Int64(validatedDescriptor.byteCount), memberDescriptor.byteCount)
         let unchangedMutation = try fixture.validatedPackage { _ in }
         XCTAssertEqual(unchangedMutation.records, package.records)
         XCTAssertEqual(unchangedMutation.recordsJSONSHA256, package.recordsJSONSHA256)

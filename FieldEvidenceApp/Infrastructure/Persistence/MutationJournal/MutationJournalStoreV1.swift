@@ -1607,6 +1607,13 @@ final class MutationJournalStoreV1 {
         try validateCurrentWriterLease()
         guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
         try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        return try readCheckRunnerPhotoCommitEvidence(workspaceID: workspaceID, draftID: draftID)
+    }
+
+    /// Call only within an already validated, synchronous clean journal read.
+    private func readCheckRunnerPhotoCommitEvidence(
+        workspaceID: WorkspaceID, draftID: UUID
+    ) throws -> CheckRunnerPhotoCommitEvidenceV1? {
         let workspaceUUID = workspaceID.rawValue
         var receiptDescriptor = FetchDescriptor<MutationReceiptRow>(
             predicate: #Predicate { $0.workspaceID == workspaceUUID },
@@ -1702,6 +1709,85 @@ final class MutationJournalStoreV1 {
     /// This reader reports malformed retained values as corrupt history. Lease,
     /// dirty-context and selected-quarantine checks stay outside this mapping;
     /// existing policy and sequence-collision failures retain their identity.
+    /// Joins the current parent and its original selected-slot history to a
+    /// committed child. This grants no current source, workflow or media access.
+    func checkRunnerPhotoParentEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID
+    ) throws -> CheckRunnerPhotoParentEvidenceV1? {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        return try validateCheckRunnerBeginHistoryValue {
+            let workspaceUUID = workspaceID.rawValue
+            var descriptor = FetchDescriptor<MutationReceiptRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID },
+                sortBy: [SortDescriptor(\.receiptIdentity)])
+            descriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
+            let rows = try modelContext.fetch(descriptor)
+            guard rows.count <= Self.maximumReceiptValidationCount else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            var originals: [MutationIDV1: (MutationReceiptRow, MutationEnvelopeV1)] = [:]
+            var history: [FieldDraftCommittedEvidenceV1] = []
+            for row in rows {
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+                guard envelope.workspaceID == workspaceID,
+                      originals.updateValue((row, envelope), forKey: envelope.mutationID) == nil else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                if case let .applyFieldDraft(mutation) = envelope.command,
+                   mutation.workspaceID == workspaceID, fieldDraftMutationDraftID(mutation) == parentDraftID {
+                    history.append(try .init(envelope: envelope, receipt: validate(row: row, expectedEnvelope: nil)))
+                }
+            }
+            var checkpoints = FetchDescriptor<FieldDraftCheckpointRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == parentDraftID })
+            checkpoints.fetchLimit = 2
+            let physical = try modelContext.fetch(checkpoints)
+            guard physical.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            if history.isEmpty && physical.isEmpty { return nil }
+            guard !history.isEmpty, let row = physical.first else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let checkpoint = try row.value()
+            let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+            guard let attempt = payload.field.begin.attempt,
+                  attempt.sourceWorkspaceID == workspaceID,
+                  let originalWorkflow = originals[attempt.recordMutationID] else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let workflow = try CheckRunnerBeginCommittedEvidenceV1(envelope: originalWorkflow.1,
+                receipt: validate(row: originalWorkflow.0, expectedEnvelope: nil))
+            let timeZone = try attempt.timeZone.map { zone -> CheckRunnerBeginCommittedEvidenceV1 in
+                guard let original = originals[zone.mutationID] else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                return try .init(envelope: original.1, receipt: validate(row: original.0, expectedEnvelope: nil))
+            }
+            let selected = Set(history.map { $0.mutation.mutationID.rawValue }
+                + [attempt.recordMutationID.rawValue] + (attempt.timeZone.map { [$0.mutationID.rawValue] } ?? []))
+            var quarantines = FetchDescriptor<MutationQuarantineRow>(
+                predicate: #Predicate { $0.workspaceID == workspaceUUID })
+            quarantines.fetchLimit = Self.maximumReceiptValidationCount + 1
+            let quarantineRows = try modelContext.fetch(quarantines)
+            guard quarantineRows.count <= Self.maximumReceiptValidationCount else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard !quarantineRows.contains(where: { selected.contains($0.mutationID) }) else {
+                throw WorkspaceMutationFailureV1.mutationIDQuarantined
+            }
+            let parent = try CheckRunnerPhotoParentEvidenceV1.validateCheckpointHistory(
+                history: history, checkpoint: checkpoint, workflow: workflow, timeZone: timeZone)
+            guard parent.selectedChildDraftIDs.contains(childDraftID) else { return nil }
+            guard let child = try readCheckRunnerPhotoCommitEvidence(
+                workspaceID: workspaceID, draftID: childDraftID) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return try .init(history: history, checkpoint: checkpoint, child: child,
+                             workflow: workflow, timeZone: timeZone)
+        }
+    }
+
     private func validateCheckRunnerBeginHistoryValue<Value>(
         _ operation: () throws -> Value
     ) throws -> Value {

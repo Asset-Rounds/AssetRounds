@@ -844,7 +844,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             replicaID: ReplicaID(rawValue: Fixture.id(951))
         )
         let collidingMutationID = fixture.semanticTargetMutationID
-        let foreignHistory = try Fixture.history(
+        let foreignBaseHistory = try Fixture.history(
             commands: [.createFirstSign(.init(
                 siteID: Fixture.id(952),
                 newSite: .init(
@@ -869,6 +869,24 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             generationID: Fixture.id(954),
             writerID: Fixture.id(955),
             explicitMutationIDs: [0: collidingMutationID]
+        )
+        let foreignEnvelope = try MutationEnvelopeV1.decodeCanonical(
+            from: try XCTUnwrap(foreignBaseHistory.receipts.first).envelopeData
+        )
+        let foreignQuarantine = MutationHistoryQuarantineRecordV1(
+            workspaceID: foreignWorkspaceID,
+            mutationID: collidingMutationID.rawValue,
+            identityDomain: .mutationEnvelope,
+            acceptedIdentitySHA256: try foreignEnvelope.canonicalSHA256(),
+            conflictingIdentitySHA256: Fixture.digest("f"),
+            detectedAt: Fixture.fixedDate.addingTimeInterval(2_000)
+        )
+        let foreignHistory = MutationHistorySnapshotV1(
+            workspaceRevision: foreignBaseHistory.workspaceRevision,
+            lastLocalSequence: foreignBaseHistory.lastLocalSequence,
+            receipts: foreignBaseHistory.receipts,
+            quarantines: foreignBaseHistory.quarantines + [foreignQuarantine],
+            entityRevisions: foreignBaseHistory.entityRevisions
         )
         let combined = MutationHistorySnapshotV1(
             workspaceRevision: max(
@@ -906,7 +924,198 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         XCTAssertTrue(foreignHistory.receipts.allSatisfy {
             result.history.receipts.contains($0)
         })
+        XCTAssertTrue(foreignHistory.quarantines.allSatisfy {
+            result.history.quarantines.contains($0)
+        })
         XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(result.history))
+
+        func combine(
+            _ local: MutationHistorySnapshotV1,
+            _ foreign: MutationHistorySnapshotV1
+        ) -> MutationHistorySnapshotV1 {
+            MutationHistorySnapshotV1(
+                workspaceRevision: max(local.workspaceRevision, foreign.workspaceRevision),
+                lastLocalSequence: max(local.lastLocalSequence, foreign.lastLocalSequence),
+                receipts: local.receipts + foreign.receipts,
+                quarantines: local.quarantines + foreign.quarantines,
+                entityRevisions: local.entityRevisions + foreign.entityRevisions
+            )
+        }
+        func records(
+            snapshot: PartsStockBackupSnapshotV1,
+            history: MutationHistorySnapshotV1
+        ) -> V4BackupRecordsV1 {
+            V4BackupRecordsV1(
+                assets: [], deletionLedger: .empty, evidenceFiles: [], issues: [],
+                mutationHistory: history, packets: [], recordsSchemaVersion: 40,
+                reports: [], sites: [], workflowRecords: [],
+                partsStockSnapshot: snapshot
+            )
+        }
+        func replacingFirstRecord(
+            in history: MutationHistorySnapshotV1,
+            with record: MutationHistoryReceiptRecordV1
+        ) -> MutationHistorySnapshotV1 {
+            var receipts = history.receipts
+            receipts[0] = record
+            return MutationHistorySnapshotV1(
+                workspaceRevision: history.workspaceRevision,
+                lastLocalSequence: history.lastLocalSequence,
+                receipts: receipts,
+                quarantines: history.quarantines,
+                entityRevisions: history.entityRevisions
+            )
+        }
+
+        // Replacement preserves source physical IDs in the target value. The
+        // full projected journal therefore proves shared foreign/current stock
+        // identities remain valid while both owned and foreign quarantines stay
+        // authenticated and immutable.
+        XCTAssertNoThrow(try C55PartsStockBackupEnrollmentV1.validate(records(
+            snapshot: result.targetSnapshot,
+            history: result.history
+        )))
+
+        // The target workspace is the selected C55 closure. The source history is
+        // authenticated and retained, but its applyPartsStock originals cannot
+        // populate or satisfy the target snapshot.
+        let mixedStockHistory = combine(fixture.current.history, fixture.incoming.history)
+        let mixedStockRecords = records(
+            snapshot: fixture.current.snapshot,
+            history: mixedStockHistory
+        )
+        let facts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(
+            mixedStockHistory
+        )
+        XCTAssertNoThrow(try C55PartsStockBackupEnrollmentV1.validate(
+            mixedStockRecords,
+            importedHistoryFacts: facts
+        ))
+        let unrelatedFacts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(
+            fixture.current.history
+        )
+        XCTAssertThrowsError(try C55PartsStockBackupEnrollmentV1.validate(
+            mixedStockRecords,
+            importedHistoryFacts: unrelatedFacts
+        ))
+
+        let emptyWorkspaceID = WorkspaceID(rawValue: Fixture.id(960))
+        let emptySnapshot = try PartsStockBackupSnapshotV1(
+            workspaceID: emptyWorkspaceID,
+            parts: [], locations: [], movements: [], uses: [], reversals: [],
+            returns: [], abandonments: []
+        )
+        let foreignStockOnlyRecords = records(
+            snapshot: emptySnapshot,
+            history: fixture.incoming.history
+        )
+        XCTAssertNoThrow(try C55PartsStockBackupEnrollmentV1.validate(
+            foreignStockOnlyRecords
+        ))
+        XCTAssertThrowsError(try C55PartsStockBackupEnrollmentV1.validate(records(
+            snapshot: fixture.current.snapshot,
+            history: fixture.incoming.history
+        )))
+
+        // Retained source originals cannot fill a missing target use, reversal,
+        // return or abandonment receipt even when physical stock IDs coincide.
+        let targetStockRecords = try result.history.receipts.filter {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
+            return envelope.workspaceID == result.targetSnapshot.workspaceID
+                && envelope.commandKind == .applyPartsStock
+        }
+        XCTAssertFalse(targetStockRecords.isEmpty)
+        for missing in targetStockRecords {
+            let incomplete = MutationHistorySnapshotV1(
+                workspaceRevision: result.history.workspaceRevision,
+                lastLocalSequence: result.history.lastLocalSequence,
+                receipts: result.history.receipts.filter { $0 != missing },
+                quarantines: result.history.quarantines,
+                entityRevisions: result.history.entityRevisions
+            )
+            XCTAssertThrowsError(try C55PartsStockBackupEnrollmentV1.validate(records(
+                snapshot: result.targetSnapshot, history: incomplete)))
+        }
+        let currentPartIdentity = try WorkspaceEntityIdentityV1(kind: .localPartDefinition,
+            id: try XCTUnwrap(fixture.current.snapshot.parts.first).partID)
+        let currentTerminal = try XCTUnwrap(mixedStockHistory.entityRevisions.first {
+            $0.identity == currentPartIdentity
+        })
+        let alteredTerminal = MutationHistoryEntityRevisionV1(identity: currentTerminal.identity,
+            revision: currentTerminal.revision + 1,
+            externalProjectionSHA256: currentTerminal.externalProjectionSHA256)
+        let unknownTerminal = MutationHistoryEntityRevisionV1(
+            identity: try WorkspaceEntityIdentityV1(kind: .stockMovementEvent, id: Fixture.id(962)),
+            revision: 1)
+        for revisions in [
+            mixedStockHistory.entityRevisions.map { $0 == currentTerminal ? alteredTerminal : $0 },
+            mixedStockHistory.entityRevisions + [unknownTerminal],
+        ] {
+            let inconsistent = MutationHistorySnapshotV1(
+                workspaceRevision: mixedStockHistory.workspaceRevision,
+                lastLocalSequence: mixedStockHistory.lastLocalSequence,
+                receipts: mixedStockHistory.receipts,
+                quarantines: mixedStockHistory.quarantines,
+                entityRevisions: revisions
+            )
+            XCTAssertThrowsError(try C55PartsStockBackupEnrollmentV1.validate(records(
+                snapshot: fixture.current.snapshot, history: inconsistent)))
+        }
+
+        let foreignRecord = try XCTUnwrap(fixture.incoming.history.receipts.first)
+        let receipt = try MutationReceiptV1.decodeCanonical(from: foreignRecord.receiptData)
+        let receiptText = try XCTUnwrap(String(data: foreignRecord.receiptData, encoding: .utf8))
+        let badDigestText = receiptText.replacingOccurrences(
+            of: receipt.envelopeSHA256,
+            with: Fixture.digest("0")
+        )
+        XCTAssertNotEqual(badDigestText, receiptText)
+        let badDigestRecord = MutationHistoryReceiptRecordV1(
+            envelopeData: foreignRecord.envelopeData,
+            receiptData: Data(badDigestText.utf8),
+            reversalBasisData: foreignRecord.reversalBasisData,
+            semanticReversalData: foreignRecord.semanticReversalData
+        )
+        XCTAssertThrowsError(try C55PartsStockBackupEnrollmentV1.validate(records(
+            snapshot: emptySnapshot,
+            history: replacingFirstRecord(
+                in: fixture.incoming.history,
+                with: badDigestRecord
+            )
+        )))
+
+        let mismatchedWorkspaceText = receiptText.replacingOccurrences(
+            of: fixture.sourceWorkspaceID.rawValue.uuidString,
+            with: Fixture.id(961).uuidString
+        )
+        XCTAssertNotEqual(mismatchedWorkspaceText, receiptText)
+        let mismatchedWorkspaceRecord = MutationHistoryReceiptRecordV1(
+            envelopeData: foreignRecord.envelopeData,
+            receiptData: Data(mismatchedWorkspaceText.utf8),
+            reversalBasisData: foreignRecord.reversalBasisData,
+            semanticReversalData: foreignRecord.semanticReversalData
+        )
+        XCTAssertThrowsError(try C55PartsStockBackupEnrollmentV1.validate(records(
+            snapshot: emptySnapshot,
+            history: replacingFirstRecord(
+                in: fixture.incoming.history,
+                with: mismatchedWorkspaceRecord
+            )
+        )))
+
+        let malformedEnvelopeRecord = MutationHistoryReceiptRecordV1(
+            envelopeData: foreignRecord.envelopeData + Data(" ".utf8),
+            receiptData: foreignRecord.receiptData,
+            reversalBasisData: foreignRecord.reversalBasisData,
+            semanticReversalData: foreignRecord.semanticReversalData
+        )
+        XCTAssertThrowsError(try C55PartsStockBackupEnrollmentV1.validate(records(
+            snapshot: emptySnapshot,
+            history: replacingFirstRecord(
+                in: fixture.incoming.history,
+                with: malformedEnvelopeRecord
+            )
+        )))
     }
 
     func testOriginalMembershipAndBindingHostilesFailBeforeProjection() throws {

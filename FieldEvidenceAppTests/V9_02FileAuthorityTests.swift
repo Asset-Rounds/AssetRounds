@@ -166,6 +166,103 @@ final class V9_02FileAuthorityTests: XCTestCase {
         XCTAssertTrue(lines.last?.isEmpty == true)
         XCTAssertEqual(Set(lines.dropLast().map(String.init)),
                        Set(records.map { String($0.dropLast()) }))
+
+        // Repeated identical events are distinct, ordered frames. The separate
+        // fixture directory never enters the real app-container CI transport.
+        let streamID = UUID()
+        let framed = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: streamID)
+        let payload = Data(("V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
+            + " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
+            + " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
+            + " kind=database request=complete capabilityBefore=false capabilityAfter=false"
+            + " urlProtection=completeUntilFirstUserAuthentication backupExcluded=false"
+            + " expectsDirectory=false identityUnchanged=true\n").utf8)
+        DispatchQueue.concurrentPerform(iterations: 64) { _ in
+            do { try framed.write(payload) }
+            catch { XCTFail("Concurrent diagnostic journal write failed: \(error)") }
+        }
+        let directory = root.appendingPathComponent("AssetRoundsNativeDiagnostics", isDirectory: true)
+        let streamURL = directory.appendingPathComponent(streamID.uuidString.lowercased() + ".jsonl")
+        let framedBytes = try Data(contentsOf: streamURL)
+        let framedText = try XCTUnwrap(String(data: framedBytes, encoding: .utf8))
+        let frames = framedText.split(separator: "\n", omittingEmptySubsequences: false)
+        XCTAssertEqual(frames.count, 65)
+        XCTAssertTrue(frames.last?.isEmpty == true)
+        for (offset, frame) in frames.dropLast().enumerated() {
+            let value = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any])
+            XCTAssertEqual(Set(value.keys), ["schema", "streamID", "sequence", "payloadBase64",
+                                              "payloadByteCount", "payloadSHA256"])
+            XCTAssertEqual(value["schema"] as? String, "v23-simulator-file-protection-frame-v1")
+            XCTAssertEqual(value["streamID"] as? String, streamID.uuidString.lowercased())
+            XCTAssertEqual(value["sequence"] as? Int, offset + 1)
+            XCTAssertEqual(value["payloadByteCount"] as? Int, payload.count)
+            XCTAssertEqual(value["payloadSHA256"] as? String, KernelCanonicalHashV1.sha256(payload).uppercased())
+            XCTAssertEqual(Data(base64Encoded: try XCTUnwrap(value["payloadBase64"] as? String)), payload)
+        }
+        let duplicateStream = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: streamID)
+        XCTAssertThrowsError(try duplicateStream.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .unsafeJournal)
+        }
+        XCTAssertEqual(try Data(contentsOf: streamURL), framedBytes)
+
+        let symlinkRoot = try makeTemporaryRoot("diagnostic-symlink")
+        defer { try? fileManager.removeItem(at: symlinkRoot) }
+        try fileManager.createSymbolicLink(
+            at: symlinkRoot.appendingPathComponent("AssetRoundsNativeDiagnostics"),
+            withDestinationURL: directory)
+        XCTAssertThrowsError(try ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: symlinkRoot).write(payload))
+        XCTAssertEqual(try Data(contentsOf: streamURL), framedBytes)
+
+        let linkedID = UUID()
+        let linkedURL = directory.appendingPathComponent(linkedID.uuidString.lowercased() + ".jsonl")
+        let linkedJournal = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: linkedID)
+        try linkedJournal.write(payload)
+        let linkedBefore = try Data(contentsOf: linkedURL)
+        try fileManager.linkItem(at: linkedURL, to: root.appendingPathComponent("diagnostic-hardlink.jsonl"))
+        XCTAssertThrowsError(try linkedJournal.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .unsafeJournal)
+        }
+        XCTAssertEqual(try Data(contentsOf: linkedURL), linkedBefore)
+        XCTAssertThrowsError(try linkedJournal.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+        }
+
+        let appendFailure = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+            append: { _, _ in throw ProtectedFileDiagnosticTransportErrorV1.appendFailed })
+        XCTAssertThrowsError(try appendFailure.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .appendFailed)
+        }
+        XCTAssertThrowsError(try appendFailure.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+        }
+        let truncatedID = UUID()
+        let shortAppend = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: truncatedID,
+            append: { descriptor, data in
+                let prefix = Data(data.prefix(13))
+                _ = prefix.withUnsafeBytes { Darwin.write(descriptor, $0.baseAddress, $0.count) }
+            })
+        XCTAssertThrowsError(try shortAppend.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .unsafeJournal)
+        }
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(
+            truncatedID.uuidString.lowercased() + ".jsonl")).count, 13)
+        XCTAssertThrowsError(try shortAppend.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+        }
+        let syncFailure = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+            synchronize: { _ in throw ProtectedFileDiagnosticTransportErrorV1.synchronizeFailed })
+        XCTAssertThrowsError(try syncFailure.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .synchronizeFailed)
+        }
+        XCTAssertThrowsError(try syncFailure.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+        }
+        for invalid in [Data(), Data("missing newline".utf8), Data("first\nsecond\n".utf8),
+                        Data([0xFF, 10]), Data(repeating: 65, count: 4_096) + Data([10])] {
+            XCTAssertThrowsError(try ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root).write(invalid)) {
+                XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .invalidPayload)
+            }
+        }
     }
 
     func testSimulatorUnsupportedFileAndDirectoryRemainExplicitAcrossVerification() throws {

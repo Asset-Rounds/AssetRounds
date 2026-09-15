@@ -172,6 +172,31 @@ enum C30EvidenceContextBackupDecoderV1 {
     }
 }
 
+/// Proof of the complete immutable value and canonical bytes accepted by the
+/// sole records decoder. Raw state and construction stay in this file.
+struct BackupCanonicalRecordsValidationFactsV1: Sendable {
+    private let completeRecords: V4BackupRecordsV1
+    private let canonicalSHA256: String
+    private let canonicalByteCount: Int
+
+    fileprivate init(records: V4BackupRecordsV1, canonicalData: Data) {
+        completeRecords = records
+        canonicalSHA256 = CanonicalJSONV1.sha256(canonicalData)
+        canonicalByteCount = canonicalData.count
+    }
+
+    func records(matching records: V4BackupRecordsV1) -> V4BackupRecordsV1? {
+        guard completeRecords == records else { return nil }
+        return completeRecords
+    }
+
+    func descriptor(matching records: V4BackupRecordsV1)
+        -> (sha256: String, byteCount: Int)? {
+        guard completeRecords == records else { return nil }
+        return (canonicalSHA256, canonicalByteCount)
+    }
+}
+
 struct BackupCanonicalDecoderV1: Sendable {
     func decodeManifestOffMain(
         _ data: Data,
@@ -216,6 +241,22 @@ struct BackupCanonicalDecoderV1: Sendable {
     }
 
     func decodeRecords(_ data: Data) throws -> V4BackupRecordsV1 {
+        try decodeRecordsWithFacts(data).records
+    }
+
+    /// Reuse is bound to the entire value, including every family and history.
+    /// Absent or mismatched facts retain the incumbent canonical round trip.
+    func canonicalRoundTripRecords(
+        _ records: V4BackupRecordsV1,
+        reusing facts: BackupCanonicalRecordsValidationFactsV1? = nil
+    ) throws -> V4BackupRecordsV1 {
+        if let matched = facts?.records(matching: records) { return matched }
+        return try decodeRecords(BackupCanonicalEncoderV1().encodeRecords(records).data)
+    }
+
+    func decodeRecordsWithFacts(_ data: Data) throws -> (
+        records: V4BackupRecordsV1, facts: BackupCanonicalRecordsValidationFactsV1
+    ) {
         try C34SceneNavigationBackupDecoderBoundaryV1.validate()
 #if DEBUG
         var recordsDecodePhase = "raw-records-decode"
@@ -400,7 +441,8 @@ struct BackupCanonicalDecoderV1: Sendable {
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
             }
-            return value
+            return (value, BackupCanonicalRecordsValidationFactsV1(
+                records: value, canonicalData: canonical))
         } catch {
 #if DEBUG
             let diagnosticError = error as NSError

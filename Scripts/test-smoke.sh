@@ -17,6 +17,33 @@ test "${CODE_SIGNING_ALLOWED:-}" = "NO"
 test ! -e "$result_bundle_path"
 mkdir -p "$CI_ARTIFACT_DIR" "$derived_data_path"
 
+# The ordinary V23 lane retains strict Simulator diagnostics outside XCTest's
+# shared console pipe. Collection is bounded by the existing watchdog's TERM
+# grace period and never changes the native command, destination, or result.
+diagnostic_transport_interrupted=false
+collect_v23_diagnostic_transport() {
+  local command_status="$?"
+  trap - EXIT HUP INT TERM
+  local collector_status=0
+  local collector_args=(collect-diagnostics)
+  if [ "$diagnostic_transport_interrupted" = true ]; then
+    collector_args+=(--interrupted)
+  fi
+  python3 Scripts/v23-native-ci.py "${collector_args[@]}" || collector_status="$?"
+  if [ "$command_status" -eq 0 ] && [ "$collector_status" -ne 0 ]; then
+    command_status=65
+  fi
+  exit "$command_status"
+}
+interrupt_v23_diagnostic_transport() {
+  diagnostic_transport_interrupted=true
+  exit 143
+}
+if [ "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = "v23.integration.current-native.v1" ]; then
+  trap collect_v23_diagnostic_transport EXIT
+  trap interrupt_v23_diagnostic_transport HUP INT TERM
+fi
+
 only_testing_args=()
 while IFS= read -r selector; do
   case "$selector" in

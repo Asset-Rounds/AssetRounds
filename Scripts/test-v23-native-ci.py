@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Native-route protocol tests using disposable facts, never native PASS evidence."""
 import copy
+import base64
 import hashlib
 import os
 import subprocess
@@ -93,6 +94,70 @@ def diagnostic_line(base_kind="database", **changes):
     values.update(changes)
     return CI.SIMULATOR_DIAGNOSTIC_PREFIX + " " + " ".join(
         key + "=" + values[key] for key in CI.SIMULATOR_DIAGNOSTIC_FIELDS) + "\n"
+
+
+def diagnostic_frame(stream_id, sequence, payload):
+    raw = payload.encode("utf-8") if isinstance(payload, str) else payload
+    return (json.dumps({
+        "schema": CI.SIMULATOR_DIAGNOSTIC_FRAME_SCHEMA,
+        "streamID": stream_id,
+        "sequence": sequence,
+        "payloadBase64": base64.b64encode(raw).decode("ascii"),
+        "payloadByteCount": len(raw),
+        "payloadSHA256": CI.sha256(raw),
+    }, separators=(",", ":")) + "\n").encode()
+
+
+def diagnostic_transport(artifact, streams=(), status=None, **changes):
+    simulator = artifact / "simulator-selection.txt"
+    if not simulator.exists():
+        simulator.write_text(
+            "runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\n"
+            f"udid={UDID}\ninitial_state=Shutdown\n")
+    directory = artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY
+    files = []
+    if streams:
+        directory.mkdir()
+    for stream_id, payloads in streams:
+        raw = b"".join(diagnostic_frame(stream_id, index, payload)
+                       for index, payload in enumerate(payloads, 1))
+        name = stream_id + ".jsonl"
+        (directory / name).write_bytes(raw)
+        files.append({"name": name, "bytes": len(raw), "sha256": CI.sha256(raw)})
+    files.sort(key=lambda value: value["name"])
+    value = {
+        "schema": CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA,
+        "status": status or ("AVAILABLE" if files else "ZERO_USE"),
+        "simulatorUDID": UDID,
+        "appBundleID": CI.SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID,
+        "appRelativeDirectory": CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY,
+        "sourcePath": CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+        "sourceSHA256": CI.SIMULATOR_DIAGNOSTIC_SOURCE_SHA256,
+        "files": files,
+        "fileCount": len(files),
+        "totalBytes": sum(item["bytes"] for item in files),
+        "inventorySHA256": CI.sha256(CI.canonical(files)),
+        "collectionBoundSeconds": 3,
+    }
+    value.update(changes)
+    (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).write_bytes(CI.canonical(value))
+    return value
+
+
+def rebind_diagnostic_transport(artifact, status="AVAILABLE", **changes):
+    directory = artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY
+    files = []
+    if directory.exists():
+        for path in sorted(directory.iterdir(), key=lambda value: value.name):
+            if path.is_file() and not path.is_symlink():
+                raw = path.read_bytes()
+                files.append({"name": path.name, "bytes": len(raw), "sha256": CI.sha256(raw)})
+    value = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+    value.update({"status": status, "files": files, "fileCount": len(files),
+                  "totalBytes": sum(item["bytes"] for item in files),
+                  "inventorySHA256": CI.sha256(CI.canonical(files)), **changes})
+    (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).write_bytes(CI.canonical(value))
+    return value
 
 
 
@@ -518,8 +583,11 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
             artifact = Path(directory)
             lines = [diagnostic_line("database"), diagnostic_line("scratch"),
                      diagnostic_line("database")]
-            log = "ordinary output\n" + "".join(lines) + "finished\n"
+            log = "ordinary output\nfinished\n"
             (artifact / "test-smoke.log").write_bytes(log.encode("utf-8"))
+            diagnostic_transport(artifact, [
+                ("00000000-0000-0000-0000-000000000010", lines)
+            ])
             evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
             self.assertIsNone(error)
             self.assertEqual([item["kind"] for item in evidence["events"]],
@@ -568,7 +636,8 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
                 (artifact / "test-smoke.log").write_text(
                     diagnostic_line().replace(CI.SIMULATOR_DIAGNOSTIC_PREFIX, marker, 1),
                     encoding="utf-8")
-                with self.assertRaisesRegex(ValueError, "log parse"):
+                diagnostic_transport(artifact)
+                with self.assertRaisesRegex(ValueError, "transport parse"):
                     CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
                 retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
                 self.assertEqual(retained["parseStatus"], "INVALID")
@@ -579,14 +648,16 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
         record = CI.admission(selection(), environment(), HEAD, "worker")
         with tempfile.TemporaryDirectory(prefix="v23-simulator-persist-") as directory:
             artifact = Path(directory)
+            diagnostic_transport(artifact)
             evidence = CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
             self.assertEqual(evidence["testLog"]["availability"], "UNAVAILABLE")
-            self.assertEqual(evidence["parseStatus"], "UNAVAILABLE")
-            self.assertFalse(evidence["zeroUseObserved"])
+            self.assertEqual(evidence["parseStatus"], "PASS")
+            self.assertTrue(evidence["zeroUseObserved"])
         with tempfile.TemporaryDirectory(prefix="v23-simulator-invalid-") as directory:
             artifact = Path(directory)
             (artifact / "test-smoke.log").write_text(diagnostic_line(kind="database", capabilityAfter="true"))
-            with self.assertRaisesRegex(ValueError, "log parse"):
+            diagnostic_transport(artifact)
+            with self.assertRaisesRegex(ValueError, "transport parse"):
                 CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
             retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
             self.assertEqual(retained["testLog"]["availability"], "AVAILABLE")
@@ -598,15 +669,204 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
         record = CI.admission(selection(), environment(), HEAD, "worker")
         with tempfile.TemporaryDirectory(prefix="v23-simulator-partial-") as directory:
             artifact = Path(directory)
-            (artifact / "test-smoke.log").write_bytes(
-                (diagnostic_line("database") + diagnostic_line("scratch", identityUnchanged="false")).encode())
-            with self.assertRaisesRegex(ValueError, "log parse"):
+            (artifact / "test-smoke.log").write_text("ordinary output\n")
+            diagnostic_transport(artifact, [
+                ("00000000-0000-0000-0000-000000000011", [
+                    diagnostic_line("database"),
+                    diagnostic_line("scratch", identityUnchanged="false"),
+                ])
+            ])
+            with self.assertRaisesRegex(ValueError, "transport parse"):
                 CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
             retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
             self.assertEqual(retained["parseStatus"], "INVALID")
             self.assertEqual([event["kind"] for event in retained["events"]], ["database"])
             self.assertEqual(retained["eventCount"], 1)
             self.assertFalse(retained["zeroUseObserved"])
+
+    def test_framed_streams_preserve_process_order_raw_bindings_and_semantic_duplicates(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        streams = [
+            ("00000000-0000-0000-0000-000000000021",
+             [diagnostic_line("database"), diagnostic_line("database")]),
+            ("00000000-0000-0000-0000-000000000022",
+             [diagnostic_line("scratch")]),
+        ]
+        with tempfile.TemporaryDirectory(prefix="v23-framed-diagnostics-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text("XCTest output stays separate\n")
+            diagnostic_transport(artifact, streams)
+            evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+            self.assertIsNone(error)
+            self.assertEqual([item["kind"] for item in evidence["events"]],
+                             ["database", "database", "scratch"])
+            self.assertEqual([(item["streamID"], item["sequence"])
+                              for item in evidence["rawRecords"]], [
+                (streams[0][0], 1), (streams[0][0], 2), (streams[1][0], 1)])
+            self.assertEqual(evidence["transport"]["inventorySHA256"],
+                             CI.sha256(CI.canonical(evidence["transport"]["files"])))
+
+    def test_framed_transport_rejects_structural_binding_and_availability_hostiles(self):
+        stream = "00000000-0000-0000-0000-000000000031"
+        cases = []
+        valid = diagnostic_frame(stream, 1, diagnostic_line())
+        duplicate_key = valid.replace(b'"sequence":1', b'"sequence":1,"sequence":1')
+        cases.extend([
+            ("duplicate-key", duplicate_key),
+            ("truncated", valid[:-1]),
+            ("sequence-gap", diagnostic_frame(stream, 2, diagnostic_line())),
+            ("wrong-stream", diagnostic_frame(
+                "00000000-0000-0000-0000-000000000032", 1, diagnostic_line())),
+            ("embedded-cr", valid.replace(b"}\n", b"}\r\n")),
+        ])
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        for name, raw in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory(
+                    prefix="v23-frame-hostile-") as directory:
+                artifact = Path(directory)
+                (artifact / "test-smoke.log").write_text("ordinary\n")
+                diagnostic_transport(artifact, [(stream, [diagnostic_line()])])
+                path = artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (stream + ".jsonl")
+                path.write_bytes(raw)
+                rebind_diagnostic_transport(artifact)
+                evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+                self.assertIsNotNone(error)
+                self.assertEqual(evidence["parseStatus"], "INVALID")
+                self.assertEqual(evidence["transport"]["files"][0]["sha256"], CI.sha256(raw))
+        for status in ("UNAVAILABLE", "UNSAFE", "INTERRUPTED"):
+            with self.subTest(status=status), tempfile.TemporaryDirectory(
+                    prefix="v23-frame-status-") as directory:
+                artifact = Path(directory)
+                (artifact / "test-smoke.log").write_text("ordinary\n")
+                diagnostic_transport(artifact, status=status, error="retained failure")
+                evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+                self.assertIsNotNone(error)
+                self.assertEqual(evidence["transport"]["status"], status)
+                self.assertFalse(evidence["zeroUseObserved"])
+
+        malformed_inventories = [
+            ["not-an-object"],
+            [{"name": "00000000-0000-0000-0000-000000000031.jsonl", "bytes": True,
+              "sha256": "0" * 64}],
+        ]
+        for files in malformed_inventories:
+            with self.subTest(files=files), tempfile.TemporaryDirectory(
+                    prefix="v23-frame-inventory-") as directory:
+                artifact = Path(directory)
+                diagnostic_transport(
+                    artifact, status="UNSAFE", error="retained failure", files=files,
+                    fileCount=len(files), totalBytes=0,
+                    inventorySHA256=CI.sha256(CI.canonical(files)))
+                evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+                self.assertIsInstance(error, ValueError)
+                self.assertEqual(evidence["parseStatus"], "INVALID")
+
+    def test_collector_binds_fresh_simulator_and_retains_available_zero_interrupted_and_unsafe(self):
+        def fixture(directory, app_entries=(), interrupted=False, returncode=0,
+                    monotonic=time.monotonic, read_chunk=None):
+            root = Path(directory)
+            artifact = root / "artifact"
+            container = root / "container"
+            artifact.mkdir()
+            container.mkdir()
+            (artifact / "simulator-selection.txt").write_text(
+                "runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\n"
+                f"udid={UDID}\ninitial_state=Shutdown\n")
+            leaf = container / CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+            if app_entries:
+                leaf.mkdir(parents=True)
+                for name, raw in app_entries:
+                    (leaf / name).write_bytes(raw)
+            calls = []
+            def fake_run(arguments, **keywords):
+                calls.append((arguments, keywords))
+                return subprocess.CompletedProcess(
+                    arguments, returncode,
+                    stdout=(str(container) + "\n") if returncode == 0 else "",
+                    stderr="" if returncode == 0 else "missing app\n")
+            e = {"CI_SIMULATOR_UDID": UDID, "CI_NATIVE_CREATED_SIMULATOR_UDID": UDID}
+            status = CI.collect_simulator_diagnostic_transport(
+                ROOT, artifact, e, interrupted=interrupted, run=fake_run,
+                monotonic=monotonic, read_chunk=read_chunk)
+            self.assertEqual(calls[0][0], [
+                "xcrun", "simctl", "get_app_container", UDID,
+                CI.SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID, "data"])
+            self.assertEqual(calls[0][1]["timeout"], 2)
+            self.assertEqual(CI.read_json(
+                artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS), status)
+            return artifact, status
+
+        stream = "00000000-0000-0000-0000-000000000041"
+        raw = diagnostic_frame(stream, 1, diagnostic_line())
+        with tempfile.TemporaryDirectory(prefix="v23-collect-available-") as directory:
+            artifact, status = fixture(directory, [(stream + ".jsonl", raw)])
+            self.assertEqual(status["status"], "AVAILABLE")
+            self.assertEqual(status["fileCount"], 1)
+            self.assertEqual((artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY /
+                              (stream + ".jsonl")).read_bytes(), raw)
+        with tempfile.TemporaryDirectory(prefix="v23-collect-zero-") as directory:
+            _, status = fixture(directory)
+            self.assertEqual(status["status"], "ZERO_USE")
+        with tempfile.TemporaryDirectory(prefix="v23-collect-empty-original-") as directory:
+            artifact, status = fixture(directory, [(stream + ".jsonl", b"")])
+            self.assertEqual(status["status"], "AVAILABLE")
+            self.assertEqual(status["files"], [{
+                "name": stream + ".jsonl", "bytes": 0, "sha256": CI.sha256(b""),
+            }])
+            self.assertEqual((artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY /
+                              (stream + ".jsonl")).read_bytes(), b"")
+            (artifact / "test-smoke.log").write_text("ordinary\n")
+            record = CI.admission(selection(), environment(), HEAD, "worker")
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            evidence = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(evidence["transport"]["files"], status["files"])
+            self.assertEqual(evidence["parseStatus"], "INVALID")
+            self.assertFalse(evidence["zeroUseObserved"])
+        with tempfile.TemporaryDirectory(prefix="v23-collect-interrupted-") as directory:
+            _, status = fixture(directory, [(stream + ".jsonl", raw)], interrupted=True)
+            self.assertEqual(status["status"], "INTERRUPTED")
+            self.assertEqual(status["error"], "native command interrupted")
+            self.assertEqual(status["files"][0]["sha256"], CI.sha256(raw))
+        with tempfile.TemporaryDirectory(prefix="v23-collect-unavailable-") as directory:
+            _, status = fixture(directory, returncode=1)
+            self.assertEqual(status["status"], "UNAVAILABLE")
+        with tempfile.TemporaryDirectory(prefix="v23-collect-unsafe-") as directory:
+            _, status = fixture(directory, [("foreign.txt", b"raw original\n")])
+            self.assertEqual(status["status"], "UNSAFE")
+        with tempfile.TemporaryDirectory(prefix="v23-collect-deadline-") as directory:
+            clock = [0.0]
+            def monotonic():
+                return clock[0]
+            def slow_read(source, count):
+                chunk = source.read(count)
+                clock[0] = CI.SIMULATOR_DIAGNOSTIC_WORK_SECONDS + 0.01
+                return chunk
+            artifact, status = fixture(
+                directory, [(stream + ".jsonl", raw)], monotonic=monotonic,
+                read_chunk=slow_read)
+            self.assertEqual(status["status"], "UNSAFE")
+            self.assertIn("deadline", status["error"])
+            self.assertEqual(status["files"], [{
+                "name": stream + ".jsonl", "bytes": len(raw), "sha256": CI.sha256(raw),
+            }])
+            self.assertLess(clock[0], CI.SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS)
+            self.assertFalse((artifact / (CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS + ".next")).exists())
+
+    def test_smoke_collection_trap_preserves_all_three_native_command_vectors(self):
+        source = (ROOT / "Scripts/test-smoke.sh").read_text()
+        commands = [source.split("  shared_unit_command=(\n", 1)[1].split("  )\n", 1)[0]]
+        commands.extend(re.findall(
+            r"(?m)^  xcodebuild \\\n(?:    .*\n)+?    test-without-building\n", source))
+        self.assertEqual(len(commands), 3)
+        self.assertEqual(
+            hashlib.sha256("\0".join(commands).encode()).hexdigest().upper(),
+            "22FA5DD494FE30A677F8F013F829919EDC4D0F67BC2223C1DEA9DA76C56FAB9C",
+        )
+        trap = 'if [ "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = "v23.integration.current-native.v1" ]; then'
+        self.assertEqual(source.count(trap), 1)
+        self.assertLess(source.index(trap), source.index("only_testing_args=()"))
+        self.assertEqual(source.count('python3 Scripts/v23-native-ci.py "${collector_args[@]}"'), 1)
 
     def test_forged_admission_promotion_is_rejected_even_with_exact_policy_and_log(self):
         for field, promoted in (("diagnosticOnly", False), ("providerQualification", True),
@@ -616,6 +876,7 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
             with tempfile.TemporaryDirectory(prefix="v23-simulator-promotion-") as directory:
                 artifact = Path(directory)
                 (artifact / "test-smoke.log").write_bytes(b"no diagnostic use\n")
+                diagnostic_transport(artifact)
                 with self.subTest(field=field), self.assertRaisesRegex(ValueError, "admission classification"):
                     CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
 
@@ -624,10 +885,12 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="v23-simulator-unsafe-") as directory:
             artifact = Path(directory)
             (artifact / "test-smoke.log").mkdir()
-            with self.assertRaisesRegex(ValueError, "log parse"):
+            diagnostic_transport(artifact)
+            with self.assertRaisesRegex(ValueError, "transport parse"):
                 CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
             retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
             self.assertEqual(retained["testLog"]["availability"], "UNSAFE")
+            self.assertEqual(retained["transport"]["status"], "ZERO_USE")
             self.assertEqual(retained["parseStatus"], "INVALID")
             self.assertFalse(retained["zeroUseObserved"])
 
@@ -642,6 +905,12 @@ class CheckpointTests(unittest.TestCase):
         diagnostic = self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT
         if diagnostic.exists():
             diagnostic.unlink()
+        transport_status = self.path / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS
+        if transport_status.exists():
+            transport_status.unlink()
+        transport_directory = self.path / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY
+        if transport_directory.exists():
+            shutil.rmtree(transport_directory)
         e, s = environment(provider, tier), selection(tier)
         record = CI.admission(s, e, HEAD, "worker")
         (self.path / "native-admission.json").write_bytes(CI.canonical(record))
@@ -657,6 +926,7 @@ class CheckpointTests(unittest.TestCase):
             f"runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n")
         (self.path / "unit-test-results.json").write_bytes(CI.canonical(native_tree()))
         (self.path / "test-smoke.log").write_text("native fixture completed\n", encoding="utf-8")
+        diagnostic_transport(self.path)
         if tier != "N8":
             (self.path / "ui-test-results.json").write_bytes(CI.canonical(native_tree(UI, True)))
             (self.path / "ui-final.png").write_bytes(b"\x89PNG\r\n\x1a\nprotocol-fixture-only")
@@ -708,14 +978,19 @@ class CheckpointTests(unittest.TestCase):
         retained = CI.read_json(self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
         self.assertEqual(retained["testLog"],
                          {"availability": "UNAVAILABLE", "path": "test-smoke.log", "sha256": None})
-        self.assertEqual(retained["parseStatus"], "UNAVAILABLE")
-        self.assertFalse(retained["zeroUseObserved"])
+        self.assertEqual(retained["parseStatus"], "PASS")
+        self.assertTrue(retained["zeroUseObserved"])
         self.assertEqual(retained["events"], [])
 
     def test_successful_checkpoint_retains_all_ordered_diagnostic_events(self):
         fixture = self.fixture()
-        log = diagnostic_line("database") + diagnostic_line("scratch") + diagnostic_line("database")
-        (self.path / "test-smoke.log").write_text(log, encoding="utf-8")
+        (self.path / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).unlink()
+        diagnostic_transport(self.path, [
+            ("00000000-0000-0000-0000-000000000012", [
+                diagnostic_line("database"), diagnostic_line("scratch"),
+                diagnostic_line("database"),
+            ])
+        ])
         result = self.verify(fixture)
         evidence = result["simulatorFileProtectionDiagnostics"]
         self.assertEqual(CI.read_json(self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT), evidence)

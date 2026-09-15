@@ -3552,7 +3552,11 @@ enum C55PartsStockBackupEnrollmentV1 {
     static let recordsSchemaVersion = 40
     static let durableFamilyCount = C55PartsStockKernelBackupRestoreEnrollmentV1.durableFamilies.count
 
-    static func validate(_ records: V4BackupRecordsV1, workspaceID: WorkspaceID? = nil) throws {
+    static func validate(
+        _ records: V4BackupRecordsV1,
+        workspaceID: WorkspaceID? = nil,
+        importedHistoryFacts: MutationHistoryImportedValidationFactsV1? = nil
+    ) throws {
         guard persistentSchemaVersion == 41, recordsSchemaVersion == 40,
               durableFamilyCount == 7 else { throw PartsStockFailureV1.incompatibleVersion }
         guard records.recordsSchemaVersion >= recordsSchemaVersion else {
@@ -3613,12 +3617,13 @@ enum C55PartsStockBackupEnrollmentV1 {
             throw PartsStockFailureV1.invalidTransition
         }
         guard let history = records.mutationHistory else { throw PartsStockFailureV1.invalidTransition }
-        try validateJournal(snapshot, history: history)
+        try validateJournal(snapshot, history: history, importedHistoryFacts: importedHistoryFacts)
     }
 
     private static func validateJournal(
         _ snapshot: PartsStockBackupSnapshotV1,
-        history: MutationHistorySnapshotV1
+        history: MutationHistorySnapshotV1,
+        importedHistoryFacts: MutationHistoryImportedValidationFactsV1?
     ) throws {
         func isStockKind(_ kind: WorkspaceEntityKindV1) -> Bool {
             switch kind {
@@ -3648,6 +3653,78 @@ enum C55PartsStockBackupEnrollmentV1 {
             return try image.identity
         }
 
+        // Authenticate every original and quarantine before selecting the current
+        // workspace. The transport bytes remain unchanged, including foreign stock.
+        if let importedHistoryFacts {
+            guard importedHistoryFacts.receiptStableKeys(matching: history) != nil else {
+                throw PartsStockFailureV1.invalidTransition
+            }
+        } else {
+            try MutationJournalStoreV1.validateImportedSnapshot(history)
+        }
+        struct DecodedReceipt {
+            let envelope: MutationEnvelopeV1
+            let receipt: MutationReceiptV1
+        }
+        let allDecoded = try history.receipts.map { record in
+            DecodedReceipt(
+                envelope: try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData),
+                receipt: try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            )
+        }
+        let decoded = allDecoded.filter {
+            $0.envelope.workspaceID == snapshot.workspaceID
+        }.sorted {
+            if $0.receipt.expectedRevision.workspaceRevision
+                != $1.receipt.expectedRevision.workspaceRevision {
+                return $0.receipt.expectedRevision.workspaceRevision
+                    < $1.receipt.expectedRevision.workspaceRevision
+            }
+            return $0.receipt.identity.stableKey < $1.receipt.identity.stableKey
+        }
+        let hasForeignOriginals = decoded.count != allDecoded.count
+        let selectedWorkspaceRevision = hasForeignOriginals
+            ? decoded.map { $0.receipt.resultingRevision.workspaceRevision }.max() ?? 0
+            : history.workspaceRevision
+        var selectedStockIdentities = Set<WorkspaceEntityIdentityV1>()
+        let snapshotIdentityGroups: [(WorkspaceEntityKindV1, [UUID])] = [
+            (.localPartDefinition, snapshot.parts.map(\.partID)),
+            (.stockStorageLocation, snapshot.locations.map(\.locationID)),
+            (.stockMovementEvent, snapshot.movements.map(\.movementID)),
+            (.stockUseReceipt, snapshot.uses.map(\.receiptID)),
+            (.stockUseReversalReceipt, snapshot.reversals.map(\.receiptID)),
+            (.stockReturnReceipt, snapshot.returns.map(\.receiptID)),
+            (.stockAbandonment, snapshot.abandonments.map(\.dispositionID)),
+        ]
+        for (kind, ids) in snapshotIdentityGroups {
+            for id in ids {
+                selectedStockIdentities.insert(try WorkspaceEntityIdentityV1(kind: kind, id: id))
+            }
+        }
+        var foreignStockIdentities = Set<WorkspaceEntityIdentityV1>()
+        for value in allDecoded {
+            var identities = Set(stockRevisionMap(value.receipt.expectedRevision).keys)
+            identities.formUnion(stockRevisionMap(value.receipt.resultingRevision).keys)
+            for image in value.receipt.postImages {
+                for identity in [try physicalIdentity(for: image), try image.concurrencyIdentity]
+                    where isStockKind(identity.kind) {
+                    identities.insert(identity)
+                }
+            }
+            if value.envelope.workspaceID == snapshot.workspaceID {
+                selectedStockIdentities.formUnion(identities)
+            } else {
+                foreignStockIdentities.formUnion(identities)
+            }
+        }
+        // Replacement preserves physical stock IDs across original and target
+        // history. Shared IDs still require the complete current-workspace fold;
+        // only identities proven exclusively foreign leave its terminal view.
+        let selectedEntityRevisions = history.entityRevisions.filter {
+            selectedStockIdentities.contains($0.identity)
+                || !foreignStockIdentities.contains($0.identity)
+        }
+
         let partByID = Dictionary(uniqueKeysWithValues: snapshot.parts.map { ($0.partID, $0) })
         let locationByID = Dictionary(uniqueKeysWithValues: snapshot.locations.map {
             ($0.locationID, $0)
@@ -3660,7 +3737,7 @@ enum C55PartsStockBackupEnrollmentV1 {
         var returns: [UUID: StockReturnAgainstUseReceiptV1] = [:]
         var abandonments: [UUID: AbandonUnverifiedStockDispositionV1] = [:]
         var terminalStockRevisions: [WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1] = [:]
-        for value in history.entityRevisions where isStockKind(value.identity.kind) {
+        for value in selectedEntityRevisions where isStockKind(value.identity.kind) {
             guard terminalStockRevisions.updateValue(value, forKey: value.identity) == nil else {
                 throw PartsStockFailureV1.duplicateMutation
             }
@@ -3668,7 +3745,7 @@ enum C55PartsStockBackupEnrollmentV1 {
         var stockState: [WorkspaceEntityIdentityV1: UInt64] = [:]
         var externalPartBaselines: [UUID: LocalPartDefinitionV1] = [:]
         var externalLocationBaselines: [UUID: StockStorageLocationV1] = [:]
-        for value in history.entityRevisions where value.externalProjectionSHA256 != nil {
+        for value in selectedEntityRevisions where value.externalProjectionSHA256 != nil {
             guard isStockKind(value.identity.kind) else { continue }
             guard let digest = value.externalProjectionSHA256,
                   MutationEnvelopeV1.isSHA256(digest) else {
@@ -3749,28 +3826,6 @@ enum C55PartsStockBackupEnrollmentV1 {
             }
         }
 
-        struct DecodedReceipt {
-            let envelope: MutationEnvelopeV1
-            let receipt: MutationReceiptV1
-        }
-        guard history.quarantines.allSatisfy({
-            $0.workspaceID == snapshot.workspaceID
-        }) else {
-            throw PartsStockFailureV1.crossWorkspace
-        }
-        let decoded = try history.receipts.map { record in
-            DecodedReceipt(
-                envelope: try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData),
-                receipt: try MutationReceiptV1.decodeCanonical(from: record.receiptData)
-            )
-        }.sorted {
-            if $0.receipt.expectedRevision.workspaceRevision
-                != $1.receipt.expectedRevision.workspaceRevision {
-                return $0.receipt.expectedRevision.workspaceRevision
-                    < $1.receipt.expectedRevision.workspaceRevision
-            }
-            return $0.receipt.identity.stableKey < $1.receipt.identity.stableKey
-        }
         var priorResultingWorkspaceRevision: UInt64?
         var importedPrefixCutoff: UInt64 = 0
         var sawNonImportedReceipt = false
@@ -3823,7 +3878,7 @@ enum C55PartsStockBackupEnrollmentV1 {
                 }
                 sawNonImportedReceipt = true
             }
-            guard receipt.resultingRevision.workspaceRevision <= history.workspaceRevision else {
+            guard receipt.resultingRevision.workspaceRevision <= selectedWorkspaceRevision else {
                 throw PartsStockFailureV1.invalidTransition
             }
             priorResultingWorkspaceRevision = receipt.resultingRevision.workspaceRevision
@@ -4067,7 +4122,7 @@ enum C55PartsStockBackupEnrollmentV1 {
 
         let derivedTerminalWorkspaceRevision = priorResultingWorkspaceRevision
             ?? importedPrefixCutoff
-        guard derivedTerminalWorkspaceRevision == history.workspaceRevision else {
+        guard derivedTerminalWorkspaceRevision == selectedWorkspaceRevision else {
             throw PartsStockFailureV1.invalidTransition
         }
         for (partID, baseline) in externalPartBaselines {

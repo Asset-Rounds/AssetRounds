@@ -95,8 +95,23 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         let fixture = try RepetitiveCaptureSourcePackageFixture(includeForeignOriginal: true)
         defer { fixture.removePackages() }
 
+        let validated = try fixture.validatedPackage()
+        let encoded = try BackupCanonicalEncoderV1().encodeRecords(validated.records).data
+        let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(decoded).data, encoded)
+        let originalForeign = try XCTUnwrap(validated.records.mutationHistory).receipts.filter {
+            try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).workspaceID
+                != fixture.workspaceID
+        }
+        let decodedForeign = try XCTUnwrap(decoded.mutationHistory).receipts.filter {
+            try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).workspaceID
+                != fixture.workspaceID
+        }
+        XCTAssertFalse(originalForeign.isEmpty)
+        XCTAssertEqual(decodedForeign, originalForeign)
+
         let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: fixture.validatedPackage())
+            sourcePackage: validated)
 
         XCTAssertEqual(reviewed.graphs.count, 1)
         XCTAssertEqual(reviewed.graphs.first?.checkpoints.count, fixture.checkpoints.count)
@@ -108,8 +123,21 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         let configurationClone = try RepetitiveCaptureSourcePackageFixture(
             foreignHistoryOnly: true)
         defer { configurationClone.removePackages() }
+        let foreignOnlyPackage = try configurationClone.validatedPackage()
+        let foreignOnlyBytes = try BackupCanonicalEncoderV1()
+            .encodeRecords(foreignOnlyPackage.records).data
+        let foreignOnlyRoundTrip = try BackupCanonicalDecoderV1()
+            .decodeRecords(foreignOnlyBytes)
+        XCTAssertEqual(
+            try BackupCanonicalEncoderV1().encodeRecords(foreignOnlyRoundTrip).data,
+            foreignOnlyBytes
+        )
+        XCTAssertEqual(
+            foreignOnlyRoundTrip.mutationHistory,
+            foreignOnlyPackage.records.mutationHistory
+        )
         let empty = try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: configurationClone.validatedPackage())
+            sourcePackage: foreignOnlyPackage)
         XCTAssertEqual(empty.sourceWorkspaceID, configurationClone.workspaceID)
         XCTAssertTrue(empty.graphs.isEmpty)
         XCTAssertTrue(empty.requiredHistory.isEmpty)
