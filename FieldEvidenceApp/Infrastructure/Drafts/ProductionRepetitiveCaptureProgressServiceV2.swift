@@ -115,6 +115,15 @@ final class ProductionRepetitiveCaptureProgressServiceV2 {
         }
     }
 
+    /// Reads an original Check Runner ENTRY under this owner's current complete
+    /// history. This grants neither a new Begin nor a child/finalizer effect.
+    func validateHistoricalCheckRunnerSource(_ source: CheckRunnerRoundItemSourceV1,
+        read value: ProductionRepetitiveCaptureReadV2,
+        publishedRelease: InspectionPackageReleaseV1, signPack: SignPack) throws {
+        try validateForPublication(value)
+        try source.validateHistoricalEntry(read: value, publishedRelease: publishedRelease, signPack: signPack)
+    }
+
     /// Source preparation must use the same live session and canonical row
     /// context as this progress owner. It grants no scene publication permission.
     func validateCheckRunnerOwner(writer: WorkspaceWriterV1, modelContext: ModelContext) throws {

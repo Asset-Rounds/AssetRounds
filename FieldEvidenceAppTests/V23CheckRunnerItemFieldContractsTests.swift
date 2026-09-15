@@ -948,12 +948,19 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             XCTAssertThrowsError(try prepared.validateCommitPreparation(pairReadyCheckpointUpdatedAt: boundary))
         }
         var equalTimes = try jsonObject(f.attempt)
-        for key in ["preparedUpdatedAt", "promotionAt", "contentPromotedUpdatedAt", "targetCommittedUpdatedAt",
-                    "draftRetirePendingUpdatedAt", "draftRetiredUpdatedAt", "terminalCheckpointUpdatedAt", "reservationReviewAfter"] {
+        let timeKeys = ["preparedUpdatedAt", "promotionAt", "contentPromotedUpdatedAt", "targetCommittedUpdatedAt",
+                        "draftRetirePendingUpdatedAt", "draftRetiredUpdatedAt", "terminalCheckpointUpdatedAt", "reservationReviewAfter"]
+        for key in timeKeys {
             equalTimes[key] = f.intent.stageCreatedAt.timeIntervalSince1970 * 1_000
         }
         let equalAttempt = try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, equalTimes)
-        XCTAssertEqual(equalAttempt.allocatedIDs, f.attempt.allocatedIDs)
+        var originalFrozenFields = try jsonObject(f.attempt)
+        var recoveredFrozenFields = try jsonObject(equalAttempt)
+        for key in timeKeys {
+            originalFrozenFields.removeValue(forKey: key)
+            recoveredFrozenFields.removeValue(forKey: key)
+        }
+        XCTAssertEqual(try canonical(recoveredFrozenFields), try canonical(originalFrozenFields))
         XCTAssertEqual(equalAttempt.outputKeys, f.attempt.outputKeys)
         XCTAssertEqual(equalAttempt.expectedWorkflowRecordRevision, f.attempt.expectedWorkflowRecordRevision)
         let equalPayload = try photoPayload(f, phase: .preparedCommit(f.pair, equalAttempt))

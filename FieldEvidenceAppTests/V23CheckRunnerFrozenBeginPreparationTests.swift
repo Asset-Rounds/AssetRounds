@@ -31,6 +31,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(decoded, source)
             XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(decoded), bytes)
             try decoded.validate(read: h.read, publishedRelease: h.publishedRelease, signPack: h.signPack)
+            try h.progress.validateHistoricalCheckRunnerSource(decoded, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack)
             XCTAssertEqual(try h.snapshot(), before)
 
             var unknown = try frozenBeginJSONObject(bytes)
@@ -44,7 +46,40 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             var relationship = try frozenBeginJSONObject(bytes)
             relationship["entryProgressCheckpoint"] = relationship["sourceCheckpoint"]
             assertSourceDecodeFails(relationship)
+            let object = try frozenBeginJSONObject(bytes)
+            XCTAssertEqual(try decodeFrozenBeginJSON(CheckRunnerRoundItemSourceV1.self, object: object), source)
+            let substitutions: [(String, String, Any)] = [
+                ("entryProgressCheckpoint", "draftID", beginPreparationUUID(9_801).uuidString.lowercased()),
+                ("entryProgressCheckpoint", "draftRevision", 2),
+                ("entryProgressCheckpoint", "checkpointSHA256", String(repeating: "b", count: 64)),
+                ("entryProgressCheckpoint", "mutationID", beginPreparationUUID(9_802).uuidString.lowercased()),
+                ("sourceCheckpoint", "checkpointSHA256", String(repeating: "c", count: 64)),
+                ("roundAtEntry", "sessionSHA256", String(repeating: "d", count: 64)),
+            ]
+            for (parentKey, field, value) in substitutions {
+                var altered = object
+                var nested = try XCTUnwrap(altered[parentKey] as? [String: Any])
+                nested[field] = value; altered[parentKey] = nested
+                let candidate = try decodeFrozenBeginJSON(CheckRunnerRoundItemSourceV1.self, object: altered)
+                XCTAssertNotEqual(candidate, source)
+                XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(candidate, read: h.read,
+                    publishedRelease: h.publishedRelease, signPack: h.signPack), "\(parentKey).\(field)")
+            }
+            var alteredItems = object
+            for key in ["originalItem", "itemAtEntry"] {
+                var item = try XCTUnwrap(alteredItems[key] as? [String: Any])
+                var selection = try XCTUnwrap(item["selection"] as? [String: Any])
+                selection["labelAtSelection"] = "Rebound historical item"
+                item["selection"] = selection; alteredItems[key] = item
+            }
+            let changedItem = try decodeFrozenBeginJSON(CheckRunnerRoundItemSourceV1.self, object: alteredItems)
+            XCTAssertNotEqual(changedItem, source)
+            XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(changedItem, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack))
+            XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
+                publishedRelease: frozenBeginShippingRelease(stage: .recheck), signPack: h.signPack))
             XCTAssertEqual(try h.snapshot(), before)
+            XCTAssertEqual(h.ids.callCount, idCalls)
         }
     }
 
@@ -223,6 +258,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                                    storedTimeZoneID: "America/New_York") { h in
             let source = try h.captureSource()
             let latest = try h.progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
+            try h.progress.validateHistoricalCheckRunnerSource(source, read: latest,
+                publishedRelease: h.publishedRelease, signPack: h.signPack)
             let next = try h.progress.prepareStep(
                 read: latest, action: .keepOpenAndNext, focus: .facts,
                 completionRecordID: nil, recordedByName: "Advance after frozen entry"
@@ -231,6 +268,11 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             h.read = try h.progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
             let before = try h.snapshot()
             let idCalls = h.ids.callCount
+            try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack)
+            XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: latest,
+                publishedRelease: h.publishedRelease, signPack: h.signPack))
+            XCTAssertThrowsError(try h.captureSource())
             XCTAssertThrowsError(try h.runner.prepareFrozenBegin(
                 source: source, progress: h.progress,
                 publishedRelease: h.publishedRelease, submission: h.validSubmission()
@@ -241,11 +283,14 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
 
         try withFrozenBeginFixture("foreign-owner", entry: .check,
                                    storedTimeZoneID: "America/New_York") { h in
+            let source = try h.captureSource()
             let foreignProgress = try h.coordinator.makeRepetitiveCaptureProgressService(
                 transitions: h.transitions
             )
             let before = try h.snapshot()
             let idCalls = h.ids.callCount
+            XCTAssertThrowsError(try foreignProgress.validateHistoricalCheckRunnerSource(source, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack))
             XCTAssertThrowsError(try h.runner.captureFrozenBeginSource(
                 read: h.read, progress: foreignProgress, itemID: h.itemID,
                 publishedRelease: h.publishedRelease, requestedEntry: .check
@@ -262,6 +307,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertTrue(h.context.hasChanges)
             let before = try h.rowSnapshot()
             let idCalls = h.ids.callCount
+            XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack))
             XCTAssertThrowsError(try h.runner.prepareFrozenBegin(
                 source: source, progress: h.progress,
                 publishedRelease: h.publishedRelease, submission: h.validSubmission()
@@ -291,12 +338,80 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.rowSnapshot(), before)
             try h.closeCoordinator()
+            XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack))
             XCTAssertThrowsError(try h.runner.prepareFrozenBegin(
                 source: source, progress: h.progress,
                 publishedRelease: h.publishedRelease, submission: h.validSubmission()
             ))
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.rowSnapshot(), before)
+        }
+
+        try withFrozenBeginFixture("completed-item-history", entry: .check,
+                                   storedTimeZoneID: "America/New_York") { h in
+            let source = try h.captureSource()
+            let entry = try XCTUnwrap(h.read.chain.nodes.last)
+            let round = h.read.chain.currentRound
+            // This fixture proves journal/source correspondence. Finalization's
+            // completed-record authority is tested by its own target-reader cases.
+            let completion = try RoundItemCompletionReferenceV1(completionID: beginPreparationUUID(9_250),
+                revision: 1, completionSHA256: String(repeating: "a", count: 64))
+            let prepared = try h.transitions.prepareItem(expected: round, itemID: h.itemID,
+                transition: .completeItem, completion: completion, recordedByName: "Complete fixture item")
+            let mutation = try h.transitions.repetitiveCaptureMutation(for: prepared)
+            let anchor = try DraftResumeAnchorV1(sectionID: "facts", selectedStableID: nil)
+            let step = try RepetitiveCaptureProgressStepV2(source: source.sourceCheckpoint,
+                prior: source.entryProgressCheckpoint, priorRoundReceipt: entry.roundReceipt,
+                expectedRound: round, itemID: h.itemID, action: .complete, roundMutation: mutation,
+                requirementFocus: .facts, resumeAnchor: anchor)
+            let checkpoint = try FieldDraftCheckpointV1(draftID: beginPreparationUUID(9_251),
+                workspaceID: h.workspaceID, scope: h.read.chain.sourceCheckpoint.scope,
+                purpose: .repetitiveCapture, codec: RepetitiveCaptureProgressDraftCodecV2.release(),
+                baseCanonicalRevision: round.revision, draftRevision: 1,
+                payloadData: RepetitiveCaptureProgressDraftCodecV2.encode(.progress(step)), stageIDs: [],
+                resumeAnchor: anchor, state: .active, updatedAt: h.clock.millisecondValue,
+                mutationID: .init(rawValue: beginPreparationUUID(9_252)))
+            let adapter = try h.coordinator.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: h.context)
+            _ = try adapter.persistRepetitiveCaptureProgressStep(checkpoint)
+            h.read = try h.progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
+            XCTAssertTrue(try XCTUnwrap(h.read.chain.nodes.last).isPendingRoundEffect)
+            var before = try h.snapshot()
+            let idCalls = h.ids.callCount
+            // The pending later effect does not erase the already receipted ENTRY.
+            try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack)
+            XCTAssertThrowsError(try h.captureSource())
+            XCTAssertEqual(try h.snapshot(), before)
+
+            _ = try h.coordinator.workspaceWriter.commitRoundSession(mutation)
+            h.read = try h.progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
+            XCTAssertEqual(h.read.chain.nodes.last?.step.action, .complete)
+            XCTAssertEqual(h.read.chain.currentRound.items.first?.disposition, .completed)
+            XCTAssertFalse(try XCTUnwrap(h.read.chain.nodes.last).isPendingRoundEffect)
+            before = try h.snapshot()
+            try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack)
+            XCTAssertThrowsError(try h.captureSource())
+            XCTAssertThrowsError(try h.runner.prepareFrozenBegin(source: source, progress: h.progress,
+                publishedRelease: h.publishedRelease, submission: h.validSubmission()))
+            XCTAssertEqual(h.ids.callCount, idCalls)
+            XCTAssertEqual(try h.snapshot(), before)
+
+            let frontier = h.read.chain.currentRound
+            let closed = try RoundSessionV1(workspaceID: h.workspaceID, sessionID: frontier.sessionID,
+                predecessor: frontier, revision: frontier.revision + 1,
+                mutationID: .init(rawValue: beginPreparationUUID(9_253)), state: .completed,
+                transition: .close, items: frontier.items, recordedBy: frontier.recordedBy,
+                recordedAt: frontier.recordedAt)
+            _ = try h.coordinator.workspaceWriter.commitRoundSession(.init(workspaceID: h.workspaceID,
+                expectedRevision: frontier.revision, mutationID: closed.mutationID, session: closed))
+            before = try h.snapshot()
+            XCTAssertThrowsError(try h.progress.read(sourceDraftID: source.sourceCheckpoint.draftID))
+            XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
+                publishedRelease: h.publishedRelease, signPack: h.signPack))
+            XCTAssertEqual(h.ids.callCount, idCalls)
+            XCTAssertEqual(try h.snapshot(), before)
         }
     }
 

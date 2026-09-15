@@ -137,6 +137,53 @@ struct CheckRunnerRoundItemSourceV1: Codable, Equatable, Sendable {
             == FieldDraftCanonicalCodecV1.encode(current) else { throw ScanToWorkFailureV1.stale }
     }
 
+    /// Historical correspondence only. The progress owner must authenticate a
+    /// fresh complete read before publication or any separately authorized effect.
+    /// The live ENTRY initializer above deliberately retains its stricter frontier.
+    func validateHistoricalEntry(read: ProductionRepetitiveCaptureReadV2,
+        publishedRelease: InspectionPackageReleaseV1, signPack: SignPack) throws {
+        try validate()
+        let chain = read.chain
+        try chain.launch.validate()
+        try chain.currentRound.validateIntrinsic()
+        try sourceCheckpoint.validate(source: chain.sourceCheckpoint)
+        let matches = chain.nodes.filter { $0.checkpoint.draftID == entryProgressCheckpoint.draftID }
+        guard matches.count == 1, let entry = matches.first,
+              entry.step.action == .enter, entry.step.itemID == originalItem.itemID,
+              entry.step.navigationItemID == originalItem.itemID,
+              !entry.isPendingRoundEffect else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        try entryProgressCheckpoint.validate(source: entry.checkpoint)
+        try entry.step.source.validate(source: chain.sourceCheckpoint)
+        let round = entry.step.resultingRound
+        try round.validateIntrinsic()
+        guard round.state == .active,
+              round.workspaceID == chain.sourceCheckpoint.workspaceID,
+              round.workspaceID == chain.launch.round.workspaceID,
+              round.workspaceID == chain.currentRound.workspaceID,
+              round.sessionID == chain.launch.round.sessionID,
+              round.sessionID == chain.currentRound.sessionID,
+              try round.reference == roundAtEntry,
+              let original = chain.launch.round.items.first(where: { $0.itemID == originalItem.itemID }),
+              let entered = round.items.first(where: { $0.itemID == originalItem.itemID }),
+              original == originalItem, entered == itemAtEntry else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let reference = try RoundPackageReleaseReferenceV1(publishedRelease)
+        let binding = try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(
+            from: signPack, stage: requestedEntry.stage)
+        guard reference == packageRelease,
+              legacyPackageIdentity == (try PackageReleaseIdentityV1(package: signPack)),
+              reference.packageReleaseID == binding.packageReleaseID,
+              reference.packageID == binding.packageID,
+              reference.packageContentVersion == binding.packageContentVersion,
+              reference.packageSHA256 == binding.packageSHA256,
+              reference.workflowSHA256 == binding.workflowSHA256 else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+    }
+
     static func == (lhs: Self, rhs: Self) -> Bool {
         guard let left = try? FieldDraftCanonicalCodecV1.encode(lhs),
               let right = try? FieldDraftCanonicalCodecV1.encode(rhs) else { return false }
