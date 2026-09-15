@@ -1,0 +1,33 @@
+{
+  "schema": "v23-owner-simulator-file-protection-diagnostic-v1",
+  "policyID": "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915",
+  "ownerRequest": {
+    "verbatim": "Yes I approve that simulator",
+    "receivedAtUTC": "2026-09-15T00:21:32.914391Z",
+    "approvedProposalSHA256": "A19760D20BD0801C8FB400314CF0CB564761D13162DA6FEE19B44D2DE101E6F7"
+  },
+  "scope": "Functional development diagnostics in DEBUG iOS Simulator builds only",
+  "requiredAllowancePredicates": [
+    "Successful request for FileProtectionType.complete on the same pinned owned object",
+    "Fresh volumeSupportsFileProtectionKey exactly false",
+    "Independent fresh readback exactly completeUntilFirstUserAuthentication",
+    "Exact existing backup exclusion, file kind/type, no-link, inode/path and caller authority checks",
+    "Unknown, missing, supported or changed capability, other protection value, setter or authority failure remains denied"
+  ],
+  "requiredEvidenceDisposition": "SIMULATOR_FILE_PROTECTION_UNSUPPORTED",
+  "unsupportedCountsAsPerKindProtectionSuccess": false,
+  "originalFailuresPreserved": true,
+  "supportedCapabilityWeakAndUnknownAttributesRemainRejected": true,
+  "nativeEvidencePolicy": "Any use of this allowance is retained explicitly in each original and is functional diagnostic evidence only; native evidence and admission must fail closed against provider/final-main/release acceptance.",
+  "unchangedBoundaries": [
+    "Physical device and non-DEBUG builds require exact complete protection",
+    "No provider qualification or final-main acceptance from the allowance",
+    "Minimum-runtime and physical verification remain DEFERRED",
+    "Accepted main stays b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+    "No signing/distribution/submission",
+    "Card135 remains owner-only/skipped"
+  ],
+  "providerQualification": false,
+  "acceptance": false,
+  "releaseReady": false
+}

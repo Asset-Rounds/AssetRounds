@@ -75,19 +75,57 @@ def step(source, name):
     return source.split(marker, 1)[1].split("\n      - name:", 1)[0]
 
 
+def diagnostic_line(base_kind="database", **changes):
+    backup, directory = CI.OWNED_FILE_DISPOSITIONS[base_kind]
+    values = {
+        "policyID": CI.SIMULATOR_DIAGNOSTIC_POLICY_ID,
+        "disposition": CI.SIMULATOR_DIAGNOSTIC_DISPOSITION,
+        "kind": base_kind,
+        "request": "complete",
+        "capabilityBefore": "false",
+        "capabilityAfter": "false",
+        "urlProtection": CI.SIMULATOR_FALLBACK_PROTECTION,
+        "fileManagerProtection": CI.SIMULATOR_FALLBACK_PROTECTION,
+        "backupExcluded": str(backup).lower(),
+        "expectsDirectory": str(directory).lower(),
+        "identityUnchanged": "true",
+    }
+    values.update(changes)
+    return CI.SIMULATOR_DIAGNOSTIC_PREFIX + " " + " ".join(
+        key + "=" + values[key] for key in CI.SIMULATOR_DIAGNOSTIC_FIELDS) + "\n"
+
+
 class AdmissionTests(unittest.TestCase):
     def test_both_providers_and_all_supported_tiers_use_same_contract(self):
         for provider in ("github", "bitrise"):
             for tier in CI.TIERS:
                 e, s = environment(provider, tier), selection(tier)
-                for ref in CI.REFS:
-                    e["GITHUB_REF"] = ref
-                    for stage in ("dispatch", "worker"):
-                        with self.subTest(provider=provider, tier=tier, ref=ref, stage=stage):
-                            value = CI.admission(s, e, HEAD, stage)
-                            self.assertEqual(value["contractID"], CI.CONTRACT)
-                            self.assertEqual(value["runnerProvider"], provider)
-                            self.assertEqual(value["head"], HEAD)
+                for stage in ("dispatch", "worker"):
+                    with self.subTest(provider=provider, tier=tier, stage=stage):
+                        value = CI.admission(s, e, HEAD, stage)
+                        self.assertEqual(value["contractID"], CI.CONTRACT)
+                        self.assertEqual(value["runnerProvider"], provider)
+                        self.assertEqual(value["head"], HEAD)
+                        self.assertTrue(value["diagnosticOnly"])
+                        self.assertFalse(value["providerQualification"])
+                        self.assertFalse(value["acceptance"])
+                        self.assertFalse(value["releaseReady"])
+                        self.assertEqual(value["simulatorFileProtectionDiagnosticPolicy"],
+                                         CI.simulator_diagnostic_policy_binding(ROOT))
+
+    def test_allowance_source_rejects_main_caller_policy_and_promotion_inputs(self):
+        for stage in ("dispatch", "worker"):
+            main = environment()
+            main["GITHUB_REF"] = "refs/heads/main"
+            with self.subTest(stage=stage, case="main"), self.assertRaisesRegex(ValueError, "never a main route"):
+                CI.admission(selection(), main, HEAD, stage)
+            for key in ("SIMULATOR_FILE_PROTECTION_POLICY_ID",
+                        "CI_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_ONLY",
+                        "DISPATCH_SIMULATOR_FILE_PROTECTION_ACCEPTANCE"):
+                supplied = environment()
+                supplied[key] = "true"
+                with self.subTest(stage=stage, key=key), self.assertRaisesRegex(ValueError, "caller-supplied"):
+                    CI.admission(selection(), supplied, HEAD, stage)
 
     def test_each_foreign_dispatch_input_is_rejected(self):
         for key in ("SHARED_SHARD", "SHARED_SEGMENT", "SHARED_SOURCE_RUN", "SHARED_SOURCE_MAP", "SMOKE_ID"):
@@ -209,6 +247,162 @@ class ResultTests(unittest.TestCase):
                 CI.executed_methods(tree, [UNIT], "FieldEvidenceAppTests", "Unit test bundle")
 
 
+class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
+    def test_policy_binding_is_derived_from_exact_tracked_policy_and_allowance_source(self):
+        binding = CI.simulator_diagnostic_policy_binding(ROOT)
+        self.assertEqual(binding["policySHA256"], CI.SIMULATOR_DIAGNOSTIC_POLICY_SHA256)
+        self.assertEqual(binding["policyID"], CI.SIMULATOR_DIAGNOSTIC_POLICY_ID)
+        self.assertTrue(binding["diagnosticOnly"])
+        self.assertFalse(binding["countsAsPerKindProtectionSuccess"])
+        self.assertFalse(binding["providerQualification"])
+        self.assertEqual(binding["allowanceSourceSHA256"],
+                         CI.sha256((ROOT / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH).read_bytes()))
+        native_source = (ROOT / "Scripts/v23-native-ci.py").read_text()
+        self.assertEqual(native_source.count(CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH), 1)
+        swift_source = (ROOT / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH).read_text()
+        emission = swift_source.split('let facts = "' + CI.SIMULATOR_DIAGNOSTIC_PREFIX + '"', 1)[1].split(
+            "FileHandle.standardError.write", 1)[0]
+        field_offsets = [emission.index(" " + field + "=") for field in CI.SIMULATOR_DIAGNOSTIC_FIELDS]
+        self.assertEqual(field_offsets, sorted(field_offsets))
+        self.assertNotIn(" path=", emission)
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-policy-") as directory:
+            root = Path(directory)
+            for relative in (CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH):
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, target)
+            self.assertEqual(CI.simulator_diagnostic_policy_binding(root), binding)
+            (root / CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH).write_bytes(b"{}\n")
+            with self.assertRaisesRegex(ValueError, "policy digest"):
+                CI.simulator_diagnostic_policy_binding(root)
+            shutil.copyfile(ROOT / CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH,
+                            root / CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH)
+            source = root / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH
+            source.write_text(source.read_text().replace(CI.SIMULATOR_DIAGNOSTIC_PREFIX, "foreign", 1))
+            with self.assertRaisesRegex(ValueError, "reviewed source digest"):
+                CI.simulator_diagnostic_policy_binding(root)
+            original_source = (ROOT / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH).read_bytes()
+            weakened_source = original_source.replace(b'readback.volumeSupportsProtection == false',
+                                                       b'readback.volumeSupportsProtection != true', 1)
+            self.assertNotEqual(weakened_source, original_source)
+            self.assertIn(CI.SIMULATOR_DIAGNOSTIC_PREFIX.encode(), weakened_source)
+            self.assertIn(b'#if DEBUG && os(iOS) && targetEnvironment(simulator)', weakened_source)
+            source.write_bytes(weakened_source)
+            with self.assertRaisesRegex(ValueError, "reviewed source digest"):
+                CI.simulator_diagnostic_policy_binding(root)
+            source.unlink()
+            with self.assertRaisesRegex(ValueError, "allowance source"):
+                CI.simulator_diagnostic_policy_binding(root)
+
+    def test_closed_owned_kind_dispositions_match_swift_enum_and_policy_switch(self):
+        source = (ROOT / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH).read_text()
+        enum_body = source.split("enum OwnedFileKindV1:", 1)[1].split("\n}", 1)[0]
+        swift_kinds = set(re.findall(r"^\s*case\s+([A-Za-z][A-Za-z0-9]*)\s*$", enum_body, re.MULTILINE))
+        self.assertEqual(set(CI.OWNED_FILE_DISPOSITIONS), swift_kinds)
+        self.assertEqual(len(swift_kinds), 31)
+        for kind in swift_kinds:
+            event = CI.parse_simulator_diagnostic_line(diagnostic_line(kind))
+            self.assertEqual((event["backupExcluded"], event["expectsDirectory"]),
+                             CI.OWNED_FILE_DISPOSITIONS[kind])
+
+    def test_exact_events_retain_order_and_duplicates_without_protection_credit(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-events-") as directory:
+            artifact = Path(directory)
+            lines = [diagnostic_line("database"), diagnostic_line("scratch"),
+                     diagnostic_line("database")]
+            log = "ordinary output\n" + "".join(lines) + "finished\n"
+            (artifact / "test-smoke.log").write_bytes(log.encode("utf-8"))
+            evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+            self.assertIsNone(error)
+            self.assertEqual([item["kind"] for item in evidence["events"]],
+                             ["database", "scratch", "database"])
+            self.assertEqual(evidence["eventCount"], 3)
+            self.assertFalse(evidence["zeroUseObserved"])
+            self.assertFalse(evidence["countsAsPerKindProtectionSuccess"])
+            self.assertEqual(evidence["testLog"]["sha256"], CI.sha256(log.encode()))
+
+    def test_malformed_duplicate_unknown_and_hostile_event_values_fail_closed(self):
+        variants = []
+        for field, value in (
+            ("policyID", "foreign"), ("disposition", "VERIFIED_COMPLETE"),
+            ("kind", "foreignKind"), ("request", "none"),
+            ("capabilityBefore", "true"), ("capabilityAfter", "unknown"),
+            ("urlProtection", "complete"), ("fileManagerProtection", "none"),
+            ("backupExcluded", "true"), ("expectsDirectory", "true"),
+            ("identityUnchanged", "false"),
+        ):
+            variants.append((field, diagnostic_line("database", **{field: value})))
+        valid = diagnostic_line().strip()
+        variants += [
+            ("duplicate", valid + " kind=database\n"),
+            ("missing", valid.rsplit(" ", 1)[0] + "\n"),
+            ("reordered", valid.replace(" policyID=", " PLACEHOLDER=").replace(
+                " disposition=", " policyID=").replace(" PLACEHOLDER=", " disposition=") + "\n"),
+            ("prefixed", "x " + valid + "\n"),
+            ("duplicate-marker", valid + " " + CI.SIMULATOR_DIAGNOSTIC_PREFIX + "\n"),
+        ]
+        for name, line in variants:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                CI.parse_simulator_diagnostic_line(line)
+
+    def test_absent_log_is_unavailable_and_malformed_log_is_persisted_before_failure(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-persist-") as directory:
+            artifact = Path(directory)
+            evidence = CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            self.assertEqual(evidence["testLog"]["availability"], "UNAVAILABLE")
+            self.assertEqual(evidence["parseStatus"], "UNAVAILABLE")
+            self.assertFalse(evidence["zeroUseObserved"])
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-invalid-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text(diagnostic_line(kind="database", capabilityAfter="true"))
+            with self.assertRaisesRegex(ValueError, "log parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(retained["testLog"]["availability"], "AVAILABLE")
+            self.assertEqual(retained["parseStatus"], "INVALID")
+            self.assertEqual(retained["events"], [])
+            self.assertFalse(retained["zeroUseObserved"])
+
+    def test_valid_prefix_events_survive_a_later_malformed_marker(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-partial-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_bytes(
+                (diagnostic_line("database") + diagnostic_line("scratch", identityUnchanged="false")).encode())
+            with self.assertRaisesRegex(ValueError, "log parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(retained["parseStatus"], "INVALID")
+            self.assertEqual([event["kind"] for event in retained["events"]], ["database"])
+            self.assertEqual(retained["eventCount"], 1)
+            self.assertFalse(retained["zeroUseObserved"])
+
+    def test_forged_admission_promotion_is_rejected_even_with_exact_policy_and_log(self):
+        for field, promoted in (("diagnosticOnly", False), ("providerQualification", True),
+                                ("acceptance", True), ("releaseReady", True)):
+            record = CI.admission(selection(), environment(), HEAD, "worker")
+            record[field] = promoted
+            with tempfile.TemporaryDirectory(prefix="v23-simulator-promotion-") as directory:
+                artifact = Path(directory)
+                (artifact / "test-smoke.log").write_bytes(b"no diagnostic use\n")
+                with self.subTest(field=field), self.assertRaisesRegex(ValueError, "admission classification"):
+                    CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+
+    def test_unsafe_log_shape_is_persisted_as_invalid_before_rejection(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-unsafe-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").mkdir()
+            with self.assertRaisesRegex(ValueError, "log parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(retained["testLog"]["availability"], "UNSAFE")
+            self.assertEqual(retained["parseStatus"], "INVALID")
+            self.assertFalse(retained["zeroUseObserved"])
+
+
 class CheckpointTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="v23-native-protocol-")
@@ -216,6 +410,9 @@ class CheckpointTests(unittest.TestCase):
         self.path = Path(self.temp.name)
 
     def fixture(self, provider="github", tier="N8"):
+        diagnostic = self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT
+        if diagnostic.exists():
+            diagnostic.unlink()
         e, s = environment(provider, tier), selection(tier)
         record = CI.admission(s, e, HEAD, "worker")
         (self.path / "native-admission.json").write_bytes(CI.canonical(record))
@@ -230,6 +427,7 @@ class CheckpointTests(unittest.TestCase):
         (self.path / "simulator-selection.txt").write_text(
             f"runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n")
         (self.path / "unit-test-results.json").write_bytes(CI.canonical(native_tree()))
+        (self.path / "test-smoke.log").write_text("native fixture completed\n", encoding="utf-8")
         if tier != "N8":
             (self.path / "ui-test-results.json").write_bytes(CI.canonical(native_tree(UI, True)))
             (self.path / "ui-final.png").write_bytes(b"\x89PNG\r\n\x1a\nprotocol-fixture-only")
@@ -249,6 +447,10 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual(result["executedUnitMethods"], [UNIT])
         self.assertFalse(result["wholeAppAcceptance"])
         self.assertFalse(result["humanReviewComplete"])
+        self.assertTrue(result["diagnosticOnly"])
+        self.assertFalse(result["providerQualification"])
+        self.assertEqual(result["simulatorFileProtectionDiagnostics"]["events"], [])
+        self.assertTrue(result["simulatorFileProtectionDiagnostics"]["zeroUseObserved"])
 
     def test_cached_bitrise_ui_checkpoint_requires_actual_tests(self):
         result = self.verify(self.fixture("bitrise", "P12"))
@@ -263,6 +465,38 @@ class CheckpointTests(unittest.TestCase):
         fixture[0]["NATIVE_PRIOR_JOB_STATUS"] = "failure"
         with self.assertRaises(ValueError):
             self.verify(fixture)
+        retained = CI.read_json(self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+        self.assertEqual(retained["testLog"]["availability"], "AVAILABLE")
+        self.assertEqual(retained["parseStatus"], "PASS")
+        self.assertTrue(retained["zeroUseObserved"])
+
+    def test_failure_before_units_retains_explicitly_unavailable_log_not_zero_use(self):
+        fixture = self.fixture()
+        fixture[0]["NATIVE_PRIOR_JOB_STATUS"] = "failure"
+        (self.path / "test-smoke.log").unlink()
+        with self.assertRaisesRegex(ValueError, "earlier job failure"):
+            self.verify(fixture)
+        retained = CI.read_json(self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+        self.assertEqual(retained["testLog"],
+                         {"availability": "UNAVAILABLE", "path": "test-smoke.log", "sha256": None})
+        self.assertEqual(retained["parseStatus"], "UNAVAILABLE")
+        self.assertFalse(retained["zeroUseObserved"])
+        self.assertEqual(retained["events"], [])
+
+    def test_successful_checkpoint_retains_all_ordered_diagnostic_events(self):
+        fixture = self.fixture()
+        log = diagnostic_line("database") + diagnostic_line("scratch") + diagnostic_line("database")
+        (self.path / "test-smoke.log").write_text(log, encoding="utf-8")
+        result = self.verify(fixture)
+        evidence = result["simulatorFileProtectionDiagnostics"]
+        self.assertEqual(CI.read_json(self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT), evidence)
+        self.assertEqual([event["kind"] for event in evidence["events"]],
+                         ["database", "scratch", "database"])
+        self.assertEqual(evidence["eventCount"], 3)
+        self.assertFalse(evidence["zeroUseObserved"])
+        self.assertFalse(result["providerQualification"])
+        self.assertFalse(result["acceptance"])
+        self.assertFalse(result["releaseReady"])
 
     def test_substituted_admission_sdk_runtime_or_simulator_fails(self):
         for name, replacement in (("native-admission.json", "{}"),
@@ -311,7 +545,90 @@ class CheckpointTests(unittest.TestCase):
 
 
 class WorkflowWiringTests(unittest.TestCase):
+    def diagnostic_authority_append(self):
+        return ['FieldEvidenceAppTests/V9_02FileAuthorityTests/' + name for name in [
+            'testSimulatorDiagnosticClassifierRejectsEveryNonexactFact',
+            'testSimulatorUnsupportedFileAndDirectoryRemainExplicitAcrossVerification',
+            'testOwnedFileKindMatrixIsClosedAndHasExplicitDispositions',
+            'testTemporaryFileSystemAppliesAndReadsBackEveryOwnedKind',
+            'testRelativePathTraversalAndLinkEscapesFailClosed',
+            'testHardLinkedOwnedFileIsRejectedBeforeAttributeMutation',
+            'testMissingInvalidTypeAndAuthorityOrderingFailClosed',
+            'testJournalMediaReportAndDiagnosticsKindsUseTargetedPolicy',
+            'testOptionalSQLiteSidecarVerificationRejectsDanglingLinks',
+        ]]
+
+    def prior_d97bc81_pool(self, default):
+        self.assertEqual(len(default['unitTestSelectors']), 618)
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:590]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '81E40479A5C2F9CEDE66FA167BA542EA375AB317CD5F1C7A6B7D688153978603')
+        return prior
+
+    def prior_d97bc81_map(self, mapping):
+        prior = copy.deepcopy(mapping)
+        self.assertEqual(len(prior['groups']), 32)
+        self.assertEqual(prior['groups'].pop(), {
+            'id': 'c36-source-graph', 'classes': ['V23RepetitiveCaptureSourcePackageTests',
+                'V23RepetitiveCaptureSourceGraphReviewTests'], 'methodCount': 19})
+        catalog = next(g for g in prior['groups'] if g['id'] == 'catalog-file-authority')
+        self.assertEqual(catalog['methodCount'], 26)
+        catalog['methodCount'] = 17
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '0D2DC926B9DFA19394FC55039E22FEAA4576A1899CD36F658150572071555838')
+        return prior
+
+    def prior_d97bc81_workflow(self, workflow):
+        self.assertEqual(workflow.count('          - c36-source-graph\n'), 1)
+        prior = workflow.replace('          - c36-source-graph\n', '').replace(
+            'all 618 methods across 32 bounded groups', 'all 590 methods across 31 bounded groups')
+        self.assertEqual(CI.sha256(prior.encode()), '198044448ECA007328282839AB8F8BE5B9EFAB7CED7C2171F49D24897B6C8ED3')
+        return prior
+
+    def test_simulator_and_source_graph_admission_retains_exact_prior_and_full_pairs(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        prior, prior_map = self.prior_d97bc81_pool(default), self.prior_d97bc81_map(mapping)
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        self.prior_d97bc81_workflow(workflow)
+        authority, graphs = self.diagnostic_authority_append(), []
+        for klass, count in [('V23RepetitiveCaptureSourcePackageTests', 4),
+                             ('V23RepetitiveCaptureSourceGraphReviewTests', 15)]:
+            source = (ROOT / 'FieldEvidenceAppTests' / (klass + '.swift')).read_text(encoding='utf-8')
+            names = re.findall(r'^    func (test\w+)\(', source, re.M)
+            self.assertEqual(len(names), count)
+            self.assertEqual(len(names), len(set(names)))
+            graphs.extend('FieldEvidenceAppTests/' + klass + '/' + name for name in names)
+        self.assertEqual(default['unitTestSelectors'], prior['unitTestSelectors'] + authority + graphs)
+        for selector in authority + graphs:
+            bundle, klass, method = selector.split('/')
+            source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'\bfunc\s+' + re.escape(method) + r'\s*\(', source)), 1)
+        choice_field = workflow.split('      native_selection_id:\n', 1)[1].split(
+            '      s10_4_minimum_core_smoke_id:', 1)[0]
+        choices = [line.strip()[2:] for line in choice_field.splitlines() if line.startswith('          - ')]
+        self.assertEqual(choices, [mapping['defaultSelectionID']] + [g['id'] for g in mapping['groups']])
+        for group in mapping['groups']:
+            selected = CI.resolve_selection(default, mapping, group['id'])
+            if group['id'] == 'c36-source-graph':
+                expected = {**prior, 'unitTestSelectors': graphs}
+            else:
+                expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+                if group['id'] == 'catalog-file-authority': expected['unitTestSelectors'].extend(authority)
+            self.assertEqual(selected, expected)
+        for mutate in (
+            lambda m: m['groups'].pop(),
+            lambda m: m['groups'].append(copy.deepcopy(m['groups'][-1])),
+            lambda m: m['groups'][-1].update(id='foreign-graph'),
+            lambda m: m['groups'][-1].update(methodCount=18),
+            lambda m: m['groups'][-1]['classes'].reverse(),
+            lambda m: m['groups'][-2].update(methodCount=29),
+        ):
+            hostile = copy.deepcopy(mapping); mutate(hostile)
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'c36-source-graph')
+
     def prior_aa94e7f_pool(self, default):
+        if len(default['unitTestSelectors']) == 618:
+            default = self.prior_d97bc81_pool(default)
         self.assertEqual(len(default["unitTestSelectors"]), 590)
         prior = copy.deepcopy(default)
         prior["unitTestSelectors"] = prior["unitTestSelectors"][:560]
@@ -319,6 +636,8 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def prior_aa94e7f_map(self, mapping):
+        if len(mapping['groups']) == 32:
+            mapping = self.prior_d97bc81_map(mapping)
         prior = copy.deepcopy(mapping)
         self.assertEqual(len(prior["groups"]), 31)
         self.assertEqual(prior["groups"][-1], {'id': 'c36-restore-correspondence', 'classes': ['V23CheckRunnerRestoreCorrespondenceTests', 'V23CheckRunnerRestoreBeginCorrespondenceTests', 'V23CheckRunnerBeginReceiptReferenceTests'], 'methodCount': 30})
@@ -327,13 +646,13 @@ class WorkflowWiringTests(unittest.TestCase):
         return prior
 
     def test_c36_correspondence_admission_preserves_prior_pool_map_and_shared_chain_pairs(self):
-        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        workflow = self.prior_d97bc81_workflow((ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8'))
         self.assertEqual(workflow.count('          - c36-restore-correspondence\n'), 1)
         prior_workflow = workflow.replace('          - c36-restore-correspondence\n', '').replace(
             'all 590 methods across 31 bounded groups', 'all 426 methods across 30 bounded groups')
         self.assertEqual(CI.sha256(prior_workflow.encode()), '468D3740CDAF6866AD8214C0D5C21BB61EE2AEA25EE0FA01DB63AE9A5DD1F846')
-        default = CI.read_json(ROOT / "Scripts/ci-selection.json")
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default = self.prior_d97bc81_pool(CI.read_json(ROOT / "Scripts/ci-selection.json"))
+        mapping = self.prior_d97bc81_map(CI.read_json(ROOT / CI.SELECTION_MAP_PATH))
         choice_field = workflow.split('      native_selection_id:\n', 1)[1].split(
             '      s10_4_minimum_core_smoke_id:', 1)[0]
         choices = [line.strip()[2:] for line in choice_field.splitlines()
@@ -1007,7 +1326,8 @@ class WorkflowWiringTests(unittest.TestCase):
                          CI.sha256((ROOT / relative).read_bytes()))
         with tempfile.TemporaryDirectory(prefix="v23-native-source-binding-") as directory:
             root = Path(directory)
-            for path in (*CI.PROTOCOL_PATHS, "Scripts/ci-selection.json", CI.SELECTION_MAP_PATH):
+            for path in (*CI.PROTOCOL_PATHS, "Scripts/ci-selection.json", CI.SELECTION_MAP_PATH,
+                         CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH):
                 target = root / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / path, target)
@@ -1200,7 +1520,7 @@ class WorkflowWiringTests(unittest.TestCase):
         unknown["groups"][0]["classes"].append("UnselectedAuthorityTests")
         with self.assertRaisesRegex(ValueError, "selection group contains unselected class"):
             CI.resolve_selection(default, unknown, "notification-controls")
-        workflow = (ROOT / ".github/workflows/ios-ci.yml").read_text()
+        workflow = self.prior_d97bc81_workflow((ROOT / ".github/workflows/ios-ci.yml").read_text(encoding='utf-8'))
         field = workflow.split("      native_selection_id:\n", 1)[1].split(
             "      s10_4_minimum_core_smoke_id:", 1)[0]
         choices = [line.strip()[2:] for line in field.splitlines()

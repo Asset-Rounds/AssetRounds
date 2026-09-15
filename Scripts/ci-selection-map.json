@@ -46,7 +46,7 @@
         "V9_13PersistentKindLifecycleCoverageTests",
         "V9_17KernelPersistenceTests"
       ],
-      "methodCount": 17
+      "methodCount": 26
     },
     {
       "id": "operational-diagnostics",
@@ -297,6 +297,14 @@
         "V23CheckRunnerBeginReceiptReferenceTests"
       ],
       "methodCount": 30
+    },
+    {
+      "id": "c36-source-graph",
+      "classes": [
+        "V23RepetitiveCaptureSourcePackageTests",
+        "V23RepetitiveCaptureSourceGraphReviewTests"
+      ],
+      "methodCount": 19
     }
   ]
 }

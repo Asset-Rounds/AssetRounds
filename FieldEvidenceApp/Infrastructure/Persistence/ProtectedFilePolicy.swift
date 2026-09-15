@@ -97,6 +97,11 @@ enum ProtectedFilePolicyError: Error, Equatable, Sendable {
     case protectedDataUnavailable
 }
 
+enum ProtectedFileVerificationDispositionV1: Equatable, Sendable {
+    case verifiedComplete
+    case simulatorFileProtectionUnsupported
+}
+
 /// Applies the one protection/backup policy used by all persistence writers.
 ///
 /// The URL operations are deliberately paired with a caller-supplied
@@ -207,15 +212,29 @@ enum ProtectedFilePolicyV1 {
         }
     }
 
+    @discardableResult
     static func applyAndVerify(
         _ kind: OwnedFileKindV1,
         at url: URL,
         authorityCheck: () throws -> Void = {}
-    ) throws {
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        let result = try applyAndVerifyResult(kind, at: url, authorityCheck: authorityCheck)
+        emitVerificationDisposition(result, kind: kind)
+        return result
+    }
+
+    private static func applyAndVerifyResult(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        authorityCheck: () throws -> Void
+    ) throws -> ProtectedFileVerificationDispositionV1 {
         let disposition = disposition(for: kind)
         try authorityCheck()
         let before = try pin(kind, at: url, disposition: disposition)
 
+        #if DEBUG && os(iOS) && targetEnvironment(simulator)
+        let beforeRequest = independentProtectionReadback(at: url)
+        #endif
         #if DEBUG
         var afterProtection: DirectoryProtectionReadback?
         var afterBackup: DirectoryProtectionReadback?
@@ -249,7 +268,23 @@ enum ProtectedFilePolicyV1 {
         guard before == after else {
             throw ProtectedFilePolicyError.identityChanged
         }
-        #if DEBUG
+        let result: ProtectedFileVerificationDispositionV1
+        #if DEBUG && os(iOS) && targetEnvironment(simulator)
+        do {
+            result = try verifySimulatorResourceValues(kind, at: url, disposition: disposition,
+                identity: before, successfulRequestReadback: beforeRequest)
+        } catch {
+            if (error as? ProtectedFilePolicyError) == .resourceValueMismatch {
+                emitDirectoryProtectionReadback(kind: kind, at: url,
+                    phase: "afterProtection", readback: afterProtection)
+                emitDirectoryProtectionReadback(kind: kind, at: url,
+                    phase: "afterBackup", readback: afterBackup)
+                emitDirectoryProtectionReadback(kind: kind, at: url,
+                    phase: "finalMismatch", readback: independentProtectionReadback(at: url))
+            }
+            throw error
+        }
+        #elseif DEBUG
         do {
             try verifyResourceValues(at: url, disposition: disposition)
         } catch {
@@ -263,18 +298,22 @@ enum ProtectedFilePolicyV1 {
             }
             throw error
         }
+        result = .verifiedComplete
         #else
         try verifyResourceValues(at: url, disposition: disposition)
+        result = .verifiedComplete
         #endif
         try authorityCheck()
+        return result
     }
 
+    @discardableResult
     static func applyAndVerify(
         _ kind: OwnedFileKindV1,
         relativePath: String,
         within rootURL: URL,
         authorityCheck: @escaping () throws -> Void = {}
-    ) throws {
+    ) throws -> ProtectedFileVerificationDispositionV1 {
         guard !relativePath.isEmpty,
               !relativePath.hasPrefix("/"),
               !relativePath.hasPrefix("\\"),
@@ -319,7 +358,7 @@ enum ProtectedFilePolicyV1 {
                 throw ProtectedFilePolicyError.identityChanged
             }
         }
-        try applyAndVerify(
+        let result = try applyAndVerifyResult(
             kind,
             at: target,
             authorityCheck: guardedAuthorityCheck
@@ -333,15 +372,34 @@ enum ProtectedFilePolicyV1 {
         guard before == after else {
             throw ProtectedFilePolicyError.identityChanged
         }
+        emitVerificationDisposition(result, kind: kind)
+        return result
     }
 
+    @discardableResult
     static func verify(
         _ kind: OwnedFileKindV1,
         at url: URL
-    ) throws {
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        let result = try verifyResult(kind, at: url)
+        emitVerificationDisposition(result, kind: kind)
+        return result
+    }
+
+    private static func verifyResult(
+        _ kind: OwnedFileKindV1,
+        at url: URL
+    ) throws -> ProtectedFileVerificationDispositionV1 {
         let disposition = disposition(for: kind)
+        #if DEBUG && os(iOS) && targetEnvironment(simulator)
+        let before = try pin(kind, at: url, disposition: disposition)
+        return try verifySimulatorResourceValues(kind, at: url, disposition: disposition,
+            identity: before, successfulRequestReadback: nil)
+        #else
         _ = try pin(kind, at: url, disposition: disposition)
         try verifyResourceValues(at: url, disposition: disposition)
+        return .verifiedComplete
+        #endif
     }
 
     static func verifyIfPresent(
@@ -382,7 +440,7 @@ enum ProtectedFilePolicyV1 {
             target: target,
             leafDisposition: disposition(for: kind)
         )
-        try verify(kind, at: target)
+        let result = try verifyResult(kind, at: target)
         let after = try captureOwnedPath(
             kind,
             root: rootURL.standardizedFileURL,
@@ -393,6 +451,7 @@ enum ProtectedFilePolicyV1 {
             throw ProtectedFilePolicyError.identityChanged
         }
         try authorityCheck()
+        emitVerificationDisposition(result, kind: kind)
     }
 
     private struct LeafIdentity: Equatable {
@@ -624,8 +683,98 @@ enum ProtectedFilePolicyV1 {
         }
     }
 
+    private static func emitVerificationDisposition(
+        _ result: ProtectedFileVerificationDispositionV1,
+        kind: OwnedFileKindV1
+    ) {
+        #if DEBUG && os(iOS) && targetEnvironment(simulator)
+        guard result == .simulatorFileProtectionUnsupported else { return }
+        let disposition = disposition(for: kind)
+        let facts = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V1"
+            + " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
+            + " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
+            + " kind=\(kind.rawValue) request=complete capabilityBefore=false capabilityAfter=false"
+            + " urlProtection=completeUntilFirstUserAuthentication"
+            + " fileManagerProtection=completeUntilFirstUserAuthentication"
+            + " backupExcluded=\(disposition.isExcludedFromBackup)"
+            + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n"
+        FileHandle.standardError.write(Data(facts.utf8))
+        #endif
+    }
+
+    #if DEBUG && os(iOS) && targetEnvironment(simulator)
+    /// A per-call diagnostic proof. No remembered path or inode can authorize a later call.
+    private static func verifySimulatorResourceValues(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        disposition: OwnedFileProtectionDispositionV1,
+        identity: LeafIdentity,
+        successfulRequestReadback: DirectoryProtectionReadback?
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        do {
+            try verifyResourceValues(at: url, disposition: disposition)
+            guard try pin(kind, at: url, disposition: disposition) == identity else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            return .verifiedComplete
+        } catch let error as ProtectedFilePolicyError where error == .resourceValueMismatch {
+            // Only this exact mismatch can enter the separate diagnostic predicate.
+        }
+
+        let before: DirectoryProtectionReadback
+        if let successfulRequestReadback {
+            // The apply operation already made its one complete request and repaired backup policy.
+            before = successfulRequestReadback
+        } else {
+            before = independentProtectionReadback(at: url)
+            guard simulatorReadbackIsExactFallback(before, disposition: disposition) else {
+                throw ProtectedFilePolicyError.resourceValueMismatch
+            }
+            guard try pin(kind, at: url, disposition: disposition) == identity else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            do {
+                try (url as NSURL).setResourceValue(URLFileProtection.complete, forKey: .fileProtectionKey)
+            } catch {
+                throw mapWriteError(error)
+            }
+        }
+        let after = independentProtectionReadback(at: url)
+        let identityUnchanged = try pin(kind, at: url, disposition: disposition) == identity
+        guard identityUnchanged else { throw ProtectedFilePolicyError.identityChanged }
+        guard simulatorDiagnosticAllows(
+            capabilityBefore: before.volumeSupportsProtection,
+            after: after, disposition: disposition,
+            successfulCompleteRequest: true, identityUnchanged: identityUnchanged
+        ) else { throw ProtectedFilePolicyError.resourceValueMismatch }
+        return .simulatorFileProtectionUnsupported
+    }
+
+    static func simulatorDiagnosticAllows(
+        capabilityBefore: Bool?,
+        after: DirectoryProtectionReadback,
+        disposition: OwnedFileProtectionDispositionV1,
+        successfulCompleteRequest: Bool,
+        identityUnchanged: Bool
+    ) -> Bool {
+        successfulCompleteRequest && identityUnchanged && capabilityBefore == false
+            && simulatorReadbackIsExactFallback(after, disposition: disposition)
+    }
+
+    static func simulatorReadbackIsExactFallback(
+        _ readback: DirectoryProtectionReadback,
+        disposition: OwnedFileProtectionDispositionV1
+    ) -> Bool {
+        readback.volumeSupportsProtection == false
+            && readback.urlProtection == "completeUntilFirstUserAuthentication"
+            && readback.fileManagerProtection == "completeUntilFirstUserAuthentication"
+            && readback.backupExcluded == disposition.isExcludedFromBackup
+            && readback.isDirectory == disposition.expectsDirectory
+    }
+    #endif
+
     #if DEBUG
-    private struct DirectoryProtectionReadback {
+    struct DirectoryProtectionReadback {
         let urlProtection: String
         let fileManagerProtection: String
         let backupExcluded: Bool?

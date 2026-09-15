@@ -1,0 +1,1091 @@
+import Foundation
+import XCTest
+
+@testable import FieldEvidenceApp
+
+final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
+    func testOrdinaryDirectoryPackageIsValidatedAndBoundToExactCanonicalMembers() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture()
+        defer { fixture.removePackages() }
+
+        let package = try fixture.validatedPackage()
+
+        XCTAssertEqual(package.source.workspaceID, fixture.workspaceID.rawValue)
+        XCTAssertEqual(package.source.persistentSchemaVersion, 45)
+        XCTAssertEqual(package.source.recordsSchemaVersion, 44)
+        XCTAssertEqual(package.records.roundSessions, fixture.rounds)
+        XCTAssertEqual(package.records.fieldDrafts.count, fixture.checkpoints.count)
+        XCTAssertEqual(package.records.mutationHistory, fixture.history)
+        XCTAssertEqual(package.manifestJSONSHA256,
+                       KernelCanonicalHashV1.sha256(try fixture.memberData("manifest.json")))
+        XCTAssertEqual(package.recordsJSONSHA256,
+                       KernelCanonicalHashV1.sha256(try fixture.memberData("records.json")))
+    }
+
+    func testPackageCapabilityRejectsTamperedRecordsAndMissingRequiredSourceAuthority() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture()
+        defer { fixture.removePackages() }
+
+        let tampered = try fixture.package(named: "tampered")
+        var bytes = try Data(contentsOf: tampered.appendingPathComponent("records.json"))
+        bytes.append(0x20)
+        try bytes.write(to: tampered.appendingPathComponent("records.json"), options: .atomic)
+        XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+            stagedPackageURL: tampered, using: BackupPackageValidatorV1()))
+
+        let missingWorkspace = try fixture.package(named: "missing-workspace") { object in
+            object["workspaceID"] = NSNull()
+        }
+        XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+            stagedPackageURL: missingWorkspace, using: BackupPackageValidatorV1()))
+
+        let missingHistory = try fixture.package(named: "missing-history",
+                                                 recordsMutation: { object in
+            object["mutationHistory"] = NSNull()
+        })
+        XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+            stagedPackageURL: missingHistory, using: BackupPackageValidatorV1()))
+    }
+
+    func testActualFactoryRejectsNoncanonicalTruncatedMemberDescriptorAndSchemaDrift() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture()
+        defer { fixture.removePackages() }
+        let validator = BackupPackageValidatorV1()
+
+        let noncanonical = try fixture.package(named: "noncanonical-manifest")
+        var manifestBytes = try Data(contentsOf: noncanonical.appendingPathComponent("manifest.json"))
+        manifestBytes.append(0x20)
+        try manifestBytes.write(to: noncanonical.appendingPathComponent("manifest.json"),
+                                options: .atomic)
+
+        let truncated = try fixture.package(named: "truncated-records")
+        var recordsBytes = try Data(contentsOf: truncated.appendingPathComponent("records.json"))
+        recordsBytes.removeLast()
+        try recordsBytes.write(to: truncated.appendingPathComponent("records.json"), options: .atomic)
+
+        let staleSize = try fixture.package(named: "stale-size")
+        try fixture.mutateManifestJSON(at: staleSize) { object in
+            var entries = try XCTUnwrap(object["entries"] as? [[String: Any]])
+            entries[0]["byteCount"] = (try XCTUnwrap(entries[0]["byteCount"] as? NSNumber)).intValue + 1
+            object["entries"] = entries
+            object["declaredPayloadByteCount"] = entries[0]["byteCount"]
+        }
+
+        let staleHash = try fixture.package(named: "stale-hash")
+        try fixture.mutateManifestJSON(at: staleHash) { object in
+            var entries = try XCTUnwrap(object["entries"] as? [[String: Any]])
+            entries[0]["sha256"] = String(repeating: "f", count: 64)
+            object["entries"] = entries
+        }
+
+        let schemaDrift = try fixture.package(named: "schema-drift")
+        try fixture.mutateManifestJSON(at: schemaDrift) { object in
+            var source = try XCTUnwrap(object["source"] as? [String: Any])
+            source["persistentSchemaVersion"] = 44
+            object["source"] = source
+        }
+
+        let missingMember = try fixture.package(named: "missing-records")
+        try FileManager.default.removeItem(at: missingMember.appendingPathComponent("records.json"))
+        let extraMember = try fixture.package(named: "extra-member")
+        try Data("not declared".utf8).write(
+            to: extraMember.appendingPathComponent("extra.bin"), options: .atomic)
+
+        for package in [noncanonical, truncated, staleSize, staleHash, schemaDrift,
+                        missingMember, extraMember] {
+            XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+                stagedPackageURL: package, using: validator), package.lastPathComponent)
+        }
+    }
+
+    func testActualFactoryPropagatesCancellationWithoutPublishingCapability() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture()
+        defer { fixture.removePackages() }
+        let package = try fixture.package(named: "cancelled")
+        var checkpoints = 0
+        let cancellation = StreamingArchiveCancellationV1 {
+            checkpoints += 1
+            throw StreamingArchiveFailureV1.cancelled
+        }
+
+        XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+            stagedPackageURL: package, using: BackupPackageValidatorV1(),
+            cancellation: cancellation)) {
+            XCTAssertEqual($0 as? StreamingArchiveFailureV1, .cancelled)
+        }
+        XCTAssertEqual(checkpoints, 1)
+    }
+}
+
+/// Shared by the package and graph tests. It creates an ordinary staged
+/// `.fieldrecordbackup` directory and never constructs the private capability.
+final class RepetitiveCaptureSourcePackageFixture {
+    static let date = Date(timeIntervalSince1970: 1_788_134_400)
+
+    let root: URL
+    let workspaceID: WorkspaceID
+    let rounds: [RoundSessionV1]
+    let checkpoints: [FieldDraftCheckpointV1]
+    let history: MutationHistorySnapshotV1
+
+    private let source: V4BackupSourceV1
+    private let records: V4BackupRecordsV1
+    private let fileManager = FileManager.default
+
+    init(discardSource: Bool = false, includeForeignOriginal: Bool = false,
+         laterActiveSource: Bool = false, discardPendingSource: Bool = false,
+         laterRoundAfterDisposition: Bool = false,
+         secondSameScopeGraph: Bool = false,
+         secondGraphIsHistorical: Bool = false,
+         addBranch: Bool = false, addOrphan: Bool = false,
+         addAfterPending: Bool = false,
+         includeUnrelatedHistory: Bool = false,
+         semanticRequiredPair: Bool = false,
+         extraCurrentV2Row: Bool = false,
+         directDiscardedSource: Bool = false,
+         staleExtraDiscardReceipt: Bool = false,
+         foreignHistoryOnly: Bool = false,
+         boundaryItemCount: Int? = nil) throws {
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("v23-c36-source-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        workspaceID = WorkspaceID(rawValue: Self.id(1))
+        let graph: GraphValues
+        if foreignHistoryOnly {
+            guard !discardSource, !includeForeignOriginal, !laterActiveSource,
+                  !discardPendingSource, !laterRoundAfterDisposition,
+                  !secondSameScopeGraph, !secondGraphIsHistorical,
+                  !addBranch, !addOrphan, !addAfterPending,
+                  !includeUnrelatedHistory, !semanticRequiredPair,
+                  !extraCurrentV2Row, !directDiscardedSource,
+                  !staleExtraDiscardReceipt, boundaryItemCount == nil else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let foreign = try Self.makeGraph(
+                workspaceID: WorkspaceID(rawValue: Self.id(9_000)), discardSource: false,
+                laterActiveSource: false, discardPendingSource: false,
+                laterRoundAfterDisposition: false, secondSameScopeGraph: false,
+                secondGraphIsHistorical: false, addBranch: false, addOrphan: false,
+                addAfterPending: false, includeUnrelatedHistory: false,
+                semanticRequiredPair: true, extraCurrentV2Row: false,
+                directDiscardedSource: false, staleExtraDiscardReceipt: false)
+            graph = .init(rounds: [], checkpoints: [], history: foreign.history,
+                          additionalRows: [])
+        } else if let boundaryItemCount {
+            guard !discardSource, !includeForeignOriginal, !laterActiveSource,
+                  !discardPendingSource, !laterRoundAfterDisposition,
+                  !secondSameScopeGraph, !secondGraphIsHistorical,
+                  !addBranch, !addOrphan, !addAfterPending,
+                  !includeUnrelatedHistory, !semanticRequiredPair,
+                  !extraCurrentV2Row, !directDiscardedSource,
+                  !staleExtraDiscardReceipt else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            graph = try Self.makeBoundaryGraph(
+                workspaceID: workspaceID, itemCount: boundaryItemCount)
+        } else {
+            graph = try Self.makeGraph(
+                workspaceID: workspaceID, discardSource: discardSource,
+                laterActiveSource: laterActiveSource,
+                discardPendingSource: discardPendingSource,
+                laterRoundAfterDisposition: laterRoundAfterDisposition,
+                secondSameScopeGraph: secondSameScopeGraph,
+                secondGraphIsHistorical: secondGraphIsHistorical,
+                addBranch: addBranch, addOrphan: addOrphan,
+                addAfterPending: addAfterPending,
+                includeUnrelatedHistory: includeUnrelatedHistory,
+                semanticRequiredPair: semanticRequiredPair,
+                extraCurrentV2Row: extraCurrentV2Row,
+                directDiscardedSource: directDiscardedSource,
+                staleExtraDiscardReceipt: staleExtraDiscardReceipt)
+        }
+        rounds = graph.rounds
+        checkpoints = graph.checkpoints
+        if includeForeignOriginal {
+            let foreign = try Self.makeGraph(
+                workspaceID: WorkspaceID(rawValue: Self.id(9_000)), discardSource: false,
+                laterActiveSource: false, discardPendingSource: false,
+                laterRoundAfterDisposition: false, secondSameScopeGraph: false,
+                secondGraphIsHistorical: false, addBranch: false,
+                addOrphan: false, addAfterPending: false,
+                includeUnrelatedHistory: false, semanticRequiredPair: true,
+                extraCurrentV2Row: false, directDiscardedSource: false,
+                staleExtraDiscardReceipt: false)
+            history = try Self.combining(graph.history, foreign.history)
+        } else {
+            history = graph.history
+        }
+        source = V4BackupSourceV1(
+            appBuild: "c36-tests", appVersion: "23", persistentSchemaVersion: 45,
+            replicaID: Self.id(2), recordsSchemaVersion: 44,
+            sourceGenerationID: Self.id(3), workspaceID: workspaceID.rawValue)
+        records = V4BackupRecordsV1(
+            fieldDrafts: try (checkpoints.map(Self.row) + graph.additionalRows)
+                .sorted(by: Self.rowLess),
+            assets: [], deletionLedger: .empty, evidenceFiles: [], issues: [],
+            mutationHistory: history, packets: [], recordsSchemaVersion: 44,
+            reports: [], sites: [], workflowRecords: [],
+            roundSessions: rounds)
+    }
+
+    func validatedPackage(recordsMutation: ((inout [String: Any]) throws -> Void)? = nil)
+        throws -> ValidatedRepetitiveCaptureSourcePackageV2 {
+        let value = try package(named: UUID().uuidString, recordsMutation: recordsMutation)
+        return try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+            stagedPackageURL: value, using: BackupPackageValidatorV1())
+    }
+
+    func package(named name: String,
+                 sourceMutation: ((inout [String: Any]) throws -> Void)? = nil,
+                 recordsMutation: ((inout [String: Any]) throws -> Void)? = nil) throws -> URL {
+        let directory = root.appendingPathComponent("\(name).fieldrecordbackup", isDirectory: true)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        var recordsObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: try BackupCanonicalEncoderV1().encodeRecords(records).data) as? [String: Any])
+        try recordsMutation?(&recordsObject)
+        let mutatedRecordsData = try JSONSerialization.data(withJSONObject: recordsObject,
+            options: [.sortedKeys, .withoutEscapingSlashes])
+        let decodedRecords = try BackupCanonicalDecoderV1().decodeRecords(mutatedRecordsData)
+        let recordsData = try BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data
+        try recordsData.write(to: directory.appendingPathComponent("records.json"), options: .atomic)
+
+        var sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: try JSONEncoder.canonicalV1.encode(source)) as? [String: Any])
+        try sourceMutation?(&sourceObject)
+        let sourceData = try JSONSerialization.data(withJSONObject: sourceObject, options: [.sortedKeys])
+        let decodedSource = try JSONDecoder.canonicalV1.decode(V4BackupSourceV1.self, from: sourceData)
+        let entry = V4BackupEntryV1(byteCount: recordsData.count, mimeType: "application/json",
+                                    path: "records.json",
+                                    sha256: KernelCanonicalHashV1.sha256(recordsData))
+        let manifest = V4BackupManifestV1(
+            backupSchemaVersion: 4, consumedEvaluationRootIDs: [],
+            declaredPayloadByteCount: recordsData.count, entries: [entry],
+            exportedAt: Self.date, packs: [], source: decodedSource)
+        try BackupCanonicalEncoderV1().encodeManifest(manifest).data.write(
+            to: directory.appendingPathComponent("manifest.json"), options: .atomic)
+        return directory
+    }
+
+    func package(named name: String,
+                 _ sourceMutation: (inout [String: Any]) throws -> Void) throws -> URL {
+        try package(named: name, sourceMutation: sourceMutation)
+    }
+
+    func memberData(_ name: String) throws -> Data {
+        let directories = try fileManager.contentsOfDirectory(at: root,
+            includingPropertiesForKeys: nil).filter { $0.pathExtension == "fieldrecordbackup" }
+        let directory = try XCTUnwrap(directories.last)
+        return try Data(contentsOf: directory.appendingPathComponent(name))
+    }
+
+    func roundJSONObject(_ round: RoundSessionV1) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder.canonicalV1.encode(round)) as? [String: Any])
+    }
+
+    func mutateManifestJSON(at package: URL,
+                            _ mutation: (inout [String: Any]) throws -> Void) throws {
+        let url = package.appendingPathComponent("manifest.json")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: url)) as? [String: Any])
+        try mutation(&object)
+        try JSONSerialization.data(withJSONObject: object,
+            options: [.sortedKeys, .withoutEscapingSlashes]).write(to: url, options: .atomic)
+    }
+
+    func removePackages() { try? fileManager.removeItem(at: root) }
+
+    private struct GraphValues {
+        let rounds: [RoundSessionV1]
+        let checkpoints: [FieldDraftCheckpointV1]
+        let history: MutationHistorySnapshotV1
+        let additionalRows: [V16BackupFieldDraftRecordV1]
+    }
+
+    private struct Event {
+        let envelope: MutationEnvelopeV1
+        let receipt: MutationReceiptV1
+        let reversalBasisData: Data?
+        let semanticReversalData: Data?
+    }
+
+    private static func makeGraph(
+        workspaceID: WorkspaceID,
+        discardSource: Bool,
+        laterActiveSource: Bool,
+        discardPendingSource: Bool,
+        laterRoundAfterDisposition: Bool,
+        secondSameScopeGraph: Bool,
+        secondGraphIsHistorical: Bool,
+        addBranch: Bool,
+        addOrphan: Bool,
+        addAfterPending: Bool,
+        includeUnrelatedHistory: Bool,
+        semanticRequiredPair: Bool,
+        extraCurrentV2Row: Bool,
+        directDiscardedSource: Bool,
+        staleExtraDiscardReceipt: Bool
+    ) throws
+        -> GraphValues {
+        guard [discardSource, laterActiveSource, discardPendingSource, directDiscardedSource]
+            .filter({ $0 }).count <= 1,
+              !laterRoundAfterDisposition || discardSource,
+              !staleExtraDiscardReceipt || discardSource,
+              !secondGraphIsHistorical || secondSameScopeGraph else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let actor = try actor(workspaceID)
+        let package = try RoundPackageReleaseReferenceV1(
+            packageReleaseID: String(repeating: "a", count: 64), packageID: "c36-source",
+            packageContentVersion: 1, packageSHA256: String(repeating: "a", count: 64),
+            workflowSHA256: String(repeating: "b", count: 64))
+        let items = try (0..<2).map { index in
+            try RoundItemV1(itemID: id(20 + index), order: index,
+                selection: .init(assetID: id(30 + index), siteID: id(40 + index),
+                                 labelAtSelection: "Asset \(index)"),
+                requirement: .init(packageRelease: package, requiredContent: []))
+        }
+        let draft = try RoundSessionV1(workspaceID: workspaceID, sessionID: id(10), revision: 1,
+            mutationID: .init(rawValue: id(100)), state: .draft, transition: .create,
+            items: items, recordedBy: actor, recordedAt: date)
+        let active = try RoundSessionV1(workspaceID: workspaceID, sessionID: draft.sessionID,
+            predecessor: draft, revision: 2, mutationID: .init(rawValue: id(101)),
+            state: .active, transition: .start, items: items,
+            recordedBy: actor, recordedAt: date.addingTimeInterval(1))
+        var visitedItems = items
+        visitedItems[0] = try RoundItemV1(itemID: items[0].itemID, order: 0,
+            selection: items[0].selection, requirement: items[0].requirement,
+            disposition: .visited,
+            visit: .init(visitedAt: date.addingTimeInterval(2), recordedBy: actor))
+        let visited = try RoundSessionV1(workspaceID: workspaceID, sessionID: draft.sessionID,
+            predecessor: active, revision: 3, mutationID: .init(rawValue: id(102)),
+            state: .active, transition: .visitItem, transitionItemID: items[0].itemID,
+            items: visitedItems, recordedBy: actor, recordedAt: date.addingTimeInterval(2))
+        let pendingVisit = try RoundSessionV1(workspaceID: workspaceID, sessionID: draft.sessionID,
+            predecessor: visited, revision: 4, mutationID: .init(rawValue: id(103)),
+            state: .active, transition: .visitItem, transitionItemID: items[1].itemID,
+            items: try visiting(items: visitedItems, index: 1, actor: actor),
+            recordedBy: actor, recordedAt: date.addingTimeInterval(3))
+        let roundMutations = try [draft, active, visited].map {
+            try RoundSessionMutationV1(workspaceID: workspaceID,
+                expectedRevision: $0.revision - 1, mutationID: $0.mutationID, session: $0)
+        }
+
+        let readiness = try readiness(round: active)
+        let launch = try RepetitiveCaptureLaunchSourceV2(planID: id(11), round: active,
+            readiness: active.items.map { try .init(manifest: readiness, assetID: $0.selection.assetID) })
+        let scope = try RepetitiveCaptureDraftCodecV1.scope(planID: id(11), round: active.reference)
+        let sourceCheckpoint = try checkpoint(id: 200, workspaceID: workspaceID, scope: scope,
+            payload: .source(launch), anchor: .init(sectionID: "facts",
+                selectedStableID: items[0].selection.assetID.uuidString.lowercased()))
+        let firstMutation = roundMutations[2]
+        let firstStep = try RepetitiveCaptureProgressStepV2(
+            source: .init(source: sourceCheckpoint), prior: nil, priorRoundReceipt: nil,
+            expectedRound: active, itemID: items[0].itemID, action: .enter,
+            roundMutation: firstMutation, requirementFocus: .facts,
+            resumeAnchor: .init(sectionID: "facts",
+                selectedStableID: items[0].selection.assetID.uuidString.lowercased()))
+        let first = try checkpoint(id: 201, workspaceID: workspaceID, scope: scope,
+            payload: .progress(firstStep), anchor: firstStep.resumeAnchor)
+        let secondSource: FieldDraftCheckpointV1?
+        let secondFirst: FieldDraftCheckpointV1?
+        if secondSameScopeGraph {
+            let source = try checkpoint(id: 500, workspaceID: workspaceID, scope: scope,
+                payload: .source(launch), anchor: sourceCheckpoint.resumeAnchor)
+            let step = try RepetitiveCaptureProgressStepV2(
+                source: .init(source: source), prior: nil, priorRoundReceipt: nil,
+                expectedRound: active, itemID: items[0].itemID, action: .enter,
+                roundMutation: firstMutation, requirementFocus: .facts,
+                resumeAnchor: firstStep.resumeAnchor)
+            secondSource = source
+            secondFirst = try checkpoint(id: 501, workspaceID: workspaceID, scope: scope,
+                payload: .progress(step), anchor: step.resumeAnchor)
+        } else {
+            secondSource = nil
+            secondFirst = nil
+        }
+
+        var builder = HistoryBuilder(workspaceID: workspaceID)
+        try builder.append(.applyRoundSession(roundMutations[0]))
+        try builder.append(.applyRoundSession(roundMutations[1]))
+        if semanticRequiredPair {
+            _ = try builder.appendSemanticReversalPair(
+                target: .applyFieldDraft(fieldMutation(sourceCheckpoint)),
+                reversal: .applyFieldDraft(fieldMutation(first)))
+        } else {
+            try builder.append(.applyFieldDraft(fieldMutation(sourceCheckpoint)))
+            try builder.append(.applyFieldDraft(fieldMutation(first)))
+        }
+        if let secondSource, let secondFirst {
+            try builder.append(.applyFieldDraft(fieldMutation(secondSource)))
+            try builder.append(.applyFieldDraft(fieldMutation(secondFirst)))
+        }
+        let visitReceipt = try builder.append(.applyRoundSession(roundMutations[2])).receipt
+        let typedVisitReceipt = try RoundSessionMutationReceiptV1(
+            mutation: firstMutation, mutationReceipt: visitReceipt)
+        let keepStep = try RepetitiveCaptureProgressStepV2(
+            source: .init(source: sourceCheckpoint), prior: .init(source: first),
+            priorRoundReceipt: typedVisitReceipt, expectedRound: visited,
+            itemID: items[0].itemID, action: .keepOpenAndNext, roundMutation: nil,
+            requirementFocus: .facts, resumeAnchor: .init(sectionID: "facts",
+                selectedStableID: items[1].selection.assetID.uuidString.lowercased()))
+        let keep = try checkpoint(id: 202, workspaceID: workspaceID, scope: scope,
+            payload: .progress(keepStep), anchor: keepStep.resumeAnchor)
+        try builder.append(.applyFieldDraft(fieldMutation(keep)))
+        let pendingMutation = try RoundSessionMutationV1(workspaceID: workspaceID,
+            expectedRevision: 3, mutationID: pendingVisit.mutationID, session: pendingVisit)
+        let pendingStep = try RepetitiveCaptureProgressStepV2(
+            source: .init(source: sourceCheckpoint), prior: .init(source: keep),
+            priorRoundReceipt: nil, expectedRound: visited, itemID: items[1].itemID,
+            action: .enter, roundMutation: pendingMutation, requirementFocus: .facts,
+            resumeAnchor: .init(sectionID: "facts",
+                selectedStableID: items[1].selection.assetID.uuidString.lowercased()))
+        let pending = try checkpoint(id: 203, workspaceID: workspaceID, scope: scope,
+            payload: .progress(pendingStep), anchor: pendingStep.resumeAnchor)
+        try builder.append(.applyFieldDraft(fieldMutation(pending)))
+        var currentCheckpoints = [sourceCheckpoint, first, keep, pending]
+        if let secondSource, let secondFirst {
+            currentCheckpoints += [secondSource, secondFirst]
+        }
+        if extraCurrentV2Row {
+            let extra = try checkpoint(
+                id: 590, workspaceID: workspaceID, scope: scope,
+                payload: .source(launch), anchor: sourceCheckpoint.resumeAnchor)
+            currentCheckpoints.append(extra)
+        }
+        if addBranch {
+            let step = try RepetitiveCaptureProgressStepV2(
+                source: .init(source: sourceCheckpoint), prior: .init(source: first),
+                priorRoundReceipt: typedVisitReceipt, expectedRound: visited,
+                itemID: items[0].itemID, action: .keepOpenAndNext,
+                roundMutation: nil, requirementFocus: .facts,
+                resumeAnchor: keepStep.resumeAnchor)
+            let branch = try checkpoint(id: 600, workspaceID: workspaceID, scope: scope,
+                payload: .progress(step), anchor: step.resumeAnchor)
+            try builder.append(.applyFieldDraft(fieldMutation(branch)))
+            currentCheckpoints.append(branch)
+        }
+        if addOrphan {
+            let absentSource = try checkpoint(id: 610, workspaceID: workspaceID, scope: scope,
+                payload: .source(launch), anchor: sourceCheckpoint.resumeAnchor)
+            let step = try RepetitiveCaptureProgressStepV2(
+                source: .init(source: absentSource), prior: nil, priorRoundReceipt: nil,
+                expectedRound: active, itemID: items[0].itemID, action: .enter,
+                roundMutation: firstMutation, requirementFocus: .facts,
+                resumeAnchor: firstStep.resumeAnchor)
+            let orphan = try checkpoint(id: 611, workspaceID: workspaceID, scope: scope,
+                payload: .progress(step), anchor: step.resumeAnchor)
+            try builder.append(.applyFieldDraft(fieldMutation(orphan)))
+            currentCheckpoints.append(orphan)
+        }
+        if addAfterPending {
+            var receiptBuilder = HistoryBuilder(workspaceID: workspaceID)
+            let receipt = try receiptBuilder.append(
+                .applyRoundSession(pendingMutation)).receipt
+            let typed = try RoundSessionMutationReceiptV1(
+                mutation: pendingMutation, mutationReceipt: receipt)
+            let step = try RepetitiveCaptureProgressStepV2(
+                source: .init(source: sourceCheckpoint), prior: .init(source: pending),
+                priorRoundReceipt: typed, expectedRound: pendingVisit,
+                itemID: items[1].itemID, action: .keepOpenAndNext,
+                roundMutation: nil, requirementFocus: .facts,
+                resumeAnchor: .init(sectionID: "facts", selectedStableID: nil))
+            let after = try checkpoint(id: 620, workspaceID: workspaceID, scope: scope,
+                payload: .progress(step), anchor: step.resumeAnchor)
+            try builder.append(.applyFieldDraft(fieldMutation(after)))
+            currentCheckpoints.append(after)
+        }
+        var additionalRows: [V16BackupFieldDraftRecordV1] = []
+        if includeUnrelatedHistory {
+            let fixture = try C36FieldDraftTestSupportV1.makeFixture(seed: 880_000)
+            let unrelated = try FieldDraftCheckpointV1(
+                draftID: id(880), workspaceID: workspaceID,
+                scope: fixture.scope, purpose: .inspectionReview, codec: fixture.codec,
+                baseCanonicalRevision: 0, draftRevision: 1,
+                payloadData: fixture.payload, stageIDs: [], resumeAnchor: fixture.anchor,
+                state: .active, updatedAt: date, mutationID: .init(rawValue: id(881)))
+            let compensating = try FieldDraftCheckpointV1(
+                draftID: id(882), workspaceID: workspaceID,
+                scope: fixture.scope, purpose: .inspectionReview, codec: fixture.codec,
+                baseCanonicalRevision: 0, draftRevision: 1,
+                payloadData: fixture.payload, stageIDs: [], resumeAnchor: fixture.anchor,
+                state: .active, updatedAt: date, mutationID: .init(rawValue: id(883)))
+            _ = try builder.appendSemanticReversalPair(
+                target: .applyFieldDraft(fieldMutation(unrelated)),
+                reversal: .applyFieldDraft(fieldMutation(compensating)))
+            additionalRows += [try row(unrelated), try row(compensating)]
+        }
+        if laterActiveSource {
+            let changed = try revisedActiveSource(
+                sourceCheckpoint, round: active, revision: 2, mutationSeed: 400)
+            let mutation = try FieldDraftMutationV1(
+                workspaceID: workspaceID, expectedRevision: 1,
+                expectedBaseCanonicalRevision: 0, mutationID: changed.mutationID,
+                postImage: .reviseCheckpoint(changed))
+            try builder.append(.applyFieldDraft(mutation))
+            currentCheckpoints[0] = changed
+        } else if discardPendingSource {
+            let discardPending = try revisedCheckpoint(
+                sourceCheckpoint, revision: 2, state: .discardPending,
+                mutationID: .init(rawValue: id(400)), payloadData: sourceCheckpoint.payloadData)
+            let mutation = try FieldDraftMutationV1(
+                workspaceID: workspaceID, expectedRevision: 1,
+                expectedBaseCanonicalRevision: 0, mutationID: discardPending.mutationID,
+                postImage: .reviseCheckpoint(discardPending))
+            try builder.append(.applyFieldDraft(mutation))
+            currentCheckpoints[0] = discardPending
+        } else if discardSource {
+            let discardPending = try FieldDraftCheckpointV1(
+                draftID: sourceCheckpoint.draftID, workspaceID: workspaceID,
+                scope: sourceCheckpoint.scope, purpose: sourceCheckpoint.purpose,
+                codec: sourceCheckpoint.codec, baseCanonicalRevision: 0, draftRevision: 2,
+                payloadData: sourceCheckpoint.payloadData, stageIDs: [],
+                resumeAnchor: sourceCheckpoint.resumeAnchor, state: .discardPending,
+                updatedAt: date.addingTimeInterval(10), mutationID: .init(rawValue: id(400)))
+            let pendingDiscardMutation = try FieldDraftMutationV1(
+                workspaceID: workspaceID, expectedRevision: 1,
+                expectedBaseCanonicalRevision: 0, mutationID: discardPending.mutationID,
+                postImage: .reviseCheckpoint(discardPending))
+            try builder.append(.applyFieldDraft(pendingDiscardMutation))
+            let plan = try DraftDiscardPlanV1(
+                planID: id(401), workspaceID: workspaceID,
+                draftID: sourceCheckpoint.draftID, expectedDraftRevision: 2,
+                nonemptyPayload: true, stageIDs: [], reservationIDs: [],
+                estimatedBytes: Int64(sourceCheckpoint.payloadData.count))
+            let terminalMutationID = try MutationIDV1(rawValue: id(402))
+            let receipt = try DraftDiscardReceiptV1(
+                receiptID: id(403), workspaceID: workspaceID,
+                draftID: sourceCheckpoint.draftID, planSHA256: plan.planSHA256,
+                disposedStageIDs: [], quarantinedReservationIDs: [],
+                discardedAt: date.addingTimeInterval(11), mutationID: terminalMutationID)
+            let discarded = try FieldDraftCheckpointV1(
+                draftID: sourceCheckpoint.draftID, workspaceID: workspaceID,
+                scope: sourceCheckpoint.scope, purpose: sourceCheckpoint.purpose,
+                codec: sourceCheckpoint.codec, baseCanonicalRevision: 0, draftRevision: 3,
+                payloadData: sourceCheckpoint.payloadData, stageIDs: [],
+                resumeAnchor: sourceCheckpoint.resumeAnchor, state: .discarded,
+                lastDurableMutationID: terminalMutationID,
+                lastReceiptSHA256: receipt.receiptSHA256,
+                updatedAt: date.addingTimeInterval(11), mutationID: terminalMutationID)
+            let bundle = try DraftDiscardTerminalBundleV1(
+                discardedCheckpoint: discarded, receipt: receipt)
+            let terminal = try FieldDraftMutationV1(
+                workspaceID: workspaceID, expectedRevision: 2,
+                expectedBaseCanonicalRevision: 0, mutationID: terminalMutationID,
+                postImage: .applyDiscardTerminal(bundle))
+            try builder.append(.applyFieldDraft(terminal))
+            currentCheckpoints[0] = discarded
+            additionalRows = [.init(kind: .discardReceipt, id: receipt.receiptID,
+                workspaceID: workspaceID.rawValue, revision: receipt.revision,
+                canonicalData: try FieldDraftCanonicalCodecV1.encode(receipt))]
+            if staleExtraDiscardReceipt {
+                let stale = try DraftDiscardReceiptV1(
+                    receiptID: id(404), workspaceID: workspaceID,
+                    draftID: sourceCheckpoint.draftID,
+                    planSHA256: String(repeating: "e", count: 64),
+                    disposedStageIDs: [], quarantinedReservationIDs: [],
+                    discardedAt: date.addingTimeInterval(9),
+                    mutationID: .init(rawValue: id(405)))
+                additionalRows.append(.init(
+                    kind: .discardReceipt, id: stale.receiptID,
+                    workspaceID: workspaceID.rawValue, revision: stale.revision,
+                    canonicalData: try FieldDraftCanonicalCodecV1.encode(stale)))
+            }
+        } else if directDiscardedSource {
+            let mutationID = try MutationIDV1(rawValue: id(410))
+            let direct = try FieldDraftCheckpointV1(
+                draftID: sourceCheckpoint.draftID, workspaceID: workspaceID,
+                scope: sourceCheckpoint.scope, purpose: sourceCheckpoint.purpose,
+                codec: sourceCheckpoint.codec, baseCanonicalRevision: 0,
+                draftRevision: 2, payloadData: sourceCheckpoint.payloadData,
+                stageIDs: [], resumeAnchor: sourceCheckpoint.resumeAnchor,
+                state: .discarded, lastDurableMutationID: mutationID,
+                lastReceiptSHA256: String(repeating: "d", count: 64),
+                updatedAt: date.addingTimeInterval(10), mutationID: mutationID)
+            let mutation = try FieldDraftMutationV1(
+                workspaceID: workspaceID, expectedRevision: 1,
+                expectedBaseCanonicalRevision: 0, mutationID: mutationID,
+                postImage: .reviseCheckpoint(direct))
+            try builder.append(.applyFieldDraft(mutation))
+            currentCheckpoints[0] = direct
+        }
+        if secondGraphIsHistorical, let original = secondSource {
+            let index = try XCTUnwrap(currentCheckpoints.firstIndex {
+                $0.draftID == original.draftID
+            })
+            let changed = try revisedActiveSource(
+                original, round: active, revision: 2, mutationSeed: 700)
+            let mutation = try FieldDraftMutationV1(
+                workspaceID: workspaceID, expectedRevision: 1,
+                expectedBaseCanonicalRevision: 0, mutationID: changed.mutationID,
+                postImage: .reviseCheckpoint(changed))
+            try builder.append(.applyFieldDraft(mutation))
+            currentCheckpoints[index] = changed
+        }
+        var packageRounds = [draft, active, visited]
+        if laterRoundAfterDisposition {
+            let laterItems = try deferring(items: visited.items, index: 1)
+            let later = try RoundSessionV1(
+                workspaceID: workspaceID, sessionID: visited.sessionID,
+                predecessor: visited, revision: 4, mutationID: .init(rawValue: id(104)),
+                state: .active, transition: .deferItem,
+                transitionItemID: visited.items[1].itemID, items: laterItems,
+                recordedBy: actor, recordedAt: date.addingTimeInterval(20))
+            let mutation = try RoundSessionMutationV1(
+                workspaceID: workspaceID, expectedRevision: 3,
+                mutationID: later.mutationID, session: later)
+            try builder.append(.applyRoundSession(mutation))
+            packageRounds.append(later)
+        }
+        return .init(rounds: packageRounds,
+                     checkpoints: currentCheckpoints, history: try builder.snapshot(),
+                     additionalRows: additionalRows)
+    }
+
+    private static func makeBoundaryGraph(workspaceID: WorkspaceID, itemCount: Int) throws
+        -> GraphValues {
+        guard itemCount == ScanToWorkLimitsV1.maximumSelection else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let actor = try actor(workspaceID)
+        let package = try RoundPackageReleaseReferenceV1(
+            packageReleaseID: String(repeating: "a", count: 64),
+            packageID: "c36-boundary", packageContentVersion: 1,
+            packageSHA256: String(repeating: "a", count: 64),
+            workflowSHA256: String(repeating: "b", count: 64))
+        let items = try (0..<itemCount).map { index in
+            try RoundItemV1(
+                itemID: id(11_000 + index), order: index,
+                selection: .init(assetID: id(12_000 + index),
+                                 siteID: id(13_000 + index),
+                                 labelAtSelection: "Boundary asset \(index)"),
+                requirement: .init(packageRelease: package, requiredContent: []))
+        }
+        let draft = try RoundSessionV1(
+            workspaceID: workspaceID, sessionID: id(10_000), revision: 1,
+            mutationID: .init(rawValue: id(14_001)), state: .draft,
+            transition: .create, items: items, recordedBy: actor, recordedAt: date)
+        let active = try RoundSessionV1(
+            workspaceID: workspaceID, sessionID: draft.sessionID, predecessor: draft,
+            revision: 2, mutationID: .init(rawValue: id(14_002)), state: .active,
+            transition: .start, items: items, recordedBy: actor,
+            recordedAt: date.addingTimeInterval(1))
+        let ready = try readiness(round: active)
+        let planID = id(10_001)
+        let launch = try RepetitiveCaptureLaunchSourceV2(
+            planID: planID, round: active,
+            readiness: active.items.map {
+                try .init(manifest: ready, assetID: $0.selection.assetID)
+            })
+        let scope = try RepetitiveCaptureDraftCodecV1.scope(
+            planID: planID, round: active.reference)
+        let source = try checkpoint(
+            id: 15_000, workspaceID: workspaceID, scope: scope,
+            payload: .source(launch), anchor: .init(
+                sectionID: "facts",
+                selectedStableID: active.items[0].selection.assetID.uuidString.lowercased()))
+        var builder = HistoryBuilder(workspaceID: workspaceID)
+        var rounds = [draft, active]
+        try builder.append(.applyRoundSession(.init(
+            workspaceID: workspaceID, expectedRevision: 0,
+            mutationID: draft.mutationID, session: draft)))
+        try builder.append(.applyRoundSession(.init(
+            workspaceID: workspaceID, expectedRevision: 1,
+            mutationID: active.mutationID, session: active)))
+        try builder.append(.applyFieldDraft(fieldMutation(source)))
+
+        var checkpoints = [source]
+        var current = active
+        var prior: FieldDraftCheckpointV1?
+        for index in 0..<itemCount {
+            let visited = try visitingRound(
+                current, itemIndex: index, actor: actor,
+                mutationID: .init(rawValue: id(14_100 + index)))
+            let mutation = try RoundSessionMutationV1(
+                workspaceID: workspaceID, expectedRevision: current.revision,
+                mutationID: visited.mutationID, session: visited)
+            let entryStep = try RepetitiveCaptureProgressStepV2(
+                source: .init(source: source),
+                prior: try prior.map { try .init(source: $0) },
+                priorRoundReceipt: nil, expectedRound: current,
+                itemID: current.items[index].itemID, action: .enter,
+                roundMutation: mutation, requirementFocus: .facts,
+                resumeAnchor: .init(sectionID: "facts", selectedStableID:
+                    current.items[index].selection.assetID.uuidString.lowercased()))
+            let entry = try checkpoint(
+                id: 16_000 + index * 2, workspaceID: workspaceID, scope: scope,
+                payload: .progress(entryStep), anchor: entryStep.resumeAnchor)
+            try builder.append(.applyFieldDraft(fieldMutation(entry)))
+            let receipt = try builder.append(.applyRoundSession(mutation)).receipt
+            let typed = try RoundSessionMutationReceiptV1(
+                mutation: mutation, mutationReceipt: receipt)
+            rounds.append(visited)
+
+            let nextAssetID = index + 1 < itemCount
+                ? visited.items[index + 1].selection.assetID.uuidString.lowercased() : nil
+            let keepStep = try RepetitiveCaptureProgressStepV2(
+                source: .init(source: source), prior: .init(source: entry),
+                priorRoundReceipt: typed, expectedRound: visited,
+                itemID: visited.items[index].itemID, action: .keepOpenAndNext,
+                roundMutation: nil, requirementFocus: .facts,
+                resumeAnchor: .init(sectionID: "facts", selectedStableID: nextAssetID))
+            let keep = try checkpoint(
+                id: 16_001 + index * 2, workspaceID: workspaceID, scope: scope,
+                payload: .progress(keepStep), anchor: keepStep.resumeAnchor)
+            try builder.append(.applyFieldDraft(fieldMutation(keep)))
+            checkpoints += [entry, keep]
+            current = visited
+            prior = keep
+        }
+        return .init(rounds: rounds, checkpoints: checkpoints,
+                     history: try builder.snapshot(), additionalRows: [])
+    }
+
+    private static func visitingRound(
+        _ prior: RoundSessionV1,
+        itemIndex: Int,
+        actor: ActorSnapshotV1,
+        mutationID: MutationIDV1
+    ) throws -> RoundSessionV1 {
+        let items = try visiting(items: prior.items, index: itemIndex, actor: actor)
+        return try RoundSessionV1(
+            workspaceID: prior.workspaceID, sessionID: prior.sessionID,
+            predecessor: prior, revision: prior.revision + 1,
+            mutationID: mutationID, state: .active, transition: .visitItem,
+            transitionItemID: prior.items[itemIndex].itemID, items: items,
+            recordedBy: actor,
+            recordedAt: date.addingTimeInterval(Double(prior.revision)))
+    }
+
+    private static func combining(_ primary: MutationHistorySnapshotV1,
+                                  _ foreign: MutationHistorySnapshotV1) throws
+        -> MutationHistorySnapshotV1 {
+        var projections: [WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1] = [:]
+        for projection in primary.entityRevisions + foreign.entityRevisions {
+            if let existing = projections[projection.identity] {
+                guard existing == projection else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            } else {
+                projections[projection.identity] = projection
+            }
+        }
+        let value = MutationHistorySnapshotV1(
+            workspaceRevision: primary.workspaceRevision,
+            lastLocalSequence: primary.lastLocalSequence,
+            receipts: primary.receipts + foreign.receipts,
+            quarantines: primary.quarantines + foreign.quarantines,
+            entityRevisions: projections.values.sorted {
+                $0.identity.stableKey < $1.identity.stableKey
+            })
+        try MutationJournalStoreV1.validateImportedSnapshot(
+            value, sourcePersistentSchemaVersion: 45)
+        return value
+    }
+
+    private struct HistoryBuilder {
+        let workspaceID: WorkspaceID
+        let replicaID = ReplicaID(rawValue: RepetitiveCaptureSourcePackageFixture.id(2))
+        let generationID = RepetitiveCaptureSourcePackageFixture.id(3)
+        let writerID = RepetitiveCaptureSourcePackageFixture.id(4)
+        var events: [Event] = []
+        var revisions: [WorkspaceEntityIdentityV1: UInt64] = [:]
+
+        mutating func append(_ command: WorkspaceCommandV1) throws -> Event {
+            let binding = try Self.binding(command)
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: workspaceID, generationID: generationID, writerInstanceID: writerID,
+                workspaceRevision: UInt64(events.count),
+                entityRevisions: binding.expected.sorted { $0.identity.stableKey < $1.identity.stableKey })
+            let envelope = try MutationEnvelopeV1(request: .init(
+                mutationID: binding.mutationID, expectedRevision: expected, command: command),
+                identity: .init(workspaceID: workspaceID, replicaID: replicaID))
+            for image in binding.images { revisions[try image.identity] = image.revision }
+            let resulting = try result(
+                workspaceRevision: UInt64(events.count + 1), images: binding.images)
+            let receipt = try MutationReceiptV1(identity: .init(
+                workspaceID: workspaceID, replicaID: replicaID,
+                localSequence: UInt64(events.count + 1)), envelope: envelope,
+                resultingRevision: .init(resulting), postImages: binding.images,
+                committedAt: RepetitiveCaptureSourcePackageFixture.date
+                    .addingTimeInterval(Double(100 + events.count)))
+            let event = Event(envelope: envelope, receipt: receipt,
+                              reversalBasisData: nil, semanticReversalData: nil)
+            events.append(event)
+            return event
+        }
+
+        mutating func appendSemanticReversalPair(
+            target targetCommand: WorkspaceCommandV1,
+            reversal reversalCommand: WorkspaceCommandV1
+        ) throws -> (target: Event, reversal: Event) {
+            let targetBinding = try Self.binding(targetCommand)
+            let targetExpected = try WorkspaceExpectedRevisionV1(
+                workspaceID: workspaceID, generationID: generationID,
+                writerInstanceID: writerID, workspaceRevision: UInt64(events.count),
+                entityRevisions: targetBinding.expected.sorted {
+                    $0.identity.stableKey < $1.identity.stableKey
+                })
+            let targetIdentity = MutationReceiptIdentityV1(
+                workspaceID: workspaceID, replicaID: replicaID,
+                localSequence: UInt64(events.count + 1))
+            let plan = try SemanticReversalPlanV1(
+                mutationID: targetBinding.mutationID, commandKind: targetCommand.kind,
+                expectedRevision: targetExpected,
+                prospectiveTargets: try targetBinding.images.map { try $0.identity },
+                requiredSemanticValues: [.init(key: "c36-source", value: "original")],
+                contentReferences: [], dependencyGraph: [], conflicts: [],
+                compensatingCommands: [reversalCommand])
+            let basis = try ReversalBasisV1(
+                targetMutationID: targetBinding.mutationID,
+                targetReceiptIdentity: targetIdentity, plan: plan)
+            let replica = try WorkspaceReplicaIdentityV1(
+                workspaceID: workspaceID, replicaID: replicaID)
+            let targetEnvelope = try MutationEnvelopeV1(
+                request: .init(mutationID: targetBinding.mutationID,
+                    expectedRevision: targetExpected, command: targetCommand),
+                identity: replica, reversalPlanDigest: basis.planDigest)
+            for image in targetBinding.images { revisions[try image.identity] = image.revision }
+            let targetResult = try result(
+                workspaceRevision: UInt64(events.count + 1), images: targetBinding.images)
+            let targetReceipt = try MutationReceiptV1(
+                identity: targetIdentity, envelope: targetEnvelope,
+                resultingRevision: .init(targetResult), postImages: targetBinding.images,
+                committedAt: RepetitiveCaptureSourcePackageFixture.date
+                    .addingTimeInterval(Double(100 + events.count)))
+            let targetEvent = Event(
+                envelope: targetEnvelope, receipt: targetReceipt,
+                reversalBasisData: try basis.canonicalData(), semanticReversalData: nil)
+            events.append(targetEvent)
+
+            let reversalBinding = try Self.binding(reversalCommand)
+            let reversalExpected = try WorkspaceExpectedRevisionV1(
+                workspaceID: workspaceID, generationID: generationID,
+                writerInstanceID: writerID, workspaceRevision: UInt64(events.count),
+                entityRevisions: reversalBinding.expected.sorted {
+                    $0.identity.stableKey < $1.identity.stableKey
+                })
+            let request = WorkspaceMutationRequestV1(
+                mutationID: reversalBinding.mutationID,
+                expectedRevision: reversalExpected, command: reversalCommand)
+            let execution = try SemanticReversalExecutionV1(
+                targetMutationID: targetBinding.mutationID,
+                targetReceiptIdentity: targetIdentity,
+                reversalBasisSHA256: basis.canonicalSHA256(),
+                planDigest: basis.planDigest,
+                compensatingMutationIDs: [reversalBinding.mutationID])
+            let replay = try SemanticReversalReplayIdentityV1(
+                request: request, identity: replica,
+                targetMutationID: targetBinding.mutationID,
+                planDigest: basis.planDigest,
+                compensatingMutationIDs: [reversalBinding.mutationID]).canonicalSHA256()
+            let reversalEnvelope = try MutationEnvelopeV1(
+                request: request, identity: replica, sourceKind: .semanticReversal,
+                causationMutationID: targetBinding.mutationID,
+                semanticReversalReplayIdentitySHA256: replay,
+                semanticReversalExecution: execution)
+            for image in reversalBinding.images { revisions[try image.identity] = image.revision }
+            let reversalResult = try result(
+                workspaceRevision: UInt64(events.count + 1), images: reversalBinding.images)
+            let reversalIdentity = MutationReceiptIdentityV1(
+                workspaceID: workspaceID, replicaID: replicaID,
+                localSequence: UInt64(events.count + 1))
+            let reversalReceipt = try MutationReceiptV1(
+                identity: reversalIdentity, envelope: reversalEnvelope,
+                resultingRevision: .init(reversalResult), postImages: reversalBinding.images,
+                reversesMutationID: targetBinding.mutationID,
+                committedAt: RepetitiveCaptureSourcePackageFixture.date
+                    .addingTimeInterval(Double(100 + events.count)))
+            let semantic = try SemanticReversalReceiptV1(
+                reversalReceiptIdentity: reversalIdentity,
+                reversesMutationID: targetBinding.mutationID,
+                targetReceiptIdentity: targetIdentity,
+                reversalBasisSHA256: basis.canonicalSHA256(),
+                planDigest: basis.planDigest,
+                compensatingMutationIDs: [reversalBinding.mutationID],
+                resultingRevision: reversalReceipt.resultingRevision)
+            let reversalEvent = Event(
+                envelope: reversalEnvelope, receipt: reversalReceipt,
+                reversalBasisData: nil, semanticReversalData: try semantic.canonicalData())
+            events.append(reversalEvent)
+            return (targetEvent, reversalEvent)
+        }
+
+        private func result(workspaceRevision: UInt64, images: [MutationPostImageV1]) throws
+            -> WorkspaceExpectedRevisionV1 {
+            try WorkspaceExpectedRevisionV1(
+                workspaceID: workspaceID, generationID: generationID,
+                writerInstanceID: writerID, workspaceRevision: workspaceRevision,
+                entityRevisions: try images.map {
+                    .init(identity: try $0.identity, revision: $0.revision)
+                }.sorted { $0.identity.stableKey < $1.identity.stableKey })
+        }
+
+        func snapshot() throws -> MutationHistorySnapshotV1 {
+            let value = MutationHistorySnapshotV1(
+                workspaceRevision: UInt64(events.count), lastLocalSequence: UInt64(events.count),
+                receipts: try events.map { .init(envelopeData: try $0.envelope.canonicalData(),
+                    receiptData: try $0.receipt.canonicalData(),
+                    reversalBasisData: $0.reversalBasisData,
+                    semanticReversalData: $0.semanticReversalData) }, quarantines: [],
+                entityRevisions: revisions.map { .init(identity: $0.key, revision: $0.value) }
+                    .sorted { $0.identity.stableKey < $1.identity.stableKey })
+            try MutationJournalStoreV1.validateImportedSnapshot(value,
+                                                                 sourcePersistentSchemaVersion: 45)
+            return value
+        }
+
+        private static func binding(_ command: WorkspaceCommandV1) throws
+            -> (mutationID: MutationIDV1, expected: [WorkspaceEntityRevisionV1],
+                images: [MutationPostImageV1]) {
+            switch command {
+            case let .applyRoundSession(value):
+                return (value.mutationID,
+                        [.init(identity: try value.concurrencyIdentity,
+                               revision: value.expectedRevision)],
+                        [try value.mutationPostImage])
+            case let .applyFieldDraft(value):
+                return (value.mutationID, try value.concurrencyIdentities.map {
+                    .init(identity: $0, revision: try value.expectedRevision(for: $0))
+                }, try value.postImage.mutationPostImages)
+            default: throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+    }
+
+    private static func fieldMutation(_ checkpoint: FieldDraftCheckpointV1) throws
+        -> FieldDraftMutationV1 {
+        try .init(workspaceID: checkpoint.workspaceID, expectedRevision: 0,
+                  expectedBaseCanonicalRevision: checkpoint.baseCanonicalRevision,
+                  mutationID: checkpoint.mutationID, postImage: .createCheckpoint(checkpoint))
+    }
+
+    private static func checkpoint(id seed: Int, workspaceID: WorkspaceID,
+                                   scope: DraftScopeKeyV1,
+                                   payload: RepetitiveCaptureProgressDraftPayloadV2,
+                                   anchor: DraftResumeAnchorV1) throws -> FieldDraftCheckpointV1 {
+        try .init(draftID: id(seed), workspaceID: workspaceID, scope: scope,
+                  purpose: .repetitiveCapture, codec: RepetitiveCaptureProgressDraftCodecV2.release(),
+                  baseCanonicalRevision: 0, draftRevision: 1,
+                  payloadData: RepetitiveCaptureProgressDraftCodecV2.encode(payload), stageIDs: [],
+                  resumeAnchor: anchor, state: .active, updatedAt: date,
+                  mutationID: .init(rawValue: id(seed + 100)))
+    }
+
+    private static func revisedActiveSource(
+        _ original: FieldDraftCheckpointV1,
+        round: RoundSessionV1,
+        revision: UInt64,
+        mutationSeed: Int
+    ) throws -> FieldDraftCheckpointV1 {
+        let old = try RepetitiveCaptureProgressDraftCodecV2.source(original)
+        let changedReadiness = try readiness(
+            round: round, checkedAt: date.addingTimeInterval(Double(mutationSeed)))
+        let changedLaunch = try RepetitiveCaptureLaunchSourceV2(
+            planID: old.planID, round: round,
+            readiness: round.items.map {
+                try .init(manifest: changedReadiness, assetID: $0.selection.assetID)
+            })
+        return try revisedCheckpoint(
+            original, revision: revision, state: .active,
+            mutationID: .init(rawValue: id(mutationSeed)),
+            payloadData: RepetitiveCaptureProgressDraftCodecV2.encode(.source(changedLaunch)))
+    }
+
+    private static func revisedCheckpoint(
+        _ original: FieldDraftCheckpointV1,
+        revision: UInt64,
+        state: FieldDraftStateV1,
+        mutationID: MutationIDV1,
+        payloadData: Data
+    ) throws -> FieldDraftCheckpointV1 {
+        try .init(draftID: original.draftID, workspaceID: original.workspaceID,
+                  scope: original.scope, purpose: original.purpose, codec: original.codec,
+                  baseCanonicalRevision: original.baseCanonicalRevision,
+                  draftRevision: revision, payloadData: payloadData,
+                  stageIDs: original.stageIDs, resumeAnchor: original.resumeAnchor,
+                  state: state, updatedAt: date.addingTimeInterval(Double(revision + 5)),
+                  mutationID: mutationID)
+    }
+
+    private static func row(_ checkpoint: FieldDraftCheckpointV1) throws
+        -> V16BackupFieldDraftRecordV1 {
+        .init(kind: .checkpoint, id: checkpoint.draftID,
+              workspaceID: checkpoint.workspaceID.rawValue, revision: checkpoint.draftRevision,
+              canonicalData: try FieldDraftCanonicalCodecV1.encode(checkpoint))
+    }
+
+    private static func rowLess(_ lhs: V16BackupFieldDraftRecordV1,
+                                _ rhs: V16BackupFieldDraftRecordV1) -> Bool {
+        let left = "\(lhs.kind.rawValue)\u{0}\(lhs.id.uuidString.lowercased())"
+        let right = "\(rhs.kind.rawValue)\u{0}\(rhs.id.uuidString.lowercased())"
+        return left < right
+    }
+
+    private static func visiting(items: [RoundItemV1], index: Int, actor: ActorSnapshotV1) throws
+        -> [RoundItemV1] {
+        var result = items
+        let old = result[index]
+        result[index] = try .init(itemID: old.itemID, order: old.order,
+            selection: old.selection, requirement: old.requirement, disposition: .visited,
+            visit: .init(visitedAt: date.addingTimeInterval(3), recordedBy: actor))
+        return result
+    }
+
+    private static func deferring(items: [RoundItemV1], index: Int) throws -> [RoundItemV1] {
+        var result = items
+        let old = result[index]
+        result[index] = try .init(itemID: old.itemID, order: old.order,
+            selection: old.selection, requirement: old.requirement, disposition: .deferred,
+            visit: old.visit, reason: .userDeferred)
+        return result
+    }
+
+    private static func readiness(round: RoundSessionV1,
+                                  checkedAt: Date = date) throws -> OfflineReadinessManifestV1 {
+        let package = try RoundPackageReleaseReferenceV1(
+            packageReleaseID: String(repeating: "a", count: 64), packageID: "c36-source",
+            packageContentVersion: 1, packageSHA256: String(repeating: "a", count: 64),
+            workflowSHA256: String(repeating: "b", count: 64))
+        return try OfflineReadinessManifestBuilderV1.build(snapshot: .init(
+            session: round.reference, expectedPackage: package, observedPackage: package,
+            selectedAssets: round.items.map(\.selection).sorted {
+                $0.assetID.uuidString < $1.assetID.uuidString
+            }, observedAssetIDs: Set(round.items.map { $0.selection.assetID }),
+            guidanceReferenceIDs: [], availableGuidanceReferenceIDs: [],
+            contentRequirements: [], contentObservations: [], expectedFieldReferences: [],
+            fieldReferenceReadiness: [], storage: .init(capacityState: .checked,
+                                                        availableBytes: 100_000),
+            access: .init(protectedDataAvailable: true), checkedAt: checkedAt,
+            timeZoneIdentifier: "America/New_York", clockState: .checked))
+    }
+
+    private static func actor(_ workspaceID: WorkspaceID) throws -> ActorSnapshotV1 {
+        let value = try LocalActorReferenceV1(actorReferenceID: id(5), workspaceID: workspaceID,
+                                               displayName: "C36 source")
+        return try .init(snapshotID: id(6), workspaceID: workspaceID, actor: value,
+                         responsibility: .recordedBy, displayNameAtTime: "C36 source",
+                         capturedAt: date)
+    }
+
+    static func id(_ value: Int) -> UUID {
+        UUID(uuidString: String(format: "00000000-0000-4000-8000-%012x", value))!
+    }
+}
+
+private extension JSONEncoder {
+    static var canonicalV1: JSONEncoder {
+        let value = JSONEncoder()
+        value.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        value.dateEncodingStrategy = .millisecondsSince1970
+        return value
+    }
+}
+
+private extension JSONDecoder {
+    static var canonicalV1: JSONDecoder {
+        let value = JSONDecoder()
+        value.dateDecodingStrategy = .millisecondsSince1970
+        return value
+    }
+}

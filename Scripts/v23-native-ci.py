@@ -16,7 +16,7 @@ import subprocess
 CONTRACT = "v23.integration.current-native.v1"
 TASK = "V23-INTEGRATION-20260910"
 REPOSITORY = "Asset-Rounds/AssetRounds"
-REFS = {"refs/heads/codex/v23-s10-integration-20260910", "refs/heads/main"}
+REFS = {"refs/heads/codex/v23-s10-integration-20260910"}
 LANES = {
     "github-xcode-26.6-acceptance": ("github", "macos-26"),
     "bitrise-build-hub-xcode-26.6-acceptance": ("bitrise", "bitrise-runner-Asset Roundddd"),
@@ -33,6 +33,54 @@ PROTOCOL_PATHS = (
 )
 SELECTION_MAP_PATH = "Scripts/ci-selection-map.json"
 DEFAULT_SELECTION_ID = "default-132"
+SIMULATOR_DIAGNOSTIC_POLICY_PATH = "docs/design/v23/integration/SIMULATOR_FILE_PROTECTION_DIAGNOSTIC.json"
+SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88FE83F14348F6FECA69FBFE7DB58F1"
+SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
+SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
+SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "41986A5D422895AABB7135B9B78B6BE9090E381280FB0CC4C6F9AAA87D19837F"
+SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V1"
+SIMULATOR_DIAGNOSTIC_OUTPUT = "simulator-file-protection-diagnostics.json"
+SIMULATOR_DIAGNOSTIC_FIELDS = (
+    "policyID", "disposition", "kind", "request", "capabilityBefore", "capabilityAfter",
+    "urlProtection", "fileManagerProtection", "backupExcluded", "expectsDirectory",
+    "identityUnchanged",
+)
+SIMULATOR_DIAGNOSTIC_DISPOSITION = "SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
+SIMULATOR_FALLBACK_PROTECTION = "completeUntilFirstUserAuthentication"
+OWNED_FILE_DISPOSITIONS = {
+    "durableDirectory": (False, True),
+    "stagingDirectory": (True, True),
+    "restoreStaging": (True, True),
+    "stagingFile": (True, False),
+    "fieldDraftStagingFile": (True, False),
+    "temporaryFile": (True, False),
+    "database": (False, False),
+    "databaseWAL": (False, False),
+    "databaseSHM": (False, False),
+    "generationPointer": (False, False),
+    "generationPointerTemporary": (True, False),
+    "generationLeaseDirectory": (True, True),
+    "generationLeaseControl": (True, False),
+    "generationLeaseControlTemporary": (True, False),
+    "generationLeaseOwnerLock": (True, False),
+    "journal": (True, False),
+    "journalTemporary": (True, False),
+    "mediaOriginal": (False, False),
+    "mediaThumbnail": (False, False),
+    "reportSnapshot": (False, False),
+    "reportPDF": (False, False),
+    "diagnostics": (True, False),
+    "sceneNavigation": (True, False),
+    "commerceEntitlementCache": (True, False),
+    "portableExchangeDirectory": (True, True),
+    "portableExchangeSessionFile": (True, False),
+    "portableExchangeJournalFile": (True, False),
+    "portableExchangeQuarantineFile": (True, False),
+    "cache": (True, True),
+    "scratch": (True, True),
+    "searchIndex": (True, False),
+}
 
 
 def require(condition, message):
@@ -59,6 +107,168 @@ def sha256(data):
 
 def canonical(value):
     return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode()
+
+
+def simulator_diagnostic_policy_binding(root):
+    policy_path = root / SIMULATOR_DIAGNOSTIC_POLICY_PATH
+    require(policy_path.is_file() and not policy_path.is_symlink(), "simulator diagnostic policy source")
+    policy_bytes = policy_path.read_bytes()
+    require(sha256(policy_bytes) == SIMULATOR_DIAGNOSTIC_POLICY_SHA256,
+            "simulator diagnostic policy digest")
+    policy = json.loads(policy_bytes.decode("utf-8"), object_pairs_hook=unique_pairs)
+    require(policy.get("schema") == "v23-owner-simulator-file-protection-diagnostic-v1"
+            and policy.get("policyID") == SIMULATOR_DIAGNOSTIC_POLICY_ID,
+            "simulator diagnostic policy identity")
+    require(policy.get("scope") == "Functional development diagnostics in DEBUG iOS Simulator builds only"
+            and policy.get("requiredEvidenceDisposition") == SIMULATOR_DIAGNOSTIC_DISPOSITION,
+            "simulator diagnostic policy scope")
+    require(policy.get("unsupportedCountsAsPerKindProtectionSuccess") is False
+            and policy.get("originalFailuresPreserved") is True
+            and policy.get("providerQualification") is False
+            and policy.get("acceptance") is False
+            and policy.get("releaseReady") is False,
+            "simulator diagnostic policy classification")
+    source_path = root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH
+    require(source_path.is_file() and not source_path.is_symlink(), "simulator diagnostic allowance source")
+    source_bytes = source_path.read_bytes()
+    require(sha256(source_bytes) == SIMULATOR_DIAGNOSTIC_SOURCE_SHA256,
+            "simulator diagnostic reviewed source digest")
+    source = source_bytes.decode("utf-8")
+    require(source.count(SIMULATOR_DIAGNOSTIC_PREFIX) == 1
+            and source.count("policyID=" + SIMULATOR_DIAGNOSTIC_POLICY_ID) == 1
+            and "#if DEBUG && os(iOS) && targetEnvironment(simulator)" in source,
+            "simulator diagnostic allowance source markers")
+    return {
+        "schema": "v23-native-simulator-file-protection-diagnostic-binding-v1",
+        "policyID": SIMULATOR_DIAGNOSTIC_POLICY_ID,
+        "policyPath": SIMULATOR_DIAGNOSTIC_POLICY_PATH,
+        "policySHA256": SIMULATOR_DIAGNOSTIC_POLICY_SHA256,
+        "ownerPolicyOriginalSHA256": SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256,
+        "allowanceSourcePath": SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+        "allowanceSourceSHA256": sha256(source_bytes),
+        "compiledScope": "DEBUG_IOS_SIMULATOR_ONLY",
+        "requiredDisposition": SIMULATOR_DIAGNOSTIC_DISPOSITION,
+        "diagnosticOnly": True,
+        "countsAsPerKindProtectionSuccess": False,
+        "providerQualification": False,
+        "acceptance": False,
+        "releaseReady": False,
+    }
+
+
+def parse_simulator_diagnostic_line(line):
+    stripped = line.strip()
+    require(stripped.startswith(SIMULATOR_DIAGNOSTIC_PREFIX + " "),
+            "malformed simulator diagnostic marker")
+    require(stripped.count(SIMULATOR_DIAGNOSTIC_PREFIX) == 1,
+            "duplicate simulator diagnostic marker")
+    tokens = stripped.split()
+    require(tokens[0] == SIMULATOR_DIAGNOSTIC_PREFIX and len(tokens) == 1 + len(SIMULATOR_DIAGNOSTIC_FIELDS),
+            "simulator diagnostic field count")
+    pairs = []
+    for token in tokens[1:]:
+        key, separator, value = token.partition("=")
+        require(bool(separator) and bool(key) and bool(value), "simulator diagnostic field")
+        pairs.append((key, value))
+    values = unique_pairs(pairs)
+    require(tuple(values) == SIMULATOR_DIAGNOSTIC_FIELDS, "simulator diagnostic field order")
+    require(values["policyID"] == SIMULATOR_DIAGNOSTIC_POLICY_ID
+            and values["disposition"] == SIMULATOR_DIAGNOSTIC_DISPOSITION
+            and values["request"] == "complete",
+            "simulator diagnostic identity")
+    require(values["capabilityBefore"] == values["capabilityAfter"] == "false",
+            "simulator diagnostic capability")
+    require(values["urlProtection"] == values["fileManagerProtection"]
+            == SIMULATOR_FALLBACK_PROTECTION,
+            "simulator diagnostic protection readback")
+    kind = values["kind"]
+    require(kind in OWNED_FILE_DISPOSITIONS, "simulator diagnostic owned kind")
+    expected_backup, expected_directory = OWNED_FILE_DISPOSITIONS[kind]
+    require(values["backupExcluded"] == str(expected_backup).lower()
+            and values["expectsDirectory"] == str(expected_directory).lower(),
+            "simulator diagnostic kind disposition")
+    require(values["identityUnchanged"] == "true", "simulator diagnostic identity change")
+    return {
+        "policyID": values["policyID"],
+        "disposition": values["disposition"],
+        "kind": kind,
+        "request": values["request"],
+        "capabilityBefore": False,
+        "capabilityAfter": False,
+        "urlProtection": values["urlProtection"],
+        "fileManagerProtection": values["fileManagerProtection"],
+        "backupExcluded": expected_backup,
+        "expectsDirectory": expected_directory,
+        "identityUnchanged": True,
+    }
+
+
+def simulator_diagnostic_observations(root, artifact, record):
+    binding = simulator_diagnostic_policy_binding(root)
+    require(record.get("simulatorFileProtectionDiagnosticPolicy") == binding,
+            "simulator diagnostic admission binding")
+    require(record.get("diagnosticOnly") is True
+            and record.get("providerQualification") is False
+            and record.get("acceptance") is False
+            and record.get("releaseReady") is False,
+            "simulator diagnostic admission classification")
+    log_path = artifact / "test-smoke.log"
+    evidence = {
+        "schema": "v23-simulator-file-protection-diagnostics-v1",
+        "policy": binding,
+        "head": record.get("head"),
+        "runID": record.get("runID"),
+        "runAttempt": record.get("runAttempt"),
+        "testLog": {"availability": "UNAVAILABLE", "path": "test-smoke.log", "sha256": None},
+        "parseStatus": "UNAVAILABLE",
+        "events": [],
+        "eventCount": 0,
+        "zeroUseObserved": False,
+        "countsAsPerKindProtectionSuccess": False,
+        "diagnosticOnly": True,
+        "providerQualification": False,
+        "acceptance": False,
+        "releaseReady": False,
+    }
+    parse_error = None
+    if log_path.exists() or log_path.is_symlink():
+        if not log_path.is_file() or log_path.is_symlink():
+            evidence["testLog"]["availability"] = "UNSAFE"
+            evidence["parseStatus"] = "INVALID"
+            evidence["parseError"] = "unsafe simulator diagnostic test log"
+            parse_error = ValueError(evidence["parseError"])
+            return evidence, parse_error
+        log_bytes = log_path.read_bytes()
+        evidence["testLog"] = {"availability": "AVAILABLE", "path": "test-smoke.log",
+                               "sha256": sha256(log_bytes)}
+        try:
+            lines = log_bytes.decode("utf-8").splitlines()
+            events = []
+            for line in lines:
+                if SIMULATOR_DIAGNOSTIC_PREFIX in line:
+                    events.append(parse_simulator_diagnostic_line(line))
+            evidence["parseStatus"] = "PASS"
+            evidence["events"] = events
+            evidence["eventCount"] = len(events)
+            evidence["zeroUseObserved"] = not events
+        except (UnicodeDecodeError, ValueError) as error:
+            evidence["parseStatus"] = "INVALID"
+            evidence["events"] = events if "events" in locals() else []
+            evidence["eventCount"] = len(evidence["events"])
+            evidence["parseError"] = str(error)
+            parse_error = error
+    return evidence, parse_error
+
+
+def persist_simulator_diagnostic_observations(root, artifact, record):
+    evidence, parse_error = simulator_diagnostic_observations(root, artifact, record)
+    output = artifact / SIMULATOR_DIAGNOSTIC_OUTPUT
+    require(not output.exists() and not output.is_symlink(), "simulator diagnostic evidence already exists")
+    with output.open("xb") as stream:
+        stream.write(canonical(evidence))
+    if parse_error is not None:
+        raise ValueError("invalid V23 native evidence: simulator diagnostic log parse") from parse_error
+    return evidence
 
 
 def validate_selection(selection):
@@ -112,8 +322,14 @@ def resolve_selection(default, selection_map, selection_id):
                     "V23CheckRunnerBeginReceiptReferenceTests"],
         "methodCount": 30,
     }
+    source_graph_shape = (
+        isinstance(groups, list) and len(groups) == 32 and groups[-2] == c36_group
+        and isinstance(groups[-1], dict) and groups[-1].get("id") == "c36-source-graph"
+        and groups[-1].get("classes") == ["V23RepetitiveCaptureSourcePackageTests",
+                                         "V23RepetitiveCaptureSourceGraphReviewTests"]
+    )
     require(isinstance(groups, list) and
-            (len(groups) == 30 or (len(groups) == 31 and groups[-1] == c36_group)),
+            (len(groups) == 30 or (len(groups) == 31 and groups[-1] == c36_group) or source_graph_shape),
             "selection group count")
     defaults = set(default["unitTestSelectors"])
     default_classes = {selection_class(item) for item in defaults}
@@ -164,9 +380,11 @@ def selected_input(root, environment):
                       "selectionMapSHA256": sha256((root / SELECTION_MAP_PATH).read_bytes())}
 
 
-def admission(selection, environment, checkout_head, stage, selection_record=None):
+def admission(selection, environment, checkout_head, stage, selection_record=None, root=None):
     """Validate actual source inputs. Return None only for unchanged legacy routes."""
     e = environment
+    if root is None:
+        root = Path(__file__).resolve().parents[1]
     if selection_record is None:
         selection_record = {"selectionID": DEFAULT_SELECTION_ID,
                             "selectionSHA256": sha256(canonical(selection)), "selectionMapSHA256": ""}
@@ -203,6 +421,11 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         }
         ui = e.get("DISPATCH_RUN_UI_SMOKE")
     validate_selection(selection)
+    require(e.get("GITHUB_REF") == "refs/heads/codex/v23-s10-integration-20260910",
+            "simulator diagnostic source is never a main route")
+    require(not any("SIMULATOR_FILE_PROTECTION" in key for key in e),
+            "caller-supplied simulator diagnostic policy")
+    diagnostic_policy = simulator_diagnostic_policy_binding(root)
     if stage == "worker" and e.get("CI_NATIVE_ACCEPTANCE_CONTRACT") == CONTRACT:
         require(e.get("DISPATCH_NATIVE_SELECTION_ID") == selection_record["selectionID"],
                 "dispatcher selection ID")
@@ -222,7 +445,10 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     return {"contractID": CONTRACT, "taskID": TASK, "repository": REPOSITORY,
             "ref": e["GITHUB_REF"], "head": head, "runID": e["GITHUB_RUN_ID"],
             "runAttempt": e["GITHUB_RUN_ATTEMPT"], "executionLane": lane,
-            "runnerProvider": provider, "runnerLabel": label, **selection_record}
+            "runnerProvider": provider, "runnerLabel": label, **selection_record,
+            "simulatorFileProtectionDiagnosticPolicy": diagnostic_policy,
+            "diagnosticOnly": True, "providerQualification": False,
+            "acceptance": False, "releaseReady": False}
 
 
 def executed_methods(result, expected, bundle, bundle_type):
@@ -280,11 +506,16 @@ def source_binding(root):
     require(selection_map.is_file() and not selection_map.is_symlink(), "selection map source")
     return {"protocolSources": sources, "protocolSHA256": sha256(canonical(sources)),
             "selectorSHA256": sha256((root / "Scripts/ci-selection.json").read_bytes()),
-            "selectionMapSHA256": sha256(selection_map.read_bytes())}
+            "selectionMapSHA256": sha256(selection_map.read_bytes()),
+            "simulatorFileProtectionDiagnosticPolicy": simulator_diagnostic_policy_binding(root)}
 
 
 def verify_checkpoint(root, artifact, record, selection, environment):
+    diagnostic_evidence = persist_simulator_diagnostic_observations(root, artifact, record)
     require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
+    require(diagnostic_evidence["testLog"]["availability"] == "AVAILABLE"
+            and diagnostic_evidence["parseStatus"] == "PASS",
+            "successful units require simulator diagnostic log")
     require(read_json(artifact / "native-admission.json") == record, "admission changed")
     selected_artifact = artifact / "ci-selection.selected.json"
     require(selected_artifact.is_file() and not selected_artifact.is_symlink()
@@ -340,7 +571,10 @@ def verify_checkpoint(root, artifact, record, selection, environment):
                 and activation.count("cache_push=true") == activation.count("activation_exit=0"), "cache activation")
     return {**record, "recordType": "validated-native-checkpoint", "executedUnitMethods": units,
             "executedUIMethods": ui, "simulator": simulator, "provider": provider, "sdk": sdk,
-            "wholeAppAcceptance": False, "humanReviewComplete": False}
+            "simulatorFileProtectionDiagnostics": diagnostic_evidence,
+            "wholeAppAcceptance": False, "humanReviewComplete": False,
+            "diagnosticOnly": True, "providerQualification": False,
+            "acceptance": False, "releaseReady": False}
 
 
 def main():
@@ -358,7 +592,7 @@ def main():
         output.write_bytes(canonical(selection))
         return
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
-    record = admission(selection, os.environ, head, args.stage, selection_record)
+    record = admission(selection, os.environ, head, args.stage, selection_record, root=root)
     if args.stage == "dispatch":
         require(args.command == "admit", "dispatch command")
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
