@@ -288,6 +288,15 @@
         "V23ReferenceOwnerReplacementCommandPlanTests"
       ],
       "methodCount": 51
+    },
+    {
+      "id": "c36-restore-correspondence",
+      "classes": [
+        "V23CheckRunnerRestoreCorrespondenceTests",
+        "V23CheckRunnerRestoreBeginCorrespondenceTests",
+        "V23CheckRunnerBeginReceiptReferenceTests"
+      ],
+      "methodCount": 30
     }
   ]
 }

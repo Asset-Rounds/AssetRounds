@@ -65,22 +65,6 @@ import SwiftData
     private func execute(_ mutation:FieldDraftMutationV1)throws->MutationReceiptV1{try writer.commitFieldDraft(mutation)}
 }
 
-struct ReviewedRepetitiveCaptureProgressNodeV2: Equatable, Sendable {
-    let checkpoint: FieldDraftCheckpointV1
-    let checkpointReceipt: MutationReceiptV1
-    let step: RepetitiveCaptureProgressStepV2
-    let roundReceipt: RoundSessionMutationReceiptV1?
-    var isPendingRoundEffect: Bool { step.roundMutation != nil && roundReceipt == nil }
-}
-
-struct ReviewedRepetitiveCaptureProgressChainV2: Equatable, Sendable {
-    let sourceCheckpoint: FieldDraftCheckpointV1
-    let sourceReceipt: MutationReceiptV1
-    let launch: RepetitiveCaptureLaunchSourceV2
-    let nodes: [ReviewedRepetitiveCaptureProgressNodeV2]
-    let currentRound: RoundSessionV1
-}
-
 extension FieldDraftLifecycleAdapterV1 {
     /// Caller supplies the original live scene/readiness capability. This seam
     /// additionally requires actual canonical Round history and its receipt.
@@ -144,85 +128,21 @@ extension FieldDraftLifecycleAdapterV1 {
                                                    sourceDraftID: step.source.draftID)
     }
 
-    /// Read only. Reconstructs the entire unique chain from authenticated C36
-    /// checkpoints and canonical Round receipts; it never executes a mutation.
+    /// Read only. Authenticate through this live writer, then apply the shared
+    /// complete-chain rules used by source restore validation.
     func reviewedRepetitiveCaptureProgress(workspaceID: WorkspaceID, sourceDraftID: UUID) throws
         -> ReviewedRepetitiveCaptureProgressChainV2 {
-        let (source, sourceReceipt) = try authenticatedProgressCheckpoint(workspaceID: workspaceID, draftID: sourceDraftID)
-        let launch = try RepetitiveCaptureProgressDraftCodecV2.source(source)
-        let history = try progressRoundHistory(workspaceID: workspaceID, sessionID: launch.round.sessionID)
-        guard history.contains(launch.round), let current = history.last else { throw ScanToWorkFailureV1.stale }
-        let launchReceipt = try requireProgressLaunchReceipt(launch.round)
-        guard sourceReceipt.resultingRevision.workspaceRevision > launchReceipt.resultingRevision.workspaceRevision else {
-            throw ScanToWorkFailureV1.authorityMismatch
-        }
-        let candidates = try progressCheckpoints(workspaceID: workspaceID).filter { $0.scope == source.scope }
-        guard candidates.count <= launch.round.items.count * 2 + 1 else { throw FieldDraftFailureV1.limitExceeded }
-        var remaining: [UUID: FieldDraftCheckpointV1] = [:]
-        for candidate in candidates {
-            if candidate.draftID == source.draftID {
-                guard candidate == source else { throw ScanToWorkFailureV1.stale }
-            } else {
-                guard case let .progress(step) = try RepetitiveCaptureProgressDraftCodecV2.decode(candidate.payloadData),
-                      step.source == (try .init(source: source)),
-                      remaining.updateValue(candidate, forKey: candidate.draftID) == nil else {
-                    throw ScanToWorkFailureV1.authorityMismatch
-                }
-            }
-        }
-        var nodes: [ReviewedRepetitiveCaptureProgressNodeV2] = []
-        var mutationIDs = Set([source.mutationID, launch.round.mutationID])
-        while !remaining.isEmpty {
-            let priorID = nodes.last?.checkpoint.draftID
-            let next = try remaining.values.filter {
-                guard case let .progress(step) = try RepetitiveCaptureProgressDraftCodecV2.decode($0.payloadData) else { return false }
-                return step.prior?.draftID == priorID
-            }
-            guard next.count == 1, let checkpoint = next.first,
-                  nodes.last?.isPendingRoundEffect != true else { throw ScanToWorkFailureV1.authorityMismatch }
-            let (authenticated, receipt) = try authenticatedProgressCheckpoint(workspaceID: workspaceID, draftID: checkpoint.draftID)
-            guard authenticated == checkpoint,
-                  case let .progress(step) = try RepetitiveCaptureProgressDraftCodecV2.decode(checkpoint.payloadData),
-                  checkpoint.resumeAnchor == step.resumeAnchor,
-                  mutationIDs.insert(checkpoint.mutationID).inserted else { throw ScanToWorkFailureV1.authorityMismatch }
-            try step.validate(sourceCheckpoint: source, priorCheckpoint: nodes.last?.checkpoint)
-            guard step.priorRoundReceipt == nodes.last?.roundReceipt,
-                  history.contains(step.expectedRound) else { throw ScanToWorkFailureV1.authorityMismatch }
-            let priorWriteRevision = nodes.last?.checkpointReceipt.resultingRevision.workspaceRevision
-                ?? sourceReceipt.resultingRevision.workspaceRevision
-            let priorEffectRevision = nodes.last?.roundReceipt?.mutationReceipt.resultingRevision.workspaceRevision
-                ?? priorWriteRevision
-            guard receipt.resultingRevision.workspaceRevision > max(priorWriteRevision, priorEffectRevision) else {
-                throw ScanToWorkFailureV1.authorityMismatch
-            }
-            let roundReceipt: RoundSessionMutationReceiptV1?
-            if let mutation = step.roundMutation {
-                guard mutationIDs.insert(mutation.mutationID).inserted else { throw ScanToWorkFailureV1.duplicate }
-                if let actual = try writer.durableReceipt(mutationID: mutation.mutationID) {
-                    roundReceipt = try .init(mutation: mutation, mutationReceipt: actual)
-                    guard history.contains(mutation.session),
-                          actual.resultingRevision.workspaceRevision > receipt.resultingRevision.workspaceRevision else {
-                        throw ScanToWorkFailureV1.authorityMismatch
-                    }
-                } else { roundReceipt = nil }
-            } else { roundReceipt = nil }
-            nodes.append(.init(checkpoint: checkpoint, checkpointReceipt: receipt, step: step, roundReceipt: roundReceipt))
-            remaining.removeValue(forKey: checkpoint.draftID)
-        }
-        if let last = nodes.last {
-            if last.isPendingRoundEffect {
-                // Round rows and their receipts share one journal transaction.
-                // Without its receipt, a persisted successor is an orphan.
-                guard current == last.step.expectedRound else {
-                    throw ScanToWorkFailureV1.stale
-                }
-            } else {
-                guard current == last.step.resultingRound else { throw ScanToWorkFailureV1.stale }
-            }
-        } else {
-            guard current == launch.round else { throw ScanToWorkFailureV1.stale }
-        }
-        return .init(sourceCheckpoint: source, sourceReceipt: sourceReceipt, launch: launch, nodes: nodes, currentRound: current)
+        try RepetitiveCaptureProgressChainReviewV2.review(
+            workspaceID: workspaceID, sourceDraftID: sourceDraftID,
+            authenticatedProgressCheckpoint: { workspace, draft in
+                try self.authenticatedProgressCheckpoint(workspaceID: workspace, draftID: draft)
+            },
+            progressRoundHistory: { workspace, session in
+                try self.progressRoundHistory(workspaceID: workspace, sessionID: session)
+            },
+            requireProgressLaunchReceipt: { try self.requireProgressLaunchReceipt($0) },
+            progressCheckpoints: { try self.progressCheckpoints(workspaceID: $0) },
+            durableReceipt: { try self.writer.durableReceipt(mutationID: $0) })
     }
 
     private func authenticatedProgressCheckpoint(workspaceID: WorkspaceID, draftID: UUID) throws

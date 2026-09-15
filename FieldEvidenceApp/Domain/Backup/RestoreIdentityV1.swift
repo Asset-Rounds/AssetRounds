@@ -644,6 +644,10 @@ struct RestoreIdentityV1: Equatable, Sendable {
     let recordIdentityDisposition: RestoreRecordIdentityDispositionV1
 
     func destinationRecordID(for sourceRecordID: UUID) -> UUID? {
+        Self.destinationRecordID(for: sourceRecordID)
+    }
+
+    static func destinationRecordID(for sourceRecordID: UUID) -> UUID? {
         sourceRecordID
     }
 
@@ -673,13 +677,25 @@ struct RestoreIdentityV1: Equatable, Sendable {
     /// must be deterministically remapped by clone/fork to prevent a restored
     /// scratch lease or reservation from aliasing the source workspace.
     func destinationFieldDraftID(for sourceID: UUID, namespace: String) -> UUID? {
+        Self.destinationFieldDraftID(
+            for: sourceID, namespace: namespace, mode: mode,
+            destinationWorkspaceID: targetPointer.workspaceID
+        )
+    }
+
+    /// The same pure mapping also validates decoded correspondence values,
+    /// which must not retain a generation pointer or an active writer lease.
+    static func destinationFieldDraftID(
+        for sourceID: UUID, namespace: String, mode: BackupRestoreMode,
+        destinationWorkspaceID: UUID
+    ) -> UUID? {
         switch mode {
         case .emptyInstall, .replaceExisting: return sourceID
         case .clone, .fork:
             return Self.deterministicUUID(
                 namespace: namespace,
                 sourceID: sourceID,
-                workspaceID: targetPointer.workspaceID
+                workspaceID: destinationWorkspaceID
             )
         }
     }

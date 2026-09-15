@@ -105,7 +105,16 @@ def resolve_selection(default, selection_map, selection_id):
     require(isinstance(selection_id, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", selection_id),
             "selection ID")
     groups = selection_map["groups"]
-    require(isinstance(groups, list) and len(groups) == 30, "selection group count")
+    c36_group = {
+        "id": "c36-restore-correspondence",
+        "classes": ["V23CheckRunnerRestoreCorrespondenceTests",
+                    "V23CheckRunnerRestoreBeginCorrespondenceTests",
+                    "V23CheckRunnerBeginReceiptReferenceTests"],
+        "methodCount": 30,
+    }
+    require(isinstance(groups, list) and
+            (len(groups) == 30 or (len(groups) == 31 and groups[-1] == c36_group)),
+            "selection group count")
     defaults = set(default["unitTestSelectors"])
     default_classes = {selection_class(item) for item in defaults}
     covered = set()

@@ -46,12 +46,7 @@ H411_SHARED_COMMAND
 fi
 # End H411 producer source argv receipt.
 
-compiler_timing_prefix=(xcodebuild)
-if [ "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = v23.integration.current-native.v1 ]; then
-  compiler_timing_prefix=(python3 Scripts/v23-compiler-timing.py -- xcodebuild)
-fi
-
-"${compiler_timing_prefix[@]}" \
+xcodebuild \
   -project "${PROJECT_PATH:?}" \
   -scheme "${SCHEME:?}" \
   -configuration "${CONFIGURATION:?}" \
