@@ -30,6 +30,60 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
                        KernelCanonicalHashV1.sha256(try fixture.memberData("manifest.json")))
         XCTAssertEqual(package.recordsJSONSHA256,
                        KernelCanonicalHashV1.sha256(try fixture.memberData("records.json")))
+
+        // The backup embeds the Round codec's numeric dates, including actor
+        // and visit snapshots. Its ordinary reader must preserve those instants.
+        let recordsData = try fixture.memberData("records.json")
+        let recordsObject = try XCTUnwrap(JSONSerialization.jsonObject(with: recordsData) as? [String: Any])
+        let roundObjects = try XCTUnwrap(recordsObject["roundSessions"] as? [[String: Any]])
+        XCTAssertEqual(roundObjects.count, fixture.rounds.count)
+        var visitedDates = 0
+        for (index, expected) in fixture.rounds.enumerated() {
+            XCTAssertEqual(try XCTUnwrap(roundObjects[index]["recordedAt"] as? NSNumber).doubleValue,
+                           expected.recordedAt.timeIntervalSince1970 * 1_000)
+            let actual = package.records.roundSessions[index]
+            XCTAssertEqual(actual.recordedAt, expected.recordedAt)
+            XCTAssertEqual(actual.recordedBy.capturedAt, expected.recordedBy.capturedAt)
+            for (actualItem, expectedItem) in zip(actual.items, expected.items) {
+                XCTAssertEqual(actualItem.visit?.visitedAt, expectedItem.visit?.visitedAt)
+                if expectedItem.visit != nil { visitedDates += 1 }
+            }
+        }
+        XCTAssertGreaterThan(visitedDates, 0)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(
+            BackupCanonicalDecoderV1().decodeRecords(recordsData)).data, recordsData)
+
+        // Start from a proven valid serialized baseline at the actual public
+        // decoder boundary, then change only the timestamp representation.
+        let decoder = BackupCanonicalDecoderV1()
+        let serializedRecords = try JSONSerialization.data(withJSONObject: recordsObject,
+            options: [.sortedKeys, .withoutEscapingSlashes])
+        XCTAssertEqual(try decoder.decodeRecords(serializedRecords).roundSessions, fixture.rounds)
+        let invalidRoundDates: [Any] = ["2026-08-31T00:00:00.000Z", "not-a-date", NSNull(), true]
+        for value in invalidRoundDates {
+            var changedRounds = roundObjects
+            changedRounds[0]["recordedAt"] = value
+            var changedRecords = recordsObject
+            changedRecords["roundSessions"] = changedRounds
+            let bytes = try JSONSerialization.data(withJSONObject: changedRecords,
+                options: [.sortedKeys, .withoutEscapingSlashes])
+            XCTAssertThrowsError(try decoder.decodeRecords(bytes))
+        }
+        let manifestData = try fixture.memberData("manifest.json")
+        let manifestObject = try XCTUnwrap(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
+        XCTAssertEqual(manifestObject["exportedAt"] as? String, "2026-08-31T00:00:00.000Z")
+        let serializedManifest = try JSONSerialization.data(withJSONObject: manifestObject,
+            options: [.sortedKeys, .withoutEscapingSlashes])
+        XCTAssertEqual(try decoder.decodeManifest(serializedManifest).exportedAt,
+                       RepetitiveCaptureSourcePackageFixture.date)
+        let invalidLegacyDates: [Any] = [1_788_134_400_000, "2026-08-31T00:00:00Z"]
+        for value in invalidLegacyDates {
+            var changedManifest = manifestObject
+            changedManifest["exportedAt"] = value
+            let bytes = try JSONSerialization.data(withJSONObject: changedManifest,
+                options: [.sortedKeys, .withoutEscapingSlashes])
+            XCTAssertThrowsError(try decoder.decodeManifest(bytes))
+        }
     }
 
     func testPackageCapabilityRejectsTamperedRecordsAndMissingRequiredSourceAuthority() throws {

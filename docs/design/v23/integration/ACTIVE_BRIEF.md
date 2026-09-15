@@ -5,25 +5,26 @@ This is navigation and current state, not new product authority. Read the [curre
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Current diagnostic head: `83def914d190467d798b1efdd223aff90471d45f`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Current diagnostic head: `1d4a731c7de22b9216a23831bc213b3477f6d17e`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the one existing app/project/shared scheme/design system, S10 branding and five accepted receipts; all owned drafts, frozen inputs, V30 and coordination history remain protected.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. Existing signing/distribution/submission and main-integration boundaries apply.
 
 ## Latest native evidence
 
-All three83def91 originals compiled with zero Swift errors and are sole-collected/root-audited under batch3567993C: [catalog26](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34922583602) passed19/26; [correspondence30](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34922594555) passed28/30; [source-graph25](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34922604510) failed all25 during shared package-fixture construction. The earlier four compiler errors are cleared. Every original, failure and warning remains retained.
+Current1d4a731 [catalog26](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34926494423) and [correspondence30](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34926506862) passed all56 units; compilation and warning comparison passed, and both are root-audited. [Source graph25](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34926518183) compiled but has5 raw-record decode failures,1 pass,1 watchdog interruption and18 NotStarted. Two identical original-log downloads lack26 per-step members; preserve the failed integrity predicate in the sealed negative root audit.
 
-Earlier original [34906332015](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34906332015) compiled with zero Swift errors and passed15/17 units, exposing the two V9_02 protection mismatches. All originals and warning evidence remain retained; provider qualification and acceptance remain false.
+The three83def91 originals remain sole-collected/root-audited under batch3567993C; earlier compiler errors are cleared. Keep their full failures, warnings, manifests and original artifacts externally. Historic evidence never transfers across heads.
 
-The83 probes retain successful setters, exact independent URL fallback and false volume support, but the extra FileManager readback is unknown. Zero unsupported events were emitted. The correction aligns with the approved independent URL predicate and emits V2 diagnostics without a FileManager claim; protection and acceptance remain unproven. The three489d765 Bitrise runtime-provisioning failures remain retained with all110 units NotStarted; Bitrise stays held.
+The83 probes exposed unavailable FileManager corroboration. The approved URL correction now passes catalog26 and emits165 V2 unsupported events (correspondence emits72), with complete parsing and explicit nonacceptance. Device protection and provider acceptance remain unproven. The three489d765 Bitrise runtime-provisioning failures remain retained with all110 units NotStarted; Bitrise stays held.
 
 ## Current implementation batch
 
-- **C36 foundations:** authenticated Round source, shared command builder, frozen Begin preparation, pure identity/dependency/Begin/receipt correspondence and shared V2 traversal are committed with independent source review. Correspondence passed28/30; the two fixture assertions are corrected but require native verification. Durable/live effects remain due.
+- **C36 foundations:** authenticated Round source, shared command builder, frozen Begin preparation, pure identity/dependency/Begin/receipt correspondence and shared V2 traversal are committed with independent source review. Correspondence now passes30/30 after the canonical fixture repair. Durable/live effects remain due.
 - **C36 remainder:** durable Begin and retry, parent codec, restored destination correspondence, and complete field-flow/scene/focus/resume composition remain prerequisites for full feature completion. Source inventory is not implementation or acceptance.
 - **Retained recovery:** original capture20 remains intact and due after protection, including all13 V2 recovery methods. Temporary compiler timing is retired to the exact original build wrapper.
 - **Source graph:** private-init package capability and pure original-history authentication have19 paired methods, including200-item bounds, lifecycle dispositions, complete history and historical versus package-current Round frontiers. Destination representation and live effects remain due.
-- **Current source work:** parent outcome/photo/anchor contracts add9 paired methods to report-camera-recovery51 (633/32 pool;67 updated source/protocol checks passed). The batch also fixes the lease-directory expectation, canonical receipt-fixture comparison, and source-package stock snapshot/receipt ordering. Combined review remains pending; full parent/child codecs and live adoption remain due. All49 drafts stay protected.
+- **Current source work:** Parent field contracts are committed at1d (633/32,67 source checks). The reviewed pure parent payload adds nine methods in that same class (642/32,68 source checks). An isolated Round backup date correction preserves its actual numeric encoding; paired tests use the public reader. The combined exact candidate and native compilation remain due. All49 drafts stay protected; parent/child release and live adoption remain due.
+- **Next native questions:** After the original negative audit and final candidate review, report-camera-recovery60 and capture-payload-codec20 are planned. Source-graph25 stays held until the maximum200-item case is corrected; its900-second watchdog is unchanged. Missing per-step logs never count as complete or accepting evidence.
 - **Other retained work:** finish native finalization/protection, Work/Round production adoption, C55 replacement evidence, and C57 fork/mixed-history preservation. Consult their precise CURRENT_INTEGRATION workstreams when resumed.
 
 ## Working cadence
