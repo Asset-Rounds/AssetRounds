@@ -16,7 +16,7 @@ enum FieldDraftLimitsV1 {
     static let maximumCanonicalBytes = 16 * 1_024 * 1_024
 }
 
-private enum FieldDraftValidationV1 {
+enum FieldDraftValidationV1 {
     static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     static func id(_ value: UUID) throws { guard value != zero else { throw FieldDraftFailureV1.invalidValue } }
     static func workspace(_ value: WorkspaceID) throws { guard value.rawValue != zero else { throw FieldDraftFailureV1.wrongWorkspace } }

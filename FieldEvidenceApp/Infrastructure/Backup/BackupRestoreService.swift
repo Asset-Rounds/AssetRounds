@@ -11823,7 +11823,7 @@ private extension BackupRestoreService {
                     throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
-                    try ProtectedFilePolicyV1.applyAndVerify(
+                    _ = try ProtectedFilePolicyV1.applyAndVerify(
                         .stagingFile,
                         relativePath: temporaryRelative,
                         within: root,
@@ -11856,7 +11856,7 @@ private extension BackupRestoreService {
                     throw BackupRestoreServiceError.materializationFailed
                 }
                 try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
-                    try ProtectedFilePolicyV1.applyAndVerify(
+                    _ = try ProtectedFilePolicyV1.applyAndVerify(
                         .stagingFile,
                         relativePath: relative,
                         within: root,
@@ -11912,7 +11912,7 @@ private extension BackupRestoreService {
             authorityCheck: authorityCheck
         ) { _, verifyDirectories in
             try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
-                try ProtectedFilePolicyV1.applyAndVerify(
+                _ = try ProtectedFilePolicyV1.applyAndVerify(
                     .stagingDirectory,
                     relativePath: relativePath,
                     within: root,
