@@ -54,27 +54,39 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
     }
 
     func testExplicitWorkspaceNamespaceDistinguishesSameMutationIDAndReturnsAbsence() throws {
+        let trace = BeginHistoryPhaseTrace(test: "explicit-workspace")
         let mutationID = try MutationIDV1(rawValue: UUID())
         var foreignRecords: [MutationHistoryReceiptRecordV1] = []
         var foreignPair: BeginHistoryHarness.Pair?
         var foreignOnlyPair: BeginHistoryHarness.Pair?
         var foreignWorkspaceID: WorkspaceID?
         var foreignSiteID: UUID?
-        try withHarness("foreign") { source in
+        trace.mark("foreign-init-dispatch")
+        try withHarness("foreign", trace: trace) { source in
+            trace.mark("foreign-commit-start")
             try source.commitTimeZone(mutationID, "America/Chicago")
+            trace.mark("foreign-commit-complete")
+            trace.mark("foreign-begin-start")
             _ = try source.beginCheck()
+            trace.mark("foreign-begin-complete")
+            trace.mark("foreign-export-start")
             foreignRecords = try source.records()
             foreignPair = try source.pair(source.workspaceID, mutationID)
             foreignOnlyPair = try source.onlyPair(.createCheckDraft)
             foreignWorkspaceID = source.workspaceID
             foreignSiteID = source.siteID
+            trace.mark("foreign-export-complete")
         }
 
-        try withHarness("local") { target in
+        trace.mark("local-init-dispatch")
+        try withHarness("local", trace: trace) { target in
+            trace.mark("local-commit-start")
             try target.commitTimeZone(mutationID, "America/New_York")
+            trace.mark("local-commit-complete")
             let local = try target.pair(target.workspaceID, mutationID)
             let foreign = try XCTUnwrap(foreignPair)
             let foreignOnly = try XCTUnwrap(foreignOnlyPair)
+            trace.mark("local-import-start")
             for record in foreignRecords {
                 target.context.insert(try MutationReceiptRow(
                     envelope: MutationEnvelopeV1.decodeCanonical(from: record.envelopeData),
@@ -83,7 +95,10 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
                     semanticReversal: try record.semanticReversalData.map { try SemanticReversalReceiptV1.decodeCanonical(from: $0) }
                 ))
             }
+            trace.mark("local-import-complete")
+            trace.mark("local-save-start")
             try target.context.save()
+            trace.mark("local-save-complete")
             let foreignWorkspace = try XCTUnwrap(foreignWorkspaceID)
             let transported = try target.context.fetch(FetchDescriptor<MutationReceiptRow>()).filter {
                 $0.workspaceID == foreignWorkspace.rawValue
@@ -116,13 +131,19 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
                 )
                 XCTAssertEqual(row.semanticReversalData, record.semanticReversalData)
             }
+            trace.mark("local-snapshot-start")
             let before = try target.snapshot()
+            trace.mark("local-snapshot-complete")
+            trace.mark("query-local-shared-start")
             let localEvidence = try XCTUnwrap(target.journal.checkRunnerBeginEvidence(
                 workspaceID: target.workspaceID, mutationID: mutationID
             ))
+            trace.mark("query-local-shared-complete")
+            trace.mark("query-foreign-shared-start")
             let foreignEvidence = try XCTUnwrap(target.journal.checkRunnerBeginEvidence(
                 workspaceID: foreignWorkspace, mutationID: mutationID
             ))
+            trace.mark("query-foreign-shared-complete")
             XCTAssertEqual(localEvidence.envelope, local.envelope)
             XCTAssertEqual(foreignEvidence.envelope, foreign.envelope)
             XCTAssertEqual(foreignEvidence.receipt, foreign.receipt)
@@ -134,10 +155,13 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
             XCTAssertNotEqual(localEvidence.envelopeSHA256, foreignEvidence.envelopeSHA256)
             let foreignSite = try XCTUnwrap(foreignSiteID)
             XCTAssertFalse(try target.context.fetch(FetchDescriptor<Site>()).contains { $0.id == foreignSite })
+            trace.mark("query-local-foreign-only-absence-start")
             XCTAssertNil(try target.journal.checkRunnerBeginEvidence(
                 workspaceID: target.workspaceID,
                 mutationID: foreignOnly.envelope.mutationID
             ))
+            trace.mark("query-local-foreign-only-absence-complete")
+            trace.mark("query-foreign-only-presence-start")
             XCTAssertEqual(
                 try target.journal.checkRunnerBeginEvidence(
                     workspaceID: foreignOnly.envelope.workspaceID,
@@ -145,10 +169,15 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
                 )?.receipt,
                 foreignOnly.receipt
             )
+            trace.mark("query-foreign-only-presence-complete")
+            trace.mark("query-random-absence-start")
             XCTAssertNil(try target.journal.checkRunnerBeginEvidence(
                 workspaceID: target.workspaceID, mutationID: MutationIDV1(rawValue: UUID())
             ))
+            trace.mark("query-random-absence-complete")
+            trace.mark("local-final-snapshot-start")
             XCTAssertEqual(try target.snapshot(), before)
+            trace.mark("local-final-snapshot-complete")
         }
     }
 
@@ -234,14 +263,16 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
             }),
             ("semantic-reversal", { $0.semanticReversalData = Data("{}".utf8) }),
         ]
-        for (label, corrupt) in corruptions {
-            try withHarness("whole-journal-\(label)") { h in
-                try h.commitTimeZone(h.selectedMutationID, "America/New_York")
-                let unrelated = try XCTUnwrap(
-                    h.context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
-                        $0.mutationID != h.selectedMutationID.rawValue
-                    }
-                )
+        try withHarness("whole-journal-rows") { h in
+            try h.commitTimeZone(h.selectedMutationID, "America/New_York")
+            let unrelated = try XCTUnwrap(
+                h.context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+                    $0.mutationID != h.selectedMutationID.rawValue
+                }
+            )
+            let original = BeginHistoryHarness.receiptAnchor(unrelated)
+            let baseline = try h.snapshot()
+            for (label, corrupt) in corruptions {
                 corrupt(unrelated)
                 try h.context.save()
                 let before = try h.snapshot()
@@ -251,20 +282,27 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
                     }
                 }
                 XCTAssertEqual(try h.snapshot(), before, label)
+                h.restore(unrelated, from: original)
+                try h.context.save()
+                try h.journal.validateAll()
+                XCTAssertEqual(try h.snapshot(), baseline, "restored \(label)")
             }
         }
-        for label in ["state-revision", "entity-revision"] {
-            try withHarness("whole-journal-\(label)") { h in
-                try h.commitTimeZone(h.selectedMutationID, "America/New_York")
+        try withHarness("whole-journal-state") { h in
+            try h.commitTimeZone(h.selectedMutationID, "America/New_York")
+            let state = try XCTUnwrap(
+                h.context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first
+            )
+            let revision = try XCTUnwrap(
+                h.context.fetch(FetchDescriptor<EntityMutationRevisionRow>()).first
+            )
+            let originalStateRevision = state.workspaceRevision
+            let originalEntityRevision = revision.revision
+            let baseline = try h.snapshot()
+            for label in ["state-revision", "entity-revision"] {
                 if label == "state-revision" {
-                    let state = try XCTUnwrap(
-                        h.context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first
-                    )
                     state.workspaceRevision += 1
                 } else {
-                    let revision = try XCTUnwrap(
-                        h.context.fetch(FetchDescriptor<EntityMutationRevisionRow>()).first
-                    )
                     revision.revision += 1
                 }
                 try h.context.save()
@@ -278,6 +316,11 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
                     }
                 }
                 XCTAssertEqual(try h.snapshot(), before, label)
+                state.workspaceRevision = originalStateRevision
+                revision.revision = originalEntityRevision
+                try h.context.save()
+                try h.journal.validateAll()
+                XCTAssertEqual(try h.snapshot(), baseline, "restored \(label)")
             }
         }
     }
@@ -396,31 +439,56 @@ final class V23CheckRunnerBeginHistoryTests: XCTestCase {
 }
 
 @MainActor
+private struct BeginHistoryPhaseTrace {
+    let test: String
+    private let started = ProcessInfo.processInfo.systemUptime
+
+    func mark(_ phase: String) {
+        let elapsedMillis = Int((ProcessInfo.processInfo.systemUptime - started) * 1_000)
+        print("V23_BEGIN_HISTORY_PHASE test=\(test) phase=\(phase) elapsedMillis=\(elapsedMillis)")
+    }
+}
+
+@MainActor
 private func withHarness<Value>(
-    _ label: String, _ body: (BeginHistoryHarness) throws -> Value
+    _ label: String,
+    trace: BeginHistoryPhaseTrace? = nil,
+    _ body: (BeginHistoryHarness) throws -> Value
 ) throws -> Value {
     var root: URL?
     do {
         let value = try autoreleasepool { () throws -> Value in
+            trace?.mark("\(label)-root-url-start")
             let fixtureRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
                 "V23-begin-history-\(label)-\(UUID().uuidString)",
                 isDirectory: true
             )
             root = fixtureRoot
-            let harness = try BeginHistoryHarness(root: fixtureRoot)
+            trace?.mark("\(label)-root-url-complete")
+            trace?.mark("\(label)-harness-init-start")
+            let harness = try BeginHistoryHarness(root: fixtureRoot, trace: trace)
+            trace?.mark("\(label)-harness-init-complete")
             do {
                 let value = try body(harness)
+                trace?.mark("\(label)-close-start")
                 try harness.closeLeases()
+                trace?.mark("\(label)-close-complete")
                 return value
             } catch {
+                trace?.mark("\(label)-close-after-error-start")
                 try? harness.closeLeases()
+                trace?.mark("\(label)-close-after-error-complete")
                 throw error
             }
         }
+        trace?.mark("\(label)-cleanup-start")
         if let root { try FileManager.default.removeItem(at: root) }
+        trace?.mark("\(label)-cleanup-complete")
         return value
     } catch {
+        trace?.mark("\(label)-cleanup-after-error-start")
         if let root { try? FileManager.default.removeItem(at: root) }
+        trace?.mark("\(label)-cleanup-after-error-complete")
         throw error
     }
 }
@@ -503,36 +571,51 @@ private final class BeginHistoryHarness {
     var writer: WorkspaceWriterV1 { coordinator.workspaceWriter }
     var workspaceID: WorkspaceID { session.workspaceID }
 
-    init(root: URL) throws {
+    init(root: URL, trace: BeginHistoryPhaseTrace? = nil) throws {
         self.root = root
+        trace?.mark("harness-create-directory-start")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        trace?.mark("harness-create-directory-complete")
+        trace?.mark("harness-identity-start")
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: WorkspaceID(rawValue: UUID()), replicaID: ReplicaID(rawValue: UUID())
         )
+        trace?.mark("harness-identity-complete")
+        trace?.mark("harness-factory-start")
         let localFactory = StoreGenerationFactory(
             applicationSupportURL: root,
             pointerEnrichmentIdentity: identity
         )
         factory = localFactory
+        trace?.mark("harness-factory-complete")
+        trace?.mark("harness-open-or-bootstrap-start")
         let localSession = try localFactory.openOrBootstrapCurrent()
         session = localSession
+        trace?.mark("harness-open-or-bootstrap-complete")
+        trace?.mark("harness-coordinator-start")
         let registry = try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
         let localCoordinator = try StoreSessionCoordinator(
             validatingSession: localSession,
             lifecycleProfileRegistry: registry
         )
         coordinator = localCoordinator
+        trace?.mark("harness-coordinator-complete")
+        trace?.mark("harness-profile-start")
         let localProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
             package: .illuminatedSignV1
         )
         profile = localProfile
         selectedMutationID = try MutationIDV1(rawValue: UUID())
+        trace?.mark("harness-profile-complete")
         guard let epoch = localSession.generationEpoch else {
             throw WorkspaceMutationFailureV1.wrongGeneration
         }
+        trace?.mark("harness-lease-start")
         let leases = try localFactory.makeGenerationLeaseRegistry()
         let localJournalLease = try leases.acquireHandle(epoch: epoch, role: .writer)
         journalLease = localJournalLease
+        trace?.mark("harness-lease-complete")
+        trace?.mark("harness-journal-start")
         journal = try MutationJournalStoreV1(
             modelContext: localSession.modelContext,
             identity: localSession.workspaceIdentity,
@@ -544,6 +627,8 @@ private final class BeginHistoryHarness {
                 registry: leases
             )
         )
+        trace?.mark("harness-journal-complete")
+        trace?.mark("harness-first-sign-start")
         let first = try MutationIDV1(rawValue: UUID())
         _ = try localCoordinator.workspaceWriter.execute(.createFirstSign(.init(
             siteID: siteID,
@@ -558,6 +643,7 @@ private final class BeginHistoryHarness {
             initialPlacementEventID: UUID(),
             initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
         )), mutationID: first)
+        trace?.mark("harness-first-sign-complete")
     }
 
     func beginCheck() throws -> WorkflowRecord {
@@ -644,17 +730,47 @@ private final class BeginHistoryHarness {
         ))
     }
 
+    static func receiptAnchor(_ row: MutationReceiptRow) -> ReceiptAnchor {
+        ReceiptAnchor(
+            mutationID: row.mutationID,
+            workspaceMutationKey: row.workspaceMutationKey,
+            receiptIdentity: row.receiptIdentity,
+            workspaceID: row.workspaceID,
+            replicaID: row.replicaID,
+            localSequence: row.localSequence,
+            commandKind: row.commandKind,
+            envelopeData: row.envelopeData,
+            envelopeSHA256: row.envelopeSHA256,
+            receiptData: row.receiptData,
+            receiptSHA256: row.receiptSHA256,
+            reversalBasisData: row.reversalBasisData,
+            reversalBasisSHA256: row.reversalBasisSHA256,
+            semanticReversalData: row.semanticReversalData
+        )
+    }
+
+    func restore(_ row: MutationReceiptRow, from anchor: ReceiptAnchor) {
+        row.mutationID = anchor.mutationID
+        row.workspaceMutationKey = anchor.workspaceMutationKey
+        row.receiptIdentity = anchor.receiptIdentity
+        row.workspaceID = anchor.workspaceID
+        row.replicaID = anchor.replicaID
+        row.localSequence = anchor.localSequence
+        row.commandKind = anchor.commandKind
+        row.envelopeData = anchor.envelopeData
+        row.envelopeSHA256 = anchor.envelopeSHA256
+        row.receiptData = anchor.receiptData
+        row.receiptSHA256 = anchor.receiptSHA256
+        row.reversalBasisData = anchor.reversalBasisData
+        row.reversalBasisSHA256 = anchor.reversalBasisSHA256
+        row.semanticReversalData = anchor.semanticReversalData
+    }
+
     func snapshot() throws -> Snapshot {
         Snapshot(
-            receipts: try context.fetch(FetchDescriptor<MutationReceiptRow>()).map { .init(
-                mutationID: $0.mutationID, workspaceMutationKey: $0.workspaceMutationKey,
-                receiptIdentity: $0.receiptIdentity, workspaceID: $0.workspaceID, replicaID: $0.replicaID,
-                localSequence: $0.localSequence, commandKind: $0.commandKind,
-                envelopeData: $0.envelopeData, envelopeSHA256: $0.envelopeSHA256,
-                receiptData: $0.receiptData, receiptSHA256: $0.receiptSHA256,
-                reversalBasisData: $0.reversalBasisData, reversalBasisSHA256: $0.reversalBasisSHA256,
-                semanticReversalData: $0.semanticReversalData
-            ) }.sorted { $0.workspaceMutationKey < $1.workspaceMutationKey },
+            receipts: try context.fetch(FetchDescriptor<MutationReceiptRow>())
+                .map(Self.receiptAnchor)
+                .sorted { $0.workspaceMutationKey < $1.workspaceMutationKey },
             quarantines: try context.fetch(FetchDescriptor<MutationQuarantineRow>()).map { .init(
                 workspaceID: $0.workspaceID, mutationID: $0.mutationID,
                 workspaceMutationKey: $0.workspaceMutationKey, identityDomain: $0.identityDomain,

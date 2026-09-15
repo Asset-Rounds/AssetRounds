@@ -1,6 +1,23 @@
 import Darwin
 import Foundation
 
+#if DEBUG
+/// Every policy diagnostic shares one writer so concurrent readbacks cannot
+/// splice bytes into a V2 disposition record. This grants no file authority.
+final class ProtectedFileDiagnosticWriterV1: @unchecked Sendable {
+    private let lock = NSLock()
+    private let fileHandle: FileHandle
+
+    init(fileHandle: FileHandle) { self.fileHandle = fileHandle }
+
+    func write(_ facts: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        fileHandle.write(Data(facts.utf8))
+    }
+}
+#endif
+
 enum C50IncumbentFileExchangeProtectedFileBoundaryV1 {
     static let copiedSourceKind: OwnedFileKindV1 = .temporaryFile
     static let mappingScratchKind: OwnedFileKindV1 = .scratch
@@ -110,6 +127,9 @@ enum ProtectedFileVerificationDispositionV1: Equatable, Sendable {
 /// their existing O_NOFOLLOW/inode checks with path-only authority.
 enum ProtectedFilePolicyV1 {
     static let requiredFileProtection: FileProtectionType = .complete
+    #if DEBUG
+    private static let diagnosticWriter = ProtectedFileDiagnosticWriterV1(fileHandle: .standardError)
+    #endif
 
     /// C27 adds database rows only. Locator representations are references,
     /// never authority for creating a new app-owned file class.
@@ -672,7 +692,7 @@ enum ProtectedFilePolicyV1 {
                     + " backupMatches=\(exclusion == disposition.isExcludedFromBackup)"
                     + " expectedDirectory=\(disposition.expectsDirectory)"
                     + " expectedBackupExcluded=\(disposition.isExcludedFromBackup)\n"
-                FileHandle.standardError.write(Data(facts.utf8))
+                diagnosticWriter.write(facts)
                 #endif
                 throw ProtectedFilePolicyError.resourceValueMismatch
             }
@@ -697,7 +717,7 @@ enum ProtectedFilePolicyV1 {
             + " urlProtection=completeUntilFirstUserAuthentication"
             + " backupExcluded=\(disposition.isExcludedFromBackup)"
             + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n"
-        FileHandle.standardError.write(Data(facts.utf8))
+        diagnosticWriter.write(facts)
         #endif
     }
 
@@ -727,6 +747,8 @@ enum ProtectedFilePolicyV1 {
         } else {
             before = independentProtectionReadback(at: url)
             guard simulatorReadbackIsExactFallback(before, disposition: disposition) else {
+                emitDirectoryProtectionReadback(kind: kind, at: url,
+                    phase: "verifyInitialMismatch", readback: before)
                 throw ProtectedFilePolicyError.resourceValueMismatch
             }
             guard try pin(kind, at: url, disposition: disposition) == identity else {
@@ -745,7 +767,13 @@ enum ProtectedFilePolicyV1 {
             capabilityBefore: before.volumeSupportsProtection,
             after: after, disposition: disposition,
             successfulCompleteRequest: true, identityUnchanged: identityUnchanged
-        ) else { throw ProtectedFilePolicyError.resourceValueMismatch }
+        ) else {
+            emitDirectoryProtectionReadback(kind: kind, at: url,
+                phase: "allowanceBeforeMismatch", readback: before)
+            emitDirectoryProtectionReadback(kind: kind, at: url,
+                phase: "allowanceAfterMismatch", readback: after)
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
         return .simulatorFileProtectionUnsupported
     }
 
@@ -836,7 +864,7 @@ enum ProtectedFilePolicyV1 {
             + " backupExcluded=\(String(describing: readback.backupExcluded))"
             + " isDirectory=\(String(describing: readback.isDirectory))"
             + " volumeSupportsProtection=\(String(describing: readback.volumeSupportsProtection))\n"
-        FileHandle.standardError.write(Data(facts.utf8))
+        diagnosticWriter.write(facts)
     }
     #endif
 

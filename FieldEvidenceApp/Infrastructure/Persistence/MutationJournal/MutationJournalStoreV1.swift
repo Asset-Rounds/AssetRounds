@@ -1528,7 +1528,7 @@ final class MutationJournalStoreV1 {
     ) throws -> CheckRunnerBeginCommittedEvidenceV1? {
         try validateCurrentWriterLease()
         guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
-        try validateAll()
+        try validateCheckRunnerBeginHistoryValue { try validateAll() }
         let key = MutationWorkspaceKeyV1.value(workspaceID: workspaceID, mutationID: mutationID)
         guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
             predicate: #Predicate { $0.workspaceMutationKey == key }
@@ -1540,12 +1540,32 @@ final class MutationJournalStoreV1 {
         ))
         guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         guard let row = rows.first else { return nil }
-        let receipt = try validate(row: row, expectedEnvelope: nil)
-        let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
-        guard envelope.workspaceID == workspaceID, envelope.mutationID == mutationID else {
+        return try validateCheckRunnerBeginHistoryValue {
+            let receipt = try validate(row: row, expectedEnvelope: nil)
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard envelope.workspaceID == workspaceID, envelope.mutationID == mutationID else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return try CheckRunnerBeginCommittedEvidenceV1(envelope: envelope, receipt: receipt)
+        }
+    }
+
+    /// This reader reports malformed retained values as corrupt history. Lease,
+    /// dirty-context and selected-quarantine checks stay outside this mapping;
+    /// existing policy and sequence-collision failures retain their identity.
+    private func validateCheckRunnerBeginHistoryValue<Value>(
+        _ operation: () throws -> Value
+    ) throws -> Value {
+        do { return try operation() }
+        catch let failure as WorkspaceMutationFailureV1 {
+            switch failure {
+            case .invalidCommand, .invalidEnvelope, .invalidReceipt, .invalidReversal:
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            default: throw failure
+            }
+        } catch {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
-        return try CheckRunnerBeginCommittedEvidenceV1(envelope: envelope, receipt: receipt)
     }
 
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
@@ -6034,6 +6054,9 @@ final class MutationJournalStoreV1 {
         }
         guard row.mutationID == envelope.mutationID.rawValue,
               row.workspaceID == envelope.workspaceID.rawValue,
+              row.replicaID == receipt.identity.replicaID.rawValue,
+              let localSequence = Int64(exactly: receipt.identity.localSequence),
+              row.localSequence == localSequence,
               row.workspaceMutationKey == MutationWorkspaceKeyV1.value(
                 workspaceID: envelope.workspaceID,
                 mutationID: envelope.mutationID

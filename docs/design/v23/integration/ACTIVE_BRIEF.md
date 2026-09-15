@@ -5,15 +5,13 @@ This is navigation and current state, not new product authority. Read the [curre
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Current diagnostic head: `6e67aa88c5b85a7b02af40db969b4dad9d7085db`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Current diagnostic head: `55e46550c582c61bd151c3e2507ed690cb5599cd`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the one existing app/project/shared scheme/design system, S10 branding and five accepted receipts; all owned drafts, frozen inputs, V30 and coordination history remain protected.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. Existing signing/distribution/submission and main-integration boundaries apply.
 
 ## Latest native evidence
 
-Current6e67aa8 [capture20](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34945593778) and [report/recovery60](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34945579816) are root-audited with complete integrity. Both stop at the same two generic enum-inference compiler errors: all80 NotStarted, no new warning signatures, partial-build limits retained. Parent1d catalog26/correspondence30 passed56 units; its [source graph25](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34926518183) retains5 decode failures,1 pass,1 watchdog interruption,18 NotStarted and26 missing step logs in its INCOMPLETE negative audit.
-
-The three83def91 originals remain sole-collected/root-audited under batch3567993C; earlier compiler errors are cleared. Keep their full failures, warnings, manifests and original artifacts externally. Historic evidence never transfers across heads.
+All five55e4655 originals are sole-collected and root-audited with complete integrity. Capture20 and graph25 builds were interrupted with no compiler errors/all45 NotStarted. The three compiled suites retain report9Pass/1Fail/1Interrupted/49NotStarted, mutation29Pass/5Fail and Round2Pass/6Fail; report/Round diagnostic parsing is INVALID. Full-build warning signatures match the prior256. The batch seal is in runtime-55e4655; causal diagnosis/correction precedes any successor. Parent1d catalog/correspondence passed56 units; its incomplete graph original remains negative evidence.
 
 The83 probes exposed unavailable FileManager corroboration. The approved URL correction now passes catalog26 and emits165 V2 unsupported events (correspondence emits72), with complete parsing and explicit nonacceptance. Device protection and provider acceptance remain unproven. The three489d765 Bitrise runtime-provisioning failures remain retained with all110 units NotStarted; Bitrise stays held.
 
@@ -23,8 +21,8 @@ The83 probes exposed unavailable FileManager corroboration. The approved URL cor
 - **C36 remainder:** durable Begin and retry, parent codec, restored destination correspondence, and complete field-flow/scene/focus/resume composition remain prerequisites for full feature completion. Source inventory is not implementation or acceptance.
 - **Retained recovery:** original capture20 remains intact and due after protection, including all13 V2 recovery methods. Temporary compiler timing is retired to the exact original build wrapper.
 - **Source graph:** private-init package capability and pure original-history authentication have19 paired methods, including200-item bounds, lifecycle dispositions, complete history and historical versus package-current Round frontiers. Destination representation and live effects remain due.
-- **Current source work:** The parent payload/Round-date batch is committed at6e (642/32). Independent source review passed the maximum-graph performance correction and test-only phase timing; root adds the two explicit enum names diagnosed by native compilation. All49 drafts stay protected; parent/child release and live adoption remain due.
-- **Next native questions:** After both6e audits and combined index/route review, use report60, capture20, source-graph25, mutation34 and Round-transition8. Readiness6 remains due later. Preserve the full200-item fixture and900-second watchdog; no timeout success is inferred from source checks.
+- **Current source work:** The16-path candidate combines the reviewed photo child payload/12 cases, Begin row identity and typed-corruption fixes, serialized diagnostics, canonical empty My Day replacement, and the missing Packet test owner. All69 source checks (654/32) and combined review pass; actual-index/native verification is due; all49 drafts stay protected. Codec release and live adoption remain due.
+- **Next native questions:** After combined review: catalog26, report72, mutation34, Round8 and graph25. Retain capture20/readiness6 for the later closure. Preserve the200-item fixture and900-second watchdog; phase diagnostics localize unproven failures and establish no success.
 - **Other retained work:** finish native finalization/protection, Work/Round production adoption, C55 replacement evidence, and C57 fork/mixed-history preservation. Consult their precise CURRENT_INTEGRATION workstreams when resumed.
 
 ## Working cadence

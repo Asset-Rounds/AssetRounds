@@ -190,6 +190,7 @@ struct V23ProductionMyDayPresentationHarness {
     let diagnostics: DiagnosticsStore
 
     static func start(testCase: XCTestCase, name: String) async throws -> Self {
+        let startedAt = DispatchTime.now().uptimeNanoseconds
         let suiteName = "V23.ProductionMyDay.\(name).\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         let root = FileManager.default.temporaryDirectory
@@ -200,13 +201,21 @@ struct V23ProductionMyDayPresentationHarness {
             at: root.appendingPathComponent("Library/Caches", isDirectory: true),
             withIntermediateDirectories: true)
         let router = StartupRouter(applicationSupportURL: support)
-        let session = try await ProductionCompositionRoot.makeAppAccessSession(
-            applicationSupportURL: support,
-            startupRouter: router,
-            defaults: defaults,
-            authenticationClient: V23ProductionMyDayAuthentication(),
-            notificationSystem: V23ProductionMyDayNotificationSystem()
-        )
+        let session: ProductionAppAccessSessionV1
+        do {
+            session = try await ProductionCompositionRoot.makeAppAccessSession(
+                applicationSupportURL: support,
+                startupRouter: router,
+                defaults: defaults,
+                authenticationClient: V23ProductionMyDayAuthentication(),
+                notificationSystem: V23ProductionMyDayNotificationSystem()
+            )
+        } catch {
+            let value = error as NSError
+            let elapsed = (DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+            print("V23 production-startup failure phase=make-session elapsedMs=\(elapsed) type=\(String(reflecting: type(of: error))) domain=\(value.domain) code=\(value.code)")
+            throw error
+        }
         let presentation = AppAccessPresentationV1(
             startupRouter: router,
             sessionFactory: { session }
@@ -218,8 +227,10 @@ struct V23ProductionMyDayPresentationHarness {
         let observation = presentation.$permitsContentPresentation
             .filter { $0 }.prefix(1).sink { _ in published.fulfill() }
         await presentation.bootstrapIfNeeded()
+        logUnpublishedStartup(presentation, router: router, phase: "after-bootstrap", startedAt: startedAt)
         await testCase.fulfillment(of: [published], timeout: 30)
         observation.cancel()
+        logUnpublishedStartup(presentation, router: router, phase: "after-publication-wait", startedAt: startedAt)
         XCTAssertTrue(presentation.permitsContentPresentation)
         guard case .ready(let coordinator, let diagnostics, _) = router.route else {
             throw AppAccessContractFailureV1.configurationUnknown
@@ -227,6 +238,24 @@ struct V23ProductionMyDayPresentationHarness {
         return .init(suiteName: suiteName, defaults: defaults, root: root, support: support,
                      router: router, session: session, presentation: presentation,
                      coordinator: coordinator, diagnostics: diagnostics)
+    }
+
+    private static func logUnpublishedStartup(
+        _ presentation: AppAccessPresentationV1, router: StartupRouter,
+        phase: String, startedAt: UInt64
+    ) {
+        guard !presentation.permitsContentPresentation else { return }
+        let failure: String
+        switch presentation.failure {
+        case .none: failure = "none"
+        case .some(.bootstrap): failure = "bootstrap"
+        case .some(.authentication(_)): failure = "authentication"
+        case .some(.configuration): failure = "configuration"
+        case .some(.startup): failure = "startup"
+        case .some(.lifecycle(_)): failure = "lifecycle"
+        }
+        let elapsed = (DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+        print("V23 production-startup unpublished phase=\(phase) elapsedMs=\(elapsed) route=\(router.recoveryBootstrapState) failure=\(failure) busy=\(presentation.isBusy) enabled=\(String(describing: presentation.settingIsEnabled)) myDayAccess=\(presentation.myDayAccess != nil)")
     }
 
     func cleanUp() {

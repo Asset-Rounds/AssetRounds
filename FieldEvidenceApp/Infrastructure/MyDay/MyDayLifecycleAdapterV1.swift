@@ -43,10 +43,18 @@ struct MyDayBackupSnapshotV1: Codable, Equatable, Sendable, MyDayCanonicalValida
         }
         switch disposition {
         case .replaceExact:
-            guard snapshot.workspaceID == targetWorkspaceID, targetReferences.isEmpty else {
+            guard targetReferences.isEmpty else {
                 throw MyDayFailureV1.wrongWorkspace
             }
-            return snapshot
+            if snapshot.workspaceID == targetWorkspaceID { return snapshot }
+            guard snapshot.plans.isEmpty, snapshot.carryoverReceipts.isEmpty,
+                  snapshot.nonactivePlanReferences.isEmpty else {
+                throw MyDayFailureV1.wrongWorkspace
+            }
+            return try MyDayBackupSnapshotV1(
+                workspaceID: targetWorkspaceID, plans: [], carryoverReceipts: [],
+                nonactivePlanReferences: []
+            )
         case .configurationCloneOmit:
             guard targetReferences.isEmpty else { throw MyDayFailureV1.invalidValue }
             return try MyDayBackupSnapshotV1(

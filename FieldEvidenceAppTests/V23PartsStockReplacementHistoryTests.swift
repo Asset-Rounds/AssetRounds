@@ -105,6 +105,13 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let archive = try publicReplacementStep("export") {
             try V906Integration.exportStreaming(source)
         }
+        try publicReplacementStep("exported-packet-owner") {
+            try assertExportedPacketOwnerAndRejectOwnerlessPackage(
+                archive, source: source,
+                packetID: V906Integration.id(1_324),
+                stableRootID: V906Integration.id(1_325)
+            )
+        }
         let restoredGenerationID: UUID
         let restoredHistory: MutationHistorySnapshotV1
         do {
@@ -222,19 +229,32 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
 
     @MainActor
     func testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates() throws {
-        let harness = try V906Integration.makeHarness("c55-canonical-dates", withAsset: false)
+        let harness = try publicReplacementStep("dates-create") {
+            try V906Integration.makeHarness("c55-canonical-dates", withAsset: false)
+        }
         registerPublicFixtureCleanup(harness)
-        _ = try seedIncomingMixedHistory(in: harness.session, slot: 1_760)
-        let records = try BackupRestoreService(applicationSupportURL: harness.support)
-            .c55CurrentRecordsForTesting(in: harness.session.modelContext)
+        _ = try publicReplacementStep("dates-seed-mixed") {
+            try seedIncomingMixedHistory(in: harness.session, slot: 1_760)
+        }
+        let records = try publicReplacementStep("dates-current-records") {
+            try BackupRestoreService(applicationSupportURL: harness.support)
+                .c55CurrentRecordsForTesting(in: harness.session.modelContext)
+        }
         let snapshot = try XCTUnwrap(records.partsStockSnapshot)
         XCTAssertFalse(snapshot.movements.isEmpty)
         XCTAssertFalse(snapshot.uses.isEmpty)
 
-        let encoded = try BackupCanonicalEncoderV1().encodeRecords(records).data
-        let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded)
+        let encoded = try publicReplacementStep("dates-encode") {
+            try BackupCanonicalEncoderV1().encodeRecords(records).data
+        }
+        let decoded = try publicReplacementStep("dates-decode") {
+            try BackupCanonicalDecoderV1().decodeRecords(encoded)
+        }
         XCTAssertEqual(decoded, records)
-        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(decoded).data, encoded)
+        let reencoded = try publicReplacementStep("dates-reencode") {
+            try BackupCanonicalEncoderV1().encodeRecords(decoded).data
+        }
+        XCTAssertEqual(reencoded, encoded)
 
         let root = try XCTUnwrap(
             JSONSerialization.jsonObject(with: encoded) as? [String: Any]
@@ -261,6 +281,8 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let canonicalText = try XCTUnwrap(String(data: encoded, encoding: .utf8))
         let occurredToken = "\"occurredAt\":\(occurredAt.stringValue)"
         XCTAssertTrue(canonicalText.contains(occurredToken))
+        let hostileStarted = ProcessInfo.processInfo.systemUptime
+        reportPublicReplacementPhase("dates-hostile-current", status: "start", started: hostileStarted)
         for invalidValue in ["\"wrong-type\"", "\"2027-01-15T08:00:00Z\""] {
             let hostileText = canonicalText.replacingOccurrences(
                 of: occurredToken,
@@ -272,6 +294,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             }
         }
 
+        reportPublicReplacementPhase("dates-hostile-current", status: "complete", started: hostileStarted)
         let legacyRecords = V4BackupRecordsV1(
             assets: [], evidenceFiles: [], issues: [], packets: [],
             recordsSchemaVersion: 1, reports: [], sites: [.init(
@@ -281,8 +304,13 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
                 updatedAt: Fixture.fixedDate.addingTimeInterval(1)
             )], workflowRecords: []
         )
-        let legacyBytes = try BackupCanonicalEncoderV1().encodeRecords(legacyRecords).data
-        XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(legacyBytes), legacyRecords)
+        let legacyBytes = try publicReplacementStep("dates-legacy-encode") {
+            try BackupCanonicalEncoderV1().encodeRecords(legacyRecords).data
+        }
+        let legacyDecoded = try publicReplacementStep("dates-legacy-decode") {
+            try BackupCanonicalDecoderV1().decodeRecords(legacyBytes)
+        }
+        XCTAssertEqual(legacyDecoded, legacyRecords)
         let legacyRoot = try XCTUnwrap(
             JSONSerialization.jsonObject(with: legacyBytes) as? [String: Any]
         )
@@ -295,23 +323,38 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             with: "\"createdAt\":\(Fixture.fixedDate.timeIntervalSince1970 * 1_000)"
         )
         XCTAssertNotEqual(hostileLegacyText, legacyText)
+        let legacyHostileStarted = ProcessInfo.processInfo.systemUptime
+        reportPublicReplacementPhase("dates-hostile-legacy", status: "start", started: legacyHostileStarted)
         XCTAssertThrowsError(
             try BackupCanonicalDecoderV1().decodeRecords(Data(hostileLegacyText.utf8))
         ) {
             XCTAssertEqual($0 as? BackupCanonicalDecodingErrorV1, .invalidRecords)
         }
+        reportPublicReplacementPhase("dates-hostile-legacy", status: "complete", started: legacyHostileStarted)
+        print("C55 public phase=dates-body-complete")
     }
 
     @MainActor
     func testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection() async throws {
-        let source = try V906Integration.makeHarness("c55-policy-source", withAsset: false)
+        let source = try publicReplacementStep("policy-create-source") {
+            try V906Integration.makeHarness("c55-policy-source", withAsset: false)
+        }
         registerPublicFixtureCleanup(source)
-        let target = try V906Integration.makeHarness("c55-policy-target", withAsset: false)
+        let target = try publicReplacementStep("policy-create-target") {
+            try V906Integration.makeHarness("c55-policy-target", withAsset: false)
+        }
         registerPublicFixtureCleanup(target)
-        let sourceRecords = try BackupRestoreService(applicationSupportURL: source.support)
-            .c55CurrentRecordsForTesting(in: source.session.modelContext)
+        let sourceRecords = try publicReplacementStep("policy-current-records") {
+            try BackupRestoreService(applicationSupportURL: source.support)
+                .c55CurrentRecordsForTesting(in: source.session.modelContext)
+        }
         let sourceSnapshot = try XCTUnwrap(sourceRecords.partsStockSnapshot)
         XCTAssertTrue(sourceSnapshot.parts.isEmpty)
+        try publicReplacementStep("policy-empty-myday-boundary") {
+            try assertEmptyMyDayReplacementBoundary(
+                sourceWorkspaceID: source.session.workspaceIdentity.workspaceID, target: target.session
+            )
+        }
 
         let targetPointer = RestorePointerIdentityV1(
             generationID: target.session.generationID,
@@ -329,17 +372,21 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             targetPointer: targetPointer,
             recordIdentityDisposition: .preserve
         )
+        let hostileStarted = ProcessInfo.processInfo.systemUptime
+        reportPublicReplacementPhase("policy-hostile-foreign", status: "start", started: hostileStarted)
         XCTAssertThrowsError(try C52ServiceRequestRestoreIdentityPolicyV1.validate(
             sourceRecords,
             identity: identity
         )) {
             XCTAssertEqual($0 as? RestoreIdentityDecisionErrorV1, .invalidPointerIdentity)
         }
+        reportPublicReplacementPhase("policy-hostile-foreign", status: "complete", started: hostileStarted)
         let missingSnapshot = try replacingRecordAuthority(
             in: sourceRecords,
             recordsSchemaVersion: sourceRecords.recordsSchemaVersion,
             partsStockSnapshot: .omitted
         )
+        reportPublicReplacementPhase("policy-hostile-missing", status: "start", started: hostileStarted)
         XCTAssertThrowsError(try C52ServiceRequestRestoreIdentityPolicyV1.validate(
             missingSnapshot,
             identity: identity
@@ -347,15 +394,22 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             XCTAssertEqual($0 as? RestoreIdentityDecisionErrorV1, .invalidPointerIdentity)
         }
 
-        let archive = try V906Integration.exportStreaming(source)
-        let restored = try await V906Integration.restore(
-            archive,
-            into: target,
-            mode: .replaceExisting,
-            ids: V906Integration.restoreIDs(.replaceExisting, offset: 34)
-        )
-        let projectedRecords = try BackupRestoreService(applicationSupportURL: target.support)
-            .c55CurrentRecordsForTesting(in: restored.modelContext)
+        reportPublicReplacementPhase("policy-hostile-missing", status: "complete", started: hostileStarted)
+        let archive = try publicReplacementStep("policy-export") {
+            try V906Integration.exportStreaming(source)
+        }
+        let restored = try await publicReplacementAsyncStep("policy-restore") {
+            try await V906Integration.restore(
+                archive,
+                into: target,
+                mode: .replaceExisting,
+                ids: V906Integration.restoreIDs(.replaceExisting, offset: 34)
+            )
+        }
+        let projectedRecords = try publicReplacementStep("policy-projected-records") {
+            try BackupRestoreService(applicationSupportURL: target.support)
+                .c55CurrentRecordsForTesting(in: restored.modelContext)
+        }
         let projectedSnapshot = try XCTUnwrap(projectedRecords.partsStockSnapshot)
         XCTAssertEqual(projectedSnapshot.workspaceID, target.session.workspaceIdentity.workspaceID)
         XCTAssertTrue(projectedSnapshot.parts.isEmpty)
@@ -372,10 +426,14 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             targetPointer: projectedPointer,
             recordIdentityDisposition: .preserve
         )
+        let finalStarted = ProcessInfo.processInfo.systemUptime
+        reportPublicReplacementPhase("policy-final-validation", status: "start", started: finalStarted)
         XCTAssertNoThrow(try C52ServiceRequestRestoreIdentityPolicyV1.validate(
             projectedRecords,
             identity: projectedIdentity
         ))
+        reportPublicReplacementPhase("policy-final-validation", status: "complete", started: finalStarted)
+        print("C55 public phase=policy-body-complete")
     }
 
     @MainActor
@@ -1114,9 +1172,14 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         _ phase: String,
         _ operation: () throws -> T
     ) rethrows -> T {
+        let started = ProcessInfo.processInfo.systemUptime
+        reportPublicReplacementPhase(phase, status: "start", started: started)
         do {
-            return try operation()
+            let result = try operation()
+            reportPublicReplacementPhase(phase, status: "complete", started: started)
+            return result
         } catch {
+            reportPublicReplacementPhase(phase, status: "failed", started: started)
             reportPublicReplacementFailure(error, phase: phase)
             throw error
         }
@@ -1126,9 +1189,14 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         _ phase: String,
         _ operation: @MainActor () async throws -> T
     ) async rethrows -> T {
+        let started = ProcessInfo.processInfo.systemUptime
+        reportPublicReplacementPhase(phase, status: "start", started: started)
         do {
-            return try await operation()
+            let result = try await operation()
+            reportPublicReplacementPhase(phase, status: "complete", started: started)
+            return result
         } catch {
+            reportPublicReplacementPhase(phase, status: "failed", started: started)
             reportPublicReplacementFailure(error, phase: phase)
             throw error
         }
@@ -1136,12 +1204,16 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
 
     private func registerPublicFixtureCleanup(_ harness: V906Integration.Harness) {
         addTeardownBlock { [weak session = harness.session, root = harness.root] in
+            let started = ProcessInfo.processInfo.systemUptime
+            print("C55 fixture phase=cleanup-start sessionReleased=\(session == nil)")
             guard session == nil else {
                 XCTFail("C55 fixture cleanup requires the original session to be released")
                 return
             }
             do {
                 try FileManager.default.removeItem(at: root)
+                let elapsed = Int((ProcessInfo.processInfo.systemUptime - started) * 1_000)
+                print("C55 fixture phase=cleanup-complete elapsedMillis=\(elapsed)")
             } catch {
                 let observed = error as NSError
                 XCTFail("C55 fixture cleanup failed type=\(String(reflecting: type(of: error))) domain=\(observed.domain) code=\(observed.code)")
@@ -1152,6 +1224,185 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
     private func reportPublicReplacementFailure(_ error: Error, phase: String) {
         let value = error as NSError
         print("C55 public failure phase=\(phase) type=\(String(reflecting: type(of: error))) domain=\(value.domain) code=\(value.code)")
+    }
+
+    private func reportPublicReplacementPhase(
+        _ phase: String, status: String, started: TimeInterval
+    ) {
+        let elapsed = Int((ProcessInfo.processInfo.systemUptime - started) * 1_000)
+        print("C55 public phase=\(phase) status=\(status) elapsedMillis=\(elapsed)")
+    }
+
+    private func assertExportedPacketOwnerAndRejectOwnerlessPackage(
+        _ archive: URL,
+        source: V906Integration.Harness,
+        packetID: UUID,
+        stableRootID: UUID
+    ) throws {
+        let directory = source.root.appendingPathComponent(
+            "packet-owner.fieldrecordbackup", isDirectory: true
+        )
+        _ = try StreamingArchiveService().extract(archive, to: directory)
+        let validated = try BackupPackageValidatorV1().validate(stagedPackageURL: directory)
+        XCTAssertEqual(validated.records.packets.map(\.id), [packetID])
+        let owner = try XCTUnwrap(validated.records.packets.first)
+        XCTAssertEqual(owner.stableRootID, stableRootID)
+        XCTAssertNil(owner.currentRecordID)
+        XCTAssertTrue(owner.evaluationCounted)
+        XCTAssertEqual(owner.contentDeletedAt, Fixture.fixedDate)
+        XCTAssertEqual(owner.createdAt, Fixture.fixedDate)
+        let manifestRow = try XCTUnwrap(validated.records.workPackets.first {
+            $0.kind == .manifest
+        })
+        let workPacket = try WorkPacketCanonicalCodecV1.decode(
+            WorkPacketManifestV1.self, from: manifestRow.canonicalData
+        )
+        XCTAssertEqual(workPacket.packetID, owner.id)
+
+        let recordsURL = directory.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: recordsURL)
+        ) as? [String: Any])
+        object["packets"] = []
+        let transport = try JSONSerialization.data(
+            withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]
+        )
+        let ownerless = try BackupCanonicalDecoderV1().decodeRecords(transport)
+        XCTAssertTrue(ownerless.packets.isEmpty)
+        XCTAssertEqual(ownerless.workPackets, validated.records.workPackets)
+        let recordsData = try BackupCanonicalEncoderV1().encodeRecords(ownerless).data
+        try recordsData.write(to: recordsURL, options: .atomic)
+        let manifest = validated.manifest
+        let entries = manifest.entries.map { entry in
+            entry.path == "records.json"
+                ? V4BackupEntryV1(byteCount: recordsData.count, mimeType: entry.mimeType,
+                                  path: entry.path, sha256: CanonicalJSONV1.sha256(recordsData))
+                : entry
+        }
+        let resealed = V4BackupManifestV1(
+            backupSchemaVersion: manifest.backupSchemaVersion,
+            consumedEvaluationRootIDs: manifest.consumedEvaluationRootIDs,
+            declaredPayloadByteCount: entries.reduce(0) { $0 + $1.byteCount },
+            entries: entries, exportedAt: manifest.exportedAt, packs: manifest.packs,
+            source: manifest.source
+        )
+        try BackupCanonicalEncoderV1().encodeManifest(resealed).data.write(
+            to: directory.appendingPathComponent("manifest.json"), options: .atomic
+        )
+        XCTAssertThrowsError(try BackupPackageValidatorV1().validate(stagedPackageURL: directory)) {
+            XCTAssertEqual($0 as? BackupPackageValidationErrorV1, .invalidPackage)
+        }
+    }
+
+    private func assertEmptyMyDayReplacementBoundary(
+        sourceWorkspaceID: WorkspaceID, target: StoreGenerationSession
+    ) throws {
+        let targetWorkspaceID = target.workspaceIdentity.workspaceID
+        XCTAssertNotEqual(sourceWorkspaceID, targetWorkspaceID)
+        let source = try MyDayBackupSnapshotV1(
+            workspaceID: sourceWorkspaceID, plans: [], carryoverReceipts: [],
+            nonactivePlanReferences: []
+        )
+        let expected = try MyDayBackupSnapshotV1(
+            workspaceID: targetWorkspaceID, plans: [], carryoverReceipts: [],
+            nonactivePlanReferences: []
+        )
+        let prepared = try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+            source, targetWorkspaceID: targetWorkspaceID, disposition: .replaceExact,
+            operationID: V906Integration.id(1_800)
+        )
+        try prepared.validate()
+        XCTAssertEqual(prepared, expected)
+        XCTAssertEqual(try MyDayCanonicalCodecV1.data(prepared), try MyDayCanonicalCodecV1.data(expected))
+        XCTAssertNotEqual(prepared.snapshotSHA256, source.snapshotSHA256)
+
+        let fixture = try C57MyDayExistingSuiteFixtureV1.make()
+        XCTAssertNotEqual(fixture.workspaceID, targetWorkspaceID)
+        let successor = try fixture.sourceSuccessor()
+        let nonactive = try MyDayPlanReferenceV1(fixture.sourcePlan)
+        let full = try MyDayBackupSnapshotV1(
+            workspaceID: fixture.workspaceID,
+            plans: [fixture.sourcePlan, successor, fixture.targetPlan],
+            carryoverReceipts: [fixture.carryoverReceipt],
+            nonactivePlanReferences: [nonactive]
+        )
+        let sameWorkspace = try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+            full, targetWorkspaceID: fixture.workspaceID, disposition: .replaceExact,
+            operationID: V906Integration.id(1_801)
+        )
+        XCTAssertEqual(try MyDayCanonicalCodecV1.data(sameWorkspace), try MyDayCanonicalCodecV1.data(full))
+        let missingNonactive = try MyDayBackupSnapshotV1(
+            workspaceID: fixture.workspaceID, plans: full.plans,
+            carryoverReceipts: full.carryoverReceipts, nonactivePlanReferences: []
+        )
+        try missingNonactive.validate()
+        XCTAssertThrowsError(try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+            missingNonactive, targetWorkspaceID: targetWorkspaceID, disposition: .replaceExact,
+            operationID: V906Integration.id(1_806)
+        )) {
+            XCTAssertEqual($0 as? MyDayFailureV1, .divergentMutation)
+        }
+        let planOnly = try MyDayBackupSnapshotV1(
+            workspaceID: fixture.workspaceID, plans: [fixture.sourcePlan],
+            carryoverReceipts: [], nonactivePlanReferences: []
+        )
+        let receiptOnly = try MyDayBackupSnapshotV1(
+            workspaceID: fixture.workspaceID, plans: [],
+            carryoverReceipts: [fixture.carryoverReceipt], nonactivePlanReferences: []
+        )
+        for nonempty in [planOnly, receiptOnly, full] {
+            try nonempty.validate()
+            XCTAssertThrowsError(try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+                nonempty, targetWorkspaceID: targetWorkspaceID, disposition: .replaceExact,
+                operationID: V906Integration.id(1_802)
+            )) {
+                XCTAssertEqual($0 as? MyDayFailureV1, .wrongWorkspace)
+            }
+        }
+        let targetReference = try XCTUnwrap(fixture.sourcePlan.items.first).reference
+        for workspaceID in [sourceWorkspaceID, targetWorkspaceID] {
+            XCTAssertThrowsError(try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+                source, targetWorkspaceID: workspaceID, disposition: .replaceExact,
+                operationID: V906Integration.id(1_803), targetReferences: [targetReference]
+            )) {
+                XCTAssertEqual($0 as? MyDayFailureV1, .wrongWorkspace)
+            }
+        }
+        var corruptObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(source)
+        ) as? [String: Any])
+        corruptObject["snapshotSHA256"] = String(repeating: "0", count: 64)
+        let corrupt = try JSONDecoder().decode(MyDayBackupSnapshotV1.self,
+            from: JSONSerialization.data(withJSONObject: corruptObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+            corrupt, targetWorkspaceID: targetWorkspaceID, disposition: .replaceExact,
+            operationID: V906Integration.id(1_804)
+        )) {
+            XCTAssertEqual($0 as? MyDayFailureV1, .invalidDigest)
+        }
+
+        let cloned = try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+            full, targetWorkspaceID: targetWorkspaceID, disposition: .configurationCloneOmit,
+            operationID: V906Integration.id(1_807)
+        )
+        XCTAssertEqual(cloned, expected)
+        let emptyFork = try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+            source, targetWorkspaceID: targetWorkspaceID, disposition: .workspaceForkNonactiveHistory,
+            operationID: V906Integration.id(1_808)
+        )
+        XCTAssertEqual(emptyFork, expected)
+
+        let adapter = MyDayLifecycleAdapterV1(modelContext: target.modelContext)
+        XCTAssertFalse(target.modelContext.hasChanges)
+        try adapter.materializeRestoreStaging(
+            source, targetWorkspaceID: targetWorkspaceID, disposition: .replaceExact,
+            operationID: V906Integration.id(1_805)
+        )
+        let materialized = try adapter.snapshotForBackup(
+            workspaceID: targetWorkspaceID, nonactivePlanReferences: []
+        )
+        XCTAssertEqual(materialized, expected)
+        XCTAssertFalse(target.modelContext.hasChanges)
     }
 
     private enum RecordField<Value: Encodable> {
@@ -1291,8 +1542,18 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         in session: StoreGenerationSession,
         slot: Int
     ) throws -> MutationHistorySnapshotV1 {
-        var phase = "mixed-journal-init"
+        var phase = "mixed-packet-owner-baseline"
         do {
+            session.modelContext.insert(Packet(
+                id: V906Integration.id(slot + 24),
+                stableRootID: V906Integration.id(slot + 25),
+                currentRecordID: nil,
+                evaluationCounted: true,
+                contentDeletedAt: Fixture.fixedDate,
+                createdAt: Fixture.fixedDate
+            ))
+            try V906Integration.adoptSeededDeletionBaseline(session)
+            phase = "mixed-journal-init"
             let journal = try MutationJournalStoreV1(
                 modelContext: session.modelContext,
                 identity: session.workspaceIdentity,
@@ -1516,6 +1777,14 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         sourceWorkspaceID: WorkspaceID,
         sourceStockHistoryCount: Int
     ) throws -> MutationHistorySnapshotV1 {
+        let packetOwners = try session.modelContext.fetch(FetchDescriptor<Packet>())
+        XCTAssertEqual(packetOwners.map(\.id), [V906Integration.id(1_324)])
+        let packetOwner = try XCTUnwrap(packetOwners.first)
+        XCTAssertEqual(packetOwner.stableRootID, V906Integration.id(1_325))
+        XCTAssertNil(packetOwner.currentRecordID)
+        XCTAssertTrue(packetOwner.evaluationCounted)
+        XCTAssertEqual(packetOwner.contentDeletedAt, Fixture.fixedDate)
+        XCTAssertEqual(packetOwner.createdAt, Fixture.fixedDate)
         let snapshot = try PartsStockLifecycleAdapterV1(
             modelContext: session.modelContext
         ).snapshotForBackup(workspaceID: session.workspaceIdentity.workspaceID)

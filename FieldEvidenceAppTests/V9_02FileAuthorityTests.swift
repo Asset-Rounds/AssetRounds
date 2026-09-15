@@ -89,7 +89,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
     }
 
     #if DEBUG && os(iOS) && targetEnvironment(simulator)
-    func testSimulatorDiagnosticClassifierRejectsEveryNonexactFact() {
+    func testSimulatorDiagnosticClassifierRejectsEveryNonexactFact() throws {
         for kind in OwnedFileKindV1.allCases {
             let disposition = ProtectedFilePolicyV1.disposition(for: kind)
             func facts(
@@ -142,6 +142,30 @@ final class V9_02FileAuthorityTests: XCTestCase {
                     volumeSupportsProtection: false),
             ] { XCTAssertFalse(allowed(false, missing)) }
         }
+
+        // Exercise the actual shared writer with concurrent records larger
+        // than the original diagnostic records. Test text stays in this
+        // disposable file and never becomes a protection-disposition event.
+        let root = try makeTemporaryRoot("diagnostic-output")
+        defer { try? fileManager.removeItem(at: root) }
+        let output = root.appendingPathComponent("concurrent-records.txt")
+        XCTAssertTrue(fileManager.createFile(atPath: output.path, contents: nil))
+        let handle = try FileHandle(forWritingTo: output)
+        defer { try? handle.close() }
+        let writer = ProtectedFileDiagnosticWriterV1(fileHandle: handle)
+        let records = (0..<64).map { index in
+            "record-\(index):" + String(repeating: "0123456789abcdef", count: 2_048) + "\n"
+        }
+        DispatchQueue.concurrentPerform(iterations: records.count) { index in
+            writer.write(records[index])
+        }
+        try handle.synchronize()
+        let actual = try String(contentsOf: output, encoding: .utf8)
+        let lines = actual.split(separator: "\n", omittingEmptySubsequences: false)
+        XCTAssertEqual(lines.count, records.count + 1)
+        XCTAssertTrue(lines.last?.isEmpty == true)
+        XCTAssertEqual(Set(lines.dropLast().map(String.init)),
+                       Set(records.map { String($0.dropLast()) }))
     }
 
     func testSimulatorUnsupportedFileAndDirectoryRemainExplicitAcrossVerification() throws {

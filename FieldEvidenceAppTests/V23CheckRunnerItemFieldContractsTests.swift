@@ -604,6 +604,512 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
         }
     }
 
+    func testPhotoChildAllFourPhasesRoundTripAcrossRoutesStagesAndSteps() throws {
+        for recheck in [false, true] {
+            for step in [WorkflowDraftStep.wide, .close] {
+                for origin in [OriginalContentOriginV1.humanCapture, .localImport] {
+                    let f = try photoFixture(recheck: recheck, step: step, origin: origin)
+                    let phases: [CheckRunnerPhotoDurablePhaseV1] = [.awaitingRawStage(f.intent), .rawReady(f.raw),
+                        .pairReady(f.pair), .preparedCommit(f.pair, f.attempt)]
+                    for (index, phase) in phases.enumerated() {
+                        let payload = try photoPayload(f, phase: phase)
+                        let bytes = try CheckRunnerPhotoDraftPayloadV1.encode(payload)
+                        let decoded = try CheckRunnerPhotoDraftPayloadV1.decode(bytes)
+                        XCTAssertEqual(decoded, payload)
+                        XCTAssertEqual(try CheckRunnerPhotoDraftPayloadV1.encode(decoded), bytes)
+                        XCTAssertEqual(decoded.phase.declaredStageIDs, index == 0 ? [] : [f.intent.stageID])
+                        XCTAssertEqual(decoded.workflowStage, recheck ? .recheck : .check)
+                        XCTAssertEqual(decoded.origin, origin)
+                        XCTAssertNoThrow(try decoded.validate(parent: f.parent, parentDraftID: f.parentDraftID))
+                    }
+                }
+            }
+        }
+    }
+
+    func testPhotoChildClosedPhaseGrammarRejectsUnknownMissingAndPrematureValues() throws {
+        let f = try photoFixture()
+        let rows: [(CheckRunnerPhotoDurablePhaseV1, String, Set<String>, String)] = [
+            (.awaitingRawStage(f.intent), "AWAITING_RAW_STAGE", ["tag", "intent"], "raw"),
+            (.rawReady(f.raw), "RAW_READY", ["tag", "raw"], "pair"),
+            (.pairReady(f.pair), "PAIR_READY", ["tag", "pair"], "attempt"),
+            (.preparedCommit(f.pair, f.attempt), "PREPARED_COMMIT", ["tag", "pair", "attempt"], "intent"),
+        ]
+        for (phase, tag, keys, prematureKey) in rows {
+            let value = try photoPayload(f, phase: phase)
+            let original = try jsonObject(value)
+            let phaseObject = try XCTUnwrap(original["phase"] as? [String: Any])
+            XCTAssertEqual(Set(phaseObject.keys), keys)
+            XCTAssertEqual(phaseObject["tag"] as? String, tag)
+            for key in keys {
+                var missing = original; removeJSON(&missing, path: ["phase", key])
+                XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, missing), key)
+            }
+            for badTag in ["PROCESSING", "COMMITTED", "rawReady"] {
+                var bad = original; setJSON(&bad, path: ["phase", "tag"], value: badTag)
+                XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, bad), badTag)
+            }
+            var premature = original; setJSON(&premature, path: ["phase", prematureKey], value: NSNull())
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, premature))
+            var unknown = original; setJSON(&unknown, path: ["phase", "receiptSHA256"], value: String(repeating: "a", count: 64))
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, unknown))
+        }
+    }
+
+    func testPhotoChildSourceProfileAndInspectionEnforceAllSourceBounds() throws {
+        let f = try photoFixture()
+        let expected = ["public.jpeg": "image/jpeg", "public.heic": "image/heic",
+                        "public.heif": "image/heif", "public.png": "image/png"]
+        XCTAssertEqual(CheckRunnerPhotoSourceMetadataProfileV1.sourceUTIToMediaType, expected)
+        XCTAssertEqual(Set(expected.keys), MediaContractV1.acceptedSourceTypeIdentifiers)
+        XCTAssertEqual(CheckRunnerPhotoSourceMetadataProfileV1.profileID, "assetrounds.checkrunner-photo-source-metadata")
+        XCTAssertEqual(CheckRunnerPhotoSourceMetadataProfileV1.profileVersion, "1")
+        for (uti, mime) in expected {
+            for count in [1, MediaContractV1.sourceByteCountMaximum] {
+                let inspection = try CheckRunnerPhotoSourceInspectionV1(
+                    facts: .init(sourceTypeIdentifier: uti, pixelWidth: 10_000, pixelHeight: 10_000, byteCount: count),
+                    sourceSHA256: f.raw.inspection.sourceSHA256, workspaceID: f.parent.source.roundAtEntry.workspaceID,
+                    provenanceID: f.intent.provenanceID)
+                XCTAssertEqual(inspection.sourceMediaType, mime)
+                XCTAssertEqual(inspection.decodedPixelCount, 100_000_000)
+                XCTAssertEqual(inspection.sourceByteCount, Int64(count))
+                XCTAssertEqual(inspection.frameCount, 1)
+            }
+        }
+        let original = try jsonObject(f.raw.inspection)
+        let mutations: [(String, Any)] = [
+            ("sourceByteCount", 0), ("sourceByteCount", MediaContractV1.sourceByteCountMaximum + 1),
+            ("sourceByteCount", 1.5), ("detectedUTI", "public.gif"), ("detectedUTI", "PUBLIC.JPEG"),
+            ("sourceMediaType", "image/png"), ("pixelWidth", 0), ("pixelWidth", 16_385),
+            ("pixelHeight", Int.max), ("decodedPixelCount", 201), ("frameCount", 2),
+            ("rawContentID", ""), ("provenanceID", ""),
+        ]
+        for (key, value) in mutations {
+            var bad = original; bad[key] = value
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoSourceInspectionV1.self, bad), key)
+        }
+        var tooManyPixels = original
+        tooManyPixels["pixelWidth"] = 10_001; tooManyPixels["pixelHeight"] = 10_000
+        tooManyPixels["decodedPixelCount"] = 100_010_000
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoSourceInspectionV1.self, tooManyPixels))
+        var wrongAlgorithm = original
+        wrongAlgorithm["sourceSHA256"] = try jsonValue(ContentDigestV1(algorithm: .sha512,
+            hexadecimalValue: String(repeating: "b", count: 128)))
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoSourceInspectionV1.self, wrongAlgorithm))
+        for badTime in [Date(timeIntervalSince1970: -1), Date(timeIntervalSince1970: .infinity)] {
+            XCTAssertThrowsError(try CheckRunnerPhotoRawStageIntentV1(stageID: f.intent.stageID,
+                stageMutationID: f.intent.stageMutationID, stageCreatedAt: f.intent.stageCreatedAt,
+                expectedSourceByteCount: f.intent.expectedSourceByteCount, provenanceID: f.intent.provenanceID,
+                evidenceID: f.intent.evidenceID, evidenceCreatedAt: badTime))
+        }
+        XCTAssertNoThrow(try CheckRunnerPhotoRawStageIntentV1(stageID: f.intent.stageID,
+            stageMutationID: f.intent.stageMutationID, stageCreatedAt: f.intent.stageCreatedAt,
+            expectedSourceByteCount: Int64(MediaContractV1.sourceByteCountMaximum), provenanceID: f.intent.provenanceID,
+            evidenceID: f.intent.evidenceID, evidenceCreatedAt: f.intent.evidenceCreatedAt))
+    }
+
+    func testPhotoChildValidatesRawStageAndProvenanceValueJoins() throws {
+        let f = try photoFixture()
+        let original = try jsonObject(f.raw)
+        let mutations: [([String], Any)] = [
+            (["stagePublicationMutationID"], largeID(4_001).uuidString),
+            (["inspection", "rawContentID"], "draft-content-wrong"),
+            (["inspection", "provenanceID"], "wrong-provenance"),
+            (["originalProvenance", "workspaceID"], largeID(4_002).uuidString.lowercased()),
+            (["originalProvenance", "contentID"], "wrong-content"),
+            (["originalProvenance", "provenanceID"], "wrong-provenance"),
+            (["originalProvenance", "recordedAt"], f.raw.originalProvenance.recordedAt.replacingOccurrences(of: "Z", with: "+00:00")),
+            (["readyItem", "stageSHA256"], String(repeating: "f", count: 64)),
+        ]
+        for (path, value) in mutations {
+            var bad = original; setJSON(&bad, path: path, value: value)
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoRawReadyV1.self, bad), path.joined(separator: "."))
+        }
+        let item = f.raw.readyItem
+        let processing = try AttachmentStagingItemV1(stageID: item.stageID, draftID: item.draftID,
+            workspaceID: item.workspaceID, attachmentKind: .photo, scratchLeaseID: item.scratchLeaseID,
+            expectedByteCount: item.expectedByteCount, actualByteCount: item.actualByteCount,
+            contentDigest: item.contentDigest, retryClass: .none, state: .processing,
+            protectionState: .available, revision: 1, mutationID: item.mutationID)
+        XCTAssertNoThrow(try processing.validate())
+        XCTAssertThrowsError(try CheckRunnerPhotoRawReadyV1(intent: f.intent, inspection: f.raw.inspection,
+            readyItem: processing, stagePublicationMutationID: f.intent.stageMutationID,
+            originalProvenance: f.raw.originalProvenance))
+        var unknown = original; setJSON(&unknown, path: ["readyItem", "createdAt"], value: 1_800_000_201_000)
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoRawReadyV1.self, unknown))
+        XCTAssertEqual(f.raw.originalProvenance.recordedAt,
+            try CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(f.intent.stageCreatedAt))
+        XCTAssertEqual(f.raw.originalProvenance.recordedAt, DraftAttachmentStagingAdapterV1.iso8601(f.intent.stageCreatedAt))
+        XCTAssertEqual(f.raw.inspection.rawContentID, DraftAttachmentStagingAdapterV1.contentID(
+            workspaceID: item.workspaceID, digest: f.raw.inspection.sourceSHA256))
+        XCTAssertNil(item.contentReference); XCTAssertNil(item.processingJobID)
+    }
+
+    func testPhotoChildPairBoundsPathsAndDerivativeProfileAreClosed() throws {
+        let f = try photoFixture()
+        let original = try jsonObject(f.pair.normalizedPair)
+        var maximum = original
+        maximum["originalByteCount"] = MediaContractV1.originalByteCountMaximum
+        maximum["originalPixelWidth"] = MediaContractV1.originalLongestEdgeMaximum
+        maximum["originalPixelHeight"] = MediaContractV1.originalLongestEdgeMaximum
+        maximum["thumbnailByteCount"] = MediaContractV1.thumbnailByteCountMaximum
+        maximum["thumbnailPixelWidth"] = MediaContractV1.thumbnailLongestEdgeMaximum
+        maximum["thumbnailPixelHeight"] = MediaContractV1.thumbnailLongestEdgeMaximum
+        setJSON(&maximum, path: ["thumbnailDerivative", "pixelWidth"], value: 512)
+        setJSON(&maximum, path: ["thumbnailDerivative", "pixelHeight"], value: 512)
+        XCTAssertNoThrow(try decodeObject(CheckRunnerPhotoNormalizedPairV1.self, maximum))
+        let mutations: [([String], Any)] = [
+            (["originalRelativePath"], "../original.jpg"),
+            (["originalRelativePath"], f.pair.normalizedPair.originalRelativePath.uppercased()),
+            (["thumbnailRelativePath"], f.pair.normalizedPair.originalRelativePath),
+            (["originalByteCount"], 0), (["originalByteCount"], MediaContractV1.originalByteCountMaximum + 1),
+            (["thumbnailByteCount"], 0), (["thumbnailByteCount"], MediaContractV1.thumbnailByteCountMaximum + 1),
+            (["originalPixelWidth"], 4_097), (["thumbnailPixelHeight"], 513),
+            (["originalSHA256"], String(repeating: "A", count: 64)),
+            (["thumbnailSHA256"], "abc"),
+            (["sanitizedDerivative", "sanitizerID"], "different-sanitizer"),
+            (["sanitizedDerivative", "sanitizerVersion"], "2"),
+            (["thumbnailDerivative", "rendererID"], "different-renderer"),
+            (["thumbnailDerivative", "rendererVersion"], "2"),
+            (["thumbnailDerivative", "pixelWidth"], 11),
+        ]
+        for (path, value) in mutations {
+            var bad = original; setJSON(&bad, path: path, value: value)
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoNormalizedPairV1.self, bad), path.joined(separator: "."))
+        }
+        XCTAssertEqual(f.pair.normalizedPair.sanitizedDerivative.sanitizerID, "assetrounds.media-normalizer.metadata")
+        XCTAssertEqual(f.pair.normalizedPair.thumbnailDerivative.rendererID, "assetrounds.media-normalizer.thumbnail")
+    }
+
+    func testPhotoChildPairMarkerBindsParentChildRawAndBothOutputs() throws {
+        let f = try photoFixture()
+        let baseline = try photoPayload(f, phase: .pairReady(f.pair))
+        XCTAssertEqual(f.pair.pairPublicationMarkerSHA256, try CheckRunnerPhotoPairReadyV1.markerSHA256(
+            childDraftID: f.childDraftID, parentDraftID: f.parentDraftID, raw: f.raw, normalizedPair: f.pair.normalizedPair))
+        XCTAssertNotEqual(f.pair.pairPublicationMarkerSHA256, try CheckRunnerPhotoPairReadyV1.markerSHA256(
+            childDraftID: f.childDraftID, parentDraftID: largeID(4_100), raw: f.raw, normalizedPair: f.pair.normalizedPair))
+        XCTAssertThrowsError(try CheckRunnerPhotoPairReadyV1.markerSHA256(childDraftID: largeID(4_101),
+            parentDraftID: f.parentDraftID, raw: f.raw, normalizedPair: f.pair.normalizedPair))
+        for key in ["originalSHA256", "thumbnailSHA256"] {
+            var pairObject = try jsonObject(f.pair.normalizedPair)
+            pairObject[key] = String(repeating: "d", count: 64)
+            let changedPair = try decodeObject(CheckRunnerPhotoNormalizedPairV1.self, pairObject)
+            let stale = try CheckRunnerPhotoPairReadyV1(raw: f.raw, normalizedPair: changedPair,
+                pairPublicationMarkerSHA256: f.pair.pairPublicationMarkerSHA256)
+            XCTAssertNoThrow(try stale.validate())
+            XCTAssertThrowsError(try photoPayload(f, phase: .pairReady(stale)), key)
+            XCTAssertNotEqual(try CheckRunnerPhotoPairReadyV1.markerSHA256(childDraftID: f.childDraftID,
+                parentDraftID: f.parentDraftID, raw: f.raw, normalizedPair: changedPair),
+                f.pair.pairPublicationMarkerSHA256)
+        }
+        var wrongSource = try jsonObject(f.pair)
+        setJSON(&wrongSource, path: ["normalizedPair", "sourceBinding", "contentID"], value: "wrong-raw-content")
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairReadyV1.self, wrongSource))
+        var wrongEvidence = try jsonObject(f.pair)
+        setJSON(&wrongEvidence, path: ["normalizedPair", "evidenceID"], value: largeID(4_102).uuidString)
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoPairReadyV1.self, wrongEvidence))
+        let bytes = try CheckRunnerPhotoDraftPayloadV1.encode(baseline)
+        XCTAssertEqual(try CheckRunnerPhotoDraftPayloadV1.encode(CheckRunnerPhotoDraftPayloadV1.decode(bytes)), bytes)
+    }
+
+    func testPhotoChildPreparedAttemptPreservesEveryFrozenIdentityAndTime() throws {
+        let f = try photoFixture()
+        let payload = try photoPayload(f, phase: .preparedCommit(f.pair, f.attempt))
+        let bytes = try CheckRunnerPhotoDraftPayloadV1.encode(payload)
+        let decoded = try CheckRunnerPhotoDraftPayloadV1.decode(bytes)
+        let attempt = try XCTUnwrap(decoded.phase.attempt)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(attempt), try FieldDraftCanonicalCodecV1.encode(f.attempt))
+        let rows = try attempt.rowMutationIDs(stageID: f.intent.stageID)
+        XCTAssertEqual(rows.reservationByStageID, [f.intent.stageID: attempt.reservationMutationID])
+        XCTAssertEqual(rows.terminalBundleMutationID, attempt.terminalBundleMutationID)
+        let mutations = [attempt.preparedSagaMutationID, attempt.contentPromotedSagaMutationID,
+                         attempt.targetCommittedSagaMutationID, attempt.draftRetirePendingSagaMutationID]
+        XCTAssertNoThrow(try rows.validate(stageIDs: [f.intent.stageID], targetMutationID: attempt.targetMutationID,
+                                           sagaMutationIDs: mutations))
+        XCTAssertThrowsError(try rows.validate(stageIDs: [f.intent.stageID], targetMutationID: attempt.targetMutationID,
+                                               sagaMutationIDs: mutations + [attempt.terminalBundleMutationID]))
+        let plan = try DraftCommitPlanV1(planID: attempt.planID, workspaceID: payload.workspaceID,
+            draftID: payload.childDraftID, draftRevision: 4, baseCanonicalRevision: 0,
+            payloadSHA256: FieldDraftCanonicalCodecV1.sha256(bytes), stageDigests: [f.raw.readyItem.stageSHA256],
+            targetCommandKind: .acceptCheckEvidence, expectedTargetRevision: attempt.expectedWorkflowRecordRevision,
+            mutationID: attempt.targetMutationID, outputKeys: attempt.outputKeys)
+        let definitions: [(UUID, DraftCommitSagaStateV1, MutationIDV1, Date)] = [
+            (attempt.preparedSagaID, .prepared, attempt.preparedSagaMutationID, attempt.preparedUpdatedAt),
+            (attempt.contentPromotedSagaID, .contentPromotedUnbound, attempt.contentPromotedSagaMutationID, attempt.contentPromotedUpdatedAt),
+            (attempt.targetCommittedSagaID, .targetCommitted, attempt.targetCommittedSagaMutationID, attempt.targetCommittedUpdatedAt),
+            (attempt.draftRetirePendingSagaID, .draftRetirePending, attempt.draftRetirePendingSagaMutationID, attempt.draftRetirePendingUpdatedAt),
+            (attempt.draftRetiredSagaID, .draftRetired, attempt.terminalBundleMutationID, attempt.draftRetiredUpdatedAt),
+        ]
+        var previous: DraftCommitSagaV1?
+        for (offset, definition) in definitions.enumerated() {
+            let row = try DraftCommitSagaV1(sagaID: definition.0, workspaceID: payload.workspaceID,
+                draftID: payload.childDraftID, plan: plan, state: definition.1, predecessorSagaID: previous?.sagaID,
+                revision: UInt64(offset + 1), mutationID: definition.2, updatedAt: definition.3)
+            if let previous { XCTAssertNoThrow(try row.validateSuccessor(of: previous)) }
+            previous = row
+        }
+        XCTAssertEqual(previous?.mutationID, attempt.terminalBundleMutationID)
+        XCTAssertEqual(previous?.revision, 5)
+        XCTAssertEqual(plan.draftID, payload.childDraftID)
+        XCTAssertEqual(attempt.targetMutationID.rawValue, f.intent.evidenceID)
+        XCTAssertEqual(try CheckRunnerPhotoDraftPayloadV1.encode(decoded), bytes)
+    }
+
+    func testPhotoChildPreparedAttemptRejectsAliasesWrongOutputsAndTimeRegressions() throws {
+        let f = try photoFixture()
+        let original = try jsonObject(f.attempt)
+        let idKeys = ["planID", "preparedSagaID", "contentPromotedSagaID", "targetCommittedSagaID",
+            "draftRetirePendingSagaID", "draftRetiredSagaID", "commitReceiptID", "targetMutationID",
+            "reservationMutationID", "preparedSagaMutationID", "contentPromotedSagaMutationID",
+            "targetCommittedSagaMutationID", "draftRetirePendingSagaMutationID", "terminalBundleMutationID"]
+        for key in idKeys {
+            var zero = original; zero[key] = FieldDraftValidationV1.zero.uuidString
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, zero), key)
+            var bad = original
+            bad[key] = largeID(4_200).uuidString
+            let firstOther = idKeys.first { $0 != key && !$0.contains("MutationID") }!
+            bad[firstOther] = largeID(4_200).uuidString
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, bad), key)
+        }
+        for revision in [UInt64(0), UInt64.max] {
+            var bad = original; bad["expectedWorkflowRecordRevision"] = NSNumber(value: revision)
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, bad))
+        }
+        for outputs in [Array(f.attempt.outputKeys.reversed()), [f.attempt.outputKeys[0]],
+                        [f.attempt.outputKeys[0], f.attempt.outputKeys[0]]] {
+            var bad = original; bad["outputKeys"] = outputs
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, bad))
+        }
+        var wrongOutputs = original
+        wrongOutputs["outputKeys"] = try [WorkspaceEntityIdentityV1(kind: .workflowRecord, id: largeID(4_201)).stableKey,
+            WorkspaceEntityIdentityV1(kind: .evidenceFile, id: f.intent.evidenceID).stableKey].sorted()
+        let differentTarget = try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, wrongOutputs)
+        XCTAssertThrowsError(try differentTarget.validate(raw: f.raw, recordID: f.parentFixture.attempt.recordCommand.recordID))
+        for key in ["promotionAt", "contentPromotedUpdatedAt", "targetCommittedUpdatedAt",
+                    "draftRetirePendingUpdatedAt", "draftRetiredUpdatedAt", "terminalCheckpointUpdatedAt", "reservationReviewAfter"] {
+            var bad = original; bad[key] = 1_800_000_202_000
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, bad), key)
+        }
+        var negative = original; negative["preparedUpdatedAt"] = -1
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, negative))
+    }
+
+    func testPhotoChildParentCorrespondenceRequiresExactBeginSourceAndSlot() throws {
+        let f = try photoFixture()
+        let payload = try photoPayload(f, phase: .awaitingRawStage(f.intent))
+        XCTAssertNoThrow(try payload.validate(parent: f.parent, parentDraftID: f.parentDraftID))
+        XCTAssertThrowsError(try payload.validate(parent: f.parent, parentDraftID: largeID(4_300)))
+        let other = try photoFixture(recheck: true)
+        XCTAssertThrowsError(try payload.validate(parent: other.parent, parentDraftID: f.parentDraftID))
+        XCTAssertThrowsError(try payload.validate(parent: photoParent(f, slot: nil), parentDraftID: f.parentDraftID))
+        let otherSlot = CheckRunnerPhotoSlotV1.pending(childDraftID: largeID(4_301), captureStep: f.step,
+            purposeKey: payload.purposeKey)
+        XCTAssertThrowsError(try payload.validate(parent: photoParent(f, slot: otherSlot), parentDraftID: f.parentDraftID))
+        let unbegun = try CheckRunnerItemDraftPayloadV1(editing: f.parent.source,
+            field: parentField(begin: .notBegun))
+        XCTAssertThrowsError(try payload.validate(parent: unbegun, parentDraftID: f.parentDraftID))
+        var wrongRecord = try jsonObject(payload); wrongRecord["recordID"] = largeID(4_302).uuidString
+        let shapeOnly = try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, wrongRecord)
+        XCTAssertThrowsError(try shapeOnly.validate(parent: f.parent, parentDraftID: f.parentDraftID))
+        let mutations: [(String, Any)] = [
+            ("workspaceID", try jsonValue(WorkspaceID(rawValue: largeID(4_303)))),
+            ("assetID", largeID(4_304).uuidString), ("workflowStage", "work"),
+            ("captureStep", "outcome"), ("purposeKey", "close_detail"),
+            ("parentDraftID", f.childDraftID.uuidString),
+        ]
+        for (key, value) in mutations {
+            var bad = try jsonObject(payload); bad[key] = value
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, bad), key)
+        }
+        var wrongOrigin = try jsonObject(photoPayload(f, phase: .rawReady(f.raw)))
+        wrongOrigin["origin"] = OriginalContentOriginV1.localImport.rawValue
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, wrongOrigin))
+    }
+
+    func testPhotoChildPreparationTimeBoundariesReuseFrozenInputs() throws {
+        let f = try photoFixture()
+        let initial = try photoPayload(f, phase: .awaitingRawStage(f.intent))
+        XCTAssertNoThrow(try initial.validateRawStageIntent(parentSlotCheckpointUpdatedAt: f.intent.stageCreatedAt))
+        XCTAssertThrowsError(try initial.validateRawStageIntent(
+            parentSlotCheckpointUpdatedAt: f.intent.stageCreatedAt.addingTimeInterval(0.001)))
+        XCTAssertThrowsError(try initial.validateRawStageIntent(parentSlotCheckpointUpdatedAt: Date(timeIntervalSince1970: -1)))
+        XCTAssertThrowsError(try initial.validateCommitPreparation(pairReadyCheckpointUpdatedAt: f.intent.stageCreatedAt))
+        let prepared = try photoPayload(f, phase: .preparedCommit(f.pair, f.attempt))
+        for boundary in [f.intent.stageCreatedAt, f.attempt.preparedUpdatedAt] {
+            XCTAssertNoThrow(try prepared.validateCommitPreparation(pairReadyCheckpointUpdatedAt: boundary))
+        }
+        for boundary in [f.intent.stageCreatedAt.addingTimeInterval(-0.001),
+                         f.attempt.preparedUpdatedAt.addingTimeInterval(0.001)] {
+            XCTAssertThrowsError(try prepared.validateCommitPreparation(pairReadyCheckpointUpdatedAt: boundary))
+        }
+        var equalTimes = try jsonObject(f.attempt)
+        for key in ["preparedUpdatedAt", "promotionAt", "contentPromotedUpdatedAt", "targetCommittedUpdatedAt",
+                    "draftRetirePendingUpdatedAt", "draftRetiredUpdatedAt", "terminalCheckpointUpdatedAt", "reservationReviewAfter"] {
+            equalTimes[key] = f.intent.stageCreatedAt.timeIntervalSince1970 * 1_000
+        }
+        let equalAttempt = try decodeObject(CheckRunnerPhotoCommitAttemptV1.self, equalTimes)
+        let equalPayload = try photoPayload(f, phase: .preparedCommit(f.pair, equalAttempt))
+        XCTAssertNoThrow(try equalPayload.validateCommitPreparation(pairReadyCheckpointUpdatedAt: f.intent.stageCreatedAt))
+        let bytes = try CheckRunnerPhotoDraftPayloadV1.encode(equalPayload)
+        let decoded = try CheckRunnerPhotoDraftPayloadV1.decode(bytes)
+        XCTAssertEqual(decoded.phase.attempt?.promotionAt, f.intent.stageCreatedAt)
+        XCTAssertEqual(decoded.phase.attempt?.terminalCheckpointUpdatedAt, f.intent.stageCreatedAt)
+        XCTAssertEqual(try CheckRunnerPhotoDraftPayloadV1.encode(decoded), bytes)
+    }
+
+    func testPhotoChildCanonicalCodecRejectsOversizeNoncanonicalAndNestedUnknownBytes() throws {
+        let f = try photoFixture()
+        let payload = try photoPayload(f, phase: .preparedCommit(f.pair, f.attempt))
+        let bytes = try CheckRunnerPhotoDraftPayloadV1.encode(payload)
+        XCTAssertLessThan(bytes.count, CheckRunnerPhotoDraftPayloadV1.maximumPayloadBytes)
+        XCTAssertEqual(CheckRunnerPhotoDraftPayloadV1.maximumPayloadBytes, 2 * 1_024 * 1_024)
+        XCTAssertThrowsError(try CheckRunnerPhotoDraftPayloadV1.decode(bytes + Data([0x20])))
+        XCTAssertThrowsError(try CheckRunnerPhotoDraftPayloadV1.decode(Data()))
+        XCTAssertThrowsError(try CheckRunnerPhotoDraftPayloadV1.decode(
+            Data(repeating: 0x20, count: CheckRunnerPhotoDraftPayloadV1.maximumPayloadBytes + 1))) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .limitExceeded)
+        }
+        let original = try jsonObject(payload)
+        let objects: [[String]] = [[], ["phase"], ["phase", "pair"], ["phase", "pair", "raw"],
+            ["phase", "pair", "raw", "intent"], ["phase", "pair", "raw", "inspection"],
+            ["phase", "pair", "raw", "readyItem"], ["phase", "pair", "raw", "originalProvenance"],
+            ["phase", "pair", "normalizedPair"], ["phase", "pair", "normalizedPair", "sourceBinding"],
+            ["phase", "pair", "normalizedPair", "sanitizedDerivative"],
+            ["phase", "pair", "normalizedPair", "thumbnailDerivative"], ["phase", "attempt"]]
+        for path in objects {
+            var bad = original; setJSON(&bad, path: path + ["unexpected"], value: true)
+            XCTAssertThrowsError(try CheckRunnerPhotoDraftPayloadV1.decode(canonical(bad)), path.joined(separator: "."))
+        }
+        for key in original.keys {
+            var missing = original; missing.removeValue(forKey: key)
+            XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, missing), key)
+        }
+        var schema = original; schema["schemaVersion"] = 2
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, schema))
+        var wrongType = original; setJSON(&wrongType, path: ["phase", "attempt", "promotionAt"], value: "now")
+        XCTAssertThrowsError(try decodeObject(CheckRunnerPhotoDraftPayloadV1.self, wrongType))
+        XCTAssertEqual(try CheckRunnerPhotoDraftPayloadV1.encode(CheckRunnerPhotoDraftPayloadV1.decode(bytes)), bytes)
+    }
+
+    func testPhotoChildCommittedParentRequiresPreparedTerminalValues() throws {
+        let f = try photoFixture()
+        let slot = try committedFixtureSlot(child: f.childDraftID, evidence: f.intent.evidenceID,
+            step: f.step, receipt: f.attempt.commitReceiptID)
+        let committedParent = try photoParent(f, slot: slot)
+        let early: [CheckRunnerPhotoDurablePhaseV1] = [.awaitingRawStage(f.intent), .rawReady(f.raw), .pairReady(f.pair)]
+        for phase in early {
+            XCTAssertThrowsError(try photoPayload(f, phase: phase).validate(
+                parent: committedParent, parentDraftID: f.parentDraftID))
+        }
+        let prepared = try photoPayload(f, phase: .preparedCommit(f.pair, f.attempt))
+        XCTAssertNoThrow(try prepared.validate(parent: committedParent, parentDraftID: f.parentDraftID))
+        let otherEvidence = try committedFixtureSlot(child: f.childDraftID, evidence: largeID(4_400),
+            step: f.step, receipt: f.attempt.commitReceiptID)
+        XCTAssertThrowsError(try prepared.validate(parent: photoParent(f, slot: otherEvidence), parentDraftID: f.parentDraftID))
+        let otherReceipt = try committedFixtureSlot(child: f.childDraftID, evidence: f.intent.evidenceID,
+            step: f.step, receipt: largeID(4_401))
+        XCTAssertNoThrow(try otherReceipt.validate())
+        XCTAssertThrowsError(try prepared.validate(parent: photoParent(f, slot: otherReceipt), parentDraftID: f.parentDraftID))
+        // This is the retained raw witness, not a read of the live stage. A
+        // committed parent claim does not rewrite it or imply receipt proof.
+        XCTAssertEqual(prepared.phase.raw?.readyItem.state, .readyLocal)
+        XCTAssertEqual(prepared.phase.raw?.readyItem.revision, 1)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(prepared.phase.raw),
+                       try FieldDraftCanonicalCodecV1.encode(f.raw))
+    }
+
+    private struct PhotoFixture {
+        let parentFixture: ParentFixture
+        let parent: CheckRunnerItemDraftPayloadV1
+        let parentDraftID: UUID
+        let childDraftID: UUID
+        let step: WorkflowDraftStep
+        let origin: OriginalContentOriginV1
+        let intent: CheckRunnerPhotoRawStageIntentV1
+        let raw: CheckRunnerPhotoRawReadyV1
+        let pair: CheckRunnerPhotoPairReadyV1
+        let attempt: CheckRunnerPhotoCommitAttemptV1
+    }
+
+    private func photoFixture(recheck: Bool = false, step: WorkflowDraftStep = .wide,
+                              origin: OriginalContentOriginV1 = .humanCapture) throws -> PhotoFixture {
+        let parent = try parentFixture(recheck: recheck, includesTimeZone: recheck)
+        let seed = 50_000 + (recheck ? 100 : 0) + (step == .close ? 20 : 0) + (origin == .localImport ? 40 : 0)
+        let parentID = largeID(seed), childID = largeID(seed + 1), stageID = largeID(seed + 2)
+        let evidenceID = largeID(seed + 3), workspaceID = parent.source.roundAtEntry.workspaceID
+        let slot = pendingSlot(id: childID, step: step)
+        let field = try CheckRunnerItemFieldStateV1(preflight: .init(),
+            begin: .bound(attempt: parent.attempt, workflowReceiptReference: parent.workflowReference,
+                timeZoneReceiptReference: parent.timeZoneReference), outcome: .init(),
+            wideContext: step == .wide ? slot : nil, closeDetail: step == .close ? slot : nil, semanticAnchor: .review)
+        let parentPayload = try CheckRunnerItemDraftPayloadV1(editing: parent.source, field: field)
+        let intent = try CheckRunnerPhotoRawStageIntentV1(stageID: stageID,
+            stageMutationID: .init(rawValue: largeID(seed + 4)), stageCreatedAt: Date(timeIntervalSince1970: 1_800_000_201),
+            expectedSourceByteCount: 512, provenanceID: "photo-provenance-\(seed)", evidenceID: evidenceID,
+            evidenceCreatedAt: Date(timeIntervalSince1970: 1_800_000_200))
+        let inspection = try CheckRunnerPhotoSourceInspectionV1(
+            facts: .init(sourceTypeIdentifier: "public.jpeg", pixelWidth: 20, pixelHeight: 10, byteCount: 512),
+            sourceSHA256: .init(algorithm: .sha256, hexadecimalValue: String(repeating: "b", count: 64)),
+            workspaceID: workspaceID, provenanceID: intent.provenanceID)
+        let ready = try AttachmentStagingItemV1(stageID: stageID, draftID: childID, workspaceID: workspaceID,
+            attachmentKind: .photo, scratchLeaseID: stageID, expectedByteCount: 512, actualByteCount: 512,
+            contentDigest: inspection.sourceSHA256, retryClass: .none, state: .readyLocal,
+            protectionState: .available, revision: 1, mutationID: intent.stageMutationID)
+        let provenance = try ContentOriginalProvenanceV1(provenanceID: intent.provenanceID,
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(), contentID: inspection.rawContentID,
+            contentDigest: inspection.sourceSHA256, origin: origin,
+            recordedAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(intent.stageCreatedAt))
+        let raw = try CheckRunnerPhotoRawReadyV1(intent: intent, inspection: inspection, readyItem: ready,
+            stagePublicationMutationID: intent.stageMutationID, originalProvenance: provenance)
+        let directory = "evidence/\(evidenceID.uuidString.lowercased())"
+        let normalized = try CheckRunnerPhotoNormalizedPairV1(evidenceID: evidenceID,
+            originalRelativePath: "\(directory)/original.jpg", originalByteCount: 128,
+            originalSHA256: String(repeating: "c", count: 64), originalPixelWidth: 20, originalPixelHeight: 10,
+            thumbnailRelativePath: "\(directory)/thumbnail.jpg", thumbnailByteCount: 64,
+            thumbnailSHA256: String(repeating: "e", count: 64), thumbnailPixelWidth: 10, thumbnailPixelHeight: 5,
+            sourceBinding: .init(contentID: inspection.rawContentID, digest: inspection.sourceSHA256),
+            sanitizedDerivative: CheckRunnerPhotoSourceMetadataProfileV1.sanitizedDerivative(),
+            thumbnailDerivative: CheckRunnerPhotoSourceMetadataProfileV1.thumbnailDerivative(pixelWidth: 10, pixelHeight: 5))
+        let pair = try CheckRunnerPhotoPairReadyV1(raw: raw, normalizedPair: normalized,
+            pairPublicationMarkerSHA256: CheckRunnerPhotoPairReadyV1.markerSHA256(childDraftID: childID,
+                parentDraftID: parentID, raw: raw, normalizedPair: normalized))
+        let attempt = try CheckRunnerPhotoCommitAttemptV1(planID: largeID(seed + 10), expectedWorkflowRecordRevision: 1,
+            targetMutationID: .init(rawValue: evidenceID), outputKeys: [
+                WorkspaceEntityIdentityV1(kind: .workflowRecord, id: parent.attempt.recordCommand.recordID).stableKey,
+                WorkspaceEntityIdentityV1(kind: .evidenceFile, id: evidenceID).stableKey].sorted(),
+            reservationMutationID: .init(rawValue: largeID(seed + 11)), reservationReviewAfter: Date(timeIntervalSince1970: 1_800_000_300),
+            preparedSagaID: largeID(seed + 12), preparedSagaMutationID: .init(rawValue: largeID(seed + 13)),
+            preparedUpdatedAt: Date(timeIntervalSince1970: 1_800_000_203),
+            contentPromotedSagaID: largeID(seed + 14), contentPromotedSagaMutationID: .init(rawValue: largeID(seed + 15)),
+            contentPromotedUpdatedAt: Date(timeIntervalSince1970: 1_800_000_205),
+            targetCommittedSagaID: largeID(seed + 16), targetCommittedSagaMutationID: .init(rawValue: largeID(seed + 17)),
+            targetCommittedUpdatedAt: Date(timeIntervalSince1970: 1_800_000_206),
+            draftRetirePendingSagaID: largeID(seed + 18), draftRetirePendingSagaMutationID: .init(rawValue: largeID(seed + 19)),
+            draftRetirePendingUpdatedAt: Date(timeIntervalSince1970: 1_800_000_207),
+            draftRetiredSagaID: largeID(seed + 20), draftRetiredUpdatedAt: Date(timeIntervalSince1970: 1_800_000_208),
+            commitReceiptID: largeID(seed + 21), terminalBundleMutationID: .init(rawValue: largeID(seed + 22)),
+            terminalCheckpointUpdatedAt: Date(timeIntervalSince1970: 1_800_000_209), promotionAt: Date(timeIntervalSince1970: 1_800_000_204))
+        return PhotoFixture(parentFixture: parent, parent: parentPayload, parentDraftID: parentID,
+            childDraftID: childID, step: step, origin: origin, intent: intent, raw: raw, pair: pair, attempt: attempt)
+    }
+
+    private func photoPayload(_ fixture: PhotoFixture, phase: CheckRunnerPhotoDurablePhaseV1) throws -> CheckRunnerPhotoDraftPayloadV1 {
+        try CheckRunnerPhotoDraftPayloadV1(workspaceID: fixture.parent.source.roundAtEntry.workspaceID,
+            childDraftID: fixture.childDraftID, parentDraftID: fixture.parentDraftID,
+            recordID: fixture.parentFixture.attempt.recordCommand.recordID, assetID: fixture.parent.source.assetID,
+            sourceBinding: fixture.parent.source, workflowStage: fixture.parent.source.requestedEntry.stage,
+            captureStep: fixture.step, purposeKey: fixture.step == .wide ? "wide_context" : "close_detail",
+            origin: fixture.origin, phase: phase)
+    }
+
+    private func photoParent(_ fixture: PhotoFixture, slot: CheckRunnerPhotoSlotV1?) throws -> CheckRunnerItemDraftPayloadV1 {
+        let original = fixture.parent.field
+        return try .init(editing: fixture.parent.source, field: .init(preflight: original.preflight,
+            begin: original.begin, outcome: original.outcome,
+            wideContext: fixture.step == .wide ? slot : nil, closeDetail: fixture.step == .close ? slot : nil,
+            semanticAnchor: original.semanticAnchor))
+    }
+
     private struct ParentFixture {
         let source: CheckRunnerRoundItemSourceV1
         let attempt: CheckRunnerFrozenBeginAttemptV1
