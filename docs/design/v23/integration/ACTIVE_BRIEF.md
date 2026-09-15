@@ -5,11 +5,13 @@ Navigation/checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) contro
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Diagnostic head: `c9cfd8b615a85d4c53770766eb7fd3e4f458d4da`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Diagnostic head: `ea2c7c3520514db0700f5e538bdde24f93effcdf`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the existing app/project/shared scheme/design system, S10 branding, five accepted receipts, all owned drafts, frozen inputs, V30 and coordination history.
 - Card135 stays owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
 ## Latest native evidence
+
+All five ea2 originals are terminal and sole-collected with complete integrity. The same two C05 guard parser errors blocked compilation and all109 selected methods. Root corrects only infix whitespace; its local seal also needs the collector's existing diagnostic casefold key. Retain every original and failed seal attempt. Source86 and prior independent reviews do not establish compilation.
 
 All five c9 originals are terminal, sole-collected and root-audited with complete integrity; batch gate 8DE762C9. All compiled with no new warning signatures. Writer6 and durable guards4 passed; field47/49, graph regular2/23 and compact maximum0/1. The three failed source-capture attempts remain retained after reviewed local completion of the same originals. Graph failures are invalidManifest plus one invalidRecords; the field resource failure remains unresolved. Field/regular graph diagnostic logs are INVALID from XCTest interleaving. Lifecycle5 and complete maximum1 remain due.
 
@@ -20,8 +22,8 @@ All five4575 originals are terminal, sole-collected and root-sealedFE443FEE. Pre
 - **C36 foundations:** source, shared Begin command/preparation, pure identity/dependency/receipt correspondence, V2 traversal and package graph authentication are committed/reviewed. Correspondence passed30/30. Live effects and destination adoption remain incomplete.
 - **Durable Begin:** the unregistered service persists PREPARED before timezone/workflow effects and exact original receipts before BOUND. Historical ENTRY and paired later/COMPLETE item cases preserve live Begin and external Round-close rejection. Full lifecycle remains due.
 - **Committed c9:** child history reader joins actual COMMITTING/terminal checkpoints, five sagas, reservation, stage and photo target receipts. Canonical fixtures retain encoder bytes; the sole renderer has an unescaped-string fast path. Closed durable5/4 and graph23/1/1 partitions preserve all methods,692-selector/37-group base map and native limits. Combined13-path source82 and source/index/route reviews passed; all49 protected drafts remain exact.
-- **Current batch:**22-path source86/B85DBE3E, combined business review2D8B63C5 and diagnostic transport review5036EA0E pass. Includes parent-slot/BOUND Begin/absence, exact C05 package admission, globally authenticated C55 workspace validation, immediate field observation and framed DEBUG Simulator diagnostics. Root qualifies the helper transition; actual index/route and hosted native evidence remain due.
-- **Runtime work:** design reviewBEF5D93A approves exact immutable decoding-facts reuse after complete canonical validation. Root implements the scoped decoder/package/source change with paired tests; maximum graph900s/200/401/603/202 bounds remain fixed and timing remains unproven. Current source, mutable workflow, media authority and live adoption remain separate required joins.
+- **Current batch:** current photo read joins complete parent/child receipts to exact current workflow/evidence postimages and authenticated historical ENTRY. Root owns the10-path scope and paired existing tests; physical media/marker, adoption effects and registration remain separate prerequisites.
+- **Runtime work:** ea2 reuses immutable complete canonical decoding facts and preserves all fallback/error/descriptor checks. Both maximum graph cases remain held: timing within900s is unproven;200/401/603/202 bounds stay fixed.
 - **Remaining:** C36 lifecycle/codec adoption, child and finalizer recovery, restored destination correspondence and field/scene/focus/resume composition; source-graph representation/live effects; native finalization/protection; Work/Round adoption; C55 replacement and C57 fork/mixed-history preservation. Source inventory is not completion.
 
 ## Working cadence
