@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -199,6 +200,13 @@ final class BackupRestoreFailureInjection {
         return true
     }
 }
+
+#if DEBUG
+enum ConfigurationCloneRestoreObservationPointV1: Equatable {
+    case afterFinalMediaCopy
+    case afterFinalCleanup
+}
+#endif
 
 /// Immutable resolver used only while validating/materializing one already
 /// validated V50 package. Source identity digests come exclusively from the
@@ -531,6 +539,65 @@ struct CheckRunnerPhotoRestoreGenerationAuthorityV1: Sendable {
         self.children = children
         self.plan = plan
         self.memberSource = memberSource
+    }
+}
+
+/// The clone owner derives this closed transfer from the already rebound
+/// canonical destination. It does not confer authority over operational drafts.
+struct ConfigurationCloneFinalMediaGenerationAuthorityV1: Sendable {
+    let generationID: UUID
+    let rootURL: URL
+    let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    let members: [CheckRunnerPhotoBackupRestorePlanV1.GenerationMember]
+    let memberSource: CheckRunnerPhotoRestoreMemberSourceV1
+    let maximumMemberByteCount: Int64
+
+    fileprivate init(generationID: UUID, rootURL: URL,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        members: [CheckRunnerPhotoBackupRestorePlanV1.GenerationMember],
+        memberSource: CheckRunnerPhotoRestoreMemberSourceV1, maximumMemberByteCount: Int64) {
+        self.generationID = generationID; self.rootURL = rootURL
+        self.rootIdentity = rootIdentity; self.members = members
+        self.memberSource = memberSource
+        self.maximumMemberByteCount = maximumMemberByteCount
+    }
+}
+
+fileprivate enum ConfigurationCloneEmptyStagingProofV1 {
+    case existing(DraftPhotoBackupPreparedVerificationV1)
+    case absent(DraftPhotoBackupAbsentRootPreparedVerificationV1)
+
+    func withVerificationLock<T>(_ body: () throws -> T) throws -> T {
+        switch self {
+        case .existing(let proof): try proof.withVerificationLock(body)
+        case .absent(let proof): try proof.withVerificationLock(body)
+        }
+    }
+}
+
+/// Keeps the original empty-root proof while the final target manifest is
+/// bound, then carries that exact restore identity through cold/async cleanup.
+fileprivate struct ConfigurationCloneEmptyStagingGuardV1 {
+    let originalIntent: RestoreIntentV1
+    let restoreID: UUID
+    let identity: RestoreIdentityV1
+    let proof: ConfigurationCloneEmptyStagingProofV1
+
+    init(intent: RestoreIntentV1, proof: ConfigurationCloneEmptyStagingProofV1) throws {
+        guard RestoreIntentCodecV1.valid(intent), let identity = intent.identity,
+              identity.mode == .clone else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        self.originalIntent = intent
+        self.restoreID = intent.restoreID; self.identity = identity; self.proof = proof
+    }
+
+    func requireIntent(_ intent: RestoreIntentV1) throws {
+        guard RestoreIntentCodecV1.valid(intent), intent.restoreID == restoreID,
+              intent == originalIntent.advancing(to: intent.phase),
+              intent.identity == identity,
+              intent.oldGenerationID == identity.oldPointer.generationID,
+              intent.newGenerationID == identity.targetPointer.generationID else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
     }
 }
 
@@ -973,6 +1040,10 @@ final class BackupRestoreService {
     private let searchIndexLifecycle: any SearchIndexLifecyclePortV1
     private let accessibleDocumentTreeResolver:(any AccessibleDocumentSemanticTreeResolvingV1)?
     private var preparedAccessibleDocumentTrees:[UUID:AccessibleDocumentSemanticTreeV1]=[:]
+#if DEBUG
+    var configurationCloneObservationForTesting:
+        (@MainActor (ConfigurationCloneRestoreObservationPointV1) async throws -> Void)?
+#endif
 
     init(
         applicationSupportURL: URL,
@@ -1544,6 +1615,7 @@ final class BackupRestoreService {
             try validatePhotoCurrentLocked()
         }
 
+        var retainedCloneGuard: ConfigurationCloneEmptyStagingGuardV1?
         do {
             try Task.checkCancellation()
             let preliminaryIdentityDecision = try makeIdentityDecision(
@@ -1637,6 +1709,12 @@ final class BackupRestoreService {
             if let photo { expectedRecords = photo.records }
             let photoPlans = photo?.plans ?? []
             let photoProof = try photo?.proof
+            if mode == .clone { try await validatePhotoCurrent() }
+            let cloneStagingProof = mode == .clone
+                ? try prepareConfigurationCloneStagingProof(currentRecords: frozenCurrentRecords,
+                    workspaceID: frozenCurrentIdentity.workspaceID) : nil
+            let cloneFinalMedia = mode == .clone
+                ? try configurationCloneFinalMedia(package: validatedPackage, records: expectedRecords) : [:]
             try materialize(
                 validatedPackage,
                 records: expectedRecords,
@@ -1645,9 +1723,16 @@ final class BackupRestoreService {
                 legacyDestinationIdentity: frozenCurrentIdentity,
                 partsStockOperationID: restoreID,
                 partsStockCompletedAt: replacementAt,
-                photoPlans: photoPlans
+                photoPlans: photoPlans,
+                cloneFinalMedia: cloneFinalMedia
             )
             if let photo { try await materializePhotoMembers(photo, validateCurrent: validatePhotoCurrent) }
+            if let cloneStagingProof {
+                try await materializeConfigurationCloneFinalMedia(cloneFinalMedia,
+                    package: validatedPackage, generationID: newGenerationID,
+                    validateCurrent: validatePhotoCurrent)
+                try cloneStagingProof.withVerificationLock {}
+            }
             try Task.checkCancellation()
             try validateStagingGeneration(
                 id: newGenerationID,
@@ -1748,6 +1833,11 @@ final class BackupRestoreService {
             guard RestoreIntentCodecV1.valid(intent) else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
+            let cloneGuard = try cloneStagingProof.map {
+                try ConfigurationCloneEmptyStagingGuardV1(intent: intent, proof: $0)
+            }
+            retainedCloneGuard = cloneGuard
+            try cloneGuard?.proof.withVerificationLock {}
             let initialPhotoBinding: CheckRunnerPhotoRestorePublicationBindingV2?
             if let photo {
                 let initial = try CheckRunnerPhotoRestorePublicationBindingV2(core: photo.core, intent: intent)
@@ -1867,6 +1957,11 @@ final class BackupRestoreService {
                     restoreFileSnapshot: installedPhotoFiles,
                     authority: generationAuthority,
                     publicationValidation: {
+                        if let cloneGuard {
+                            try validatePhotoCurrentLocked()
+                            try cloneGuard.requireIntent(self.requiredPhotoRestoreIntent())
+                            try cloneGuard.proof.withVerificationLock {}
+                        }
                         guard let photoPublication else { return }
                         try validatePhotoCurrentLocked()
                         guard try self.photoPublicationBinding(restoreID: restoreID) == photoPublication.binding else {
@@ -1946,6 +2041,9 @@ final class BackupRestoreService {
                 restoreID: restoreID,
                 session: session
             )
+#if DEBUG
+            if cloneGuard != nil { try await configurationCloneObservationForTesting?(.afterFinalCleanup) }
+#endif
             try await validateRestoreAccess(validateAccess)
             if let photoPublication {
                 try finishPhotoPublication(photoPublication, intent: validated, records: expectedRecords,
@@ -1955,6 +2053,11 @@ final class BackupRestoreService {
                             throw BackupRestoreServiceError.invalidRestoreAuthority
                         }
                     })
+            }
+            if let cloneGuard {
+                try validateConfigurationCloneBoundary(cloneGuard, session: session,
+                    expectedRecords: expectedRecords, expectedIntent: validated, retireIntent: true)
+                return session
             }
             try intentStore.remove(expected: validated)
             try removeDraftPublicationBinding(validated)
@@ -1972,9 +2075,15 @@ final class BackupRestoreService {
             do {
                 try await validateRestoreAccess(validateAccess)
                 if let recovered = try await reconcileRestoreAndPrivateSystemDiscoveryAtStartup(
-                    validateAccess: validateAccess
+                    validateAccess: validateAccess, retainedCloneGuard: retainedCloneGuard
                 ) {
+                    let cloneRecords = try retainedCloneGuard.map { _ in try records(in: recovered.modelContext) }
                     try await validateRestoreAccess(validateAccess)
+                    if mode == .clone {
+                        guard let retainedCloneGuard else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                        try validateConfigurationCloneBoundary(retainedCloneGuard, session: recovered,
+                            expectedRecords: cloneRecords, expectedIntent: nil)
+                    }
                     return recovered
                 }
             } catch let failure as RestoreAccessValidationFailure {
@@ -2036,7 +2145,8 @@ final class BackupRestoreService {
     }
 
     private func reconcileRestoreAndPrivateSystemDiscoveryAtStartup(
-        validateAccess: @MainActor () async throws -> Void
+        validateAccess: @MainActor () async throws -> Void,
+        retainedCloneGuard: ConfigurationCloneEmptyStagingGuardV1? = nil
     ) async throws -> StoreGenerationSession? {
         try await validateRestoreAccess(validateAccess)
         if fileManager.fileExists(atPath: applicationSupportURL
@@ -2046,7 +2156,14 @@ final class BackupRestoreService {
                 return try await reconcilePhotoRestoreAtStartup(binding, validateAccess: validateAccess)
             }
         }
-        guard let session = try reconcileAtStartup() else { return nil }
+        let cloneGuard = try prepareColdConfigurationCloneGuard(retained: retainedCloneGuard)
+        guard let session = try reconcileAtStartup(cloneGuard: cloneGuard) else {
+            if let cloneGuard {
+                try validateConfigurationCloneBoundary(cloneGuard, session: nil,
+                    expectedRecords: nil, expectedIntent: nil)
+            }
+            return nil
+        }
         guard let intent = try intentStore.load(),
               intent.phase == .newGenerationValidated,
               intent.newGenerationID == session.generationID else {
@@ -2057,13 +2174,26 @@ final class BackupRestoreService {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
         }
+        let cloneRecords = try cloneGuard.map { _ in try records(in: session.modelContext) }
+        if let cloneGuard {
+            try validateConfigurationCloneBoundary(cloneGuard, session: session,
+                expectedRecords: cloneRecords, expectedIntent: intent)
+        }
         try await searchIndexLifecycle.dropProjection(workspaceID: session.workspaceID.rawValue)
         try await validateRestoreAccess(validateAccess)
         try await dropPrivateSystemDiscoveryAfterRestore(
             restoreID: intent.restoreID,
             session: session
         )
+#if DEBUG
+        if cloneGuard != nil { try await configurationCloneObservationForTesting?(.afterFinalCleanup) }
+#endif
         try await validateRestoreAccess(validateAccess)
+        if let cloneGuard {
+            try validateConfigurationCloneBoundary(cloneGuard, session: session,
+                expectedRecords: cloneRecords, expectedIntent: intent, retireIntent: true)
+            return session
+        }
         try intentStore.remove(expected: intent)
         try removeDraftPublicationBinding(intent)
         try cleanupEmptyRestoreDirectories()
@@ -2074,6 +2204,24 @@ final class BackupRestoreService {
     /// fully validated new current generation; nil means old remains current or
     /// no intent existed.
     func reconcileAtStartup() throws -> StoreGenerationSession? {
+        let cloneGuard = try prepareColdConfigurationCloneGuard()
+        let session = try reconcileAtStartup(cloneGuard: cloneGuard)
+        if let cloneGuard {
+            let expectedIntent = try intentStore.load()
+            if session != nil {
+                guard expectedIntent?.phase == .newGenerationValidated else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            } else if expectedIntent != nil { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            try validateConfigurationCloneBoundary(cloneGuard, session: session,
+                expectedRecords: try session.map { try records(in: $0.modelContext) },
+                expectedIntent: expectedIntent)
+        }
+        return session
+    }
+
+    private func reconcileAtStartup(cloneGuard: ConfigurationCloneEmptyStagingGuardV1?) throws
+        -> StoreGenerationSession? {
         if fileManager.fileExists(atPath: applicationSupportURL
             .appendingPathComponent("FieldEvidenceData", isDirectory: true).path) {
             try ensureGenerationAuthority()
@@ -2369,7 +2517,7 @@ final class BackupRestoreService {
             }
             if currentID == intent.oldGenerationID {
                 try protectDataPointer(named: "current.json")
-                try publishTarget(for: intent)
+                try publishTarget(for: intent, cloneGuard: cloneGuard)
             } else if currentID != intent.newGenerationID {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
@@ -2689,8 +2837,13 @@ private extension BackupRestoreService {
         }
     }
 
-    func publishTarget(for intent: RestoreIntentV1) throws {
+    func publishTarget(for intent: RestoreIntentV1,
+        cloneGuard: ConfigurationCloneEmptyStagingGuardV1? = nil) throws {
         if let identity = intent.identity {
+            if identity.mode == .clone {
+                guard let cloneGuard else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                try cloneGuard.requireIntent(intent)
+            }
             let expectedCurrentPointer = try currentPointer(
                 identity.oldPointer
             )
@@ -2705,7 +2858,14 @@ private extension BackupRestoreService {
                 knownReplicaIDs: knownReplicaIDs(identity),
                 preparedGenerationManifestSHA256:
                     identity.targetPointer.generationManifestSHA256,
-                authority: generationAuthority
+                authority: generationAuthority,
+                publicationValidation: {
+                    if let cloneGuard {
+                        try cloneGuard.requireIntent(self.requiredPhotoRestoreIntent())
+                        try self.requireCurrentPointerBinding(intent, currentID: intent.oldGenerationID)
+                        try cloneGuard.proof.withVerificationLock {}
+                    }
+                }
             )
         } else {
             try generationFactory.switchCurrentGeneration(
@@ -9840,7 +10000,8 @@ private extension BackupRestoreService {
         legacyDestinationIdentity: WorkspaceReplicaIdentityV1,
         partsStockOperationID: UUID,
         partsStockCompletedAt: Date,
-        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = [],
+        cloneFinalMedia: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:]
     ) throws {
 #if DEBUG
         var restoreStagingPhase = "validate-records"
@@ -9936,7 +10097,8 @@ private extension BackupRestoreService {
                     id: generationID
                 ),
                 generationID: generationID,
-                photoPlans: photoPlans
+                photoPlans: photoPlans,
+                cloneFinalMedia: cloneFinalMedia
             )
 #if DEBUG
             beginRestoreStagingPhase("protect-tree")
@@ -10022,6 +10184,187 @@ private extension BackupRestoreService {
         var plans: [CheckRunnerPhotoBackupRestorePlanV1] { composition.photoRestorePlans }
         var childStageIDs: Set<UUID> { Set(plans.flatMap { $0.children.map(\.stageID) }) }
         var proof: StoreRestoreGenerationManifestProofV1 { get throws { try core.manifestProof(plans: plans) } }
+    }
+
+    private func configurationCloneFinalMedia(package: ValidatedV4BackupPackageV1,
+        records: V4BackupRecordsV1) throws
+        -> [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] {
+        guard records.fieldDrafts.isEmpty else { throw BackupRestoreServiceError.invalidPackage }
+        var entries: [String: V4BackupEntryV1] = [:]
+        for entry in package.manifest.entries {
+            guard entries.updateValue(entry, forKey: entry.path) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        var result: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:]
+        func include(_ sourcePath: String, targetPath: String, count: Int64, sha256: String,
+            mime: String, kind: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember.Kind) throws {
+            guard let entry = entries[sourcePath], entry.path == sourcePath,
+                  entry.mimeType == mime, Int64(entry.byteCount) == count,
+                  entry.sha256 == sha256 else { throw BackupRestoreServiceError.invalidPackage }
+            let member = CheckRunnerPhotoBackupRestorePlanV1.GenerationMember(
+                entry: entry, relativePath: targetPath, kind: kind)
+            if let existing = result[targetPath] {
+                guard existing == member else { throw BackupRestoreServiceError.invalidPackage }
+            } else { result[targetPath] = member }
+        }
+        for evidence in records.evidenceFiles {
+            let id = canonical(evidence.id)
+            guard evidence.relativePath == "evidence/\(id)/original.jpg",
+                  evidence.thumbnailRelativePath == "evidence/\(id)/thumbnail.jpg" else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            try include("media/\(id).jpg", targetPath: evidence.relativePath,
+                count: Int64(evidence.byteCount), sha256: evidence.sha256,
+                mime: "image/jpeg", kind: .original)
+            try include("thumbnails/\(id).jpg", targetPath: evidence.thumbnailRelativePath,
+                count: Int64(evidence.thumbnailByteCount), sha256: evidence.thumbnailSHA256,
+                mime: "image/jpeg", kind: .thumbnail)
+        }
+        let temporal = try decodedTemporalEvidenceRows(records)
+        _ = try package.records.validateC33TemporalEvidence()
+        let destinationWorkspaceID = temporal.clips.first?.workspaceID ?? temporal.anchors.first?.workspaceID
+        if let destinationWorkspaceID {
+            guard try rebindingTemporalEvidence(package.records.temporalEvidence,
+                guidedSurveys: records.guidedSurveys, workspaceID: destinationWorkspaceID) == records.temporalEvidence else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else if !package.records.temporalEvidence.isEmpty { throw BackupRestoreServiceError.invalidPackage }
+        for clip in temporal.clips {
+            guard let sourceWorkspaceID = package.manifest.source.workspaceID,
+                  let digest = clip.original.digests.digest(for: .sha256)?.hexadecimalValue else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let path = "content/\(sourceWorkspaceID.uuidString.lowercased())/\(clip.original.contentID)/original.bin"
+            try include(path, targetPath: TemporalEvidenceBackupMemberV1.original(for: clip),
+                count: clip.original.byteLength, sha256: digest, mime: clip.original.mediaType, kind: .original)
+        }
+        return result
+    }
+
+    private func prepareConfigurationCloneStagingProof(currentRecords: V4BackupRecordsV1,
+        workspaceID: WorkspaceID) throws -> ConfigurationCloneEmptyStagingProofV1 {
+        // An absent root alone does not prove an empty canonical stage family.
+        guard try canonicalStageItems(currentRecords).isEmpty else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        return try prepareEmptyConfigurationCloneStagingProof(workspaceID: workspaceID)
+    }
+
+    private func prepareEmptyConfigurationCloneStagingProof(workspaceID: WorkspaceID) throws
+        -> ConfigurationCloneEmptyStagingProofV1 {
+        let observation = try DraftAttachmentStagingAdapterV1.observePhotoBackupRoot(
+            applicationSupportURL: applicationSupportURL, workspaceID: workspaceID)
+        switch observation {
+        case .existing(let owner): return .existing(try owner.prepareEmptyPhotoBackupVerification())
+        case .absent(let absent): return .absent(try absent.preparePhotoBackupVerification(
+            canonicalStages: [], childStageIDs: [:]))
+        }
+    }
+
+    private func prepareColdConfigurationCloneGuard(retained: ConfigurationCloneEmptyStagingGuardV1? = nil)
+        throws -> ConfigurationCloneEmptyStagingGuardV1? {
+        guard let intent = try intentStore.load(), let identity = intent.identity,
+              identity.mode == .clone else { return nil }
+        guard RestoreIntentCodecV1.valid(intent) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        try ensureGenerationAuthority()
+        let currentID = try generationFactory.currentGenerationID(authority: generationAuthority)
+        try requireCurrentPointerBinding(intent, currentID: currentID)
+        if let retained {
+            try retained.requireIntent(intent)
+            let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: intent.restoreID)
+            try registry.withNoMigrationReservation {
+                guard try intentStore.load() == intent,
+                      try generationFactory.currentGenerationID(authority: generationAuthority) == currentID else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                try requireCurrentPointerBinding(intent, currentID: currentID)
+                try retained.proof.withVerificationLock {}
+            }
+            return retained
+        }
+        // Reject a changed physical namespace before opening any old store.
+        let proof = try prepareEmptyConfigurationCloneStagingProof(
+            workspaceID: WorkspaceID(rawValue: identity.oldPointer.workspaceID))
+        let old = try generationFactory.openInstalledGeneration(id: intent.oldGenerationID,
+            identity: workspaceIdentity(identity.oldPointer), authority: generationAuthority)
+        let oldRecords = try records(in: old.modelContext)
+        guard try canonicalStageItems(oldRecords).isEmpty else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        let guardValue = try ConfigurationCloneEmptyStagingGuardV1(intent: intent, proof: proof)
+        let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: intent.restoreID)
+        try registry.withNoMigrationReservation {
+            guard try intentStore.load() == intent,
+                  try generationFactory.currentGenerationID(authority: generationAuthority) == currentID,
+                  !old.modelContext.hasChanges, try records(in: old.modelContext) == oldRecords else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try requireCurrentPointerBinding(intent, currentID: currentID)
+            try proof.withVerificationLock {}
+        }
+        return guardValue
+    }
+
+    private func validateConfigurationCloneBoundary(_ guardValue: ConfigurationCloneEmptyStagingGuardV1,
+        session: StoreGenerationSession?, expectedRecords: V4BackupRecordsV1?,
+        expectedIntent: RestoreIntentV1?, retireIntent: Bool = false) throws {
+        let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: guardValue.restoreID)
+        try registry.withNoMigrationReservation {
+            try Task.checkCancellation()
+            if let expectedIntent { try guardValue.requireIntent(expectedIntent) }
+            let currentID = session?.generationID ?? guardValue.identity.oldPointer.generationID
+            guard try intentStore.load() == expectedIntent,
+                  try generationFactory.currentGenerationID(authority: generationAuthority) == currentID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            // The retained intent binds the exact original pointer facts even
+            // after the durable cleanup intent has been retired.
+            try requireCurrentPointerBinding(guardValue.originalIntent, currentID: currentID)
+            if let session {
+                guard currentID == guardValue.identity.targetPointer.generationID,
+                      session.workspaceID.rawValue == guardValue.identity.targetPointer.workspaceID,
+                      !session.modelContext.hasChanges, let expectedRecords,
+                      try records(in: session.modelContext) == expectedRecords,
+                      expectedRecords.fieldDrafts.isEmpty else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            } else if expectedRecords != nil || expectedIntent != nil {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try guardValue.proof.withVerificationLock {
+                if retireIntent {
+                    guard session != nil, let expectedIntent,
+                          expectedIntent.phase == .newGenerationValidated,
+                          try photoPublicationBinding(restoreID: expectedIntent.restoreID) == nil,
+                          !fileManager.fileExists(atPath: draftPublicationBindingURL(
+                            restoreID: expectedIntent.restoreID).path) else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                    // Clone has no draft publication binding. Retire only its
+                    // exact intent while G and the original empty-root R proof
+                    // remain held; neither operation below acquires G.
+                    try intentStore.remove(expected: expectedIntent)
+                    try cleanupEmptyRestoreDirectories()
+                    guard try intentStore.load() == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                }
+            }
+        }
+    }
+
+    private func materializeConfigurationCloneFinalMedia(
+        _ members: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember],
+        package: ValidatedV4BackupPackageV1, generationID: UUID,
+        validateCurrent: @MainActor () async throws -> Void) async throws {
+        let root = generationFactory.restoreStagingGenerationURL(id: generationID)
+        let authority = ConfigurationCloneFinalMediaGenerationAuthorityV1(generationID: generationID,
+            rootURL: root, rootIdentity: try ReportPDFAnchoredFile.rootIdentity(at: root),
+            members: members.keys.sorted().compactMap { members[$0] }, memberSource: .package(package.members),
+            maximumMemberByteCount: package.members.maximumMemberByteCount)
+        try await EvidenceBundleStore(cloneFinalMediaGeneration: authority).restoreConfigurationCloneFinalMediaGeneration()
+#if DEBUG
+        try await configurationCloneObservationForTesting?(.afterFinalMediaCopy)
+#endif
+        try await validateCurrent()
+        try Task.checkCancellation()
     }
 
     private func hasPhotoCheckpoints(_ records: V4BackupRecordsV1) throws -> Bool {
@@ -10132,24 +10475,31 @@ private extension BackupRestoreService {
         -> PhotoRestorePreparation? {
         let sourceHasPhotos = try hasPhotoCheckpoints(package.records)
         let currentHasPhotos = try hasPhotoCheckpoints(currentRecords)
-        guard sourceHasPhotos || currentHasPhotos else { return nil }
-        let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
-            source: package.manifest.source, records: package.records)
-        guard (mode == .emptyInstall || mode == .replaceExisting), let sourceIdentity,
-              sourceIdentity.workspaceID == currentIdentity.workspaceID else {
-            throw BackupRestoreServiceError.invalidPackage
-        }
+        guard mode == .clone || sourceHasPhotos || currentHasPhotos else { return nil }
         let currentSource = V4BackupSourceV1(appBuild: package.manifest.source.appBuild,
             appVersion: package.manifest.source.appVersion,
             persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
             replicaID: currentIdentity.replicaID.rawValue, recordsSchemaVersion: currentRecords.recordsSchemaVersion,
             sourceGenerationID: currentGenerationID, workspaceID: currentIdentity.workspaceID.rawValue)
         let currentHistory = try CheckRunnerPhotoBackupHistoryV1.project(source: currentSource, records: currentRecords)
+        // Clone still validates the current journal when every photo checkpoint
+        // has been removed: the journal may prove a missing operational family.
+        guard sourceHasPhotos || currentHasPhotos else { return nil }
+        let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: package.manifest.source, records: package.records)
         let sourcePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(history: sourceHistory,
             entries: package.manifest.entries) { path in
                 guard let bytes = package.members[path] else { throw BackupRestoreServiceError.invalidPackage }
                 return bytes
             }
+        if mode == .clone {
+            guard replacementRecords.fieldDrafts.isEmpty else { throw BackupRestoreServiceError.invalidPackage }
+            return nil
+        }
+        guard (mode == .emptyInstall || mode == .replaceExisting), let sourceIdentity,
+              sourceIdentity.workspaceID == currentIdentity.workspaceID else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: currentRoot)
         let observation = try DraftAttachmentStagingAdapterV1.observePhotoBackupRoot(
             applicationSupportURL: applicationSupportURL, workspaceID: currentIdentity.workspaceID)
@@ -13387,9 +13737,17 @@ private extension BackupRestoreService {
         records: V4BackupRecordsV1,
         to root: URL,
         generationID: UUID,
-        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = [],
+        cloneFinalMedia: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:]
     ) throws {
-        let photoMembers = try photoGenerationMembers(photoPlans)
+        var photoMembers = try photoGenerationMembers(photoPlans)
+        if !cloneFinalMedia.isEmpty {
+            guard photoPlans.isEmpty,
+                  try cloneFinalMedia == configurationCloneFinalMedia(package: value, records: records) else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            photoMembers = cloneFinalMedia
+        }
         for evidence in records.evidenceFiles {
             if try photoOwnsEvidence(evidence, members: photoMembers) { continue }
             let id = canonical(evidence.id)
@@ -13894,7 +14252,7 @@ private extension BackupRestoreService {
         ) { parentDescriptor, verifyDirectories in
             let flags: Int32 = expectedDirectory
                 ? (O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
-                : (O_RDONLY | O_NOFOLLOW)
+                : (O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
             let descriptor = Darwin.openat(parentDescriptor, name, flags)
             guard descriptor >= 0 else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
@@ -14808,22 +15166,20 @@ private extension BackupRestoreService {
         let photoMembers = try photoGenerationMembers(photoPlans)
         for evidence in records.evidenceFiles {
             if try photoOwnsEvidence(evidence, members: photoMembers) { continue }
-            let original = try readValidatedRegularFile(
+            try validateFrozenEvidenceFile(
                 root: root,
                 relativePath: evidence.relativePath,
+                expectedByteCount: evidence.byteCount,
+                expectedSHA256: evidence.sha256,
                 authorityCheck: authorityCheck
             )
-            let thumbnail = try readValidatedRegularFile(
+            try validateFrozenEvidenceFile(
                 root: root,
                 relativePath: evidence.thumbnailRelativePath,
+                expectedByteCount: evidence.thumbnailByteCount,
+                expectedSHA256: evidence.thumbnailSHA256,
                 authorityCheck: authorityCheck
             )
-            guard original.count == evidence.byteCount,
-                  thumbnail.count == evidence.thumbnailByteCount,
-                  CanonicalJSONV1.sha256(original) == evidence.sha256,
-                  CanonicalJSONV1.sha256(thumbnail) == evidence.thumbnailSHA256 else {
-                throw attributedRestoreAuthorityFailureV1(line: #line)
-            }
         }
         for report in records.reports {
             let snapshot = try readValidatedRegularFile(
@@ -14847,6 +15203,64 @@ private extension BackupRestoreService {
             }
         }
         try authorityCheck()
+    }
+
+    private func validateFrozenEvidenceFile(root: URL, relativePath: String,
+        expectedByteCount: Int, expectedSHA256: String,
+        authorityCheck: () throws -> Void) throws {
+        guard expectedByteCount >= 0,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(expectedSHA256),
+              let name = try validatedPathComponents(relativePath).last else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        try withPinnedExistingItem(root: root, relativePath: relativePath,
+            expectedDirectory: false, authorityCheck: authorityCheck) { parent, descriptor, verifyItem in
+            var initial = stat()
+            guard Darwin.fstat(descriptor, &initial) == 0,
+                  (initial.st_mode & S_IFMT) == S_IFREG, initial.st_nlink == 1,
+                  initial.st_size == Int64(expectedByteCount) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let expected = photoBindingSnapshot(initial)
+            try validateFrozenEvidenceSnapshot(parent: parent, descriptor: descriptor, name: name,
+                expected: expected, authorityCheck: authorityCheck, verifyItem: verifyItem)
+            var digest = SHA256(), count: Int64 = 0
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while true {
+                try validateFrozenEvidenceSnapshot(parent: parent, descriptor: descriptor, name: name,
+                    expected: expected, authorityCheck: authorityCheck, verifyItem: verifyItem)
+                let read = buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, $0.count) }
+                if read < 0, errno == EINTR { continue }
+                guard read >= 0 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                if read == 0 { break }
+                count += Int64(read)
+                guard count <= Int64(expectedByteCount) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                digest.update(data: Data(buffer.prefix(read)))
+            }
+            try validateFrozenEvidenceSnapshot(parent: parent, descriptor: descriptor, name: name,
+                expected: expected, authorityCheck: authorityCheck, verifyItem: verifyItem)
+            let actual = digest.finalize().map { String(format: "%02x", $0) }.joined()
+            guard count == Int64(expectedByteCount), actual == expectedSHA256 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+    }
+
+    private func validateFrozenEvidenceSnapshot(parent: Int32, descriptor: Int32, name: String,
+        expected: StreamingArchiveSourceSnapshotV1, authorityCheck: () throws -> Void,
+        verifyItem: () throws -> Void) throws {
+        try Task.checkCancellation()
+        try authorityCheck()
+        try verifyItem()
+        var named = stat(), opened = stat()
+        guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.fstat(descriptor, &opened) == 0,
+              (named.st_mode & S_IFMT) == S_IFREG,
+              (opened.st_mode & S_IFMT) == S_IFREG,
+              photoBindingSnapshot(named) == expected,
+              photoBindingSnapshot(opened) == expected else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
     }
 
     private func readValidatedRegularFile(
@@ -16123,6 +16537,14 @@ private extension BackupRestoreService {
 
 #if DEBUG
 internal extension BackupRestoreService {
+    func c36ValidateFrozenEvidenceFileForTesting(root: URL, relativePath: String,
+        expectedByteCount: Int, expectedSHA256: String,
+        authorityCheck: () throws -> Void = {}) throws {
+        try validateFrozenEvidenceFile(root: root, relativePath: relativePath,
+            expectedByteCount: expectedByteCount, expectedSHA256: expectedSHA256,
+            authorityCheck: authorityCheck)
+    }
+
     func c55CurrentRecordsForTesting(
         in context: ModelContext,
         includingDeletionLedger: Bool = true

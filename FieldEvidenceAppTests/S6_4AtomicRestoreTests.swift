@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import CoreGraphics
 import ImageIO
@@ -3643,6 +3644,248 @@ extension S6_4AtomicRestoreTests {
 }
 
 extension S6_4AtomicRestoreTests {
+    @MainActor
+    func testConfigurationCloneEmptyRootsRecoverAcrossPublicationBoundaries() async throws {
+        let source = try makeHarness("clone-empty-boundaries-source")
+        defer { try? fileManager.removeItem(at: source.root) }
+        let draft = try await makeConfigurationCloneDraftPackage(in: source)
+        let archive = try Data(contentsOf: draft.package)
+        let points: [BackupRestoreFailurePoint] = [
+            .afterPreparedWrite, .beforeGenerationInstall, .afterPointerSwitch, .beforeCleanup
+        ]
+        for existingEmptyRoot in [false, true] {
+            for point in points {
+                let target = try makeHarness("clone-empty-\(existingEmptyRoot)-\(point)")
+                defer { try? fileManager.removeItem(at: target.root) }
+                if existingEmptyRoot {
+                    _ = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
+                        workspaceID: target.session.workspaceID)
+                }
+                let rootBefore = existingEmptyRoot ? try tree(configurationCloneDraftRoot(target.support)) : []
+                let validated = try importPackage(draft.package, into: target.session)
+                let service = try BackupRestoreService(applicationSupportURL: target.support,
+                    failureInjection: .init(failOnceAt: point))
+                await XCTAssertThrowsErrorAsync {
+                    _ = try await service.restore(validatedPackage: validated,
+                        currentModelContext: target.session.modelContext,
+                        currentGenerationID: target.session.generationID,
+                        currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+                } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
+                let intents = try RestoreIntentStore(applicationSupportURL: target.support)
+                let intent = try XCTUnwrap(intents.load())
+                let recovery = try BackupRestoreService(applicationSupportURL: target.support)
+                let synchronous = try recovery.reconcileAtStartup()
+                if point == .afterPreparedWrite || point == .beforeGenerationInstall {
+                    XCTAssertNil(synchronous)
+                    XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
+                    XCTAssertNil(try intents.load())
+                } else {
+                    let selected = try XCTUnwrap(synchronous)
+                    XCTAssertEqual(selected.generationID, intent.newGenerationID)
+                    XCTAssertNotEqual(selected.workspaceID, target.session.workspaceID)
+                    try assertNoConfigurationCloneDraftRows(in: selected.modelContext)
+                    XCTAssertEqual(try intents.load()?.phase, .newGenerationValidated)
+                    let completed = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                    XCTAssertEqual(completed?.generationID, selected.generationID)
+                    XCTAssertNil(try intents.load())
+                    let reopened = try target.factory.openOrBootstrapCurrent()
+                    XCTAssertEqual(reopened.generationID, selected.generationID)
+                    try assertNoConfigurationCloneDraftRows(in: reopened.modelContext)
+                }
+                XCTAssertEqual(fileManager.fileExists(atPath: configurationCloneDraftRoot(target.support).path), existingEmptyRoot)
+                if existingEmptyRoot { XCTAssertEqual(try tree(configurationCloneDraftRoot(target.support)), rootBefore) }
+                XCTAssertEqual(try Data(contentsOf: draft.package), archive)
+                try await assertConfigurationCloneDraftSourceUnchanged(source, draft: draft)
+            }
+        }
+    }
+
+    @MainActor
+    func testConfigurationCloneColdRecoveryRejectsNewStagingWithoutDeletingIt() async throws {
+        let source = try makeHarness("clone-cold-stage-source")
+        defer { try? fileManager.removeItem(at: source.root) }
+        let draft = try await makeConfigurationCloneDraftPackage(in: source)
+        for point in [BackupRestoreFailurePoint.afterPreparedWrite, .afterPointerSwitch] {
+            let target = try makeHarness("clone-cold-stage-\(point)")
+            defer { try? fileManager.removeItem(at: target.root) }
+            let validated = try importPackage(draft.package, into: target.session)
+            let service = try BackupRestoreService(applicationSupportURL: target.support,
+                failureInjection: .init(failOnceAt: point))
+            await XCTAssertThrowsErrorAsync {
+                _ = try await service.restore(validatedPackage: validated,
+                    currentModelContext: target.session.modelContext,
+                    currentGenerationID: target.session.generationID,
+                    currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+            } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
+            let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
+                workspaceID: target.session.workspaceID)
+            let payload = Data("new current-root bytes must survive a denied clone recovery".utf8)
+            let item = try await staging.stage(data: payload, draftID: UUID(),
+                workspaceID: target.session.workspaceID, attachmentKind: .file)
+            let before = try tree(target.support)
+            let currentID = try target.factory.currentGenerationID()
+            let intents = try RestoreIntentStore(applicationSupportURL: target.support)
+            let intent = try XCTUnwrap(intents.load())
+            let recovery = try BackupRestoreService(applicationSupportURL: target.support)
+            XCTAssertThrowsError(try recovery.reconcileAtStartup())
+            await XCTAssertThrowsErrorAsync {
+                _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            } verify: { _ in }
+            XCTAssertEqual(try intents.load(), intent)
+            XCTAssertEqual(try target.factory.currentGenerationID(), currentID)
+            XCTAssertEqual(try tree(target.support), before)
+            let retained = try await staging.data(stageID: item.stageID)
+            XCTAssertEqual(retained, payload)
+            try await assertConfigurationCloneDraftSourceUnchanged(source, draft: draft)
+        }
+    }
+
+    @MainActor
+    func testConfigurationCloneRechecksAccessCancellationAndRootAfterMediaCopy() async throws {
+        let source = try makeHarness("clone-media-boundary-source")
+        defer { try? fileManager.removeItem(at: source.root) }
+        let draft = try await makeConfigurationCloneDraftPackage(in: source)
+        for scenario in ["access", "cancellation", "staging"] {
+            let target = try makeHarness("clone-media-boundary-\(scenario)")
+            defer { try? fileManager.removeItem(at: target.root) }
+            let validated = try importPackage(draft.package, into: target.session)
+            let service = try BackupRestoreService(applicationSupportURL: target.support)
+            let currentBefore = try tree(target.session.generationRootURL)
+            var reached = false, accessAllowed = true
+            var staged: (DraftAttachmentStagingAdapterV1, AttachmentStagingItemV1)?
+            let hostileBytes = Data("stage during clone media suspension".utf8)
+            service.configurationCloneObservationForTesting = { point in
+                guard point == .afterFinalMediaCopy else { return }
+                reached = true
+                if scenario == "access" { accessAllowed = false }
+                else if scenario == "cancellation" { withUnsafeCurrentTask { $0?.cancel() } }
+                else {
+                    let owner = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
+                        workspaceID: target.session.workspaceID)
+                    let item = try await owner.stage(data: hostileBytes, draftID: UUID(),
+                        workspaceID: target.session.workspaceID, attachmentKind: .file)
+                    staged = (owner, item)
+                }
+            }
+            let operation = Task { @MainActor in
+                try await service.restore(validatedPackage: validated,
+                    currentModelContext: target.session.modelContext,
+                    currentGenerationID: target.session.generationID,
+                    currentGenerationRootURL: target.session.generationRootURL, mode: .clone,
+                    validateAccess: {
+                        if !accessAllowed { throw AppAccessContractFailureV1.accessDenied }
+                    })
+            }
+            await XCTAssertThrowsErrorAsync { _ = try await operation.value } verify: { error in
+                if scenario == "access" { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+                if scenario == "cancellation" { XCTAssertTrue(error is CancellationError) }
+            }
+            XCTAssertTrue(reached)
+            XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
+            XCTAssertEqual(try tree(target.session.generationRootURL), currentBefore)
+            XCTAssertNil(try RestoreIntentStore(applicationSupportURL: target.support).load())
+            if let (owner, item) = staged {
+                let bytes = try await owner.data(stageID: item.stageID)
+                XCTAssertEqual(bytes, hostileBytes)
+            }
+            try await assertConfigurationCloneDraftSourceUnchanged(source, draft: draft)
+        }
+    }
+
+    @MainActor
+    func testConfigurationCloneRetainsIntentWhenStagingChangesDuringFinalColdCleanup() async throws {
+        let source = try makeHarness("clone-final-cold-source")
+        let target = try makeHarness("clone-final-cold-target")
+        defer {
+            try? fileManager.removeItem(at: source.root)
+            try? fileManager.removeItem(at: target.root)
+        }
+        let draft = try await makeConfigurationCloneDraftPackage(in: source)
+        let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
+            workspaceID: target.session.workspaceID)
+        let validated = try importPackage(draft.package, into: target.session)
+        let service = try BackupRestoreService(applicationSupportURL: target.support,
+            failureInjection: .init(failOnceAt: .afterPointerSwitch))
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.restore(validatedPackage: validated,
+                currentModelContext: target.session.modelContext,
+                currentGenerationID: target.session.generationID,
+                currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+        } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
+        let intents = try RestoreIntentStore(applicationSupportURL: target.support)
+        let original = try XCTUnwrap(intents.load())
+        let recovery = try BackupRestoreService(applicationSupportURL: target.support)
+        var item: AttachmentStagingItemV1?
+        let bytes = Data("late staging must not be erased or accepted as clone state".utf8)
+        recovery.configurationCloneObservationForTesting = { point in
+            guard point == .afterFinalCleanup else { return }
+            item = try await staging.stage(data: bytes, draftID: UUID(),
+                workspaceID: target.session.workspaceID, attachmentKind: .file)
+        }
+        await XCTAssertThrowsErrorAsync {
+            _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+        } verify: { _ in }
+        let staged = try XCTUnwrap(item)
+        let retained = try await staging.data(stageID: staged.stageID)
+        XCTAssertEqual(retained, bytes)
+        XCTAssertEqual(try intents.load(), original.advancing(to: .newGenerationValidated))
+        XCTAssertEqual(try target.factory.currentGenerationID(), original.newGenerationID)
+        let after = try tree(target.support)
+        recovery.configurationCloneObservationForTesting = nil
+        XCTAssertThrowsError(try recovery.reconcileAtStartup())
+        XCTAssertEqual(try tree(target.support), after)
+        try await assertConfigurationCloneDraftSourceUnchanged(source, draft: draft)
+    }
+
+    @MainActor
+    func testConfigurationCloneFrozenEvidenceValidationIsBoundedAndRejectsHostileFiles() async throws {
+        let target = try makeHarness("clone-bounded-evidence")
+        defer { try? fileManager.removeItem(at: target.root) }
+        let service = try BackupRestoreService(applicationSupportURL: target.support)
+        let root = target.session.generationRootURL
+        let path = "frozen-evidence.jpg", url = root.appendingPathComponent(path)
+        let bytes = Data(repeating: 0x58, count: 32 * 1024 * 1024)
+        let digest = CanonicalJSONV1.sha256(bytes)
+        try bytes.write(to: url)
+        var checks = 0
+        try service.c36ValidateFrozenEvidenceFileForTesting(root: root, relativePath: path,
+            expectedByteCount: bytes.count, expectedSHA256: digest, authorityCheck: { checks += 1 })
+        XCTAssertGreaterThanOrEqual(checks, bytes.count / (64 * 1024))
+        let cancelled = Task { @MainActor in
+            var observed = 0
+            try service.c36ValidateFrozenEvidenceFileForTesting(root: root, relativePath: path,
+                expectedByteCount: bytes.count, expectedSHA256: digest, authorityCheck: {
+                    observed += 1
+                    if observed == 20 { withUnsafeCurrentTask { $0?.cancel() } }
+                })
+        }
+        await XCTAssertThrowsErrorAsync { try await cancelled.value } verify: { XCTAssertTrue($0 is CancellationError) }
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        for kind in ["fifo", "symlink", "hardlink"] {
+            let hostile = root.appendingPathComponent("hostile-\(kind).jpg")
+            if kind == "fifo" { XCTAssertEqual(Darwin.mkfifo(hostile.path, mode_t(0o600)), 0) }
+            else if kind == "symlink" { try fileManager.createSymbolicLink(at: hostile, withDestinationURL: url) }
+            else { XCTAssertEqual(Darwin.link(url.path, hostile.path), 0) }
+            XCTAssertThrowsError(try service.c36ValidateFrozenEvidenceFileForTesting(root: root,
+                relativePath: hostile.lastPathComponent, expectedByteCount: bytes.count, expectedSHA256: digest))
+            try fileManager.removeItem(at: hostile)
+        }
+        let replacement = root.appendingPathComponent("same-bytes-replacement.jpg")
+        try bytes.write(to: replacement)
+        var replaced = false, observations = 0
+        XCTAssertThrowsError(try service.c36ValidateFrozenEvidenceFileForTesting(root: root,
+            relativePath: path, expectedByteCount: bytes.count, expectedSHA256: digest,
+            authorityCheck: {
+                observations += 1
+                if observations == 20 {
+                    XCTAssertEqual(Darwin.rename(replacement.path, url.path), 0)
+                    replaced = true
+                }
+            }))
+        XCTAssertTrue(replaced)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+    }
+
     @MainActor
     func testConfigurationCloneOmitsDraftRowsAndStagedBytesWithoutChangingSource() async throws {
         let source = try makeHarness("configuration-clone-draft-source")

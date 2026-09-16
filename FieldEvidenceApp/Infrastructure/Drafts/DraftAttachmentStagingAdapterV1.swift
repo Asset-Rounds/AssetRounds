@@ -1748,6 +1748,15 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
     }
 
+    /// A clone can retain only an exactly empty incumbent namespace. This
+    /// read-only proof uses the existing root owner and census without entering
+    /// the actor or creating a staging root during synchronous cold recovery.
+    nonisolated func prepareEmptyPhotoBackupVerification() throws
+        -> DraftPhotoBackupPreparedVerificationV1 {
+        try DraftPhotoBackupPreparedVerificationV1(snapshots: [], owner: rootOwner,
+            canonicalStages: [], childStageIDs: [:], committingCheckpoints: [:])
+    }
+
     func preparePhotoBackupVerification(_ snapshots: [DraftPhotoRawBackupSnapshotV1],
         committingCheckpoints: [UUID: FieldDraftCheckpointV1],
         canonicalStages: [AttachmentStagingItemV1], childStageIDs: [UUID: UUID]) async throws

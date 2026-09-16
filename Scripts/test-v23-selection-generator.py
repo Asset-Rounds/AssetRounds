@@ -35,6 +35,8 @@ STARTUP_SELECTORS = [
     "testRelaunchAfterWideKeepsExactEvidenceAuthorityAndResumesClose",
 ]
 
+CONFIGURATION_CLONE_SELECTORS = ['FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily', 'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneRejectsCorruptFinalMemberAndPopulatedDestinationStagingBeforeEffects', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneColdRecoveryRejectsNewStagingWithoutDeletingIt', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneEmptyRootsRecoverAcrossPublicationBoundaries', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneFrozenEvidenceValidationIsBoundedAndRejectsHostileFiles', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRechecksAccessCancellationAndRootAfterMediaCopy', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetainsIntentWhenStagingChangesDuringFinalColdCleanup']
+
 PHOTO_BACKUP_SELECTORS = [
     'FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently',
     'FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic',
@@ -180,6 +182,24 @@ class GeneratorTests(unittest.TestCase):
             historical, historical_map, _ = self.generate(profile)
             self.assertFalse(set(PHOTO_BACKUP_SELECTORS) & set(historical['unitTestSelectors']))
             self.assertNotIn('backup-capacity', [g['id'] for g in historical_map['groups']])
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_configuration_clone_profile_appends_seven_and_preserves_every_prior_profile(self):
+        prior, prior_map, _ = self.generate('photo-backup-v1')
+        current, current_map, report = self.generate('configuration-clone-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (723, 41))
+        self.assertEqual(current['unitTestSelectors'][:716], prior['unitTestSelectors'])
+        self.assertEqual(current['unitTestSelectors'][716:], CONFIGURATION_CLONE_SELECTORS)
+        increments = {'report-camera-recovery': 2, 'restore-acceptance': 5}
+        self.assertEqual(current_map['groups'], [
+            {**group, 'methodCount': group['methodCount'] + increments.get(group['id'], 0)}
+            for group in prior_map['groups']])
+        self.assertEqual((report['selectionSHA256'], report['selectionMapSHA256']),
+                         ('C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0', '955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E'))
+        for profile in ('incumbent-v1', 'prospective-v1', 'raw-photo-v1', 'pair-startup-v1', 'photo-backup-v1'):
+            historical, _, _ = self.generate(profile)
+            self.assertFalse(set(CONFIGURATION_CLONE_SELECTORS) & set(historical['unitTestSelectors']))
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
 

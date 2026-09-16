@@ -932,6 +932,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     private let failureInjection: EvidenceBundleStoreFailureInjection?
     nonisolated private let assetLabelPublications: EvidenceBundleStoreAssetLabelPublicationV1
     private let photoRestoreGenerationAuthority: CheckRunnerPhotoRestoreGenerationAuthorityV1?
+    private let cloneFinalMediaGenerationAuthority: ConfigurationCloneFinalMediaGenerationAuthorityV1?
 
     init(
         generationRootURL: URL,
@@ -940,6 +941,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
     ) {
         self.photoRestoreGenerationAuthority = nil
+        self.cloneFinalMediaGenerationAuthority = nil
         self.sourceMutationGuard = nil
         self.expectedGenerationRootIdentity = expectedGenerationRootIdentity
         self.generationRootURL = generationRootURL.standardizedFileURL
@@ -955,6 +957,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     @MainActor
     init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
         photoRestoreGenerationAuthority = nil
+        cloneFinalMediaGenerationAuthority = nil
         generationRootURL = authority.generationRootURL.standardizedFileURL
         expectedGenerationRootIdentity = nil
         fileManager = .default
@@ -967,6 +970,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     init(photoRestoreGeneration authority: CheckRunnerPhotoRestoreGenerationAuthorityV1) {
         photoRestoreGenerationAuthority = authority
+        cloneFinalMediaGenerationAuthority = nil
         generationRootURL = authority.rootURL.standardizedFileURL
         expectedGenerationRootIdentity = authority.rootIdentity
         fileManager = .default
@@ -974,6 +978,37 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         sourceMutationGuard = nil
         assetLabelPublications = EvidenceBundleStoreAssetLabelPublicationV1(
             rootURL: authority.rootURL, fileManager: .default, failureInjection: nil)
+    }
+
+    init(cloneFinalMediaGeneration authority: ConfigurationCloneFinalMediaGenerationAuthorityV1) {
+        photoRestoreGenerationAuthority = nil
+        cloneFinalMediaGenerationAuthority = authority
+        generationRootURL = authority.rootURL.standardizedFileURL
+        expectedGenerationRootIdentity = authority.rootIdentity
+        fileManager = .default
+        failureInjection = nil
+        sourceMutationGuard = nil
+        assetLabelPublications = EvidenceBundleStoreAssetLabelPublicationV1(
+            rootURL: authority.rootURL, fileManager: .default, failureInjection: nil)
+    }
+
+    /// Copies only canonical final media into the clone owner's private
+    /// generation. The restore service retains whole-generation rollback.
+    func restoreConfigurationCloneFinalMediaGeneration() throws {
+        guard let authority = cloneFinalMediaGenerationAuthority,
+              authority.rootURL.standardizedFileURL == generationRootURL,
+              authority.rootURL.lastPathComponent == authority.generationID.uuidString.lowercased(),
+              Set(authority.members.map(\.relativePath)).count == authority.members.count,
+              authority.members.allSatisfy({ $0.kind == .original || $0.kind == .thumbnail }) else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try validateGenerationRoot()
+        try writeRestoreGenerationMembers(authority.members, source: authority.memberSource,
+            maximumMemberByteCount: authority.maximumMemberByteCount)
+        try Task.checkCancellation()
+        try validateGenerationRoot()
     }
 
     /// Runs on the media actor, publishing only to the restore service's private
@@ -991,7 +1026,20 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
               authority.membersToMaterialize.allSatisfy({ authority.plan.generationMembers.contains($0) }) else {
             throw EvidenceBundleStoreError.bundleFactsMismatch
         }
-        for member in authority.membersToMaterialize {
+        try writeRestoreGenerationMembers(authority.membersToMaterialize, source: authority.memberSource)
+        for (path, expected) in authority.plan.metadata {
+            guard authority.memberSource.metadataBytes(path) == expected else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        }
+        try Task.checkCancellation()
+        return try prepareCheckRunnerPhotoBackupMedia(children: authority.children,
+            expectedGenerationRootIdentity: authority.rootIdentity)
+    }
+
+    private func writeRestoreGenerationMembers(
+        _ members: [CheckRunnerPhotoBackupRestorePlanV1.GenerationMember],
+        source: CheckRunnerPhotoRestoreMemberSourceV1,
+        maximumMemberByteCount: Int64 = Int64(MediaContractV1.sourceByteCountMaximum)) throws {
+        for member in members {
             try Task.checkCancellation()
             let components = member.relativePath.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
             guard components.count > 1, components.allSatisfy(validPathComponent) else {
@@ -1001,7 +1049,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             let url = generationRootURL.appendingPathComponent(member.relativePath)
             try writeProtectedStream(to: url, policy: member.kind.protection,
                 cancellationChecks: true) { output in
-                try authority.memberSource.read(member.entry) { chunk in
+                try source.read(member.entry, maximumByteCount: maximumMemberByteCount) { chunk in
                     try chunk.withUnsafeBytes { bytes in
                         guard let base = bytes.baseAddress else { return }
                         var offset = 0
@@ -1016,12 +1064,6 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                 }
             }
         }
-        for (path, expected) in authority.plan.metadata {
-            guard authority.memberSource.metadataBytes(path) == expected else { throw EvidenceBundleStoreError.bundleFactsMismatch }
-        }
-        try Task.checkCancellation()
-        return try prepareCheckRunnerPhotoBackupMedia(children: authority.children,
-            expectedGenerationRootIdentity: authority.rootIdentity)
     }
 
     nonisolated func publishOrAdoptAssetLabelArtifacts(

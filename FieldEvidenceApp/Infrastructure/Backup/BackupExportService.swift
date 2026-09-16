@@ -4470,17 +4470,6 @@ private extension BackupExportService {
         }
     }
 
-#if DEBUG
-    nonisolated static func removeOwnedPublishedArchiveForTesting(
-        receipt: StreamingArchiveWriteReceiptV1,
-        within destinationDirectoryURL: URL,
-        beforePrivateClaim: (() throws -> Void)? = nil
-    ) throws {
-        try removeOwnedPublishedArchive(receipt, within: destinationDirectoryURL,
-            beforePrivateClaim: beforePrivateClaim)
-    }
-#endif
-
     nonisolated static func removeOwnedPublishedArchive(
         _ receipt: StreamingArchiveWriteReceiptV1,
         within destinationDirectoryURL: URL,
@@ -4689,3 +4678,16 @@ enum C55PartsStockBackupExportBoundaryV1 {
     static let exportsOneCanonicalSnapshot = true
     static let exportsAllSevenDurableFamilies = true
 }
+
+#if DEBUG
+extension BackupExportService {
+    nonisolated static func removeOwnedPublishedArchiveForTesting(
+        receipt: StreamingArchiveWriteReceiptV1,
+        within destinationDirectoryURL: URL,
+        beforePrivateClaim: (() throws -> Void)? = nil
+    ) throws {
+        try removeOwnedPublishedArchive(receipt, within: destinationDirectoryURL,
+            beforePrivateClaim: beforePrivateClaim)
+    }
+}
+#endif

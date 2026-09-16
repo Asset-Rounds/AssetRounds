@@ -69,9 +69,19 @@ DURABLE_BEGIN_METHOD_PARTITIONS = (
 )
 DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
-GENERATED_SELECTION_PROFILE = "photo-backup-v1"
-GENERATED_SELECTION_POOL_SHA256 = "930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D"
-GENERATED_SELECTION_MAP_SHA256 = "5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248"
+GENERATED_SELECTION_PROFILE = "configuration-clone-v1"
+GENERATED_SELECTION_POOL_SHA256 = "C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0"
+GENERATED_SELECTION_MAP_SHA256 = "955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E"
+CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
+CONFIGURATION_CLONE_SELECTORS = (
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneRejectsCorruptFinalMemberAndPopulatedDestinationStagingBeforeEffects',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneColdRecoveryRejectsNewStagingWithoutDeletingIt',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneEmptyRootsRecoverAcrossPublicationBoundaries',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneFrozenEvidenceValidationIsBoundedAndRejectsHostileFiles',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRechecksAccessCancellationAndRootAfterMediaCopy',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetainsIntentWhenStagingChangesDuringFinalColdCleanup',
+)
 PHOTO_BACKUP_PARENT_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently',
     'FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic',
@@ -891,7 +901,7 @@ def resolve_selection(default, selection_map, selection_id):
             validate_selection(derived)
             resolved[partition_id] = derived
     if generated_profile_shape:
-        photo_parent = tuple(default["unitTestSelectors"][-15:])
+        photo_parent = tuple(default["unitTestSelectors"][701:716])
         require(photo_parent == PHOTO_BACKUP_PARENT_SELECTORS,
                 "photo backup exact ordered source enrollment")
         photo_ids = tuple(item[0] for item in PHOTO_BACKUP_METHOD_PARTITIONS)
@@ -910,6 +920,18 @@ def resolve_selection(default, selection_map, selection_id):
             derived["unitTestSelectors"] = list(members)
             validate_selection(derived)
             resolved[partition_id] = derived
+    if generated_profile_shape:
+        clone_members = tuple(default["unitTestSelectors"][716:])
+        require(clone_members == CONFIGURATION_CLONE_SELECTORS
+                and len(clone_members) == len(set(clone_members)) == 7,
+                "configuration clone exact ordered source enrollment")
+        require(CONFIGURATION_CLONE_SELECTION_ID not in set(resolved) | {DEFAULT_SELECTION_ID}
+                and not (set(clone_members) & set(PHOTO_BACKUP_PARENT_SELECTORS)),
+                "configuration clone fixed distinct selection")
+        derived = dict(default)
+        derived["unitTestSelectors"] = list(clone_members)
+        validate_selection(derived)
+        resolved[CONFIGURATION_CLONE_SELECTION_ID] = derived
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")

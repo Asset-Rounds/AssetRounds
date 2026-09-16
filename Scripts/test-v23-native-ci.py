@@ -177,9 +177,19 @@ PHOTO_BACKUP_PARTITION_CHOICES = ['c36-photo-backup-transport', 'c36-photo-backu
 
 
 def prepartition_values(default, mapping):
-    if len(mapping.get('groups', [])) == 41:
+    if len(default.get('unitTestSelectors', [])) == 723:
         if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
                 CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError('changed generated configuration-clone inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        if tuple(default['unitTestSelectors'][716:]) != CI.CONFIGURATION_CLONE_SELECTORS:
+            raise AssertionError('changed exact clone append')
+        default['unitTestSelectors'] = default['unitTestSelectors'][:716]
+        for group in mapping['groups']:
+            group['methodCount'] -= {'report-camera-recovery': 2, 'restore-acceptance': 5}.get(group['id'], 0)
+    if len(mapping.get('groups', [])) == 41:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                '930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D', '5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248'):
             raise AssertionError('changed generated photo-backup enrollment inputs')
         default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
         if tuple(default['unitTestSelectors'][-15:]) != CI.PHOTO_BACKUP_PARENT_SELECTORS:
@@ -250,6 +260,11 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    choice = '          - c36-photo-configuration-clone\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact clone choice')
+    workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 723 methods across 41 bounded groups',
+                                'all 716 methods across 41 bounded groups')
     for group_id in ('backup-capacity', *PHOTO_BACKUP_PARTITION_CHOICES):
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact photo backup choice')
@@ -300,11 +315,11 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (716, 41))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (723, 41))
         for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 4),
                                 ('notification-owner', 77), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
-                                ('c36-photo-backup-restore', 3)]:
+                                ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7)]:
             e = environment()
             e['NATIVE_SELECTION_ID'] = group_id
             selected, record = CI.selected_input(self.root, e)
@@ -364,7 +379,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),716)
+        self.assertEqual(len(default['unitTestSelectors']),723)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -382,7 +397,7 @@ class ReportPartitionTests(unittest.TestCase):
         self.assertEqual(set(seen),set(default['unitTestSelectors']))
         report=[s for s in seen if s.split('/')[1] in {c for g in [mapping['groups'][13]]+REPORT_PARTITION_GROUPS for c in g['classes']}]
         self.assertEqual({REPORT_PARTITION_ALIASES.get(s,s) for s in report
-                          if s not in CI.PHOTO_BACKUP_PARENT_SELECTORS},
+                          if s not in CI.PHOTO_BACKUP_PARENT_SELECTORS + CI.CONFIGURATION_CLONE_SELECTORS},
                          set(CI.resolve_selection(prior,prior_map,'report-camera-recovery')['unitTestSelectors']))
         workflow=(ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
         prepartition_workflow(workflow)
@@ -392,7 +407,7 @@ class ReportPartitionTests(unittest.TestCase):
             expected.append(group['id'])
             if group['id']=='c36-source-graph': expected.extend(SOURCE_GRAPH_PARTITION_CHOICES)
             if group['id']=='c36-durable-begin': expected.extend(DURABLE_PARTITION_CHOICES)
-            if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES)
+            if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES + [CI.CONFIGURATION_CLONE_SELECTION_ID])
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):
@@ -407,14 +422,48 @@ class ReportPartitionTests(unittest.TestCase):
                              {k: v for k, v in default.items() if k != 'unitTestSelectors'})
             seen.extend(members)
         self.assertEqual(len(seen), len(set(seen)))
-        self.assertEqual(set(seen), set(default['unitTestSelectors'][-15:]))
-        self.assertEqual(tuple(default['unitTestSelectors'][-15:]), CI.PHOTO_BACKUP_PARENT_SELECTORS)
+        self.assertEqual(set(seen), set(default['unitTestSelectors'][701:716]))
+        self.assertEqual(tuple(default['unitTestSelectors'][701:716]), CI.PHOTO_BACKUP_PARENT_SELECTORS)
         for selector in seen:
             bundle, klass, method = selector.split('/')
             source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
             self.assertEqual(len(re.findall(r'\bfunc\s+' + re.escape(method) + r'\s*\(', source)), 1)
 
     def test_photo_backup_partition_hostiles_preserve_closed_membership_order_and_limits(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        cases = []
+        missing = copy.deepcopy(default); missing['unitTestSelectors'].pop(715); cases.append(missing)
+        duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'].append(default['unitTestSelectors'][715]); cases.append(duplicate)
+        foreign = copy.deepcopy(default); foreign['unitTestSelectors'][715] += 'Unknown'; cases.append(foreign)
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][715], reordered['unitTestSelectors'][714] = reordered['unitTestSelectors'][714], reordered['unitTestSelectors'][715]
+        cases.append(reordered)
+        budget = copy.deepcopy(default); budget['testTimeoutSeconds'] = 901; cases.append(budget)
+        for index, hostile in enumerate(cases):
+            with self.subTest(case=index), self.assertRaises(ValueError):
+                CI.resolve_selection(hostile, mapping, PHOTO_BACKUP_PARTITION_CHOICES[0])
+        wrong_map = copy.deepcopy(mapping); wrong_map['groups'][-1]['methodCount'] += 1
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, wrong_map, PHOTO_BACKUP_PARTITION_CHOICES[1])
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-photo-backup-unknown')
+
+    def test_configuration_clone_selection_exact_source_members_and_unchanged_native_limits(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected = CI.resolve_selection(default, mapping, CI.CONFIGURATION_CLONE_SELECTION_ID)
+        self.assertEqual(tuple(selected['unitTestSelectors']), CI.CONFIGURATION_CLONE_SELECTORS)
+        self.assertEqual(len(selected['unitTestSelectors']), 7)
+        self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
+                         {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+        for selector in selected['unitTestSelectors']:
+            bundle, klass, method = selector.split('/')
+            source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'\bfunc\s+' + re.escape(method) + r'\s*\(', source)), 1)
+        self.assertFalse(set(selected['unitTestSelectors']) & set(CI.PHOTO_BACKUP_PARENT_SELECTORS))
+
+    def test_configuration_clone_rejects_omission_duplicates_order_foreign_class_and_budget_drift(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         cases = []
@@ -427,12 +476,13 @@ class ReportPartitionTests(unittest.TestCase):
         budget = copy.deepcopy(default); budget['testTimeoutSeconds'] = 901; cases.append(budget)
         for index, hostile in enumerate(cases):
             with self.subTest(case=index), self.assertRaises(ValueError):
-                CI.resolve_selection(hostile, mapping, PHOTO_BACKUP_PARTITION_CHOICES[0])
-        wrong_map = copy.deepcopy(mapping); wrong_map['groups'][-1]['methodCount'] += 1
+                CI.resolve_selection(hostile, mapping, CI.CONFIGURATION_CLONE_SELECTION_ID)
+        wrong_map = copy.deepcopy(mapping)
+        next(g for g in wrong_map['groups'] if g['id'] == 'restore-acceptance')['classes'].append('ForeignTests')
         with self.assertRaises(ValueError):
-            CI.resolve_selection(default, wrong_map, PHOTO_BACKUP_PARTITION_CHOICES[1])
+            CI.resolve_selection(default, wrong_map, CI.CONFIGURATION_CLONE_SELECTION_ID)
         with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
-            CI.resolve_selection(default, mapping, 'c36-photo-backup-unknown')
+            CI.resolve_selection(default, mapping, 'c36-photo-configuration-clone-unknown')
 
     def test_actual_durable_method_partitions_are_fixed_complete_and_keep_n8_budgets(self):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
