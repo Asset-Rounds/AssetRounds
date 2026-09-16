@@ -149,6 +149,44 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
     let children: [CheckRunnerPhotoBackupHistoryChildV1]
     let requiredHistory: [RepetitiveCaptureSourceHistoryRecordV2]
 
+    /// Pure correspondence for an original Begin effect. Presence and quarantine
+    /// come from the complete source journal; this comparison grants no live effect.
+    static func requireFrozenBeginOriginal(_ original: CheckRunnerBeginCommittedEvidenceV1,
+        attempt: CheckRunnerFrozenBeginAttemptV1, role: CheckRunnerBeginMutationRoleV1) throws {
+        try attempt.validate()
+        let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        let command: WorkspaceCommandV1
+        let mutationID: MutationIDV1
+        let revisions: [WorkspaceEntityRevisionV1]
+        let committedAt: Date
+        switch role {
+        case .record:
+            command = .createCheckDraft(attempt.recordCommand)
+            mutationID = attempt.recordMutationID
+            revisions = attempt.recordExpectedEntityRevisions
+            committedAt = attempt.recordCommittedAt
+        case .timeZone:
+            guard let zone = attempt.timeZone else { throw failure }
+            command = .updateSiteTimeZone(zone.command)
+            mutationID = zone.mutationID
+            revisions = [try .init(identity: .init(kind: .site, id: zone.command.siteID),
+                                   revision: zone.expectedSiteRevision)]
+            committedAt = zone.committedAt
+        }
+        guard original.envelope.workspaceID == attempt.sourceWorkspaceID,
+              original.envelope.mutationID == mutationID,
+              original.envelope.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(command)),
+              original.receipt.committedAt == committedAt else { throw failure }
+        // A genuine full-workspace CAS includes unrelated entities. Match every
+        // frozen dependency exactly without dropping or rewriting the vector.
+        for revision in revisions {
+            let matches = original.receipt.expectedRevision.entityRevisions.filter {
+                $0.identity == revision.identity
+            }
+            guard matches.count == 1, matches[0].revision == revision.revision else { throw failure }
+        }
+    }
+
     static func project(source: V4BackupSourceV1, records: V4BackupRecordsV1) throws -> Self {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
         let c36 = try RepetitiveCaptureSourceGraphReviewV2.reviewCanonicalSource(
@@ -251,19 +289,43 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         let parentGraphs: [UUID: ReviewedRepetitiveCaptureSourceGraphV2]
     }
 
-    /// A parent can have a durable Begin before its first photo. Its original
-    /// checkpoints and declared Begin receipts remain required in that state.
+    /// PREPARED may have no effect, timezone only, or both effects before BOUND.
+    /// Preserve that exact prefix and every parent original even without photos.
     @inline(never)
     static func parentHistoryKeys(_ parents: [UUID: ParentHistory],
                                   history: RepetitiveCaptureSourceGraphReviewV2.History) throws -> Set<String> {
         var required = Set<String>()
         for parent in parents.values {
             parent.originals.forEach { required.insert(key($0)) }
-            let hasBoundBegin = try parent.checkpoints.contains { checkpoint in
-                if case .bound = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint).field.begin {
-                    return true
+            var attempts: [String: CheckRunnerFrozenBeginAttemptV1] = [:]
+            var hasBoundBegin = false
+            for checkpoint in parent.checkpoints {
+                let begin = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint).field.begin
+                if case .bound = begin { hasBoundBegin = true }
+                guard let attempt = begin.attempt else { continue }
+                let attemptKey = RepetitiveCaptureSourceGraphReviewV2.key(
+                    attempt.sourceWorkspaceID, attempt.recordMutationID)
+                if let prior = attempts[attemptKey] {
+                    guard prior == attempt else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                    continue
                 }
-                return false
+                attempts[attemptKey] = attempt
+                let zone = try attempt.timeZone.flatMap {
+                    try presentBeginOriginal(attempt: attempt, mutationID: $0.mutationID,
+                                             role: .timeZone, history: history)
+                }
+                let workflow = try presentBeginOriginal(attempt: attempt,
+                    mutationID: attempt.recordMutationID, role: .record, history: history)
+                if let workflow, let expectedZone = attempt.timeZone {
+                    guard let zone,
+                          zone.envelope.mutationID == expectedZone.mutationID,
+                          workflow.receipt.expectedRevision.workspaceRevision >=
+                            zone.receipt.resultingRevision.workspaceRevision else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                }
+                if let zone { required.insert(key(zone)) }
+                if let workflow { required.insert(key(workflow)) }
             }
             if hasBoundBegin {
                 let begin = try beginEvidence(parent: parent, history: history)
@@ -272,6 +334,21 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             }
         }
         return required
+    }
+
+    static func presentBeginOriginal(attempt: CheckRunnerFrozenBeginAttemptV1,
+        mutationID: MutationIDV1, role: CheckRunnerBeginMutationRoleV1,
+        history: RepetitiveCaptureSourceGraphReviewV2.History) throws
+        -> RepetitiveCaptureSourceHistoryRecordV2? {
+        let recordKey = RepetitiveCaptureSourceGraphReviewV2.key(attempt.sourceWorkspaceID, mutationID)
+        guard !history.quarantinedKeys.contains(recordKey) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        guard history.records[recordKey] != nil else { return nil }
+        let record = try history.authenticated(recordKey)
+        let original = try CheckRunnerBeginCommittedEvidenceV1(envelope: record.envelope, receipt: record.receipt)
+        try requireFrozenBeginOriginal(original, attempt: attempt, role: role)
+        return record
     }
 
     @inline(never)
@@ -286,15 +363,22 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         let currentPhotos = rows.checkpoints.filter { $0.value.codec == photoRelease }
         let currentParents = rows.checkpoints.filter { $0.value.codec == parentRelease }
         var historicPhotoIDs = Set<UUID>()
+        var historicParentIDs = Set<UUID>()
         for record in history.records.values where record.envelope.workspaceID == workspaceID {
             guard case let .applyFieldDraft(mutation) = record.envelope.command,
-                  case let .createCheckpoint(checkpoint) = mutation.postImage,
-                  checkpoint.codec == photoRelease else { continue }
-            _ = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
-            guard checkpoint.workspaceID == workspaceID,
-                  historicPhotoIDs.insert(checkpoint.draftID).inserted else { throw failure }
+                  case let .createCheckpoint(checkpoint) = mutation.postImage else { continue }
+            if checkpoint.codec == photoRelease {
+                _ = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+                guard checkpoint.workspaceID == workspaceID,
+                      historicPhotoIDs.insert(checkpoint.draftID).inserted else { throw failure }
+            } else if checkpoint.codec == parentRelease {
+                _ = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+                guard checkpoint.workspaceID == workspaceID,
+                      historicParentIDs.insert(checkpoint.draftID).inserted else { throw failure }
+            }
         }
-        guard historicPhotoIDs == Set(currentPhotos.keys) else { throw failure }
+        guard historicPhotoIDs == Set(currentPhotos.keys),
+              historicParentIDs == Set(currentParents.keys) else { throw failure }
         for record in history.records.values where record.envelope.workspaceID != workspaceID {
             guard case let .applyFieldDraft(mutation) = record.envelope.command else { continue }
             if currentPhotos[RepetitiveCaptureSourceGraphReviewV2.draftID(mutation.postImage)] != nil {

@@ -4474,6 +4474,12 @@ private extension S6_4AtomicRestoreTests {
             XCTAssertEqual($0 as? ReplacementRestoreRuleError, .invalidAuthority)
         }
         let oldCanonical = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        // The actual clone path replaces C22 assessments before encoding its
+        // destination. Every unrelated modern snapshot must survive that copy.
+        let copied = records.replacingAccessibleDocumentAssessments(records.accessibleDocumentAssessments)
+        XCTAssertEqual(copied, records)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(copied).data, oldCanonical)
+        try assertAssessmentCopyPreservesRejectedServiceHistory(records, workspaceID: harness.session.workspaceID.rawValue)
         let destinationCanonical = try BackupCanonicalEncoderV1()
             .encodeRecords(package.records).data
         let payload = configurationCloneDraftRoot(harness.support).appendingPathComponent(
@@ -4485,6 +4491,40 @@ private extension S6_4AtomicRestoreTests {
             stagingBefore: try configurationCloneRetirementTree(configurationCloneDraftRoot(harness.support)),
             payloadIdentity: try cloneRetirementFileIdentity(payload),
             archiveBefore: try Data(contentsOf: draft.package))
+    }
+
+    // Nonempty hostile transport rows are intentionally not accepted C53
+    // evidence. A value copy must retain them so the existing owner still
+    // rejects them, rather than silently producing empty valid history.
+    func assertAssessmentCopyPreservesRejectedServiceHistory(_ records: V4BackupRecordsV1,
+        workspaceID: UUID) throws {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(records)) as? [String: Any])
+        let families: [(String, V39BackupServiceReliabilityRecordV1.Kind)] = [
+            ("serviceReliabilityIncidents", .incident), ("serviceImpactSegments", .impactSegment),
+            ("serviceCauseAssertions", .causeAssertion), ("serviceRemedyAssertions", .remedyAssertion),
+            ("serviceRepairIntervals", .repairInterval), ("serviceRestorationAssertions", .restorationAssertion),
+            ("qualifiedServiceExposures", .qualifiedExposure),
+        ]
+        for (key, kind) in families {
+            let row = try V39BackupServiceReliabilityRecordV1(kind: kind,
+                eventID: UUID(), lineageID: UUID(), incidentID: UUID(),
+                workspaceID: workspaceID, revision: 1, mutationID: UUID(),
+                eventSHA256: String(repeating: "a", count: 64), canonicalData: Data("invalid C53 body".utf8))
+            object[key] = try JSONSerialization.jsonObject(with: JSONEncoder().encode([row]))
+        }
+        object["serviceReliabilityReceipts"] = [[
+            "mutationID": UUID().uuidString, "bundleSHA256": String(repeating: "b", count: 64),
+            "canonicalData": Data("invalid C53 receipt".utf8).base64EncodedString(),
+        ]]
+        let hostile = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+        XCTAssertThrowsError(try C53ServiceReliabilityBackupEnrollmentV1.validate(
+            records: hostile, workspaceID: workspaceID))
+        let copied = hostile.replacingAccessibleDocumentAssessments(hostile.accessibleDocumentAssessments)
+        XCTAssertEqual(copied, hostile)
+        XCTAssertThrowsError(try C53ServiceReliabilityBackupEnrollmentV1.validate(
+            records: copied, workspaceID: workspaceID))
     }
 
     @MainActor
@@ -4502,7 +4542,10 @@ private extension S6_4AtomicRestoreTests {
                 currentModelContext: fixture.harness.session.modelContext,
                 currentGenerationID: fixture.harness.session.generationID,
                 currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone)
-        } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure, step) }
+        } verify: {
+            XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure,
+                "\(step); actual error: \(String(reflecting: $0))")
+        }
         XCTAssertTrue(reached, "Must reach the actual durable step: \(step)")
         if let intent = try RestoreIntentStore(applicationSupportURL: fixture.harness.support).load() {
             XCTAssertEqual(intent.restoreID, fixture.restoreID, step)

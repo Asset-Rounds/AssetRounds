@@ -4279,81 +4279,225 @@ extension S6_2BackupExportTests {
             XCTAssertEqual(restorePlan, try CheckRunnerPhotoBackupRestorePlanV1.resolve(
                 history: history, entries: validated.manifest.entries,
                 metadata: { try XCTUnwrap(validated.members[$0]) }))
+            // This incumbent compatibility fixture contains a legacy workflow
+            // draft. The durable C36 parent is exercised separately below.
             let parentRelease = try CheckRunnerItemDraftCodecV1.release()
-            let parents = try validated.records.fieldDrafts.compactMap { row -> FieldDraftCheckpointV1? in
-                guard row.kind == .checkpoint else { return nil }
+            for row in validated.records.fieldDrafts where row.kind == .checkpoint {
                 let checkpoint = try FieldDraftCanonicalCodecV1.decode(
                     FieldDraftCheckpointV1.self, from: row.canonicalData)
-                guard checkpoint.codec == parentRelease else { return nil }
-                _ = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
-                return checkpoint
-            }
-            XCTAssertEqual(parents.count, 1)
-            let parentCheckpoint = try XCTUnwrap(parents.first)
-            let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parentCheckpoint)
-            guard case let .bound(_, workflowReference, zoneReference) = parent.field.begin else {
-                return XCTFail("The real zero-photo fixture must retain its bound parent")
-            }
-            diagnosticStage = "parent-and-begin-history-closure"
-            let sourceHistory = try XCTUnwrap(validated.records.mutationHistory)
-            var expectedMutationIDs: Set<MutationIDV1> = [workflowReference.mutationID]
-            if let zoneReference { expectedMutationIDs.insert(zoneReference.mutationID) }
-            var parentMutationIDs = Set<MutationIDV1>()
-            for original in sourceHistory.receipts {
-                let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
-                guard envelope.workspaceID == parentCheckpoint.workspaceID,
-                      case let .applyFieldDraft(mutation) = envelope.command else { continue }
-                let checkpoint: FieldDraftCheckpointV1
-                switch mutation.postImage {
-                case let .createCheckpoint(value), let .reviseCheckpoint(value): checkpoint = value
-                default: continue
-                }
-                if checkpoint.draftID == parentCheckpoint.draftID {
-                    parentMutationIDs.insert(envelope.mutationID)
-                }
-            }
-            XCTAssertFalse(parentMutationIDs.isEmpty)
-            expectedMutationIDs.formUnion(parentMutationIDs)
-            for mutationID in expectedMutationIDs.sorted(by: { $0.rawValue.uuidString < $1.rawValue.uuidString }) {
-                let original = try XCTUnwrap(sourceHistory.receipts.first {
-                    let envelope = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
-                    return envelope.workspaceID == parentCheckpoint.workspaceID && envelope.mutationID == mutationID
-                })
-                let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
-                XCTAssertEqual(history.requiredHistory.first {
-                    $0.envelope.workspaceID == parentCheckpoint.workspaceID && $0.envelope.mutationID == mutationID
-                }?.original, original, "The zero-photo history must retain every parent and Begin original")
-
-                diagnosticStage = "quarantined-parent-or-begin-\(mutationID.rawValue.uuidString)"
-                let acceptedDigest = try envelope.canonicalSHA256()
-                let zeroDigest = String(repeating: "0", count: 64)
-                let quarantine = MutationHistoryQuarantineRecordV1(
-                    workspaceID: envelope.workspaceID, mutationID: mutationID.rawValue,
-                    identityDomain: .mutationEnvelope, acceptedIdentitySHA256: acceptedDigest,
-                    conflictingIdentitySHA256: acceptedDigest == zeroDigest ? String(repeating: "1", count: 64) : zeroDigest,
-                    detectedAt: Date(timeIntervalSince1970: 1_800_000_100))
-                let quarantined = MutationHistorySnapshotV1(
-                    workspaceRevision: sourceHistory.workspaceRevision,
-                    lastLocalSequence: sourceHistory.lastLocalSequence,
-                    receipts: sourceHistory.receipts,
-                    quarantines: sourceHistory.quarantines + [quarantine],
-                    entityRevisions: sourceHistory.entityRevisions)
-                // The negative is a valid journal quarantine, not malformed JSON
-                // or an absent receipt that generic import would reject first.
-                XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(quarantined))
-                var object = try XCTUnwrap(JSONSerialization.jsonObject(
-                    with: JSONEncoder().encode(validated.records)) as? [String: Any])
-                object["mutationHistory"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(quarantined))
-                let quarantinedRecords = try JSONDecoder().decode(V4BackupRecordsV1.self,
-                    from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
-                XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(
-                    source: validated.manifest.source, records: quarantinedRecords)) {
-                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
-                }
+                XCTAssertNotEqual(checkpoint.codec, parentRelease)
             }
         } catch {
             logTransportFailure(context: "testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren", stage: diagnosticStage, error: error)
             throw error
+        }
+        try await assertDurableBeginHistoryPrefixes()
+    }
+
+    @MainActor
+    private func assertDurableBeginHistoryPrefixes() async throws {
+        try await withAsyncFrozenBeginFixture("backup-prepared-prefixes", entry: .check,
+            storedTimeZoneID: nil, appDirectoryLayout: true) { h in
+            let service = try ProductionCheckRunnerItemDraftServiceV1(session: h.coordinator,
+                progress: h.progress, coordinator: h.runner, publishedRelease: h.publishedRelease,
+                clock: h.clock, ids: h.ids)
+            let created = try service.create(source: h.captureSource(), preflight: .init(
+                timeZoneID: "America/New_York", isTimeZoneConfirmed: true,
+                confirmedTimeZoneID: "America/New_York", afterDarkAccepted: true, safePositionAccepted: true))
+            let prepared = try service.prepareBegin(draftID: created.draftID,
+                expectedCheckpointSHA256: created.checkpointSHA256, observedAtUTC: h.clock.millisecondValue)
+            let attempt = try XCTUnwrap(CheckRunnerItemDraftCodecV1.validateCheckpoint(prepared).field.begin.attempt)
+            let zone = try XCTUnwrap(attempt.timeZone)
+            let writer = h.coordinator.workspaceWriter
+            let harness = Harness(applicationSupportURL: h.root, session: h.session,
+                context: h.context, countedRoots: [])
+            var expectedParent = prepared
+            var finalHistory: CheckRunnerPhotoBackupHistoryV1?
+            for prefix in 0...3 {
+                if prefix == 1 { _ = try writer.commitFrozenCheckRunnerTimeZone(attempt) }
+                if prefix == 2 { _ = try writer.commitFrozenCheckRunnerDraft(attempt) }
+                if prefix == 3 { expectedParent = try service.resumeInitialBegin(draftID: prepared.draftID) }
+                XCTAssertEqual(try service.read(draftID: prepared.draftID), expectedParent)
+                let before = try h.snapshot()
+                let beforeJournal = try writer.sourceMutationHistorySnapshot()
+                let idCalls = h.ids.callCount
+                let basis = try canonicalBasis(harness)
+                let records = try BackupCanonicalDecoderV1().decodeRecords(basis.recordsData)
+                let source = V4BackupSourceV1(appBuild: "test", appVersion: "test",
+                    persistentSchemaVersion: basis.persistentSchemaVersion,
+                    replicaID: h.session.replicaID.rawValue, recordsSchemaVersion: records.recordsSchemaVersion,
+                    sourceGenerationID: h.session.generationID, workspaceID: h.workspaceID.rawValue)
+                finalHistory = try assertDurableBeginHistoryClosure(records: records, source: source,
+                    expectedParent: expectedParent, attempt: attempt, effectCount: min(prefix, 2))
+                if prefix < 3 {
+                    guard case .prepared = try CheckRunnerItemDraftCodecV1.validateCheckpoint(expectedParent).field.begin else {
+                        return XCTFail("Effects must not synthesize the missing BOUND acknowledgement")
+                    }
+                } else {
+                    guard case .bound = try CheckRunnerItemDraftCodecV1.validateCheckpoint(expectedParent).field.begin else {
+                        return XCTFail("Production resume must persist BOUND")
+                    }
+                }
+                if prefix == 2 {
+                    let history = try XCTUnwrap(records.mutationHistory)
+                    let missingZone = MutationHistorySnapshotV1(workspaceRevision: history.workspaceRevision,
+                        lastLocalSequence: history.lastLocalSequence,
+                        receipts: try history.receipts.filter {
+                            try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).mutationID != zone.mutationID
+                        }, quarantines: history.quarantines, entityRevisions: history.entityRevisions)
+                    XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(missingZone))
+                    let missingZoneRecords = try beginClosureRecords(records, replacing: missingZone)
+                    XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: missingZoneRecords)) {
+                        XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+                    }
+                    let workflow = try XCTUnwrap(writer.checkRunnerBeginEvidence(
+                        workspaceID: h.workspaceID, mutationID: attempt.recordMutationID))
+                    try assertFrozenBeginOriginalDenials(workflow, attempt: attempt)
+                }
+                XCTAssertEqual(try h.snapshot(), before)
+                XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), beforeJournal)
+                XCTAssertEqual(h.ids.callCount, idCalls)
+            }
+            // The final actual BOUND parent also traverses authorized archive
+            // export and import, retaining the original zero-photo contract.
+            try h.closeCoordinator()
+            let package = try await exportLivePackage(harness, directoryName: "bound-begin-export")
+            let importer = try BackupImportService(generationRootURL: h.session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: { UUID() }, scopedAccess: .alreadyAuthorized)
+            let validated = try importer.stageAndValidate(selectedPackageURL: package)
+            defer { try? importer.discard(validated) }
+            let exported = try assertDurableBeginHistoryClosure(records: validated.records,
+                source: validated.manifest.source, expectedParent: expectedParent, attempt: attempt, effectCount: 2)
+            XCTAssertEqual(exported.requiredHistory, try XCTUnwrap(finalHistory).requiredHistory)
+            let plan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(history: exported,
+                entries: validated.manifest.entries, metadata: { try XCTUnwrap(validated.members[$0]) })
+            XCTAssertTrue(plan.children.isEmpty)
+            XCTAssertTrue(plan.rawPublications.isEmpty)
+            XCTAssertTrue(plan.generationMembers.isEmpty)
+            XCTAssertTrue(plan.metadata.isEmpty)
+        }
+    }
+
+    @MainActor
+    private func assertDurableBeginHistoryClosure(records: V4BackupRecordsV1, source: V4BackupSourceV1,
+        expectedParent: FieldDraftCheckpointV1, attempt: CheckRunnerFrozenBeginAttemptV1,
+        effectCount: Int) throws -> CheckRunnerPhotoBackupHistoryV1 {
+        let parentRelease = try CheckRunnerItemDraftCodecV1.release()
+        let parents = try records.fieldDrafts.compactMap { row -> FieldDraftCheckpointV1? in
+            guard row.kind == .checkpoint else { return nil }
+            let checkpoint = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: row.canonicalData)
+            return checkpoint.codec == parentRelease ? checkpoint : nil
+        }
+        XCTAssertEqual(parents, [expectedParent])
+        let history = try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: records)
+        XCTAssertTrue(history.children.isEmpty)
+        let sourceHistory = try XCTUnwrap(records.mutationHistory)
+        // Keep a fully valid original journal while removing only its current
+        // parent row. A zero-photo parent cannot disappear from a full package.
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(sourceHistory))
+        var missingParentObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(records)) as? [String: Any])
+        missingParentObject["fieldDrafts"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(records.fieldDrafts.filter {
+                !($0.kind == .checkpoint && $0.id == expectedParent.draftID)
+            }))
+        let missingParentRecords = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: missingParentObject, options: [.sortedKeys]))
+        XCTAssertEqual(missingParentRecords.mutationHistory, sourceHistory)
+        XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: missingParentRecords)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        var expectedMutationIDs = Set<MutationIDV1>()
+        if effectCount > 0 { expectedMutationIDs.insert(try XCTUnwrap(attempt.timeZone).mutationID) }
+        if effectCount > 1 { expectedMutationIDs.insert(attempt.recordMutationID) }
+        var parentMutationIDs = Set<MutationIDV1>()
+        for original in sourceHistory.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+            guard envelope.workspaceID == expectedParent.workspaceID,
+                  case let .applyFieldDraft(mutation) = envelope.command else { continue }
+            let checkpoint: FieldDraftCheckpointV1
+            switch mutation.postImage {
+            case let .createCheckpoint(value), let .reviseCheckpoint(value): checkpoint = value
+            default: continue
+            }
+            if checkpoint.draftID == expectedParent.draftID { parentMutationIDs.insert(envelope.mutationID) }
+        }
+        XCTAssertFalse(parentMutationIDs.isEmpty)
+        expectedMutationIDs.formUnion(parentMutationIDs)
+        for mutationID in expectedMutationIDs.sorted(by: { $0.rawValue.uuidString < $1.rawValue.uuidString }) {
+            let original = try XCTUnwrap(sourceHistory.receipts.first {
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
+                return envelope.workspaceID == expectedParent.workspaceID && envelope.mutationID == mutationID
+            })
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+            XCTAssertEqual(history.requiredHistory.first {
+                $0.envelope.workspaceID == expectedParent.workspaceID && $0.envelope.mutationID == mutationID
+            }?.original, original, "Every actual parent and Begin original must retain exact bytes")
+            let acceptedDigest = try envelope.canonicalSHA256()
+            let zeroDigest = String(repeating: "0", count: 64)
+            let quarantine = MutationHistoryQuarantineRecordV1(workspaceID: envelope.workspaceID,
+                mutationID: mutationID.rawValue, identityDomain: .mutationEnvelope,
+                acceptedIdentitySHA256: acceptedDigest,
+                conflictingIdentitySHA256: acceptedDigest == zeroDigest ? String(repeating: "1", count: 64) : zeroDigest,
+                detectedAt: Date(timeIntervalSince1970: 1_800_000_100))
+            let quarantined = MutationHistorySnapshotV1(workspaceRevision: sourceHistory.workspaceRevision,
+                lastLocalSequence: sourceHistory.lastLocalSequence, receipts: sourceHistory.receipts,
+                quarantines: sourceHistory.quarantines + [quarantine], entityRevisions: sourceHistory.entityRevisions)
+            XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(quarantined))
+            let quarantinedRecords = try beginClosureRecords(records, replacing: quarantined)
+            XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: quarantinedRecords)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+            }
+        }
+        for (mutationID, isPresent) in [(try XCTUnwrap(attempt.timeZone).mutationID, effectCount > 0),
+                                      (attempt.recordMutationID, effectCount > 1)] {
+            XCTAssertEqual(history.requiredHistory.contains { $0.envelope.workspaceID == expectedParent.workspaceID
+                && $0.envelope.mutationID == mutationID }, isPresent)
+        }
+        return history
+    }
+
+    private func beginClosureRecords(_ records: V4BackupRecordsV1,
+        replacing history: MutationHistorySnapshotV1) throws -> V4BackupRecordsV1 {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(records)) as? [String: Any])
+        object["mutationHistory"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(history))
+        return try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+    }
+
+    private func assertFrozenBeginOriginalDenials(_ original: CheckRunnerBeginCommittedEvidenceV1,
+        attempt: CheckRunnerFrozenBeginAttemptV1) throws {
+        try CheckRunnerPhotoBackupHistoryV1.requireFrozenBeginOriginal(original, attempt: attempt, role: .record)
+        func changed(command: CheckDraftMutationV1? = nil, revisions: [WorkspaceEntityRevisionV1]? = nil,
+                     committedAt: Date? = nil) throws -> CheckRunnerFrozenBeginAttemptV1 {
+            try .init(source: attempt.source, sourceWorkspaceID: attempt.sourceWorkspaceID,
+                recordCommand: command ?? attempt.recordCommand, recordMutationID: attempt.recordMutationID,
+                recordExpectedEntityRevisions: revisions ?? attempt.recordExpectedEntityRevisions,
+                recordCommittedAt: committedAt ?? attempt.recordCommittedAt, timeZone: attempt.timeZone,
+                siteID: attempt.siteID, resolvedSiteTimeZoneID: attempt.resolvedSiteTimeZoneID)
+        }
+        var commandObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(attempt.recordCommand)) as? [String: Any])
+        commandObject["afterDarkAcknowledgementCopy"] = "A different frozen acknowledgement"
+        let wrongCommand = try JSONDecoder().decode(CheckDraftMutationV1.self,
+            from: JSONSerialization.data(withJSONObject: commandObject, options: [.sortedKeys]))
+        let wrongRevisions = attempt.recordExpectedEntityRevisions.map { revision in
+            WorkspaceEntityRevisionV1(identity: revision.identity,
+                revision: revision.identity.kind == .asset ? revision.revision + 1 : revision.revision)
+        }
+        let variants = try [changed(command: wrongCommand), changed(revisions: wrongRevisions),
+                            changed(committedAt: attempt.recordCommittedAt.addingTimeInterval(1))]
+        for variant in variants {
+            XCTAssertNoThrow(try variant.validate())
+            XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.requireFrozenBeginOriginal(
+                original, attempt: variant, role: .record)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+            }
+        }
+        XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.requireFrozenBeginOriginal(
+            original, attempt: attempt, role: .timeZone)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
         }
     }
 }
