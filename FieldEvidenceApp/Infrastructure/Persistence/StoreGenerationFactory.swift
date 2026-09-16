@@ -10520,7 +10520,8 @@ struct StoreGenerationFactory {
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
         restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
         authority: StoreRestoreGenerationAuthority,
-        publicationValidation: () throws -> Void = {}
+        publicationValidation: () throws -> Void = {},
+        publicationScope: (_ publishPointer: () throws -> Void) throws -> Void = { try $0() }
     ) throws {
         let registry = try makeGenerationLeaseRegistry()
         try registry.withNoMigrationReservation {
@@ -10536,7 +10537,8 @@ struct StoreGenerationFactory {
                 restoreProof: restoreProof,
                 restoreFileSnapshot: restoreFileSnapshot,
                 authority: authority,
-                publicationValidation: publicationValidation
+                publicationValidation: publicationValidation,
+                publicationScope: publicationScope
             )
         }
     }
@@ -10553,7 +10555,8 @@ struct StoreGenerationFactory {
         restoreProof: StoreRestoreGenerationManifestProofV1?,
         restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1?,
         authority: StoreRestoreGenerationAuthority,
-        publicationValidation: () throws -> Void
+        publicationValidation: () throws -> Void,
+        publicationScope: (_ publishPointer: () throws -> Void) throws -> Void
     ) throws {
         guard expectedCurrentPointer.generationID == canonicalString(for: oldID),
               try currentGenerationPointerV3(
@@ -10580,39 +10583,48 @@ struct StoreGenerationFactory {
         if pointer.generationManifestSHA256 != preparedGenerationManifestSHA256 {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        // The existing generation lock remains held. This synchronous
-        // check may enter the incumbent raw/media locks, but never reacquires G.
-        try publicationValidation()
-        if let restoreProof {
-            guard let restoreFileSnapshot,
-                  restoreFileSnapshot.restoreProof == restoreProof else {
-                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        // G remains outermost. A staging owner may hold R while invoking the
+        // nonescaping pointer operation, closing the proof-to-visibility gap.
+        // Catching a failed or repeated invocation cannot manufacture success.
+        var invocations = 0
+        var published = false
+        try publicationScope {
+            invocations += 1
+            guard invocations == 1 else { throw StoreGenerationFailure.dataPointerInvalid }
+            try publicationValidation()
+            if let restoreProof {
+                guard let restoreFileSnapshot,
+                      restoreFileSnapshot.restoreProof == restoreProof else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                try authority.switchCurrentGeneration(
+                    expected: oldID,
+                    to: newID,
+                    pointer: pointer,
+                    expectedCurrentPointer: expectedCurrentPointer,
+                    restoreFileSnapshot: restoreFileSnapshot
+                )
+            } else {
+                guard restoreFileSnapshot == nil else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                try authority.switchCurrentGeneration(
+                    expected: oldID,
+                    to: newID,
+                    pointer: pointer,
+                    expectedCurrentPointer: expectedCurrentPointer
+                )
             }
-            try authority.switchCurrentGeneration(
-                expected: oldID,
-                to: newID,
-                pointer: pointer,
-                expectedCurrentPointer: expectedCurrentPointer,
-                restoreFileSnapshot: restoreFileSnapshot
-            )
-        } else {
-            guard restoreFileSnapshot == nil else {
-                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            guard try currentGenerationID(authority: authority) == newID,
+                  try currentWorkspaceIdentity(
+                      expectedGenerationID: newID,
+                      authority: authority
+                  ) == identity else {
+                throw StoreGenerationFailure.dataPointerInvalid
             }
-            try authority.switchCurrentGeneration(
-                expected: oldID,
-                to: newID,
-                pointer: pointer,
-                expectedCurrentPointer: expectedCurrentPointer
-            )
+            published = true
         }
-        guard try currentGenerationID(authority: authority) == newID,
-              try currentWorkspaceIdentity(
-                  expectedGenerationID: newID,
-                  authority: authority
-              ) == identity else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
+        guard invocations == 1, published else { throw StoreGenerationFailure.dataPointerInvalid }
     }
 
     @MainActor

@@ -55,6 +55,8 @@ PHOTO_BACKUP_SELECTORS = [
     'FieldEvidenceAppTests/S4_1DeterministicRendererTests/testCapacityOverflowAndUnexpectedStageOrFinalFailClosed',
 ]
 
+CLONE_RETIREMENT_SELECTORS = ['FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementOldPointerRollbackRestoresExactIncumbent', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementPointerLagAndPrivateCleanupResume', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementTerminalMetadataResumesWithoutBaseIntent', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementRollbackInterruptionsResume', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementUnclaimedScaffoldAndBindingTamperFailClosed', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementChangedPrivateBytesAndUnknownNodesRemainUntouched', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementAccessAndCancellationRetainRecoveryOwner', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementClaimRejectsAnInodeSubstitution']
+
 spec = importlib.util.spec_from_file_location("v23_selection_generator", GENERATOR)
 generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
@@ -200,6 +202,25 @@ class GeneratorTests(unittest.TestCase):
         for profile in ('incumbent-v1', 'prospective-v1', 'raw-photo-v1', 'pair-startup-v1', 'photo-backup-v1'):
             historical, _, _ = self.generate(profile)
             self.assertFalse(set(CONFIGURATION_CLONE_SELECTORS) & set(historical['unitTestSelectors']))
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_clone_retirement_appends_eight_without_changing_historical_profiles(self):
+        prior, prior_map, _ = self.generate('configuration-clone-v1')
+        current, current_map, report = self.generate('clone-retirement-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (731, 41))
+        self.assertEqual(current['unitTestSelectors'][:723], prior['unitTestSelectors'])
+        self.assertEqual(current['unitTestSelectors'][723:], CLONE_RETIREMENT_SELECTORS)
+        self.assertEqual(current_map['groups'], [
+            {**group, 'methodCount': group['methodCount'] + (8 if group['id'] == 'restore-acceptance' else 0)}
+            for group in prior_map['groups']])
+        self.assertEqual((report['selectionSHA256'], report['selectionMapSHA256']),
+                         ('42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878',
+                          '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'))
+        for profile in self.manifest['profiles']:
+            if profile['id'] == 'clone-retirement-v1': continue
+            historical, _, _ = self.generate(profile['id'])
+            self.assertFalse(set(CLONE_RETIREMENT_SELECTORS) & set(historical['unitTestSelectors']))
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
 

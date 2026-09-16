@@ -177,9 +177,20 @@ PHOTO_BACKUP_PARTITION_CHOICES = ['c36-photo-backup-transport', 'c36-photo-backu
 
 
 def prepartition_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) == 723:
+    if len(default.get('unitTestSelectors', [])) == 731:
         if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
                 CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError('changed generated clone-retirement inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        if tuple(default['unitTestSelectors'][723:]) != CI.CLONE_RETIREMENT_SELECTORS:
+            raise AssertionError('changed exact retirement append')
+        default['unitTestSelectors'] = default['unitTestSelectors'][:723]
+        for group in mapping['groups']:
+            group['methodCount'] -= 8 if group['id'] == 'restore-acceptance' else 0
+    if len(default.get('unitTestSelectors', [])) == 723:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                'C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0',
+                '955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E'):
             raise AssertionError('changed generated configuration-clone inputs')
         default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
         if tuple(default['unitTestSelectors'][716:]) != CI.CONFIGURATION_CLONE_SELECTORS:
@@ -260,6 +271,12 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    for group_id, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS:
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact retirement choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 731 methods across 41 bounded groups',
+                                'all 723 methods across 41 bounded groups')
     choice = '          - c36-photo-configuration-clone\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact clone choice')
     workflow = workflow.replace(choice, '')
@@ -315,7 +332,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (723, 41))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (731, 41))
         for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 4),
                                 ('notification-owner', 77), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
@@ -374,12 +391,56 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
                 source.write_bytes(original)
 
 
+EXPECTED_RETIREMENT_PARTITIONS = [['c36-clone-retirement-old-pointer', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementOldPointerRollbackRestoresExactIncumbent'], ['c36-clone-retirement-pointer-cleanup', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementPointerLagAndPrivateCleanupResume'], ['c36-clone-retirement-terminal-metadata', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementTerminalMetadataResumesWithoutBaseIntent'], ['c36-clone-retirement-rollback', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementRollbackInterruptionsResume'], ['c36-clone-retirement-unclaimed-binding', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementUnclaimedScaffoldAndBindingTamperFailClosed'], ['c36-clone-retirement-private-hostility', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementChangedPrivateBytesAndUnknownNodesRemainUntouched'], ['c36-clone-retirement-access-cancel', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementAccessAndCancellationRetainRecoveryOwner'], ['c36-clone-retirement-inode-substitution', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementClaimRejectsAnInodeSubstitution']]
+
 class ReportPartitionTests(unittest.TestCase):
+    def test_retirement_singletons_preserve_exact_coverage_and_budgets(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        expected = EXPECTED_RETIREMENT_PARTITIONS
+        self.assertEqual([(i, list(m)) for i, m in CI.CLONE_RETIREMENT_METHOD_PARTITIONS],
+                         [(i, [member]) for i, member in expected])
+        observed = []
+        for selection_id, member in expected:
+            selected = CI.resolve_selection(default, mapping, selection_id)
+            self.assertEqual(selected['unitTestSelectors'], [member])
+            self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
+                             {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+            bundle, klass, method = member.split('/')
+            source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'func\s+' + method + r'\s*\(', source)), 1)
+            observed.extend(selected['unitTestSelectors'])
+        self.assertEqual(observed, default['unitTestSelectors'][723:])
+        self.assertEqual(len(observed), len(set(observed)))
+        self.assertFalse(set(observed) & set(default['unitTestSelectors'][:723]))
+
+    def test_retirement_denies_missing_reordered_foreign_duplicate_and_unknown_inputs(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected_id = EXPECTED_RETIREMENT_PARTITIONS[0][0]
+        for index in range(723, 731):
+            missing = copy.deepcopy(default); missing['unitTestSelectors'].pop(index)
+            duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'][index] = default['unitTestSelectors'][722]
+            foreign = copy.deepcopy(default); foreign['unitTestSelectors'][index] += 'Unknown'
+            for hostile in (missing, duplicate, foreign):
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    CI.resolve_selection(hostile, mapping, selected_id)
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][723:731] = reversed(reordered['unitTestSelectors'][723:731])
+        changed_budget = copy.deepcopy(default); changed_budget['testTimeoutSeconds'] += 1
+        for hostile in (reordered, changed_budget):
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, selected_id)
+        changed_map = copy.deepcopy(mapping)
+        next(g for g in changed_map['groups'] if g['id'] == 'restore-acceptance')['methodCount'] -= 1
+        with self.assertRaises(ValueError): CI.resolve_selection(default, changed_map, selected_id)
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-clone-retirement-unknown')
+
     def test_actual_whole_class_partition_preserves_692_methods_and_all_prior_members(self):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),723)
+        self.assertEqual(len(default['unitTestSelectors']),731)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -407,7 +468,7 @@ class ReportPartitionTests(unittest.TestCase):
             expected.append(group['id'])
             if group['id']=='c36-source-graph': expected.extend(SOURCE_GRAPH_PARTITION_CHOICES)
             if group['id']=='c36-durable-begin': expected.extend(DURABLE_PARTITION_CHOICES)
-            if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES + [CI.CONFIGURATION_CLONE_SELECTION_ID])
+            if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES + [CI.CONFIGURATION_CLONE_SELECTION_ID] + [i for i, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS])
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):

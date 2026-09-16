@@ -24,6 +24,7 @@ struct RestoreIntentV1: Equatable, Sendable {
     let schemaVersion: Int
     let stagingGenerationRelativePath: String
     let identity: RestoreIdentityV1?
+    let cloneRetirementPlanSHA256: String?
     /// The one canonical replacement instant used to materialize tombstones.
     /// Released journals intentionally have no value: recovery must not invent
     /// an instant that was never durably bound.
@@ -43,7 +44,8 @@ struct RestoreIntentV1: Equatable, Sendable {
         schemaVersion: Int,
         stagingGenerationRelativePath: String,
         identity: RestoreIdentityV1? = nil,
-        replacementTimestampMilliseconds: Int? = nil
+        replacementTimestampMilliseconds: Int? = nil,
+        cloneRetirementPlanSHA256: String? = nil
     ) {
         self.newGenerationID = newGenerationID
         self.newGenerationRelativePath = newGenerationRelativePath
@@ -54,23 +56,26 @@ struct RestoreIntentV1: Equatable, Sendable {
         self.stagingGenerationRelativePath = stagingGenerationRelativePath
         self.identity = identity
         self.replacementTimestampMilliseconds = replacementTimestampMilliseconds
+        self.cloneRetirementPlanSHA256 = cloneRetirementPlanSHA256
     }
 
     init(
         identity: RestoreIdentityV1,
         phase: RestoreIntentPhaseV1 = .prepared,
         restoreID: UUID,
-        replacementTimestampMilliseconds: Int
+        replacementTimestampMilliseconds: Int,
+        cloneRetirementPlanSHA256: String? = nil
     ) {
         newGenerationID = identity.targetPointer.generationID
         newGenerationRelativePath = "FieldEvidenceData/generations/\(Self.canonical(identity.targetPointer.generationID))"
         oldGenerationID = identity.oldPointer.generationID
         self.phase = phase
         self.restoreID = restoreID
-        schemaVersion = 3
+        schemaVersion = cloneRetirementPlanSHA256 == nil ? 3 : 4
         stagingGenerationRelativePath = "FieldEvidenceRestore/generations/\(Self.canonical(identity.targetPointer.generationID))"
         self.identity = identity
         self.replacementTimestampMilliseconds = replacementTimestampMilliseconds
+        self.cloneRetirementPlanSHA256 = cloneRetirementPlanSHA256
     }
 
     func advancing(to phase: RestoreIntentPhaseV1) -> RestoreIntentV1 {
@@ -83,7 +88,8 @@ struct RestoreIntentV1: Equatable, Sendable {
             schemaVersion: schemaVersion,
             stagingGenerationRelativePath: stagingGenerationRelativePath,
             identity: identity,
-            replacementTimestampMilliseconds: replacementTimestampMilliseconds
+            replacementTimestampMilliseconds: replacementTimestampMilliseconds,
+            cloneRetirementPlanSHA256: cloneRetirementPlanSHA256
         )
     }
 
@@ -132,6 +138,7 @@ enum RestoreIntentCodecV1 {
     ])
     private static let v2Keys = legacyKeys.union(["identity"])
     private static let v3Keys = v2Keys.union(["replacementTimestampMilliseconds"])
+    private static let v4Keys = v3Keys.union(["cloneRetirementPlanSHA256"])
     private static let identityKeys = Set([
         "mode",
         "oldPointer",
@@ -165,13 +172,18 @@ enum RestoreIntentCodecV1 {
         ]
         if let identity = value.identity {
             object["identity"] = identityJSON(identity)
-        } else if value.schemaVersion == 3 {
+        } else if value.schemaVersion == 3 || value.schemaVersion == 4 {
             object["identity"] = .null
         }
         if let replacementTimestampMilliseconds = value.replacementTimestampMilliseconds {
             object["replacementTimestampMilliseconds"] = .integer(
                 replacementTimestampMilliseconds
             )
+        }
+        if value.schemaVersion == 4 {
+            object["cloneRetirementPlanSHA256"] = value.cloneRetirementPlanSHA256.map {
+                .string($0)
+            } ?? .null
         }
         return try CanonicalJSONV1.encode(.object(object))
     }
@@ -189,6 +201,7 @@ enum RestoreIntentCodecV1 {
         case 1: expectedKeys = legacyKeys
         case 2: expectedKeys = v2Keys
         case 3: expectedKeys = v3Keys
+        case 4: expectedKeys = v4Keys
         default: throw RestoreIntentContractErrorV1.invalidIntent
         }
         guard Set(object.keys) == expectedKeys,
@@ -211,7 +224,7 @@ enum RestoreIntentCodecV1 {
                 throw RestoreIntentContractErrorV1.invalidIntent
             }
             identity = decoded
-        } else if schemaVersion == 3 {
+        } else if schemaVersion == 3 || schemaVersion == 4 {
             if object["identity"] is NSNull {
                 identity = nil
             } else {
@@ -224,7 +237,7 @@ enum RestoreIntentCodecV1 {
             identity = nil
         }
         let replacementTimestampMilliseconds: Int?
-        if schemaVersion == 3 {
+        if schemaVersion == 3 || schemaVersion == 4 {
             guard let timestamp = exactInteger(
                 object["replacementTimestampMilliseconds"]
             ), RestoreIntentV1.date(timestamp) != nil else {
@@ -233,6 +246,17 @@ enum RestoreIntentCodecV1 {
             replacementTimestampMilliseconds = timestamp
         } else {
             replacementTimestampMilliseconds = nil
+        }
+        let cloneRetirementPlanSHA256: String?
+        if schemaVersion == 4 {
+            guard let decoded = nullableSHA256(
+                object["cloneRetirementPlanSHA256"]
+            ) else {
+                throw RestoreIntentContractErrorV1.invalidIntent
+            }
+            cloneRetirementPlanSHA256 = decoded
+        } else {
+            cloneRetirementPlanSHA256 = nil
         }
         let value = RestoreIntentV1(
             newGenerationID: newGenerationID,
@@ -243,7 +267,8 @@ enum RestoreIntentCodecV1 {
             schemaVersion: schemaVersion,
             stagingGenerationRelativePath: stagingGenerationRelativePath,
             identity: identity,
-            replacementTimestampMilliseconds: replacementTimestampMilliseconds
+            replacementTimestampMilliseconds: replacementTimestampMilliseconds,
+            cloneRetirementPlanSHA256: cloneRetirementPlanSHA256
         )
         guard try encode(value) == data else {
             throw RestoreIntentContractErrorV1.invalidIntent
@@ -266,9 +291,11 @@ enum RestoreIntentCodecV1 {
         case 1:
             return value.identity == nil
                 && value.replacementTimestampMilliseconds == nil
+                && value.cloneRetirementPlanSHA256 == nil
         case 2:
             guard let identity = value.identity,
-                  value.replacementTimestampMilliseconds == nil else { return false }
+                  value.replacementTimestampMilliseconds == nil,
+                  value.cloneRetirementPlanSHA256 == nil else { return false }
             return identity.oldPointer.generationID == value.oldGenerationID
                 && identity.targetPointer.generationID == value.newGenerationID
                 && validPointer(identity.oldPointer)
@@ -276,7 +303,26 @@ enum RestoreIntentCodecV1 {
                 && validIdentity(identity)
         case 3:
             guard let timestamp = value.replacementTimestampMilliseconds,
+                  RestoreIntentV1.date(timestamp) != nil,
+                  value.cloneRetirementPlanSHA256 == nil else { return false }
+            guard let identity = value.identity else {
+                return true
+            }
+            return identity.oldPointer.generationID == value.oldGenerationID
+                && identity.targetPointer.generationID == value.newGenerationID
+                && validPointer(identity.oldPointer)
+                && validPointer(identity.targetPointer)
+                && validIdentity(identity)
+        case 4:
+            guard let timestamp = value.replacementTimestampMilliseconds,
                   RestoreIntentV1.date(timestamp) != nil else { return false }
+            if let digest = value.cloneRetirementPlanSHA256 {
+                guard validSHA256(digest), value.identity?.mode == .clone else {
+                    return false
+                }
+            } else if value.identity?.mode == .clone {
+                return false
+            }
             guard let identity = value.identity else {
                 return true
             }
@@ -441,6 +487,13 @@ private extension RestoreIntentCodecV1 {
                 (48...57).contains(Int($0.value))
                     || (97...102).contains(Int($0.value))
             }
+    }
+
+    /// Outer optional distinguishes malformed values from canonical JSON null.
+    static func nullableSHA256(_ raw: Any?) -> String?? {
+        if raw is NSNull { return .some(nil) }
+        guard let value = raw as? String, validSHA256(value) else { return nil }
+        return .some(value)
     }
 
     static func exactObject(

@@ -18,12 +18,13 @@ Accepted main is `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Preserve S10 brandi
 - Refresh relevant refs and owned dirty state before mutations. Root alone commits and pushes explicitly owned files. Use verified non-force linear updates only; investigate unexpected ref movement. No force-push, merge commit, PR, settings/secrets mutation or release operation.
 - Main stays unchanged until complete retained same-head functional/compatibility evidence, provider qualification as applicable, affected-state S10 visuals, independent review and genuine human visual review pass. Then follow the task's non-force integration and exact-main verification gates. Source readiness is not acceptance.
 
-## Model routing and efficient execution — owner updated 2026-09-12 UTC
+## Model routing and efficient execution — owner updated 2026-09-16 UTC
 
 - Preserve the owner's primary model, reasoning and speed selections. Repository instructions must not change them.
 - Root implements and integrates by default. Use at most two active delegated workers for CI evidence, diagnosed fixes or independent review. This replaces the unlimited-token parallel policy and earlier worker caps; hosted runner capacity is separate.
-- Use `gpt-5.6-luna` at `max` for bounded monitoring, extraction and inventory. Use deterministic scripts and event waits; do not spend model turns reporting unchanged status.
-- For implementation and review, choose `gpt-6-astra` at `low` or `medium`, or `gpt-5.6-sol` at `low`, `medium` or `high`, according to the concrete difficulty and consequence. Use the least costly suitable choice. Terra is outside the owner's current selection.
+- Choose the least costly suitable subagent model and reasoning level for each bounded task. The owner authorizes Luna, Terra and Sol at supported reasoning levels up to `high`, and Astra at `low` or `medium`. This supersedes earlier model exclusions and fixed Luna Max routing.
+- Prefer deterministic scripts and event waits for routine collection and unchanged status. Use `gpt-5.6-luna` for bounded monitoring, extraction and inventory; use `gpt-5.6-terra` for ordinary implementation and review. Escalate to `gpt-5.6-sol` up to `high`, or `gpt-6-astra` at `low`/`medium`, only when the concrete complexity or consequence warrants it.
+- Minimize total tokens: use compact task handoffs and bounded reads, avoid duplicate reviews and standing monitoring agents, and lower the model/reasoning for the next task when its difficulty permits. Never weaken tests, evidence or acceptance gates to reduce usage.
 - Reuse a worker when its model, remaining context and relevant knowledge fit the task. Otherwise provide a compact handoff containing only the necessary scope, findings and next action.
 - Give each worker one bounded task, exact owned paths, shared interfaces, invariants and expected evidence. Keep writes disjoint. Root alone commits and pushes; obtain independent review at consequential checkpoints.
 - Read the active brief and relevant source sections. Retain verified findings while their inputs are unchanged. Keep complete evidence externally and return concise diagnoses, hashes and unresolved issues.

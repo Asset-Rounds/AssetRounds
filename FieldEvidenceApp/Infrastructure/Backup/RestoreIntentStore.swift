@@ -400,6 +400,8 @@ private extension RestoreIntentStore {
             && lhs.identity == rhs.identity
             && lhs.replacementTimestampMilliseconds
                 == rhs.replacementTimestampMilliseconds
+            && lhs.cloneRetirementPlanSHA256
+                == rhs.cloneRetirementPlanSHA256
     }
 
     func nextPhase(after phase: RestoreIntentPhaseV1) -> RestoreIntentPhaseV1? {

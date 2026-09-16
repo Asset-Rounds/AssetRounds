@@ -293,7 +293,7 @@ final class S4_1DeterministicRendererTests: XCTestCase {
     }
 
     @MainActor
-    func testCapacityOverflowAndUnexpectedStageOrFinalFailClosed() throws {
+    func testCapacityOverflowAndUnexpectedStageOrFinalFailClosed() async throws {
         let exactRequired = 2_468 + StoragePreflightService.pdfOperationAllowanceBytes
             + StoragePreflightService.reserveBytes
         XCTAssertEqual(try StoragePreflightService().pdfRequiredBytes(referencedImageByteCount: 1_234), exactRequired)
@@ -355,21 +355,20 @@ final class S4_1DeterministicRendererTests: XCTestCase {
 
         for available in [Int64?.none, Int64?(0)] {
             let observedTarget = CapacityTargetObservation()
-            let harness = try makeHarness(label: "capacity", capacity: {
+            let harness = try await makeCurrentCapacityHarness(label: "capacity", capacity: {
                 observedTarget.record($0)
                 return available
             })
             defer {
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
-                withExtendedLifetime(harness.session) {}
+                try? harness.coordinator.invalidateAndReleaseWriter()
             }
-            XCTAssertThrowsError(try harness.service.renderPendingReport(id: Fixture.reportID))
+            XCTAssertThrowsError(try harness.service.renderPendingReport(id: harness.report.id))
             XCTAssertEqual(observedTarget.value, harness.session.generationRootURL)
             XCTAssertEqual(harness.report.pdfState, ReportPDFState.pending.rawValue)
             XCTAssertNil(harness.report.pdfRelativePath)
             XCTAssertNil(harness.report.pdfSHA256)
-            XCTAssertFalse(fileManager.fileExists(atPath: stagingPDFURL(in: harness).path))
-            XCTAssertFalse(fileManager.fileExists(atPath: finalPDFURL(in: harness).path))
+            XCTAssertFalse(fileManager.fileExists(atPath: capacityStagingPDFURL(in: harness).path))
+            XCTAssertFalse(fileManager.fileExists(atPath: capacityFinalPDFURL(in: harness).path))
         }
     }
 }
@@ -402,6 +401,15 @@ private struct RenderHarness {
     let service: ReportRenderService
 }
 
+@MainActor
+private struct CurrentCapacityRenderHarness {
+    let applicationSupportURL: URL
+    let session: StoreGenerationSession
+    let coordinator: StoreSessionCoordinator
+    let report: Report
+    let service: ReportRenderService
+}
+
 private enum Fixture {
     static let reportID = UUID(uuidString: "41000000-0000-0000-0000-000000000001")!
     static let packetID = UUID(uuidString: "41000000-0000-0000-0000-000000000002")!
@@ -419,6 +427,18 @@ private enum Fixture {
     static let historicalPacketID = UUID(uuidString: "41000000-0000-0000-0000-000000000014")!
     static let historicalStableRootID = UUID(uuidString: "41000000-0000-0000-0000-000000000015")!
     static let snapshotDate = Date(timeIntervalSince1970: 1_768_420_926)
+}
+
+private enum CurrentCapacityFixture {
+    static let siteID = UUID(uuidString: "41000000-0000-0000-0000-000000000021")!
+    static let assetID = UUID(uuidString: "41000000-0000-0000-0000-000000000022")!
+    static let mutationID = UUID(uuidString: "41000000-0000-0000-0000-000000000023")!
+    static let packetID = UUID(uuidString: "41000000-0000-0000-0000-000000000024")!
+    static let stableRootID = UUID(uuidString: "41000000-0000-0000-0000-000000000025")!
+    static let reportID = UUID(uuidString: "41000000-0000-0000-0000-000000000026")!
+    static let observedAt = Date(timeIntervalSince1970: 1_768_420_900)
+    static let completedAt = Date(timeIntervalSince1970: 1_768_420_910)
+    static let snapshotAt = Date(timeIntervalSince1970: 1_768_420_911)
 }
 
 private extension S4_1DeterministicRendererTests {
@@ -489,6 +509,142 @@ private extension S4_1DeterministicRendererTests {
             report: snapshot.report,
             evidenceRows: snapshot.rows,
             service: service
+        )
+    }
+
+    @MainActor
+    func makeCurrentCapacityHarness(
+        label: String,
+        capacity: @escaping StoragePreflightService.CapacityProvider
+    ) async throws -> CurrentCapacityRenderHarness {
+        let appSupport = fileManager.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent(
+                "S4_1DeterministicRendererTests-current-capacity-\(label)-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try fileManager.createDirectory(at: appSupport, withIntermediateDirectories: false)
+        addTeardownBlock { [appSupport] in
+            try? FileManager.default.removeItem(at: appSupport)
+        }
+        let session = try StoreGenerationFactory(applicationSupportURL: appSupport)
+            .openOrBootstrapCurrent()
+        let context = session.modelContext
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        do {
+            let pack = SignPack.illuminatedSignV1
+            let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+            let dependencies = try coordinator.packageLifecycleDependencies(
+                profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+            )
+            let writer = dependencies.writer
+            let current = try writer.currentRevision()
+            let placementID = UUID()
+            let mutationID = try MutationIDV1(rawValue: UUID())
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: current.workspaceID,
+                generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision,
+                entityRevisions: [
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: CurrentCapacityFixture.siteID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: CurrentCapacityFixture.assetID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0),
+                ]
+            )
+            _ = try writer.execute(.init(
+                mutationID: mutationID,
+                expectedRevision: expected,
+                command: .createFirstSign(.init(
+                    siteID: CurrentCapacityFixture.siteID,
+                    newSite: .init(
+                        id: CurrentCapacityFixture.siteID,
+                        label: "North Campus",
+                        address: "10 Main",
+                        timeZoneID: "America/New_York"
+                    ),
+                    assetID: CurrentCapacityFixture.assetID,
+                    assetLabel: "Monument Sign",
+                    packID: pack.packID,
+                    packSchemaVersion: pack.schemaVersion,
+                    packContentVersion: pack.contentVersion,
+                    createdAt: CurrentCapacityFixture.observedAt.addingTimeInterval(-1),
+                    initialPlacementMutationID: mutationID,
+                    initialPlacementEventID: placementID,
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+                )))
+            )
+            let runner = try CheckRunnerCoordinator(
+                modelContext: context,
+                packageLifecycleDependencies: dependencies,
+                packageLifecycleProfile: profile
+            )
+            runner.configureCapture(generationRootURL: session.generationRootURL)
+            _ = try runner.beginCheck(
+                assetID: CurrentCapacityFixture.assetID,
+                timeZoneID: nil,
+                isTimeZoneConfirmed: false,
+                afterDarkAccepted: true,
+                safePositionAccepted: true,
+                observedAt: CurrentCapacityFixture.observedAt
+            )
+            let wide = try await runner.importCandidate(
+                assetID: CurrentCapacityFixture.assetID,
+                sourceData: makePNG(width: 48, height: 32, seed: 31),
+                createdAt: CurrentCapacityFixture.observedAt.addingTimeInterval(1)
+            )
+            _ = try await runner.accept(candidate: wide, assetID: CurrentCapacityFixture.assetID)
+            let close = try await runner.importCandidate(
+                assetID: CurrentCapacityFixture.assetID,
+                sourceData: makePNG(width: 48, height: 32, seed: 79),
+                createdAt: CurrentCapacityFixture.observedAt.addingTimeInterval(2)
+            )
+            _ = try await runner.accept(candidate: close, assetID: CurrentCapacityFixture.assetID)
+            let result = try await runner.finalize(
+                assetID: CurrentCapacityFixture.assetID,
+                selection: .noVisibleIssue,
+                completedAt: CurrentCapacityFixture.completedAt,
+                snapshotCreatedAt: CurrentCapacityFixture.snapshotAt,
+                sourceApp: SourceAppSnapshotV1(build: "42", version: "1.0"),
+                identifiers: FinalizationIdentifiers(
+                    mutationID: CurrentCapacityFixture.mutationID,
+                    packetID: CurrentCapacityFixture.packetID,
+                    stableRootID: CurrentCapacityFixture.stableRootID,
+                    reportID: CurrentCapacityFixture.reportID,
+                    issueID: nil
+                )
+            )
+            XCTAssertEqual(result.reportID, CurrentCapacityFixture.reportID)
+            let report = try XCTUnwrap(context.fetch(FetchDescriptor<Report>()).first)
+            let service = try ReportRenderService(
+                modelContext: context,
+                lifecycleDependencies: dependencies,
+                lifecycleProfile: profile,
+                storagePreflight: StoragePreflightService(capacityProvider: capacity)
+            )
+            return CurrentCapacityRenderHarness(
+                applicationSupportURL: appSupport,
+                session: session,
+                coordinator: coordinator,
+                report: report,
+                service: service
+            )
+        } catch {
+            try? coordinator.invalidateAndReleaseWriter()
+            throw error
+        }
+    }
+
+    @MainActor
+    func capacityStagingPDFURL(in harness: CurrentCapacityRenderHarness) -> URL {
+        harness.session.generationRootURL.appendingPathComponent(
+            ".staging/pdfs/\(harness.report.id.uuidString.lowercased()).pdf"
+        )
+    }
+
+    @MainActor
+    func capacityFinalPDFURL(in harness: CurrentCapacityRenderHarness) -> URL {
+        harness.session.generationRootURL.appendingPathComponent(
+            "pdfs/\(harness.report.id.uuidString.lowercased()).pdf"
         )
     }
 

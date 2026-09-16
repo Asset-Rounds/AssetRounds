@@ -74,12 +74,24 @@ private actor C36StagingContentGate: DraftImmutableContentWriterV1 {
     private var continuation: CheckedContinuation<Void, Never>?
     private var resumed = false
     private var announcedFirstReceipt = false
+    private var writerEnteredAt: UInt64?
+    private var writerReturnedAt: UInt64?
+    private var writerFailure: String?
     private var requests: [DraftImmutableContentWriteRequestV1] = []
     private var receipts: [DraftImmutableContentWriteReceiptV1] = []
     init(writer: EvidenceBundleStore, entered: XCTestExpectation) { self.writer = writer; self.entered = entered }
     func persistImmutableOriginal(bytes: Data, request: DraftImmutableContentWriteRequestV1)
         async throws -> DraftImmutableContentWriteReceiptV1 {
-        let receipt = try await writer.persistImmutableOriginal(bytes: bytes, request: request)
+        writerEnteredAt = DispatchTime.now().uptimeNanoseconds
+        let receipt: DraftImmutableContentWriteReceiptV1
+        do {
+            receipt = try await writer.persistImmutableOriginal(bytes: bytes, request: request)
+            writerReturnedAt = DispatchTime.now().uptimeNanoseconds
+        } catch {
+            writerReturnedAt = DispatchTime.now().uptimeNanoseconds
+            writerFailure = String(reflecting: error)
+            throw error
+        }
         requests.append(request); receipts.append(receipt)
         if !announcedFirstReceipt, !resumed {
             announcedFirstReceipt = true
@@ -95,6 +107,11 @@ private actor C36StagingContentGate: DraftImmutableContentWriterV1 {
         (requests, receipts)
     }
     func reachedDurableBoundary() -> Bool { announcedFirstReceipt }
+    func failureDiagnostic() -> String {
+        "writerEnteredAt=\(String(describing: writerEnteredAt)) "
+            + "writerReturnedAt=\(String(describing: writerReturnedAt)) "
+            + "writerFailure=\(writerFailure ?? "none") receipts=\(receipts.count)"
+    }
 }
 
 private enum C36PhotoReceiptFailure: Error { case savedThenLostAcknowledgement }
@@ -2046,17 +2063,29 @@ extension V9_30FieldDraftResilienceTests {
             _ = try await photo.prepareCommit()
             let witnessURL = photo.rawDirectory.appendingPathComponent("raw-publication.json")
             let witness = try Data(contentsOf: witnessURL)
+            let resumeStartedAt = DispatchTime.now().uptimeNanoseconds
+            var pendingFailure: String?
             let pending = Task {
-                try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
-                    childDraftID: photo.childID)
+                do {
+                    return try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                        childDraftID: photo.childID)
+                } catch {
+                    pendingFailure = String(reflecting: error)
+                    throw error
+                }
             }
             defer { pending.cancel(); Task { await gate.resume() } }
             await fulfillment(of: [entered], timeout: 10)
             guard await gate.reachedDurableBoundary() else {
+                let beforeCancellation = pendingFailure ?? "none"
+                let writerDiagnostic = await gate.failureDiagnostic()
+                let observedAt = DispatchTime.now().uptimeNanoseconds
                 pending.cancel()
                 await gate.resume()
                 _ = try? await pending.value
-                return XCTFail("The unchanged timeout must not permit witness replacement before the real durable receipt")
+                return XCTFail("The unchanged timeout must not permit witness replacement before the real durable receipt; "
+                    + "resumeStartedAt=\(resumeStartedAt) observedAt=\(observedAt) "
+                    + "pendingFailureBeforeCancellation=\(beforeCancellation) \(writerDiagnostic)")
             }
             try Data("replaced witness".utf8).write(to: witnessURL, options: .atomic)
             try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: witnessURL)

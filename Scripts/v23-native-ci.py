@@ -69,9 +69,9 @@ DURABLE_BEGIN_METHOD_PARTITIONS = (
 )
 DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
-GENERATED_SELECTION_PROFILE = "configuration-clone-v1"
-GENERATED_SELECTION_POOL_SHA256 = "C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0"
-GENERATED_SELECTION_MAP_SHA256 = "955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E"
+GENERATED_SELECTION_PROFILE = "clone-retirement-v1"
+GENERATED_SELECTION_POOL_SHA256 = "42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878"
+GENERATED_SELECTION_MAP_SHA256 = "1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -82,6 +82,18 @@ CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRechecksAccessCancellationAndRootAfterMediaCopy',
     'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetainsIntentWhenStagingChangesDuringFinalColdCleanup',
 )
+CLONE_RETIREMENT_METHOD_PARTITIONS = (
+    ('c36-clone-retirement-old-pointer', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementOldPointerRollbackRestoresExactIncumbent',)),
+    ('c36-clone-retirement-pointer-cleanup', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementPointerLagAndPrivateCleanupResume',)),
+    ('c36-clone-retirement-terminal-metadata', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementTerminalMetadataResumesWithoutBaseIntent',)),
+    ('c36-clone-retirement-rollback', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementRollbackInterruptionsResume',)),
+    ('c36-clone-retirement-unclaimed-binding', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementUnclaimedScaffoldAndBindingTamperFailClosed',)),
+    ('c36-clone-retirement-private-hostility', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementChangedPrivateBytesAndUnknownNodesRemainUntouched',)),
+    ('c36-clone-retirement-access-cancel', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementAccessAndCancellationRetainRecoveryOwner',)),
+    ('c36-clone-retirement-inode-substitution', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementClaimRejectsAnInodeSubstitution',)),
+)
+CLONE_RETIREMENT_SELECTORS = tuple(
+    member for _, members in CLONE_RETIREMENT_METHOD_PARTITIONS for member in members)
 PHOTO_BACKUP_PARENT_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently',
     'FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic',
@@ -921,7 +933,7 @@ def resolve_selection(default, selection_map, selection_id):
             validate_selection(derived)
             resolved[partition_id] = derived
     if generated_profile_shape:
-        clone_members = tuple(default["unitTestSelectors"][716:])
+        clone_members = tuple(default["unitTestSelectors"][716:723])
         require(clone_members == CONFIGURATION_CLONE_SELECTORS
                 and len(clone_members) == len(set(clone_members)) == 7,
                 "configuration clone exact ordered source enrollment")
@@ -932,6 +944,22 @@ def resolve_selection(default, selection_map, selection_id):
         derived["unitTestSelectors"] = list(clone_members)
         validate_selection(derived)
         resolved[CONFIGURATION_CLONE_SELECTION_ID] = derived
+        retirement_members = tuple(default["unitTestSelectors"][723:])
+        require(retirement_members == CLONE_RETIREMENT_SELECTORS
+                and len(retirement_members) == len(set(retirement_members)) == 8,
+                "clone retirement exact ordered source enrollment")
+        retirement_ids = tuple(item[0] for item in CLONE_RETIREMENT_METHOD_PARTITIONS)
+        require(len(retirement_ids) == len(set(retirement_ids)) == 8
+                and not (set(retirement_ids) & (set(resolved) | {DEFAULT_SELECTION_ID}))
+                and not (set(retirement_members) & set(default["unitTestSelectors"][:723])),
+                "clone retirement fixed distinct partitions")
+        for partition_id, members in CLONE_RETIREMENT_METHOD_PARTITIONS:
+            require(len(members) == 1 and members[0] in retirement_members,
+                    "clone retirement singleton source partition")
+            derived = dict(default)
+            derived["unitTestSelectors"] = list(members)
+            validate_selection(derived)
+            resolved[partition_id] = derived
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")

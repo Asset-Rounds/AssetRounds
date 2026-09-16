@@ -2966,6 +2966,1024 @@ struct DraftPhotoRestoreRawOwnershipV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Immutable proof of the incumbent staging namespace that a configuration
+/// clone will physically retire. The plan contains no arbitrary root path:
+/// every placement is relative to the adapter's descriptor-anchored root.
+struct DraftConfigurationCloneRetirementPlanV1: Codable, Equatable, Sendable {
+    typealias Node = DraftPhotoRestoreRawOwnershipV1.Node
+
+    static let schemaVersion = 1
+    fileprivate static let replacementQuarantineName = ".replacement-quarantine"
+    private static let zero = UUID(uuid: (
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ))
+
+    let schemaVersion: Int
+    let restoreID: UUID
+    let workspaceID: WorkspaceID
+    let before: DraftAttachmentStagingManifestV1
+    let beforeNodes: [Node]
+    let movedRoots: [String]
+
+    var privateName: String {
+        ".clone-retirement-\(restoreID.uuidString.lowercased())"
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, restoreID, workspaceID, before, beforeNodes, movedRoots
+    }
+
+    fileprivate init(restoreID: UUID, workspaceID: WorkspaceID,
+        before: DraftAttachmentStagingManifestV1, beforeNodes: [Node], movedRoots: [String]) throws {
+        schemaVersion = Self.schemaVersion
+        self.restoreID = restoreID; self.workspaceID = workspaceID; self.before = before
+        self.beforeNodes = beforeNodes.sorted { $0.path < $1.path }
+        self.movedRoots = movedRoots.sorted()
+        try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        restoreID = try values.decode(UUID.self, forKey: .restoreID)
+        workspaceID = try values.decode(WorkspaceID.self, forKey: .workspaceID)
+        before = try values.decode(DraftAttachmentStagingManifestV1.self, forKey: .before)
+        beforeNodes = try values.decode([Node].self, forKey: .beforeNodes)
+        movedRoots = try values.decode([String].self, forKey: .movedRoots)
+        try validate()
+    }
+
+    func validate() throws {
+        let failure = DraftAttachmentStagingFailureV1.corruptManifest
+        try before.validate()
+        guard schemaVersion == Self.schemaVersion,
+              restoreID != Self.zero,
+              workspaceID.rawValue != Self.zero,
+              !before.entries.isEmpty || movedRoots.contains(where: {
+                $0 != DraftAttachmentStagingAdapterV1.quarantineName
+              }),
+              before.entries.allSatisfy({ $0.item.workspaceID == workspaceID }),
+              beforeNodes.count <= FieldDraftLimitsV1.maximumStageItems * 5 + 3,
+              beforeNodes == beforeNodes.sorted(by: { $0.path < $1.path }),
+              Set(beforeNodes.map(\.path)).count == beforeNodes.count,
+              Set(beforeNodes.map({ "\($0.device):\($0.inode)" })).count == beforeNodes.count,
+              movedRoots == movedRoots.sorted(), Set(movedRoots).count == movedRoots.count,
+              movedRoots.contains(DraftAttachmentStagingAdapterV1.quarantineName),
+              !movedRoots.contains(privateName), !movedRoots.contains(Self.replacementQuarantineName),
+              beforeNodes.first(where: { $0.path == "." })?.directory == true,
+              beforeNodes.first(where: { $0.path == DraftAttachmentStagingAdapterV1.manifestName })?.directory == false,
+              beforeNodes.allSatisfy({ $0.claimPath == nil && ($0.directory ? $0.sha256 == nil
+                : $0.sha256.map(StoreMigrationCanonicalJSONV1.isLowercaseSHA256) == true) }) else {
+            throw failure
+        }
+
+        let nodes = Dictionary(uniqueKeysWithValues: beforeNodes.map { ($0.path, $0) })
+        let rootChildren = Set(beforeNodes.compactMap { node -> String? in
+            guard node.path != ".", !node.path.contains("/") else { return nil }
+            return node.path
+        })
+        guard rootChildren == Set(movedRoots).union([DraftAttachmentStagingAdapterV1.manifestName]),
+              movedRoots.allSatisfy({ nodes[$0]?.directory == true }) else { throw failure }
+
+        var entriesByPath = [String: DraftAttachmentStagingEntryV1]()
+        for entry in before.entries {
+            let expectedPath = entry.item.state == .orphanQuarantined
+                ? "\(DraftAttachmentStagingAdapterV1.quarantineName)/stage-\(entry.item.stageID.uuidString.lowercased())/\(DraftAttachmentStagingAdapterV1.payloadName)"
+                : DraftAttachmentStagingAdapterV1.relativeDataPath(
+                    draftID: entry.item.draftID, stageID: entry.item.stageID)
+            guard entry.relativeDataPath == expectedPath,
+                  entriesByPath.updateValue(entry, forKey: entry.relativeDataPath) == nil else { throw failure }
+        }
+        let manifestBytes = try before.canonicalBytes()
+        guard let manifestNode = nodes[DraftAttachmentStagingAdapterV1.manifestName],
+              manifestNode.byteCount == Int64(manifestBytes.count),
+              manifestNode.sha256 == CanonicalJSONV1.sha256(manifestBytes) else { throw failure }
+        var observedPayloads = Set<String>()
+        for node in beforeNodes {
+            guard node.inode != 0, node.byteCount >= 0,
+                  (node.directory || node.linkCount == 1),
+                  (0..<1_000_000_000).contains(node.modifiedNanoseconds),
+                  (0..<1_000_000_000).contains(node.changedNanoseconds) else { throw failure }
+            if node.path == "." { continue }
+            let parts = node.path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard (1...3).contains(parts.count) else { throw failure }
+            for part in parts { try DraftStagingRootOwnerV1.component(part) }
+            let parent = parts.count == 1 ? "." : parts.dropLast().joined(separator: "/")
+            guard nodes[parent]?.directory == true else { throw failure }
+
+            if node.directory {
+                if parts.count == 1 {
+                    guard parts[0] == DraftAttachmentStagingAdapterV1.quarantineName
+                        || Self.canonicalComponent(parts[0], prefix: "draft-") else { throw failure }
+                } else if parts.count == 2 {
+                    guard (parts[0] == DraftAttachmentStagingAdapterV1.quarantineName
+                            && Self.canonicalComponent(parts[1], prefix: "stage-"))
+                        || (Self.canonicalComponent(parts[0], prefix: "draft-")
+                            && Self.canonicalComponent(parts[1], prefix: "stage-")),
+                          nodes[node.path + "/" + DraftAttachmentStagingAdapterV1.payloadName]?.directory == false
+                    else { throw failure }
+                } else { throw failure }
+                continue
+            }
+
+            guard node.byteCount > 0 else { throw failure }
+            if node.path == DraftAttachmentStagingAdapterV1.manifestName {
+                guard node.byteCount <= Int64(FieldDraftLimitsV1.maximumCanonicalBytes) else { throw failure }
+                continue
+            }
+            guard parts.count == 3 else { throw failure }
+            if parts[2] == "raw-publication.json" {
+                let payload = parts.dropLast().joined(separator: "/") + "/" + DraftAttachmentStagingAdapterV1.payloadName
+                guard node.byteCount <= Int64(FieldDraftLimitsV1.maximumCanonicalBytes),
+                      parts[0] != DraftAttachmentStagingAdapterV1.quarantineName,
+                      nodes[payload]?.directory == false,
+                      entriesByPath[payload]?.item.attachmentKind == .photo,
+                      entriesByPath[payload].map({ $0.item.state == .readyLocal
+                        || $0.item.state == .committed }) == true else { throw failure }
+                continue
+            }
+            guard parts[2] == DraftAttachmentStagingAdapterV1.payloadName,
+                  let entry = entriesByPath[node.path] else { throw failure }
+            observedPayloads.insert(node.path)
+            let witness = parts.dropLast().joined(separator: "/") + "/raw-publication.json"
+            let maximum = nodes[witness] == nil
+                ? Int64(FieldDraftLimitsV1.maximumPayloadBytes)
+                : Int64(MediaContractV1.sourceByteCountMaximum)
+            guard node.byteCount <= maximum,
+                  entry.relativeDataPath == node.path,
+                  entry.item.actualByteCount.map({ $0 == node.byteCount }) ?? true else { throw failure }
+            if entry.item.state == .readyLocal || entry.item.state == .committed {
+                guard let digest = entry.item.contentDigest, digest.algorithm == .sha256,
+                      node.sha256 == digest.hexadecimalValue else { throw failure }
+            }
+        }
+        guard observedPayloads == Set(entriesByPath.keys) else { throw failure }
+    }
+
+    func sha256() throws -> String {
+        try validate()
+        return CanonicalJSONV1.sha256(try FieldDraftCanonicalCodecV1.encode(self))
+    }
+
+    private static func canonicalComponent(_ value: String, prefix: String) -> Bool {
+        guard value.hasPrefix(prefix), let id = UUID(uuidString: String(value.dropFirst(prefix.count))) else {
+            return false
+        }
+        return value == prefix + id.uuidString.lowercased()
+    }
+}
+
+/// Exact exclusive scaffold created for one retirement. Original incumbent
+/// nodes remain solely in `plan.beforeNodes`; created nodes are never promoted
+/// into that before-image census.
+struct DraftConfigurationCloneRetirementOwnershipV1: Codable, Equatable, Sendable {
+    typealias Node = DraftPhotoRestoreRawOwnershipV1.Node
+
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let plan: DraftConfigurationCloneRetirementPlanV1
+    let createdNodes: [Node]
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, plan, createdNodes
+    }
+
+    fileprivate init(plan: DraftConfigurationCloneRetirementPlanV1,
+        privateRoot: Node, replacementQuarantine: Node) throws {
+        schemaVersion = Self.schemaVersion; self.plan = plan
+        createdNodes = [privateRoot, replacementQuarantine].sorted { $0.path < $1.path }
+        try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        plan = try values.decode(DraftConfigurationCloneRetirementPlanV1.self, forKey: .plan)
+        createdNodes = try values.decode([Node].self, forKey: .createdNodes)
+        try validate()
+    }
+
+    func validate() throws {
+        try plan.validate()
+        let failure = DraftAttachmentStagingFailureV1.corruptManifest
+        let privatePath = plan.privateName
+        let replacementPath = "\(privatePath)/\(DraftConfigurationCloneRetirementPlanV1.replacementQuarantineName)"
+        guard schemaVersion == Self.schemaVersion, createdNodes.count == 2,
+              createdNodes == createdNodes.sorted(by: { $0.path < $1.path }),
+              Set(createdNodes.map(\.path)) == Set([privatePath, replacementPath]),
+              createdNodes.allSatisfy({ $0.directory && $0.inode != 0 && $0.sha256 == nil }),
+              let privateRoot = createdNodes.first(where: { $0.path == privatePath }),
+              let replacement = createdNodes.first(where: { $0.path == replacementPath }),
+              privateRoot.claimPath == privateRoot.reservingClaim(restoreID: plan.restoreID).claimPath,
+              replacement.claimPath == DraftAttachmentStagingAdapterV1.quarantineName,
+              Set(createdNodes.compactMap(\.claimPath)).count == 2,
+              createdNodes.allSatisfy({ $0.linkCount > 0 && $0.byteCount >= 0
+                && (0..<1_000_000_000).contains($0.modifiedNanoseconds)
+                && (0..<1_000_000_000).contains($0.changedNanoseconds) }),
+              Set(createdNodes.map({ "\($0.device):\($0.inode)" })).count == createdNodes.count,
+              Set(createdNodes.map({ "\($0.device):\($0.inode)" })).isDisjoint(with:
+                Set(plan.beforeNodes.map({ "\($0.device):\($0.inode)" }))),
+              Set(createdNodes.compactMap(\.claimPath)).isDisjoint(with: Set(plan.beforeNodes.map(\.path))) == false,
+              !plan.beforeNodes.contains(where: { $0.path == privatePath || $0.path.hasPrefix(privatePath + "/") }) else {
+            throw failure
+        }
+        // The only intentional created/original placement overlap is the
+        // replacement quarantine's eventual public name.
+        guard Set(createdNodes.compactMap(\.claimPath)).intersection(Set(plan.beforeNodes.map(\.path)))
+                == Set([DraftAttachmentStagingAdapterV1.quarantineName]) else { throw failure }
+    }
+
+    func sha256() throws -> String {
+        try validate()
+        return CanonicalJSONV1.sha256(try FieldDraftCanonicalCodecV1.encode(self))
+    }
+}
+
+/// Descriptor-relative incumbent retirement. Every instance is one-shot;
+/// recovery opens a new instance from the immutable ownership value.
+final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
+    typealias Node = DraftPhotoRestoreRawOwnershipV1.Node
+
+    let ownership: DraftConfigurationCloneRetirementOwnershipV1
+#if DEBUG
+    var failAfterStepForTesting: String?
+    var beforeClaimForTesting: ((URL, Bool) throws -> Void)?
+    var observationForTesting: ((String) throws -> Void)?
+    private func observeForTesting(_ label: String) throws {
+        try observationForTesting?(label)
+        if failAfterStepForTesting == label { throw DraftAttachmentStagingFailureV1.cleanupFailed }
+    }
+#endif
+
+    private static let failure = DraftAttachmentStagingFailureV1.staleStage
+    private let owner: DraftStagingRootOwnerV1
+    private let bindingSHA256: String
+    private let useLock = NSLock()
+    private var consumed = false
+    private var admittedClaims: [String: Node] = [:]
+
+    private final class ClaimSource {
+        let directory: DraftStagingRootOwnerV1.Directory?
+        private(set) var file: Int32
+        init(directory: DraftStagingRootOwnerV1.Directory) { self.directory = directory; file = -1 }
+        init(file: Int32) { directory = nil; self.file = file }
+        deinit { if file >= 0 { close(file) } }
+    }
+
+    private init(owner: DraftStagingRootOwnerV1,
+        ownership: DraftConfigurationCloneRetirementOwnershipV1, bindingSHA256: String) {
+        self.owner = owner; self.ownership = ownership; self.bindingSHA256 = bindingSHA256
+    }
+
+    fileprivate static func prepare(authority: DraftConfigurationCloneRetirementAuthorityV1,
+        verification: DraftPhotoBackupPreparedVerificationV1) throws -> Self {
+        try requireAuthority(authority, rootURL: verification.owner.rootURL)
+        let owner = verification.owner
+        return try verification.withRestorePreparationLock {
+            try DraftConfigurationCloneRetirementFilesystemV1.requireBefore(
+                authority.plan, owner: owner, strictManifestFacts: true)
+            let root = try owner.directory([])
+            guard try !root.exists(authority.plan.privateName),
+                  mkdirat(root.descriptor, authority.plan.privateName, mode_t(0o700)) == 0 else { throw failure }
+            let privateRoot = try owner.directory([authority.plan.privateName])
+            do {
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: privateRoot.url,
+                    authorityCheck: { try privateRoot.verifyNamed() })
+                let replacementName = DraftConfigurationCloneRetirementPlanV1.replacementQuarantineName
+                guard mkdirat(privateRoot.descriptor, replacementName, mode_t(0o700)) == 0 else { throw failure }
+                let replacement = try owner.directory([authority.plan.privateName, replacementName])
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: replacement.url,
+                    authorityCheck: { try replacement.verifyNamed() })
+                guard fsync(privateRoot.descriptor) == 0, fsync(root.descriptor) == 0 else { throw failure }
+                var privateNode = Node(path: authority.plan.privateName, directory: true,
+                    facts: DraftPhotoRawBackupSnapshotV1.facts(try owner.directory(
+                        [authority.plan.privateName]).identity))
+                privateNode = Node(path: privateNode.path, directory: true,
+                    facts: DraftConfigurationCloneRetirementFilesystemV1.facts(privateNode),
+                    claimPath: privateNode.reservingClaim(restoreID: authority.plan.restoreID).claimPath)
+                let protectedReplacement = try owner.directory([authority.plan.privateName, replacementName])
+                let replacementNode = Node(path: "\(authority.plan.privateName)/\(replacementName)",
+                    directory: true, facts: DraftPhotoRawBackupSnapshotV1.facts(protectedReplacement.identity),
+                    claimPath: DraftAttachmentStagingAdapterV1.quarantineName)
+                let receipt = try DraftConfigurationCloneRetirementOwnershipV1(plan: authority.plan,
+                    privateRoot: privateNode, replacementQuarantine: replacementNode)
+                let value = Self(owner: owner, ownership: receipt,
+                    bindingSHA256: authority.bindingSHA256)
+                try value.requireMovement(hashFiles: false)
+                return value
+            } catch {
+                // A process crash leaves the unproved exclusive scaffold for
+                // explicit recovery. A caught construction failure preserves
+                // the same preclaim uncertainty; no absent ownership receipt
+                // is inferred into cleanup authority.
+                throw error
+            }
+        }
+    }
+
+    fileprivate static func reopen(authority: DraftConfigurationCloneRetirementAuthorityV1,
+        ownership: DraftConfigurationCloneRetirementOwnershipV1,
+        owner: DraftStagingRootOwnerV1) throws -> Self {
+        try requireAuthority(authority, rootURL: owner.rootURL)
+        try ownership.validate()
+        guard authority.plan == ownership.plan else { throw failure }
+        let value = Self(owner: owner, ownership: ownership,
+            bindingSHA256: authority.bindingSHA256)
+        let held = try owner.acquire(); defer { held.release() }
+        if (try? value.requireRestored()) != nil { return value }
+        if (try? value.requireMovement(hashFiles: true)) != nil { return value }
+        if (try? value.requireRollbackScaffoldCleanup()) != nil { return value }
+        try value.requireRetiring(hashFiles: true)
+        return value
+    }
+
+    func quarantine(permit: DraftConfigurationCloneRetirementPermitV1,
+        publishingPointer: () throws -> Void) throws {
+        try consume()
+        try requirePermit(permit, operation: .quarantine)
+        let held = try owner.acquire(); defer { held.release() }
+        try requireMovement(hashFiles: true)
+        for rootName in ownership.plan.movedRoots.sorted() {
+            let publicPath = rootName, privatePath = "\(ownership.plan.privateName)/\(rootName)"
+            if try exists(publicPath) {
+                guard try !exists(privatePath) else { throw Self.failure }
+                try move(from: publicPath, to: privatePath,
+                    expected: ownership.plan.beforeNodes.first(where: { $0.path == rootName }))
+#if DEBUG
+                try observeForTesting("after-moved-root")
+#endif
+            }
+        }
+        let replacement = replacementNode
+        if try exists(replacement.path) {
+            try move(from: replacement.path, to: DraftAttachmentStagingAdapterV1.quarantineName,
+                expected: replacement)
+#if DEBUG
+            try observeForTesting("after-replacement-quarantine")
+#endif
+        }
+        try requireMovement(hashFiles: false)
+        try replaceManifest(try DraftAttachmentStagingManifestV1(entries: []))
+#if DEBUG
+        try observeForTesting("after-empty-manifest")
+#endif
+        try requireQuarantined(hashFiles: false)
+        try publishingPointer()
+        try requireQuarantined(hashFiles: false)
+    }
+
+    func rollback(permit: DraftConfigurationCloneRetirementPermitV1) throws {
+        try consume()
+        try requirePermit(permit, operation: .rollback)
+        let held = try owner.acquire(); defer { held.release() }
+        if (try? requireRestored()) != nil { return }
+        if (try? requireRollbackScaffoldCleanup()) != nil {
+            try removeRollbackScaffoldIfPresent()
+            try requireRestored()
+            return
+        }
+        try requireMovement(hashFiles: true)
+        try replaceManifest(ownership.plan.before)
+#if DEBUG
+        try observeForTesting("after-rollback-manifest")
+#endif
+        let replacement = replacementNode
+        if try exists(DraftAttachmentStagingAdapterV1.quarantineName),
+           let publicNode = try nodeAt(DraftAttachmentStagingAdapterV1.quarantineName, hashFile: false),
+           DraftConfigurationCloneRetirementFilesystemV1.sameDirectoryIdentity(publicNode, replacement) {
+            try move(from: DraftAttachmentStagingAdapterV1.quarantineName, to: replacement.path,
+                expected: replacement)
+        }
+        for rootName in ownership.plan.movedRoots.sorted() {
+            let privatePath = "\(ownership.plan.privateName)/\(rootName)"
+            if try exists(privatePath) {
+                guard try !exists(rootName) else { throw Self.failure }
+                try move(from: privatePath, to: rootName,
+                    expected: ownership.plan.beforeNodes.first(where: { $0.path == rootName }))
+#if DEBUG
+                try observeForTesting("after-restored-root")
+#endif
+            }
+        }
+        try requireMovement(hashFiles: false)
+        try removeRollbackScaffoldIfPresent()
+        try requireRestored()
+    }
+
+    func finish(permit: DraftConfigurationCloneRetirementPermitV1) throws {
+        try consume()
+        try requirePermit(permit, operation: .retire)
+        let held = try owner.acquire(); defer { held.release() }
+        try requireRetiring(hashFiles: true)
+        var nodes = privateBeforeNodes
+        nodes.append(privateRootNode)
+        nodes.sort {
+            let lhs = $0.path.split(separator: "/").count, rhs = $1.path.split(separator: "/").count
+            return lhs == rhs ? $0.path > $1.path : lhs > rhs
+        }
+        for expected in nodes { try claimAndRemove(expected) }
+        try requireRetiredTerminal()
+    }
+
+    func withQuarantinedVerificationLock<T>(permit: DraftConfigurationCloneRetirementPermitV1,
+        _ body: () throws -> T) throws -> T {
+        try consume()
+        try requirePermit(permit, operation: .quarantinedVerification)
+        let held = try owner.acquire(); defer { held.release() }
+        try requireQuarantined(hashFiles: true)
+        let value = try body()
+        try requireQuarantined(hashFiles: false)
+        return value
+    }
+
+    func withTerminalVerificationLock<T>(permit: DraftConfigurationCloneRetirementPermitV1,
+        _ body: () throws -> T) throws -> T {
+        try consume()
+        let operation = try terminalOperation(permit)
+        let held = try owner.acquire(); defer { held.release() }
+        switch operation {
+        case .rollback: try requireRestored()
+        case .retire: try requireRetiredTerminal()
+        default: throw Self.failure
+        }
+        let value = try body()
+        switch operation {
+        case .rollback: try requireRestored()
+        case .retire: try requireRetiredTerminal()
+        default: throw Self.failure
+        }
+        return value
+    }
+
+    private enum Operation { case quarantine, rollback, retire, quarantinedVerification }
+
+    private func consume() throws {
+        useLock.lock(); defer { useLock.unlock() }
+        guard !consumed else { throw Self.failure }
+        consumed = true
+    }
+
+    private static func requireAuthority(_ authority: DraftConfigurationCloneRetirementAuthorityV1,
+        rootURL: URL) throws {
+        try authority.plan.validate()
+        let expectedRoot = authority.applicationSupportURL.standardizedFileURL
+            .appendingPathComponent(OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+            .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName, isDirectory: true)
+            .standardizedFileURL
+        guard expectedRoot == rootURL.standardizedFileURL,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(authority.bindingSHA256) else { throw failure }
+    }
+
+    private func requirePermit(_ permit: DraftConfigurationCloneRetirementPermitV1,
+        operation: Operation) throws {
+        try Self.requireAuthority(permit.authority, rootURL: owner.rootURL)
+        guard permit.authority.plan == ownership.plan,
+              permit.authority.bindingSHA256 == bindingSHA256,
+              permit.ownershipSHA256 == (try ownership.sha256()) else { throw Self.failure }
+        switch (operation, permit.disposition) {
+        case (.quarantine, .quarantine), (.rollback, .rollback), (.retire, .retire),
+             (.quarantinedVerification, .quarantine), (.quarantinedVerification, .retire): return
+        default: throw Self.failure
+        }
+    }
+
+    private func terminalOperation(_ permit: DraftConfigurationCloneRetirementPermitV1) throws -> Operation {
+        switch permit.disposition {
+        case .rollback:
+            try requirePermit(permit, operation: .rollback); return .rollback
+        case .retire:
+            try requirePermit(permit, operation: .retire); return .retire
+        case .quarantine: throw Self.failure
+        }
+    }
+
+    private var privateRootNode: Node {
+        ownership.createdNodes.first(where: { $0.path == ownership.plan.privateName })!
+    }
+
+    private var replacementNode: Node {
+        ownership.createdNodes.first(where: { $0.path != ownership.plan.privateName })!
+    }
+
+    private var privateBeforeNodes: [Node] {
+        ownership.plan.beforeNodes.compactMap { node in
+            guard node.path != ".", node.path != DraftAttachmentStagingAdapterV1.manifestName else { return nil }
+            return Node(path: "\(ownership.plan.privateName)/\(node.path)", directory: node.directory,
+                facts: DraftConfigurationCloneRetirementFilesystemV1.facts(node), sha256: node.sha256)
+                .reservingClaim(restoreID: ownership.plan.restoreID)
+        }
+    }
+
+    private func requireMovement(hashFiles: Bool) throws {
+        try ownership.validate()
+        let actualManifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        let before = try ownership.plan.before.canonicalBytes()
+        let empty = try DraftAttachmentStagingManifestV1(entries: []).canonicalBytes()
+        let actualBytes = try actualManifest.canonicalBytes()
+        guard actualBytes == before || actualBytes == empty else { throw Self.failure }
+
+        let actual = try DraftConfigurationCloneRetirementFilesystemV1.scan(owner: owner,
+            manifest: actualManifest, hashFiles: hashFiles)
+        let byPath = Dictionary(uniqueKeysWithValues: actual.map { ($0.path, $0) })
+        guard matches(byPath["."], ownership.plan.beforeNodes.first(where: { $0.path == "." }), hash: false),
+              byPath[ownership.plan.privateName].map({
+                DraftConfigurationCloneRetirementFilesystemV1.sameDirectoryIdentity($0, privateRootNode)
+              }) == true else { throw Self.failure }
+
+        var expected: [String: Node] = [".": ownership.plan.beforeNodes.first(where: { $0.path == "." })!,
+            ownership.plan.privateName: privateRootNode]
+        var allPrivate = true
+        for rootName in ownership.plan.movedRoots {
+            let original = ownership.plan.beforeNodes.first(where: { $0.path == rootName })!
+            let privatePath = "\(ownership.plan.privateName)/\(rootName)"
+            let publicMatches = matches(byPath[rootName], original, hash: hashFiles)
+            let privateMatches = matches(byPath[privatePath], translated(original, to: privatePath), hash: hashFiles)
+            guard publicMatches != privateMatches else { throw Self.failure }
+            let prefix = privateMatches ? ownership.plan.privateName + "/" : ""
+            allPrivate = allPrivate && privateMatches
+            for node in ownership.plan.beforeNodes where node.path == rootName || node.path.hasPrefix(rootName + "/") {
+                let path = prefix + node.path
+                expected[path] = translated(node, to: path)
+            }
+        }
+
+        let replacementInitial = replacementNode.path
+        let replacementPublic = DraftAttachmentStagingAdapterV1.quarantineName
+        let oldQuarantinePrivate = expected["\(ownership.plan.privateName)/\(replacementPublic)"] != nil
+        let initialMatches = matches(byPath[replacementInitial], replacementNode, hash: false)
+        let publicMatches = matches(byPath[replacementPublic], translated(replacementNode, to: replacementPublic), hash: false)
+        guard initialMatches != publicMatches, oldQuarantinePrivate || initialMatches else { throw Self.failure }
+        expected[initialMatches ? replacementInitial : replacementPublic] = translated(
+            replacementNode, to: initialMatches ? replacementInitial : replacementPublic)
+
+        // The manifest inode is intentionally replaced, so content is the
+        // state boundary after preparation. It remains the only unmatched file.
+        expected[DraftAttachmentStagingAdapterV1.manifestName] = byPath[DraftAttachmentStagingAdapterV1.manifestName]
+        guard Set(expected.keys) == Set(byPath.keys), expected.allSatisfy({ path, node in
+            path == DraftAttachmentStagingAdapterV1.manifestName || matches(byPath[path], node, hash: hashFiles)
+        }) else { throw Self.failure }
+        if actualBytes == empty { guard allPrivate && publicMatches else { throw Self.failure } }
+    }
+
+    private func requireQuarantined(hashFiles: Bool) throws {
+        try requireMovement(hashFiles: hashFiles)
+        let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        guard try manifest.canonicalBytes() == DraftAttachmentStagingManifestV1(entries: []).canonicalBytes(),
+              ownership.plan.movedRoots.allSatisfy({ (try? exists("\(ownership.plan.privateName)/\($0)")) == true }),
+              try exists(DraftAttachmentStagingAdapterV1.quarantineName),
+              try !exists(replacementNode.path) else { throw Self.failure }
+    }
+
+    private func requireRestored() throws {
+        guard try !requireRollbackScaffoldCleanup() else { throw Self.failure }
+    }
+
+    /// Exact before image with only the receipt-owned empty scaffold possibly
+    /// remaining. This admits both crash points in bottom-up rollback cleanup.
+    @discardableResult
+    private func requireRollbackScaffoldCleanup() throws -> Bool {
+        let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        guard try manifest.canonicalBytes() == ownership.plan.before.canonicalBytes() else { throw Self.failure }
+        let actual = try DraftConfigurationCloneRetirementFilesystemV1.scan(owner: owner,
+            manifest: manifest, hashFiles: true)
+        let byPath = Dictionary(uniqueKeysWithValues: actual.map { ($0.path, $0) })
+        for expected in ownership.plan.beforeNodes {
+            guard let node = byPath[expected.path] else { throw Self.failure }
+            if expected.path == DraftAttachmentStagingAdapterV1.manifestName {
+                guard node.byteCount == expected.byteCount, node.sha256 == expected.sha256 else { throw Self.failure }
+            } else {
+                guard matches(node, expected, hash: true) else { throw Self.failure }
+            }
+        }
+        var allowed = Set(ownership.plan.beforeNodes.map(\.path))
+        let privateExists = byPath[privateRootNode.path] != nil
+        let replacementExists = byPath[replacementNode.path] != nil
+        if privateExists {
+            guard matches(byPath[privateRootNode.path], privateRootNode, hash: false) else { throw Self.failure }
+            allowed.insert(privateRootNode.path)
+            if replacementExists {
+                guard matches(byPath[replacementNode.path], replacementNode, hash: false) else { throw Self.failure }
+                allowed.insert(replacementNode.path)
+            }
+        } else {
+            guard !replacementExists else { throw Self.failure }
+        }
+        guard Set(byPath.keys) == allowed else { throw Self.failure }
+        return privateExists
+    }
+
+    private func requireRetiring(hashFiles: Bool) throws {
+        try ownership.validate()
+        let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        guard try manifest.canonicalBytes() == DraftAttachmentStagingManifestV1(entries: []).canonicalBytes() else {
+            throw Self.failure
+        }
+        let actual = try DraftConfigurationCloneRetirementFilesystemV1.scan(owner: owner,
+            manifest: manifest, hashFiles: hashFiles)
+        let byPath = Dictionary(uniqueKeysWithValues: actual.map { ($0.path, $0) })
+        let root = ownership.plan.beforeNodes.first(where: { $0.path == "." })!
+        guard matches(byPath["."], root, hash: false),
+              matches(byPath[DraftAttachmentStagingAdapterV1.quarantineName],
+                translated(replacementNode, to: DraftAttachmentStagingAdapterV1.quarantineName), hash: false),
+              try owner.directory([DraftAttachmentStagingAdapterV1.quarantineName]).names().isEmpty else {
+            throw Self.failure
+        }
+        let manifestPath = DraftAttachmentStagingAdapterV1.manifestName
+        let allowedSpecial = Set([".", manifestPath, DraftAttachmentStagingAdapterV1.quarantineName])
+        var allowedNormal = Dictionary(uniqueKeysWithValues: privateBeforeNodes.map { ($0.path, $0) })
+        allowedNormal[privateRootNode.path] = privateRootNode
+        var allowedClaims = [String: Node]()
+        for node in privateBeforeNodes + [privateRootNode] {
+            guard let claim = node.claimPath, allowedClaims.updateValue(node, forKey: claim) == nil else {
+                throw Self.failure
+            }
+        }
+        admittedClaims = admittedClaims.filter { byPath[$0.key] != nil }
+        for node in actual where !allowedSpecial.contains(node.path) {
+            if let expected = allowedNormal[node.path] {
+                guard matches(node, expected, hash: hashFiles) else { throw Self.failure }
+                if let claim = expected.claimPath, byPath[claim] != nil { throw Self.failure }
+                continue
+            }
+            guard let expected = allowedClaims[node.path], byPath[expected.path] == nil,
+                  hashFiles else { throw Self.failure }
+            let frozen = try admitClaim(actual: node, expected: expected)
+            admittedClaims[node.path] = frozen
+        }
+        if let privateClaim = privateRootNode.claimPath, byPath[privateClaim] != nil {
+            guard byPath[privateRootNode.path] == nil,
+                  actual.allSatisfy({ allowedSpecial.contains($0.path) || $0.path == privateClaim }) else {
+                throw Self.failure
+            }
+        } else if byPath[privateRootNode.path] == nil {
+            guard actual.allSatisfy({ allowedSpecial.contains($0.path) }) else { throw Self.failure }
+        }
+    }
+
+    private func requireRetiredTerminal() throws {
+        try requireRetiring(hashFiles: true)
+        let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        let actual = try DraftConfigurationCloneRetirementFilesystemV1.scan(owner: owner,
+            manifest: manifest, hashFiles: false)
+        guard Set(actual.map(\.path)) == Set([".", DraftAttachmentStagingAdapterV1.manifestName,
+                DraftAttachmentStagingAdapterV1.quarantineName]) else { throw Self.failure }
+    }
+
+    private func removeRollbackScaffoldIfPresent() throws {
+        if try exists(replacementNode.path) {
+            let parts = replacementNode.path.split(separator: "/").map(String.init)
+            let parent = try owner.directory(Array(parts.dropLast()))
+            let directory = try owner.directory(parts)
+            guard replacementNode.matches(directory.identity), try directory.names().isEmpty,
+                  unlinkat(parent.descriptor, parts.last!, AT_REMOVEDIR) == 0,
+                  fsync(parent.descriptor) == 0 else { throw Self.failure }
+        }
+        if try exists(privateRootNode.path) {
+            let root = try owner.directory([]), directory = try owner.directory([privateRootNode.path])
+            guard privateRootNode.matches(directory.identity), try directory.names().isEmpty,
+                  unlinkat(root.descriptor, privateRootNode.path, AT_REMOVEDIR) == 0,
+                  fsync(root.descriptor) == 0 else { throw Self.failure }
+        }
+    }
+
+    private func claimAndRemove(_ expected: Node) throws {
+        guard let claimPath = expected.claimPath else { throw Self.failure }
+        let original = try namedLocation(expected.path), claim = try namedLocation(claimPath)
+        let originalExists = try original.map { try $0.parent.exists($0.name) } ?? false
+        let claimExists = try claim.map { try $0.parent.exists($0.name) } ?? false
+        guard !(originalExists && claimExists) else { throw Self.failure }
+        if claimExists {
+            guard let claim, let frozen = admittedClaims[claimPath] else { throw Self.failure }
+            try removeClaim(expected: expected, frozen: frozen, parent: claim.parent, name: claim.name)
+            return
+        }
+        guard originalExists, let original, let claim else { return }
+        let source = try requireOriginalForClaim(expected, parent: original.parent, name: original.name)
+#if DEBUG
+        try beforeClaimForTesting?(original.parent.url.appendingPathComponent(original.name,
+            isDirectory: expected.directory), expected.directory)
+#endif
+        try original.parent.verifyNamed(); try claim.parent.verifyNamed()
+        guard renameatx_np(original.parent.descriptor, original.name,
+                claim.parent.descriptor, claim.name, UInt32(RENAME_EXCL)) == 0,
+              fsync(original.parent.descriptor) == 0 else { throw Self.failure }
+        let frozen = try freezeClaim(expected, source: source, parent: claim.parent, name: claim.name)
+        admittedClaims[claimPath] = frozen
+#if DEBUG
+        try observeForTesting("after-retire-claim")
+#endif
+        try removeClaim(expected: expected, frozen: frozen, parent: claim.parent, name: claim.name)
+#if DEBUG
+        try observeForTesting(expected == privateRootNode ? "after-scaffold-delete" : "after-retire-delete")
+#endif
+    }
+
+    private func move(from: String, to: String, expected: Node?) throws {
+        guard let expected else { throw Self.failure }
+        let sourceParts = from.split(separator: "/").map(String.init)
+        let targetParts = to.split(separator: "/").map(String.init)
+        guard let sourceName = sourceParts.last, let targetName = targetParts.last else { throw Self.failure }
+        let sourceParent = try owner.directory(Array(sourceParts.dropLast()))
+        let targetParent = try owner.directory(Array(targetParts.dropLast()))
+        let source = try owner.directory(sourceParts)
+        guard expected.matches(source.identity), try !targetParent.exists(targetName) else { throw Self.failure }
+        try sourceParent.verifyNamed(); try targetParent.verifyNamed()
+        guard renameatx_np(sourceParent.descriptor, sourceName,
+                targetParent.descriptor, targetName, UInt32(RENAME_EXCL)) == 0,
+              fsync(sourceParent.descriptor) == 0, fsync(targetParent.descriptor) == 0 else {
+            throw Self.failure
+        }
+        guard expected.matches(try owner.directory(targetParts).identity) else { throw Self.failure }
+    }
+
+    private func replaceManifest(_ manifest: DraftAttachmentStagingManifestV1) throws {
+        let bytes = try manifest.canonicalBytes()
+        if try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest.canonicalBytes() != bytes {
+            try DraftStagingRootOwnerV1.replaceFile(bytes,
+                at: owner.rootURL.appendingPathComponent(DraftAttachmentStagingAdapterV1.manifestName),
+                directory: owner.directory([]))
+        }
+        guard try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest.canonicalBytes() == bytes else {
+            throw Self.failure
+        }
+    }
+
+    private func exists(_ path: String) throws -> Bool {
+        let parts = path.split(separator: "/").map(String.init)
+        guard let name = parts.last else { throw Self.failure }
+        var parent = try owner.directory([])
+        for component in parts.dropLast() {
+            guard try parent.exists(component) else { return false }
+            parent = try owner.directory(parent.components + [component])
+        }
+        return try parent.exists(name)
+    }
+
+    private func nodeAt(_ path: String, hashFile: Bool) throws -> Node? {
+        let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        return try DraftConfigurationCloneRetirementFilesystemV1.scan(owner: owner,
+            manifest: manifest, hashFiles: hashFile).first(where: { $0.path == path })
+    }
+
+    private func translated(_ node: Node, to path: String) -> Node {
+        Node(path: path, directory: node.directory,
+            facts: DraftConfigurationCloneRetirementFilesystemV1.facts(node), sha256: node.sha256,
+            claimPath: node.claimPath)
+    }
+
+    private func matches(_ actual: Node?, _ expected: Node?, hash: Bool) -> Bool {
+        guard let actual, let expected, actual.path == expected.path,
+              actual.directory == expected.directory,
+              (expected.directory
+                ? actual.device == expected.device && actual.inode == expected.inode
+                : DraftConfigurationCloneRetirementFilesystemV1.sameFacts(actual, expected)),
+              !hash || expected.directory || actual.sha256 == expected.sha256 else { return false }
+        return true
+    }
+
+    private func namedLocation(_ path: String) throws
+        -> (parent: DraftStagingRootOwnerV1.Directory, name: String)? {
+        let parts = path.split(separator: "/").map(String.init)
+        guard let name = parts.last else { throw Self.failure }
+        var parent = try owner.directory([])
+        for component in parts.dropLast() {
+            if try !parent.exists(component) { return nil }
+            parent = try owner.directory(parent.components + [component])
+        }
+        return (parent, name)
+    }
+
+    private func requireOriginalForClaim(_ expected: Node,
+        parent: DraftStagingRootOwnerV1.Directory, name: String) throws -> ClaimSource {
+        if expected.directory {
+            let directory = try owner.directory(parent.components + [name])
+            guard expected.matches(directory.identity), try directory.names().isEmpty else { throw Self.failure }
+            return ClaimSource(directory: directory)
+        }
+        let file = try parent.openFile(name)
+        do {
+            let facts = try DraftStagingRootOwnerV1.regular(file)
+            guard expected.matches(facts), let digest = expected.sha256,
+                  try DraftConfigurationCloneRetirementFilesystemV1.digest(file, facts: facts) == digest else {
+                throw Self.failure
+            }
+            try parent.verifyPinnedFile(file, name: name, facts: facts)
+            return ClaimSource(file: file)
+        } catch { close(file); throw error }
+    }
+
+    private func freezeClaim(_ expected: Node, source: ClaimSource,
+        parent: DraftStagingRootOwnerV1.Directory, name: String) throws -> Node {
+        guard let path = expected.claimPath else { throw Self.failure }
+        if expected.directory {
+            guard let sourceDirectory = source.directory else { throw Self.failure }
+            var facts = stat()
+            guard fstat(sourceDirectory.descriptor, &facts) == 0 else { throw Self.failure }
+            let claimed = try owner.directory(parent.components + [name])
+            var current = stat()
+            guard fstat(claimed.descriptor, &current) == 0,
+                  current.st_dev == facts.st_dev, current.st_ino == facts.st_ino,
+                  try claimed.names().isEmpty else { throw Self.failure }
+            let frozen = Node(path: path, directory: true,
+                facts: DraftPhotoRawBackupSnapshotV1.facts(current))
+            guard expected.admitsClaim(frozen) else { throw Self.failure }
+            return frozen
+        }
+        guard source.file >= 0 else { throw Self.failure }
+        let facts = try DraftStagingRootOwnerV1.regular(source.file)
+        let digest = try DraftConfigurationCloneRetirementFilesystemV1.digest(source.file, facts: facts)
+        let frozen = Node(path: path, directory: false,
+            facts: DraftPhotoRawBackupSnapshotV1.facts(facts), sha256: digest)
+        guard expected.admitsClaim(frozen) else { throw Self.failure }
+        try parent.verifyPinnedFile(source.file, name: name, facts: facts)
+        return frozen
+    }
+
+    private func admitClaim(actual: Node, expected: Node) throws -> Node {
+        guard expected.admitsClaim(actual) else { throw Self.failure }
+        if expected.directory {
+            guard try owner.directory(actual.path.split(separator: "/").map(String.init)).names().isEmpty else {
+                throw Self.failure
+            }
+        }
+        return actual
+    }
+
+    private func removeClaim(expected: Node, frozen: Node,
+        parent: DraftStagingRootOwnerV1.Directory, name: String) throws {
+        guard expected.claimPath == frozen.path, try parent.exists(name) else { throw Self.failure }
+        if expected.directory {
+            let directory = try owner.directory(parent.components + [name])
+            var facts = stat()
+            guard try directory.names().isEmpty, fstat(directory.descriptor, &facts) == 0,
+                  frozen.strictlyMatches(facts) else { throw Self.failure }
+            var after = stat()
+            guard unlinkat(parent.descriptor, name, AT_REMOVEDIR) == 0,
+                  fstat(directory.descriptor, &after) == 0, frozen.provesUnlinked(after),
+                  fsync(parent.descriptor) == 0 else { throw Self.failure }
+        } else {
+            let file = try parent.openFile(name); defer { close(file) }
+            let facts = try DraftStagingRootOwnerV1.regular(file)
+            guard frozen.strictlyMatches(facts) else { throw Self.failure }
+            try parent.verifyPinnedFile(file, name: name, facts: facts)
+            var after = stat()
+            guard unlinkat(parent.descriptor, name, 0) == 0,
+                  fstat(file, &after) == 0, frozen.provesUnlinked(after),
+                  fsync(parent.descriptor) == 0 else { throw Self.failure }
+        }
+        admittedClaims.removeValue(forKey: frozen.path)
+    }
+}
+
+/// Shared closed census and streamed hashing used by live preparation and cold
+/// plan verification. It never creates, renames, unlinks or rewrites a node.
+fileprivate enum DraftConfigurationCloneRetirementFilesystemV1 {
+    typealias Node = DraftPhotoRestoreRawOwnershipV1.Node
+    static let failure = DraftAttachmentStagingFailureV1.staleStage
+
+    static func capturePlan(restoreID: UUID, workspaceID: WorkspaceID,
+        verification: DraftPhotoBackupPreparedVerificationV1) throws
+        -> DraftConfigurationCloneRetirementPlanV1 {
+        try verification.withRestorePreparationLock {
+            let owner = verification.owner
+            let before = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+            let nodes = try scan(owner: owner, manifest: before, hashFiles: true)
+            let expected = verification.namespaceFacts.map { key, value in
+                let directory = key.hasPrefix("directory:")
+                return Node(path: String(key.dropFirst(directory ? 10 : 5)), directory: directory, facts: value)
+            }
+            guard Set(nodes.map(\.path)) == Set(expected.map(\.path)),
+                  expected.allSatisfy({ item in
+                    nodes.first(where: { $0.path == item.path }).map({ sameFacts($0, item) }) == true
+                  }) else { throw failure }
+            let moved = nodes.filter { $0.directory && $0.path != "." && !$0.path.contains("/") }.map(\.path)
+            return try DraftConfigurationCloneRetirementPlanV1(restoreID: restoreID,
+                workspaceID: workspaceID, before: before, beforeNodes: nodes, movedRoots: moved)
+        }
+    }
+
+    static func requireBefore(_ plan: DraftConfigurationCloneRetirementPlanV1,
+        owner: DraftStagingRootOwnerV1, strictManifestFacts: Bool) throws {
+        try plan.validate()
+        let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        guard try manifest.canonicalBytes() == plan.before.canonicalBytes() else { throw failure }
+        let actual = try scan(owner: owner, manifest: manifest, hashFiles: true)
+        let expected = Dictionary(uniqueKeysWithValues: plan.beforeNodes.map { ($0.path, $0) })
+        guard Set(actual.map(\.path)) == Set(expected.keys) else { throw failure }
+        for node in actual {
+            guard let expectedNode = expected[node.path] else { throw failure }
+            let physicalMatch = strictManifestFacts
+                ? sameFacts(node, expectedNode)
+                : (expectedNode.directory
+                    ? node.device == expectedNode.device && node.inode == expectedNode.inode
+                    : sameFacts(node, expectedNode))
+            guard physicalMatch || (!strictManifestFacts
+                    && node.path == DraftAttachmentStagingAdapterV1.manifestName
+                    && node.byteCount == expectedNode.byteCount),
+                  node.directory || node.sha256 == expectedNode.sha256 else { throw failure }
+        }
+    }
+
+    static func scan(owner: DraftStagingRootOwnerV1,
+        manifest: DraftAttachmentStagingManifestV1, hashFiles: Bool) throws -> [Node] {
+        try owner.requireNamedRoot(); try manifest.validate()
+        var result = [Node(path: ".", directory: true,
+            facts: DraftPhotoRawBackupSnapshotV1.facts(try owner.directory([]).identity))]
+        try scanDirectory(owner: owner, components: [], manifest: manifest,
+            hashFiles: hashFiles, result: &result)
+        guard result.count <= FieldDraftLimitsV1.maximumStageItems * 5 + 8 else { throw failure }
+        return result.sorted { $0.path < $1.path }
+    }
+
+    private static func scanDirectory(owner: DraftStagingRootOwnerV1, components: [String],
+        manifest: DraftAttachmentStagingManifestV1, hashFiles: Bool, result: inout [Node]) throws {
+        guard components.count <= 5 else { throw failure }
+        let directory = try owner.directory(components)
+        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: directory.url)
+        let names = try directory.names()
+        guard names.count <= FieldDraftLimitsV1.maximumStageItems * 2 + 4 else { throw failure }
+        for name in names.sorted() {
+            try Task.checkCancellation()
+            var value = stat()
+            guard fstatat(directory.descriptor, name, &value, AT_SYMLINK_NOFOLLOW) == 0 else { throw failure }
+            let path = (components + [name]).joined(separator: "/")
+            if value.st_mode & S_IFMT == S_IFDIR {
+                result.append(Node(path: path, directory: true,
+                    facts: DraftPhotoRawBackupSnapshotV1.facts(value)))
+                try scanDirectory(owner: owner, components: components + [name], manifest: manifest,
+                    hashFiles: hashFiles, result: &result)
+            } else if value.st_mode & S_IFMT == S_IFREG {
+                let file = try directory.openFile(name); defer { close(file) }
+                let fileFacts = try DraftStagingRootOwnerV1.regular(file)
+                try ProtectedFilePolicyV1.verify(.stagingFile, at: directory.url.appendingPathComponent(name))
+                let maximum = maximumBytes(path: path, manifest: manifest)
+                guard fileFacts.st_size > 0, fileFacts.st_size <= maximum else { throw failure }
+                let digestValue = hashFiles ? try digest(file, facts: fileFacts) : nil
+                try directory.verifyPinnedFile(file, name: name, facts: fileFacts)
+                result.append(Node(path: path, directory: false,
+                    facts: DraftPhotoRawBackupSnapshotV1.facts(fileFacts), sha256: digestValue))
+            } else { throw failure }
+            guard result.count <= FieldDraftLimitsV1.maximumStageItems * 5 + 8 else { throw failure }
+        }
+        try directory.verifyNamed()
+    }
+
+    private static func maximumBytes(path: String,
+        manifest: DraftAttachmentStagingManifestV1) -> Int64 {
+        _ = manifest
+        if path == DraftAttachmentStagingAdapterV1.manifestName || path.hasSuffix("/raw-publication.json") {
+            return Int64(FieldDraftLimitsV1.maximumCanonicalBytes)
+        }
+        if path.hasSuffix("/" + DraftAttachmentStagingAdapterV1.payloadName) {
+            // The actual sibling is admitted by the closed scan/plan. Use the
+            // photo maximum provisionally; plan validation lowers every
+            // witness-free payload to the generic2MiB bound.
+            return Int64(MediaContractV1.sourceByteCountMaximum)
+        }
+        return Int64(MediaContractV1.sourceByteCountMaximum)
+    }
+
+    static func digest(_ file: Int32, facts: stat) throws -> String {
+        guard facts.st_size > 0, facts.st_size <= Int64(MediaContractV1.sourceByteCountMaximum) else {
+            throw failure
+        }
+        var hash = SHA256(), offset: Int64 = 0
+        var chunk = [UInt8](repeating: 0, count: 64 * 1024)
+        while offset < facts.st_size {
+            try Task.checkCancellation()
+            let wanted = Int(min(Int64(chunk.count), facts.st_size - offset))
+            let count = chunk.withUnsafeMutableBytes { pread(file, $0.baseAddress, wanted, off_t(offset)) }
+            if count < 0 && errno == EINTR { continue }
+            guard count > 0, count <= wanted else { throw DraftAttachmentStagingFailureV1.byteLengthMismatch }
+            hash.update(data: Data(chunk.prefix(count))); offset += Int64(count)
+        }
+        try DraftStagingRootOwnerV1.unchanged(file, facts)
+        return hash.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func facts(_ node: Node) -> StreamingArchiveSourceSnapshotV1 {
+        .init(device: node.device, inode: node.inode, linkCount: node.linkCount,
+            byteCount: node.byteCount, modifiedSeconds: node.modifiedSeconds,
+            modifiedNanoseconds: node.modifiedNanoseconds, changedSeconds: node.changedSeconds,
+            changedNanoseconds: node.changedNanoseconds)
+    }
+
+    static func sameFacts(_ lhs: Node, _ rhs: Node) -> Bool {
+        lhs.directory == rhs.directory && lhs.device == rhs.device && lhs.inode == rhs.inode
+            && lhs.linkCount == rhs.linkCount && lhs.byteCount == rhs.byteCount
+            && lhs.modifiedSeconds == rhs.modifiedSeconds && lhs.modifiedNanoseconds == rhs.modifiedNanoseconds
+            && lhs.changedSeconds == rhs.changedSeconds && lhs.changedNanoseconds == rhs.changedNanoseconds
+    }
+
+    static func sameDirectoryIdentity(_ lhs: Node, _ rhs: Node) -> Bool {
+        lhs.directory && rhs.directory && lhs.device == rhs.device && lhs.inode == rhs.inode
+    }
+}
+
 /// One physical kernel for private preparation, publication and reversal. It
 /// retains no payload buffers and never deletes unknown or replaced paths.
 /// The generation owner holds G outside its synchronous visibility methods;
@@ -2981,6 +3999,7 @@ final class DraftPhotoRestorePreparedPublicationV1: @unchecked Sendable {
 #endif
     private let owner: DraftStagingRootOwnerV1
     private let useLock = NSLock()
+    private var consumed = false
     private var admittedClaimNodes: [String: Node] = [:]
     private typealias Node = DraftPhotoRestoreRawOwnershipV1.Node
     private static let failure = DraftAttachmentStagingFailureV1.staleStage
@@ -3353,13 +4372,19 @@ final class DraftPhotoRestorePreparedPublicationV1: @unchecked Sendable {
         return value
     }
 
-    func publish(permit: CheckRunnerPhotoRestoreRawPublicationPermitV1) throws {
-        guard useLock.try() else { throw Self.failure }
-        defer { useLock.unlock() }
+    private func consume() throws {
+        useLock.lock(); defer { useLock.unlock() }
+        guard !consumed else { throw Self.failure }
+        consumed = true
+    }
+
+    func publish(permit: CheckRunnerPhotoRestoreRawPublicationPermitV1,
+        publishingPointer: () throws -> Void) throws {
+        try consume()
         try requirePermit(permit)
         let lock = try owner.acquire(); defer { lock.release() }
-        try requireCurrent(mode: .publishing, hashFiles: false)
-        let locations = try placements(mode: .publishing)
+        try requireCurrent(mode: .prepared, hashFiles: false)
+        let locations = try placements(mode: .prepared)
         for relative in locations.keys.sorted() {
             guard let wrapped = locations[relative], let location = wrapped else { throw Self.failure }
             if location == relative { continue }
@@ -3373,6 +4398,8 @@ final class DraftPhotoRestorePreparedPublicationV1: @unchecked Sendable {
 #if DEBUG
         try observeForTesting("after-manifest")
 #endif
+        try requireCurrent(mode: .committed, hashFiles: false)
+        try publishingPointer()
         try requireCurrent(mode: .committed, hashFiles: false)
     }
 
@@ -3392,8 +4419,7 @@ final class DraftPhotoRestorePreparedPublicationV1: @unchecked Sendable {
     /// is still active. The before manifest is restored before any owned group
     /// is moved back under the private container and removed.
     func rollback(permit: CheckRunnerPhotoRestoreRawPublicationPermitV1) throws {
-        guard useLock.try() else { throw Self.failure }
-        defer { useLock.unlock() }
+        try consume()
         try requirePermit(permit)
         let lock = try owner.acquire(); defer { lock.release() }
         try requireCurrent(mode: .rollingBack, hashFiles: false)
@@ -3417,8 +4443,7 @@ final class DraftPhotoRestorePreparedPublicationV1: @unchecked Sendable {
     /// The new pointer and canonical destination must be verified by the
     /// restore owner first. Only empty, inode-proven private scaffolding remains.
     func finish(permit: CheckRunnerPhotoRestoreRawPublicationPermitV1) throws {
-        guard useLock.try() else { throw Self.failure }
-        defer { useLock.unlock() }
+        try consume()
         try requirePermit(permit)
         let lock = try owner.acquire(); defer { lock.release() }
         try requireCurrent(mode: .committed, hashFiles: false)
@@ -3631,6 +4656,75 @@ extension DraftAttachmentStagingAdapterV1 {
                 sourceHistory: sourceHistory, currentSnapshots: currentSnapshots,
                 retainedCurrentStageIDs: retainedCurrentStageIDs, genericEntries: genericEntries)
         }
+    }
+}
+
+extension DraftAttachmentStagingAdapterV1 {
+    /// Freezes the exact populated incumbent namespace. This read-only step
+    /// creates no private scaffold and supplies the plan that the restore
+    /// service commits before it mints filesystem authority.
+    func prepareConfigurationCloneRetirementPlan(restoreID: UUID,
+        currentVerification: DraftPhotoBackupPreparedVerificationV1) throws
+        -> DraftConfigurationCloneRetirementPlanV1 {
+        guard let workspaceScope,
+              currentVerification.owner.rootURL.standardizedFileURL == rootURL.standardizedFileURL else {
+            throw DraftAttachmentStagingFailureV1.wrongWorkspace
+        }
+        return try DraftConfigurationCloneRetirementFilesystemV1.capturePlan(
+            restoreID: restoreID, workspaceID: workspaceScope, verification: currentVerification)
+    }
+
+    /// Reproves a durably planned before image without creating or claiming
+    /// any path. Cold recovery uses this before an ownership record exists.
+    nonisolated func verifyConfigurationCloneRetirementPlan(
+        authority: DraftConfigurationCloneRetirementAuthorityV1) throws {
+        guard let workspaceScope, authority.plan.workspaceID == workspaceScope,
+              authority.applicationSupportURL.standardizedFileURL == applicationSupportURL,
+              currentRoot(for: authority.applicationSupportURL) == rootURL.standardizedFileURL,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(authority.bindingSHA256) else {
+            throw DraftAttachmentStagingFailureV1.wrongWorkspace
+        }
+        let held = try rootOwner.acquire(); defer { held.release() }
+        try DraftConfigurationCloneRetirementFilesystemV1.requireBefore(
+            authority.plan, owner: rootOwner, strictManifestFacts: true)
+    }
+
+    /// Creates only the exclusive protected scaffold after the restore owner
+    /// has durably bound the exact plan. Incumbent bytes remain in place.
+    func prepareConfigurationCloneRetirement(
+        authority: DraftConfigurationCloneRetirementAuthorityV1,
+        currentVerification: DraftPhotoBackupPreparedVerificationV1) throws
+        -> DraftConfigurationCloneRetirementPreparedV1 {
+        guard let workspaceScope, authority.plan.workspaceID == workspaceScope,
+              authority.applicationSupportURL.standardizedFileURL == applicationSupportURL,
+              currentVerification.owner.rootURL.standardizedFileURL == rootURL.standardizedFileURL else {
+            throw DraftAttachmentStagingFailureV1.wrongWorkspace
+        }
+        return try DraftConfigurationCloneRetirementPreparedV1.prepare(
+            authority: authority, verification: currentVerification)
+    }
+
+    /// Opens immutable ownership without actor isolation or filesystem effects.
+    /// The returned one-shot kernel still takes R for every observation or
+    /// mutation and requires a fresh opaque permit for the chosen operation.
+    nonisolated func reopenConfigurationCloneRetirement(
+        authority: DraftConfigurationCloneRetirementAuthorityV1,
+        ownership: DraftConfigurationCloneRetirementOwnershipV1) throws
+        -> DraftConfigurationCloneRetirementPreparedV1 {
+        guard let workspaceScope, authority.plan.workspaceID == workspaceScope,
+              authority.applicationSupportURL.standardizedFileURL == applicationSupportURL,
+              currentRoot(for: authority.applicationSupportURL) == rootURL.standardizedFileURL else {
+            throw DraftAttachmentStagingFailureV1.wrongWorkspace
+        }
+        return try DraftConfigurationCloneRetirementPreparedV1.reopen(
+            authority: authority, ownership: ownership, owner: rootOwner)
+    }
+
+    private nonisolated func currentRoot(for support: URL) -> URL {
+        support.standardizedFileURL
+            .appendingPathComponent(OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+            .appendingPathComponent(Self.directoryName, isDirectory: true)
+            .standardizedFileURL
     }
 }
 

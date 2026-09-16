@@ -159,49 +159,9 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
         let workspaceID = c36.sourceWorkspaceID
         let rows = try Rows(records.fieldDrafts, workspaceID: workspaceID)
         let history = c36.history
-        let photoRelease = try CheckRunnerPhotoDraftCodecV1.release()
-        let parentRelease = try CheckRunnerItemDraftCodecV1.release()
-
-        let currentPhotos = rows.checkpoints.filter { $0.value.codec == photoRelease }
-        let currentParents = rows.checkpoints.filter { $0.value.codec == parentRelease }
-        var historicPhotoIDs = Set<UUID>()
-        for record in history.records.values where record.envelope.workspaceID == workspaceID {
-            guard case let .applyFieldDraft(mutation) = record.envelope.command,
-                  case let .createCheckpoint(checkpoint) = mutation.postImage,
-                  checkpoint.codec == photoRelease else { continue }
-            _ = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
-            guard checkpoint.workspaceID == workspaceID,
-                  historicPhotoIDs.insert(checkpoint.draftID).inserted else { throw failure }
-        }
-        guard historicPhotoIDs == Set(currentPhotos.keys) else { throw failure }
-        for record in history.records.values where record.envelope.workspaceID != workspaceID {
-            guard case let .applyFieldDraft(mutation) = record.envelope.command else { continue }
-            if currentPhotos[RepetitiveCaptureSourceGraphReviewV2.draftID(mutation.postImage)] != nil {
-                throw failure
-            }
-        }
-
-        var parentCache: [UUID: ParentHistory] = [:]
-        var parentGraphs: [UUID: ReviewedRepetitiveCaptureSourceGraphV2] = [:]
-        var referencedPhotoIDs = Set<UUID>()
-        for parent in currentParents.values {
-            let reviewed = try parentHistory(
-                current: parent, history: history, workspaceID: workspaceID)
-            let graph = try sourceGraph(for: reviewed.currentPayload.source, in: c36.graphs)
-            try validateHistoricalEntry(reviewed.currentPayload.source, graph: graph)
-            parentCache[parent.draftID] = reviewed
-            parentGraphs[parent.draftID] = graph
-            for checkpoint in reviewed.checkpoints {
-                let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
-                if let id = payload.field.wideContext?.childDraftID { referencedPhotoIDs.insert(id) }
-                if let id = payload.field.closeDetail?.childDraftID { referencedPhotoIDs.insert(id) }
-            }
-        }
-        guard referencedPhotoIDs == Set(currentPhotos.keys) else { throw failure }
-        for child in currentPhotos.values {
-            let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(child)
-            guard parentCache[payload.parentDraftID] != nil else { throw failure }
-        }
+        let membership = try photoMembership(rows: rows, history: history,
+            workspaceID: workspaceID, graphs: c36.graphs)
+        let currentPhotos = membership.photos
 
         var required = Set<String>()
         c36.requiredHistory.forEach { required.insert(key($0)) }
@@ -216,154 +176,10 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
             return lk < rk
         }
         for checkpoint in orderedPhotos {
-            let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
-            guard payload.childDraftID == checkpoint.draftID,
-                  let parent = parentCache[payload.parentDraftID],
-                  let graph = parentGraphs[payload.parentDraftID] else { throw failure }
-            let begin = try beginEvidence(parent: parent, history: history)
-            let childRecords = history.fieldDraftHistory(
-                workspaceID: workspaceID, draftID: checkpoint.draftID)
-            guard !childRecords.isEmpty else { throw failure }
-            let childHistory = try childRecords.map { record -> FieldDraftCommittedEvidenceV1 in
-                required.insert(key(record))
-                return try FieldDraftCommittedEvidenceV1(
-                    envelope: record.envelope, receipt: record.receipt)
-            }
-            parent.originals.forEach { required.insert(key($0)) }
-            required.insert(key(begin.workflowRecord))
-            _ = begin.timeZoneRecord.map { required.insert(key($0)) }
-
-            let stages = rows.stages.values.filter { $0.draftID == checkpoint.draftID }
-                .sorted { $0.stageID.uuidString < $1.stageID.uuidString }
-            let sagas = rows.sagas.values.filter { $0.draftID == checkpoint.draftID }
-                .sorted { $0.revision < $1.revision }
-            let reservations = rows.reservations.values.filter { $0.draftID == checkpoint.draftID }
-                .sorted { $0.reservationID.uuidString < $1.reservationID.uuidString }
-            let receipts = rows.commitReceipts.values.filter { $0.draftID == checkpoint.draftID }
-                .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
-
-            let phase = try phaseFacts(payload, checkpoint: checkpoint, history: history,
-                                       required: &required)
-            let isCommitted = checkpoint.state == .committed
-            let parentCheckpoint = try parent.frontier(for: checkpoint, committed: isCommitted)
-            let parentEvidence = try parent.evidencePrefix(for: checkpoint, committed: isCommitted)
-            let workflow = try exactlyOne(records.workflowRecords.filter { $0.id == payload.recordID })
-            let workflowIdentity = try WorkspaceEntityIdentityV1(
-                kind: .workflowRecord, id: payload.recordID)
-            let priorImage = try workflowImageBeforePhoto(
-                payload: payload, begin: begin.workflow,
-                precedingWide: parentLinks[payload.parentDraftID])
-            let targetImage = try phase.target.map {
-                try exactlyOne($0.receipt.postImages.filter { try $0.identity == workflowIdentity })
-            }
-            let continuationWorkflowImage = targetImage ?? priorImage
-            let evidenceImage = try phase.target.map { target in
-                let identity = try WorkspaceEntityIdentityV1(
-                    kind: .evidenceFile, id: target.command.evidenceID)
-                return try exactlyOne(target.receipt.postImages.filter { try $0.identity == identity })
-            }
-
-            let phaseEvidence: CheckRunnerPhotoBackupHistoryChildV1.PhaseEvidence
-            let terminal: CheckRunnerPhotoCommitEvidenceV1?
-            switch payload.phase {
-            case .awaitingRawStage:
-                guard stages.isEmpty, sagas.isEmpty, reservations.isEmpty, receipts.isEmpty,
-                      phase.target == nil else { throw failure }
-                let evidence = try CheckRunnerPhotoRawStageEvidenceV1(
-                    parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
-                    workflow: begin.workflow, timeZone: begin.timeZone,
-                    childHistory: childHistory, childCheckpoint: checkpoint, currentStage: nil,
-                    currentWorkflowPostImage: priorImage,
-                    precedingWide: currentTargets[payload.parentDraftID])
-                phaseEvidence = .awaitingRaw(evidence); terminal = nil
-            case .rawReady:
-                let stage = try exactlyOne(stages)
-                guard sagas.isEmpty, reservations.isEmpty, receipts.isEmpty,
-                      phase.target == nil else { throw failure }
-                let evidence = try CheckRunnerPhotoRawStageEvidenceV1(
-                    parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
-                    workflow: begin.workflow, timeZone: begin.timeZone,
-                    childHistory: childHistory, childCheckpoint: checkpoint, currentStage: stage,
-                    currentWorkflowPostImage: priorImage,
-                    precedingWide: currentTargets[payload.parentDraftID])
-                phaseEvidence = .rawReady(evidence); terminal = nil
-            case .pairReady(_), .preparedCommit(_, _):
-                let stage = try exactlyOne(stages)
-                let evidence = try CheckRunnerPhotoContinuationEvidenceV1(
-                    parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
-                    workflow: begin.workflow, timeZone: begin.timeZone,
-                    history: childHistory, checkpoint: checkpoint, stages: [stage], sagas: sagas,
-                    reservations: reservations, receipts: receipts,
-                    precedingWide: parentLinks[payload.parentDraftID], target: phase.target,
-                    currentWorkflowPostImage: continuationWorkflowImage,
-                    currentEvidencePostImage: evidenceImage)
-                phaseEvidence = .continuation(evidence); terminal = evidence.terminal
-            }
-
-            var targetRecords: CheckRunnerPhotoBackupTargetRecordsV1?
-            var parentLink: CheckRunnerPhotoParentEvidenceV1?
-            var currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1?
-            if let target = phase.target {
-                guard let originalWorkflowPostImage = targetImage,
-                      let originalEvidencePostImage = evidenceImage else { throw failure }
-                let evidence = try exactlyOne(records.evidenceFiles.filter {
-                    $0.id == target.command.evidenceID
-                })
-                let evidenceIdentity = try WorkspaceEntityIdentityV1(
-                    kind: .evidenceFile, id: evidence.id)
-                let currentEvidencePostImage = try latestPostImage(
-                    identity: evidenceIdentity, workspaceID: workspaceID,
-                    history: history, records: records)
-                let later = try laterWorkflowReceipts(
-                    after: target.receipt, identity: workflowIdentity, history: history)
-                later.forEach { required.insert(key($0)) }
-                let currentWorkflowPostImage = try latestPostImage(
-                    identity: workflowIdentity, workspaceID: workspaceID,
-                    history: history, records: records)
-                try validateTargetRecords(target: target, begin: begin.workflow,
-                    workflow: workflow, originalWorkflowPostImage: originalWorkflowPostImage,
-                    currentWorkflowPostImage: currentWorkflowPostImage,
-                    evidence: evidence, originalEvidencePostImage: originalEvidencePostImage,
-                    currentEvidencePostImage: currentEvidencePostImage,
-                    later: later, terminal: terminal != nil)
-                targetRecords = .init(workflow: workflow,
-                    originalWorkflowPostImage: originalWorkflowPostImage,
-                    currentWorkflowPostImage: currentWorkflowPostImage,
-                    evidence: evidence, originalEvidencePostImage: originalEvidencePostImage,
-                    currentEvidencePostImage: currentEvidencePostImage,
-                    permittedSuccessors: later)
-            }
-            if let terminal {
-                let link = try CheckRunnerPhotoParentEvidenceV1(
-                    history: parentEvidence,
-                    checkpoint: parentCheckpoint, child: terminal,
-                    workflow: begin.workflow, timeZone: begin.timeZone)
-                guard let targetRecords else { throw failure }
-                let current = try CheckRunnerPhotoCurrentTargetEvidenceV1(
-                    parent: link, workflow: targetRecords.workflow,
-                    workflowPostImage: targetRecords.currentWorkflowPostImage,
-                    evidence: targetRecords.evidence,
-                    evidencePostImage: targetRecords.currentEvidencePostImage,
-                    laterReceipts: targetRecords.permittedSuccessors.map {
-                        ($0.envelope, $0.receipt)
-                    })
-                parentLink = link; currentTarget = current
-                parentLinks[payload.parentDraftID] = link
-                currentTargets[payload.parentDraftID] = current
-            }
-
-            let committingCheckpoint = phase.reconstruction?.draftCommit.checkpoint
-                ?? terminal?.reconstruction.draftCommit.checkpoint
-            results.append(.init(parentCheckpoint: parentCheckpoint,
-                currentCheckpoint: checkpoint, payload: payload,
-                raw: phase.raw, pair: phase.pair,
-                preparedReconstruction: phase.reconstruction ?? terminal?.reconstruction,
-                committingCheckpoint: committingCheckpoint,
-                originals: childRecords, currentStage: stages.first, sagas: sagas,
-                reservations: reservations, commitReceipts: receipts, target: phase.target,
-                targetRecords: targetRecords, terminal: terminal,
-                parentLink: parentLink, currentTarget: currentTarget,
-                phaseEvidence: phaseEvidence, sourceGraph: graph))
+            results.append(try projectChild(checkpoint, rows: rows, records: records,
+                history: history, workspaceID: workspaceID,
+                parentCache: membership.parentCache, parentGraphs: membership.parentGraphs,
+                required: &required, parentLinks: &parentLinks, currentTargets: &currentTargets))
         }
         guard results.count == currentPhotos.count else { throw failure }
         let requiredHistory = try required.map { try history.authenticated($0) }
@@ -427,6 +243,227 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
                 }
             }
         }
+    }
+
+    struct PhotoMembership {
+        let photos: [UUID: FieldDraftCheckpointV1]
+        let parentCache: [UUID: ParentHistory]
+        let parentGraphs: [UUID: ReviewedRepetitiveCaptureSourceGraphV2]
+    }
+
+    @inline(never)
+    static func photoMembership(rows: Rows,
+        history: RepetitiveCaptureSourceGraphReviewV2.History,
+        workspaceID: WorkspaceID,
+        graphs: [ReviewedRepetitiveCaptureSourceGraphV2]) throws -> PhotoMembership {
+        let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        let photoRelease = try CheckRunnerPhotoDraftCodecV1.release()
+        let parentRelease = try CheckRunnerItemDraftCodecV1.release()
+
+        let currentPhotos = rows.checkpoints.filter { $0.value.codec == photoRelease }
+        let currentParents = rows.checkpoints.filter { $0.value.codec == parentRelease }
+        var historicPhotoIDs = Set<UUID>()
+        for record in history.records.values where record.envelope.workspaceID == workspaceID {
+            guard case let .applyFieldDraft(mutation) = record.envelope.command,
+                  case let .createCheckpoint(checkpoint) = mutation.postImage,
+                  checkpoint.codec == photoRelease else { continue }
+            _ = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+            guard checkpoint.workspaceID == workspaceID,
+                  historicPhotoIDs.insert(checkpoint.draftID).inserted else { throw failure }
+        }
+        guard historicPhotoIDs == Set(currentPhotos.keys) else { throw failure }
+        for record in history.records.values where record.envelope.workspaceID != workspaceID {
+            guard case let .applyFieldDraft(mutation) = record.envelope.command else { continue }
+            if currentPhotos[RepetitiveCaptureSourceGraphReviewV2.draftID(mutation.postImage)] != nil {
+                throw failure
+            }
+        }
+
+        var parentCache: [UUID: ParentHistory] = [:]
+        var parentGraphs: [UUID: ReviewedRepetitiveCaptureSourceGraphV2] = [:]
+        var referencedPhotoIDs = Set<UUID>()
+        for parent in currentParents.values {
+            let reviewed = try parentHistory(
+                current: parent, history: history, workspaceID: workspaceID)
+            let graph = try sourceGraph(for: reviewed.currentPayload.source, in: graphs)
+            try validateHistoricalEntry(reviewed.currentPayload.source, graph: graph)
+            parentCache[parent.draftID] = reviewed
+            parentGraphs[parent.draftID] = graph
+            for checkpoint in reviewed.checkpoints {
+                let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+                if let id = payload.field.wideContext?.childDraftID { referencedPhotoIDs.insert(id) }
+                if let id = payload.field.closeDetail?.childDraftID { referencedPhotoIDs.insert(id) }
+            }
+        }
+        guard referencedPhotoIDs == Set(currentPhotos.keys) else { throw failure }
+        for child in currentPhotos.values {
+            let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(child)
+            guard parentCache[payload.parentDraftID] != nil else { throw failure }
+        }
+        return .init(photos: currentPhotos, parentCache: parentCache, parentGraphs: parentGraphs)
+    }
+
+    @inline(never)
+    static func projectChild(_ checkpoint: FieldDraftCheckpointV1,
+        rows: Rows,
+        records: V4BackupRecordsV1,
+        history: RepetitiveCaptureSourceGraphReviewV2.History,
+        workspaceID: WorkspaceID,
+        parentCache: [UUID: ParentHistory],
+        parentGraphs: [UUID: ReviewedRepetitiveCaptureSourceGraphV2],
+        required: inout Set<String>,
+        parentLinks: inout [UUID: CheckRunnerPhotoParentEvidenceV1],
+        currentTargets: inout [UUID: CheckRunnerPhotoCurrentTargetEvidenceV1]) throws
+        -> CheckRunnerPhotoBackupHistoryChildV1 {
+        let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+        guard payload.childDraftID == checkpoint.draftID,
+              let parent = parentCache[payload.parentDraftID],
+              let graph = parentGraphs[payload.parentDraftID] else { throw failure }
+        let begin = try beginEvidence(parent: parent, history: history)
+        let childRecords = history.fieldDraftHistory(
+            workspaceID: workspaceID, draftID: checkpoint.draftID)
+        guard !childRecords.isEmpty else { throw failure }
+        let childHistory = try childRecords.map { record -> FieldDraftCommittedEvidenceV1 in
+            required.insert(key(record))
+            return try FieldDraftCommittedEvidenceV1(
+                envelope: record.envelope, receipt: record.receipt)
+        }
+        parent.originals.forEach { required.insert(key($0)) }
+        required.insert(key(begin.workflowRecord))
+        _ = begin.timeZoneRecord.map { required.insert(key($0)) }
+
+        let stages = rows.stages.values.filter { $0.draftID == checkpoint.draftID }
+            .sorted { $0.stageID.uuidString < $1.stageID.uuidString }
+        let sagas = rows.sagas.values.filter { $0.draftID == checkpoint.draftID }
+            .sorted { $0.revision < $1.revision }
+        let reservations = rows.reservations.values.filter { $0.draftID == checkpoint.draftID }
+            .sorted { $0.reservationID.uuidString < $1.reservationID.uuidString }
+        let receipts = rows.commitReceipts.values.filter { $0.draftID == checkpoint.draftID }
+            .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
+
+        let phase = try phaseFacts(payload, checkpoint: checkpoint, history: history,
+                                   required: &required)
+        let isCommitted = checkpoint.state == .committed
+        let parentCheckpoint = try parent.frontier(for: checkpoint, committed: isCommitted)
+        let parentEvidence = try parent.evidencePrefix(for: checkpoint, committed: isCommitted)
+        let workflow = try exactlyOne(records.workflowRecords.filter { $0.id == payload.recordID })
+        let workflowIdentity = try WorkspaceEntityIdentityV1(
+            kind: .workflowRecord, id: payload.recordID)
+        let priorImage = try workflowImageBeforePhoto(
+            payload: payload, begin: begin.workflow,
+            precedingWide: parentLinks[payload.parentDraftID])
+        let targetImage = try phase.target.map {
+            try exactlyOne($0.receipt.postImages.filter { try $0.identity == workflowIdentity })
+        }
+        let continuationWorkflowImage = targetImage ?? priorImage
+        let evidenceImage = try phase.target.map { target in
+            let identity = try WorkspaceEntityIdentityV1(
+                kind: .evidenceFile, id: target.command.evidenceID)
+            return try exactlyOne(target.receipt.postImages.filter { try $0.identity == identity })
+        }
+
+        let phaseEvidence: CheckRunnerPhotoBackupHistoryChildV1.PhaseEvidence
+        let terminal: CheckRunnerPhotoCommitEvidenceV1?
+        switch payload.phase {
+        case .awaitingRawStage:
+            guard stages.isEmpty, sagas.isEmpty, reservations.isEmpty, receipts.isEmpty,
+                  phase.target == nil else { throw failure }
+            let evidence = try CheckRunnerPhotoRawStageEvidenceV1(
+                parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
+                workflow: begin.workflow, timeZone: begin.timeZone,
+                childHistory: childHistory, childCheckpoint: checkpoint, currentStage: nil,
+                currentWorkflowPostImage: priorImage,
+                precedingWide: currentTargets[payload.parentDraftID])
+            phaseEvidence = .awaitingRaw(evidence); terminal = nil
+        case .rawReady:
+            let stage = try exactlyOne(stages)
+            guard sagas.isEmpty, reservations.isEmpty, receipts.isEmpty,
+                  phase.target == nil else { throw failure }
+            let evidence = try CheckRunnerPhotoRawStageEvidenceV1(
+                parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
+                workflow: begin.workflow, timeZone: begin.timeZone,
+                childHistory: childHistory, childCheckpoint: checkpoint, currentStage: stage,
+                currentWorkflowPostImage: priorImage,
+                precedingWide: currentTargets[payload.parentDraftID])
+            phaseEvidence = .rawReady(evidence); terminal = nil
+        case .pairReady(_), .preparedCommit(_, _):
+            let stage = try exactlyOne(stages)
+            let evidence = try CheckRunnerPhotoContinuationEvidenceV1(
+                parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
+                workflow: begin.workflow, timeZone: begin.timeZone,
+                history: childHistory, checkpoint: checkpoint, stages: [stage], sagas: sagas,
+                reservations: reservations, receipts: receipts,
+                precedingWide: parentLinks[payload.parentDraftID], target: phase.target,
+                currentWorkflowPostImage: continuationWorkflowImage,
+                currentEvidencePostImage: evidenceImage)
+            phaseEvidence = .continuation(evidence); terminal = evidence.terminal
+        }
+
+        var targetRecords: CheckRunnerPhotoBackupTargetRecordsV1?
+        var parentLink: CheckRunnerPhotoParentEvidenceV1?
+        var currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1?
+        if let target = phase.target {
+            guard let originalWorkflowPostImage = targetImage,
+                  let originalEvidencePostImage = evidenceImage else { throw failure }
+            let evidence = try exactlyOne(records.evidenceFiles.filter {
+                $0.id == target.command.evidenceID
+            })
+            let evidenceIdentity = try WorkspaceEntityIdentityV1(
+                kind: .evidenceFile, id: evidence.id)
+            let currentEvidencePostImage = try latestPostImage(
+                identity: evidenceIdentity, workspaceID: workspaceID,
+                history: history, records: records)
+            let later = try laterWorkflowReceipts(
+                after: target.receipt, identity: workflowIdentity, history: history)
+            later.forEach { required.insert(key($0)) }
+            let currentWorkflowPostImage = try latestPostImage(
+                identity: workflowIdentity, workspaceID: workspaceID,
+                history: history, records: records)
+            try validateTargetRecords(target: target, begin: begin.workflow,
+                workflow: workflow, originalWorkflowPostImage: originalWorkflowPostImage,
+                currentWorkflowPostImage: currentWorkflowPostImage,
+                evidence: evidence, originalEvidencePostImage: originalEvidencePostImage,
+                currentEvidencePostImage: currentEvidencePostImage,
+                later: later, terminal: terminal != nil)
+            targetRecords = .init(workflow: workflow,
+                originalWorkflowPostImage: originalWorkflowPostImage,
+                currentWorkflowPostImage: currentWorkflowPostImage,
+                evidence: evidence, originalEvidencePostImage: originalEvidencePostImage,
+                currentEvidencePostImage: currentEvidencePostImage,
+                permittedSuccessors: later)
+        }
+        if let terminal {
+            let link = try CheckRunnerPhotoParentEvidenceV1(
+                history: parentEvidence,
+                checkpoint: parentCheckpoint, child: terminal,
+                workflow: begin.workflow, timeZone: begin.timeZone)
+            guard let targetRecords else { throw failure }
+            let current = try CheckRunnerPhotoCurrentTargetEvidenceV1(
+                parent: link, workflow: targetRecords.workflow,
+                workflowPostImage: targetRecords.currentWorkflowPostImage,
+                evidence: targetRecords.evidence,
+                evidencePostImage: targetRecords.currentEvidencePostImage,
+                laterReceipts: targetRecords.permittedSuccessors.map {
+                    ($0.envelope, $0.receipt)
+                })
+            parentLink = link; currentTarget = current
+            parentLinks[payload.parentDraftID] = link
+            currentTargets[payload.parentDraftID] = current
+        }
+
+        let committingCheckpoint = phase.reconstruction?.draftCommit.checkpoint
+            ?? terminal?.reconstruction.draftCommit.checkpoint
+        return .init(parentCheckpoint: parentCheckpoint,
+            currentCheckpoint: checkpoint, payload: payload,
+            raw: phase.raw, pair: phase.pair,
+            preparedReconstruction: phase.reconstruction ?? terminal?.reconstruction,
+            committingCheckpoint: committingCheckpoint,
+            originals: childRecords, currentStage: stages.first, sagas: sagas,
+            reservations: reservations, commitReceipts: receipts, target: phase.target,
+            targetRecords: targetRecords, terminal: terminal,
+            parentLink: parentLink, currentTarget: currentTarget,
+            phaseEvidence: phaseEvidence, sourceGraph: graph)
     }
 
     struct ParentHistory {

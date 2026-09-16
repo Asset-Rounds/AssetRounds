@@ -366,18 +366,40 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                         .stagingGenerationRelativePath,
                     identity: identity
                 )
+                let legacyV1Data = try RestoreIntentCodecV1.encode(legacyV1)
+                let legacyV2Data = try RestoreIntentCodecV1.encode(legacyV2)
                 XCTAssertEqual(
                     try RestoreIntentCodecV1.decode(
-                        RestoreIntentCodecV1.encode(legacyV1)
+                        legacyV1Data
                     ),
                     legacyV1
                 )
                 XCTAssertEqual(
                     try RestoreIntentCodecV1.decode(
-                        RestoreIntentCodecV1.encode(legacyV2)
+                        legacyV2Data
                     ),
                     legacyV2
                 )
+                let legacyV1Object = try XCTUnwrap(
+                    try JSONSerialization.jsonObject(with: legacyV1Data)
+                        as? [String: Any]
+                )
+                let legacyV2Object = try XCTUnwrap(
+                    try JSONSerialization.jsonObject(with: legacyV2Data)
+                        as? [String: Any]
+                )
+                XCTAssertEqual(Set(legacyV1Object.keys), Set([
+                    "newGenerationID", "newGenerationRelativePath",
+                    "oldGenerationID", "phase", "restoreID", "schemaVersion",
+                    "stagingGenerationRelativePath",
+                ]))
+                XCTAssertEqual(Set(legacyV2Object.keys), Set([
+                    "identity", "newGenerationID", "newGenerationRelativePath",
+                    "oldGenerationID", "phase", "restoreID", "schemaVersion",
+                    "stagingGenerationRelativePath",
+                ]))
+                XCTAssertNil(legacyV1Object["cloneRetirementPlanSHA256"])
+                XCTAssertNil(legacyV2Object["cloneRetirementPlanSHA256"])
             }
             if index == 2, let identity = intentBeforeRecovery.identity {
                 let legacyV2 = RestoreIntentV1(
@@ -531,6 +553,15 @@ final class S6_5ReplacementUnionTests: XCTestCase {
         )
         let data = try RestoreIntentCodecV1.encode(intent)
         XCTAssertEqual(try RestoreIntentCodecV1.decode(data), intent)
+        let schema3Object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        XCTAssertEqual(Set(schema3Object.keys), Set([
+            "identity", "newGenerationID", "newGenerationRelativePath",
+            "oldGenerationID", "phase", "replacementTimestampMilliseconds",
+            "restoreID", "schemaVersion", "stagingGenerationRelativePath",
+        ]))
+        XCTAssertNil(schema3Object["cloneRetirementPlanSHA256"])
         let phaseCopy = intent.advancing(to: .generationInstalled)
         XCTAssertEqual(phaseCopy.replacementTimestampMilliseconds, 1_001)
         XCTAssertEqual(try RestoreIntentCodecV1.decode(
@@ -558,6 +589,180 @@ final class S6_5ReplacementUnionTests: XCTestCase {
             replacementTimestampMilliseconds: Int.max
         )
         XCTAssertThrowsError(try RestoreIntentCodecV1.encode(outOfRange))
+
+        let sourceWorkspaceID = uuid(904)
+        let sourceReplicaID = uuid(905)
+        let oldPointer = RestorePointerIdentityV1(
+            generationID: uuid(902),
+            generationManifestSHA256: String(repeating: "a", count: 64),
+            workspaceID: uuid(906),
+            replicaID: uuid(907)
+        )
+        let targetPointer = RestorePointerIdentityV1(
+            generationID: uuid(901),
+            generationManifestSHA256: String(repeating: "b", count: 64),
+            knownReplicaIDs: Set([sourceReplicaID, oldPointer.replicaID]),
+            workspaceID: uuid(908),
+            replicaID: uuid(909)
+        )
+        let cloneIdentity = RestoreIdentityV1(
+            mode: .clone,
+            source: .init(
+                workspaceID: sourceWorkspaceID,
+                replicaID: sourceReplicaID
+            ),
+            oldPointer: oldPointer,
+            targetPointer: targetPointer,
+            recordIdentityDisposition: .preserve
+        )
+        let planDigest = String(repeating: "c", count: 64)
+        let cloneIntent = RestoreIntentV1(
+            identity: cloneIdentity,
+            restoreID: uuid(903),
+            replacementTimestampMilliseconds: 1_001,
+            cloneRetirementPlanSHA256: planDigest
+        )
+        XCTAssertEqual(cloneIntent.schemaVersion, 4)
+        let cloneData = try RestoreIntentCodecV1.encode(cloneIntent)
+        XCTAssertEqual(try RestoreIntentCodecV1.decode(cloneData), cloneIntent)
+        let cloneObject = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: cloneData) as? [String: Any]
+        )
+        XCTAssertEqual(cloneObject["cloneRetirementPlanSHA256"] as? String, planDigest)
+        XCTAssertEqual(Set(cloneObject.keys), Set([
+            "cloneRetirementPlanSHA256", "identity", "newGenerationID",
+            "newGenerationRelativePath", "oldGenerationID", "phase",
+            "replacementTimestampMilliseconds", "restoreID", "schemaVersion",
+            "stagingGenerationRelativePath",
+        ]))
+        let clonePhaseCopy = cloneIntent.advancing(to: .generationInstalled)
+        XCTAssertEqual(clonePhaseCopy.cloneRetirementPlanSHA256, planDigest)
+        XCTAssertEqual(
+            try RestoreIntentCodecV1.decode(
+                RestoreIntentCodecV1.encode(clonePhaseCopy)
+            ),
+            clonePhaseCopy
+        )
+
+        let ordinaryClone = RestoreIntentV1(
+            identity: cloneIdentity,
+            restoreID: uuid(903),
+            replacementTimestampMilliseconds: 1_001
+        )
+        XCTAssertEqual(ordinaryClone.schemaVersion, 3)
+        XCTAssertNil(ordinaryClone.cloneRetirementPlanSHA256)
+        let ordinaryCloneData = try RestoreIntentCodecV1.encode(ordinaryClone)
+        let ordinaryCloneObject = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: ordinaryCloneData)
+                as? [String: Any]
+        )
+        XCTAssertNil(ordinaryCloneObject["cloneRetirementPlanSHA256"])
+
+        let forkIdentity = RestoreIdentityV1(
+            mode: .fork,
+            source: cloneIdentity.source,
+            oldPointer: oldPointer,
+            targetPointer: targetPointer,
+            recordIdentityDisposition: .preserve
+        )
+        let schema4Null = RestoreIntentV1(
+            newGenerationID: targetPointer.generationID,
+            newGenerationRelativePath: cloneIntent.newGenerationRelativePath,
+            oldGenerationID: oldPointer.generationID,
+            phase: .prepared,
+            restoreID: uuid(903),
+            schemaVersion: 4,
+            stagingGenerationRelativePath: cloneIntent.stagingGenerationRelativePath,
+            identity: forkIdentity,
+            replacementTimestampMilliseconds: 1_001
+        )
+        let schema4NullData = try RestoreIntentCodecV1.encode(schema4Null)
+        let schema4NullObject = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: schema4NullData) as? [String: Any]
+        )
+        XCTAssertTrue(schema4NullObject["cloneRetirementPlanSHA256"] is NSNull)
+        XCTAssertEqual(try RestoreIntentCodecV1.decode(schema4NullData), schema4Null)
+
+        let invalidDigest = RestoreIntentV1(
+            identity: cloneIdentity,
+            restoreID: uuid(903),
+            replacementTimestampMilliseconds: 1_001,
+            cloneRetirementPlanSHA256: String(repeating: "C", count: 64)
+        )
+        XCTAssertThrowsError(try RestoreIntentCodecV1.encode(invalidDigest))
+        let shortDigest = RestoreIntentV1(
+            identity: cloneIdentity,
+            restoreID: uuid(903),
+            replacementTimestampMilliseconds: 1_001,
+            cloneRetirementPlanSHA256: String(repeating: "c", count: 63)
+        )
+        XCTAssertThrowsError(try RestoreIntentCodecV1.encode(shortDigest))
+        let invalidMode = RestoreIntentV1(
+            identity: forkIdentity,
+            restoreID: uuid(903),
+            replacementTimestampMilliseconds: 1_001,
+            cloneRetirementPlanSHA256: planDigest
+        )
+        XCTAssertThrowsError(try RestoreIntentCodecV1.encode(invalidMode))
+        let invalidSchema = RestoreIntentV1(
+            newGenerationID: cloneIntent.newGenerationID,
+            newGenerationRelativePath: cloneIntent.newGenerationRelativePath,
+            oldGenerationID: cloneIntent.oldGenerationID,
+            phase: .prepared,
+            restoreID: cloneIntent.restoreID,
+            schemaVersion: 3,
+            stagingGenerationRelativePath: cloneIntent.stagingGenerationRelativePath,
+            identity: cloneIdentity,
+            replacementTimestampMilliseconds: 1_001,
+            cloneRetirementPlanSHA256: planDigest
+        )
+        XCTAssertThrowsError(try RestoreIntentCodecV1.encode(invalidSchema))
+        let invalidNullClone = RestoreIntentV1(
+            newGenerationID: cloneIntent.newGenerationID,
+            newGenerationRelativePath: cloneIntent.newGenerationRelativePath,
+            oldGenerationID: cloneIntent.oldGenerationID,
+            phase: .prepared,
+            restoreID: cloneIntent.restoreID,
+            schemaVersion: 4,
+            stagingGenerationRelativePath: cloneIntent.stagingGenerationRelativePath,
+            identity: cloneIdentity,
+            replacementTimestampMilliseconds: 1_001
+        )
+        XCTAssertThrowsError(try RestoreIntentCodecV1.encode(invalidNullClone))
+        let cloneText = try XCTUnwrap(String(data: cloneData, encoding: .utf8))
+        let missingDigestText = cloneText.replacingOccurrences(
+            of: "\"cloneRetirementPlanSHA256\":\"\(planDigest)\",",
+            with: ""
+        )
+        XCTAssertNotEqual(missingDigestText, cloneText)
+        XCTAssertThrowsError(try RestoreIntentCodecV1.decode(Data(
+            missingDigestText.utf8
+        )))
+        XCTAssertThrowsError(try RestoreIntentCodecV1.decode(Data(
+            (String(cloneText.dropLast()) + ",\"unexpected\":0}").utf8
+        )))
+
+        let storeRoot = try makeRoot("clone-retirement-intent")
+        defer { try? fileManager.removeItem(at: storeRoot) }
+        let store = try RestoreIntentStore(applicationSupportURL: storeRoot)
+        try store.create(cloneIntent)
+        let differentDigestPhase = RestoreIntentV1(
+            identity: cloneIdentity,
+            phase: .generationInstalled,
+            restoreID: uuid(903),
+            replacementTimestampMilliseconds: 1_001,
+            cloneRetirementPlanSHA256: String(repeating: "d", count: 64)
+        )
+        XCTAssertThrowsError(try store.replace(
+            expected: cloneIntent,
+            with: differentDigestPhase
+        )) { error in
+            XCTAssertEqual(error as? RestoreIntentStoreError, .intentMismatch)
+        }
+        XCTAssertEqual(try store.load(), cloneIntent)
+        try store.replace(expected: cloneIntent, with: clonePhaseCopy)
+        XCTAssertEqual(try store.load(), clonePhaseCopy)
+        try store.remove(expected: clonePhaseCopy)
     }
 }
 
