@@ -72,9 +72,13 @@ final class CheckRunnerPhotoPreparedPairPublicationV1: @unchecked Sendable {
         guard self.authority === authority else { throw EvidenceBundleStoreError.bundleFactsMismatch }
         return try store.withPreparedCheckRunnerPhotoPublication(self) { publish in
             try authority.revalidatePreparedPairPublication(self)
-            return try body {
-                try authority.revalidatePreparedPairPublication(self)
-                return try publish()
+            // Both callback boundaries remain nonescaping. Temporarily opening
+            // this forwarding lifetime avoids Swift's nested exclusivity error.
+            return try withoutActuallyEscaping(publish) { effect in
+                try body {
+                    try authority.revalidatePreparedPairPublication(self)
+                    return try effect()
+                }
             }
         }
     }
@@ -118,9 +122,11 @@ final class CheckRunnerPhotoPreparedPairPromotionV1: @unchecked Sendable {
         guard self.authority === authority else { throw EvidenceBundleStoreError.bundleFactsMismatch }
         return try store.withPreparedCheckRunnerPhotoPromotion(self) { promote in
             try authority.revalidatePreparedPairPromotion(self)
-            return try body {
-                try authority.revalidatePreparedPairPromotion(self)
-                return try promote()
+            return try withoutActuallyEscaping(promote) { effect in
+                try body {
+                    try authority.revalidatePreparedPairPromotion(self)
+                    return try effect()
+                }
             }
         }
     }

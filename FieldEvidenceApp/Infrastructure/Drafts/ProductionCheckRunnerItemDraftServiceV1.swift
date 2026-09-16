@@ -743,7 +743,7 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         let commit = reconstruction.draftCommit
         let port = CheckRunnerPhotoCommitPortV1(service: self, parentDraftID: parentDraftID, reconstruction: reconstruction)
         let lifecycle = try current.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: current.modelContext)
-        let drafts = FieldDraftCoordinatorV1(purposeAuthority: CheckRunnerDraftPurposeAuthorityV1(),
+        let drafts = FieldDraftCoordinatorV1(purposeAuthority: try CheckRunnerDraftPurposeAuthorityV1(),
             writer: lifecycle, content: port, asyncTarget: port)
         _ = try await drafts.commit(plan: commit.plan, checkpoint: checkpoint, items: commit.items,
             prepared: commit.prepared, contentPromoted: commit.contentPromoted, targetCommitted: commit.targetCommitted,
