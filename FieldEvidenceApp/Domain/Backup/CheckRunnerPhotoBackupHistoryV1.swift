@@ -684,7 +684,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
                 try reference.validate(evidence: value)
                 return value
             }
-            let targetKey = RepetitiveCaptureSourceGraphReviewV2.key(
+            let targetKey = try RepetitiveCaptureSourceGraphReviewV2.key(
                 workspaceID, .init(rawValue: attempt.identifiers.mutationID))
             guard !history.quarantinedKeys.contains(targetKey) else { throw failure }
             let target = try history.records[targetKey].map { record in
