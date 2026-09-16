@@ -4479,6 +4479,9 @@ private extension S6_4AtomicRestoreTests {
         let copied = records.replacingAccessibleDocumentAssessments(records.accessibleDocumentAssessments)
         XCTAssertEqual(copied, records)
         XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(copied).data, oldCanonical)
+        try assertRestoreRecordCopyPipelinePreservesOriginals(records,
+            identity: harness.factory.currentWorkspaceIdentity(expectedGenerationID: harness.session.generationID),
+            expectedCanonical: oldCanonical)
         try assertAssessmentCopyPreservesRejectedServiceHistory(records, workspaceID: harness.session.workspaceID.rawValue)
         let destinationCanonical = try BackupCanonicalEncoderV1()
             .encodeRecords(package.records).data
@@ -4521,10 +4524,46 @@ private extension S6_4AtomicRestoreTests {
             from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
         XCTAssertThrowsError(try C53ServiceReliabilityBackupEnrollmentV1.validate(
             records: hostile, workspaceID: workspaceID))
-        let copied = hostile.replacingAccessibleDocumentAssessments(hostile.accessibleDocumentAssessments)
-        XCTAssertEqual(copied, hostile)
-        XCTAssertThrowsError(try C53ServiceReliabilityBackupEnrollmentV1.validate(
-            records: copied, workspaceID: workspaceID))
+        let copies = [
+            hostile.replacingAccessibleDocumentAssessments(hostile.accessibleDocumentAssessments),
+            hostile.replacingOperationalContacts(hostile.operationalContacts),
+            hostile.replacingEvidenceMetadata(hostile.evidenceAssociationEvents, hostile.evidenceSequenceRevisions),
+        ]
+        for copied in copies {
+            XCTAssertEqual(copied, hostile)
+            XCTAssertThrowsError(try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                records: copied, workspaceID: workspaceID))
+        }
+    }
+
+    func assertRestoreRecordCopyPipelinePreservesOriginals(_ records: V4BackupRecordsV1,
+        identity: WorkspaceReplicaIdentityV1, expectedCanonical: Data) throws {
+        XCTAssertNotNil(records.reinspectionExceptionQueue)
+        let reliability = try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+            from: records, workspaceID: identity.workspaceID.rawValue)
+        let copies = try [
+            records.replacingOperationalContacts(records.operationalContacts),
+            records.replacingEvidenceMetadata(records.evidenceAssociationEvents, records.evidenceSequenceRevisions),
+            records.replacingServiceReliability(reliability),
+        ]
+        for copied in copies {
+            XCTAssertEqual(copied, records)
+            XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(copied).data, expectedCanonical)
+        }
+        // Exercise the earlier loss too: forwarding a snapshot in the last
+        // copier cannot recover one discarded by deletion-winning projection.
+        for mode in [BackupRestoreMode.clone, .replaceExisting] {
+            let projected = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+                currentRecords: records, currentIdentity: identity, incomingRecords: records, incomingIdentity: identity,
+                mode: mode, replacementAt: Date(timeIntervalSince1970: 1_800_000_000))).recordsAfter
+            let contacts = projected.replacingOperationalContacts(records.operationalContacts)
+            let service = try contacts.replacingServiceReliability(reliability)
+            let metadata = service.replacingEvidenceMetadata(records.evidenceAssociationEvents, records.evidenceSequenceRevisions)
+            let copied = metadata.replacingAccessibleDocumentAssessments(metadata.accessibleDocumentAssessments)
+            XCTAssertEqual(copied, records)
+            XCTAssertEqual(copied.reinspectionExceptionQueue, records.reinspectionExceptionQueue)
+            XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(copied).data, expectedCanonical)
+        }
     }
 
     @MainActor

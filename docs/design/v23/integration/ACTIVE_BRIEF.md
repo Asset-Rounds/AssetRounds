@@ -5,17 +5,17 @@ Checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls product 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `6e00fb470ba625d59506b2593f3847641d554b52`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `4db6f28598ff2a24b93b9f9b9128969269cafe20`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the one app/project/shared scheme/design system, S10 branding, five accepted receipts, all49 owned drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
 ## Native evidence and next questions
 
-Five cdd originals remain sealedF6258F72:4Pass/8Fail/13NotStarted. Complete originals and warnings are retained; historical results apply only to their own head.
+Earlier cdd and6e originals remain retained at their own heads. The6e assessment-copy omission was corrected at4db; later evidence found additional earlier copy losses. Bitrise stays held for exact-runtime qualification.
 
-Four 6e originals35123328389/35123347275/35123366254/35123385133 are sole-collected and root-sealedE1289E95, with16 integrity checks each. Three builds hit1200s(exit124), leaving12NotStarted. Old-pointer compiled in1104s, then failed its six requested interruption checks before retirement. DiagnosisF9266039 identifies the legacy assessment-copy helper dropping the required reinspection snapshot. No Swift compiler errors or new warning signatures were observed; partial-build warnings are not considered resolved. Transport12 remained held for its known fixture mismatch. Bitrise remains held for exact-runtime qualification.
+Five4db originals35131785387/35131804396/35131823876/35131843708/35131864727 are sole-collected and root-sealed2F8DB7C8:9Pass/2Fail/2Interrupted/12NotStarted. Four builds compiled; old-pointer hit1200s. Raw failed its10s durable-write check and then the test watchdog; clone and transport also hit the test watchdog. Missing structured results remain failed gates. Cleanup still rejected C12 before retirement. No Swift errors or new warnings versus the prior complete build; all originals/warnings retained.
 
-Root's seven-path follow-up combines the reviewed Begin prefix/census fixture correction with preservation of five modern snapshot families and eight C53 history arrays through the existing assessment-copy helper. Clone7/transport12/raw4/old-pointer1/cleanup1 remain due after combined source/index/route review. No native pass is inferred.
+Root's six-path record-copy correction5884A077 forwards all77 inputs through seven deletion-winning/record-copy helpers, preserving deliberate substitutions. CensusA01C3C71 and genuine clone/replacement pipeline plus hostile-history regressions are prepared for combined source/index review. Only dependency-ready corrected questions may run after route review; raw/interruption cost remains unresolved.
 
 ## Current implementation
 
@@ -24,7 +24,8 @@ Root's seven-path follow-up combines the reviewed Begin prefix/census fixture co
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Backup export/census/streaming validation, populated restore composition and async cold recovery are implemented. Retain unknown current-only codec denial, mixed generic2MiB cases, complete original bytes and owned cleanup. Transport12/restore3 and destination cases remain unverified.
 - Clone includes populated incumbent proof, reversible quarantine, schema4 binding, one-shot G/R pointer publication, rollback and exact-owned orphan cleanup. Native correction and all eight interruption questions remain due.
-- Begin history now authenticates real PREPARED no-effect/timezone/both-effect prefixes and BOUND originals, rejecting quarantines, missing required timezone and omitted zero-photo parents. The legacy fixture remains. Exact two-file semantic reviewF5FF70FA passes; native verification remains due. The paired snapshot-copy correction forwards all77 constructor values and tests complete-record/canonical equality plus preservation of rejected nonempty C53 history on the real retirement fixture; combined source731/41/94 passesCAE2CF4F. Independent actual-index and committed-route review remain required.
+- Begin history authenticates real PREPARED prefixes and BOUND originals, rejecting quarantines, missing required timezone and omitted zero-photo parents. The legacy fixture remains. The assessment copy preserves all77 constructor inputs, with genuine canonical identity and rejected nonempty C53-history regressions. Reviewed/committed; native verification is active.
+- Root's isolated21-path parent-finalization workstreamDACE424B adds typed commit history, package/report joins and service composition of the existing finalizer/readback and five-saga terminal. The app owner composes exact Round COMPLETE resumption; paired tests remain in progress. All49 live drafts remain exact. Full destination/lifecycle closure is required before registration; implementation and native verification are unfinished.
 - Maximum graph timing within900s remains unproven despite reviewed canonical reuse;200/401/603/202 bounds stay fixed.
 
 ## Cadence and completion gates
