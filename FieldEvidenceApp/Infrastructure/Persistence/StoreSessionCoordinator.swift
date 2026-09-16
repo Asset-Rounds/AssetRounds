@@ -32,6 +32,7 @@ final class StoreSessionCoordinator: ObservableObject {
     private let generationFactory: StoreGenerationFactory
     let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
     private var writerLeaseHandle: GenerationLeaseHandleV1
+    private var writerFence: StaleWriterFenceV1
     private(set) var workspaceWriter: WorkspaceWriterV1
     private(set) var searchIndexStore: LocalSearchIndexStoreV1
     private(set) var searchServices: ProductionSearchServicesV1
@@ -159,6 +160,7 @@ final class StoreSessionCoordinator: ObservableObject {
         self.generationFactory = generationFactory
         self.lifecycleProfileRegistry = lifecycleProfileRegistry
         self.writerLeaseHandle = binding.leaseHandle
+        self.writerFence = binding.fence
         self.workspaceWriter = binding.writer
         self.searchIndexStore = searchIndexStore
         self.searchServices = searchServices
@@ -323,6 +325,31 @@ final class StoreSessionCoordinator: ObservableObject {
         try writerLeaseHandle.close()
     }
 
+    /// Reuses the journal's exact registry/fence instance. The operation is
+    /// synchronous: no actor suspension or byte-copy work may hold this lock.
+    var checkRunnerPhotoApplicationSupportURL: URL {
+        Self.applicationSupportURL(for: session)
+    }
+
+    func withCheckRunnerPhotoPublication<Value>(
+        expectedWriter: WorkspaceWriterV1, applicationSupportURL: URL,
+        _ operation: () throws -> Value
+    ) throws -> Value {
+        guard expectedWriter === workspaceWriter,
+              applicationSupportURL.standardizedFileURL
+                == generationFactory.restoreApplicationSupportURL.standardizedFileURL else {
+            throw GenerationLeaseRegistryFailureV1.staleGeneration
+        }
+        return try writerFence.withAuthorizedCommit {
+            guard expectedWriter === workspaceWriter,
+                  !session.modelContext.hasChanges,
+                  try workspaceWriter.currentRevision().generationID == session.generationID else {
+                throw GenerationLeaseRegistryFailureV1.staleGeneration
+            }
+            return try operation()
+        }
+    }
+
     func activate(session: StoreGenerationSession) {
         do {
             try activateValidating(session: session)
@@ -373,6 +400,7 @@ final class StoreSessionCoordinator: ObservableObject {
         searchIndexStore = replacementSearchIndexStore
         searchServices = replacementSearchServices
         writerLeaseHandle = binding.leaseHandle
+        writerFence = binding.fence
         workspaceWriter = binding.writer
         if uiGenerationToken < .max {
             uiGenerationToken += 1
@@ -389,6 +417,7 @@ final class StoreSessionCoordinator: ObservableObject {
     private struct WriterBinding {
         let writer: WorkspaceWriterV1
         let leaseHandle: GenerationLeaseHandleV1
+        let fence: StaleWriterFenceV1
     }
 
     private static func releaseAfterFailure(
@@ -468,7 +497,7 @@ final class StoreSessionCoordinator: ObservableObject {
                     )
                 }
             )
-            return WriterBinding(writer: writer, leaseHandle: leaseHandle)
+            return WriterBinding(writer: writer, leaseHandle: leaseHandle, fence: staleWriterFence)
         } catch {
             try releaseAfterFailure(leaseHandle, operationFailure: error)
             throw error

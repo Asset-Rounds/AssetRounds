@@ -8,6 +8,7 @@ import argparse
 import base64
 import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -35,6 +36,7 @@ PROTOCOL_PATHS = (
     "Scripts/v23-native-ci.py", "Scripts/build-smoke.sh", "Scripts/test-smoke.sh",
     "Scripts/ui-smoke.sh", "Scripts/run-with-timeout.sh",
     "Scripts/validate-required-evidence.sh",
+    "Scripts/v23-selection-manifest.json", "Scripts/v23-selection-generator.py",
 )
 SELECTION_MAP_PATH = "Scripts/ci-selection-map.json"
 DEFAULT_SELECTION_ID = "default-132"
@@ -67,6 +69,9 @@ DURABLE_BEGIN_METHOD_PARTITIONS = (
 )
 DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
+GENERATED_SELECTION_PROFILE = "raw-photo-v1"
+GENERATED_SELECTION_POOL_SHA256 = "62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB"
+GENERATED_SELECTION_MAP_SHA256 = "77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC"
 SOURCE_GRAPH_PARENT_ID = "c36-source-graph"
 SOURCE_GRAPH_PARENT_SELECTORS = (
     "FieldEvidenceAppTests/V23RepetitiveCaptureSourcePackageTests/testOrdinaryDirectoryPackageIsValidatedAndBoundToExactCanonicalMembers",
@@ -108,7 +113,7 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "4D8C2972669F6FAFEF8839AA56C226912858A48549A46A0E5EB6AC64BB6517D1"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "8F4D5AC023088B01D9D450FC9BBAD8B977F2B82BF4AB28CED1E943227D1F17F5"
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 SIMULATOR_DIAGNOSTIC_MARKER_STEM = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_"
 SIMULATOR_DIAGNOSTIC_OUTPUT = "simulator-file-protection-diagnostics.json"
@@ -766,8 +771,14 @@ def resolve_selection(default, selection_map, selection_id):
         and len([g for g in groups[:32] if isinstance(g, dict) and g.get("id") == "report-camera-recovery"
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
+    generated_profile_shape = (
+        isinstance(groups, list) and len(groups) == 39
+        and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
+        and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
+    )
     require(isinstance(groups, list) and
-            (len(groups) == 30 or (len(groups) == 31 and groups[-1] == c36_group) or source_graph_shape or report_partition_shape),
+            (len(groups) == 30 or (len(groups) == 31 and groups[-1] == c36_group)
+             or source_graph_shape or report_partition_shape or generated_profile_shape),
             "selection group count")
     defaults = set(default["unitTestSelectors"])
     default_classes = {selection_class(item) for item in defaults}
@@ -796,11 +807,12 @@ def resolve_selection(default, selection_map, selection_id):
         validate_selection(derived)
         resolved[group_id] = derived
     require(covered == defaults, "selection groups must cover default exactly")
-    if report_partition_shape:
+    if report_partition_shape or generated_profile_shape:
         # Method partitions are source constants derived only after the complete
         # 37-group class map has passed every identity, overlap and coverage gate.
-        require(sha256(canonical(default)) == DURABLE_BEGIN_BASE_POOL_SHA256
-                and sha256(canonical(selection_map)) == DURABLE_BEGIN_BASE_MAP_SHA256,
+        require((sha256(canonical(default)), sha256(canonical(selection_map))) in (
+                    (DURABLE_BEGIN_BASE_POOL_SHA256, DURABLE_BEGIN_BASE_MAP_SHA256),
+                    (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256)),
                 "durable begin exact base pool/map")
         parent_members = tuple(resolved[DURABLE_BEGIN_PARENT_ID]["unitTestSelectors"])
         require(parent_members == DURABLE_BEGIN_PARENT_SELECTORS,
@@ -846,6 +858,24 @@ def resolve_selection(default, selection_map, selection_id):
     return resolved[selection_id]
 
 
+def verify_generated_selection(root, default, selection_map):
+    """The current pinned output must still equal its closed manifest/source."""
+    source = root / "Scripts/v23-selection-generator.py"
+    require(source.is_file() and not source.is_symlink(), "selection generator source")
+    spec = importlib.util.spec_from_file_location("v23_selection_generator", source)
+    require(spec is not None and spec.loader is not None, "selection generator module")
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    manifest = generator.load_json(root / "Scripts/v23-selection-manifest.json")
+    expected, expected_map, report = generator.generate(manifest, GENERATED_SELECTION_PROFILE, root)
+    require(canonical(default) == canonical(expected) and canonical(selection_map) == canonical(expected_map),
+            "generated selection differs from manifest/source")
+    require(report["selectionSHA256"] == GENERATED_SELECTION_POOL_SHA256
+            and report["selectionMapSHA256"] == GENERATED_SELECTION_MAP_SHA256,
+            "generated selection profile digest")
+    return report
+
+
 def selected_input(root, environment):
     """Return the exact default or closed mapped selection for this execution."""
     default = read_json(root / "Scripts/ci-selection.json")
@@ -858,6 +888,8 @@ def selected_input(root, environment):
                          "selectionSHA256": sha256(canonical(default)), "selectionMapSHA256": ""}
     selection_map = read_json(root / SELECTION_MAP_PATH)
     selected = resolve_selection(default, selection_map, selection_id)
+    if sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256:
+        verify_generated_selection(root, default, selection_map)
     return selected, {"selectionID": selection_id, "selectionSHA256": sha256(canonical(selected)),
                       "selectionMapSHA256": sha256((root / SELECTION_MAP_PATH).read_bytes())}
 

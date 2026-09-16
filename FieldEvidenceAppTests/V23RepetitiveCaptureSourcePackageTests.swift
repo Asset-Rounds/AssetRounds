@@ -193,7 +193,7 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
         var futureRecords = recordsObject
         futureRecords["recordsSchemaVersion"] = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion + 1
         XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(
-            JSONSerialization.data(withJSONObject: futureRecords, options: [.sortedKeys, .withoutEscapingSlashes])))
+            RepetitiveCaptureSourcePackageFixture.canonicalJSONData(futureRecords)))
         let roundObjects = try XCTUnwrap(recordsObject["roundSessions"] as? [[String: Any]])
         XCTAssertEqual(roundObjects.count, fixture.rounds.count)
         let roundMutationBaseline = try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(recordsObject)
@@ -279,8 +279,8 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
         // Start from a proven valid serialized baseline at the actual public
         // decoder boundary, then change only the timestamp representation.
         let decoder = BackupCanonicalDecoderV1()
-        let serializedRecords = try JSONSerialization.data(withJSONObject: recordsObject,
-            options: [.sortedKeys, .withoutEscapingSlashes])
+        let serializedRecords = try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(recordsObject)
+        XCTAssertEqual(serializedRecords, recordsData)
         XCTAssertEqual(try decoder.decodeRecords(serializedRecords).roundSessions, fixture.rounds)
         let invalidRoundDates: [Any] = ["2026-08-31T00:00:00.000Z", "not-a-date", NSNull(), true]
         for value in invalidRoundDates {
@@ -288,23 +288,21 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
             changedRounds[0]["recordedAt"] = value
             var changedRecords = recordsObject
             changedRecords["roundSessions"] = changedRounds
-            let bytes = try JSONSerialization.data(withJSONObject: changedRecords,
-                options: [.sortedKeys, .withoutEscapingSlashes])
+            let bytes = try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(changedRecords)
             XCTAssertThrowsError(try decoder.decodeRecords(bytes))
         }
         let manifestData = try fixture.memberData("manifest.json")
         let manifestObject = try XCTUnwrap(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
         XCTAssertEqual(manifestObject["exportedAt"] as? String, "2026-08-31T00:00:00.000Z")
-        let serializedManifest = try JSONSerialization.data(withJSONObject: manifestObject,
-            options: [.sortedKeys, .withoutEscapingSlashes])
+        let serializedManifest = try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(manifestObject)
+        XCTAssertEqual(serializedManifest, manifestData)
         XCTAssertEqual(try decoder.decodeManifest(serializedManifest).exportedAt,
                        RepetitiveCaptureSourcePackageFixture.date)
         let invalidLegacyDates: [Any] = [1_788_134_400_000, "2026-08-31T00:00:00Z"]
         for value in invalidLegacyDates {
             var changedManifest = manifestObject
             changedManifest["exportedAt"] = value
-            let bytes = try JSONSerialization.data(withJSONObject: changedManifest,
-                options: [.sortedKeys, .withoutEscapingSlashes])
+            let bytes = try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(changedManifest)
             XCTAssertThrowsError(try decoder.decodeManifest(bytes))
         }
     }
@@ -320,16 +318,19 @@ final class V23RepetitiveCaptureSourcePackageTests: XCTestCase {
         XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
             stagedPackageURL: tampered, using: BackupPackageValidatorV1()))
 
-        let missingWorkspace = try fixture.package(named: "missing-workspace") { object in
-            object["workspaceID"] = NSNull()
+        let missingWorkspace = try fixture.package(named: "missing-workspace")
+        try fixture.mutateManifestJSON(at: missingWorkspace) { object in
+            var source = try XCTUnwrap(object["source"] as? [String: Any])
+            source["workspaceID"] = NSNull()
+            object["source"] = source
         }
         XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
             stagedPackageURL: missingWorkspace, using: BackupPackageValidatorV1()))
 
-        let missingHistory = try fixture.package(named: "missing-history",
-                                                 recordsMutation: { object in
+        let missingHistory = try fixture.package(named: "missing-history")
+        try fixture.mutateRecordsTransportJSON(at: missingHistory) { object in
             object["mutationHistory"] = NSNull()
-        })
+        }
         XCTAssertThrowsError(try ValidatedRepetitiveCaptureSourcePackageV2.validate(
             stagedPackageURL: missingHistory, using: BackupPackageValidatorV1()))
 
@@ -678,8 +679,29 @@ final class RepetitiveCaptureSourcePackageFixture {
         var object = try XCTUnwrap(JSONSerialization.jsonObject(
             with: Data(contentsOf: url)) as? [String: Any])
         try mutation(&object)
-        try JSONSerialization.data(withJSONObject: object,
-            options: [.sortedKeys, .withoutEscapingSlashes]).write(to: url, options: .atomic)
+        try Self.canonicalJSONData(object).write(to: url, options: .atomic)
+    }
+
+    // Malformed transport fixtures start with an encoder-valid package and keep
+    // member descriptors accurate, so the actual validator reaches the mutation.
+    func mutateRecordsTransportJSON(at package: URL,
+                                    _ mutation: (inout [String: Any]) throws -> Void) throws {
+        let url = package.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: url)) as? [String: Any])
+        try mutation(&object)
+        let data = try Self.canonicalJSONData(object)
+        try data.write(to: url, options: .atomic)
+        try mutateManifestJSON(at: package) { manifest in
+            var entries = try XCTUnwrap(manifest["entries"] as? [[String: Any]])
+            let index = try XCTUnwrap(entries.firstIndex { $0["path"] as? String == "records.json" })
+            let previousByteCount = try XCTUnwrap(entries[index]["byteCount"] as? Int)
+            let declaredByteCount = try XCTUnwrap(manifest["declaredPayloadByteCount"] as? Int)
+            entries[index]["byteCount"] = data.count
+            entries[index]["sha256"] = KernelCanonicalHashV1.sha256(data)
+            manifest["entries"] = entries
+            manifest["declaredPayloadByteCount"] = declaredByteCount - previousByteCount + data.count
+        }
     }
 
     func removePackages() { try? fileManager.removeItem(at: root) }

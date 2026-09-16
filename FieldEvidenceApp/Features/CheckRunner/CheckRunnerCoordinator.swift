@@ -1402,6 +1402,51 @@ final class CheckRunnerCoordinator {
         return bound
     }
 
+    /// A pending photo effect requires the original still-current Round ENTRY,
+    /// published package, existing-draft access and actual capture step. The
+    /// journal separately authenticates the pending parent/child and target.
+    func validatePendingPhotoPublication(_ value: CheckRunnerPhotoRawStageEvidenceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        try value.initialPayload.validate(parent: CheckRunnerItemDraftCodecV1.validateCheckpoint(
+            value.parentCheckpoint), parentDraftID: value.parentCheckpoint.draftID)
+        try validatePhotoPreparation(parentCheckpoint: value.parentCheckpoint,
+            photo: value.initialPayload, workflowEvidence: value.workflow, timeZoneEvidence: value.timeZone,
+            progress: progress, publishedRelease: publishedRelease)
+    }
+
+    func validatePhotoPreparation(parentCheckpoint: FieldDraftCheckpointV1,
+        photo: CheckRunnerPhotoDraftPayloadV1, workflowEvidence: CheckRunnerBeginCommittedEvidenceV1,
+        timeZoneEvidence: CheckRunnerBeginCommittedEvidenceV1?,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            parentCheckpoint, writer: dependencies.writer, context: modelContext)
+        guard case let .bound(attempt, workflow, zone) = parent.field.begin else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        try photo.validate()
+        guard photo.parentDraftID == parentCheckpoint.draftID,
+              photo.sourceBinding == parent.source, photo.recordID == attempt.recordCommand.recordID,
+              attempt.recordCommand.startedAt <= photo.phase.intent.evidenceCreatedAt else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+        let read = try progress.read(sourceDraftID: photo.sourceBinding.sourceCheckpoint.draftID)
+        try progress.validateForPublication(read)
+        try photo.sourceBinding.validate(read: read, publishedRelease: publishedRelease, signPack: signPack)
+        try validateFrozenBeginContext(photo.sourceBinding, dependencies: dependencies)
+        try workflow.validate(evidence: workflowEvidence)
+        guard (zone == nil) == (timeZoneEvidence == nil) else { throw FieldDraftFailureV1.missingReceipt }
+        if let zone, let original = timeZoneEvidence { try zone.validate(evidence: original) }
+        try validateInitialBeginAccess(attempt, workflow: workflowEvidence)
+        let preparation = try prepareCapture(assetID: photo.assetID)
+        guard preparation.draftID == photo.recordID, preparation.step == photo.captureStep,
+              preparation.purpose?.key == photo.purposeKey else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+    }
+
     /// Acknowledges a saved initial BOUND checkpoint. Later child/finalizer
     /// state is deliberately reserved for the complete bound-chain reader.
     func validateInitialBoundBegin(parentCheckpoint: FieldDraftCheckpointV1,

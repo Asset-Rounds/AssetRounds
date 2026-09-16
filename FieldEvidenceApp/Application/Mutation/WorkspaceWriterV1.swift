@@ -2392,6 +2392,29 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return value
     }
 
+    /// Pending raw-stage history is distinct from committed child evidence.
+    /// The returned value is not a scene, filesystem or publication permit.
+    func checkRunnerPhotoRawStageEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID
+    ) throws -> CheckRunnerPhotoRawStageEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        let before = try currentRevision()
+        let value = try journalStore.checkRunnerPhotoRawStageEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID, writerInstanceID: writerInstanceID)
+        guard isActive, try currentRevision() == before else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return value
+    }
+
+    func checkRunnerPhotoPreparationEvidence(workspaceID: WorkspaceID, parentDraftID: UUID,
+        captureStep: WorkflowDraftStep) throws -> CheckRunnerPhotoPreparationEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        let before = try currentRevision()
+        let value = try journalStore.checkRunnerPhotoPreparationEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, captureStep: captureStep, writerInstanceID: writerInstanceID)
+        guard isActive, try currentRevision() == before else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return value
+    }
+
     /// Low-level frozen Begin effect. The parent owner must first persist
     /// PREPARED and prove current source/access; this method grants neither.
     func commitFrozenCheckRunnerTimeZone(

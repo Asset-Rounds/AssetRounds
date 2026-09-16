@@ -33,7 +33,11 @@ enum ProtectedFileDiagnosticTransportErrorV1: Error, Equatable {
 final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
     private let lock = NSLock()
     private let cachesURL: URL?
-    private let streamID: UUID
+    private var streamID: UUID
+    private let nextStreamID: @Sendable () -> UUID
+    private let framesPerStream: Int
+    private let maximumStreams: Int
+    private let maximumTotalBytes: Int64
     private let append: @Sendable (Int32, Data) throws -> Void
     private let synchronize: @Sendable (Int32) throws -> Void
     private var cachesDescriptor: Int32 = -1
@@ -41,12 +45,18 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
     private var fileDescriptor: Int32 = -1
     private var sequence = 0
     private var byteCount: Int64 = 0
+    private var totalByteCount: Int64 = 0
+    private var streamCount = 0
     private var poisoned = false
     private static let directoryName = "AssetRoundsNativeDiagnostics"
 
     init(
         cachesURL: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
         streamID: UUID = UUID(),
+        nextStreamID: @escaping @Sendable () -> UUID = { UUID() },
+        framesPerStream: Int = 100_000,
+        maximumStreams: Int = 64,
+        maximumTotalBytes: Int64 = 1_024 * 1_024 * 1_024,
         append: @escaping @Sendable (Int32, Data) throws -> Void = { descriptor, data in
             let written = data.withUnsafeBytes { bytes in
                 Darwin.write(descriptor, bytes.baseAddress, bytes.count)
@@ -61,6 +71,10 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
     ) {
         self.cachesURL = cachesURL
         self.streamID = streamID
+        self.nextStreamID = nextStreamID
+        self.framesPerStream = framesPerStream
+        self.maximumStreams = maximumStreams
+        self.maximumTotalBytes = maximumTotalBytes
         self.append = append
         self.synchronize = synchronize
     }
@@ -80,11 +94,14 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
                   payload.last == 10,
                   !payload.dropLast().contains(10), !payload.contains(13),
                   String(data: payload, encoding: .utf8) != nil,
-                  sequence < 100_000 else {
+                  (1...100_000).contains(framesPerStream),
+                  (1...64).contains(maximumStreams),
+                  (1...(1_024 * 1_024 * 1_024)).contains(maximumTotalBytes) else {
                 throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
             }
             if fileDescriptor < 0 { try openJournal() }
             try verifyJournal()
+            if sequence == framesPerStream { try rotateStream() }
             let next = sequence + 1
             var frame = try JSONSerialization.data(withJSONObject: [
                 "schema": "v23-simulator-file-protection-frame-v1",
@@ -95,8 +112,13 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
                 "payloadSHA256": KernelCanonicalHashV1.sha256(payload).uppercased(),
             ], options: [.sortedKeys, .withoutEscapingSlashes])
             frame.append(10)
+            guard frame.count <= 8_192,
+                  totalByteCount <= maximumTotalBytes - Int64(frame.count) else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
             try append(fileDescriptor, frame)
             byteCount += Int64(frame.count)
+            totalByteCount += Int64(frame.count)
             try synchronize(fileDescriptor)
             try verifyJournal()
             sequence = next
@@ -121,10 +143,36 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
         directoryDescriptor = Darwin.openat(cachesDescriptor, Self.directoryName,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard directoryDescriptor >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+        try openStream()
+    }
+
+    private func openStream() throws {
+        guard streamCount < maximumStreams else {
+            throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+        }
         fileDescriptor = Darwin.openat(directoryDescriptor, fileName,
             O_WRONLY | O_APPEND | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
         guard fileDescriptor >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+        streamCount += 1
         try verifyJournal()
+    }
+
+    /// Keep the complete synchronized old stream for the existing collector.
+    /// A fresh exclusive file has its own sequence; no prior record is rewritten.
+    private func rotateStream() throws {
+        guard streamCount < maximumStreams else {
+            throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+        }
+        try verifyJournal()
+        let previousDescriptor = fileDescriptor
+        fileDescriptor = -1
+        guard Darwin.close(previousDescriptor) == 0 else {
+            throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal
+        }
+        streamID = nextStreamID()
+        sequence = 0
+        byteCount = 0
+        try openStream()
     }
 
     private func verifyJournal() throws {

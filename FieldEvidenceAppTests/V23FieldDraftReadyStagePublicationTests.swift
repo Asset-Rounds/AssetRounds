@@ -133,7 +133,7 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
             updatedAt: ReadyStageFixture.date, mutationID: .init(rawValue: Self.id(93)))
         let unrelatedIdentity = try WorkspaceEntityIdentityV1(
             kind: .fieldDraftCheckpoint, id: unrelated.draftID)
-        let original = try node.withSession { session in
+        let original = try readyStageObserved("publication receipt hot session") { try node.withSession { session in
             _ = try session.lifecycle.compareAndSwap(checkpoint: unrelated,
                 expectedDraftRevision: 0, expectedBaseRevision: unrelated.baseCanonicalRevision)
             _ = try session.lifecycle.compareAndSwap(checkpoint: fixture.expected,
@@ -150,14 +150,18 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
                 draftID: unrelated.draftID), unrelated)
             XCTAssertEqual(receipt.postImages, try mutation.postImage.mutationPostImages)
             XCTAssertFalse(typed.affectedIdentities.contains(unrelatedIdentity))
-            let extraExpected = try receiptWithExtraIdentity(receipt, mutation: mutation,
-                                                             inExpected: true, inResult: false)
+            let extraExpected = try readyStageObserved("construct extra expected identity receipt") {
+                try receiptWithExtraIdentity(receipt, mutation: mutation,
+                                             inExpected: true, inResult: false)
+            }
             try extraExpected.validate()
             XCTAssertThrowsError(try FieldDraftMutationReceiptV1(
                 mutation: mutation, mutationReceipt: extraExpected
             )) { XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReceipt) }
-            let extraResult = try receiptWithExtraIdentity(receipt, mutation: mutation,
-                                                           inExpected: false, inResult: true)
+            let extraResult = try readyStageObserved("construct extra result identity receipt") {
+                try receiptWithExtraIdentity(receipt, mutation: mutation,
+                                             inExpected: false, inResult: true)
+            }
             try extraResult.validate()
             // A standalone wrapper cannot authenticate unrelated workspace state.
             // The retained journal must reject a replacement for its original receipt.
@@ -172,12 +176,14 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
             row.receiptData = originalBytes
             try session.context.save()
             try session.journal.validateAll()
-            try assertPublicationAffectedResultGuards(receipt, mutation: mutation)
+            try readyStageObserved("affected result receipt guards") {
+                try assertPublicationAffectedResultGuards(receipt, mutation: mutation)
+            }
             XCTAssertEqual(try XCTUnwrap(session.lifecycle.readyStagePublicationEvidence(
                 for: fixture.bundle)).receipt, receipt)
             return receipt
-        }
-        try node.withSession { session in
+        } }
+        try readyStageObserved("publication receipt cold session") { try node.withSession { session in
             let receipt = try session.lifecycle.publish(readyStage: fixture.bundle)
             XCTAssertEqual(receipt, original)
             XCTAssertEqual(try session.lifecycle.currentCheckpoint(workspaceID: fixture.workspaceID,
@@ -185,7 +191,7 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
             _ = try FieldDraftMutationReceiptV1(mutation: fixture.publicationMutation(),
                                                 mutationReceipt: receipt)
             try session.journal.validateAll()
-        }
+        } }
     }
 
     func testOccupiedStageStalePredecessorAndDivergentRetryPreserveCommittedPair() throws {
@@ -379,7 +385,9 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
             step = "rewrite missing-\(removedKind.rawValue) negative package"
             let rewritten = try removeFieldDraftRowAndRehashPackage(at: missingRow, kind: removedKind)
             step = "decode missing-\(removedKind.rawValue) records"
-            let decodable = try BackupCanonicalDecoderV1().decodeRecords(rewritten)
+            let decodable = try readyStageObserved("decode missing-\(removedKind.rawValue) records") {
+                try BackupCanonicalDecoderV1().decodeRecords(rewritten)
+            }
             XCTAssertEqual(decodable.fieldDrafts.count, 1)
             XCTAssertEqual(decodable.fieldDrafts.first?.kind,
                            removedKind == .stagingItem ? .checkpoint : .stagingItem)
@@ -722,8 +730,7 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         let index = try XCTUnwrap(rows.firstIndex { ($0["kind"] as? String) == kind.rawValue })
         rows.remove(at: index)
         object["fieldDrafts"] = rows
-        let recordsData = try JSONSerialization.data(withJSONObject: object,
-                                                      options: [.sortedKeys, .withoutEscapingSlashes])
+        let recordsData = try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(object)
         try recordsData.write(to: recordsURL, options: .atomic)
 
         let manifestURL = package.appendingPathComponent("manifest.json")
@@ -756,8 +763,10 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
 
     private func incumbentConflictPayload() throws -> ReviewedDraftConflictResolutionV1 {
         let workspace = WorkspaceID(rawValue: Self.id(120))
-        let key = try MyDayKeyV1(workspaceID: workspace,
-            civilDate: .init(year: 2026, month: 9, day: 14), ianaTimeZoneIdentifier: "UTC")
+        let key = try readyStageObserved("construct conflict MyDay key") {
+            try MyDayKeyV1(workspaceID: workspace,
+                civilDate: .init(year: 2026, month: 9, day: 14), ianaTimeZoneIdentifier: "UTC")
+        }
         let actor = try LocalActorReferenceV1(actorReferenceID: Self.id(121),
             workspaceID: workspace, displayName: "Reviewer")
         let snapshot = try ActorSnapshotV1(snapshotID: Self.id(122), workspaceID: workspace,
@@ -765,8 +774,10 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
             capturedAt: ReadyStageFixture.date)
         let context = try MyDayPlanningConfirmedContextV1(key: key, recordedBy: snapshot,
             keyWasExplicitlyConfirmed: true, recordedByWasExplicitlySelectedOrCaptured: true)
-        let payload = try MyDayPlanningDraftPayloadV1(editing: context,
-            intent: .plan(draft: .init(key: key, items: [], eligibleReferences: []), predecessor: nil))
+        let payload = try readyStageObserved("construct conflict editing payload") {
+            try MyDayPlanningDraftPayloadV1(editing: context,
+                intent: .plan(draft: .init(key: key, items: [], eligibleReferences: []), predecessor: nil))
+        }
         func checkpoint(revision: UInt64, state: FieldDraftStateV1,
                         mutationID: MutationIDV1, at: Date) throws -> FieldDraftCheckpointV1 {
             try .init(draftID: Self.id(123), workspaceID: workspace,
@@ -781,13 +792,30 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         let successor = try checkpoint(revision: 2, state: .active,
             mutationID: .init(rawValue: Self.id(125)),
             at: ReadyStageFixture.date.addingTimeInterval(1))
-        return try .init(plan: .reviewAndRebase, expectedCheckpoint: expected,
-            reviewedTargetBasis: .absent(key: key, expectedWorkspaceRevision: 0),
-            successorCheckpoint: successor)
+        return try readyStageObserved("construct reviewed conflict resolution") {
+            try .init(plan: .reviewAndRebase, expectedCheckpoint: expected,
+                reviewedTargetBasis: .absent(key: key, expectedWorkspaceRevision: 0),
+                successorCheckpoint: successor)
+        }
     }
 
     private static func id(_ slot: Int) -> UUID { ReadyStageFixture.id(slot) }
     private struct InjectedFailure: Error {}
+}
+
+@MainActor
+private func readyStageObserved<Value>(
+    _ phase: String, file: StaticString = #filePath, line: UInt = #line,
+    _ operation: () throws -> Value
+) rethrows -> Value {
+    do { return try operation() }
+    catch {
+        let value = error as NSError
+        XCTFail("Ready-stage failure phase=\(phase) type=\(String(reflecting: type(of: error)))"
+            + " value=\(String(reflecting: error)) domain=\(value.domain) code=\(value.code)",
+            file: file, line: line)
+        throw error
+    }
 }
 
 private extension JSONDecoder {
@@ -948,17 +976,25 @@ private final class ReadyStageStoreNode {
     private var bootstrap = true
 
     init(workspaceID: WorkspaceID) throws {
-        root = FileManager.default.temporaryDirectory
+        let openedRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("V23-ready-stage-\(UUID().uuidString)", isDirectory: true)
+        root = openedRoot
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         identity = try .init(workspaceID: workspaceID, replicaID: .init(rawValue: UUID()))
         generationID = UUID()
         let epoch = try GenerationEpochV1(generationID: generationID,
             generationManifestSHA256: String(repeating: "c", count: 64))
-        registry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
-        let lease = try registry.acquire(epoch: epoch, role: .writer)
-        fence = try StaleWriterFenceV1(expectedGenerationEpoch: epoch,
-            writerLeaseToken: lease, registry: registry, currentGenerationEpoch: { epoch })
+        let openedRegistry = try readyStageObserved("create ready-stage lease registry") {
+            try GenerationLeaseRegistryV1(applicationSupportURL: openedRoot)
+        }
+        registry = openedRegistry
+        let lease = try readyStageObserved("acquire ready-stage writer lease") {
+            try openedRegistry.acquire(epoch: epoch, role: .writer)
+        }
+        fence = try readyStageObserved("create ready-stage writer fence") {
+            try StaleWriterFenceV1(expectedGenerationEpoch: epoch,
+                writerLeaseToken: lease, registry: openedRegistry, currentGenerationEpoch: { epoch })
+        }
     }
 
     func withSession<T>(invalidateAtEnd: Bool = true,
@@ -966,26 +1002,34 @@ private final class ReadyStageStoreNode {
         try autoreleasepool {
             let schema = Schema(PersistentSchemaV53.models,
                                 version: PersistentSchemaV53.versionIdentifier)
-            let container = try ModelContainer(for: schema, migrationPlan: nil,
-                configurations: [ModelConfiguration("ReadyStage", schema: schema,
-                    url: root.appendingPathComponent("ready-stage.store"),
-                    allowsSave: true, cloudKitDatabase: .none)])
+            let container = try readyStageObserved("open ready-stage model container") {
+                try ModelContainer(for: schema, migrationPlan: nil,
+                    configurations: [ModelConfiguration("ReadyStage", schema: schema,
+                        url: root.appendingPathComponent("ready-stage.store"),
+                        allowsSave: true, cloudKitDatabase: .none)])
+            }
             let context = ModelContext(container)
             context.autosaveEnabled = false
-            let journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
-                generationID: generationID, allowStateBootstrap: bootstrap,
-                staleWriterFence: fence)
+            let journal = try readyStageObserved("open ready-stage journal") {
+                try MutationJournalStoreV1(modelContext: context, identity: identity,
+                    generationID: generationID, allowStateBootstrap: bootstrap,
+                    staleWriterFence: fence)
+            }
             bootstrap = false
             let writerID = UUID()
             let adapter = WorkspaceWriterAdapterV1(modelContext: context)
-            let writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
-                initialRevision: journal.currentRevision(writerInstanceID: writerID),
-                clock: ReadyStageClock(), idSource: ReadyStageIDs(value: writerID),
-                fileAuthority: ReadyStageFiles(), adapter: adapter, journalStore: journal)
+            let writer = try readyStageObserved("open ready-stage writer") {
+                try WorkspaceWriterV1(identity: identity, generationID: generationID,
+                    initialRevision: journal.currentRevision(writerInstanceID: writerID),
+                    clock: ReadyStageClock(), idSource: ReadyStageIDs(value: writerID),
+                    fileAuthority: ReadyStageFiles(), adapter: adapter, journalStore: journal)
+            }
             defer { if invalidateAtEnd { writer.invalidate() } }
-            return try body(.init(container: container, context: context, journal: journal, adapter: adapter,
-                writer: writer, lifecycle: .init(writer: writer, journal: journal,
-                                                 modelContext: context)))
+            return try readyStageObserved("execute ready-stage fixture body") {
+                try body(.init(container: container, context: context, journal: journal, adapter: adapter,
+                    writer: writer, lifecycle: .init(writer: writer, journal: journal,
+                                                     modelContext: context)))
+            }
         }
     }
 

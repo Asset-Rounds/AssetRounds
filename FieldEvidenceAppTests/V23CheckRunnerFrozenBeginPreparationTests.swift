@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SwiftData
 import XCTest
@@ -1033,9 +1034,11 @@ final class FrozenBeginFixture {
     /// authenticated ENTRY, durable Begin, genuine normalized JPEG promotion,
     /// and receipts written through the production writer and draft adapter.
     func persistCurrentPhotoApplicationFixture() async throws -> CurrentPhotoApplicationFixture {
+        let attachmentStaging = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: root, workspaceID: workspaceID)
         let service = try ProductionCheckRunnerItemDraftServiceV1(session: coordinator,
             progress: progress, coordinator: runner, publishedRelease: publishedRelease,
-            clock: clock, ids: ids)
+            clock: clock, ids: ids, attachmentStaging: attachmentStaging)
         let source = try captureSource()
         let site = try XCTUnwrap(context.fetch(FetchDescriptor<Site>()).first { $0.id == siteID })
         let resolvedTimeZoneID = site.timeZoneID ?? "America/New_York"
@@ -1154,12 +1157,9 @@ final class FrozenBeginFixture {
             closeDetail: parent.field.closeDetail, semanticAnchor: parent.field.semanticAnchor)
         let pendingPayload = try CheckRunnerItemDraftPayloadV1(editing: source, field: pendingField)
         let parentPending = try parentSuccessor(bound, payload: pendingPayload,
-            updatedAt: bound.updatedAt.addingTimeInterval(1),
+            updatedAt: intent.stageCreatedAt,
             mutationID: .init(rawValue: beginPreparationUUID(30_030)))
         let adapter = try coordinator.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: context)
-        _ = try adapter.compareAndSwap(checkpoint: parentPending,
-            expectedDraftRevision: bound.draftRevision,
-            expectedBaseRevision: bound.baseCanonicalRevision)
 
         func photoCheckpoint(_ phase: CheckRunnerPhotoDurablePhaseV1, revision: UInt64,
                              state: FieldDraftStateV1, updatedAt: Date,
@@ -1182,13 +1182,202 @@ final class FrozenBeginFixture {
         let awaiting = try photoCheckpoint(.awaitingRawStage(intent), revision: 1,
             state: .active, updatedAt: intent.stageCreatedAt,
             mutationID: .init(rawValue: beginPreparationUUID(30_040)))
-        _ = try adapter.compareAndSwap(checkpoint: awaiting, expectedDraftRevision: 0,
-            expectedBaseRevision: awaiting.baseCanonicalRevision)
+        let proposal = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(awaiting)
+        func proposalWith(_ selectedIntent: CheckRunnerPhotoRawStageIntentV1) throws -> CheckRunnerPhotoDraftPayloadV1 {
+            try .init(workspaceID: workspaceID, childDraftID: childDraftID, parentDraftID: bound.draftID,
+                recordID: proposal.recordID, assetID: proposal.assetID, sourceBinding: proposal.sourceBinding,
+                workflowStage: proposal.workflowStage, captureStep: proposal.captureStep,
+                purposeKey: proposal.purposeKey, origin: proposal.origin, phase: .awaitingRawStage(selectedIntent))
+        }
+        // A real unrelated generic stage keeps the collision probe on valid
+        // journal history and tests preservation of the original physical bytes.
+        let incumbentBytes = Data("existing unrelated attachment".utf8)
+        let incumbentStage = try await attachmentStaging.stage(data: incumbentBytes,
+            draftID: beginPreparationUUID(38_001), workspaceID: workspaceID,
+            attachmentKind: .photo, stageID: beginPreparationUUID(38_002),
+            mutationID: .init(rawValue: beginPreparationUUID(38_003)))
+        let generic = try C36FieldDraftTestSupportV1.makeFixture(seed: 938_100).activeCheckpoint
+        let incumbentCheckpoint = try FieldDraftCheckpointV1(draftID: incumbentStage.draftID,
+            workspaceID: workspaceID, scope: generic.scope, purpose: generic.purpose, codec: generic.codec,
+            baseCanonicalRevision: 0, draftRevision: 1, payloadData: generic.payloadData, stageIDs: [],
+            resumeAnchor: generic.resumeAnchor, state: .active, updatedAt: bound.updatedAt,
+            mutationID: .init(rawValue: beginPreparationUUID(38_004)))
+        _ = try adapter.compareAndSwap(checkpoint: incumbentCheckpoint, expectedDraftRevision: 0, expectedBaseRevision: 0)
+        let incumbentReady = try FieldDraftCheckpointV1(draftID: incumbentCheckpoint.draftID,
+            workspaceID: workspaceID, scope: generic.scope, purpose: generic.purpose, codec: generic.codec,
+            baseCanonicalRevision: 0, draftRevision: 2, payloadData: generic.payloadData,
+            stageIDs: [incumbentStage.stageID], resumeAnchor: generic.resumeAnchor, state: .active,
+            updatedAt: bound.updatedAt, mutationID: incumbentStage.mutationID)
+        let incumbentBundle = try FieldDraftStagePublicationBundleV1(expectedCheckpoint: incumbentCheckpoint,
+            readyItem: incumbentStage, successorCheckpoint: incumbentReady)
+        let incumbentReceipt = try adapter.publish(readyStage: incumbentBundle)
+        let beforePreparation = try coordinator.workspaceWriter.currentRevision()
+        let beforePreparationIDs = ids.callCount
+        XCTAssertThrowsError(try service.prepareRawPhoto(parentDraftID: bound.draftID,
+            expectedCheckpointSHA256: String(repeating: "0", count: 64), proposal: proposal)) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .staleDraftRevision)
+        }
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), beforePreparation)
+        XCTAssertEqual(ids.callCount, beforePreparationIDs)
+        let occupiedMutationIntent = try CheckRunnerPhotoRawStageIntentV1(stageID: intent.stageID,
+            stageMutationID: bound.mutationID, stageCreatedAt: intent.stageCreatedAt,
+            expectedSourceByteCount: intent.expectedSourceByteCount, provenanceID: intent.provenanceID,
+            evidenceID: intent.evidenceID, evidenceCreatedAt: intent.evidenceCreatedAt)
+        XCTAssertThrowsError(try service.prepareRawPhoto(parentDraftID: bound.draftID,
+            expectedCheckpointSHA256: bound.checkpointSHA256, proposal: proposalWith(occupiedMutationIntent))) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .staleDraftRevision)
+        }
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), beforePreparation)
+        XCTAssertEqual(ids.callCount, beforePreparationIDs)
+        let occupiedStageIntent = try CheckRunnerPhotoRawStageIntentV1(stageID: incumbentStage.stageID,
+            stageMutationID: intent.stageMutationID, stageCreatedAt: intent.stageCreatedAt,
+            expectedSourceByteCount: intent.expectedSourceByteCount, provenanceID: intent.provenanceID,
+            evidenceID: intent.evidenceID, evidenceCreatedAt: intent.evidenceCreatedAt)
+        XCTAssertThrowsError(try service.prepareRawPhoto(parentDraftID: bound.draftID,
+            expectedCheckpointSHA256: bound.checkpointSHA256, proposal: proposalWith(occupiedStageIntent))) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .staleDraftRevision)
+        }
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), beforePreparation)
+        XCTAssertEqual(ids.callCount, beforePreparationIDs)
+        XCTAssertEqual(try service.read(draftID: bound.draftID), bound)
+        XCTAssertNil(try adapter.currentCheckpoint(workspaceID: workspaceID, draftID: childDraftID))
+        XCTAssertEqual(try adapter.readyStagePublicationEvidence(for: incumbentBundle)?.receipt, incumbentReceipt)
+        let retainedIncumbentBytes = try await attachmentStaging.data(stageID: incumbentStage.stageID)
+        XCTAssertEqual(retainedIncumbentBytes, incumbentBytes)
+        ids.enqueue([beginPreparationUUID(30_030), beginPreparationUUID(30_040)])
+        let laterClockService = try ProductionCheckRunnerItemDraftServiceV1(session: coordinator,
+            progress: progress, coordinator: runner, publishedRelease: publishedRelease,
+            clock: FrozenBeginClock(value: intent.stageCreatedAt.addingTimeInterval(100)), ids: ids,
+            attachmentStaging: attachmentStaging)
+        let preparedPhoto = try laterClockService.prepareRawPhoto(parentDraftID: bound.draftID,
+            expectedCheckpointSHA256: bound.checkpointSHA256, proposal: proposal)
+        XCTAssertEqual(preparedPhoto, awaiting)
+        XCTAssertEqual(try service.read(draftID: bound.draftID), parentPending)
+        let preparedRevision = try coordinator.workspaceWriter.currentRevision()
+        let preparedIDs = ids.callCount
+        XCTAssertEqual(try service.prepareRawPhoto(parentDraftID: bound.draftID,
+            expectedCheckpointSHA256: parentPending.checkpointSHA256, proposal: proposal), awaiting)
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), preparedRevision)
+        XCTAssertEqual(ids.callCount, preparedIDs)
+        let changedIntent = try CheckRunnerPhotoRawStageIntentV1(stageID: intent.stageID,
+            stageMutationID: intent.stageMutationID, stageCreatedAt: intent.stageCreatedAt,
+            expectedSourceByteCount: intent.expectedSourceByteCount + 1,
+            provenanceID: intent.provenanceID, evidenceID: intent.evidenceID,
+            evidenceCreatedAt: intent.evidenceCreatedAt)
+        let divergentProposal = try proposalWith(changedIntent)
+        XCTAssertThrowsError(try service.prepareRawPhoto(parentDraftID: bound.draftID,
+            expectedCheckpointSHA256: parentPending.checkpointSHA256, proposal: divergentProposal)) { error in
+            XCTAssertEqual(error as? FieldDraftFailureV1, .digestMismatch)
+        }
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), preparedRevision)
+        XCTAssertEqual(ids.callCount, preparedIDs)
         let rawCheckpoint = try photoCheckpoint(.rawReady(raw), revision: 2,
             state: .active, updatedAt: intent.stageCreatedAt,
             mutationID: raw.stagePublicationMutationID)
-        _ = try adapter.publish(readyStage: .init(expectedCheckpoint: awaiting,
-            readyItem: ready, successorCheckpoint: rawCheckpoint))
+        let rawSourceURL = root.appendingPathComponent("selected-photo-source.png")
+        try sourceData.write(to: rawSourceURL, options: .atomic)
+        let cancelledPublication = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await service.publishRawPhoto(parentDraftID: bound.draftID,
+                childDraftID: childDraftID, sourceURL: rawSourceURL)
+        }
+        do {
+            _ = try await cancelledPublication.value
+            XCTFail("Cancelled raw publication must leave the prepared child and physical stage unchanged")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), preparedRevision)
+        let cancelledStage = try await attachmentStaging.item(stageID: stageID)
+        XCTAssertNil(cancelledStage)
+        XCTAssertEqual(try adapter.currentCheckpoint(workspaceID: workspaceID, draftID: childDraftID), awaiting)
+        let fifoSource = root.appendingPathComponent("selected-photo-source.fifo")
+        XCTAssertEqual(Darwin.mkfifo(fifoSource.path, mode_t(0o600)), 0)
+        var fifoBefore = stat()
+        XCTAssertEqual(Darwin.lstat(fifoSource.path, &fifoBefore), 0)
+        let fifoCompleted = XCTestExpectation(description: "Raw source FIFO rejects without a writer")
+        let fifoPublication = Task { @MainActor in
+            defer { fifoCompleted.fulfill() }
+            do {
+                _ = try await service.publishRawPhoto(parentDraftID: bound.draftID,
+                    childDraftID: childDraftID, sourceURL: fifoSource)
+                XCTFail("A FIFO source must fail without blocking or publishing a raw stage")
+            } catch {
+                XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .unsafePath)
+            }
+        }
+        let fifoCompletion = await XCTWaiter.fulfillment(of: [fifoCompleted], timeout: 5)
+        XCTAssertEqual(fifoCompletion, .completed)
+        // Unblock the old faulty open after the assertion, allowing subsequent
+        // state/preservation checks to run even if this regression returns.
+        let fifoRescue = Darwin.open(fifoSource.path, O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        await fifoPublication.value
+        if fifoRescue >= 0 { Darwin.close(fifoRescue) }
+        var fifoAfter = stat()
+        XCTAssertEqual(Darwin.lstat(fifoSource.path, &fifoAfter), 0)
+        XCTAssertEqual(fifoAfter.st_mode & S_IFMT, S_IFIFO)
+        XCTAssertEqual(fifoAfter.st_dev, fifoBefore.st_dev)
+        XCTAssertEqual(fifoAfter.st_ino, fifoBefore.st_ino)
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), preparedRevision)
+        XCTAssertEqual(try adapter.currentCheckpoint(workspaceID: workspaceID, draftID: childDraftID), awaiting)
+        let rejectedStage = try await attachmentStaging.item(stageID: stageID)
+        XCTAssertNil(rejectedStage)
+        try FileManager.default.removeItem(at: fifoSource)
+        let rawPublication = try await service.publishRawPhoto(parentDraftID: bound.draftID,
+            childDraftID: childDraftID, sourceURL: rawSourceURL)
+        let rawBundle = try FieldDraftStagePublicationBundleV1(expectedCheckpoint: awaiting,
+            readyItem: ready, successorCheckpoint: rawCheckpoint)
+        XCTAssertEqual(rawPublication, try XCTUnwrap(adapter.readyStagePublicationEvidence(for: rawBundle)))
+        XCTAssertEqual(try adapter.currentCheckpoint(workspaceID: workspaceID, draftID: childDraftID),
+                       rawCheckpoint)
+        let publishedRevision = try coordinator.workspaceWriter.currentRevision()
+        try FileManager.default.removeItem(at: rawSourceURL)
+        // Exact retry authenticates the owned raw witness before accessing the
+        // now-absent external source, and returns the original canonical receipt.
+        let repeatedRawPublication = try await service.publishRawPhoto(parentDraftID: bound.draftID,
+            childDraftID: childDraftID, sourceURL: rawSourceURL)
+        XCTAssertEqual(repeatedRawPublication, rawPublication)
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), publishedRevision)
+        let coldStaging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: root,
+                                                             workspaceID: workspaceID)
+        let coldService = try ProductionCheckRunnerItemDraftServiceV1(session: coordinator,
+            progress: progress, coordinator: runner, publishedRelease: publishedRelease,
+            clock: clock, ids: ids, attachmentStaging: coldStaging)
+        XCTAssertEqual(try coldService.prepareRawPhoto(parentDraftID: bound.draftID,
+            expectedCheckpointSHA256: parentPending.checkpointSHA256, proposal: proposal), rawCheckpoint)
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), publishedRevision)
+        XCTAssertEqual(ids.callCount, preparedIDs)
+        let coldRawPublication = try await coldService.publishRawPhoto(parentDraftID: bound.draftID,
+            childDraftID: childDraftID, sourceURL: rawSourceURL)
+        XCTAssertEqual(coldRawPublication, rawPublication)
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), publishedRevision)
+        for (wrongParent, wrongChild) in [
+            (beginPreparationUUID(39_001), childDraftID),
+            (bound.draftID, beginPreparationUUID(39_002)),
+        ] {
+            do {
+                _ = try await service.publishRawPhoto(parentDraftID: wrongParent,
+                    childDraftID: wrongChild, sourceURL: rawSourceURL)
+                XCTFail("Raw publication must reject a parent or child outside its authenticated history")
+            } catch {
+                XCTAssertEqual(error as? FieldDraftFailureV1, .missingReceipt)
+            }
+            XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), publishedRevision)
+        }
+        let foreignStaging = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: root.appendingPathComponent("different-photo-owner"),
+            workspaceID: workspaceID)
+        let wrongRootService = try ProductionCheckRunnerItemDraftServiceV1(session: coordinator,
+            progress: progress, coordinator: runner, publishedRelease: publishedRelease,
+            clock: clock, ids: ids, attachmentStaging: foreignStaging)
+        do {
+            _ = try await wrongRootService.publishRawPhoto(parentDraftID: bound.draftID,
+                childDraftID: childDraftID, sourceURL: rawSourceURL)
+            XCTFail("A different physical owner cannot publish the current session's photo")
+        } catch {
+            XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .invalidRoot)
+        }
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), publishedRevision)
         let pairCheckpoint = try photoCheckpoint(.pairReady(pair), revision: 3,
             state: .active, updatedAt: intent.stageCreatedAt,
             mutationID: .init(rawValue: beginPreparationUUID(30_041)))

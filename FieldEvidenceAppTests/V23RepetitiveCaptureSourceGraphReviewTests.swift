@@ -858,7 +858,16 @@ private extension V23RepetitiveCaptureSourceGraphReviewTests {
             identityDomain: domain, acceptedIdentitySHA256: accepted,
             conflictingIdentitySHA256: String(repeating: "f", count: 64),
             detectedAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(1_000))
-        let encoded = try WorkspaceMutationCanonicalV1.data(quarantine)
+        // Quarantines use the backup wire dialect, including RFC3339 dates;
+        // mutation-envelope canonical JSON uses a different date representation.
+        let encoded = try CanonicalJSONV1.encode(.object([
+            "acceptedIdentitySHA256": .string(quarantine.acceptedIdentitySHA256),
+            "conflictingIdentitySHA256": .string(quarantine.conflictingIdentitySHA256),
+            "detectedAt": CanonicalJSONV1.date(quarantine.detectedAt),
+            "identityDomain": .string(quarantine.identityDomain.rawValue),
+            "mutationID": CanonicalJSONV1.uuid(quarantine.mutationID),
+            "workspaceID": CanonicalJSONV1.uuid(quarantine.workspaceID.rawValue),
+        ]))
         let quarantineObject = try XCTUnwrap(
             JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         return try fixture.validatedPackage { object in
@@ -867,6 +876,10 @@ private extension V23RepetitiveCaptureSourceGraphReviewTests {
             values.append(quarantineObject)
             history["quarantines"] = values
             object["mutationHistory"] = history
+            let bytes = try RepetitiveCaptureSourcePackageFixture.canonicalJSONData(object)
+            let decoded = try BackupCanonicalDecoderV1().decodeRecords(bytes)
+            let decodedHistory = try XCTUnwrap(decoded.mutationHistory)
+            XCTAssertEqual(decodedHistory.quarantines.last, quarantine)
         }
     }
 }

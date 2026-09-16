@@ -205,6 +205,114 @@ final class V9_02FileAuthorityTests: XCTestCase {
         }
         XCTAssertEqual(try Data(contentsOf: streamURL), framedBytes)
 
+        // Lower-only limits exercise the same production boundary without
+        // making a test perform 100,000 durable writes. Rotation retains the
+        // synchronized first stream and starts a distinct sequence at one.
+        let rotatedID = UUID()
+        let firstID = UUID()
+        let rotating = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+            streamID: firstID, nextStreamID: { rotatedID },
+            framesPerStream: 2, maximumStreams: 2)
+        let firstURL = directory.appendingPathComponent(firstID.uuidString.lowercased() + ".jsonl")
+        let rotatedURL = directory.appendingPathComponent(rotatedID.uuidString.lowercased() + ".jsonl")
+        try rotating.write(payload)
+        try rotating.write(payload)
+        let firstBytes = try Data(contentsOf: firstURL)
+        XCTAssertFalse(fileManager.fileExists(atPath: rotatedURL.path))
+        try rotating.write(payload)
+        try rotating.write(payload)
+        let rotatedBytes = try Data(contentsOf: rotatedURL)
+        XCTAssertEqual(try Data(contentsOf: firstURL), firstBytes)
+        for (id, bytes) in [(firstID, firstBytes), (rotatedID, rotatedBytes)] {
+            let rows = bytes.split(separator: 10)
+            XCTAssertEqual(rows.count, 2)
+            for (offset, row) in rows.enumerated() {
+                let value = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(row)) as? [String: Any])
+                XCTAssertEqual(value["streamID"] as? String, id.uuidString.lowercased())
+                XCTAssertEqual(value["sequence"] as? Int, offset + 1)
+                XCTAssertEqual(value["payloadByteCount"] as? Int, payload.count)
+                XCTAssertEqual(value["payloadSHA256"] as? String,
+                               KernelCanonicalHashV1.sha256(payload).uppercased())
+                XCTAssertEqual(Data(base64Encoded: try XCTUnwrap(value["payloadBase64"] as? String)), payload)
+            }
+        }
+        XCTAssertThrowsError(try rotating.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .invalidPayload)
+        }
+        XCTAssertThrowsError(try rotating.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+        }
+        XCTAssertEqual(try Data(contentsOf: firstURL), firstBytes)
+        XCTAssertEqual(try Data(contentsOf: rotatedURL), rotatedBytes)
+
+        // An occupied successor is never truncated or retried under a new name.
+        let collision = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+            nextStreamID: { firstID }, framesPerStream: 1)
+        try collision.write(payload)
+        XCTAssertThrowsError(try collision.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .unsafeJournal)
+        }
+        XCTAssertThrowsError(try collision.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+        }
+        XCTAssertEqual(try Data(contentsOf: firstURL), firstBytes)
+
+        let boundedID = UUID()
+        let bounded = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+            streamID: boundedID, maximumTotalBytes: 1)
+        XCTAssertThrowsError(try bounded.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .invalidPayload)
+        }
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(
+            boundedID.uuidString.lowercased() + ".jsonl")), Data())
+        XCTAssertThrowsError(try bounded.write(payload)) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+        }
+        for invalidLimit in [0, 100_001] {
+            let invalid = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+                framesPerStream: invalidLimit)
+            XCTAssertThrowsError(try invalid.write(payload)) {
+                XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .invalidPayload)
+            }
+        }
+        for invalidLimit in [0, 65] {
+            XCTAssertThrowsError(try ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+                maximumStreams: invalidLimit).write(payload)) {
+                XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .invalidPayload)
+            }
+        }
+        let invalidTotalLimits: [Int64] = [0, 1_024 * 1_024 * 1_024 + 1]
+        for invalidLimit in invalidTotalLimits {
+            XCTAssertThrowsError(try ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+                maximumTotalBytes: invalidLimit).write(payload)) {
+                XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .invalidPayload)
+            }
+        }
+        let concurrentRoot = try makeTemporaryRoot("diagnostic-concurrent-rotation")
+        defer { try? fileManager.removeItem(at: concurrentRoot) }
+        let concurrentRotation = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: concurrentRoot,
+            framesPerStream: 3, maximumStreams: 3)
+        DispatchQueue.concurrentPerform(iterations: 7) { _ in
+            do { try concurrentRotation.write(payload) }
+            catch { XCTFail("Concurrent diagnostic rotation failed: \(error)") }
+        }
+        let concurrentFiles = try fileManager.contentsOfDirectory(
+            at: concurrentRoot.appendingPathComponent("AssetRoundsNativeDiagnostics"),
+            includingPropertiesForKeys: nil)
+        XCTAssertEqual(concurrentFiles.count, 3)
+        var concurrentCounts: [Int] = []
+        for url in concurrentFiles {
+            let rows = try Data(contentsOf: url).split(separator: 10)
+            concurrentCounts.append(rows.count)
+            for (offset, row) in rows.enumerated() {
+                let value = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(row)) as? [String: Any])
+                XCTAssertEqual(value["streamID"] as? String, url.deletingPathExtension().lastPathComponent)
+                XCTAssertEqual(value["sequence"] as? Int, offset + 1)
+                XCTAssertEqual(Data(base64Encoded: try XCTUnwrap(value["payloadBase64"] as? String)), payload)
+            }
+        }
+        XCTAssertEqual(concurrentCounts.sorted(), [1, 3, 3])
+
         let symlinkRoot = try makeTemporaryRoot("diagnostic-symlink")
         defer { try? fileManager.removeItem(at: symlinkRoot) }
         try fileManager.createSymbolicLink(
@@ -215,7 +323,8 @@ final class V9_02FileAuthorityTests: XCTestCase {
 
         let linkedID = UUID()
         let linkedURL = directory.appendingPathComponent(linkedID.uuidString.lowercased() + ".jsonl")
-        let linkedJournal = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: linkedID)
+        let linkedJournal = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root,
+            streamID: linkedID, framesPerStream: 1)
         try linkedJournal.write(payload)
         let linkedBefore = try Data(contentsOf: linkedURL)
         try fileManager.linkItem(at: linkedURL, to: root.appendingPathComponent("diagnostic-hardlink.jsonl"))

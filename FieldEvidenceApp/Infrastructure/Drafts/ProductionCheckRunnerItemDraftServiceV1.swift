@@ -21,8 +21,38 @@ struct CurrentPhotoMediaReadV1 {
     let media: CheckRunnerPhotoMediaReadbackV1
 }
 
-/// Initial parent/Begin persistence only. No production factory registers this
-/// owner until the remaining child, restore and lifecycle prerequisites pass.
+/// Only the current application owner can issue this capability. The media
+/// actor receives immutable preparation inputs; final effects return here and
+/// run under the original writer fence and the prepared attachment-root lock.
+@MainActor
+final class CheckRunnerPhotoRawPublicationAuthorityV1 {
+    nonisolated let payload: CheckRunnerPhotoDraftPayloadV1
+    nonisolated let publishedRawReady: CheckRunnerPhotoRawReadyV1?
+    nonisolated let applicationSupportURL: URL
+    fileprivate let evidence: CheckRunnerPhotoRawStageEvidenceV1
+    fileprivate let revision: WorkspaceRevisionV1
+    fileprivate let owner: CurrentPhotoTargetReadOwnerV1
+    fileprivate weak var service: ProductionCheckRunnerItemDraftServiceV1?
+    fileprivate weak var writer: WorkspaceWriterV1?
+
+    fileprivate init(service: ProductionCheckRunnerItemDraftServiceV1,
+        writer: WorkspaceWriterV1, owner: CurrentPhotoTargetReadOwnerV1,
+        evidence: CheckRunnerPhotoRawStageEvidenceV1, revision: WorkspaceRevisionV1,
+        applicationSupportURL: URL) {
+        self.service = service; self.writer = writer; self.owner = owner
+        self.evidence = evidence; self.revision = revision
+        payload = evidence.initialPayload; publishedRawReady = evidence.rawReady
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+    }
+
+    func publish(_ prepared: DraftPreparedRawPhotoPublicationV1) throws -> FieldDraftCommittedEvidenceV1 {
+        guard let service else { throw ScanToWorkFailureV1.authorityMismatch }
+        return try service.publishPreparedRawPhoto(authority: self, prepared: prepared)
+    }
+}
+
+/// Durable Begin and receipt-bound photo staging through the existing owners.
+/// Factory registration awaits complete promotion, restore and lifecycle gates.
 @MainActor
 final class ProductionCheckRunnerItemDraftServiceV1 {
     private weak var session: StoreSessionCoordinator?
@@ -33,15 +63,18 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     private let publishedRelease: InspectionPackageReleaseV1
     private let clock: any ApplicationClock
     private let ids: any ApplicationIDSource
+    private let attachmentStaging: DraftAttachmentStagingAdapterV1?
     private let currentPhotoReadOwner = CurrentPhotoTargetReadOwnerV1()
 
     init(session: StoreSessionCoordinator, progress: ProductionRepetitiveCaptureProgressServiceV2,
          coordinator: CheckRunnerCoordinator, publishedRelease: InspectionPackageReleaseV1,
-         clock: any ApplicationClock, ids: any ApplicationIDSource) throws {
+         clock: any ApplicationClock, ids: any ApplicationIDSource,
+         attachmentStaging: DraftAttachmentStagingAdapterV1? = nil) throws {
         try progress.validateCheckRunnerOwner(writer: session.workspaceWriter, modelContext: session.modelContext)
         self.session = session; originalWriter = session.workspaceWriter; workspaceID = session.workspaceID
         self.progress = progress; self.coordinator = coordinator; self.publishedRelease = publishedRelease
         self.clock = clock; self.ids = ids
+        self.attachmentStaging = attachmentStaging
     }
 
     /// The first checkpoint has no workflow record identity or target effect.
@@ -157,6 +190,175 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         guard observed == value.media else { throw ScanToWorkFailureV1.stale }
     }
 
+    /// Persist the parent selection before its child. The proposal is only a
+    /// value: full original history, current source and access authorize writes.
+    /// A surviving pending slot can create only its exact selected child.
+    func prepareRawPhoto(parentDraftID: UUID, expectedCheckpointSHA256: String,
+        proposal: CheckRunnerPhotoDraftPayloadV1) throws -> FieldDraftCheckpointV1 {
+        try proposal.validate()
+        guard case .awaitingRawStage = proposal.phase,
+              proposal.parentDraftID == parentDraftID, proposal.workspaceID == workspaceID else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        let current = try currentSession()
+        let writer = current.workspaceWriter
+        guard let frontier = try writer.checkRunnerPhotoPreparationEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, captureStep: proposal.captureStep) else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        let checkpoint = frontier.parentCheckpoint
+        guard checkpoint.checkpointSHA256 == expectedCheckpointSHA256 else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        try coordinator.validatePhotoPreparation(parentCheckpoint: checkpoint, photo: proposal,
+            workflowEvidence: frontier.workflow, timeZoneEvidence: frontier.timeZone,
+            progress: progress, publishedRelease: publishedRelease)
+        let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+        let slot = CheckRunnerPhotoSlotV1.pending(childDraftID: proposal.childDraftID,
+            captureStep: proposal.captureStep, purposeKey: proposal.purposeKey)
+        let selected = proposal.captureStep == .wide ? parent.field.wideContext : parent.field.closeDetail
+        guard selected == nil || selected == slot else { throw FieldDraftFailureV1.staleDraftRevision }
+        let childID = proposal.childDraftID
+        var descriptor = FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate { $0.draftID == childID })
+        descriptor.fetchLimit = 2
+        let existing = try current.modelContext.fetch(descriptor)
+        if !existing.isEmpty {
+            guard selected == slot, existing.count == 1 else { throw FieldDraftFailureV1.staleDraftRevision }
+            let original = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childID)
+            guard original.initialPayload == proposal else { throw FieldDraftFailureV1.digestMismatch }
+            return original.currentCheckpoint
+        }
+        let stageID = proposal.phase.intent.stageID
+        var stageDescriptor = FetchDescriptor<AttachmentStagingItemRow>(predicate: #Predicate { $0.stageID == stageID })
+        stageDescriptor.fetchLimit = 2
+        guard try current.modelContext.fetch(stageDescriptor).isEmpty,
+              try writer.durableReceipt(mutationID: proposal.phase.intent.stageMutationID) == nil else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let pending: FieldDraftCheckpointV1
+        if selected == nil {
+            let field = parent.field
+            let payload = try CheckRunnerItemDraftPayloadV1(editing: parent.source, field: .init(
+                preflight: field.preflight, begin: field.begin, outcome: field.outcome,
+                wideContext: proposal.captureStep == .wide ? slot : field.wideContext,
+                closeDetail: proposal.captureStep == .close ? slot : field.closeDetail,
+                semanticAnchor: field.semanticAnchor))
+            // Both durable edges share the original logical capture instant.
+            // Their authenticated receipts establish the actual write order.
+            pending = try makeCheckpoint(payload: payload, predecessor: checkpoint,
+                                         frozenUpdatedAt: proposal.phase.intent.stageCreatedAt)
+            try proposal.validate(parent: payload, parentDraftID: parentDraftID)
+        } else { pending = checkpoint }
+        try proposal.validateRawStageIntent(parentSlotCheckpointUpdatedAt: pending.updatedAt)
+        let child = try FieldDraftCheckpointV1(draftID: childID, workspaceID: workspaceID,
+            scope: CheckRunnerPhotoDraftCodecV1.scope(payload: proposal), purpose: .inspectionReview,
+            codec: CheckRunnerPhotoDraftCodecV1.release(), baseCanonicalRevision: parent.source.roundAtEntry.revision,
+            draftRevision: 1, payloadData: CheckRunnerPhotoDraftCodecV1.encode(proposal), stageIDs: [],
+            resumeAnchor: CheckRunnerPhotoDraftCodecV1.resumeAnchor(payload: proposal), state: .active,
+            updatedAt: proposal.phase.intent.stageCreatedAt, mutationID: .init(rawValue: ids.makeID()))
+        guard Set([pending.mutationID.rawValue, child.mutationID.rawValue,
+                   proposal.phase.intent.stageMutationID.rawValue, proposal.phase.intent.evidenceID]).count == 4,
+              try writer.durableReceipt(mutationID: child.mutationID) == nil,
+              try writer.durableReceipt(mutationID: .init(rawValue: proposal.phase.intent.evidenceID)) == nil,
+              try selected != nil || writer.durableReceipt(mutationID: pending.mutationID) == nil else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let lifecycle = try writer.makeFieldDraftLifecycleAdapter(modelContext: current.modelContext)
+        if selected == nil {
+            _ = try lifecycle.compareAndSwap(checkpoint: pending, expectedDraftRevision: checkpoint.draftRevision,
+                                            expectedBaseRevision: checkpoint.baseCanonicalRevision)
+        }
+        guard let observed = try writer.checkRunnerPhotoPreparationEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, captureStep: proposal.captureStep),
+              observed.parentCheckpoint == pending else { throw FieldDraftFailureV1.missingReceipt }
+        try proposal.validate(parent: CheckRunnerItemDraftCodecV1.validateCheckpoint(pending),
+                              parentDraftID: parentDraftID)
+        try coordinator.validatePhotoPreparation(parentCheckpoint: pending, photo: proposal,
+            workflowEvidence: observed.workflow, timeZoneEvidence: observed.timeZone,
+            progress: progress, publishedRelease: publishedRelease)
+        _ = try lifecycle.compareAndSwap(checkpoint: child, expectedDraftRevision: 0,
+                                        expectedBaseRevision: child.baseCanonicalRevision)
+        let original = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childID)
+        guard original.initialPayload == proposal, original.currentCheckpoint == child else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        return child
+    }
+
+    /// The original pending checkpoint supplies every durable identity and
+    /// timestamp. Exact retries adopt existing physical and canonical originals.
+    func publishRawPhoto(parentDraftID: UUID, childDraftID: UUID, sourceURL: URL) async throws
+        -> FieldDraftCommittedEvidenceV1 {
+        try Task.checkCancellation()
+        guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
+        let current = try currentSession()
+        let writer = current.workspaceWriter
+        let revision = try writer.currentRevision()
+        let evidence = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
+        guard try currentSession().workspaceWriter.currentRevision() == revision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let authority = CheckRunnerPhotoRawPublicationAuthorityV1(service: self, writer: writer,
+            owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
+            applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL)
+        return try await attachmentStaging.stageRawPhoto(sourceURL: sourceURL, authority: authority)
+    }
+
+    private func currentRawPhotoEvidence(parentDraftID: UUID, childDraftID: UUID) throws
+        -> CheckRunnerPhotoRawStageEvidenceV1 {
+        let current = try currentSession()
+        guard let evidence = try current.workspaceWriter.checkRunnerPhotoRawStageEvidence(
+            workspaceID: workspaceID, parentDraftID: parentDraftID, childDraftID: childDraftID) else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        try coordinator.validatePendingPhotoPublication(evidence, progress: progress,
+                                                       publishedRelease: publishedRelease)
+        return evidence
+    }
+
+    fileprivate func publishPreparedRawPhoto(authority: CheckRunnerPhotoRawPublicationAuthorityV1,
+        prepared: DraftPreparedRawPhotoPublicationV1) throws -> FieldDraftCommittedEvidenceV1 {
+        try Task.checkCancellation()
+        guard authority.service === self, authority.owner === currentPhotoReadOwner,
+              let writer = authority.writer, let attachmentStaging,
+              prepared.adapterIdentity == ObjectIdentifier(attachmentStaging),
+              prepared.applicationSupportURL.standardizedFileURL == authority.applicationSupportURL else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let current = try currentSession()
+        return try current.withCheckRunnerPhotoPublication(expectedWriter: writer,
+            applicationSupportURL: authority.applicationSupportURL) {
+            try prepared.withPublicationLock { publish in
+                guard try currentSession().workspaceWriter.currentRevision() == authority.revision else {
+                    throw FieldDraftFailureV1.staleDraftRevision
+                }
+                let original = authority.evidence
+                let observed = try currentRawPhotoEvidence(parentDraftID: original.parentCheckpoint.draftID,
+                                                          childDraftID: original.initialPayload.childDraftID)
+                guard observed == original,
+                      observed.rawReady.map({ $0 == prepared.rawReady }) ?? true else {
+                    throw FieldDraftFailureV1.staleDraftRevision
+                }
+                let bundle = try observed.publicationBundle(raw: prepared.rawReady)
+                let lifecycle = try writer.makeFieldDraftLifecycleAdapter(modelContext: current.modelContext)
+                try Task.checkCancellation()
+                try publish()
+                let receipt = try lifecycle.publish(readyStage: bundle)
+                guard let committed = try lifecycle.readyStagePublicationEvidence(for: bundle),
+                      committed.receipt == receipt,
+                      observed.publication.map({ $0 == committed }) ?? true else {
+                    throw FieldDraftFailureV1.missingReceipt
+                }
+                let reread = try currentRawPhotoEvidence(parentDraftID: original.parentCheckpoint.draftID,
+                                                        childDraftID: original.initialPayload.childDraftID)
+                guard reread.publication == committed, reread.rawReady == prepared.rawReady else {
+                    throw FieldDraftFailureV1.missingReceipt
+                }
+                return committed
+            }
+        }
+    }
+
     /// Explicit Begin freezes once. A repeated request observes the saved
     /// attempt rather than sampling replacement IDs, time or command fields.
     func prepareBegin(draftID: UUID, expectedCheckpointSHA256: String,
@@ -252,8 +454,9 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     }
 
     private func makeCheckpoint(payload: CheckRunnerItemDraftPayloadV1,
-                                predecessor: FieldDraftCheckpointV1?) throws -> FieldDraftCheckpointV1 {
-        let sampled = clock.now().timeIntervalSince1970
+                                predecessor: FieldDraftCheckpointV1?,
+                                frozenUpdatedAt: Date? = nil) throws -> FieldDraftCheckpointV1 {
+        let sampled = (frozenUpdatedAt ?? clock.now()).timeIntervalSince1970
         guard sampled.isFinite, sampled >= 0, (sampled * 1_000).isFinite,
               predecessor.map({ $0.draftRevision < UInt64.max }) ?? true else {
             throw FieldDraftFailureV1.invalidValue

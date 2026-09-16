@@ -17,8 +17,12 @@ final class V23StoreSemanticValidationTests: XCTestCase {
                 applicationSupportURL: support,
                 pointerEnrichmentIdentity: try workspaceIdentity(lighting.night.workspaceID)
             )
-            let active = try factory.openOrBootstrapCurrent()
-            let persisted = try populateCurrentStore(active, lighting: lighting)
+            let active = try semanticObserved("traversal open current store") {
+                try factory.openOrBootstrapCurrent()
+            }
+            let persisted = try semanticObserved("traversal populate current store") {
+                try populateCurrentStore(active, lighting: lighting)
+            }
             let modelURL = active.generationRootURL.appendingPathComponent("model.sqlite")
             let pointerBefore = try Data(contentsOf: pointerURL)
             let storeBefore = try Data(contentsOf: modelURL)
@@ -32,9 +36,11 @@ final class V23StoreSemanticValidationTests: XCTestCase {
                 $0.localSequence > 0 && !$0.envelope.isEmpty && !$0.receipt.isEmpty
             })
             var traversal: [Data] = []
-            try factory.validateSemanticRowsForTesting(
-                in: active.modelContext, through: PersistentSchemaReleaseRegistryV1.activeRelease
-            ) { traversal.append($0) }
+            try semanticObserved("validate current semantic traversal") {
+                try factory.validateSemanticRowsForTesting(
+                    in: active.modelContext, through: PersistentSchemaReleaseRegistryV1.activeRelease
+                ) { traversal.append($0) }
+            }
             try assertValidationTraversal(traversal, location: locationBefore, night: lighting.night)
             XCTAssertFalse(active.modelContext.hasChanges)
             XCTAssertEqual(persisted.location.canonicalData, locationBefore)
@@ -49,7 +55,7 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         }
         try autoreleasepool { () throws -> Void in
             let factory = StoreGenerationFactory(applicationSupportURL: support)
-            let cold = try factory.openOrBootstrapCurrent()
+            let cold = try semanticObserved("traversal cold open") { try factory.openOrBootstrapCurrent() }
             XCTAssertEqual(cold.generationID, facts.generationID)
             XCTAssertEqual(cold.storeSchemaRelease, .v53)
             let modelURL = facts.generationRoot.appendingPathComponent("model.sqlite")
@@ -178,8 +184,12 @@ final class V23StoreSemanticValidationTests: XCTestCase {
                 applicationSupportURL: support,
                 pointerEnrichmentIdentity: try workspaceIdentity(lighting.night.workspaceID)
             )
-            let active = try factory.openOrBootstrapCurrent()
-            let persisted = try populateCurrentStore(active, lighting: lighting)
+            let active = try semanticObserved("\(kind.rawValue) open corruption fixture") {
+                try factory.openOrBootstrapCurrent()
+            }
+            let persisted = try semanticObserved("\(kind.rawValue) populate corruption fixture") {
+                try populateCurrentStore(active, lighting: lighting)
+            }
             let pointerBefore = try Data(contentsOf: pointerURL)
             let receiptsBefore = try receiptBytes(in: active.modelContext)
             XCTAssertGreaterThan(receiptsBefore.count, 0, file: file, line: line)
@@ -295,7 +305,9 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         }
         try autoreleasepool { () throws -> Void in
             let factory = StoreGenerationFactory(applicationSupportURL: support)
-            let cold = try factory.openOrBootstrapCurrent()
+            let cold = try semanticObserved("\(kind.rawValue) cold reopen repaired original") {
+                try factory.openOrBootstrapCurrent()
+            }
             var traversal: [Data] = []
             try factory.validateSemanticRowsForTesting(in: cold.modelContext, through: .v53) {
                 traversal.append($0)
@@ -321,7 +333,9 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         let context = session.modelContext
         let assetID = try XCTUnwrap(lighting.night.deltas.first).assetID
         do {
-            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            let coordinator = try semanticObserved("activate semantic fixture writer") {
+                try StoreSessionCoordinator(validatingSession: session)
+            }
             do {
                 let mutation = try MutationIDV1(rawValue: semanticID(690))
                 _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
@@ -337,11 +351,14 @@ final class V23StoreSemanticValidationTests: XCTestCase {
                     initialPhysicalEpisodeID: .init(rawValue: semanticID(692))
                 )), mutationID: mutation)
             } catch {
+                semanticReportFailure("create semantic fixture sign", error: error)
                 do { try coordinator.invalidateAndReleaseWriter() }
                 catch { XCTFail("Semantic fixture writer release failed: \(error)") }
                 throw error
             }
-            try coordinator.invalidateAndReleaseWriter()
+            try semanticObserved("release semantic fixture writer") {
+                try coordinator.invalidateAndReleaseWriter()
+            }
         }
         let locationValue = try LocationNodeV1(
             id: semanticID(700),
@@ -363,9 +380,11 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         let night = try LightingNightWorkflowRowV1(lighting.night)
         context.insert(location)
         context.insert(night)
-        try context.save()
-        try V906Integration.adoptSeededDeletionBaseline(session)
-        try session.reproofAfterSave()
+        try semanticObserved("save semantic fixture rows") { try context.save() }
+        try semanticObserved("adopt semantic fixture deletion baseline") {
+            try V906Integration.adoptSeededDeletionBaseline(session)
+        }
+        try semanticObserved("reprove semantic fixture session") { try session.reproofAfterSave() }
         XCTAssertEqual(session.storeSchemaRelease, .v53)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Site>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Asset>()), 1)
@@ -473,6 +492,28 @@ final class V23StoreSemanticValidationTests: XCTestCase {
     private func semanticID(_ suffix: Int) -> UUID {
         UUID(uuidString: String(format: "53530000-0000-4000-8000-%012x", suffix))!
     }
+}
+
+@MainActor
+private func semanticObserved<Value>(
+    _ phase: String, file: StaticString = #filePath, line: UInt = #line,
+    _ operation: () throws -> Value
+) rethrows -> Value {
+    do { return try operation() }
+    catch {
+        semanticReportFailure(phase, error: error, file: file, line: line)
+        throw error
+    }
+}
+
+@MainActor
+private func semanticReportFailure(
+    _ phase: String, error: Error, file: StaticString = #filePath, line: UInt = #line
+) {
+    let value = error as NSError
+    XCTFail("Semantic fixture failure phase=\(phase) type=\(String(reflecting: type(of: error)))"
+        + " value=\(String(reflecting: error)) domain=\(value.domain) code=\(value.code)",
+        file: file, line: line)
 }
 
 private struct SemanticValidationStoreFacts {

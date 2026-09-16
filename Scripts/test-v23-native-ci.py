@@ -170,6 +170,16 @@ SOURCE_GRAPH_PARTITION_CHOICES = ['c36-source-graph-regular', 'c36-source-graph-
 PREPARTITION_REPORT = {'id': 'report-camera-recovery', 'classes': ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests', 'V23CheckRunnerEditableFieldValuesTests', 'V23CheckRunnerBeginHistoryTests', 'V23CheckRunnerFrozenBeginPreparationTests', 'V23CheckRunnerItemFieldContractsTests'], 'methodCount': 110}
 
 def prepartition_values(default, mapping):
+    if len(mapping.get('groups', [])) == 39:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError('changed generated enrollment inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-5]
+        mapping['groups'] = mapping['groups'][:-2]
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                CI.DURABLE_BEGIN_BASE_POOL_SHA256, CI.DURABLE_BEGIN_BASE_MAP_SHA256):
+            raise AssertionError('changed exact incumbent reconstruction')
     if len(mapping.get('groups', [])) != 37:
         raise AssertionError('expected actual37 report partition')
     if mapping['groups'][32:] != REPORT_PARTITION_GROUPS:
@@ -201,6 +211,12 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    for group_id in ('mutation-receipt-safety', 'c36-raw-staging'):
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact generated choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 697 methods across 39 bounded groups',
+                                'all 692 methods across 37 bounded groups')
     for partition_id in SOURCE_GRAPH_PARTITION_CHOICES+DURABLE_PARTITION_CHOICES:
         choice='          - '+partition_id+'\n'
         if workflow.count(choice)!=1: raise AssertionError('missing exact durable workflow choice')
@@ -214,12 +230,71 @@ def prepartition_workflow(workflow):
         raise AssertionError('changed prepartition workflow')
     return workflow
 
+class GeneratedSelectionAdmissionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.root = Path(cls.temp.name).resolve()
+        manifest = CI.read_json(ROOT / 'Scripts/v23-selection-manifest.json')
+        paths = ['Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py',
+                 'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH]
+        paths += ['FieldEvidenceAppTests/' + name + '.swift' for name in sorted({
+            CI.selection_class(selector) for selector in manifest['selectorPool']})]
+        for relative in paths:
+            target = cls.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        cls.default = CI.read_json(cls.root / 'Scripts/ci-selection.json')
+        cls.mapping = CI.read_json(cls.root / CI.SELECTION_MAP_PATH)
+
+    def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
+        report = CI.verify_generated_selection(self.root, self.default, self.mapping)
+        self.assertEqual((report['selectorCount'], report['groupCount']), (697, 39))
+        for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 4)]:
+            e = environment()
+            e['NATIVE_SELECTION_ID'] = group_id
+            selected, record = CI.selected_input(self.root, e)
+            self.assertEqual(len(selected['unitTestSelectors']), count)
+            self.assertEqual(record['selectionID'], group_id)
+            self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        for relative in ('Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py'):
+            self.assertEqual(CI.PROTOCOL_PATHS.count(relative), 1)
+
+    def test_current_admission_rejects_manifest_output_and_source_declaration_drift(self):
+        path = self.root / 'Scripts/v23-selection-manifest.json'
+        original = path.read_bytes()
+        changed = CI.read_json(path)
+        current = next(profile for profile in changed['profiles'] if profile['id'] == CI.GENERATED_SELECTION_PROFILE)
+        current['excludedGroupIDs'] = ['c36-raw-staging']
+        try:
+            path.write_bytes(CI.canonical(changed))
+            with self.assertRaisesRegex(ValueError, 'differs from manifest/source'):
+                CI.verify_generated_selection(self.root, self.default, self.mapping)
+        finally:
+            path.write_bytes(original)
+        hostile = copy.deepcopy(self.default)
+        hostile['unitTestSelectors'][-1], hostile['unitTestSelectors'][-2] = hostile['unitTestSelectors'][-2], hostile['unitTestSelectors'][-1]
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(hostile, self.mapping, 'c36-raw-staging')
+        source = self.root / 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTests.swift'
+        original = source.read_bytes()
+        old = b'func testRestoreInitializationMatchesActorPublicationAndReopensExactBytes('
+        self.assertEqual(original.count(old), 1)
+        try:
+            source.write_bytes(original.replace(old, b'func helperNotSelected('))
+            with self.assertRaisesRegex(ValueError, 'missing or duplicate source method'):
+                CI.verify_generated_selection(self.root, self.default, self.mapping)
+        finally:
+            source.write_bytes(original)
+
+
 class ReportPartitionTests(unittest.TestCase):
     def test_actual_whole_class_partition_preserves_692_methods_and_all_prior_members(self):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),692)
+        self.assertEqual(len(default['unitTestSelectors']),697)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -231,7 +306,7 @@ class ReportPartitionTests(unittest.TestCase):
                 source=(ROOT / 'FieldEvidenceAppTests' / (klass+'.swift')).read_text(encoding='utf-8')
                 declared=re.findall(r'^    func (test\w+)\(',source,re.M)
                 self.assertEqual({s.rsplit('/',1)[1] for s in members if s.split('/')[1]==klass},set(declared))
-            if group['id'] not in ['report-camera-recovery']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
+            if group['id'] not in ['report-camera-recovery','mutation-receipt-safety','c36-raw-staging']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
                 self.assertEqual(actual,CI.resolve_selection(prior,prior_map,group['id']))
         self.assertEqual(len(seen),len(set(seen)))
         self.assertEqual(set(seen),set(default['unitTestSelectors']))
@@ -357,7 +432,7 @@ class ReportPartitionTests(unittest.TestCase):
         hostile=copy.deepcopy(default)
         hostile['unitTestSelectors'][0],hostile['unitTestSelectors'][1]=hostile['unitTestSelectors'][1],hostile['unitTestSelectors'][0]
         with self.assertRaises(AssertionError):prepartition_values(hostile,mapping)
-        hostile=copy.deepcopy(default); hostile['unitTestSelectors'][-1]=hostile['unitTestSelectors'][-1].replace('testDurableInitialBegin','testForeign')
+        hostile=copy.deepcopy(default); hostile['unitTestSelectors'][-1]=hostile['unitTestSelectors'][-1].replace('/test','/testForeign')
         with self.assertRaises(AssertionError):prepartition_values(hostile,mapping)
         hostile=copy.deepcopy(mapping); hostile['groups'][0]['classes'].reverse()
         hostile['groups'][0]['id']='foreign'
