@@ -4305,6 +4305,7 @@ extension S6_2BackupExportTests {
                 expectedCheckpointSHA256: draft.checkpoint.checkpointSHA256,
                 sourceApp: .init(build: "parent-backup", version: "1")) {}
             let harness = Harness(applicationSupportURL: h.root, session: h.session, context: h.context, countedRoots: [])
+            @MainActor
             func projection(_ expected: FieldDraftCheckpointV1) throws -> CheckRunnerPhotoBackupHistoryV1 {
                 let before = try h.snapshot(), calls = h.ids.callCount
                 let basis = try canonicalBasis(harness)

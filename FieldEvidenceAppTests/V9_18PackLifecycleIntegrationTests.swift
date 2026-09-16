@@ -54,6 +54,7 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             let prepared = try await draft.service.prepareFinalization(draftID: draft.checkpoint.draftID,
                 expectedCheckpointSHA256: draft.checkpoint.checkpointSHA256, sourceApp: sourceApp) {}
             let writer = h.coordinator.workspaceWriter
+            @MainActor
             func proof() throws -> CheckRunnerItemFinalizationEvidenceV1 {
                 try XCTUnwrap(writer.checkRunnerItemFinalizationEvidence(workspaceID: h.workspaceID, draftID: prepared.draftID))
             }

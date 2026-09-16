@@ -5,7 +5,7 @@ Checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls product 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `2005264fe5ff273b566c17b528d350d1bfa6e1de`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `edc989ba1de77e23b0ffbbfe4421df0e22782e3c`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the one app/project/shared scheme/design system, S10 branding, five accepted receipts, all49 owned drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@ Checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls product 
 
 Earlier cdd and6e originals remain retained at their own heads. The6e assessment-copy omission was corrected at4db; later evidence found additional earlier copy losses. Bitrise stays held for exact-runtime qualification.
 
-Five5d originals remain sealedC7877494:2Fail/3NotStarted, with insert-records invalidPackage unresolved. At2005264, partial dispatch created only35148854912/35148870595 before HTTP500. Both originals are now sole-collected/root-sealed with16 integrity checks each: build failure at parent-history line688, testsNotStarted. Root corrects the missing try in one source line. The other three planned questions never ran. All18 helpers remain exact; the unused recovery caller retains its review findings.
+Five5d originals stay sealedC7877494:2Fail/3NotStarted, with insert-records invalidPackage unresolved. Two200 originals are sealedDC21C84E: build failure/missing try, testsNotStarted. That fix is committed at edc989b. Its five originals are now sealed2391F14E: four builds expose11 MainActor diagnostics in two local test helpers; one hit1200s. All five tests areNotStarted. Root corrects two annotations under envelope98E89669, preserving helper bodies/assertions and the protected S6_2 draft. Review and the next supported Check/no-issue singleton remain due; other outcomes/clone diagnostics remain due. The unused dispatch-recovery caller stays held.
 
 The committed seven record-copy helpers preserve all77 inputs. Root's two-path diagnostic2F039F04 attributes existing insert invalidPackage throws to DEBUG source lines without changing errors/predicates. The C12 nonnil fixture moves to its actual active export; both minimal-incumbent and export copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, larger clone/transport and all retirement acceptance remain unresolved.
 
