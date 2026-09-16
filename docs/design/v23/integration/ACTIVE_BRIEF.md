@@ -5,7 +5,7 @@ Navigation/checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) contro
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Diagnostic head: `97360687f0acc98aefc15932341086d7e8bd0e34`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Diagnostic head: `a61fd21553713b7462d345f5a5afd4fd8f1e8016`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the existing app/project/shared scheme/design system, S10 branding, five accepted receipts, all owned drafts, frozen inputs, V30 and coordination history.
 - Card135 stays owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@ Navigation/checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) contro
 
 Five e8f2ede originals are sealedCA045EC0:16 integrity checks,6Fail/76NotStarted. InventoryDD9D87EB proves preparation6/archive47/graph23 hit the1200s build watchdog without Swift errors. Raw4/startup2 compiled; failures include corruptManifest, test-gate timeout/multiple fulfillment, startup maintenance and resourceValueMismatch. Raw Date/pinned-file and fixture fixes pass source review4DF0C5E7; startup lifetime/diagnostic delta8259B001 passes66373BEA. Warnings are unchanged; source/index25A47639/routeDEA98C06 remain retained. No native functional pass.
 
-Five9736068 originals are sealed2D29547F with16 integrity checks and27NotStarted. All fail compilation at the same restore-manifest trailing closure; root has parenthesized its argument, preserving the exact equality predicate. No new warning signatures. Source716/41 plus90 protocol/10 generator checks and combinedD5EFF47A/index8963C088/route5D83AF4F reviews remain retained for973. Corrected-head source/index/route and native evidence are due.
+Five a61fd21 originals are sealedAFFBAFBB with16 integrity checks and27NotStarted. Six compiler diagnostics identify throwing codec comparisons and private export-helper signatures; root corrected both causes together. No new warnings. Source716/41/90, index7FE8342F and routeE3D6E920 remain retained for a61; corrected-head source/index/route and native evidence are due. Parent973 remains sealed2D29547F.
 
 Earlier c9/4575 originals remain fully retained. Corrected graph manifest/history causes await native confirmation; lifecycle5 and both maximum graph cases remain due. Bitrise stays held after its retained provisioning failures.
 

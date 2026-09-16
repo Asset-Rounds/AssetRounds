@@ -942,7 +942,7 @@ private extension BackupExportService {
     /// The only quiescence allowed by an explicit backup action is acknowledging
     /// an already-published raw file or marked pair. Every actor hop retains
     /// the original access publication and exact expected writer interval.
-    func freezePhotoExport(previewID: UUID,
+    private func freezePhotoExport(previewID: UUID,
         operation: AppAccessPresentationV1.BackupOperationAccess) async throws -> PhotoExportFreeze {
         guard let frozen = streamingPrepared, frozen.preview.id == previewID,
               let rootIdentity else { throw BackupExportServiceError.stalePreview }
@@ -1049,7 +1049,7 @@ private extension BackupExportService {
             observedSources: observations)
     }
 
-    func observeStreamingSources(_ prepared: StreamingPrepared) throws -> [ObservedStreamingSource] {
+    private func observeStreamingSources(_ prepared: StreamingPrepared) throws -> [ObservedStreamingSource] {
         guard let rootIdentity else { throw BackupExportServiceError.invalidGeneration }
         let generationIdentity = StreamingArchiveRootIdentityV1(device: UInt64(rootIdentity.device), inode: UInt64(rootIdentity.inode))
         let draftRoot = generationRootURL.deletingLastPathComponent().deletingLastPathComponent()
@@ -1086,7 +1086,7 @@ private extension BackupExportService {
         return result
     }
 
-    func validateFrozenCanonical(_ prepared: StreamingPrepared) throws {
+    private func validateFrozenCanonical(_ prepared: StreamingPrepared) throws {
         guard !modelContext.hasChanges,
               try currentStreamingWorkspaceIdentity() == prepared.checkpointBasis.workspaceIdentity,
               try currentStreamingGenerationID() == prepared.checkpointBasis.generationID else {

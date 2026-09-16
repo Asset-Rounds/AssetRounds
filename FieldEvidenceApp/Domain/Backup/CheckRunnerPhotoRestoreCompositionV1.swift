@@ -1220,10 +1220,10 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
 
     static func completeDraftFacts(_ checkpoint: FieldDraftCheckpointV1) throws -> DraftFacts {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
-        if checkpoint.codec == (try CheckRunnerPhotoDraftCodecV1.release())
-            || checkpoint.codec == (try CheckRunnerItemDraftCodecV1.release())
-            || checkpoint.codec == (try RepetitiveCaptureDraftCodecV1.release())
-            || checkpoint.codec == (try RepetitiveCaptureProgressDraftCodecV2.release()) {
+        if try (checkpoint.codec == CheckRunnerPhotoDraftCodecV1.release()
+            || checkpoint.codec == CheckRunnerItemDraftCodecV1.release()
+            || checkpoint.codec == RepetitiveCaptureDraftCodecV1.release()
+            || checkpoint.codec == RepetitiveCaptureProgressDraftCodecV2.release()) {
             return try draftFacts(.createCheckpoint(checkpoint))
         }
         guard checkpoint.codec == (try MyDayPlanningDraftCodecV1.release()),
