@@ -5,7 +5,7 @@ Navigation/checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) contro
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Diagnostic head: `e8f2ede058b81ad6031538bd4a20c1d6e155d2ba`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Diagnostic head: `97360687f0acc98aefc15932341086d7e8bd0e34`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the existing app/project/shared scheme/design system, S10 branding, five accepted receipts, all owned drafts, frozen inputs, V30 and coordination history.
 - Card135 stays owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@ Navigation/checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) contro
 
 Five e8f2ede originals are sealedCA045EC0:16 integrity checks,6Fail/76NotStarted. InventoryDD9D87EB proves preparation6/archive47/graph23 hit the1200s build watchdog without Swift errors. Raw4/startup2 compiled; failures include corruptManifest, test-gate timeout/multiple fulfillment, startup maintenance and resourceValueMismatch. Raw Date/pinned-file and fixture fixes pass source review4DF0C5E7; startup lifetime/diagnostic delta8259B001 passes66373BEA. Warnings are unchanged; source/index25A47639/routeDEA98C06 remain retained. No native functional pass.
 
-Five f58be9d originals are sealed213FA475:90Pass/10Fail/6NotStarted. Preparation6 hit the1200s build watchdog; raw4 is1Pass/3Fail, archive47 is42Pass/5Fail, graph23 is21Pass/2Fail, catalog26 passes. Graph diagnostic transport failed its2s simctl call. Source-proven archive/graph and raw fixture corrections are implemented; two unresolved corruptManifest cases have scoped operation labels for one diagnostic. No successor evidence is inferred.
+Five9736068 originals are sealed2D29547F with16 integrity checks and27NotStarted. All fail compilation at the same restore-manifest trailing closure; root has parenthesized its argument, preserving the exact equality predicate. No new warning signatures. Source716/41 plus90 protocol/10 generator checks and combinedD5EFF47A/index8963C088/route5D83AF4F reviews remain retained for973. Corrected-head source/index/route and native evidence are due.
 
 Earlier c9/4575 originals remain fully retained. Corrected graph manifest/history causes await native confirmation; lifecycle5 and both maximum graph cases remain due. Bitrise stays held after its retained provisioning failures.
 
@@ -30,7 +30,7 @@ Earlier c9/4575 originals remain fully retained. Corrected graph manifest/histor
 
 Owner-approved delivery acceleration (2026-09-15) in CURRENT_INTEGRATION/AGENTS is active: complete a production journey, batch causal fixes and sibling fixtures, review semantics before hashes, reuse unchanged evidence/helpers and retain one collector. [VERIFICATION_DUE](VERIFICATION_DUE.md) tracks outstanding coverage. Refresh refs/ownership/capacity at required gates; root alone commits/pushes.
 
-One reviewed diagnostic may localize a recorded unresolved failure, preserving assertions/environment/watchdogs. Prospective716/41 adds closed photo transport12/restore3; source90/generator10 and combined reviewD5EFF47A pass. Next five questions are these plus preparation6/raw4/startup2. Archive48/graph23, notification77, field49, ReceiptSafety1, lifecycle5 and maximum graphs remain due. Historical selector meanings stay exact. Measured cache/unit/shared-build qualification remains due. Bitrise awaits exact-runtime availability. Preserve all product/human/release and final acceptance gates.
+One reviewed diagnostic may localize a recorded unresolved failure, preserving assertions/environment/watchdogs. Committed716/41 adds closed photo transport12/restore3; the same five corrected-head questions remain due. Archive48/graph23, notification77, field49, ReceiptSafety1, lifecycle5 and maximum graphs remain due. Historical selector meanings stay exact. Measured cache/unit/shared-build qualification remains due. Bitrise awaits exact-runtime availability. Preserve all product/human/release and final acceptance gates.
 
 ## Remaining decisions and final gates
 

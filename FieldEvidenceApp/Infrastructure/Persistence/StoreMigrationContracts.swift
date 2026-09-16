@@ -1025,9 +1025,9 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
                   restoreProof.predecessorGenerationID
                     == predecessorGenerationID,
                   recoveryFiles == restoreProof.recoveryFiles,
-                  restoreProof.generationFiles.allSatisfy {
+                  restoreProof.generationFiles.allSatisfy({
                       manifestFiles[$0.relativePath] == $0
-                  } else {
+                  }) else {
                 throw StoreMigrationFailure.invalidContract
             }
         } else if !recoveryFiles.isEmpty {
