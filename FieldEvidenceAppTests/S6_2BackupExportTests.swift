@@ -1189,9 +1189,9 @@ final class S6_2BackupExportTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(descriptor, 0)
             guard descriptor >= 0 else { throw FixtureError.invalid }
             defer { Darwin.close(descriptor) }
-            let lockResult = Darwin.flock(descriptor, LOCK_EX | LOCK_NB)
+            let lockResult = flock(descriptor, LOCK_EX | LOCK_NB)
             let lockError = errno
-            if lockResult == 0 { Darwin.flock(descriptor, LOCK_UN) }
+            if lockResult == 0 { flock(descriptor, LOCK_UN) }
             XCTAssertEqual(lockResult, -1, "R must cover both sides of the actual pointer CAS")
             XCTAssertEqual(lockError, EWOULDBLOCK)
             let pointerBytes = try Data(contentsOf: pointerURL)
@@ -2317,8 +2317,9 @@ private extension S6_2BackupExportTests {
                 applicationSupportURL: target.applicationSupportURL,
                 workspaceID: oldWorkspaceID
             )
+            let preservedGenericBytes = try await adapter.data(stageID: incumbentGeneric.item.stageID)
             XCTAssertEqual(
-                try await adapter.data(stageID: incumbentGeneric.item.stageID),
+                preservedGenericBytes,
                 incumbentGeneric.bytes,
                 label
             )
