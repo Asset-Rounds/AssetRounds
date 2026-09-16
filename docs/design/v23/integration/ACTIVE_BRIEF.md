@@ -5,15 +5,15 @@ Navigation/checkpoint only. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) contro
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Diagnostic head: `6c34b7b66d26d27bb8ea3bd3d465099d173d435e`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Diagnostic head: `ed4ef33dc9cb841d56063df87f7fce541b68a677`. Accepted main: `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the existing app/project/shared scheme/design system, S10 branding, five accepted receipts, all owned drafts, frozen inputs, V30 and coordination history.
 - Card135 stays owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
 ## Latest native evidence
 
-Five61fbadb originals remain sealedD5C33600, with27NotStarted after19 test-target diagnostics. Full failures/warnings are retained. Correction head6c34b7b passed source/index/route58E28C89 review.
+Five ed4 originals are sealed: the same callback compiler error,14NotStarted,16 integrity checks each and no new warning signatures.80 inputs archived2BD61787. Callback/fixture corrections pass source reviewC6D023C0 and731/41/94 checksD94AB8BA.
 
-Five6c34b7b originals are sole-collected and root-sealed4CA9A5BB with16 integrity checks each:9Pass/14Fail/5NotStarted. Raw3/4, transport5/12 and clone1/7 passed after successful compilation; startup2 and restore3 reached the1200s build watchdog. Full failures/warnings remain retained. Raw/clone localization is scoped; the renderer fixture now uses a real writer-created report. Checkout/admissionADD6EA9A and72 archived inputs606258B6 remain exact.
+Five6c originals are sealed4CA9A5BB:16 integrity checks each,9Pass/14Fail/5NotStarted. Raw3/4, transport5/12 and clone1/7 passed after successful compilation; startup2 and restore3 reached the1200s build watchdog. Full failures/warnings are retained. Raw/clone localization and authentic renderer correction are scoped. Checkout/admissionADD6EA9A and72 archived inputs606258B6 remain exact.
 
 Graph/lifecycle/maximum native evidence remains due. Bitrise stays held.
 
@@ -29,9 +29,9 @@ Graph/lifecycle/maximum native evidence remains due. Bitrise stays held.
 
 ## Working cadence
 
-Owner routing (2026-09-16): least costly suitable Luna/Terra/Sol through High; Astra Low/Medium for harder tasks. Keep primary settings and two-worker cap. Implementation has resumed after the requested pause. Delivery acceleration remains active: complete a production journey, batch causal fixes and sibling fixtures, review semantics before hashes, reuse unchanged evidence/helpers and retain one collector. [VERIFICATION_DUE](VERIFICATION_DUE.md) tracks outstanding coverage. Refresh refs/ownership/capacity at required gates; root alone commits/pushes.
+Owner routing (2026-09-16): least costly suitable Luna/Terra/Sol through High; Astra Low/Medium for harder tasks. Keep primary settings and two-worker cap. Delivery acceleration remains active: complete a production journey, batch causal fixes and sibling fixtures, review semantics before hashes, reuse unchanged evidence/helpers and retain one collector. [VERIFICATION_DUE](VERIFICATION_DUE.md) tracks outstanding coverage. Refresh refs/ownership/capacity at required gates; root alone commits/pushes.
 
-One reviewed diagnostic may localize a recorded unresolved failure, preserving assertions/environment/watchdogs. Candidate731/41 adds eight closed retirement singletons;94 protocol/12 generator checks and protocol review pass. Next questions are raw4/clone7 localization, corrected capacity1 and two retirement singletons. Transport failures remain held; startup2/restore3 and preparation6 stay due. Archive48/graph23, notification77, field49, ReceiptSafety1, lifecycle5 and maximum graphs remain due. Historical selector meanings stay exact. Measured cache/unit/shared-build qualification remains due. Bitrise awaits exact-runtime availability. Preserve all product/human/release and final acceptance gates.
+One reviewed diagnostic may localize a recorded unresolved failure, preserving assertions/environment/watchdogs. Candidate731/41 adds eight closed retirement singletons;94 protocol/12 generator checks and protocol review pass. Next25methods are raw4/clone7/transport12/retirement2; transport includes capacity1. Reviewed transport fixtures retain error localization; startup2/restore3 and preparation6 stay due. Archive48/graph23, notification77, field49, ReceiptSafety1, lifecycle5 and maximum graphs remain due. Historical selector meanings stay exact. Measured cache/unit/shared-build qualification remains due. Bitrise awaits exact-runtime availability. Preserve all product/human/release and final acceptance gates.
 
 ## Remaining decisions and final gates
 

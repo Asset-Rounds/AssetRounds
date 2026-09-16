@@ -10588,41 +10588,44 @@ struct StoreGenerationFactory {
         // Catching a failed or repeated invocation cannot manufacture success.
         var invocations = 0
         var published = false
-        try publicationScope {
-            invocations += 1
-            guard invocations == 1 else { throw StoreGenerationFailure.dataPointerInvalid }
-            try publicationValidation()
-            if let restoreProof {
-                guard let restoreFileSnapshot,
-                      restoreFileSnapshot.restoreProof == restoreProof else {
-                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        // The existing synchronous scope cannot retain either callback.
+        try withoutActuallyEscaping(publicationValidation) { validatePublication in
+            try publicationScope {
+                invocations += 1
+                guard invocations == 1 else { throw StoreGenerationFailure.dataPointerInvalid }
+                try validatePublication()
+                if let restoreProof {
+                    guard let restoreFileSnapshot,
+                          restoreFileSnapshot.restoreProof == restoreProof else {
+                        throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                    }
+                    try authority.switchCurrentGeneration(
+                        expected: oldID,
+                        to: newID,
+                        pointer: pointer,
+                        expectedCurrentPointer: expectedCurrentPointer,
+                        restoreFileSnapshot: restoreFileSnapshot
+                    )
+                } else {
+                    guard restoreFileSnapshot == nil else {
+                        throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                    }
+                    try authority.switchCurrentGeneration(
+                        expected: oldID,
+                        to: newID,
+                        pointer: pointer,
+                        expectedCurrentPointer: expectedCurrentPointer
+                    )
                 }
-                try authority.switchCurrentGeneration(
-                    expected: oldID,
-                    to: newID,
-                    pointer: pointer,
-                    expectedCurrentPointer: expectedCurrentPointer,
-                    restoreFileSnapshot: restoreFileSnapshot
-                )
-            } else {
-                guard restoreFileSnapshot == nil else {
-                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                guard try currentGenerationID(authority: authority) == newID,
+                      try currentWorkspaceIdentity(
+                          expectedGenerationID: newID,
+                          authority: authority
+                      ) == identity else {
+                    throw StoreGenerationFailure.dataPointerInvalid
                 }
-                try authority.switchCurrentGeneration(
-                    expected: oldID,
-                    to: newID,
-                    pointer: pointer,
-                    expectedCurrentPointer: expectedCurrentPointer
-                )
+                published = true
             }
-            guard try currentGenerationID(authority: authority) == newID,
-                  try currentWorkspaceIdentity(
-                      expectedGenerationID: newID,
-                      authority: authority
-                  ) == identity else {
-                throw StoreGenerationFailure.dataPointerInvalid
-            }
-            published = true
         }
         guard invocations == 1, published else { throw StoreGenerationFailure.dataPointerInvalid }
     }
