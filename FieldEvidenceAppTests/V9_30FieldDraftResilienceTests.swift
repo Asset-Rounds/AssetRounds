@@ -1076,9 +1076,9 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
 
         try await withAsyncFrozenBeginFixture("photo-raw-retry", entry: .check,
             storedTimeZoneID: "America/New_York") { h in
-            let writer = EvidenceBundleStore(generationRootURL: h.session.generationRootURL)
+            let writer = EvidenceBundleStore(generationRootURL: await h.session.generationRootURL)
             let photo = try await C36PhotoPromotionFixture.make(h, writer: writer)
-            let payloadURL = photo.rawDirectory.appendingPathComponent(DraftAttachmentStagingAdapterV1.payloadName)
+            let payloadURL = await photo.rawDirectory.appendingPathComponent(DraftAttachmentStagingAdapterV1.payloadName)
             let savedURL = h.root.appendingPathComponent("retained-photo-raw")
             try fm.moveItem(at: payloadURL, to: savedURL)
             XCTAssertEqual(mkfifo(payloadURL.path, mode_t(0o600)), 0)
@@ -1393,7 +1393,7 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
             storedTimeZoneID: "America/New_York") { h in
             let entered = expectation(description: "photo C05 write completed before manifest publication")
             let gate = C36StagingContentGate(
-                writer: EvidenceBundleStore(generationRootURL: h.session.generationRootURL), entered: entered)
+                writer: EvidenceBundleStore(generationRootURL: await h.session.generationRootURL), entered: entered)
             let photo = try await C36PhotoPromotionFixture.make(h, writer: gate)
             _ = try await photo.prepareCommit()
             let pending = Task {
@@ -1403,7 +1403,7 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
             defer { pending.cancel(); Task { await gate.resume() } }
             await fulfillment(of: [entered], timeout: 10)
             let competitor = try DraftAttachmentStagingAdapterV1(applicationSupportURL: h.root,
-                workspaceID: h.workspaceID)
+                workspaceID: await h.workspaceID)
             let retained = try await competitor.stage(data: Data("unrelated manifest winner".utf8),
                 draftID: UUID(), workspaceID: h.workspaceID, attachmentKind: .file)
             await gate.resume()
@@ -1411,7 +1411,7 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
             let retainedBytes = try await competitor.data(stageID: retained.stageID)
             XCTAssertEqual(retainedBytes, Data("unrelated manifest winner".utf8))
 
-            let (reopenedAdapter, reopenedService) = try photo.reopened(
+            let (reopenedAdapter, reopenedService) = try await photo.reopened(
                 writer: EvidenceBundleStore(generationRootURL: h.session.generationRootURL))
             let completed = try await reopenedService.resumePhotoCommit(parentDraftID: photo.parentID,
                 childDraftID: photo.childID)
