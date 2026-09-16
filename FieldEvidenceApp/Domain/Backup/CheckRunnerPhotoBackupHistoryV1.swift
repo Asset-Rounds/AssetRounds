@@ -163,7 +163,7 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
             workspaceID: workspaceID, graphs: c36.graphs)
         let currentPhotos = membership.photos
 
-        var required = Set<String>()
+        var required = try parentHistoryKeys(membership.parentCache, history: history)
         c36.requiredHistory.forEach { required.insert(key($0)) }
         var results: [CheckRunnerPhotoBackupHistoryChildV1] = []
         var parentLinks: [UUID: CheckRunnerPhotoParentEvidenceV1] = [:]
@@ -249,6 +249,29 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         let photos: [UUID: FieldDraftCheckpointV1]
         let parentCache: [UUID: ParentHistory]
         let parentGraphs: [UUID: ReviewedRepetitiveCaptureSourceGraphV2]
+    }
+
+    /// A parent can have a durable Begin before its first photo. Its original
+    /// checkpoints and declared Begin receipts remain required in that state.
+    @inline(never)
+    static func parentHistoryKeys(_ parents: [UUID: ParentHistory],
+                                  history: RepetitiveCaptureSourceGraphReviewV2.History) throws -> Set<String> {
+        var required = Set<String>()
+        for parent in parents.values {
+            parent.originals.forEach { required.insert(key($0)) }
+            let hasBoundBegin = try parent.checkpoints.contains { checkpoint in
+                if case .bound = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint).field.begin {
+                    return true
+                }
+                return false
+            }
+            if hasBoundBegin {
+                let begin = try beginEvidence(parent: parent, history: history)
+                required.insert(key(begin.workflowRecord))
+                _ = begin.timeZoneRecord.map { required.insert(key($0)) }
+            }
+        }
+        return required
     }
 
     @inline(never)

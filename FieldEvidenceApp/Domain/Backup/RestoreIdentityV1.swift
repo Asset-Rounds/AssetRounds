@@ -1181,7 +1181,10 @@ enum C52ServiceRequestRestoreIdentityPolicyV1 {
             }
             try C55PartsStockBackupEnrollmentV1.validate(
                 records,
-                workspaceID: expectedWorkspaceID.map { WorkspaceID(rawValue: $0) }
+                // This policy runs after materialization rebinds stock. C52/C53
+                // receipts above retain their source workspace on clone/fork;
+                // the C55 snapshot must already belong to the destination.
+                workspaceID: WorkspaceID(rawValue: identity.targetPointer.workspaceID)
             )
         } catch {
             throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity

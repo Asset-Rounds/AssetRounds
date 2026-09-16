@@ -2064,6 +2064,11 @@ extension V9_30FieldDraftResilienceTests {
             let witnessURL = photo.rawDirectory.appendingPathComponent("raw-publication.json")
             let witness = try Data(contentsOf: witnessURL)
             let resumeStartedAt = DispatchTime.now().uptimeNanoseconds
+            var commitTrace: [String] = []
+            photo.service.photoCommitObservationForTesting = { phase in
+                commitTrace.append("\(phase)@\(DispatchTime.now().uptimeNanoseconds)")
+            }
+            defer { photo.service.photoCommitObservationForTesting = nil }
             var pendingFailure: String?
             let pending = Task {
                 do {
@@ -2080,12 +2085,14 @@ extension V9_30FieldDraftResilienceTests {
                 let beforeCancellation = pendingFailure ?? "none"
                 let writerDiagnostic = await gate.failureDiagnostic()
                 let observedAt = DispatchTime.now().uptimeNanoseconds
+                let prewriteTraceBeforeCancellation = commitTrace.joined(separator: ",")
                 pending.cancel()
                 await gate.resume()
                 _ = try? await pending.value
                 return XCTFail("The unchanged timeout must not permit witness replacement before the real durable receipt; "
                     + "resumeStartedAt=\(resumeStartedAt) observedAt=\(observedAt) "
-                    + "pendingFailureBeforeCancellation=\(beforeCancellation) \(writerDiagnostic)")
+                    + "pendingFailureBeforeCancellation=\(beforeCancellation) \(writerDiagnostic) "
+                    + "prewriteTraceBeforeCancellation=\(prewriteTraceBeforeCancellation)")
             }
             try Data("replaced witness".utf8).write(to: witnessURL, options: .atomic)
             try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: witnessURL)

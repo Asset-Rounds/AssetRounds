@@ -1757,13 +1757,36 @@ final class BackupRestoreService {
                 validatedPackage.records.operationalContacts
             )
         }
+        // C53 validates the destination workspace, which clone/fork allocate
+        // independently of both the source and the incumbent workspace. Freeze
+        // that same decision before validation and reuse it through publication.
+        let newGenerationID = makeUUID()
+        let restoreID = makeUUID()
+        guard newGenerationID != currentGenerationID,
+              restoreID != currentGenerationID,
+              restoreID != newGenerationID,
+              !initialRetiredIDs.contains(newGenerationID) else {
+            throw attributedRestoreAuthorityFailureV1(line: #line)
+        }
+        try Task.checkCancellation()
+        let preliminaryIdentityDecision = try makeIdentityDecision(
+            package: validatedPackage,
+            mode: mode,
+            currentGenerationID: currentGenerationID,
+            newGenerationID: newGenerationID,
+            targetManifestDigest: String(repeating: "0", count: 64)
+        )
+        let serviceReliabilityTargetWorkspaceID: UUID? = mode == .clone || mode == .fork
+            ? preliminaryIdentityDecision?.targetPointer.workspaceID
+            : frozenCurrentIdentity.workspaceID.rawValue
+
         do {
             let serviceReliabilityRows=try C53ServiceReliabilityReplacementRestoreBoundaryV1.canonicalRows(
                 current: frozenCurrentRecords,
                 incoming: validatedPackage.records,
                 mode: mode,
                 sourceWorkspaceID: incomingIdentity?.workspaceID.rawValue,
-                targetWorkspaceID: frozenCurrentIdentity.workspaceID.rawValue
+                targetWorkspaceID: serviceReliabilityTargetWorkspaceID
             )
             expectedRecords=try expectedRecords.replacingServiceReliability(serviceReliabilityRows)
             let expectedReliabilityWorkspaceID:UUID? = mode == .clone || mode == .fork
@@ -1817,15 +1840,6 @@ final class BackupRestoreService {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
 
-        let newGenerationID = makeUUID()
-        let restoreID = makeUUID()
-        guard newGenerationID != currentGenerationID,
-              restoreID != currentGenerationID,
-              restoreID != newGenerationID,
-              !initialRetiredIDs.contains(newGenerationID) else {
-            throw attributedRestoreAuthorityFailureV1(line: #line)
-        }
-
         func validatePhotoCurrentLocked() throws {
             guard !currentModelContext.hasChanges,
                   try generationFactory.currentGenerationID(authority: generationAuthority) == currentGenerationID,
@@ -1845,13 +1859,6 @@ final class BackupRestoreService {
         var retainedCloneRetirement: ConfigurationCloneRetirementBindingV1?
         do {
             try Task.checkCancellation()
-            let preliminaryIdentityDecision = try makeIdentityDecision(
-                package: validatedPackage,
-                mode: mode,
-                currentGenerationID: currentGenerationID,
-                newGenerationID: newGenerationID,
-                targetManifestDigest: String(repeating: "0", count: 64)
-            )
             expectedRecords = try recordsForMaterialization(
                 expectedRecords,
                 members: validatedPackage.members,

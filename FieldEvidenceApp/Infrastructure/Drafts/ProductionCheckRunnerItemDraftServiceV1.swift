@@ -264,6 +264,7 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
 #if DEBUG
     /// Observation after durable target publication, outside publication locks.
     var beforePhotoTargetAcknowledgementForTesting: (() throws -> Void)?
+    var photoCommitObservationForTesting: ((String) -> Void)?
 #endif
 
     init(session: StoreSessionCoordinator, progress: ProductionRepetitiveCaptureProgressServiceV2,
@@ -802,6 +803,9 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     func resumePhotoCommit(parentDraftID: UUID, childDraftID: UUID) async throws -> FieldDraftCheckpointV1 {
         guard photoOperations.insert(childDraftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
         defer { photoOperations.remove(childDraftID) }
+#if DEBUG
+        photoCommitObservationForTesting?("resume-session-start")
+#endif
         let current = try currentSession()
         var rows = FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate { $0.draftID == childDraftID })
         rows.fetchLimit = 2
@@ -811,7 +815,13 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         if observed.state == .committed {
             return try completePhotoParentSlot(parentDraftID: parentDraftID, childDraftID: childDraftID)
         }
+#if DEBUG
+        photoCommitObservationForTesting?("resume-continuation-start")
+#endif
         let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID, childDraftID: childDraftID)
+#if DEBUG
+        photoCommitObservationForTesting?("resume-continuation-complete")
+#endif
         guard evidence.checkpoint.state == .committing, let committing = evidence.committing,
               case let .reviseCheckpoint(checkpoint) = committing.mutation.postImage,
               checkpoint == evidence.checkpoint else { throw FieldDraftFailureV1.invalidTransition }
@@ -821,6 +831,9 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         let lifecycle = try current.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: current.modelContext)
         let drafts = FieldDraftCoordinatorV1(purposeAuthority: try CheckRunnerDraftPurposeAuthorityV1(),
             writer: lifecycle, content: port, asyncTarget: port)
+#if DEBUG
+        photoCommitObservationForTesting?("prepared-saga-commit-start")
+#endif
         _ = try await drafts.commit(plan: commit.plan, checkpoint: checkpoint, items: commit.items,
             prepared: commit.prepared, contentPromoted: commit.contentPromoted, targetCommitted: commit.targetCommitted,
             retirePending: commit.retirePending, retired: commit.retired, commitReceiptID: commit.commitReceiptID,
@@ -830,17 +843,29 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
 
     fileprivate func promotePhotoRaw(parentDraftID: UUID, reconstruction: CheckRunnerPhotoCommitReconstructionV1)
         async throws -> DraftContentReservationV1 {
+#if DEBUG
+        photoCommitObservationForTesting?("raw-promotion-entered")
+#endif
         guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
         let current = try currentSession()
         let revision = try current.workspaceWriter.currentRevision()
+#if DEBUG
+        photoCommitObservationForTesting?("raw-continuation-start")
+#endif
         let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID,
             childDraftID: reconstruction.draftCommit.checkpoint.draftID)
+#if DEBUG
+        photoCommitObservationForTesting?("raw-continuation-complete")
+#endif
         guard evidence.checkpoint == reconstruction.draftCommit.checkpoint,
               evidence.sagas.first == reconstruction.draftCommit.prepared,
               try current.workspaceWriter.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
         let authority = try CheckRunnerPhotoRawPromotionAuthorityV1(service: self, writer: current.workspaceWriter,
             owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
             applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL)
+#if DEBUG
+        photoCommitObservationForTesting?("raw-preparation-start")
+#endif
         return try await attachmentStaging.promoteRawPhoto(authority: authority)
     }
 
@@ -1006,6 +1031,9 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
 
     fileprivate func validateRawPhotoPromotion(_ authority: CheckRunnerPhotoRawPromotionAuthorityV1,
                                                prepared: DraftPreparedRawPhotoPromotionV1) throws {
+#if DEBUG
+        photoCommitObservationForTesting?("raw-prewrite-validation-start")
+#endif
         try Task.checkCancellation()
         guard authority.service === self, authority.owner === currentPhotoReadOwner,
               let writer = authority.writer, let attachmentStaging,
@@ -1035,6 +1063,9 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
               prepared.contentReference == stage.contentReference,
               prepared.reservation == (try CheckRunnerPhotoContinuationEvidenceV1.reservation(
                 raw: pair.raw, plan: plan, attempt: attempt)) else { throw FieldDraftFailureV1.digestMismatch }
+#if DEBUG
+        photoCommitObservationForTesting?("raw-prewrite-validation-complete")
+#endif
     }
 
     fileprivate func publishPreparedRawPhotoPromotion(authority: CheckRunnerPhotoRawPromotionAuthorityV1,

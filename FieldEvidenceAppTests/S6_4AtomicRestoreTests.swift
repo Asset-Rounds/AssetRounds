@@ -3747,7 +3747,9 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationCloneEmptyRootsRecoverAcrossPublicationBoundaries() async throws {
         let source = try makeHarness("clone-empty-boundaries-source")
-        defer { try? fileManager.removeItem(at: source.root) }
+        addTeardownBlock { [root = source.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         let archive = try Data(contentsOf: draft.package)
         let points: [BackupRestoreFailurePoint] = [
@@ -3756,7 +3758,9 @@ extension S6_4AtomicRestoreTests {
         for existingEmptyRoot in [false, true] {
             for point in points {
                 let target = try makeHarness("clone-empty-\(existingEmptyRoot)-\(point)")
-                defer { try? fileManager.removeItem(at: target.root) }
+                addTeardownBlock { [root = target.root] in
+                    try? FileManager.default.removeItem(at: root)
+                }
                 if existingEmptyRoot {
                     _ = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
                         workspaceID: target.session.workspaceID)
@@ -3783,6 +3787,10 @@ extension S6_4AtomicRestoreTests {
                     let selected = try XCTUnwrap(synchronous)
                     XCTAssertEqual(selected.generationID, intent.newGenerationID)
                     XCTAssertNotEqual(selected.workspaceID, target.session.workspaceID)
+                    let cloneIdentity = try XCTUnwrap(intent.identity)
+                    let projected = try recovery.c55CurrentRecordsForTesting(in: selected.modelContext)
+                    try assertConfigurationCloneStockDestinationPolicy(
+                        source: validated.records, projected: projected, identity: cloneIdentity)
                     try assertNoConfigurationCloneDraftRows(in: selected.modelContext)
                     XCTAssertEqual(try intents.load()?.phase, .newGenerationValidated)
                     let completed = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
@@ -3803,11 +3811,15 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationCloneColdRecoveryRejectsNewStagingWithoutDeletingIt() async throws {
         let source = try makeHarness("clone-cold-stage-source")
-        defer { try? fileManager.removeItem(at: source.root) }
+        addTeardownBlock { [root = source.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         for point in [BackupRestoreFailurePoint.afterPreparedWrite, .afterPointerSwitch] {
             let target = try makeHarness("clone-cold-stage-\(point)")
-            defer { try? fileManager.removeItem(at: target.root) }
+            addTeardownBlock { [root = target.root] in
+                try? FileManager.default.removeItem(at: root)
+            }
             let validated = try importPackage(draft.package, into: target.session)
             let service = try BackupRestoreService(applicationSupportURL: target.support,
                 failureInjection: .init(failOnceAt: point))
@@ -3843,11 +3855,15 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationCloneRechecksAccessCancellationAndRootAfterMediaCopy() async throws {
         let source = try makeHarness("clone-media-boundary-source")
-        defer { try? fileManager.removeItem(at: source.root) }
+        addTeardownBlock { [root = source.root] in
+            try? FileManager.default.removeItem(at: root)
+        }
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         for scenario in ["access", "cancellation", "staging"] {
             let target = try makeHarness("clone-media-boundary-\(scenario)")
-            defer { try? fileManager.removeItem(at: target.root) }
+            addTeardownBlock { [root = target.root] in
+                try? FileManager.default.removeItem(at: root)
+            }
             let validated = try importPackage(draft.package, into: target.session)
             let service = try BackupRestoreService(applicationSupportURL: target.support)
             let currentBefore = try tree(target.session.generationRootURL)
@@ -3896,9 +3912,9 @@ extension S6_4AtomicRestoreTests {
     func testConfigurationCloneRetainsIntentWhenStagingChangesDuringFinalColdCleanup() async throws {
         let source = try makeHarness("clone-final-cold-source")
         let target = try makeHarness("clone-final-cold-target")
-        defer {
-            try? fileManager.removeItem(at: source.root)
-            try? fileManager.removeItem(at: target.root)
+        addTeardownBlock { [sourceRoot = source.root, targetRoot = target.root] in
+            try? FileManager.default.removeItem(at: sourceRoot)
+            try? FileManager.default.removeItem(at: targetRoot)
         }
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
@@ -4141,6 +4157,44 @@ private extension S6_4AtomicRestoreTests {
         let preview = try exporter.prepare()
         let package = try exporter.export(previewID: preview.id, to: destination)
         return .init(package: package, checkpoint: checkpoint, item: item, bytes: bytes)
+    }
+
+    func assertConfigurationCloneStockDestinationPolicy(
+        source: V4BackupRecordsV1, projected: V4BackupRecordsV1,
+        identity: RestoreIdentityV1
+    ) throws {
+        XCTAssertEqual(identity.mode, .clone)
+        XCTAssertNotEqual(identity.source.workspaceID, identity.targetPointer.workspaceID)
+        XCTAssertEqual(try XCTUnwrap(source.partsStockSnapshot).workspaceID.rawValue,
+            identity.source.workspaceID)
+        XCTAssertEqual(try XCTUnwrap(projected.partsStockSnapshot).workspaceID.rawValue,
+            identity.targetPointer.workspaceID)
+        // C52/C53 history remains source-bound; only stock is destination-bound.
+        try C53ServiceReliabilityBackupEnrollmentV1.validate(
+            records: projected, workspaceID: identity.source.workspaceID)
+        for mode in [BackupRestoreMode.clone, .fork] {
+            let policyIdentity = RestoreIdentityV1(mode: mode, source: identity.source,
+                oldPointer: identity.oldPointer, targetPointer: identity.targetPointer,
+                recordIdentityDisposition: identity.recordIdentityDisposition)
+            XCTAssertNoThrow(try C52ServiceRequestRestoreIdentityPolicyV1.validate(
+                projected, identity: policyIdentity))
+            for foreignStock in [true, false] {
+                var object = try XCTUnwrap(JSONSerialization.jsonObject(
+                    with: JSONEncoder().encode(projected)) as? [String: Any])
+                if foreignStock {
+                    object["partsStockSnapshot"] = try JSONSerialization.jsonObject(
+                        with: JSONEncoder().encode(try XCTUnwrap(source.partsStockSnapshot)))
+                } else {
+                    object.removeValue(forKey: "partsStockSnapshot")
+                }
+                let hostile = try JSONDecoder().decode(V4BackupRecordsV1.self,
+                    from: JSONSerialization.data(withJSONObject: object))
+                XCTAssertThrowsError(try C52ServiceRequestRestoreIdentityPolicyV1.validate(
+                    hostile, identity: policyIdentity)) {
+                    XCTAssertEqual($0 as? RestoreIdentityDecisionErrorV1, .invalidPointerIdentity)
+                }
+            }
+        }
     }
 
     @MainActor
@@ -4410,6 +4464,15 @@ private extension S6_4AtomicRestoreTests {
         let package = try importPackage(draft.package, into: harness.session)
         let inspector = try BackupRestoreService(applicationSupportURL: harness.support)
         let records = try inspector.c55CurrentRecordsForTesting(in: harness.session.modelContext)
+        // This is a genuine export of the incumbent workspace. Clone must
+        // validate against its newly allocated destination, not the incumbent.
+        XCTAssertEqual(package.manifest.source.workspaceID, harness.session.workspaceID.rawValue)
+        XCTAssertThrowsError(try C53ServiceReliabilityReplacementRestoreBoundaryV1.validate(
+            current: records, incoming: package.records, mode: .clone,
+            sourceWorkspaceID: package.manifest.source.workspaceID,
+            targetWorkspaceID: harness.session.workspaceID.rawValue)) {
+            XCTAssertEqual($0 as? ReplacementRestoreRuleError, .invalidAuthority)
+        }
         let oldCanonical = try BackupCanonicalEncoderV1().encodeRecords(records).data
         let destinationCanonical = try BackupCanonicalEncoderV1()
             .encodeRecords(package.records).data

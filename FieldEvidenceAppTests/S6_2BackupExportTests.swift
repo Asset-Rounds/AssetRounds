@@ -2142,13 +2142,22 @@ private extension S6_2BackupExportTests {
             file: file, line: line)
     }
 
+    func makeStartupFixtureSupport(_ label: String) throws -> URL {
+        let container = fileManager.temporaryDirectory.appendingPathComponent(
+            "S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { [container] in
+            try? FileManager.default.removeItem(at: container)
+        }
+        let support = container.appendingPathComponent("Application Support", isDirectory: true)
+        let caches = container.appendingPathComponent("Caches", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: caches, withIntermediateDirectories: false)
+        return support
+    }
+
     @MainActor
     func makeConfigurationCloneTarget(_ label: String) throws -> Harness {
-        let support = fileManager.temporaryDirectory.appendingPathComponent(
-            "S6_2BackupExportTests-clone-\(label)-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        let support = try makeStartupFixtureSupport("clone-\(label)")
         let session = try StoreGenerationFactory(applicationSupportURL: support)
             .openOrBootstrapCurrent()
         return Harness(applicationSupportURL: support, session: session,
@@ -2949,11 +2958,7 @@ private extension S6_2BackupExportTests {
     ) async throws -> Harness {
         var diagnosticStage = "fixture"
         do {
-            let support = fileManager.temporaryDirectory.appendingPathComponent("S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
-            try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
-            addTeardownBlock { [support] in
-                try? FileManager.default.removeItem(at: support)
-            }
+            let support = try makeStartupFixtureSupport(label)
             diagnosticStage = "open-current-session"
             let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
             let context = session.modelContext
@@ -3204,9 +3209,7 @@ private extension S6_2BackupExportTests {
     @MainActor
     func installCompositionBranchBase(_ archive: URL, label: String,
         countedRoots: [String]) async throws -> Harness {
-        let support = fileManager.temporaryDirectory.appendingPathComponent(
-            "S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
-        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        let support = try makeStartupFixtureSupport(label)
         do {
             let initial = try StoreGenerationFactory(applicationSupportURL: support)
                 .openOrBootstrapCurrent()
@@ -4277,17 +4280,76 @@ extension S6_2BackupExportTests {
                 history: history, entries: validated.manifest.entries,
                 metadata: { try XCTUnwrap(validated.members[$0]) }))
             let parentRelease = try CheckRunnerItemDraftCodecV1.release()
-            let parents = try validated.records.fieldDrafts.compactMap { row -> CheckRunnerItemDraftPayloadV1? in
+            let parents = try validated.records.fieldDrafts.compactMap { row -> FieldDraftCheckpointV1? in
                 guard row.kind == .checkpoint else { return nil }
                 let checkpoint = try FieldDraftCanonicalCodecV1.decode(
                     FieldDraftCheckpointV1.self, from: row.canonicalData)
                 guard checkpoint.codec == parentRelease else { return nil }
-                return try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+                _ = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+                return checkpoint
             }
             XCTAssertEqual(parents.count, 1)
-            let parent = try XCTUnwrap(parents.first)
-            guard case .bound = parent.field.begin else {
+            let parentCheckpoint = try XCTUnwrap(parents.first)
+            let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parentCheckpoint)
+            guard case let .bound(_, workflowReference, zoneReference) = parent.field.begin else {
                 return XCTFail("The real zero-photo fixture must retain its bound parent")
+            }
+            diagnosticStage = "parent-and-begin-history-closure"
+            let sourceHistory = try XCTUnwrap(validated.records.mutationHistory)
+            var expectedMutationIDs: Set<MutationIDV1> = [workflowReference.mutationID]
+            if let zoneReference { expectedMutationIDs.insert(zoneReference.mutationID) }
+            var parentMutationIDs = Set<MutationIDV1>()
+            for original in sourceHistory.receipts {
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+                guard envelope.workspaceID == parentCheckpoint.workspaceID,
+                      case let .applyFieldDraft(mutation) = envelope.command else { continue }
+                let checkpoint: FieldDraftCheckpointV1
+                switch mutation.postImage {
+                case let .createCheckpoint(value), let .reviseCheckpoint(value): checkpoint = value
+                default: continue
+                }
+                if checkpoint.draftID == parentCheckpoint.draftID {
+                    parentMutationIDs.insert(envelope.mutationID)
+                }
+            }
+            XCTAssertFalse(parentMutationIDs.isEmpty)
+            expectedMutationIDs.formUnion(parentMutationIDs)
+            for mutationID in expectedMutationIDs.sorted(by: { $0.rawValue.uuidString < $1.rawValue.uuidString }) {
+                let original = try XCTUnwrap(sourceHistory.receipts.first {
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
+                    return envelope.workspaceID == parentCheckpoint.workspaceID && envelope.mutationID == mutationID
+                })
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+                XCTAssertEqual(history.requiredHistory.first {
+                    $0.envelope.workspaceID == parentCheckpoint.workspaceID && $0.envelope.mutationID == mutationID
+                }?.original, original, "The zero-photo history must retain every parent and Begin original")
+
+                diagnosticStage = "quarantined-parent-or-begin-\(mutationID.rawValue.uuidString)"
+                let acceptedDigest = try envelope.canonicalSHA256()
+                let zeroDigest = String(repeating: "0", count: 64)
+                let quarantine = MutationHistoryQuarantineRecordV1(
+                    workspaceID: envelope.workspaceID, mutationID: mutationID.rawValue,
+                    identityDomain: .mutationEnvelope, acceptedIdentitySHA256: acceptedDigest,
+                    conflictingIdentitySHA256: acceptedDigest == zeroDigest ? String(repeating: "1", count: 64) : zeroDigest,
+                    detectedAt: Date(timeIntervalSince1970: 1_800_000_100))
+                let quarantined = MutationHistorySnapshotV1(
+                    workspaceRevision: sourceHistory.workspaceRevision,
+                    lastLocalSequence: sourceHistory.lastLocalSequence,
+                    receipts: sourceHistory.receipts,
+                    quarantines: sourceHistory.quarantines + [quarantine],
+                    entityRevisions: sourceHistory.entityRevisions)
+                // The negative is a valid journal quarantine, not malformed JSON
+                // or an absent receipt that generic import would reject first.
+                XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(quarantined))
+                var object = try XCTUnwrap(JSONSerialization.jsonObject(
+                    with: JSONEncoder().encode(validated.records)) as? [String: Any])
+                object["mutationHistory"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(quarantined))
+                let quarantinedRecords = try JSONDecoder().decode(V4BackupRecordsV1.self,
+                    from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+                XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(
+                    source: validated.manifest.source, records: quarantinedRecords)) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+                }
             }
         } catch {
             logTransportFailure(context: "testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren", stage: diagnosticStage, error: error)
@@ -4303,7 +4365,7 @@ extension S6_2BackupExportTests {
             try await withAsyncFrozenBeginFixture(
                 "configuration-clone-\(phase.rawValue.lowercased())",
                 entry: .check,
-                storedTimeZoneID: "America/Chicago"
+                storedTimeZoneID: "America/Chicago", appDirectoryLayout: true
             ) { h in
                 let photo = try await prepareConfigurationClonePhoto(phase, in: h)
                 let sourceCheckpoint = try photo.checkpoint()
@@ -4417,7 +4479,7 @@ extension S6_2BackupExportTests {
                 try await withAsyncFrozenBeginFixture(
                     "configuration-clone-mixed-incumbent-\(phase.rawValue.lowercased())",
                     entry: .check,
-                    storedTimeZoneID: "America/Chicago"
+                    storedTimeZoneID: "America/Chicago", appDirectoryLayout: true
                 ) { current in
                     let incumbent = try await prepareConfigurationClonePhoto(phase,
                         in: current)
@@ -4474,7 +4536,7 @@ extension S6_2BackupExportTests {
                     try await withAsyncFrozenBeginFixture(
                         "configuration-clone-photo-only-incumbent",
                         entry: .check,
-                        storedTimeZoneID: "America/Chicago"
+                        storedTimeZoneID: "America/Chicago", appDirectoryLayout: true
                     ) { current in
                         let incumbent = try await prepareConfigurationClonePhoto(.terminal,
                             in: current)
@@ -4515,7 +4577,7 @@ extension S6_2BackupExportTests {
         try await withAsyncFrozenBeginFixture(
             "configuration-clone-hostile-boundaries",
             entry: .check,
-            storedTimeZoneID: "America/Chicago"
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true
         ) { h in
             let photo = try await prepareConfigurationClonePhoto(.terminal, in: h)
             XCTAssertEqual(try photo.checkpoint().state, .committed)
@@ -4659,7 +4721,7 @@ extension S6_2BackupExportTests {
             for scenario in ["valid-awaiting", "missing-parent", "missing-all-checkpoints"] {
                 try await withAsyncFrozenBeginFixture(
                     "configuration-clone-current-\(scenario)", entry: .check,
-                    storedTimeZoneID: "America/Chicago"
+                    storedTimeZoneID: "America/Chicago", appDirectoryLayout: true
                 ) { current in
                     let awaiting = try await prepareConfigurationClonePhoto(.awaitingRawStage, in: current)
                     let checkpoint = try awaiting.checkpoint()

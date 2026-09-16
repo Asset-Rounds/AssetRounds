@@ -931,6 +931,7 @@ func withFrozenBeginFixture<Value>(
 @MainActor
 func withAsyncFrozenBeginFixture<Value>(
     _ label: String, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
+    appDirectoryLayout: Bool = false,
     _ body: (FrozenBeginFixture) async throws -> Value
 ) async throws -> Value {
     var root: URL?
@@ -939,8 +940,18 @@ func withAsyncFrozenBeginFixture<Value>(
             "V23-frozen-begin-\(label)-\(UUID().uuidString)", isDirectory: true
         )
         root = fixtureRoot
+        let support: URL
+        if appDirectoryLayout {
+            // Production startup requires an existing sibling Caches directory.
+            // Keep both directories inside this fixture's unique owned root.
+            support = fixtureRoot.appendingPathComponent("Application Support", isDirectory: true)
+            let caches = fixtureRoot.appendingPathComponent("Caches", isDirectory: true)
+            try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
+        } else {
+            support = fixtureRoot
+        }
         let fixture = try FrozenBeginFixture(
-            root: fixtureRoot, entry: entry, storedTimeZoneID: storedTimeZoneID
+            root: support, entry: entry, storedTimeZoneID: storedTimeZoneID
         )
         let value: Value
         do {
