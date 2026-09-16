@@ -11,6 +11,28 @@ private func assertStagingFailure(_ expected: DraftAttachmentStagingFailureV1,
     catch { XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, expected, file: file, line: line) }
 }
 
+/// Adds a finite phase and concrete error type to an otherwise unchanged
+/// unexpected throw. The original error still escapes to XCTest.
+private func stagingDiagnosticPhase<T>(_ phase: String,
+    file: StaticString = #filePath, line: UInt = #line,
+    _ operation: () throws -> T) throws -> T {
+    do { return try operation() }
+    catch {
+        XCTFail("Unexpected staging error at \(phase): \(String(reflecting: type(of: error)))", file: file, line: line)
+        throw error
+    }
+}
+
+private func stagingDiagnosticPhase<T>(_ phase: String,
+    file: StaticString = #filePath, line: UInt = #line,
+    _ operation: () async throws -> T) async throws -> T {
+    do { return try await operation() }
+    catch {
+        XCTFail("Unexpected staging error at \(phase): \(String(reflecting: type(of: error)))", file: file, line: line)
+        throw error
+    }
+}
+
 /// A controllable existing scratch boundary, not a production publication hook.
 private actor C36StagingScratchGate: ScratchDataLeasePortV1 {
     let root: URL
@@ -51,15 +73,145 @@ private actor C36StagingContentGate: DraftImmutableContentWriterV1 {
     let entered: XCTestExpectation
     private var continuation: CheckedContinuation<Void, Never>?
     private var resumed = false
+    private var requests: [DraftImmutableContentWriteRequestV1] = []
+    private var receipts: [DraftImmutableContentWriteReceiptV1] = []
     init(writer: EvidenceBundleStore, entered: XCTestExpectation) { self.writer = writer; self.entered = entered }
     func persistImmutableOriginal(bytes: Data, request: DraftImmutableContentWriteRequestV1)
         async throws -> DraftImmutableContentWriteReceiptV1 {
         let receipt = try await writer.persistImmutableOriginal(bytes: bytes, request: request)
+        requests.append(request); receipts.append(receipt)
         entered.fulfill()
         if !resumed { await withCheckedContinuation { continuation = $0 } }
         return receipt
     }
     func resume() { resumed = true; continuation?.resume(); continuation = nil }
+    func observed() -> ([DraftImmutableContentWriteRequestV1], [DraftImmutableContentWriteReceiptV1]) {
+        (requests, receipts)
+    }
+}
+
+private enum C36PhotoReceiptFailure: Error { case savedThenLostAcknowledgement }
+
+/// Records only real C05 results; the first acknowledgement can be lost after
+/// the immutable write so a new adapter must adopt the same frozen request.
+private actor C36PhotoReceiptWriter: DraftImmutableContentWriterV1 {
+    let writer: EvidenceBundleStore
+    private var loseAcknowledgement: Bool
+    private var requests: [DraftImmutableContentWriteRequestV1] = []
+    private var receipts: [DraftImmutableContentWriteReceiptV1] = []
+    init(writer: EvidenceBundleStore, loseAcknowledgement: Bool) {
+        self.writer = writer; self.loseAcknowledgement = loseAcknowledgement
+    }
+    func persistImmutableOriginal(bytes: Data, request: DraftImmutableContentWriteRequestV1)
+        async throws -> DraftImmutableContentWriteReceiptV1 {
+        let receipt = try await writer.persistImmutableOriginal(bytes: bytes, request: request)
+        requests.append(request); receipts.append(receipt)
+        if loseAcknowledgement {
+            loseAcknowledgement = false
+            throw C36PhotoReceiptFailure.savedThenLostAcknowledgement
+        }
+        return receipt
+    }
+    func observed() -> ([DraftImmutableContentWriteRequestV1], [DraftImmutableContentWriteReceiptV1]) {
+        (requests, receipts)
+    }
+}
+
+/// All authority comes from real Begin, PENDING, child and atomic raw receipts.
+/// This fixture never constructs a service capability or an opaque promotion.
+@MainActor
+private struct C36PhotoPromotionFixture {
+    let h: FrozenBeginFixture
+    let adapter: DraftAttachmentStagingAdapterV1
+    let service: ProductionCheckRunnerItemDraftServiceV1
+    let parentID: UUID
+    let childID: UUID
+    let sourceBytes: Data
+    let sourceURL: URL
+    let raw: CheckRunnerPhotoRawReadyV1
+
+    var rawDirectory: URL {
+        h.root.appendingPathComponent("FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)")
+            .appendingPathComponent(DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                draftID: childID, stageID: raw.intent.stageID))
+    }
+
+    static func make(_ h: FrozenBeginFixture, writer: any DraftImmutableContentWriterV1)
+        async throws -> C36PhotoPromotionFixture {
+        let adapter = try DraftAttachmentStagingAdapterV1(applicationSupportURL: h.root,
+            workspaceID: h.workspaceID, immutableContentWriter: writer,
+            clock: { Date(timeIntervalSince1970: 2_000_000_000) })
+        let service = try ProductionCheckRunnerItemDraftServiceV1(session: h.coordinator,
+            progress: h.progress, coordinator: h.runner, publishedRelease: h.publishedRelease,
+            clock: h.clock, ids: h.ids, attachmentStaging: adapter)
+        let source = try h.captureSource()
+        let initial = try service.create(source: source, preflight: .init(timeZoneID: "America/New_York",
+            isTimeZoneConfirmed: true, confirmedTimeZoneID: "America/New_York",
+            afterDarkAccepted: true, safePositionAccepted: true))
+        let prepared = try service.prepareBegin(draftID: initial.draftID,
+            expectedCheckpointSHA256: initial.checkpointSHA256,
+            observedAtUTC: Date(timeIntervalSince1970: 1_789_323_456))
+        let bound = try service.resumeInitialBegin(draftID: prepared.draftID)
+        let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(bound)
+        let begin = try XCTUnwrap(parent.field.begin.attempt)
+        h.runner.configureCapture(generationRootURL: h.session.generationRootURL)
+        let bytes = try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 179)
+        let childID = UUID()
+        let intent = try CheckRunnerPhotoRawStageIntentV1(stageID: UUID(),
+            stageMutationID: .init(rawValue: UUID()), stageCreatedAt: bound.updatedAt.addingTimeInterval(2),
+            expectedSourceByteCount: Int64(bytes.count), provenanceID: "c36-photo-promotion-source",
+            evidenceID: UUID(), evidenceCreatedAt: bound.updatedAt.addingTimeInterval(1))
+        let proposal = try CheckRunnerPhotoDraftPayloadV1(workspaceID: h.workspaceID,
+            childDraftID: childID, parentDraftID: bound.draftID, recordID: begin.recordCommand.recordID,
+            assetID: source.assetID, sourceBinding: source, workflowStage: source.requestedEntry.stage,
+            captureStep: .wide, purposeKey: "wide_context", origin: .humanCapture, phase: .awaitingRawStage(intent))
+        _ = try service.prepareRawPhoto(parentDraftID: bound.draftID,
+            expectedCheckpointSHA256: bound.checkpointSHA256, proposal: proposal)
+        let sourceURL = h.root.appendingPathComponent("photo-picker-original.png")
+        try bytes.write(to: sourceURL)
+        let publication = try await service.publishRawPhoto(parentDraftID: bound.draftID,
+            childDraftID: childID, sourceURL: sourceURL)
+        guard case let .publishReadyStage(bundle) = publication.mutation.postImage,
+              case let .rawReady(raw) = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(
+                bundle.successorCheckpoint).phase else { throw FieldDraftFailureV1.missingReceipt }
+        h.clock.value = intent.stageCreatedAt.addingTimeInterval(1)
+        return .init(h: h, adapter: adapter, service: service, parentID: bound.draftID,
+            childID: childID, sourceBytes: bytes, sourceURL: sourceURL, raw: raw)
+    }
+
+    func prepareCommit() async throws -> FieldDraftCheckpointV1 {
+        let pair = try await service.preparePhotoPair(parentDraftID: parentID, childDraftID: childID)
+        let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(pair)
+        let instant = pair.updatedAt.addingTimeInterval(1)
+        let outputs = try [WorkspaceEntityIdentityV1(kind: .workflowRecord, id: payload.recordID).stableKey,
+            WorkspaceEntityIdentityV1(kind: .evidenceFile, id: raw.intent.evidenceID).stableKey].sorted()
+        let attempt = try CheckRunnerPhotoCommitAttemptV1(planID: UUID(), expectedWorkflowRecordRevision: 1,
+            targetMutationID: .init(rawValue: raw.intent.evidenceID), outputKeys: outputs,
+            reservationMutationID: .init(rawValue: UUID()), reservationReviewAfter: instant.addingTimeInterval(90),
+            preparedSagaID: UUID(), preparedSagaMutationID: .init(rawValue: UUID()), preparedUpdatedAt: instant,
+            contentPromotedSagaID: UUID(), contentPromotedSagaMutationID: .init(rawValue: UUID()),
+            contentPromotedUpdatedAt: instant.addingTimeInterval(2), targetCommittedSagaID: UUID(),
+            targetCommittedSagaMutationID: .init(rawValue: UUID()), targetCommittedUpdatedAt: instant.addingTimeInterval(3),
+            draftRetirePendingSagaID: UUID(), draftRetirePendingSagaMutationID: .init(rawValue: UUID()),
+            draftRetirePendingUpdatedAt: instant.addingTimeInterval(4), draftRetiredSagaID: UUID(),
+            draftRetiredUpdatedAt: instant.addingTimeInterval(5), commitReceiptID: UUID(),
+            terminalBundleMutationID: .init(rawValue: UUID()), terminalCheckpointUpdatedAt: instant.addingTimeInterval(6),
+            promotionAt: instant.addingTimeInterval(1))
+        h.clock.value = instant
+        return try service.preparePhotoCommit(parentDraftID: parentID, childDraftID: childID,
+            expectedCheckpointSHA256: pair.checkpointSHA256, proposal: attempt)
+    }
+
+    func reopened(writer: any DraftImmutableContentWriterV1) throws
+        -> (DraftAttachmentStagingAdapterV1, ProductionCheckRunnerItemDraftServiceV1) {
+        let adapter = try DraftAttachmentStagingAdapterV1(applicationSupportURL: h.root,
+            workspaceID: h.workspaceID, immutableContentWriter: writer,
+            clock: { Date(timeIntervalSince1970: 2_100_000_000) })
+        let service = try ProductionCheckRunnerItemDraftServiceV1(session: h.coordinator,
+            progress: h.progress, coordinator: h.runner, publishedRelease: h.publishedRelease,
+            clock: h.clock, ids: h.ids, attachmentStaging: adapter)
+        return (adapter, service)
+    }
 }
 
 private enum C52ServiceRequestBoundary_V9_30FieldDraftResilienceTests {
@@ -765,16 +917,28 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         let fm = FileManager.default
         let support = fm.temporaryDirectory.appendingPathComponent("staging-owners-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: support) }
-        let first = try DraftAttachmentStagingAdapterV1(applicationSupportURL: support)
-        let second = try DraftAttachmentStagingAdapterV1(applicationSupportURL: support)
+        let first = try stagingDiagnosticPhase("A01.initialize-first") {
+            try DraftAttachmentStagingAdapterV1(applicationSupportURL: support)
+        }
+        let second = try stagingDiagnosticPhase("A01.initialize-second") {
+            try DraftAttachmentStagingAdapterV1(applicationSupportURL: support)
+        }
         let bytes = Data("first owner bytes".utf8)
-        let one = try await first.stage(data: bytes, draftID: fixture.draftID,
-            workspaceID: fixture.workspaceID, attachmentKind: .file)
-        let secondSnapshot = try await second.entries()
+        let one = try await stagingDiagnosticPhase("A01.first-stage") {
+            try await first.stage(data: bytes, draftID: fixture.draftID,
+                workspaceID: fixture.workspaceID, attachmentKind: .file)
+        }
+        let secondSnapshot = try await stagingDiagnosticPhase("A01.second-read-after-first-stage") {
+            try await second.entries()
+        }
         XCTAssertEqual(secondSnapshot.map(\.item), [one])
-        let two = try await second.stage(data: Data("second owner bytes".utf8), draftID: fixture.draftID,
-            workspaceID: fixture.workspaceID, attachmentKind: .file)
-        let firstSnapshot = try await first.entries()
+        let two = try await stagingDiagnosticPhase("A01.second-stage") {
+            try await second.stage(data: Data("second owner bytes".utf8), draftID: fixture.draftID,
+                workspaceID: fixture.workspaceID, attachmentKind: .file)
+        }
+        let firstSnapshot = try await stagingDiagnosticPhase("A01.first-read-after-second-stage") {
+            try await first.entries()
+        }
         XCTAssertEqual(Set(firstSnapshot.map(\.item.stageID)), [one.stageID, two.stageID])
         await assertStagingFailure(.stageAlreadyExists) {
             _ = try await first.stage(data: Data("must not replace".utf8), draftID: fixture.draftID,
@@ -782,9 +946,13 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         }
 
         let maximum = Data(repeating: 0x53, count: FieldDraftLimitsV1.maximumPayloadBytes)
-        let maximumItem = try await first.stage(data: maximum, draftID: fixture.draftID,
-            workspaceID: fixture.workspaceID, attachmentKind: .file)
-        let maximumReadback = try await second.data(stageID: maximumItem.stageID)
+        let maximumItem = try await stagingDiagnosticPhase("A01.maximum-stage") {
+            try await first.stage(data: maximum, draftID: fixture.draftID,
+                workspaceID: fixture.workspaceID, attachmentKind: .file)
+        }
+        let maximumReadback = try await stagingDiagnosticPhase("A01.maximum-readback") {
+            try await second.data(stageID: maximumItem.stageID)
+        }
         XCTAssertEqual(maximumReadback, maximum)
         await assertStagingFailure(.invalidAttachment) {
             _ = try await second.stage(data: maximum + Data([0]), draftID: fixture.draftID,
@@ -801,12 +969,16 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         try fm.moveItem(at: payloadURL, to: savedPayload)
         XCTAssertEqual(mkfifo(payloadURL.path, mode_t(0o600)), 0)
         await assertFIFORejected(.unsafePath, at: payloadURL) { _ = try await first.data(stageID: one.stageID) }
-        let afterPayloadFIFO = try await second.entries()
+        let afterPayloadFIFO = try await stagingDiagnosticPhase("A01.read-after-payload-fifo") {
+            try await second.entries()
+        }
         XCTAssertTrue(afterPayloadFIFO.contains(where: { $0.item == one }))
         XCTAssertEqual(try Data(contentsOf: manifestURL), manifestBeforeFIFO)
         try fm.removeItem(at: payloadURL)
         try fm.moveItem(at: savedPayload, to: payloadURL)
-        let payloadAfterFIFO = try await first.data(stageID: one.stageID)
+        let payloadAfterFIFO = try await stagingDiagnosticPhase("A01.payload-fifo-recovery-read") {
+            try await first.data(stageID: one.stageID)
+        }
         XCTAssertEqual(payloadAfterFIFO, bytes)
 
         try fm.moveItem(at: manifestURL, to: savedManifest)
@@ -822,11 +994,17 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         try fm.removeItem(at: manifestURL)
         try fm.moveItem(at: savedManifest, to: manifestURL)
         XCTAssertEqual(try Data(contentsOf: manifestURL), manifestBeforeFIFO)
-        let afterManifestFIFO = try await second.entries()
+        let afterManifestFIFO = try await stagingDiagnosticPhase("A01.manifest-fifo-recovery-read") {
+            try await second.entries()
+        }
         XCTAssertEqual(afterManifestFIFO, afterPayloadFIFO)
-        let validAfterFIFO = try await first.stage(data: Data("valid after FIFO rejection".utf8),
-            draftID: fixture.draftID, workspaceID: fixture.workspaceID, attachmentKind: .file)
-        let validAfterFIFOReadback = try await second.verify(stageID: validAfterFIFO.stageID)
+        let validAfterFIFO = try await stagingDiagnosticPhase("A01.stage-after-fifo-recovery") {
+            try await first.stage(data: Data("valid after FIFO rejection".utf8),
+                draftID: fixture.draftID, workspaceID: fixture.workspaceID, attachmentKind: .file)
+        }
+        let validAfterFIFOReadback = try await stagingDiagnosticPhase("A01.verify-after-fifo-recovery") {
+            try await second.verify(stageID: validAfterFIFO.stageID)
+        }
         XCTAssertEqual(validAfterFIFOReadback, validAfterFIFO)
         let fd = open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         XCTAssertGreaterThanOrEqual(fd, 0)
@@ -895,6 +1073,41 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         XCTAssertNil(afterCancellation)
         let afterCancellationEntries = try await cancellable.entries()
         XCTAssertTrue(afterCancellationEntries.contains(where: { $0.item == winner }))
+
+        try await withAsyncFrozenBeginFixture("photo-raw-retry", entry: .check,
+            storedTimeZoneID: "America/New_York") { h in
+            let writer = EvidenceBundleStore(generationRootURL: h.session.generationRootURL)
+            let photo = try await C36PhotoPromotionFixture.make(h, writer: writer)
+            let payloadURL = photo.rawDirectory.appendingPathComponent(DraftAttachmentStagingAdapterV1.payloadName)
+            let savedURL = h.root.appendingPathComponent("retained-photo-raw")
+            try fm.moveItem(at: payloadURL, to: savedURL)
+            XCTAssertEqual(mkfifo(payloadURL.path, mode_t(0o600)), 0)
+            try fm.removeItem(at: photo.sourceURL)
+            await assertStagingFailure(.unsafePath) {
+                _ = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+            }
+            try fm.removeItem(at: payloadURL)
+            try fm.moveItem(at: savedURL, to: payloadURL)
+
+            var divergent = photo.sourceBytes
+            divergent[divergent.startIndex] ^= 0xff
+            try divergent.write(to: payloadURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: payloadURL)
+            await assertStagingFailure(.digestMismatch) {
+                _ = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+            }
+            try photo.sourceBytes.write(to: payloadURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: payloadURL)
+            let recovered = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            guard case let .pairReady(pair) = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(recovered).phase else {
+                return XCTFail("expected pair-ready retry")
+            }
+            XCTAssertEqual(pair.raw, photo.raw)
+            XCTAssertFalse(fm.fileExists(atPath: photo.sourceURL.path))
+        }
     }
 
     func testV9_30H01HostileCodecBudgetPrivacyAndCrossWorkspaceInputsFailClosed() throws {
@@ -1175,6 +1388,37 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
             fixture.retiredSaga.sagaSHA256
         ])
         try fixture.commitReceipt.validate()
+
+        try await withAsyncFrozenBeginFixture("photo-manifest-race", entry: .check,
+            storedTimeZoneID: "America/New_York") { h in
+            let entered = expectation(description: "photo C05 write completed before manifest publication")
+            let gate = C36StagingContentGate(
+                writer: EvidenceBundleStore(generationRootURL: h.session.generationRootURL), entered: entered)
+            let photo = try await C36PhotoPromotionFixture.make(h, writer: gate)
+            _ = try await photo.prepareCommit()
+            let pending = Task {
+                try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+            }
+            defer { pending.cancel(); Task { await gate.resume() } }
+            await fulfillment(of: [entered], timeout: 10)
+            let competitor = try DraftAttachmentStagingAdapterV1(applicationSupportURL: h.root,
+                workspaceID: h.workspaceID)
+            let retained = try await competitor.stage(data: Data("unrelated manifest winner".utf8),
+                draftID: UUID(), workspaceID: h.workspaceID, attachmentKind: .file)
+            await gate.resume()
+            await assertStagingFailure(.staleStage) { _ = try await pending.value }
+            let retainedBytes = try await competitor.data(stageID: retained.stageID)
+            XCTAssertEqual(retainedBytes, Data("unrelated manifest winner".utf8))
+
+            let (reopenedAdapter, reopenedService) = try photo.reopened(
+                writer: EvidenceBundleStore(generationRootURL: h.session.generationRootURL))
+            let completed = try await reopenedService.resumePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            XCTAssertEqual(completed.state, .committed)
+            let reopenedBytes = try await reopenedAdapter.data(stageID: retained.stageID)
+            XCTAssertEqual(reopenedBytes, Data("unrelated manifest winner".utf8))
+        }
     }
 
     @MainActor
@@ -1206,7 +1450,21 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         XCTAssertTrue(fixture.deletedReservation.mayDelete(hasLiveReference: false))
         XCTAssertFalse(fixture.quarantinedReservation.mayDelete(hasLiveReference: true))
         XCTAssertFalse(fixture.deletedReservation.mayDelete(hasLiveReference: true))
-        try fixture.quarantinedReservation.validateSuccessor(of: fixture.reservation)
+        let quarantinePredecessor = try DraftContentReservationV1(
+            reservationID: fixture.quarantinedReservation.reservationID,
+            workspaceID: fixture.quarantinedReservation.workspaceID,
+            draftID: fixture.quarantinedReservation.draftID,
+            stageID: fixture.quarantinedReservation.stageID,
+            commitPlanSHA256: fixture.quarantinedReservation.commitPlanSHA256,
+            mutationID: fixture.reservation.mutationID,
+            contentDigest: fixture.quarantinedReservation.contentDigest,
+            locator: fixture.quarantinedReservation.locator,
+            createdAt: fixture.quarantinedReservation.createdAt,
+            reviewAfter: fixture.quarantinedReservation.reviewAfter,
+            reconciliationState: .reserved,
+            revision: 1
+        )
+        try fixture.quarantinedReservation.validateSuccessor(of: quarantinePredecessor)
         try fixture.deletedReservation.validateSuccessor(of: fixture.quarantinedReservation)
 
         XCTAssertNoThrow(try V16FieldDraftImportBoundaryV1.validate(persistent: 16, records: 15))
@@ -1499,6 +1757,47 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         XCTAssertEqual(afterPromotion?.state, .orphanQuarantined)
         let quarantineBytes = try await staging.data(stageID: staged.stageID)
         XCTAssertEqual(quarantineBytes, Data("content reservation survives owner change".utf8))
+
+        try await withAsyncFrozenBeginFixture("photo-c05-lost-ack", entry: .check,
+            storedTimeZoneID: "America/New_York") { h in
+            let writer = C36PhotoReceiptWriter(
+                writer: EvidenceBundleStore(generationRootURL: h.session.generationRootURL),
+                loseAcknowledgement: true)
+            let photo = try await C36PhotoPromotionFixture.make(h, writer: writer)
+            let committing = try await photo.prepareCommit()
+            do {
+                _ = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+                XCTFail("expected lost C05 acknowledgement")
+            } catch {
+                XCTAssertEqual(error as? C36PhotoReceiptFailure, .savedThenLostAcknowledgement)
+            }
+            let first = await writer.observed()
+            XCTAssertEqual(first.0.count, 1)
+            XCTAssertEqual(first.1.count, 1)
+            XCTAssertFalse(try XCTUnwrap(first.1.first).reusedExistingBytes)
+            XCTAssertTrue(try h.context.fetch(FetchDescriptor<DraftContentReservationRow>()).isEmpty)
+
+            h.clock.value = h.clock.value.addingTimeInterval(50_000)
+            let (_, reopenedService) = try photo.reopened(writer: writer)
+            let completed = try await reopenedService.resumePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            XCTAssertEqual(completed.state, .committed)
+            let observed = await writer.observed()
+            XCTAssertEqual(observed.0.count, 2)
+            XCTAssertEqual(observed.0[0], observed.0[1])
+            XCTAssertEqual(observed.1.map(\.reusedExistingBytes), [false, true])
+            let reconstruction = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: committing)
+            guard case let .preparedCommit(_, attempt) = try CheckRunnerPhotoDraftCodecV1
+                .validateCheckpoint(committing).phase else { return XCTFail("expected frozen attempt") }
+            let expected = try CheckRunnerPhotoContinuationEvidenceV1.reservation(raw: photo.raw,
+                plan: reconstruction.draftCommit.plan, attempt: attempt)
+            let reservations = try h.context.fetch(FetchDescriptor<DraftContentReservationRow>())
+                .map { try $0.value() }
+            XCTAssertEqual(reservations, [expected])
+            XCTAssertEqual(expected.createdAt, attempt.promotionAt)
+            XCTAssertEqual(expected.reviewAfter, attempt.reservationReviewAfter)
+        }
     }
 }
 
@@ -1677,6 +1976,47 @@ extension V9_30FieldDraftResilienceTests {
         XCTAssertEqual(Set(afterCompanion.map(\.item.stageID)), [first.stageID, second.stageID, companionItem.stageID])
         let companionReadback = try await actor.data(stageID: companionItem.stageID)
         XCTAssertEqual(companionReadback, companionBytes)
+
+        try await withAsyncFrozenBeginFixture("photo-witness-race", entry: .check,
+            storedTimeZoneID: "America/New_York") { h in
+            let entered = expectation(description: "photo C05 bytes durable before witness replacement")
+            let gate = C36StagingContentGate(
+                writer: EvidenceBundleStore(generationRootURL: h.session.generationRootURL), entered: entered)
+            let photo = try await C36PhotoPromotionFixture.make(h, writer: gate)
+            _ = try await photo.prepareCommit()
+            let witnessURL = photo.rawDirectory.appendingPathComponent("raw-publication.json")
+            let witness = try Data(contentsOf: witnessURL)
+            let pending = Task {
+                try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+            }
+            defer { pending.cancel(); Task { await gate.resume() } }
+            await fulfillment(of: [entered], timeout: 10)
+            try Data("replaced witness".utf8).write(to: witnessURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: witnessURL)
+            await gate.resume()
+            await assertStagingFailure(.staleStage) { _ = try await pending.value }
+            let first = await gate.observed()
+            XCTAssertEqual(first.0.count, 1)
+            XCTAssertEqual(first.1.map(\.reusedExistingBytes), [false])
+            let request = try XCTUnwrap(first.0.first)
+            let immutableURL = h.session.generationRootURL.appendingPathComponent(request.relativePath)
+            XCTAssertEqual(try Data(contentsOf: immutableURL), photo.sourceBytes)
+            XCTAssertTrue(try h.context.fetch(FetchDescriptor<EvidenceFile>())
+                .filter { $0.id == photo.raw.intent.evidenceID }.isEmpty)
+
+            try witness.write(to: witnessURL, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: witnessURL)
+            let (_, reopenedService) = try photo.reopened(writer: gate)
+            let completed = try await reopenedService.resumePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            XCTAssertEqual(completed.state, .committed)
+            let retried = await gate.observed()
+            XCTAssertEqual(retried.0, [request, request])
+            XCTAssertEqual(retried.1.map(\.reusedExistingBytes), [false, true])
+            XCTAssertEqual(try h.context.fetch(FetchDescriptor<EvidenceFile>())
+                .filter { $0.id == photo.raw.intent.evidenceID }.count, 1)
+        }
     }
 
     @MainActor
@@ -1725,10 +2065,14 @@ extension V9_30FieldDraftResilienceTests {
                 restoreID: UUID(), clock: { now })) { error in
                 XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, expected, name)
             }
-            let reopened = try DraftAttachmentStagingAdapterV1(
-                applicationSupportURL: support, workspaceID: targetWorkspace
-            )
-            let retained = try await reopened.entries()
+            let reopened = try stagingDiagnosticPhase("hostile-restore.\(name).reopen") {
+                try DraftAttachmentStagingAdapterV1(
+                    applicationSupportURL: support, workspaceID: targetWorkspace
+                )
+            }
+            let retained = try await stagingDiagnosticPhase("hostile-restore.\(name).read-empty") {
+                try await reopened.entries()
+            }
             XCTAssertTrue(retained.isEmpty, name)
             let destination = support.appendingPathComponent(
                 "FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)/"

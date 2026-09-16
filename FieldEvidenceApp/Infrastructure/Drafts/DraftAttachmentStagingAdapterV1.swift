@@ -578,7 +578,7 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         return (try directory.openFile(DraftAttachmentStagingAdapterV1.payloadName), digest)
     }
 
-    private static func hash(_ fd: Int32, count: Int) throws -> ContentDigestV1 {
+    fileprivate static func hash(_ fd: Int32, count: Int) throws -> ContentDigestV1 {
         var hasher = SHA256(), offset = 0
         var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
         while offset < count {
@@ -592,7 +592,7 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
             hexadecimalValue: hasher.finalize().map { String(format: "%02x", $0) }.joined())
     }
 
-    private static func inspect(_ fd: Int32, count: Int) throws -> MediaSourceFactsV1 {
+    fileprivate static func inspect(_ fd: Int32, count: Int) throws -> MediaSourceFactsV1 {
         let mapped = mmap(nil, count, PROT_READ, MAP_PRIVATE, fd, 0)
         guard let mapped, mapped != MAP_FAILED else { throw DraftAttachmentStagingFailureV1.invalidAttachment }
         defer { munmap(mapped, count) }
@@ -621,6 +621,326 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
             }
         }
         if (try? directory.verifyNamed()) != nil { unlinkat(owner.descriptor, name, AT_REMOVEDIR) }
+    }
+}
+
+/// An opened raw witness is only a physical snapshot. Application capabilities
+/// still authenticate the original checkpoint and receipt before it is used.
+/// No mapped source bytes or descriptors are exposed to the main actor.
+fileprivate final class DraftRawPhotoReadSnapshotV1: @unchecked Sendable {
+    let rawReady: CheckRunnerPhotoRawReadyV1
+    let owner: DraftStagingRootOwnerV1
+    let base: DraftStagingRootOwnerV1.ManifestSnapshot
+    let directory: DraftStagingRootOwnerV1.Directory
+    let entry: DraftAttachmentStagingEntryV1
+    private let payloadDescriptor: Int32
+    private let payloadFacts: stat
+    private let witnessDescriptor: Int32
+    private let witnessFacts: stat
+
+    private init(rawReady: CheckRunnerPhotoRawReadyV1, owner: DraftStagingRootOwnerV1,
+        base: DraftStagingRootOwnerV1.ManifestSnapshot, directory: DraftStagingRootOwnerV1.Directory,
+        entry: DraftAttachmentStagingEntryV1, payloadDescriptor: Int32, payloadFacts: stat,
+        witnessDescriptor: Int32, witnessFacts: stat) {
+        self.rawReady = rawReady; self.owner = owner; self.base = base; self.directory = directory
+        self.entry = entry; self.payloadDescriptor = payloadDescriptor; self.payloadFacts = payloadFacts
+        self.witnessDescriptor = witnessDescriptor; self.witnessFacts = witnessFacts
+    }
+
+    deinit { close(payloadDescriptor); close(witnessDescriptor) }
+
+    static func open(raw: CheckRunnerPhotoRawReadyV1, owner: DraftStagingRootOwnerV1,
+        committedEntry: DraftAttachmentStagingEntryV1? = nil) throws -> DraftRawPhotoReadSnapshotV1 {
+        try Task.checkCancellation()
+        try raw.validate()
+        let ready = try DraftAttachmentStagingEntryV1(item: raw.readyItem,
+            relativeDataPath: DraftAttachmentStagingAdapterV1.relativeDataPath(
+                draftID: raw.readyItem.draftID, stageID: raw.intent.stageID),
+            mediaType: raw.inspection.sourceMediaType, updatedAt: raw.intent.stageCreatedAt)
+        let lock = try owner.acquire()
+        defer { lock.release() }
+        let base = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner)
+        guard let entry = base.manifest.entries.first(where: { $0.item.stageID == raw.intent.stageID }),
+              entry == ready || entry == committedEntry else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+        let parts = DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+            draftID: raw.readyItem.draftID, stageID: raw.intent.stageID).split(separator: "/").map(String.init)
+        let directory = try owner.directory(parts)
+        let witness = try directory.openFile("raw-publication.json")
+        var payload: Int32 = -1
+        var transferred = false
+        do {
+            let witnessFacts = try DraftStagingRootOwnerV1.regular(witness)
+            guard witnessFacts.st_size > 0,
+                  witnessFacts.st_size <= Int64(FieldDraftLimitsV1.maximumCanonicalBytes),
+                  let count = Int(exactly: witnessFacts.st_size) else {
+                throw DraftAttachmentStagingFailureV1.corruptManifest
+            }
+            let witnessBytes = try DraftStagingRootOwnerV1.read(witness, count: count)
+            guard try FieldDraftCanonicalCodecV1.decode(CheckRunnerPhotoRawReadyV1.self,
+                from: witnessBytes) == raw else { throw DraftAttachmentStagingFailureV1.digestMismatch }
+            payload = try directory.openFile(DraftAttachmentStagingAdapterV1.payloadName)
+            let payloadFacts = try DraftStagingRootOwnerV1.regular(payload)
+            guard payloadFacts.st_size == raw.inspection.sourceByteCount,
+                  payloadFacts.st_size > 0,
+                  payloadFacts.st_size <= Int64(MediaContractV1.sourceByteCountMaximum) else {
+                throw DraftAttachmentStagingFailureV1.byteLengthMismatch
+            }
+            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: directory.url)
+            try ProtectedFilePolicyV1.verify(.stagingFile,
+                at: directory.url.appendingPathComponent("raw-publication.json"))
+            try ProtectedFilePolicyV1.verify(.stagingFile,
+                at: directory.url.appendingPathComponent(DraftAttachmentStagingAdapterV1.payloadName))
+            let result = DraftRawPhotoReadSnapshotV1(rawReady: raw, owner: owner, base: base,
+                directory: directory, entry: entry, payloadDescriptor: payload, payloadFacts: payloadFacts,
+                witnessDescriptor: witness, witnessFacts: witnessFacts)
+            transferred = true
+            try result.requireCurrent()
+            return result
+        } catch {
+            if !transferred { close(witness); if payload >= 0 { close(payload) } }
+            throw error
+        }
+    }
+
+    /// Called while R is held for a final publication. It performs only bounded
+    /// descriptor/stat checks; hashing and ImageIO run before this critical section.
+    func requireCurrent() throws {
+        try owner.requireNamedRoot()
+        try base.requireCurrent(owner)
+        try directory.verifyNamed()
+        try directory.verifyFile(payloadDescriptor, name: DraftAttachmentStagingAdapterV1.payloadName)
+        try directory.verifyFile(witnessDescriptor, name: "raw-publication.json")
+        try DraftStagingRootOwnerV1.unchanged(payloadDescriptor, payloadFacts)
+        try DraftStagingRootOwnerV1.unchanged(witnessDescriptor, witnessFacts)
+    }
+
+    func verifyBytesAndInspection() throws {
+        try Task.checkCancellation()
+        try requireCurrent()
+        let count = Int(payloadFacts.st_size)
+        let digest = try DraftPreparedRawPhotoPublicationV1.hash(payloadDescriptor, count: count)
+        guard digest == rawReady.inspection.sourceSHA256 else {
+            throw DraftAttachmentStagingFailureV1.digestMismatch
+        }
+        let facts = try DraftPreparedRawPhotoPublicationV1.inspect(payloadDescriptor, count: count)
+        let inspection = try CheckRunnerPhotoSourceInspectionV1(facts: facts, sourceSHA256: digest,
+            workspaceID: rawReady.readyItem.workspaceID, provenanceID: rawReady.intent.provenanceID)
+        guard inspection == rawReady.inspection else {
+            throw DraftAttachmentStagingFailureV1.digestMismatch
+        }
+        try Task.checkCancellation()
+        try requireCurrent()
+    }
+
+    private func mappedBytes() throws -> Data {
+        try requireCurrent()
+        let count = Int(payloadFacts.st_size)
+        let mapped = mmap(nil, count, PROT_READ, MAP_PRIVATE, payloadDescriptor, 0)
+        guard let mapped, mapped != MAP_FAILED else { throw DraftAttachmentStagingFailureV1.invalidAttachment }
+        // Data owns the map through the complete async C05 call. A receiving
+        // owner retaining a Data copy cannot outlive the map's storage.
+        return Data(bytesNoCopy: mapped, count: count, deallocator: .custom { address, length in
+            _ = munmap(address, length)
+        })
+    }
+
+    func normalize() throws -> NormalizedMediaWithSourceFactsV1 {
+        try verifyBytesAndInspection()
+        let bytes = try mappedBytes()
+        let normalized = try autoreleasepool { try MediaNormalizerV1().normalizeWithSourceFacts(bytes) }
+        guard normalized.sourceFacts == MediaSourceFactsV1(
+            sourceTypeIdentifier: rawReady.inspection.detectedUTI,
+            pixelWidth: rawReady.inspection.pixelWidth, pixelHeight: rawReady.inspection.pixelHeight,
+            byteCount: Int(rawReady.inspection.sourceByteCount)) else {
+            throw DraftAttachmentStagingFailureV1.digestMismatch
+        }
+        try verifyBytesAndInspection()
+        let lock = try owner.acquire()
+        defer { lock.release() }
+        try requireCurrent()
+        return normalized
+    }
+
+    func writeImmutable(using writer: any DraftImmutableContentWriterV1,
+        request: DraftImmutableContentWriteRequestV1) async throws -> DraftImmutableContentWriteReceiptV1 {
+        try verifyBytesAndInspection()
+        let bytes = try mappedBytes()
+        let receipt = try await writer.persistImmutableOriginal(bytes: bytes, request: request)
+        try Task.checkCancellation()
+        try receipt.validate(request: request, bytes: bytes)
+        try verifyBytesAndInspection()
+        return receipt
+    }
+}
+
+/// Retains the already-inspected raw descriptors through the pair-ready CAS.
+/// The application can hold G, then this raw-stage lock, then the media lock;
+/// only bounded named-identity/stat checks execute inside this critical path.
+final class DraftPreparedRawPhotoVerificationV1: @unchecked Sendable {
+    let rawReady: CheckRunnerPhotoRawReadyV1
+    let applicationSupportURL: URL
+    let adapterIdentity: ObjectIdentifier
+    private let snapshot: DraftRawPhotoReadSnapshotV1
+    private let consumption = NSLock()
+    private var consumed = false
+
+    fileprivate init(rawReady: CheckRunnerPhotoRawReadyV1, applicationSupportURL: URL,
+        adapterIdentity: ObjectIdentifier, snapshot: DraftRawPhotoReadSnapshotV1) {
+        self.rawReady = rawReady
+        self.applicationSupportURL = applicationSupportURL
+        self.adapterIdentity = adapterIdentity
+        self.snapshot = snapshot
+    }
+
+    /// Rechecks the retained snapshot after application validation and before
+    /// this capability leaves the adapter actor.
+    fileprivate func recheckBeforeReturn() throws {
+        let lock = try snapshot.owner.acquire()
+        defer { lock.release() }
+        try snapshot.requireCurrent()
+    }
+
+    func withVerificationLock<T>(_ body: () throws -> T) throws -> T {
+        guard consumption.try() else { throw DraftAttachmentStagingFailureV1.staleStage }
+        defer { consumption.unlock() }
+        guard !consumed else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+        consumed = true
+        let lock = try snapshot.owner.acquire()
+        defer { lock.release() }
+        try snapshot.requireCurrent()
+        let result = try body()
+        try snapshot.requireCurrent()
+        return result
+    }
+}
+
+/// The root service can inspect frozen metadata but cannot manufacture a
+/// successful physical promotion. Only this adapter can construct/finish it.
+final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
+    let rawReady: CheckRunnerPhotoRawReadyV1
+    let plan: DraftCommitPlanV1
+    let attempt: CheckRunnerPhotoCommitAttemptV1
+    let request: DraftImmutableContentWriteRequestV1
+    let reservation: DraftContentReservationV1
+    let committedStage: AttachmentStagingItemV1
+    let contentReference: ContentReferenceV1
+    let applicationSupportURL: URL
+    let adapterIdentity: ObjectIdentifier
+    private let snapshot: DraftRawPhotoReadSnapshotV1
+    private let candidate: DraftAttachmentStagingManifestV1
+    private let candidateBytes: Data
+    private let stateLock = NSLock()
+    private var writing = false
+    private var verifiedReceipt: DraftImmutableContentWriteReceiptV1?
+    private var consumed = false
+
+    private init(rawReady: CheckRunnerPhotoRawReadyV1, plan: DraftCommitPlanV1,
+        attempt: CheckRunnerPhotoCommitAttemptV1, request: DraftImmutableContentWriteRequestV1,
+        reservation: DraftContentReservationV1, committedStage: AttachmentStagingItemV1,
+        contentReference: ContentReferenceV1, applicationSupportURL: URL,
+        adapterIdentity: ObjectIdentifier, snapshot: DraftRawPhotoReadSnapshotV1,
+        candidate: DraftAttachmentStagingManifestV1, candidateBytes: Data) {
+        self.rawReady = rawReady; self.plan = plan; self.attempt = attempt; self.request = request
+        self.reservation = reservation; self.committedStage = committedStage; self.contentReference = contentReference
+        self.applicationSupportURL = applicationSupportURL; self.adapterIdentity = adapterIdentity
+        self.snapshot = snapshot; self.candidate = candidate; self.candidateBytes = candidateBytes
+    }
+
+    fileprivate static func prepare(checkpoint: FieldDraftCheckpointV1, applicationSupportURL: URL,
+        adapterIdentity: ObjectIdentifier, owner: DraftStagingRootOwnerV1) throws -> DraftPreparedRawPhotoPromotionV1 {
+        let reconstruction = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint)
+        let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+        guard case let .preparedCommit(pair, attempt) = payload.phase else {
+            throw DraftAttachmentStagingFailureV1.invalidTransition
+        }
+        let raw = pair.raw, ready = raw.readyItem, plan = reconstruction.draftCommit.plan
+        let request = try DraftImmutableContentWriteRequestV1(workspaceID: ready.workspaceID,
+            contentID: raw.inspection.rawContentID, digest: raw.inspection.sourceSHA256,
+            byteLength: raw.inspection.sourceByteCount, mediaType: raw.inspection.sourceMediaType,
+            mutationID: attempt.reservationMutationID,
+            createdAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(attempt.promotionAt))
+        let reference = try ContentReferenceV1(workspaceID: ready.workspaceID.rawValue.uuidString.lowercased(),
+            contentID: request.contentID, byteLength: request.byteLength, mediaType: request.mediaType,
+            digests: .init([request.digest]), byteRole: .immutableOriginal, createdAt: request.createdAt)
+        let locator = try ContentLocatorV1(locatorID: request.locatorID, workspaceID: reference.workspaceID,
+            contentID: request.contentID, locatorRevision: 0, contentDigest: request.digest,
+            expectedByteLength: request.byteLength)
+        let reservation = try DraftContentReservationV1(reservationID: DraftAttachmentStagingAdapterV1.deterministicUUID(
+            "reservation\u{1f}\(plan.planSHA256)\u{1f}\(ready.stageID.uuidString.lowercased())"),
+            workspaceID: ready.workspaceID, draftID: ready.draftID, stageID: ready.stageID,
+            commitPlanSHA256: plan.planSHA256, mutationID: attempt.reservationMutationID,
+            contentDigest: request.digest, locator: locator, createdAt: attempt.promotionAt,
+            reviewAfter: attempt.reservationReviewAfter, reconciliationState: .reserved, revision: 1)
+        let committed = try AttachmentStagingItemV1(stageID: ready.stageID, draftID: ready.draftID,
+            workspaceID: ready.workspaceID, attachmentKind: ready.attachmentKind,
+            scratchLeaseID: ready.scratchLeaseID, expectedByteCount: ready.expectedByteCount,
+            actualByteCount: ready.actualByteCount, contentDigest: ready.contentDigest,
+            contentReference: reference, processingJobID: ready.processingJobID, retryClass: ready.retryClass,
+            state: .committed, protectionState: ready.protectionState, revision: ready.revision + 1,
+            mutationID: .init(rawValue: DraftAttachmentStagingAdapterV1.deterministicUUID(
+                "stage-mutation\u{1f}\(ready.stageID.uuidString.lowercased())\u{1f}\(ready.revision + 1)\u{1f}COMMITTED\u{1f}\(request.digest.hexadecimalValue)")))
+        let committedEntry = try DraftAttachmentStagingEntryV1(item: committed,
+            relativeDataPath: DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: ready.draftID, stageID: ready.stageID),
+            mediaType: request.mediaType, updatedAt: attempt.promotionAt)
+        let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, committedEntry: committedEntry)
+        try snapshot.verifyBytesAndInspection()
+        let candidate = try DraftAttachmentStagingManifestV1(entries:
+            snapshot.base.manifest.entries.filter { $0.item.stageID != ready.stageID } + [committedEntry])
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        return DraftPreparedRawPhotoPromotionV1(rawReady: raw, plan: plan, attempt: attempt,
+            request: request, reservation: reservation, committedStage: committed, contentReference: reference,
+            applicationSupportURL: applicationSupportURL, adapterIdentity: adapterIdentity,
+            snapshot: snapshot, candidate: candidate, candidateBytes: try encoder.encode(candidate))
+    }
+
+    private func beginWrite() throws {
+        guard stateLock.try() else { throw DraftAttachmentStagingFailureV1.staleStage }
+        defer { stateLock.unlock() }
+        guard !writing, verifiedReceipt == nil, !consumed else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+        writing = true
+    }
+
+    private func finishWrite(_ receipt: DraftImmutableContentWriteReceiptV1) throws {
+        guard stateLock.try() else { throw DraftAttachmentStagingFailureV1.staleStage }
+        defer { stateLock.unlock() }
+        guard writing, verifiedReceipt == nil, !consumed else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+        verifiedReceipt = receipt; writing = false
+    }
+
+    fileprivate func persist(using writer: any DraftImmutableContentWriterV1) async throws {
+        try beginWrite()
+        let receipt = try await snapshot.writeImmutable(using: writer, request: request)
+        // The actual C05 receipt retains its reuse flag. No synthetic persisted
+        // C05 journal receipt is introduced by the reservation projection.
+        try finishWrite(receipt)
+    }
+
+    func withPublicationLock<T>(_ body: (_ publish: () throws -> Void) throws -> T) throws -> T {
+        guard stateLock.try() else { throw DraftAttachmentStagingFailureV1.staleStage }
+        defer { stateLock.unlock() }
+        guard !writing, verifiedReceipt != nil, !consumed else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+        consumed = true
+        let lock = try snapshot.owner.acquire()
+        defer { lock.release() }
+        try snapshot.requireCurrent()
+        var published = false
+        let result = try body {
+            guard !published else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+            try self.snapshot.requireCurrent()
+            if self.candidate != self.snapshot.base.manifest {
+                try DraftStagingRootOwnerV1.replaceFile(self.candidateBytes,
+                    at: self.snapshot.owner.rootURL.appendingPathComponent(DraftAttachmentStagingAdapterV1.manifestName),
+                    directory: self.snapshot.owner.directory([]))
+            }
+            let readback = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: self.snapshot.owner)
+            guard readback.manifest == self.candidate else { throw DraftAttachmentStagingFailureV1.corruptManifest }
+            published = true
+        }
+        guard published else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+        return result
     }
 }
 
@@ -950,6 +1270,141 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
                 try? reloadManifest()
                 lock.release()
             }
+            if error is CancellationError { throw DraftAttachmentStagingFailureV1.cancelled }
+            throw error
+        }
+    }
+
+    /// This read capability is issued only for authenticated rawReady with no
+    /// existing marked pair. The source URL/picker is never consulted again.
+    func normalizeRawPhoto(authority: CheckRunnerPhotoRawReadAuthorityV1)
+        async throws -> NormalizedMediaWithSourceFactsV1 {
+        guard authority.normalizationAllowed else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+        guard let result = try await readRawPhoto(authority: authority, normalize: true) else {
+            throw DraftAttachmentStagingFailureV1.invalidTransition
+        }
+        return result
+    }
+
+    /// Reproves the raw publication after a pair-store suspension without
+    /// generating outputs or allocating a replacement normalization attempt.
+    func verifyRawPhoto(authority: CheckRunnerPhotoRawReadAuthorityV1) async throws {
+        let prepared = try await prepareRawPhotoVerification(authority: authority)
+        try prepared.withVerificationLock {}
+    }
+
+    /// Keeps the exact raw stage and witness open until the application performs
+    /// its final G -> raw R -> media R pair-ready publication.
+    func prepareRawPhotoVerification(authority: CheckRunnerPhotoRawReadAuthorityV1)
+        async throws -> DraftPreparedRawPhotoVerificationV1 {
+        guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
+            throw DraftAttachmentStagingFailureV1.invalidRoot
+        }
+        let raw = authority.rawReady
+        try validateScope(workspaceID: raw.readyItem.workspaceID, draftID: raw.readyItem.draftID,
+                          stageID: raw.intent.stageID)
+        try beginOperation()
+        defer { operationInFlight = false }
+        let identity = ObjectIdentifier(self), owner = rootOwner, support = applicationSupportURL
+        try await authority.validate(adapterIdentity: identity)
+        try Task.checkCancellation()
+        let preparation = Task.detached(priority: .userInitiated) {
+            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner)
+            try snapshot.verifyBytesAndInspection()
+            return DraftPreparedRawPhotoVerificationV1(rawReady: raw,
+                applicationSupportURL: support, adapterIdentity: identity, snapshot: snapshot)
+        }
+        do {
+            let prepared = try await withTaskCancellationHandler(operation: {
+                try await preparation.value
+            }, onCancel: { preparation.cancel() })
+            try Task.checkCancellation()
+            try await authority.validate(adapterIdentity: identity)
+            try prepared.recheckBeforeReturn()
+            return prepared
+        } catch {
+            if error is CancellationError { throw DraftAttachmentStagingFailureV1.cancelled }
+            throw error
+        }
+    }
+
+    private func readRawPhoto(authority: CheckRunnerPhotoRawReadAuthorityV1, normalize: Bool)
+        async throws -> NormalizedMediaWithSourceFactsV1? {
+        guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
+            throw DraftAttachmentStagingFailureV1.invalidRoot
+        }
+        let raw = authority.rawReady
+        try validateScope(workspaceID: raw.readyItem.workspaceID, draftID: raw.readyItem.draftID,
+                          stageID: raw.intent.stageID)
+        try beginOperation()
+        defer { operationInFlight = false }
+        let identity = ObjectIdentifier(self), owner = rootOwner
+        try await authority.validate(adapterIdentity: identity)
+        try Task.checkCancellation()
+        let preparation = Task.detached(priority: .userInitiated) { () throws -> NormalizedMediaWithSourceFactsV1? in
+            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner)
+            if normalize { return try snapshot.normalize() }
+            try snapshot.verifyBytesAndInspection()
+            let lock = try owner.acquire()
+            defer { lock.release() }
+            try snapshot.requireCurrent()
+            return nil
+        }
+        do {
+            let normalized = try await withTaskCancellationHandler(operation: {
+                try await preparation.value
+            }, onCancel: { preparation.cancel() })
+            try Task.checkCancellation()
+            try await authority.validate(adapterIdentity: identity)
+            return normalized
+        } catch {
+            if error is CancellationError { throw DraftAttachmentStagingFailureV1.cancelled }
+            throw error
+        }
+    }
+
+    /// Photo promotion retains the generic writer and manifest format while
+    /// taking every durable time/identity from the original COMMITTING payload.
+    func promoteRawPhoto(authority: CheckRunnerPhotoRawPromotionAuthorityV1)
+        async throws -> DraftContentReservationV1 {
+        guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
+            throw DraftAttachmentStagingFailureV1.invalidRoot
+        }
+        let checkpoint = authority.committingCheckpoint
+        let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+        try validateScope(workspaceID: payload.workspaceID, draftID: payload.childDraftID,
+                          stageID: payload.phase.intent.stageID)
+        guard let immutableContentWriter else { throw DraftAttachmentStagingFailureV1.contentWriterUnavailable }
+        try beginOperation()
+        defer { operationInFlight = false }
+        let owner = rootOwner, support = applicationSupportURL, identity = ObjectIdentifier(self)
+        let preparation = Task.detached(priority: .userInitiated) {
+            try DraftPreparedRawPhotoPromotionV1.prepare(checkpoint: checkpoint,
+                applicationSupportURL: support, adapterIdentity: identity, owner: owner)
+        }
+        do {
+            let prepared = try await withTaskCancellationHandler(operation: {
+                try await preparation.value
+            }, onCancel: { preparation.cancel() })
+            try Task.checkCancellation()
+            try await authority.validateBeforeImmutableWrite(prepared)
+            let writing = Task.detached(priority: .userInitiated) {
+                try await prepared.persist(using: immutableContentWriter)
+            }
+            try await withTaskCancellationHandler(operation: {
+                try await writing.value
+            }, onCancel: { writing.cancel() })
+            try Task.checkCancellation()
+            let reservation = try await authority.publish(prepared)
+            guard reservation == prepared.reservation else { throw DraftAttachmentStagingFailureV1.reservationMismatch }
+            let lock = try rootOwner.acquire()
+            defer { lock.release() }
+            try reloadManifest()
+            return reservation
+        } catch {
+            // C05 or physical manifest publication can precede failed canonical
+            // work/acknowledgement. Keep both for the same frozen attempt's retry.
+            if let lock = try? rootOwner.acquire() { try? reloadManifest(); lock.release() }
             if error is CancellationError { throw DraftAttachmentStagingFailureV1.cancelled }
             throw error
         }

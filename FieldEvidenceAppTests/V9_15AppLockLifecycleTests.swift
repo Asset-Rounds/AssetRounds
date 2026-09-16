@@ -2316,7 +2316,12 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
         try await gate.validateConfigurationStartupRecovery(tokenB, configuration: proof, operationID: operationB)
         let secondA = try await gate.beginConfigurationStartupRecovery(proof, operationID: operationA)
         try await gate.validateConfigurationStartupRecovery(secondA, configuration: proof, operationID: operationA)
+        var effects = 0
+        try secondA.withStartupRecovery(operationID: operationA) { effects += 1 }
+        XCTAssertEqual(effects, 1)
+        XCTAssertThrowsError(try secondA.withStartupRecovery(operationID: operationB) { effects += 1 })
         for (token, operation) in [(firstA, operationA), (tokenB, operationB)] {
+            XCTAssertThrowsError(try token.withStartupRecovery(operationID: operation) { effects += 1 })
             do {
                 try await gate.validateConfigurationStartupRecovery(token, configuration: proof, operationID: operation)
                 XCTFail("a replaced startup-token mint revived under the same repair session")
@@ -2324,6 +2329,10 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
                 XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
             }
         }
+        XCTAssertEqual(effects, 1)
+        await gate.sceneBecameInactive()
+        XCTAssertThrowsError(try secondA.withStartupRecovery(operationID: operationA) { effects += 1 })
+        XCTAssertEqual(effects, 1)
         await assertReadDenied(gate)
     }
 

@@ -69,9 +69,9 @@ DURABLE_BEGIN_METHOD_PARTITIONS = (
 )
 DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
-GENERATED_SELECTION_PROFILE = "raw-photo-v1"
-GENERATED_SELECTION_POOL_SHA256 = "62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB"
-GENERATED_SELECTION_MAP_SHA256 = "77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC"
+GENERATED_SELECTION_PROFILE = "pair-startup-v1"
+GENERATED_SELECTION_POOL_SHA256 = "62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722"
+GENERATED_SELECTION_MAP_SHA256 = "70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110"
 SOURCE_GRAPH_PARENT_ID = "c36-source-graph"
 SOURCE_GRAPH_PARENT_SELECTORS = (
     "FieldEvidenceAppTests/V23RepetitiveCaptureSourcePackageTests/testOrdinaryDirectoryPackageIsValidatedAndBoundToExactCanonicalMembers",
@@ -772,7 +772,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 39
+        isinstance(groups, list) and len(groups) == 40
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )
@@ -809,7 +809,7 @@ def resolve_selection(default, selection_map, selection_id):
     require(covered == defaults, "selection groups must cover default exactly")
     if report_partition_shape or generated_profile_shape:
         # Method partitions are source constants derived only after the complete
-        # 37-group class map has passed every identity, overlap and coverage gate.
+        # generated class map has passed every identity, overlap and coverage gate.
         require((sha256(canonical(default)), sha256(canonical(selection_map))) in (
                     (DURABLE_BEGIN_BASE_POOL_SHA256, DURABLE_BEGIN_BASE_MAP_SHA256),
                     (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256)),

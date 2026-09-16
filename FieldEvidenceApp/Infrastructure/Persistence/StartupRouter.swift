@@ -2,6 +2,52 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+/// Receipt-authenticated ownership observed by the existing startup writer.
+/// These values alone never authorize a filesystem effect.
+struct StartupMediaPhotoOwnershipV1: Equatable, Sendable {
+    let checkpoint: FieldDraftCheckpointV1
+    let payload: CheckRunnerPhotoDraftPayloadV1
+    let targetCommitted: Bool
+}
+
+struct StartupMediaOwnershipSnapshotV1: Equatable, Sendable {
+    let revision: WorkspaceRevisionV1
+    let authorities: [EvidenceBundleAuthority]
+    let photos: [StartupMediaPhotoOwnershipV1]
+}
+
+@MainActor
+final class StartupMediaRecoveryAuthorityV1 {
+    let snapshot: StartupMediaOwnershipSnapshotV1
+    private let validate: @MainActor () throws -> Void
+    private var publishing = false
+
+    fileprivate init(snapshot: StartupMediaOwnershipSnapshotV1,
+                     validate: @escaping @MainActor () throws -> Void) {
+        self.snapshot = snapshot; self.validate = validate
+    }
+
+    func validatePreparation() throws -> StartupMediaOwnershipSnapshotV1 {
+        try validate()
+        return snapshot
+    }
+
+    func revalidateCleanup(_ prepared: StartupMediaPreparedRecoveryV1) throws {
+        guard publishing, prepared.snapshot == snapshot else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        try validate()
+    }
+
+    /// Issued only inside the original access and generation publication holds.
+    fileprivate func publish(_ prepared: StartupMediaPreparedRecoveryV1) throws {
+        guard !publishing else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        publishing = true
+        defer { publishing = false }
+        try prepared.finish(authority: self)
+    }
+}
+
 enum StartupMaintenanceReason: String, CaseIterable, Error, Sendable {
     case dataPointerInvalid = "data_pointer_invalid"
     case dataGenerationMissing = "data_generation_missing"
@@ -165,6 +211,10 @@ final class StartupRouter: ObservableObject {
     private enum OperationFailure: Error { case superseded }
     private var operationOwnedWriter: OwnedWriter?
     private var publishedWriter: OwnedWriter?
+#if DEBUG
+    /// Test observation after read-only preparation, before final authorization.
+    var beforeCurrentMediaCleanupForTesting: (@MainActor (ModelContext) async throws -> Void)?
+#endif
     private enum StartupAuthorization {
         case content(AppAccessGateV1, AppAccessGateV1.ContentReadToken)
         case configuration(NotificationOperationAuthorizationV1)
@@ -180,6 +230,18 @@ final class StartupRouter: ObservableObject {
                 try await gate.validateContentRead(token, for: .startupRecovery)
             case .configuration(let authorization):
                 try await authorization.validateStartupRecovery()
+            }
+        }
+
+        func withMediaRecovery<T>(_ body: () throws -> T) throws -> T {
+            switch self {
+            case .content(_, let token):
+                return try token.withContentRead(for: .startupRecovery, body)
+            case .configuration(let authorization):
+                guard let token = authorization.startupRecoveryToken else {
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+                return try token.withStartupRecovery(operationID: authorization.operationID, body)
             }
         }
     }
@@ -860,26 +922,7 @@ final class StartupRouter: ObservableObject {
 #endif
             didBeginStep(.media)
             do {
-                let descriptor = FetchDescriptor<EvidenceFile>()
-                let authorities = try session.modelContext.fetch(descriptor).map {
-                    EvidenceBundleAuthority(
-                        schemaVersion: $0.schemaVersion,
-                        id: $0.id,
-                        recordID: $0.recordID,
-                        purposeKey: $0.purposeKey,
-                        relativePath: $0.relativePath,
-                        mimeType: $0.mimeType,
-                        byteCount: $0.byteCount,
-                        sha256: $0.sha256,
-                        thumbnailRelativePath: $0.thumbnailRelativePath,
-                        thumbnailByteCount: $0.thumbnailByteCount,
-                        thumbnailSHA256: $0.thumbnailSHA256
-                    )
-                }
-                try await EvidenceBundleStore(
-                    generationRootURL: session.generationRootURL,
-                    fileManager: fileManager
-                ).reconcile(authorities: authorities)
+                try await recoverCurrentMedia(session: session, operation: operation, owner: owner)
             } catch {
                 throw StartupMaintenanceReason.mediaInconsistent
             }
@@ -1973,27 +2016,7 @@ final class StartupRouter: ObservableObject {
                     fileManager: fileManager
                 ).reconcile()
                 try await requireCurrentOperationAndAccess(operation, owner: owner)
-                let authorities = try session.modelContext.fetch(
-                    FetchDescriptor<EvidenceFile>()
-                ).map {
-                    EvidenceBundleAuthority(
-                        schemaVersion: $0.schemaVersion,
-                        id: $0.id,
-                        recordID: $0.recordID,
-                        purposeKey: $0.purposeKey,
-                        relativePath: $0.relativePath,
-                        mimeType: $0.mimeType,
-                        byteCount: $0.byteCount,
-                        sha256: $0.sha256,
-                        thumbnailRelativePath: $0.thumbnailRelativePath,
-                        thumbnailByteCount: $0.thumbnailByteCount,
-                        thumbnailSHA256: $0.thumbnailSHA256
-                    )
-                }
-                try await EvidenceBundleStore(
-                    generationRootURL: session.generationRootURL,
-                    fileManager: fileManager
-                ).reconcile(authorities: authorities)
+                try await recoverCurrentMedia(session: session, operation: operation, owner: owner)
                 try await requireCurrentOperationAndAccess(operation, owner: owner)
                 let recovery = try makeActiveReportRecovery(
                     session: session,
@@ -2034,6 +2057,91 @@ final class StartupRouter: ObservableObject {
                 route = .maintenance(.restoreInconsistent)
             }
         }
+    }
+
+    private func currentMediaOwnership(session: StoreGenerationSession,
+                                       owner: OwnedWriter) throws -> StartupMediaOwnershipSnapshotV1 {
+        guard !session.modelContext.hasChanges else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let revision = try owner.writer.currentRevision()
+        let authorities = try session.modelContext.fetch(FetchDescriptor<EvidenceFile>()).map {
+            EvidenceBundleAuthority(schemaVersion: $0.schemaVersion, id: $0.id, recordID: $0.recordID,
+                purposeKey: $0.purposeKey, relativePath: $0.relativePath, mimeType: $0.mimeType,
+                byteCount: $0.byteCount, sha256: $0.sha256, thumbnailRelativePath: $0.thumbnailRelativePath,
+                thumbnailByteCount: $0.thumbnailByteCount, thumbnailSHA256: $0.thumbnailSHA256)
+        }.sorted { $0.id.uuidString < $1.id.uuidString }
+        let checkpoints = try session.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
+            .map { try $0.value() }.filter { $0.codec.codecID == CheckRunnerPhotoDraftCodecV1.codecID }
+            .sorted { $0.draftID.uuidString < $1.draftID.uuidString }
+        var photos: [StartupMediaPhotoOwnershipV1] = []
+        for checkpoint in checkpoints {
+            let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+            guard checkpoint.workspaceID == session.workspaceID else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let targetCommitted: Bool
+            if checkpoint.state == .committed {
+                guard let current = try owner.writer.checkRunnerPhotoCurrentTargetEvidence(
+                    workspaceID: session.workspaceID, parentDraftID: payload.parentDraftID,
+                    childDraftID: checkpoint.draftID),
+                      case let .applyCommitTerminal(bundle, _) = current.parent.child.terminal.mutation.postImage,
+                      bundle.committedCheckpoint == checkpoint else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                targetCommitted = true
+            } else {
+                switch payload.phase {
+                case .awaitingRawStage, .rawReady:
+                    guard let current = try owner.writer.checkRunnerPhotoRawStageEvidence(
+                        workspaceID: session.workspaceID, parentDraftID: payload.parentDraftID,
+                        childDraftID: checkpoint.draftID), current.currentCheckpoint == checkpoint else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                    targetCommitted = false
+                case .pairReady, .preparedCommit:
+                    guard let current = try owner.writer.checkRunnerPhotoContinuationEvidence(
+                        workspaceID: session.workspaceID, parentDraftID: payload.parentDraftID,
+                        childDraftID: checkpoint.draftID), current.checkpoint == checkpoint else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                    targetCommitted = current.target != nil
+                }
+            }
+            photos.append(.init(checkpoint: checkpoint, payload: payload, targetCommitted: targetCommitted))
+        }
+        guard !session.modelContext.hasChanges, try owner.writer.currentRevision() == revision else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return .init(revision: revision, authorities: authorities, photos: photos)
+    }
+
+    private func recoverCurrentMedia(session: StoreGenerationSession, operation: UUID,
+                                     owner: OwnedWriter) async throws {
+        try await requireCurrentOperationAndAccess(operation, owner: owner)
+        let originalAuthorization = operationAuthorization
+        let snapshot = try currentMediaOwnership(session: session, owner: owner)
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
+        let authority = StartupMediaRecoveryAuthorityV1(snapshot: snapshot) {
+            try self.requireCurrentOperation(operation, owner: owner)
+            guard try self.currentMediaOwnership(session: session, owner: owner) == snapshot else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        let store = EvidenceBundleStore(generationRootURL: session.generationRootURL, fileManager: fileManager)
+        let prepared = try await store.prepareStartupRecovery(authority: authority,
+            expectedGenerationRootIdentity: rootIdentity)
+#if DEBUG
+        try await beforeCurrentMediaCleanupForTesting?(session.modelContext)
+#endif
+        try await requireCurrentOperationAndAccess(operation, owner: owner)
+        let publish = {
+            try owner.coordinator.withCheckRunnerPhotoPublication(expectedWriter: owner.writer,
+                applicationSupportURL: self.applicationSupportURL) {
+                try self.requireCurrentOperation(operation, owner: owner)
+                try authority.publish(prepared)
+            }
+        }
+        if let originalAuthorization { try originalAuthorization.withMediaRecovery(publish) }
+        else { try publish() } // Existing unauthenticated test/bootstrap route.
     }
 
     private func recoverOriginalSource(

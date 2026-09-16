@@ -74,6 +74,13 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         fileprivate let sessionID: UUID
         fileprivate let operationID: UUID
         fileprivate let contentReadEpoch: UInt64
+        fileprivate let reference: ContentReadReference
+
+        /// Original configuration startup only; never an ordinary content permit.
+        func withStartupRecovery<T>(operationID: UUID, _ body: () throws -> T) throws -> T {
+            guard self.operationID == operationID else { throw AppAccessContractFailureV1.accessDenied }
+            return try reference.withContentRead(body)
+        }
     }
 
     /// An operation-scoped publication check, not a portable access permit.
@@ -353,6 +360,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
 
     private func revokeContentReads() {
         toggleAuthentication = nil
+        configurationStartupRecovery?.reference.revoke()
         configurationStartupRecovery = nil
         // Invalidate the old reference before the calling transition can
         // publish a changed access state. A concurrent local publication
@@ -544,13 +552,15 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
             throw AppAccessContractFailureV1.invalidValue
         }
         try validateConfigurationAuthentication(configuration)
+        configurationStartupRecovery?.reference.revoke()
         let token = ConfigurationStartupRecoveryToken(
             owner: configurationAuthenticationOwner,
             mint: ConfigurationStartupRecoveryMint(),
             generation: configuration.generation,
             sessionID: configuration.sessionID,
             operationID: operationID,
-            contentReadEpoch: contentReadEpoch
+            contentReadEpoch: contentReadEpoch,
+            reference: ContentReadReference()
         )
         configurationStartupRecovery = token
         return token

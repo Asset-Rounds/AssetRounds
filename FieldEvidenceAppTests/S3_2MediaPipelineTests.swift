@@ -37,6 +37,13 @@ final class S3_2MediaPipelineTests: XCTestCase {
         XCTAssertEqual(jpegFacts.pixelWidth, normalizedFacts.pixelWidth)
         XCTAssertEqual(jpegFacts.pixelHeight, normalizedFacts.pixelHeight)
         XCTAssertEqual(jpegFacts.byteCount, result.normalized.originalJPEG.count)
+        let cancelledNormalization = Task<NormalizedMediaWithSourceFactsV1, Error> {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try MediaNormalizerV1().normalizeWithSourceFacts(source)
+        }
+        do { _ = try await cancelledNormalization.value; XCTFail("Cancelled normalization must not render a pair") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertEqual(sha256(source), sourceDigest)
         try await verifyCommittedPhotoMediaReadbacks(source: source, normalized: result.normalized)
     }
 
@@ -348,6 +355,197 @@ final class S3_2MediaPipelineTests: XCTestCase {
         }
         XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: directory.deletingLastPathComponent().path), [])
         XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("evidence/\(id)").path))
+        try await verifyPreparedPhotoPairPublicationAndPromotion(root: root, raw: raw,
+            parentID: parentID, normalized: normalized, expected: published)
+    }
+
+    private func verifyPreparedPhotoPairPublicationAndPromotion(root: URL, raw: CheckRunnerPhotoRawReadyV1,
+        parentID: UUID, normalized: NormalizedMediaWithSourceFactsV1,
+        expected: CheckRunnerPhotoStagedPairReadbackV1) async throws {
+        let childID = raw.readyItem.draftID
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        let rootIdentity = (device: identity.device, inode: identity.inode)
+        let id = raw.intent.evidenceID.uuidString.lowercased()
+        let staged = root.appendingPathComponent(".staging/evidence/\(id)", isDirectory: true)
+        let privateURL = root.appendingPathComponent(".staging/evidence/.\(id).pair.tmp", isDirectory: true)
+        let final = root.appendingPathComponent("evidence/\(id)", isDirectory: true)
+        let pair = try CheckRunnerPhotoPairReadyV1(raw: raw,
+            normalizedPair: expected.marker.normalizedPair, pairPublicationMarkerSHA256: expected.markerSHA256)
+        let store = EvidenceBundleStore(generationRootURL: root)
+        let twoNames: Set<String> = ["original.jpg", "thumbnail.jpg"]
+        let markedNames = twoNames.union(["pair-publication.json"])
+        func prepare(_ selected: EvidenceBundleStore? = nil, input: NormalizedMediaWithSourceFactsV1? = nil)
+            async throws -> CheckRunnerPhotoPreparedPairPublicationV1 {
+            try await (selected ?? store).prepareCheckRunnerPhotoPairForTesting(childDraftID: childID,
+                parentDraftID: parentID, raw: raw, normalized: input,
+                expectedGenerationRootIdentity: rootIdentity)
+        }
+        func preparePromotion(_ selected: EvidenceBundleStore? = nil,
+            claim: CheckRunnerPhotoPairReadyV1? = nil) async throws -> CheckRunnerPhotoPreparedPairPromotionV1 {
+            try await (selected ?? store).prepareCheckRunnerPhotoPromotionForTesting(childDraftID: childID,
+                parentDraftID: parentID, pair: claim ?? pair, expectedGenerationRootIdentity: rootIdentity)
+        }
+        func publish() async throws {
+            let prepared = try await prepare(input: normalized)
+            XCTAssertEqual(try prepared.withPublicationLockForTesting { try $0() }, expected)
+        }
+        func assertBytes(at directory: URL, marker: Bool) throws {
+            XCTAssertEqual(Set(try fileManager.contentsOfDirectory(atPath: directory.path)),
+                marker ? markedNames : twoNames)
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("original.jpg")),
+                normalized.normalized.originalJPEG)
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("thumbnail.jpg")),
+                normalized.normalized.thumbnailJPEG)
+            if marker {
+                XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("pair-publication.json")),
+                    expected.markerBytes)
+            }
+        }
+
+        // A failed canonical/receipt revalidation cannot make private bytes
+        // visible. Releasing the preparation cleans only its private inode.
+        var denied: CheckRunnerPhotoPreparedPairPublicationV1? = try await prepare(input: normalized)
+        XCTAssertFalse(fileManager.fileExists(atPath: staged.path))
+        try assertBytes(at: privateURL, marker: true)
+        do {
+            try denied!.withPublicationLockForTesting { _ in throw FieldDraftFailureV1.missingReceipt }
+            XCTFail("Receipt rejection must not reach physical publication")
+        } catch { XCTAssertEqual(error as? FieldDraftFailureV1, .missingReceipt) }
+        denied = nil
+        XCTAssertFalse(fileManager.fileExists(atPath: privateURL.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: staged.path))
+
+        // CAS acknowledgement loss occurs after the nonescaping effect. The
+        // physical publication survives and a fresh preparation adopts it.
+        var lost: CheckRunnerPhotoPreparedPairPublicationV1? = try await prepare(input: normalized)
+        do {
+            try lost!.withPublicationLockForTesting { publish in
+                _ = try publish()
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            XCTFail("The injected canonical acknowledgement must fail")
+        } catch { XCTAssertEqual(error as? FieldDraftFailureV1, .missingReceipt) }
+        lost = nil
+        try assertBytes(at: staged, marker: true)
+        XCTAssertFalse(fileManager.fileExists(atPath: privateURL.path))
+        let adopted = try await prepare()
+        XCTAssertEqual(try adopted.withPublicationLockForTesting { try $0() }, expected)
+        do { _ = try adopted.withPublicationLockForTesting { try $0() }; XCTFail("A preparation is single-use") }
+        catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .bundleFactsMismatch) }
+
+        let deniedPromotion = try await preparePromotion()
+        do {
+            try deniedPromotion.withPromotionLockForTesting { _ in throw FieldDraftFailureV1.missingReceipt }
+            XCTFail("Missing original receipt must preserve the marker and staging")
+        } catch { XCTAssertEqual(error as? FieldDraftFailureV1, .missingReceipt) }
+        try assertBytes(at: staged, marker: true)
+        XCTAssertFalse(fileManager.fileExists(atPath: final.path))
+        let wrongClaim = try CheckRunnerPhotoPairReadyV1(raw: raw, normalizedPair: pair.normalizedPair,
+            pairPublicationMarkerSHA256: String(repeating: "0", count: 64))
+        do { _ = try await preparePromotion(claim: wrongClaim); XCTFail("A payload digest is not marker authority") }
+        catch {}
+        try assertBytes(at: staged, marker: true)
+
+        let markerURL = staged.appendingPathComponent("pair-publication.json")
+        var noncanonical = Data([0x20]); noncanonical.append(expected.markerBytes)
+        try noncanonical.write(to: markerURL)
+        do { _ = try await preparePromotion(); XCTFail("Semantically equal noncanonical markers cannot promote") }
+        catch {}
+        XCTAssertEqual(try Data(contentsOf: markerURL), noncanonical)
+        try expected.markerBytes.write(to: markerURL)
+
+        // Retained descriptor identity rejects a same-byte named replacement
+        // between actor preparation and the final synchronous effect.
+        let replaced = try await preparePromotion()
+        let retainedMarker = root.appendingPathComponent("retained-pair-marker.json")
+        try fileManager.moveItem(at: markerURL, to: retainedMarker)
+        try expected.markerBytes.write(to: markerURL)
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: markerURL)
+        do { _ = try replaced.withPromotionLockForTesting { try $0() }; XCTFail("Replaced marker inode must fail") }
+        catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .bundleFactsMismatch) }
+        try assertBytes(at: staged, marker: true)
+        try fileManager.removeItem(at: markerURL)
+        try fileManager.moveItem(at: retainedMarker, to: markerURL)
+
+        let changedAfterPreparation = try await preparePromotion()
+        let stagedOriginal = staged.appendingPathComponent("original.jpg")
+        var changedOriginal = normalized.normalized.originalJPEG
+        changedOriginal[changedOriginal.count - 1] ^= 1
+        try changedOriginal.write(to: stagedOriginal)
+        do {
+            _ = try changedAfterPreparation.withPromotionLockForTesting { try $0() }
+            XCTFail("Post-await file changes must fail before marker removal")
+        } catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .bundleFactsMismatch) }
+        XCTAssertEqual(try Data(contentsOf: stagedOriginal), changedOriginal)
+        XCTAssertEqual(try Data(contentsOf: markerURL), expected.markerBytes)
+        XCTAssertFalse(fileManager.fileExists(atPath: final.path))
+        try normalized.normalized.originalJPEG.write(to: stagedOriginal)
+
+        let replacedRoot = try await preparePromotion()
+        let retainedRoot = root.deletingLastPathComponent().appendingPathComponent(
+            "retained-\(root.lastPathComponent)", isDirectory: true)
+        try fileManager.moveItem(at: root, to: retainedRoot)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: false)
+        do { _ = try replacedRoot.withPromotionLockForTesting { try $0() }; XCTFail("A replacement generation must fail") }
+        catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .generationRootInvalid) }
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: root.path), [])
+        try fileManager.removeItem(at: root)
+        try fileManager.moveItem(at: retainedRoot, to: root)
+        try assertBytes(at: staged, marker: true)
+
+        let cancelled = try await preparePromotion()
+        let cancelledResult = Task<PromotedEvidenceBundle, Error> {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try cancelled.withPromotionLockForTesting { try $0() }
+        }
+        do { _ = try await cancelledResult.value; XCTFail("Cancelled promotion must preserve the marker") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        try assertBytes(at: staged, marker: true)
+        try fileManager.removeItem(at: staged)
+
+        let boundaries: [EvidenceBundleStoreFailurePoint] = [.checkRunnerPhotoMarkerRemoved,
+            .atomicPromotionMove, .checkRunnerPhotoPromotionMoved, .checkRunnerPhotoPromoted]
+        for boundary in boundaries {
+            try await publish()
+            let injected = EvidenceBundleStore(generationRootURL: root,
+                failureInjection: .init(failOnceAt: boundary))
+            let prepared = try await preparePromotion(injected)
+            do { _ = try prepared.withPromotionLockForTesting { try $0() }; XCTFail("Promotion boundary must interrupt") }
+            catch { XCTAssertEqual(error as? EvidenceBundleStoreError, .fileOperationFailed) }
+            let hasMoved = boundary == .checkRunnerPhotoPromotionMoved || boundary == .checkRunnerPhotoPromoted
+            let retained = hasMoved ? final : staged
+            try assertBytes(at: retained, marker: false)
+            XCTAssertFalse(fileManager.fileExists(atPath: (hasMoved ? staged : final).path))
+            do { _ = try await prepare(); XCTFail("Unmarked or promoted files are never absence for rendering") }
+            catch {}
+            let cold = EvidenceBundleStore(generationRootURL: root)
+            do {
+                _ = try await cold.readStagedCheckRunnerPhotoPair(childDraftID: childID, parentDraftID: parentID,
+                    raw: raw, expectedGenerationRootIdentity: rootIdentity)
+                XCTFail("The read-before-render boundary must reject every interrupted visible state")
+            } catch {}
+
+            // A hostile file survives rejection in both markerless staging and
+            // moved states; the original proof cannot normalize or repair it.
+            let originalURL = retained.appendingPathComponent("original.jpg")
+            var changed = normalized.normalized.originalJPEG; changed[changed.count - 1] ^= 1
+            try changed.write(to: originalURL)
+            do { _ = try await preparePromotion(cold); XCTFail("Wrong original bytes must block receipt retry") }
+            catch {}
+            XCTAssertEqual(try Data(contentsOf: originalURL), changed)
+            try normalized.normalized.originalJPEG.write(to: originalURL)
+            let retry = try await preparePromotion(cold)
+            let promoted = try retry.withPromotionLockForTesting { try $0() }
+            XCTAssertEqual(promoted.evidenceID, raw.intent.evidenceID)
+            XCTAssertEqual(promoted.originalSHA256, pair.normalizedPair.originalSHA256)
+            XCTAssertEqual(promoted.thumbnailSHA256, pair.normalizedPair.thumbnailSHA256)
+            try assertBytes(at: final, marker: false)
+            XCTAssertFalse(fileManager.fileExists(atPath: staged.path))
+            let finalRetry = try await preparePromotion(EvidenceBundleStore(generationRootURL: root))
+            XCTAssertEqual(try finalRetry.withPromotionLockForTesting { try $0() }, promoted)
+            try assertBytes(at: final, marker: false)
+            try fileManager.removeItem(at: final)
+        }
     }
 
     func testSourceInspectionPreservesInvalidInputFailurePrecedence() throws {

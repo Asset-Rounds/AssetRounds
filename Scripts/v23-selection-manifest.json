@@ -324,25 +324,52 @@
         "V9_30FieldDraftResilienceTests"
       ],
       "id": "c36-raw-staging"
+    },
+    {
+      "classes": [
+        "S3_4ResumeRecoveryTests"
+      ],
+      "id": "c36-startup-recovery"
     }
   ],
   "profiles": [
     {
       "excludedGroupIDs": [
         "mutation-receipt-safety",
-        "c36-raw-staging"
+        "c36-raw-staging",
+        "c36-startup-recovery"
+      ],
+      "excludedSelectors": [
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA"
       ],
       "id": "incumbent-v1"
     },
     {
       "excludedGroupIDs": [
-        "c36-raw-staging"
+        "c36-raw-staging",
+        "c36-startup-recovery"
+      ],
+      "excludedSelectors": [
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA"
       ],
       "id": "prospective-v1"
     },
     {
-      "excludedGroupIDs": [],
+      "excludedGroupIDs": [
+        "c36-startup-recovery"
+      ],
+      "excludedSelectors": [
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA"
+      ],
       "id": "raw-photo-v1"
+    },
+    {
+      "excludedGroupIDs": [],
+      "excludedSelectors": [],
+      "id": "pair-startup-v1"
     }
   ],
   "schemaVersion": 1,
@@ -1043,7 +1070,11 @@
     "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testV9_30A01AlternatePerItemStagingAndExactRetryRemainIndependent",
     "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testV9_30R01RecoveryReservationRetentionBackupRestoreAndOneAuthority",
     "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testRestoreInitializationMatchesActorPublicationAndReopensExactBytes",
-    "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testRestoreInitializationRejectsHostileInputsWithoutPublishingEntries"
+    "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testRestoreInitializationRejectsHostileInputsWithoutPublishingEntries",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA",
+    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testMediaReconcileRemovesOrphansAndPreservesMismatchForMaintenance",
+    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testRelaunchAfterWideKeepsExactEvidenceAuthorityAndResumesClose"
   ],
   "sourceRoot": "FieldEvidenceAppTests",
   "taskID": "V23-INTEGRATION-20260910",

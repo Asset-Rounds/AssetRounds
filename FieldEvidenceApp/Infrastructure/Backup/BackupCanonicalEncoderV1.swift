@@ -2485,9 +2485,11 @@ private extension BackupCanonicalEncoderV1 {
                     "detectedAt": CanonicalJSONV1.date($0.detectedAt),
                     "identityDomain": .string($0.identityDomain.rawValue),
                     "mutationID": CanonicalJSONV1.uuid($0.mutationID),
-                    "workspaceID": CanonicalJSONV1.uuid(
-                        $0.workspaceID.rawValue
-                    ),
+                    "workspaceID": .object([
+                        "rawValue": CanonicalJSONV1.uuid(
+                            $0.workspaceID.rawValue
+                        ),
+                    ]),
                 ])
             }),
             "receipts": .array(value.receipts.map(mutationReceiptRecord)),

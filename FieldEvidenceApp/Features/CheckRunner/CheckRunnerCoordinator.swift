@@ -1239,6 +1239,18 @@ final class CheckRunnerCoordinator {
         _ = try frozenBeginDependencies(progress: progress)
     }
 
+    /// Returns the already configured sole media owner, bound to this exact
+    /// live writer/generation. The application still owns every effect permit.
+    func checkRunnerPhotoMediaOwner(progress: ProductionRepetitiveCaptureProgressServiceV2) throws
+        -> CheckRunnerPhotoMediaOwnerV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        guard captureGenerationRootURL == dependencies.generationRootURL, let store = evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return .init(store: store, generationRootURL: dependencies.generationRootURL,
+            rootIdentity: try ReportPDFAnchoredFile.rootIdentity(at: dependencies.generationRootURL))
+    }
+
     /// Reuses the configured physical owner for the receipt-backed committed
     /// photo. The application closes the historical source/target read again
     /// after this actor boundary before it publishes the returned facts.
@@ -1413,6 +1425,33 @@ final class CheckRunnerCoordinator {
         try validatePhotoPreparation(parentCheckpoint: value.parentCheckpoint,
             photo: value.initialPayload, workflowEvidence: value.workflow, timeZoneEvidence: value.timeZone,
             progress: progress, publishedRelease: publishedRelease)
+    }
+
+    /// Once this child's original target exists, recovery authenticates that
+    /// receipt and historical ENTRY instead of requiring the old capture step.
+    func validatePhotoContinuation(_ value: CheckRunnerPhotoContinuationEvidenceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        if value.target == nil {
+            try validatePhotoPreparation(parentCheckpoint: value.parentCheckpoint, photo: value.payload,
+                workflowEvidence: value.workflow, timeZoneEvidence: value.timeZone,
+                progress: progress, publishedRelease: publishedRelease)
+            return
+        }
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            value.parentCheckpoint, writer: dependencies.writer, context: modelContext)
+        guard case let .bound(attempt, workflow, zone) = parent.field.begin else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        try value.payload.validate(parent: parent, parentDraftID: value.parentCheckpoint.draftID)
+        try workflow.validate(evidence: value.workflow)
+        guard (zone == nil) == (value.timeZone == nil) else { throw FieldDraftFailureV1.missingReceipt }
+        if let zone, let timeZone = value.timeZone { try zone.validate(evidence: timeZone) }
+        let read = try progress.read(sourceDraftID: parent.source.sourceCheckpoint.draftID)
+        try validateHistoricalCheckRunnerSource(parent.source, read: read, progress: progress,
+                                                publishedRelease: publishedRelease)
+        try validateInitialBeginAccess(attempt, workflow: value.workflow)
     }
 
     func validatePhotoPreparation(parentCheckpoint: FieldDraftCheckpointV1,

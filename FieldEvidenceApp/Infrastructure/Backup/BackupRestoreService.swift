@@ -1124,7 +1124,7 @@ final class BackupRestoreService {
                 identityDecision: preliminaryIdentityDecision,
                 legacyDestinationIdentity: frozenCurrentIdentity,
                 partsStockOperationID: restoreID,
-                partsStockCompletedAt: now()
+                partsStockCompletedAt: replacementAt
             )
             try Task.checkCancellation()
             try validateStagingGeneration(

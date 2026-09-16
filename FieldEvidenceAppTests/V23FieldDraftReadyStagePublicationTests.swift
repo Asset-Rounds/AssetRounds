@@ -425,11 +425,18 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         let imported = try BackupImportService(generationRootURL: current.generationRootURL,
             scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: package.archive)
         step = "restore validated archive"
+        var restoreClockReads = 0
+        let fractionalRestoreNow = Date(timeIntervalSince1970: 1_788_134_400.0004)
         let restored = try await BackupRestoreService(applicationSupportURL: target.support,
-            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            now: {
+                restoreClockReads += 1
+                return fractionalRestoreNow
+            })
             .restore(validatedPackage: imported, currentModelContext: current.modelContext,
                 currentGenerationID: current.generationID,
                 currentGenerationRootURL: current.generationRootURL)
+        XCTAssertEqual(restoreClockReads, 1)
         target.observeRestoredSession(restored)
         XCTAssertEqual(restored.workspaceIdentity, package.identity)
         step = "read restored pair and original history"
@@ -627,7 +634,8 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         let original = try XCTUnwrap(JSONSerialization.jsonObject(with: receipt.canonicalData())
             as? [String: Any])
         let wrongMutationID = try JSONSerialization.jsonObject(with:
-            WorkspaceMutationCanonicalV1.data(MutationIDV1(rawValue: Self.id(98))))
+            WorkspaceMutationCanonicalV1.data(MutationIDV1(rawValue: Self.id(98))),
+            options: [.fragmentsAllowed])
         for (key, value) in [("commandBodySHA256", ReadyStageFixture.digest("f") as Any),
                              ("mutationID", wrongMutationID)] {
             var object = original
@@ -765,7 +773,8 @@ final class V23FieldDraftReadyStagePublicationTests: XCTestCase {
         let workspace = WorkspaceID(rawValue: Self.id(120))
         let key = try readyStageObserved("construct conflict MyDay key") {
             try MyDayKeyV1(workspaceID: workspace,
-                civilDate: .init(year: 2026, month: 9, day: 14), ianaTimeZoneIdentifier: "UTC")
+                civilDate: .init(year: 2026, month: 9, day: 14),
+                ianaTimeZoneIdentifier: "America/New_York")
         }
         let actor = try LocalActorReferenceV1(actorReferenceID: Self.id(121),
             workspaceID: workspace, displayName: "Reviewer")

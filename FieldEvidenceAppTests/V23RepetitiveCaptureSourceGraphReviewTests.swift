@@ -866,7 +866,9 @@ private extension V23RepetitiveCaptureSourceGraphReviewTests {
             "detectedAt": CanonicalJSONV1.date(quarantine.detectedAt),
             "identityDomain": .string(quarantine.identityDomain.rawValue),
             "mutationID": CanonicalJSONV1.uuid(quarantine.mutationID),
-            "workspaceID": CanonicalJSONV1.uuid(quarantine.workspaceID.rawValue),
+            "workspaceID": .object([
+                "rawValue": CanonicalJSONV1.uuid(quarantine.workspaceID.rawValue),
+            ]),
         ]))
         let quarantineObject = try XCTUnwrap(
             JSONSerialization.jsonObject(with: encoded) as? [String: Any])
@@ -880,6 +882,8 @@ private extension V23RepetitiveCaptureSourceGraphReviewTests {
             let decoded = try BackupCanonicalDecoderV1().decodeRecords(bytes)
             let decodedHistory = try XCTUnwrap(decoded.mutationHistory)
             XCTAssertEqual(decodedHistory.quarantines.last, quarantine)
+            let canonical = try BackupCanonicalEncoderV1().encodeRecords(decoded).data
+            XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(canonical), decoded)
         }
     }
 }

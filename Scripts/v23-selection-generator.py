@@ -37,7 +37,8 @@ COMMON = {
 }
 COMMON_KEYS = set(COMMON)
 GROUP_KEYS = {"id", "classes"}
-PROFILE_KEYS = {"id", "excludedGroupIDs"}
+LEGACY_PROFILE_KEYS = {"id", "excludedGroupIDs"}
+PROFILE_KEYS = LEGACY_PROFILE_KEYS | {"excludedSelectors"}
 SELECTOR = re.compile(
     r"^FieldEvidenceAppTests/([A-Za-z_][A-Za-z0-9_]*Tests)/"
     r"(test[A-Za-z0-9_]{1,240})$"
@@ -151,15 +152,36 @@ def validate_manifest(value):
     require(isinstance(profiles, list) and profiles, "profiles")
     profile_ids = set()
     for profile in profiles:
-        exact_keys(profile, PROFILE_KEYS, "profile")
+        require(isinstance(profile, dict)
+                and set(profile) in (LEGACY_PROFILE_KEYS, PROFILE_KEYS), "profile keys")
         profile_id, excluded = profile["id"], profile["excludedGroupIDs"]
+        excluded_selectors = profile.get("excludedSelectors", [])
         require(isinstance(profile_id, str) and IDENTIFIER.fullmatch(profile_id)
                 and profile_id not in profile_ids, "profile ID")
         require(isinstance(excluded, list)
                 and all(isinstance(item, str) and item in group_ids for item in excluded)
                 and len(excluded) == len(set(excluded)),
-                "profile exclusions")
+                "profile group exclusions")
+        require(isinstance(excluded_selectors, list)
+                and all(isinstance(item, str) and item in pool for item in excluded_selectors)
+                and len(excluded_selectors) == len(set(excluded_selectors)),
+                "profile selector exclusions")
+        excluded_groups = set(excluded)
+        excluded_selector_set = set(excluded_selectors)
+        require(all(class_owner[parse_selector(item)[0]] not in excluded_groups
+                    for item in excluded_selectors),
+                "profile selector exclusion overlaps excluded group")
         require(len(excluded) < len(group_ids), "profile excludes every group")
+        retained = [selector for selector in pool
+                    if class_owner[parse_selector(selector)[0]] not in excluded_groups
+                    and selector not in excluded_selector_set]
+        retained_classes = {parse_selector(selector)[0] for selector in retained}
+        for group in groups:
+            if group["id"] not in excluded_groups:
+                require(all(class_name in retained_classes for class_name in group["classes"]),
+                        "profile empties included class")
+                require(any(parse_selector(selector)[0] in group["classes"]
+                            for selector in retained), "profile empties included group")
         profile_ids.add(profile_id)
     return value, class_owner
 
@@ -425,10 +447,12 @@ def generate(manifest, profile_id: str, checkout_root: Path):
     profiles = [item for item in manifest["profiles"] if item["id"] == profile_id]
     require(len(profiles) == 1, "unknown profile")
     excluded = set(profiles[0]["excludedGroupIDs"])
+    excluded_selectors = set(profiles[0].get("excludedSelectors", []))
     included_groups = [group for group in manifest["groups"] if group["id"] not in excluded]
     included_ids = {group["id"] for group in included_groups}
     pool = [selector for selector in manifest["selectorPool"]
-            if class_owner[parse_selector(selector)[0]] in included_ids]
+            if class_owner[parse_selector(selector)[0]] in included_ids
+            and selector not in excluded_selectors]
     require(pool and len(pool) == len(set(pool)), "generated selector pool")
     selection = dict(manifest["commonSelection"])
     selection["unitTestSelectors"] = pool

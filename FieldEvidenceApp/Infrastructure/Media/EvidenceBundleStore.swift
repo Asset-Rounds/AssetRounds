@@ -38,6 +38,176 @@ struct CheckRunnerPhotoStagedPairReadbackV1: Equatable, Sendable {
     let staged: StagedEvidenceBundle
 }
 
+/// Immutable, descriptor-retained physical preparation. Application authority
+/// must enter its original generation fence, revalidate inside the media lock,
+/// invoke the nonescaping effect, then persist/read back its canonical receipt.
+/// Preparing this value does not publish a named pair or authorize a checkpoint.
+final class CheckRunnerPhotoPreparedPairPublicationV1: @unchecked Sendable {
+    let readback: CheckRunnerPhotoStagedPairReadbackV1
+    let storeIdentity: ObjectIdentifier
+    fileprivate let store: EvidenceBundleStore
+    fileprivate let files: CheckRunnerPhotoPreparedPairFilesV1
+    let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    var generationRootURL: URL { store.checkRunnerPhotoGenerationRootURL }
+    fileprivate let privatePublication: Bool
+    fileprivate let authority: CheckRunnerPhotoPairPublicationAuthorityV1?
+
+    fileprivate init(store: EvidenceBundleStore, readback: CheckRunnerPhotoStagedPairReadbackV1,
+        files: CheckRunnerPhotoPreparedPairFilesV1, rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        privatePublication: Bool, authority: CheckRunnerPhotoPairPublicationAuthorityV1?) {
+        self.store = store; self.readback = readback; self.files = files
+        self.rootIdentity = rootIdentity; self.privatePublication = privatePublication
+        storeIdentity = ObjectIdentifier(store)
+        self.authority = authority
+    }
+
+    deinit {
+        if privatePublication { store.discardPrivateCheckRunnerPhotoPreparation(files, rootIdentity: rootIdentity) }
+    }
+
+    @MainActor
+    func withPublicationLock<T>(authority: CheckRunnerPhotoPairPublicationAuthorityV1,
+        _ body: (_ publish: () throws -> CheckRunnerPhotoStagedPairReadbackV1) throws -> T
+    ) throws -> T {
+        guard self.authority === authority else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        return try store.withPreparedCheckRunnerPhotoPublication(self) { publish in
+            try authority.revalidatePreparedPairPublication(self)
+            return try body {
+                try authority.revalidatePreparedPairPublication(self)
+                return try publish()
+            }
+        }
+    }
+
+    #if DEBUG
+    func withPublicationLockForTesting<T>(
+        _ body: (_ publish: () throws -> CheckRunnerPhotoStagedPairReadbackV1) throws -> T
+    ) throws -> T {
+        guard authority == nil else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        return try store.withPreparedCheckRunnerPhotoPublication(self, body)
+    }
+    #endif
+}
+
+/// Receipt-free physical preparation only. The application's privately issued
+/// pairReady/COMMITTING capability supplies receipt authority inside G then R.
+final class CheckRunnerPhotoPreparedPairPromotionV1: @unchecked Sendable {
+    let pair: CheckRunnerPhotoPairReadyV1
+    let storeIdentity: ObjectIdentifier
+    fileprivate let store: EvidenceBundleStore
+    fileprivate let files: CheckRunnerPhotoPreparedPairFilesV1
+    let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    var generationRootURL: URL { store.checkRunnerPhotoGenerationRootURL }
+    fileprivate let markerBytes: Data
+    fileprivate let alreadyPromoted: Bool
+    fileprivate let authority: CheckRunnerPhotoPairPromotionAuthorityV1?
+
+    fileprivate init(store: EvidenceBundleStore, pair: CheckRunnerPhotoPairReadyV1,
+        files: CheckRunnerPhotoPreparedPairFilesV1, rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        markerBytes: Data, alreadyPromoted: Bool, authority: CheckRunnerPhotoPairPromotionAuthorityV1?) {
+        self.store = store; self.pair = pair; self.files = files; self.rootIdentity = rootIdentity
+        self.markerBytes = markerBytes; self.alreadyPromoted = alreadyPromoted
+        storeIdentity = ObjectIdentifier(store)
+        self.authority = authority
+    }
+
+    @MainActor
+    func withPromotionLock<T>(authority: CheckRunnerPhotoPairPromotionAuthorityV1,
+        _ body: (_ promote: () throws -> PromotedEvidenceBundle) throws -> T
+    ) throws -> T {
+        guard self.authority === authority else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        return try store.withPreparedCheckRunnerPhotoPromotion(self) { promote in
+            try authority.revalidatePreparedPairPromotion(self)
+            return try body {
+                try authority.revalidatePreparedPairPromotion(self)
+                return try promote()
+            }
+        }
+    }
+
+    #if DEBUG
+    func withPromotionLockForTesting<T>(
+        _ body: (_ promote: () throws -> PromotedEvidenceBundle) throws -> T
+    ) throws -> T {
+        guard authority == nil else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        return try store.withPreparedCheckRunnerPhotoPromotion(self, body)
+    }
+    #endif
+}
+
+/// Actor-prepared exact membership and physical facts. Only the original
+/// startup capability can consume this under access -> generation -> media.
+final class StartupMediaPreparedRecoveryV1: @unchecked Sendable {
+    let snapshot: StartupMediaOwnershipSnapshotV1
+    fileprivate let store: EvidenceBundleStore
+    fileprivate let authority: StartupMediaRecoveryAuthorityV1
+    fileprivate let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    fileprivate let stagingIDs: Set<UUID>
+    fileprivate let promotedIDs: Set<UUID>
+    fileprivate let bundles: [StartupMediaPreparedBundleV1]
+    fileprivate let consumption = NSLock()
+    fileprivate var consumed = false
+
+    fileprivate init(snapshot: StartupMediaOwnershipSnapshotV1, store: EvidenceBundleStore,
+        authority: StartupMediaRecoveryAuthorityV1, rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        stagingIDs: Set<UUID>, promotedIDs: Set<UUID>, bundles: [StartupMediaPreparedBundleV1]) {
+        self.snapshot = snapshot; self.store = store; self.authority = authority
+        self.rootIdentity = rootIdentity; self.stagingIDs = stagingIDs
+        self.promotedIDs = promotedIDs; self.bundles = bundles
+    }
+
+    @MainActor func finish(authority: StartupMediaRecoveryAuthorityV1) throws {
+        guard self.authority === authority else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        try store.finishStartupRecovery(self) { try authority.revalidateCleanup(self) }
+    }
+}
+
+fileprivate struct StartupMediaPreparedBundleV1 {
+    struct Leaf {
+        let facts: stat
+        let policy: OwnedFileKindV1
+    }
+    let url: URL
+    let identity: EvidenceBundleStore.FileIdentity
+    let directoryPolicy: OwnedFileKindV1
+    let leaves: [String: Leaf]
+    let digests: [String: String]
+    let cleanup: Bool
+
+    /// Copy immutable facts, never retain one descriptor set per bundle.
+    /// Final validation reopens only the current exact planned directory.
+    init(files: CheckRunnerPhotoPreparedPairFilesV1, digests: [String: String], cleanup: Bool) {
+        url = files.url; identity = files.identity; directoryPolicy = files.directoryPolicy
+        leaves = files.leaves.mapValues { Leaf(facts: $0.facts, policy: $0.policy) }
+        self.digests = digests; self.cleanup = cleanup
+    }
+}
+
+fileprivate final class CheckRunnerPhotoPreparedPairFilesV1: @unchecked Sendable {
+    struct Leaf {
+        let descriptor: Int32
+        let facts: stat
+        let policy: OwnedFileKindV1
+    }
+    let url: URL
+    let descriptor: Int32
+    let identity: EvidenceBundleStore.FileIdentity
+    let leaves: [String: Leaf]
+    let directoryPolicy: OwnedFileKindV1
+    let consumption = NSLock()
+    var consumed = false // Only accessed while consumption is held.
+
+    init(url: URL, descriptor: Int32, identity: EvidenceBundleStore.FileIdentity,
+         leaves: [String: Leaf], directoryPolicy: OwnedFileKindV1) {
+        self.url = url; self.descriptor = descriptor; self.identity = identity
+        self.leaves = leaves; self.directoryPolicy = directoryPolicy
+    }
+    deinit {
+        for leaf in leaves.values { _ = Darwin.close(leaf.descriptor) }
+        _ = Darwin.close(descriptor)
+    }
+}
+
 extension EvidenceBundleStore {
     /// C23 immutable originals never relocate or advance a locator revision.
     /// This is the owner's fixed mapping, independent of manifest expectations.
@@ -173,6 +343,9 @@ enum EvidenceBundleStoreFailurePoint: Equatable, Sendable {
     case checkRunnerPhotoThumbnailWritten
     case checkRunnerPhotoMarkerWritten
     case checkRunnerPhotoPublished
+    case checkRunnerPhotoMarkerRemoved
+    case checkRunnerPhotoPromotionMoved
+    case checkRunnerPhotoPromoted
 }
 
 final class EvidenceBundleStoreFailureInjection: @unchecked Sendable {
@@ -682,7 +855,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     private static let legacyBundleLock = NSRecursiveLock()
     private let sourceMutationGuard: StoreMigrationSourceMutationGuardV1?
     nonisolated private let expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity?
-    private struct FileIdentity: Equatable {
+    fileprivate struct FileIdentity: Equatable {
         let device: dev_t
         let inode: ino_t
     }
@@ -1204,11 +1377,15 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                   authority.generationIdentity.inode == expectedGenerationRootIdentity.inode else {
                 throw EvidenceBundleStoreError.generationRootInvalid
             }
+            guard try itemType(at: paths(for: raw.intent.evidenceID).promotedDirectoryURL) == nil else {
+                throw EvidenceBundleStoreError.promotedBundleAlreadyExists
+            }
             return try readCheckRunnerPhotoPairLocked(childDraftID: childDraftID,
                 parentDraftID: parentDraftID, raw: raw, directoryURL: paths(for: raw.intent.evidenceID).stagingDirectoryURL)
         }
     }
 
+    #if DEBUG
     /// Publishes operational staging only. No checkpoint, stage row, receipt or
     /// evidence association is created. An exact earlier publication wins.
     func stageOrAdoptCheckRunnerPhotoPair(
@@ -1218,6 +1395,45 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         normalized: NormalizedMediaWithSourceFactsV1,
         expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
     ) throws -> CheckRunnerPhotoStagedPairReadbackV1 {
+        // Low-level fixture primitive. Production must use preparation and the
+        // privately issued application capability around the final G -> R edge.
+        let prepared = try prepareCheckRunnerPhotoPairForTesting(childDraftID: childDraftID,
+            parentDraftID: parentDraftID, raw: raw, normalized: normalized,
+            expectedGenerationRootIdentity: expectedGenerationRootIdentity)
+        return try prepared.withPublicationLockForTesting { publish in try publish() }
+    }
+
+    func prepareCheckRunnerPhotoPairForTesting(childDraftID: UUID, parentDraftID: UUID,
+        raw: CheckRunnerPhotoRawReadyV1, normalized: NormalizedMediaWithSourceFactsV1?,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
+    ) throws -> CheckRunnerPhotoPreparedPairPublicationV1 {
+        try prepareCheckRunnerPhotoPairFiles(childDraftID: childDraftID, parentDraftID: parentDraftID,
+            raw: raw, normalized: normalized, expectedGenerationRootIdentity: expectedGenerationRootIdentity,
+            authority: nil)
+    }
+    #endif
+
+    /// Actor-side JPEG inspection and private writing. nil input is adopt-only;
+    /// bundleMissing means true absence, while any visible malformed pair fails.
+    func prepareCheckRunnerPhotoPair(
+        authority: CheckRunnerPhotoPairPublicationAuthorityV1,
+        childDraftID: UUID,
+        parentDraftID: UUID,
+        raw: CheckRunnerPhotoRawReadyV1,
+        normalized: NormalizedMediaWithSourceFactsV1?,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
+    ) async throws -> CheckRunnerPhotoPreparedPairPublicationV1 {
+        try await authority.validatePreparation()
+        return try prepareCheckRunnerPhotoPairFiles(childDraftID: childDraftID, parentDraftID: parentDraftID,
+            raw: raw, normalized: normalized, expectedGenerationRootIdentity: expectedGenerationRootIdentity,
+            authority: authority)
+    }
+
+    private func prepareCheckRunnerPhotoPairFiles(childDraftID: UUID, parentDraftID: UUID,
+        raw: CheckRunnerPhotoRawReadyV1, normalized: NormalizedMediaWithSourceFactsV1?,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t),
+        authority applicationAuthority: CheckRunnerPhotoPairPublicationAuthorityV1?
+    ) throws -> CheckRunnerPhotoPreparedPairPublicationV1 {
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -1238,8 +1454,14 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             }
             if let existing = try readCheckRunnerPhotoPairLocked(childDraftID: childDraftID,
                 parentDraftID: parentDraftID, raw: raw, directoryURL: bundlePaths.stagingDirectoryURL) {
-                return existing
+                let files = try prepareCheckRunnerPhotoFiles(at: bundlePaths.stagingDirectoryURL,
+                    pair: existing.marker.normalizedPair, markerBytes: existing.markerBytes, promoted: false)
+                return .init(store: self, readback: existing, files: files,
+                    rootIdentity: .init(device: authority.generationIdentity.device,
+                        inode: authority.generationIdentity.inode), privatePublication: false,
+                    authority: applicationAuthority)
             }
+            guard let normalized else { throw EvidenceBundleStoreError.bundleMissing }
             let inspection = raw.inspection
             guard normalized.sourceFacts == MediaSourceFactsV1(sourceTypeIdentifier: inspection.detectedUTI,
                 pixelWidth: inspection.pixelWidth, pixelHeight: inspection.pixelHeight,
@@ -1258,7 +1480,6 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             let privateURL = bundlePaths.stagingDirectoryURL.deletingLastPathComponent()
                 .appendingPathComponent(".\(raw.intent.evidenceID.uuidString.lowercased()).pair.tmp", isDirectory: true)
             var privateIdentity: FileIdentity?
-            var published = false
             do {
                 try createCheckRunnerPhotoPrivateDirectory(at: privateURL, identity: &privateIdentity)
                 try Task.checkCancellation()
@@ -1289,16 +1510,15 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                     throw EvidenceBundleStoreError.fileOperationFailed
                 }
                 try reproveGenerationRoot(authority)
-                try moveDirectoryNoReplace(from: privateURL, to: bundlePaths.stagingDirectoryURL, didMove: &published)
-                try checkCheckRunnerPhotoBoundary(.checkRunnerPhotoPublished)
-                guard let result = try readCheckRunnerPhotoPairLocked(childDraftID: childDraftID,
-                    parentDraftID: parentDraftID, raw: raw, directoryURL: bundlePaths.stagingDirectoryURL),
-                    result.markerBytes == markerBytes else { throw EvidenceBundleStoreError.bundleFactsMismatch }
-                return result
+                let files = try prepareCheckRunnerPhotoFiles(at: privateURL, pair: pair,
+                    markerBytes: markerBytes, promoted: false)
+                return .init(store: self, readback: verified, files: files,
+                    rootIdentity: .init(device: authority.generationIdentity.device,
+                        inode: authority.generationIdentity.inode), privatePublication: true,
+                    authority: applicationAuthority)
             } catch {
-                // After the visibility point, preserve bytes for lost-ack
-                // adoption. Before it, only this call's exact inode is owned.
-                if !published, let privateIdentity {
+                // Only this call's still-private inode is cleanup authority.
+                if let privateIdentity {
                     try withParentDescriptor(of: privateURL) { parent, leaf in
                         try quarantineDirectoryAndRemove(parent: parent, name: leaf, expectedIdentity: privateIdentity)
                     }
@@ -1308,7 +1528,370 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func checkCheckRunnerPhotoBoundary(_ point: EvidenceBundleStoreFailurePoint) throws {
+    nonisolated fileprivate var checkRunnerPhotoGenerationRootURL: URL { generationRootURL }
+
+    nonisolated fileprivate func discardPrivateCheckRunnerPhotoPreparation(
+        _ files: CheckRunnerPhotoPreparedPairFilesV1, rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        // A rename makes the private name absent. Never chase its inode into
+        // the visible namespace or delete a replacement at the private name.
+        try? withGenerationRootAuthority { authority in
+            try requireCheckRunnerPhotoRoot(authority, expected: rootIdentity)
+            guard (try? directoryIdentity(at: files.url)) == files.identity else { return }
+            try withParentDescriptor(of: files.url) { parent, leaf in
+                try quarantineDirectoryAndRemove(parent: parent, name: leaf, expectedIdentity: files.identity)
+            }
+        }
+    }
+
+    nonisolated fileprivate func withPreparedCheckRunnerPhotoPublication<T>(
+        _ prepared: CheckRunnerPhotoPreparedPairPublicationV1,
+        _ body: (_ publish: () throws -> CheckRunnerPhotoStagedPairReadbackV1) throws -> T
+    ) throws -> T {
+        guard prepared.files.consumption.try() else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        defer { prepared.files.consumption.unlock() }
+        guard !prepared.files.consumed else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        prepared.files.consumed = true
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try requireProducerAuthority()
+        try Task.checkCancellation()
+        return try withGenerationRootAuthority { authority in
+            try requireCheckRunnerPhotoRoot(authority, expected: prepared.rootIdentity)
+            let bundlePaths = paths(for: prepared.readback.staged.evidenceID)
+            guard try itemType(at: bundlePaths.promotedDirectoryURL) == nil else {
+                throw EvidenceBundleStoreError.promotedBundleAlreadyExists
+            }
+            try verifyPreparedCheckRunnerPhotoFiles(prepared.files,
+                pair: prepared.readback.marker.normalizedPair, markerBytes: prepared.readback.markerBytes)
+            var invoked = false
+            let result = try body {
+                guard !invoked else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                invoked = true
+                try Task.checkCancellation()
+                try self.reproveGenerationRoot(authority)
+                try self.verifyPreparedCheckRunnerPhotoFiles(prepared.files,
+                    pair: prepared.readback.marker.normalizedPair, markerBytes: prepared.readback.markerBytes)
+                let visibleFiles: CheckRunnerPhotoPreparedPairFilesV1
+                if prepared.privatePublication {
+                    if try self.itemType(at: bundlePaths.stagingDirectoryURL) != nil {
+                        // A concurrent exact publication wins. Its JPEG bytes
+                        // match the inspected preparation, so no decode occurs
+                        // in this synchronous generation/receipt critical edge.
+                        visibleFiles = try self.prepareCheckRunnerPhotoFiles(at: bundlePaths.stagingDirectoryURL,
+                            pair: prepared.readback.marker.normalizedPair,
+                            markerBytes: prepared.readback.markerBytes, promoted: false)
+                    } else {
+                        var moved = false
+                        try self.moveDirectoryNoReplace(from: prepared.files.url,
+                            to: bundlePaths.stagingDirectoryURL, didMove: &moved)
+                        visibleFiles = prepared.files
+                    }
+                } else {
+                    visibleFiles = prepared.files
+                }
+                try self.fsyncCheckRunnerPhotoDirectoryAndParent(bundlePaths.stagingDirectoryURL)
+                try self.checkCheckRunnerPhotoBoundary(.checkRunnerPhotoPublished)
+                try self.verifyPreparedCheckRunnerPhotoFiles(visibleFiles,
+                    pair: prepared.readback.marker.normalizedPair, markerBytes: prepared.readback.markerBytes,
+                    at: bundlePaths.stagingDirectoryURL)
+                return prepared.readback
+            }
+            guard invoked else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+            try reproveGenerationRoot(authority)
+            return result
+        }
+    }
+
+    func prepareCheckRunnerPhotoPromotion(authority: CheckRunnerPhotoPairPromotionAuthorityV1,
+        childDraftID: UUID, parentDraftID: UUID, pair: CheckRunnerPhotoPairReadyV1,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
+    ) async throws -> CheckRunnerPhotoPreparedPairPromotionV1 {
+        try await authority.validatePreparation()
+        return try prepareCheckRunnerPhotoPromotionFiles(childDraftID: childDraftID,
+            parentDraftID: parentDraftID, pair: pair,
+            expectedGenerationRootIdentity: expectedGenerationRootIdentity, authority: authority)
+    }
+
+    #if DEBUG
+    func prepareCheckRunnerPhotoPromotionForTesting(childDraftID: UUID, parentDraftID: UUID,
+        pair: CheckRunnerPhotoPairReadyV1,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
+    ) throws -> CheckRunnerPhotoPreparedPairPromotionV1 {
+        try prepareCheckRunnerPhotoPromotionFiles(childDraftID: childDraftID, parentDraftID: parentDraftID,
+            pair: pair, expectedGenerationRootIdentity: expectedGenerationRootIdentity, authority: nil)
+    }
+    #endif
+
+    private func prepareCheckRunnerPhotoPromotionFiles(childDraftID: UUID, parentDraftID: UUID,
+        pair: CheckRunnerPhotoPairReadyV1,
+        expectedGenerationRootIdentity: (device: dev_t, inode: ino_t),
+        authority applicationAuthority: CheckRunnerPhotoPairPromotionAuthorityV1?
+    ) throws -> CheckRunnerPhotoPreparedPairPromotionV1 {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try requireProducerAuthority()
+        try Task.checkCancellation()
+        try pair.validate(childDraftID: childDraftID, parentDraftID: parentDraftID)
+        return try withGenerationRootAuthority { authority in
+            let rootIdentity = ReportPDFAnchoredFile.RootIdentity(device: expectedGenerationRootIdentity.device,
+                inode: expectedGenerationRootIdentity.inode)
+            try requireCheckRunnerPhotoRoot(authority, expected: rootIdentity)
+            let bundlePaths = paths(for: pair.normalizedPair.evidenceID)
+            let stagedType = try itemType(at: bundlePaths.stagingDirectoryURL)
+            let promotedType = try itemType(at: bundlePaths.promotedDirectoryURL)
+            guard (stagedType == nil) != (promotedType == nil) else {
+                throw stagedType == nil ? EvidenceBundleStoreError.bundleMissing
+                    : EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            let alreadyPromoted = promotedType != nil
+            let directory = alreadyPromoted ? bundlePaths.promotedDirectoryURL : bundlePaths.stagingDirectoryURL
+            let marker = try CheckRunnerPhotoPairPublicationMarkerV1(childDraftID: childDraftID,
+                parentDraftID: parentDraftID, raw: pair.raw, normalizedPair: pair.normalizedPair)
+            let markerBytes = try FieldDraftCanonicalCodecV1.encode(marker)
+            guard sha256(markerBytes) == pair.pairPublicationMarkerSHA256 else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            let hasMarker = try itemType(at: directory.appendingPathComponent("pair-publication.json")) != nil
+            if hasMarker {
+                guard !alreadyPromoted, let readback = try readCheckRunnerPhotoPairLocked(
+                    childDraftID: childDraftID, parentDraftID: parentDraftID, raw: pair.raw,
+                    directoryURL: directory), readback.markerBytes == markerBytes else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+            } else {
+                // A interrupted promotion may have changed only some protection
+                // attributes. Exact receipt-bound bytes admit either incumbent
+                // staging or final policy; no unrelated policy is repaired.
+                let original = try readDerivativeStagingFile(at: directory.appendingPathComponent("original.jpg"),
+                    temporaryKind: .stagingFile, promotedKind: .mediaOriginal,
+                    maximumBytes: pair.normalizedPair.originalByteCount)
+                try Task.checkCancellation()
+                let thumbnail = try readDerivativeStagingFile(at: directory.appendingPathComponent("thumbnail.jpg"),
+                    temporaryKind: .stagingFile, promotedKind: .mediaThumbnail,
+                    maximumBytes: pair.normalizedPair.thumbnailByteCount)
+                guard try checkRunnerPhotoPair(raw: pair.raw, original: original, thumbnail: thumbnail)
+                    == pair.normalizedPair else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+            }
+            let files = try prepareCheckRunnerPhotoFiles(at: directory, pair: pair.normalizedPair,
+                markerBytes: hasMarker ? markerBytes : nil, promoted: alreadyPromoted)
+            return .init(store: self, pair: pair, files: files, rootIdentity: rootIdentity,
+                markerBytes: markerBytes, alreadyPromoted: alreadyPromoted, authority: applicationAuthority)
+        }
+    }
+
+    nonisolated fileprivate func withPreparedCheckRunnerPhotoPromotion<T>(
+        _ prepared: CheckRunnerPhotoPreparedPairPromotionV1,
+        _ body: (_ promote: () throws -> PromotedEvidenceBundle) throws -> T
+    ) throws -> T {
+        guard prepared.files.consumption.try() else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        defer { prepared.files.consumption.unlock() }
+        guard !prepared.files.consumed else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        prepared.files.consumed = true
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try requireProducerAuthority()
+        try Task.checkCancellation()
+        return try withGenerationRootAuthority { authority in
+            try requireCheckRunnerPhotoRoot(authority, expected: prepared.rootIdentity)
+            let pair = prepared.pair.normalizedPair
+            let bundlePaths = paths(for: pair.evidenceID)
+            let hasMarker = prepared.files.leaves["pair-publication.json"] != nil
+            let other = prepared.alreadyPromoted ? bundlePaths.stagingDirectoryURL : bundlePaths.promotedDirectoryURL
+            guard try itemType(at: other) == nil else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+            try verifyPreparedCheckRunnerPhotoFiles(prepared.files, pair: pair,
+                markerBytes: hasMarker ? prepared.markerBytes : nil)
+            var invoked = false
+            let result = try body {
+                guard !invoked else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                invoked = true
+                try Task.checkCancellation()
+                try self.reproveGenerationRoot(authority)
+                try self.verifyPreparedCheckRunnerPhotoFiles(prepared.files, pair: pair,
+                    markerBytes: hasMarker ? prepared.markerBytes : nil)
+                if hasMarker {
+                    guard let leaf = prepared.files.leaves["pair-publication.json"],
+                          try self.regularIdentity(leaf.descriptor) == self.checkRunnerPhotoIdentity(leaf.facts),
+                          try self.regularIdentity(parent: prepared.files.descriptor,
+                            name: "pair-publication.json") == self.checkRunnerPhotoIdentity(leaf.facts),
+                          Darwin.unlinkat(prepared.files.descriptor, "pair-publication.json", 0) == 0,
+                          Darwin.fsync(prepared.files.descriptor) == 0 else {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                    try self.checkCheckRunnerPhotoBoundary(.checkRunnerPhotoMarkerRemoved)
+                }
+                if !prepared.alreadyPromoted {
+                    try self.ensureDirectory(relativeComponents: ["evidence"])
+                    if self.failureInjection?.consume(.atomicPromotionMove) == true {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                    var moved = false
+                    try self.moveDirectoryNoReplace(from: bundlePaths.stagingDirectoryURL,
+                        to: bundlePaths.promotedDirectoryURL, didMove: &moved)
+                    try self.checkCheckRunnerPhotoBoundary(.checkRunnerPhotoPromotionMoved)
+                }
+                // Same incumbent atomic two-file move and protection sequence.
+                // Every post-marker/move failure preserves the exact bytes for
+                // original-receipt retry; no generic cleanup owns these files.
+                try self.applyDirectoryPolicy(.durableDirectory, at: bundlePaths.promotedDirectoryURL)
+                try self.applyPromotedMediaPolicy(.mediaOriginal, at: bundlePaths.promotedOriginalURL)
+                try self.applyPromotedMediaPolicy(.mediaThumbnail, at: bundlePaths.promotedThumbnailURL)
+                try self.verifyPreparedCheckRunnerPhotoFiles(prepared.files, pair: pair, markerBytes: nil,
+                    at: bundlePaths.promotedDirectoryURL, finalPolicy: true, requireUnchangedTimes: false)
+                try self.fsyncCheckRunnerPhotoDirectoryAndParent(bundlePaths.promotedDirectoryURL)
+                try self.checkCheckRunnerPhotoBoundary(.checkRunnerPhotoPromoted)
+                return PromotedEvidenceBundle(evidenceID: pair.evidenceID,
+                    originalRelativePath: pair.originalRelativePath, thumbnailRelativePath: pair.thumbnailRelativePath,
+                    originalByteCount: Int(pair.originalByteCount), thumbnailByteCount: Int(pair.thumbnailByteCount),
+                    originalSHA256: pair.originalSHA256, thumbnailSHA256: pair.thumbnailSHA256)
+            }
+            guard invoked else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+            try reproveGenerationRoot(authority)
+            return result
+        }
+    }
+
+    nonisolated private func requireCheckRunnerPhotoRoot(_ authority: GenerationRootAuthority,
+        expected: ReportPDFAnchoredFile.RootIdentity) throws {
+        guard authority.generationIdentity.device == expected.device,
+              authority.generationIdentity.inode == expected.inode else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+    }
+
+    nonisolated private func fsyncCheckRunnerPhotoDirectoryAndParent(_ url: URL) throws {
+        try withParentDescriptor(of: url) { parent, leaf in
+            let directory = Darwin.openat(parent, leaf, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard directory >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            defer { _ = Darwin.close(directory) }
+            let identity = try directoryIdentity(directory)
+            guard try directoryIdentity(parent: parent, name: leaf) == identity,
+                  Darwin.fsync(directory) == 0, Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        }
+    }
+
+    nonisolated private func prepareCheckRunnerPhotoFiles(at url: URL,
+        pair: CheckRunnerPhotoNormalizedPairV1, markerBytes: Data?, promoted: Bool
+    ) throws -> CheckRunnerPhotoPreparedPairFilesV1 {
+        let descriptor = try withParentDescriptor(of: url) { parent, name in
+            let fd = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard fd >= 0 else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+            return fd
+        }
+        var leaves: [String: CheckRunnerPhotoPreparedPairFilesV1.Leaf] = [:]
+        var transferred = false
+        defer {
+            if !transferred {
+                for leaf in leaves.values { _ = Darwin.close(leaf.descriptor) }
+                _ = Darwin.close(descriptor)
+            }
+        }
+        let identity = try directoryIdentity(descriptor)
+        let names: Set<String> = markerBytes == nil ? ["original.jpg", "thumbnail.jpg"]
+            : ["original.jpg", "thumbnail.jpg", "pair-publication.json"]
+        guard Set(try directoryNames(descriptor)) == names else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+        let directoryPolicy: OwnedFileKindV1
+        if promoted {
+            do { try ProtectedFilePolicyV1.verify(.durableDirectory, at: url); directoryPolicy = .durableDirectory }
+            catch { try ProtectedFilePolicyV1.verify(.stagingDirectory, at: url); directoryPolicy = .stagingDirectory }
+        } else {
+            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: url); directoryPolicy = .stagingDirectory
+        }
+        for name in names.sorted() {
+            try Task.checkCancellation()
+            let fd = Darwin.openat(descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+            guard fd >= 0 else { throw EvidenceBundleStoreError.fileTypeInvalid }
+            do {
+                var facts = stat()
+                guard Darwin.fstat(fd, &facts) == 0, facts.st_mode & S_IFMT == S_IFREG,
+                      facts.st_nlink == 1 else { throw EvidenceBundleStoreError.fileTypeInvalid }
+                let policy: OwnedFileKindV1
+                let leafURL = url.appendingPathComponent(name)
+                if promoted {
+                    let final: OwnedFileKindV1 = name == "original.jpg" ? .mediaOriginal : .mediaThumbnail
+                    do { try ProtectedFilePolicyV1.verify(final, at: leafURL); policy = final }
+                    catch { try ProtectedFilePolicyV1.verify(.stagingFile, at: leafURL); policy = .stagingFile }
+                } else {
+                    try ProtectedFilePolicyV1.verify(.stagingFile, at: leafURL); policy = .stagingFile
+                }
+                leaves[name] = .init(descriptor: fd, facts: facts, policy: policy)
+            } catch { _ = Darwin.close(fd); throw error }
+        }
+        let files = CheckRunnerPhotoPreparedPairFilesV1(url: url, descriptor: descriptor,
+            identity: identity, leaves: leaves, directoryPolicy: directoryPolicy)
+        transferred = true
+        try verifyPreparedCheckRunnerPhotoFiles(files, pair: pair, markerBytes: markerBytes)
+        return files
+    }
+
+    nonisolated private func checkRunnerPhotoIdentity(_ facts: stat) -> FileIdentity {
+        .init(device: facts.st_dev, inode: facts.st_ino)
+    }
+
+    nonisolated private func verifyPreparedCheckRunnerPhotoFiles(_ files: CheckRunnerPhotoPreparedPairFilesV1,
+        pair: CheckRunnerPhotoNormalizedPairV1, markerBytes: Data?, at targetURL: URL? = nil,
+        finalPolicy: Bool = false, requireUnchangedTimes: Bool = true
+    ) throws {
+        let url = targetURL ?? files.url
+        let names: Set<String> = markerBytes == nil ? ["original.jpg", "thumbnail.jpg"]
+            : ["original.jpg", "thumbnail.jpg", "pair-publication.json"]
+        guard try directoryIdentity(files.descriptor) == files.identity,
+              try directoryIdentity(at: url) == files.identity,
+              try withOwnedDirectory(at: url, { Set(try directoryNames($0)) }) == names else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        try ProtectedFilePolicyV1.verify(finalPolicy ? .durableDirectory : files.directoryPolicy, at: url)
+        for name in names.sorted() {
+            try Task.checkCancellation()
+            guard let leaf = files.leaves[name] else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+            func unchanged() throws {
+                var now = stat()
+                guard Darwin.fstat(leaf.descriptor, &now) == 0,
+                      now.st_mode & S_IFMT == S_IFREG, now.st_nlink == 1,
+                      checkRunnerPhotoIdentity(now) == checkRunnerPhotoIdentity(leaf.facts),
+                      now.st_size == leaf.facts.st_size,
+                      !requireUnchangedTimes || (
+                        now.st_mtimespec.tv_sec == leaf.facts.st_mtimespec.tv_sec &&
+                        now.st_mtimespec.tv_nsec == leaf.facts.st_mtimespec.tv_nsec &&
+                        now.st_ctimespec.tv_sec == leaf.facts.st_ctimespec.tv_sec &&
+                        now.st_ctimespec.tv_nsec == leaf.facts.st_ctimespec.tv_nsec),
+                      try regularIdentity(parent: files.descriptor, name: name) == checkRunnerPhotoIdentity(leaf.facts),
+                      try regularIdentity(at: url.appendingPathComponent(name)) == checkRunnerPhotoIdentity(leaf.facts)
+                else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+            }
+            try unchanged()
+            let policy: OwnedFileKindV1 = finalPolicy
+                ? (name == "original.jpg" ? .mediaOriginal : .mediaThumbnail) : leaf.policy
+            if name == "pair-publication.json" {
+                guard let markerBytes, try readProtectedRegularFile(.stagingFile,
+                    at: url.appendingPathComponent(name), parent: files.descriptor, name: name,
+                    maximumBytes: Int64(FieldDraftLimitsV1.maximumCanonicalBytes), cancellationChecks: true)
+                    == markerBytes else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+            } else {
+                let isOriginal = name == "original.jpg"
+                let digest = try verifyProtectedRegularFileDigests(policy,
+                    at: url.appendingPathComponent(name), parent: files.descriptor, name: name,
+                    expectedByteCount: isOriginal ? pair.originalByteCount : pair.thumbnailByteCount,
+                    algorithms: [.sha256], cancellationChecks: true)
+                guard digest.digest(for: .sha256)?.hexadecimalValue
+                    == (isOriginal ? pair.originalSHA256 : pair.thumbnailSHA256) else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+            }
+            try unchanged()
+        }
+        guard try directoryIdentity(files.descriptor) == files.identity,
+              try directoryIdentity(at: url) == files.identity,
+              try withOwnedDirectory(at: url, { Set(try directoryNames($0)) }) == names else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+    }
+
+    nonisolated private func checkCheckRunnerPhotoBoundary(_ point: EvidenceBundleStoreFailurePoint) throws {
         try Task.checkCancellation()
         if failureInjection?.consume(point) == true { throw EvidenceBundleStoreError.fileOperationFailed }
     }
@@ -1373,6 +1956,9 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             let marker = try FieldDraftCanonicalCodecV1.decode(CheckRunnerPhotoPairPublicationMarkerV1.self,
                                                              from: markerBytes)
             try marker.validate(childDraftID: childDraftID, parentDraftID: parentDraftID, raw: raw)
+            guard markerBytes == (try FieldDraftCanonicalCodecV1.encode(marker)) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
             let observed = try readCheckRunnerPhotoPairFiles(raw: raw, expectedPair: marker.normalizedPair,
                                                             directoryURL: directoryURL, descriptor: descriptor)
             // A fresh descriptor avoids sharing readdir's consumed offset.
@@ -1750,6 +2336,327 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
+    func prepareStartupRecovery(authority applicationAuthority: StartupMediaRecoveryAuthorityV1,
+        expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) async throws -> StartupMediaPreparedRecoveryV1 {
+        let snapshot = try await applicationAuthority.validatePreparation()
+        return try prepareStartupRecovery(snapshot: snapshot, authority: applicationAuthority,
+            rootIdentity: expectedGenerationRootIdentity)
+    }
+
+    /// Read-only and off the main actor. A changed or partial named bundle is
+    /// retained as a conflict; no cleanup occurs during this preparation.
+    private func prepareStartupRecovery(snapshot: StartupMediaOwnershipSnapshotV1,
+        authority applicationAuthority: StartupMediaRecoveryAuthorityV1,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> StartupMediaPreparedRecoveryV1 {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try requireProducerAuthority()
+        return try withGenerationRootAuthority { root in
+            try requireCheckRunnerPhotoRoot(root, expected: rootIdentity)
+            let staging = try bundleIDs(parentComponents: [".staging"], bundleDirectoryName: "evidence")
+            let promoted = try bundleIDs(parentComponents: [], bundleDirectoryName: "evidence")
+            var authorities: [UUID: EvidenceBundleAuthority] = [:]
+            for value in snapshot.authorities {
+                guard authorities.updateValue(value, forKey: value.id) == nil else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+            }
+            var photos: [UUID: StartupMediaPhotoOwnershipV1] = [:]
+            for value in snapshot.photos {
+                guard photos.updateValue(value, forKey: value.payload.phase.intent.evidenceID) == nil else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+            }
+            let ids = staging.union(promoted).union(authorities.keys).union(photos.keys)
+                .sorted { $0.uuidString < $1.uuidString }
+            var retained: [StartupMediaPreparedBundleV1] = []
+            for id in ids {
+                try Task.checkCancellation()
+                let bundlePaths = paths(for: id)
+                let hasStaging = staging.contains(id), hasPromoted = promoted.contains(id)
+                if let photo = photos[id] {
+                    // Receipt-owned candidates can never be silently replaced
+                    // by an accepted row, duplicate location or orphan policy.
+                    guard !(hasStaging && hasPromoted),
+                          photo.targetCommitted == (authorities[id] != nil) else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    if let canonical = authorities[id] {
+                        guard canonical.recordID == photo.payload.recordID,
+                              canonical.purposeKey == photo.payload.purposeKey else {
+                            throw EvidenceBundleStoreError.bundleFactsMismatch
+                        }
+                    }
+                    let pair: CheckRunnerPhotoNormalizedPairV1?
+                    let markerBytes: Data?
+                    switch photo.payload.phase {
+                    case .awaitingRawStage:
+                        guard !hasStaging, !hasPromoted else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                        continue
+                    case let .rawReady(raw):
+                        guard !hasPromoted else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                        guard hasStaging else { continue }
+                        guard let observed = try readCheckRunnerPhotoPairLocked(
+                            childDraftID: photo.payload.childDraftID, parentDraftID: photo.payload.parentDraftID,
+                            raw: raw, directoryURL: bundlePaths.stagingDirectoryURL) else {
+                            throw EvidenceBundleStoreError.bundleMissing
+                        }
+                        pair = observed.marker.normalizedPair; markerBytes = observed.markerBytes
+                    case let .pairReady(expected):
+                        guard hasStaging, !hasPromoted,
+                              let observed = try readCheckRunnerPhotoPairLocked(
+                                childDraftID: photo.payload.childDraftID, parentDraftID: photo.payload.parentDraftID,
+                                raw: expected.raw, directoryURL: bundlePaths.stagingDirectoryURL),
+                              observed.marker.normalizedPair == expected.normalizedPair,
+                              observed.markerSHA256 == expected.pairPublicationMarkerSHA256 else {
+                            throw EvidenceBundleStoreError.bundleFactsMismatch
+                        }
+                        pair = expected.normalizedPair; markerBytes = observed.markerBytes
+                    case let .preparedCommit(expected, _):
+                        let prepared = try prepareCheckRunnerPhotoPromotionFiles(
+                            childDraftID: photo.payload.childDraftID, parentDraftID: photo.payload.parentDraftID,
+                            pair: expected, expectedGenerationRootIdentity: (rootIdentity.device, rootIdentity.inode),
+                            authority: nil)
+                        if photo.targetCommitted {
+                            guard prepared.alreadyPromoted else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                        }
+                        pair = expected.normalizedPair
+                        markerBytes = prepared.files.leaves["pair-publication.json"] == nil ? nil : prepared.markerBytes
+                    }
+                    guard let pair else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                    let directory = hasPromoted ? bundlePaths.promotedDirectoryURL : bundlePaths.stagingDirectoryURL
+                    if let canonical = authorities[id] {
+                        guard canonical.schemaVersion == 1, canonical.mimeType == "image/jpeg",
+                              canonical.relativePath == pair.originalRelativePath,
+                              canonical.thumbnailRelativePath == pair.thumbnailRelativePath,
+                              Int64(canonical.byteCount) == pair.originalByteCount,
+                              Int64(canonical.thumbnailByteCount) == pair.thumbnailByteCount,
+                              canonical.sha256 == pair.originalSHA256,
+                              canonical.thumbnailSHA256 == pair.thumbnailSHA256 else {
+                            throw EvidenceBundleStoreError.bundleFactsMismatch
+                        }
+                        try verifyBundlePolicy(paths: bundlePaths, isStaging: false)
+                    }
+                    let files = try prepareCheckRunnerPhotoFiles(at: directory, pair: pair,
+                        markerBytes: markerBytes, promoted: hasPromoted)
+                    var digests = ["original.jpg": pair.originalSHA256, "thumbnail.jpg": pair.thumbnailSHA256]
+                    if let markerBytes { digests["pair-publication.json"] = sha256(markerBytes) }
+                    retained.append(.init(files: files, digests: digests, cleanup: false))
+                    continue
+                }
+
+                // Generic bundles retain the incumbent canonical row checks.
+                // Unknown markers/partial shapes are conflicts, never orphans.
+                if let canonical = authorities[id] {
+                    guard hasPromoted else { throw EvidenceBundleStoreError.bundleMissing }
+                    let facts = try verifyBundle(directoryURL: bundlePaths.promotedDirectoryURL,
+                        evidenceID: id, paths: bundlePaths)
+                    guard canonical.schemaVersion == 1, canonical.mimeType == "image/jpeg",
+                          canonical.relativePath == bundlePaths.originalRelativePath,
+                          canonical.thumbnailRelativePath == bundlePaths.thumbnailRelativePath,
+                          canonical.byteCount == facts.originalByteCount,
+                          canonical.thumbnailByteCount == facts.thumbnailByteCount,
+                          canonical.sha256 == facts.originalSHA256,
+                          canonical.thumbnailSHA256 == facts.thumbnailSHA256 else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                }
+                for isStaging in [true, false] where isStaging ? hasStaging : hasPromoted {
+                    try verifyBundlePolicy(paths: bundlePaths, isStaging: isStaging)
+                    let url = isStaging ? bundlePaths.stagingDirectoryURL : bundlePaths.promotedDirectoryURL
+                    let prepared = try prepareStartupGenericBundle(at: url, staging: isStaging,
+                        cleanup: isStaging || authorities[id] == nil)
+                    if !isStaging, let canonical = authorities[id] {
+                        guard prepared.digests == ["original.jpg": canonical.sha256,
+                                                   "thumbnail.jpg": canonical.thumbnailSHA256],
+                              prepared.leaves["original.jpg"]?.facts.st_size == Int64(canonical.byteCount),
+                              prepared.leaves["thumbnail.jpg"]?.facts.st_size == Int64(canonical.thumbnailByteCount) else {
+                            throw EvidenceBundleStoreError.bundleFactsMismatch
+                        }
+                    }
+                    retained.append(prepared)
+                }
+            }
+            return .init(snapshot: snapshot, store: self, authority: applicationAuthority,
+                rootIdentity: rootIdentity, stagingIDs: staging, promotedIDs: promoted, bundles: retained)
+        }
+    }
+
+    nonisolated private func prepareStartupGenericBundle(at url: URL, staging: Bool,
+        cleanup: Bool) throws -> StartupMediaPreparedBundleV1 {
+        let fd = try withParentDescriptor(of: url) { parent, name in
+            let value = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard value >= 0 else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+            return value
+        }
+        var leaves: [String: CheckRunnerPhotoPreparedPairFilesV1.Leaf] = [:]
+        var transferred = false
+        defer {
+            if !transferred { for leaf in leaves.values { _ = Darwin.close(leaf.descriptor) }; _ = Darwin.close(fd) }
+        }
+        let identity = try directoryIdentity(fd)
+        guard Set(try directoryNames(fd)) == ["original.jpg", "thumbnail.jpg"] else {
+            throw EvidenceBundleStoreError.bundleShapeInvalid
+        }
+        var digests: [String: String] = [:]
+        for name in ["original.jpg", "thumbnail.jpg"] {
+            let descriptor = Darwin.openat(fd, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw EvidenceBundleStoreError.fileTypeInvalid }
+            do {
+                var facts = stat()
+                let maximum = name == "original.jpg" ? MediaContractV1.originalByteCountMaximum
+                    : MediaContractV1.thumbnailByteCountMaximum
+                guard Darwin.fstat(descriptor, &facts) == 0, facts.st_mode & S_IFMT == S_IFREG,
+                      facts.st_nlink == 1, facts.st_size > 0, facts.st_size <= Int64(maximum) else {
+                    throw EvidenceBundleStoreError.fileTypeInvalid
+                }
+                let policy: OwnedFileKindV1 = staging ? .stagingFile
+                    : (name == "original.jpg" ? .mediaOriginal : .mediaThumbnail)
+                let hashes = try verifyProtectedRegularFileDigests(policy, at: url.appendingPathComponent(name),
+                    parent: fd, name: name, expectedByteCount: facts.st_size, algorithms: [.sha256],
+                    cancellationChecks: true)
+                guard let digest = hashes.digest(for: .sha256)?.hexadecimalValue else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                leaves[name] = .init(descriptor: descriptor, facts: facts, policy: policy)
+                digests[name] = digest
+            } catch { _ = Darwin.close(descriptor); throw error }
+        }
+        let files = CheckRunnerPhotoPreparedPairFilesV1(url: url, descriptor: fd, identity: identity,
+            leaves: leaves, directoryPolicy: staging ? .stagingDirectory : .durableDirectory)
+        transferred = true
+        let bundle = StartupMediaPreparedBundleV1(files: files, digests: digests, cleanup: cleanup)
+        try verifyStartupBundle(bundle)
+        return bundle
+    }
+
+    nonisolated private func verifyStartupBundle(_ bundle: StartupMediaPreparedBundleV1,
+        at retainedURL: URL? = nil) throws {
+        let url = retainedURL ?? bundle.url
+        try withOwnedDirectory(at: url) { directory in
+            guard try directoryIdentity(directory) == bundle.identity,
+                  try directoryIdentity(at: url) == bundle.identity,
+                  Set(try directoryNames(directory)) == Set(bundle.leaves.keys),
+                  Set(bundle.digests.keys) == Set(bundle.leaves.keys) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            try ProtectedFilePolicyV1.verify(bundle.directoryPolicy, at: url)
+            for name in bundle.leaves.keys.sorted() {
+                guard let leaf = bundle.leaves[name], let expected = bundle.digests[name] else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                let descriptor = Darwin.openat(directory, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+                guard descriptor >= 0 else { throw EvidenceBundleStoreError.fileTypeInvalid }
+                defer { _ = Darwin.close(descriptor) }
+                func unchanged() throws {
+                    var facts = stat()
+                    guard Darwin.fstat(descriptor, &facts) == 0, facts.st_mode & S_IFMT == S_IFREG,
+                          facts.st_nlink == 1, checkRunnerPhotoIdentity(facts) == checkRunnerPhotoIdentity(leaf.facts),
+                          facts.st_size == leaf.facts.st_size,
+                          facts.st_mtimespec.tv_sec == leaf.facts.st_mtimespec.tv_sec,
+                          facts.st_mtimespec.tv_nsec == leaf.facts.st_mtimespec.tv_nsec,
+                          facts.st_ctimespec.tv_sec == leaf.facts.st_ctimespec.tv_sec,
+                          facts.st_ctimespec.tv_nsec == leaf.facts.st_ctimespec.tv_nsec,
+                          try regularIdentity(parent: directory, name: name) == checkRunnerPhotoIdentity(leaf.facts),
+                          try regularIdentity(at: url.appendingPathComponent(name)) == checkRunnerPhotoIdentity(leaf.facts) else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                }
+                try unchanged()
+                let hashes = try verifyProtectedRegularFileDigests(leaf.policy, at: url.appendingPathComponent(name),
+                    parent: directory, name: name, expectedByteCount: leaf.facts.st_size,
+                    algorithms: [.sha256], cancellationChecks: true)
+                guard hashes.digest(for: .sha256)?.hexadecimalValue == expected else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                try unchanged()
+            }
+            guard try directoryIdentity(directory) == bundle.identity,
+                  try directoryIdentity(at: url) == bundle.identity,
+                  try withOwnedDirectory(at: url, { Set(try directoryNames($0)) }) == Set(bundle.leaves.keys) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+        }
+    }
+
+    nonisolated fileprivate func finishStartupRecovery(_ prepared: StartupMediaPreparedRecoveryV1,
+        revalidate: () throws -> Void) throws {
+        guard prepared.store === self, prepared.consumption.try() else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        defer { prepared.consumption.unlock() }
+        guard !prepared.consumed else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        prepared.consumed = true
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try requireProducerAuthority()
+        try withGenerationRootAuthority { root in
+            try requireCheckRunnerPhotoRoot(root, expected: prepared.rootIdentity)
+            try revalidate()
+            guard try bundleIDs(parentComponents: [".staging"], bundleDirectoryName: "evidence") == prepared.stagingIDs,
+                  try bundleIDs(parentComponents: [], bundleDirectoryName: "evidence") == prepared.promotedIDs else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            for bundle in prepared.bundles { try verifyStartupBundle(bundle) }
+            try revalidate()
+            for bundle in prepared.bundles where bundle.cleanup {
+                try Task.checkCancellation()
+                try verifyStartupBundle(bundle)
+                try withParentDescriptor(of: bundle.url) { parent, name in
+                    guard try directoryIdentity(at: bundle.url) == bundle.identity else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    try removePreparedStartupBundle(bundle, parent: parent, name: name)
+                }
+            }
+        }
+    }
+
+    /// Quarantine the retained directory, then unlink only its frozen leaves.
+    /// Newly appearing names never enter this plan through recursive deletion.
+    nonisolated private func removePreparedStartupBundle(_ bundle: StartupMediaPreparedBundleV1,
+        parent: Int32, name: String) throws {
+        let quarantine = ".remove-\(UUID().uuidString.lowercased()).directory"
+        let quarantineURL = bundle.url.deletingLastPathComponent().appendingPathComponent(quarantine)
+        guard Darwin.renameatx_np(parent, name, parent, quarantine, UInt32(RENAME_EXCL)) == 0 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        var present = true
+        do {
+            guard Darwin.fsync(parent) == 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            try verifyStartupBundle(bundle, at: quarantineURL)
+            try withOwnedDirectory(at: quarantineURL) { directory in
+                guard try directoryIdentity(directory) == bundle.identity,
+                      Set(try directoryNames(directory)) == Set(bundle.leaves.keys) else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                for name in bundle.leaves.keys.sorted() {
+                    guard let leaf = bundle.leaves[name],
+                          try regularIdentity(parent: directory, name: name) == checkRunnerPhotoIdentity(leaf.facts),
+                          Darwin.unlinkat(directory, name, 0) == 0 else {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                }
+                guard Darwin.fsync(directory) == 0,
+                      try withOwnedDirectory(at: quarantineURL, { try directoryNames($0) }).isEmpty,
+                      try directoryIdentity(at: quarantineURL) == bundle.identity,
+                      Darwin.unlinkat(parent, quarantine, AT_REMOVEDIR) == 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                present = false
+                guard Darwin.fsync(parent) == 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            }
+        } catch {
+            if present {
+                _ = restoreQuarantinedItem(parent: parent, quarantine: quarantine, name: name,
+                    expectedIdentity: bundle.identity, expectsDirectory: true)
+            }
+            throw error
+        }
+    }
+
     func reconcile(authorities: [EvidenceBundleAuthority]) throws {
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
@@ -1913,7 +2820,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         )
     }
 
-    private func bundleIDs(
+    nonisolated private func bundleIDs(
         parentComponents: [String],
         bundleDirectoryName: String
     ) throws -> Set<UUID> {
@@ -2021,6 +2928,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         let facts: CanonicalJPEGFactsV1
         do {
             facts = try MediaNormalizerV1().validateCanonicalJPEG(data, kind: kind)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw EvidenceBundleStoreError.canonicalJPEGInvalid
         }
@@ -2192,7 +3101,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         try withGenerationRootAuthority { _ in }
     }
 
-    private func ensureDirectory(
+    nonisolated private func ensureDirectory(
         relativeComponents: [String],
         policyKind: OwnedFileKindV1? = nil
     ) throws {
@@ -2273,7 +3182,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func applyDirectoryPolicy(
+    nonisolated private func applyDirectoryPolicy(
         _ kind: OwnedFileKindV1,
         at url: URL
     ) throws {
@@ -2424,7 +3333,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         try writeProtectedFile(data, to: url, policy: .mediaOriginal)
     }
 
-    private func applyPromotedMediaPolicy(
+    nonisolated private func applyPromotedMediaPolicy(
         _ kind: OwnedFileKindV1,
         at url: URL
     ) throws {
@@ -2510,7 +3419,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func applyLeafPolicy(
+    nonisolated private func applyLeafPolicy(
         _ kind: OwnedFileKindV1,
         at url: URL,
         parent: Int32,
@@ -2530,7 +3439,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
-    private func moveDirectoryNoReplace(
+    nonisolated private func moveDirectoryNoReplace(
         from sourceURL: URL,
         to destinationURL: URL,
         didMove: inout Bool
@@ -2765,13 +3674,14 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return digest.hexadecimalValue
     }
 
-    private func verifyProtectedRegularFileDigests(
+    nonisolated private func verifyProtectedRegularFileDigests(
         _ kind: OwnedFileKindV1,
         at url: URL,
         parent: Int32,
         name: String,
         expectedByteCount: Int64,
-        algorithms: [ContentDigestAlgorithmV1]
+        algorithms: [ContentDigestAlgorithmV1],
+        cancellationChecks: Bool = false
     ) throws -> ContentDigestSetV1 {
         guard algorithms == algorithms.sorted(by: { $0.rawValue < $1.rawValue }),
               algorithms.contains(.sha256), Set(algorithms).count == algorithms.count,
@@ -2801,6 +3711,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         var total: Int64 = 0
         var buffer = [UInt8](repeating: 0, count: 64 * 1024)
         while total < expectedByteCount {
+            if cancellationChecks { try Task.checkCancellation() }
             let requested = Int(min(Int64(buffer.count), expectedByteCount - total))
             let count = buffer.withUnsafeMutableBytes {
                 Darwin.read(descriptor, $0.baseAddress, requested)
@@ -2821,6 +3732,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             throw EvidenceBundleStoreError.bundleFactsMismatch
         }
         var after = stat()
+        if cancellationChecks { try Task.checkCancellation() }
         guard Darwin.fstat(descriptor, &after) == 0,
               after.st_size == before.st_size,
               try regularIdentity(descriptor) == expectedIdentity,

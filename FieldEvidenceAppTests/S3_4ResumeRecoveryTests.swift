@@ -1101,7 +1101,167 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         XCTAssertTrue(fileManager.fileExists(atPath:
             session.generationRootURL.appendingPathComponent(retained.originalRelativePath).path
         ))
+
+        // Startup preparation must retain bounded facts, not three descriptors
+        // per bundle. Sixty-four additional authentic generic orphans distinguish
+        // constant startup overhead from descriptor growth tied to bundle count.
+        var boundedOrphanDirectories = [
+            session.generationRootURL.appendingPathComponent(retained.originalRelativePath)
+                .deletingLastPathComponent()
+        ]
+        for _ in 0..<64 {
+            let staged = try await store.stage(evidenceID: UUID(), normalized: normalized)
+            let promoted = try await store.promote(staged)
+            boundedOrphanDirectories.append(session.generationRootURL
+                .appendingPathComponent(promoted.originalRelativePath).deletingLastPathComponent())
+        }
+        let descriptorsBeforeStartup = try openFileDescriptorCount()
+        var descriptorsAfterPreparation: Int?
+        let boundedRouter = StartupRouter(applicationSupportURL: applicationSupportURL,
+            entitlementRuntime: isolatedStartupRuntime)
+        boundedRouter.beforeCurrentMediaCleanupForTesting = { _ in
+            descriptorsAfterPreparation = try self.openFileDescriptorCount()
+        }
+        let boundedGate = startupGate(clock: FrozenBeginClock(value: Date(timeIntervalSince1970: 1_789_600_000)))
+        try boundedRouter.bindStartupAccessGate(boundedGate)
+        try await boundedRouter.startIfNeeded(accessGate: boundedGate)
+        guard case .ready = boundedRouter.route else {
+            boundedRouter.failClosedPDFRecovery()
+            return XCTFail("Authentic generic orphans must be cleaned during real startup")
+        }
+        XCTAssertLessThanOrEqual(try XCTUnwrap(descriptorsAfterPreparation), descriptorsBeforeStartup + 24)
+        for directory in boundedOrphanDirectories {
+            XCTAssertFalse(fileManager.fileExists(atPath: directory.path))
+        }
+        boundedRouter.failClosedPDFRecovery()
         withExtendedLifetime(session) {}
+
+        // Every hostile post-preparation change must fail before deletion while
+        // preserving both the orphan candidate and canonical photo authority.
+        try await withAsyncFrozenBeginFixture("startup-media-substitution", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
+            try h.closeCoordinator()
+            let router = StartupRouter(applicationSupportURL: h.root,
+                entitlementRuntime: self.isolatedStartupRuntime)
+            var observedPreparation = false
+            router.beforeCurrentMediaCleanupForTesting = { _ in
+                observedPreparation = true
+                try FileManager.default.moveItem(at: seeded.orphanOriginalURL,
+                    to: h.root.appendingPathComponent("retained-orphan-original.jpg"))
+                try seeded.orphanOriginalBytes.write(to: seeded.orphanOriginalURL)
+                try ProtectedFilePolicyV1.applyAndVerify(.mediaOriginal, at: seeded.orphanOriginalURL)
+            }
+            let gate = self.startupGate(clock: h.clock)
+            try router.bindStartupAccessGate(gate)
+            try await router.startIfNeeded(accessGate: gate)
+            guard case .maintenance(.mediaInconsistent) = router.route else {
+                router.failClosedPDFRecovery()
+                return XCTFail("Same-byte inode substitution must fail closed")
+            }
+            XCTAssertEqual(try Data(contentsOf: seeded.orphanOriginalURL), seeded.orphanOriginalBytes)
+            XCTAssertTrue(observedPreparation)
+            XCTAssertEqual(try Data(contentsOf: seeded.ownedOriginalURL), seeded.ownedOriginalBytes)
+            XCTAssertEqual(try Data(contentsOf: seeded.ownedThumbnailURL), seeded.ownedThumbnailBytes)
+            router.failClosedPDFRecovery()
+        }
+
+        try await withAsyncFrozenBeginFixture("startup-media-ownership-change", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
+            try h.closeCoordinator()
+            let router = StartupRouter(applicationSupportURL: h.root,
+                entitlementRuntime: self.isolatedStartupRuntime)
+            var observedPreparation = false
+            router.beforeCurrentMediaCleanupForTesting = { context in
+                observedPreparation = true
+                let row = try XCTUnwrap(context.fetch(FetchDescriptor<EvidenceFile>()).first)
+                row.purposeKey = "hostile_changed_ownership"
+                try context.save()
+            }
+            let gate = self.startupGate(clock: h.clock)
+            try router.bindStartupAccessGate(gate)
+            try await router.startIfNeeded(accessGate: gate)
+            guard case .maintenance(.mediaInconsistent) = router.route else {
+                router.failClosedPDFRecovery()
+                return XCTFail("Changed canonical ownership must fail before cleanup")
+            }
+            XCTAssertTrue(fileManager.fileExists(atPath: seeded.orphanOriginalURL.path))
+            XCTAssertTrue(observedPreparation)
+            XCTAssertEqual(try Data(contentsOf: seeded.ownedOriginalURL), seeded.ownedOriginalBytes)
+            XCTAssertEqual(try Data(contentsOf: seeded.ownedThumbnailURL), seeded.ownedThumbnailBytes)
+            router.failClosedPDFRecovery()
+        }
+
+        try await withAsyncFrozenBeginFixture("startup-media-access-revocation", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
+            try h.closeCoordinator()
+            let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+                authentication: FrozenBeginAuthentication(), clock: h.clock, identifiers: h.ids)
+            let unlock = await gate.authenticate(trigger: .unlock)
+            XCTAssertEqual(unlock, .authenticated)
+            let router = StartupRouter(applicationSupportURL: h.root,
+                entitlementRuntime: self.isolatedStartupRuntime)
+            var observedPreparation = false
+            router.beforeCurrentMediaCleanupForTesting = { _ in
+                observedPreparation = true
+                await gate.lock(reason: .returnedFromBackground)
+            }
+            try router.bindStartupAccessGate(gate)
+            do {
+                try await router.startIfNeeded(accessGate: gate)
+                XCTFail("Revoked startup authorization must stop cleanup")
+            } catch {
+                XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+            }
+            XCTAssertTrue(fileManager.fileExists(atPath: seeded.orphanOriginalURL.path))
+            XCTAssertTrue(observedPreparation)
+            XCTAssertEqual(try Data(contentsOf: seeded.ownedOriginalURL), seeded.ownedOriginalBytes)
+            XCTAssertEqual(try Data(contentsOf: seeded.ownedThumbnailURL), seeded.ownedThumbnailBytes)
+            router.failClosedPDFRecovery()
+        }
+
+        try await withAsyncFrozenBeginFixture("startup-media-configuration-revocation", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
+            try h.closeCoordinator()
+            let gate = AppAccessGateV1(setting: .corruptOrAmbiguous,
+                authentication: FrozenBeginAuthentication(), clock: h.clock, identifiers: h.ids)
+            let authenticated = await gate.authenticate(trigger: .repairConfiguration)
+            XCTAssertEqual(authenticated, .authenticated)
+            let proof = try await gate.configurationAuthenticationToken()
+            let operationID = UUID()
+            let token = try await gate.beginConfigurationStartupRecovery(proof, operationID: operationID)
+            let journal = try AppLockNotificationJournalV1(operationID: operationID, targetEnabled: true,
+                priorPolicy: .init(policyID: "startup-recovery-test", revision: 0,
+                    canonicalDigest: String(repeating: "a", count: 64)),
+                projections: [], disposition: .enablingPrepared)
+            let authorization = NotificationOperationAuthorizationV1(gate: gate,
+                proof: .repair(proof, targetEnabled: true), operationID: operationID,
+                subject: try .init(journal: journal, settingWriteSHA256: String(repeating: "b", count: 64)),
+                startupRecoveryToken: token)
+            let router = StartupRouter(applicationSupportURL: h.root,
+                entitlementRuntime: self.isolatedStartupRuntime,
+                lifecycleProfileRegistry: try WorkspacePackageLifecycleProfileRegistryV1(profiles: [h.profile]))
+            var observedPreparation = false
+            router.beforeCurrentMediaCleanupForTesting = { _ in
+                observedPreparation = true
+                await gate.sceneBecameInactive()
+            }
+            try router.bindStartupAccessGate(gate)
+            do {
+                _ = try await router.notificationSource(authorization: authorization)
+                XCTFail("Revoked configuration startup must stop cleanup")
+            } catch {
+                XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+            }
+            XCTAssertTrue(observedPreparation)
+            XCTAssertTrue(fileManager.fileExists(atPath: seeded.orphanOriginalURL.path))
+            XCTAssertEqual(try Data(contentsOf: seeded.ownedOriginalURL), seeded.ownedOriginalBytes)
+            XCTAssertEqual(try Data(contentsOf: seeded.ownedThumbnailURL), seeded.ownedThumbnailBytes)
+            router.failClosedPDFRecovery()
+        }
     }
 
     @MainActor
@@ -1154,18 +1314,13 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             let evidenceID = try XCTUnwrap(capturedEvidenceID)
             let reopened = try factory.openOrBootstrapCurrent()
             let context = reopened.modelContext
-            let evidence = try XCTUnwrap(
-                context.fetch(FetchDescriptor<EvidenceFile>()).first
-            )
+            let evidence = try XCTUnwrap(context.fetch(FetchDescriptor<EvidenceFile>()).first)
             XCTAssertEqual(evidence.id, evidenceID)
             XCTAssertEqual(evidence.relativePath, originalPath)
             XCTAssertEqual(evidence.thumbnailRelativePath, thumbnailPath)
             XCTAssertEqual(evidence.sha256, originalHash)
             XCTAssertEqual(evidence.thumbnailSHA256, thumbnailHash)
-            let coordinator = CheckRunnerCoordinator(
-                modelContext: context,
-                signPack: .illuminatedSignV1
-            )
+            let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: .illuminatedSignV1)
             coordinator.configureCapture(generationRootURL: reopened.generationRootURL)
             let preparation = try coordinator.prepareCapture(assetID: assetID)
             XCTAssertEqual(preparation.step, .close)
@@ -1176,6 +1331,333 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             )
             withExtendedLifetime(reopened) {}
         }
+
+        // Awaiting raw has no normalized pair for startup to invent or delete.
+        try await withAsyncFrozenBeginFixture("startup-awaiting-raw", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let photo = try await FrozenProductionPhotoV1.make(h, publishRaw: false)
+            let before = try photo.checkpoint()
+            guard case .awaitingRawStage = try CheckRunnerPhotoDraftCodecV1
+                .validateCheckpoint(before).phase else { return XCTFail("Expected awaiting raw") }
+            let cold = try await self.startColdPhotoRouter(h)
+            defer { cold.router.failClosedPDFRecovery() }
+            let raw = try XCTUnwrap(cold.owner.workspaceWriter.checkRunnerPhotoRawStageEvidence(
+                workspaceID: cold.owner.workspaceID, parentDraftID: photo.parentID, childDraftID: photo.childID))
+            XCTAssertEqual(raw.currentCheckpoint, before)
+            XCTAssertFalse(fileManager.fileExists(atPath: self.photoStagingDirectory(
+                root: cold.owner.generationRootURL, evidenceID: photo.intent.evidenceID).path))
+        }
+
+        // RawReady without a pair remains absent until the cold service prepares it.
+        try await withAsyncFrozenBeginFixture("startup-raw-ready-without-pair", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let photo = try await FrozenProductionPhotoV1.make(h)
+            let rawBefore = try photo.checkpoint()
+            guard case .rawReady = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(rawBefore).phase else {
+                return XCTFail("Expected rawReady without normalized files")
+            }
+            let cold = try await self.startColdPhotoRouter(h)
+            defer { cold.router.failClosedPDFRecovery() }
+            let raw = try XCTUnwrap(cold.owner.workspaceWriter.checkRunnerPhotoRawStageEvidence(
+                workspaceID: cold.owner.workspaceID, parentDraftID: photo.parentID, childDraftID: photo.childID))
+            XCTAssertEqual(raw.currentCheckpoint, rawBefore)
+            XCTAssertFalse(fileManager.fileExists(atPath: self.photoStagingDirectory(
+                root: cold.owner.generationRootURL, evidenceID: photo.intent.evidenceID).path))
+            let reopened = try FrozenProductionPhotoV1.reopen(owner: cold.owner, root: h.root,
+                profile: h.profile, release: h.publishedRelease, clock: h.clock, ids: h.ids)
+            let coldPhoto = FrozenProductionPhotoV1(owner: cold.owner, service: reopened.service,
+                runner: reopened.runner, adapter: reopened.adapter, parentID: photo.parentID,
+                childID: photo.childID, intent: photo.intent)
+            let pair = try await reopened.service.preparePhotoPair(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            let physical = try self.photoPhysicalBytes(root: cold.owner.generationRootURL,
+                evidenceID: photo.intent.evidenceID)
+            try await self.finishColdPhoto(coldPhoto, pairCheckpoint: pair, expectedBytes: physical)
+        }
+
+        // A physical marked pair whose publication acknowledgement was lost is
+        // adopted by the cold service from the unchanged rawReady checkpoint.
+        try await withAsyncFrozenBeginFixture("startup-raw-ready-lost-ack", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let injection = EvidenceBundleStoreFailureInjection(failOnceAt: .checkRunnerPhotoPublished)
+            do {
+                let photo = try await FrozenProductionPhotoV1.make(h, failure: injection)
+                _ = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+                XCTFail("Expected lost marked-pair acknowledgement")
+            } catch {
+                XCTAssertEqual(error as? EvidenceBundleStoreError, .fileOperationFailed)
+            }
+            let discovered = try self.discoverFrozenPhoto(h)
+            let physical = try self.photoPhysicalBytes(root: h.session.generationRootURL,
+                evidenceID: discovered.intent.evidenceID)
+            XCTAssertTrue(physical.markerPresent)
+            let cold = try await self.startColdPhotoRouter(h)
+            defer { cold.router.failClosedPDFRecovery() }
+            let reopened = try FrozenProductionPhotoV1.reopen(owner: cold.owner, root: h.root,
+                profile: h.profile, release: h.publishedRelease, clock: h.clock, ids: h.ids)
+            let coldPhoto = FrozenProductionPhotoV1(owner: cold.owner, service: reopened.service,
+                runner: reopened.runner, adapter: reopened.adapter, parentID: discovered.parentID,
+                childID: discovered.childID, intent: discovered.intent)
+            let pair = try await reopened.service.preparePhotoPair(parentDraftID: discovered.parentID,
+                childDraftID: discovered.childID)
+            try await self.finishColdPhoto(coldPhoto, pairCheckpoint: pair,
+                expectedBytes: physical)
+        }
+
+        // Preserve pairReady and every interrupted physical promotion boundary;
+        // a fresh router owner and service must resume the frozen attempt exactly.
+        let points: [EvidenceBundleStoreFailurePoint?] = [nil, .checkRunnerPhotoMarkerRemoved,
+            .checkRunnerPhotoPromotionMoved, .checkRunnerPhotoPromoted]
+        for point in points {
+            try await withAsyncFrozenBeginFixture("startup-photo-\(String(describing: point))", entry: .check,
+                storedTimeZoneID: "America/Chicago") { h in
+                let injection = point.map { EvidenceBundleStoreFailureInjection(failOnceAt: $0) }
+                let photo = try await FrozenProductionPhotoV1.make(h, failure: injection)
+                let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+                if point != nil {
+                    let attempt = try photo.attempt(pairCheckpoint: pair)
+                    _ = try photo.service.preparePhotoCommit(parentDraftID: photo.parentID,
+                        childDraftID: photo.childID, expectedCheckpointSHA256: pair.checkpointSHA256,
+                        proposal: attempt)
+                    do {
+                        _ = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                            childDraftID: photo.childID)
+                        XCTFail("Expected interrupted physical promotion")
+                    } catch { XCTAssertNotNil(error) }
+                }
+                let physical = try self.photoPhysicalBytes(root: h.session.generationRootURL,
+                    evidenceID: photo.intent.evidenceID)
+                let cold = try await self.startColdPhotoRouter(h)
+                defer { cold.router.failClosedPDFRecovery() }
+                let reopened = try FrozenProductionPhotoV1.reopen(owner: cold.owner, root: h.root,
+                    profile: h.profile, release: h.publishedRelease, clock: h.clock, ids: h.ids)
+                let coldPhoto = FrozenProductionPhotoV1(owner: cold.owner, service: reopened.service,
+                    runner: reopened.runner, adapter: reopened.adapter, parentID: photo.parentID,
+                    childID: photo.childID, intent: photo.intent)
+                let current = try XCTUnwrap(cold.owner.workspaceWriter.checkRunnerPhotoContinuationEvidence(
+                    workspaceID: cold.owner.workspaceID, parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)).checkpoint
+                let ready: FieldDraftCheckpointV1
+                if point == nil {
+                    XCTAssertEqual(current, pair)
+                    ready = pair
+                } else {
+                    ready = current
+                }
+                try await self.finishColdPhoto(coldPhoto, pairCheckpoint: ready,
+                    expectedBytes: physical)
+            }
+        }
+
+        // The target receipt may be durable before the saga observes its acknowledgement.
+        try await withAsyncFrozenBeginFixture("startup-target-before-terminal", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let photo = try await FrozenProductionPhotoV1.make(h)
+            let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            let attempt = try photo.attempt(pairCheckpoint: pair)
+            _ = try photo.service.preparePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID, expectedCheckpointSHA256: pair.checkpointSHA256,
+                proposal: attempt)
+            photo.service.beforePhotoTargetAcknowledgementForTesting = { throw FieldDraftFailureV1.missingReceipt }
+            do {
+                _ = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+                XCTFail("Expected loss after the actual durable target receipt")
+            } catch { XCTAssertEqual(error as? FieldDraftFailureV1, .missingReceipt) }
+            let continuation = try XCTUnwrap(h.coordinator.workspaceWriter.checkRunnerPhotoContinuationEvidence(
+                workspaceID: h.workspaceID, parentDraftID: photo.parentID, childDraftID: photo.childID))
+            XCTAssertEqual(continuation.checkpoint.state, .committing)
+            let target = try XCTUnwrap(continuation.target)
+            XCTAssertNil(continuation.terminal)
+            let physical = try self.photoPhysicalBytes(root: h.session.generationRootURL,
+                evidenceID: photo.intent.evidenceID)
+            let cold = try await self.startColdPhotoRouter(h)
+            defer { cold.router.failClosedPDFRecovery() }
+            let reopened = try FrozenProductionPhotoV1.reopen(owner: cold.owner, root: h.root,
+                profile: h.profile, release: h.publishedRelease, clock: h.clock, ids: h.ids)
+            let coldPhoto = FrozenProductionPhotoV1(owner: cold.owner, service: reopened.service,
+                runner: reopened.runner, adapter: reopened.adapter, parentID: photo.parentID,
+                childID: photo.childID, intent: photo.intent)
+            try await self.finishColdPhoto(coldPhoto, pairCheckpoint: continuation.checkpoint, expectedBytes: physical)
+            let terminal = try XCTUnwrap(cold.owner.workspaceWriter.checkRunnerPhotoCommitEvidence(
+                workspaceID: cold.owner.workspaceID, draftID: photo.childID))
+            XCTAssertEqual(terminal.target.receipt, target.receipt)
+        }
+
+        // Force the only generated parent-slot mutation ID invalid after the
+        // child terminal is durable. Cold resume must adopt that same terminal.
+        try await withAsyncFrozenBeginFixture("startup-child-terminal-before-parent", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let photo = try await FrozenProductionPhotoV1.make(h)
+            let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            let attempt = try photo.attempt(pairCheckpoint: pair)
+            _ = try photo.service.preparePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID, expectedCheckpointSHA256: pair.checkpointSHA256,
+                proposal: attempt)
+            h.ids.enqueue([UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))])
+            do {
+                _ = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                    childDraftID: photo.childID)
+                XCTFail("Invalid parent-slot mutation ID must interrupt after child terminal")
+            } catch { XCTAssertNotNil(error) }
+            let terminalBefore = try XCTUnwrap(h.coordinator.workspaceWriter.checkRunnerPhotoCommitEvidence(
+                workspaceID: h.workspaceID, draftID: photo.childID))
+            let physical = try self.photoPhysicalBytes(root: h.session.generationRootURL,
+                evidenceID: photo.intent.evidenceID)
+            let cold = try await self.startColdPhotoRouter(h)
+            defer { cold.router.failClosedPDFRecovery() }
+            let reopened = try FrozenProductionPhotoV1.reopen(owner: cold.owner, root: h.root,
+                profile: h.profile, release: h.publishedRelease, clock: h.clock, ids: h.ids)
+            let committed = try await reopened.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            XCTAssertEqual(committed.state, .committed)
+            XCTAssertEqual(try cold.owner.workspaceWriter.checkRunnerPhotoCommitEvidence(
+                workspaceID: cold.owner.workspaceID, draftID: photo.childID), terminalBefore)
+            let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(
+                reopened.service.read(draftID: photo.parentID))
+            XCTAssertEqual(parent.field.wideContext?.childDraftID, photo.childID)
+            guard case .committed = try XCTUnwrap(parent.field.wideContext) else {
+                return XCTFail("Cold retry must durably complete the same child parent slot")
+            }
+            XCTAssertEqual(try self.photoPhysicalBytes(root: cold.owner.generationRootURL,
+                evidenceID: photo.intent.evidenceID).original, physical.original)
+            XCTAssertEqual(try self.photoPhysicalBytes(root: cold.owner.generationRootURL,
+                evidenceID: photo.intent.evidenceID).thumbnail, physical.thumbnail)
+        }
+    }
+
+    private struct OwnedPhotoAndOrphan {
+        let ownedOriginalURL: URL
+        let ownedThumbnailURL: URL
+        let ownedOriginalBytes: Data
+        let ownedThumbnailBytes: Data
+        let orphanOriginalURL: URL
+        let orphanOriginalBytes: Data
+    }
+
+    private struct PhotoPhysicalBytes {
+        let original: Data
+        let thumbnail: Data
+        let markerPresent: Bool
+    }
+
+    private var isolatedStartupRuntime: StoreKitEntitlementRuntimeV1 {
+        StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+            transactionUpdates: { AsyncStream { $0.finish() } },
+            statusUpdates: { AsyncStream { $0.finish() } })
+    }
+
+    private func startupGate(clock: any ApplicationClock) -> AppAccessGateV1 {
+        AppAccessGateV1(setting: .absentDisabled, authentication: FrozenBeginAuthentication(),
+            clock: clock, identifiers: SystemApplicationIDSource())
+    }
+
+    @MainActor
+    private func startColdPhotoRouter(_ h: FrozenBeginFixture) async throws
+        -> (router: StartupRouter, owner: StoreSessionCoordinator) {
+        try h.closeCoordinator()
+        let router = StartupRouter(applicationSupportURL: h.root,
+            entitlementRuntime: isolatedStartupRuntime,
+            lifecycleProfileRegistry: try WorkspacePackageLifecycleProfileRegistryV1(profiles: [h.profile]))
+        let gate = startupGate(clock: h.clock)
+        try router.bindStartupAccessGate(gate)
+        try await router.startIfNeeded(accessGate: gate)
+        guard case let .ready(owner, _, _) = router.route else {
+            router.failClosedPDFRecovery()
+            throw StartupMaintenanceReason.mediaInconsistent
+        }
+        return (router, owner)
+    }
+
+    @MainActor
+    private func discoverFrozenPhoto(_ h: FrozenBeginFixture) throws
+        -> (parentID: UUID, childID: UUID, intent: CheckRunnerPhotoRawStageIntentV1) {
+        let checkpoints = try h.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
+        for checkpoint in checkpoints where checkpoint.codec.codecID == CheckRunnerPhotoDraftCodecV1.codecID {
+            let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+            return (payload.parentDraftID, checkpoint.draftID, payload.phase.intent)
+        }
+        throw FieldDraftFailureV1.missingReceipt
+    }
+
+    private func photoStagingDirectory(root: URL, evidenceID: UUID) -> URL {
+        root.appendingPathComponent(".staging/evidence/\(evidenceID.uuidString.lowercased())")
+    }
+
+    private func photoPhysicalBytes(root: URL, evidenceID: UUID) throws -> PhotoPhysicalBytes {
+        let staging = photoStagingDirectory(root: root, evidenceID: evidenceID)
+        let promoted = root.appendingPathComponent("evidence/\(evidenceID.uuidString.lowercased())")
+        let directory = fileManager.fileExists(atPath: promoted.path) ? promoted : staging
+        return .init(original: try Data(contentsOf: directory.appendingPathComponent("original.jpg")),
+            thumbnail: try Data(contentsOf: directory.appendingPathComponent("thumbnail.jpg")),
+            markerPresent: fileManager.fileExists(atPath: directory.appendingPathComponent("pair-publication.json").path))
+    }
+
+    @MainActor
+    private func finishColdPhoto(_ photo: FrozenProductionPhotoV1,
+        pairCheckpoint: FieldDraftCheckpointV1, expectedBytes: PhotoPhysicalBytes) async throws {
+        let checkpoint: FieldDraftCheckpointV1
+        if pairCheckpoint.state == .committing {
+            checkpoint = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+        } else {
+            let attempt = try photo.attempt(pairCheckpoint: pairCheckpoint)
+            _ = try photo.service.preparePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID, expectedCheckpointSHA256: pairCheckpoint.checkpointSHA256,
+                proposal: attempt)
+            checkpoint = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+        }
+        XCTAssertEqual(checkpoint.state, .committed)
+        let terminal = try XCTUnwrap(photo.owner.workspaceWriter.checkRunnerPhotoCommitEvidence(
+            workspaceID: photo.owner.workspaceID, draftID: photo.childID))
+        XCTAssertEqual(terminal.reconstruction.draftCommit.checkpoint.draftID, photo.childID)
+        XCTAssertEqual(terminal.target.receipt.mutationID,
+            terminal.reconstruction.draftCommit.plan.mutationID)
+        let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(
+            photo.service.read(draftID: photo.parentID))
+        let childPayload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+        let selected = childPayload.captureStep == .wide ? parent.field.wideContext : parent.field.closeDetail
+        XCTAssertEqual(selected?.childDraftID, photo.childID)
+        let bytes = try photoPhysicalBytes(root: photo.owner.generationRootURL,
+            evidenceID: photo.intent.evidenceID)
+        XCTAssertEqual(bytes.original, expectedBytes.original)
+        XCTAssertEqual(bytes.thumbnail, expectedBytes.thumbnail)
+        XCTAssertFalse(bytes.markerPresent)
+    }
+
+    @MainActor
+    private func seedOwnedPhotoAndGenericOrphan(_ h: FrozenBeginFixture) async throws
+        -> OwnedPhotoAndOrphan {
+        let photo = try await FrozenProductionPhotoV1.make(h)
+        let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+            childDraftID: photo.childID)
+        let attempt = try photo.attempt(pairCheckpoint: pair)
+        _ = try photo.service.preparePhotoCommit(parentDraftID: photo.parentID,
+            childDraftID: photo.childID, expectedCheckpointSHA256: pair.checkpointSHA256,
+            proposal: attempt)
+        _ = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID,
+            childDraftID: photo.childID)
+        let ownedDirectory = h.session.generationRootURL.appendingPathComponent(
+            "evidence/\(photo.intent.evidenceID.uuidString.lowercased())")
+        let store = EvidenceBundleStore(generationRootURL: h.session.generationRootURL)
+        let normalized = try MediaNormalizerV1().normalize(makePNG(seed: 219))
+        let staged = try await store.stage(evidenceID: UUID(), normalized: normalized)
+        let orphan = try await store.promote(staged)
+        let orphanURL = h.session.generationRootURL.appendingPathComponent(orphan.originalRelativePath)
+        return .init(ownedOriginalURL: ownedDirectory.appendingPathComponent("original.jpg"),
+            ownedThumbnailURL: ownedDirectory.appendingPathComponent("thumbnail.jpg"),
+            ownedOriginalBytes: try Data(contentsOf: ownedDirectory.appendingPathComponent("original.jpg")),
+            ownedThumbnailBytes: try Data(contentsOf: ownedDirectory.appendingPathComponent("thumbnail.jpg")),
+            orphanOriginalURL: orphanURL, orphanOriginalBytes: try Data(contentsOf: orphanURL))
+    }
+
+    private func openFileDescriptorCount() throws -> Int {
+        try fileManager.contentsOfDirectory(atPath: "/dev/fd").count
     }
 
     @MainActor

@@ -18,19 +18,30 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 GENERATOR = HERE / "v23-selection-generator.py"
 MANIFEST = HERE / "v23-selection-manifest.json"
-COMMIT = "67ccbaba65330d4d60fb1aab21cf6cc244c2b257"
+HISTORICAL_COMMIT = "67ccbaba65330d4d60fb1aab21cf6cc244c2b257"
+SOURCE_COMMIT = "f58be9de74a5e8ec8b74007e726376cae9f57c2b"
 SELECTION_SHA = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
 MAP_SHA = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
 NEW_SELECTOR = ("FieldEvidenceAppTests/V23MutationReceiptSafetyTests/"
                 "testDayAndNightWorkflowReplayBindsOriginalRequestAndLiveJournalAuthority")
+STARTUP_SELECTORS = [
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/"
+    "testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/"
+    "testConfigurationStartupRecoveryTokenRejectsOperationMintABA",
+    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/"
+    "testMediaReconcileRemovesOrphansAndPreservesMismatchForMaintenance",
+    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/"
+    "testRelaunchAfterWideKeepsExactEvidenceAuthorityAndResumesClose",
+]
 
 spec = importlib.util.spec_from_file_location("v23_selection_generator", GENERATOR)
 generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
 
 
-def git_bytes(path):
-    return subprocess.check_output(["git", "show", COMMIT + ":" + path], cwd=REPO)
+def git_bytes(path, commit=HISTORICAL_COMMIT):
+    return subprocess.check_output(["git", "show", commit + ":" + path], cwd=REPO)
 
 
 class GeneratorTests(unittest.TestCase):
@@ -44,9 +55,16 @@ class GeneratorTests(unittest.TestCase):
         sources.mkdir(parents=True)
         classes = sorted({name for group in cls.manifest["groups"] for name in group["classes"]})
         for class_name in classes:
-            (sources / (class_name + ".swift")).write_bytes(
-                git_bytes("FieldEvidenceAppTests/" + class_name + ".swift")
-            )
+            relative = "FieldEvidenceAppTests/" + class_name + ".swift"
+            overlays = {
+                "V9_15AppLockLifecycleTests":
+                    REPO / "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift",
+                "S3_4ResumeRecoveryTests":
+                    REPO / "FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift",
+            }
+            raw = (overlays[class_name].read_bytes() if class_name in overlays
+                   else git_bytes(relative, SOURCE_COMMIT))
+            (sources / (class_name + ".swift")).write_bytes(raw)
         cls.incumbent_selection = git_bytes("Scripts/ci-selection.json")
         cls.incumbent_map = git_bytes("Scripts/ci-selection-map.json")
 
@@ -65,6 +83,9 @@ class GeneratorTests(unittest.TestCase):
         future, future_map, future_report = self.generate()
         self.assertEqual((future_report["selectorCount"], future_report["groupCount"]),
                          (693, 38))
+        self.assertEqual((future_report['selectionSHA256'], future_report['selectionMapSHA256']),
+                         ('203335CCCC8FACDC8560C1F23BA28A762854664264884CBFAFB8A0F0EDF42F6E',
+                          '6D74CFA1BA6EBC0B46ED0656F285F8BD59DA61D62CB60E02C2B37B2978973EBD'))
         self.assertEqual(future["unitTestSelectors"][:-1], selection["unitTestSelectors"])
         self.assertEqual(future["unitTestSelectors"][-1], NEW_SELECTOR)
         self.assertEqual(future_map["groups"][:-1], selection_map["groups"])
@@ -94,6 +115,29 @@ class GeneratorTests(unittest.TestCase):
             '62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB')
         self.assertEqual(report['selectionMapSHA256'],
             '77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC')
+
+    def test_pair_startup_profile_appends_exact_four_and_one_group(self):
+        prior, prior_map, _ = self.generate('raw-photo-v1')
+        current, current_map, report = self.generate('pair-startup-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (701, 40))
+        self.assertEqual(current['unitTestSelectors'][:-4], prior['unitTestSelectors'])
+        self.assertEqual(current['unitTestSelectors'][-4:], STARTUP_SELECTORS)
+        self.assertEqual(current_map['groups'][:-1], [
+            ({**group, 'methodCount': 77} if group['id'] == 'notification-owner' else group)
+            for group in prior_map['groups']
+        ])
+        self.assertEqual(current_map['groups'][-1], {
+            'id': 'c36-startup-recovery',
+            'classes': ['S3_4ResumeRecoveryTests'],
+            'methodCount': 2,
+        })
+        self.assertEqual((report['selectionSHA256'], report['selectionMapSHA256']),
+                         ('62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722',
+                          '70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110'))
+        for profile in ('incumbent-v1', 'prospective-v1', 'raw-photo-v1'):
+            historical, historical_map, _ = self.generate(profile)
+            self.assertFalse(set(STARTUP_SELECTORS) & set(historical['unitTestSelectors']))
+            self.assertNotIn('c36-startup-recovery', [g['id'] for g in historical_map['groups']])
 
     def test_legacy_consumer_shape_disjoint_exhaustive_and_deterministic(self):
         selection, selection_map, report = self.generate()
@@ -125,6 +169,11 @@ class GeneratorTests(unittest.TestCase):
         value = copy.deepcopy(self.manifest); value["groups"][0]["classes"][0] = "UnknownTests"; mutations.append(value)
         value = copy.deepcopy(self.manifest); value["groups"][1]["id"] = value["groups"][0]["id"]; mutations.append(value)
         value = copy.deepcopy(self.manifest); value["profiles"][0]["excludedGroupIDs"] = ["unknown"]; mutations.append(value)
+        value = copy.deepcopy(self.manifest); value["profiles"][0]["excludedSelectors"] = ["unknown"]; mutations.append(value)
+        value = copy.deepcopy(self.manifest); value["profiles"][0]["excludedSelectors"].append(value["profiles"][0]["excludedSelectors"][0]); mutations.append(value)
+        value = copy.deepcopy(self.manifest); value["profiles"][0]["excludedSelectors"].append(STARTUP_SELECTORS[2]); mutations.append(value)
+        value = copy.deepcopy(self.manifest); value["profiles"][0]["excludedGroupIDs"] = []; value["profiles"][0]["excludedSelectors"] = [s for s in value["selectorPool"] if s.split('/')[1] == 'V9_14SettingsCapabilityLifecycleTests']; mutations.append(value)
+        value = copy.deepcopy(self.manifest); value["profiles"][0]["unknown"] = []; mutations.append(value)
         value = copy.deepcopy(self.manifest); value["defaultSelectionID"] = "unadmitted-default"; mutations.append(value)
         value = copy.deepcopy(self.manifest); value["selectorPool"].append({}); mutations.append(value)
         value = copy.deepcopy(self.manifest); value["groups"][0]["classes"].append([]); mutations.append(value)
@@ -132,6 +181,10 @@ class GeneratorTests(unittest.TestCase):
         for index, hostile in enumerate(mutations):
             with self.subTest(index=index), self.assertRaises(generator.ManifestError):
                 generator.validate_manifest(hostile)
+
+        legacy = copy.deepcopy(self.manifest)
+        legacy['profiles'] = [{'id': 'legacy-v1', 'excludedGroupIDs': []}]
+        generator.validate_manifest(legacy)
 
         duplicate = Path(self.temp.name) / "duplicate-keys.json"
         duplicate.write_text('{"schemaVersion":1,"schemaVersion":1}', encoding="utf-8")

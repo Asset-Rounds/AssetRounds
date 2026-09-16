@@ -159,6 +159,128 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
     }
 
     func testPrepareCheckFreezesStoredZoneCompleteCommandAndSourceCASWithoutEffects() async throws {
+        // Exercise the actual pair/commit service and both frozen photo slots.
+        try await withAsyncFrozenBeginFixture("production-photo-journey", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            h.clock.value = Date(timeIntervalSinceReferenceDate: 811_300_000)
+            let wide = try await FrozenProductionPhotoV1.make(h)
+            h.clock.value = Date(timeIntervalSinceReferenceDate: 811_300_010.000002)
+            let pairCheckpoint = try await wide.service.preparePhotoPair(parentDraftID: wide.parentID,
+                childDraftID: wide.childID)
+            XCTAssertEqual(pairCheckpoint.updatedAt, h.clock.millisecondValue)
+            XCTAssertEqual(try wide.checkpoint(), pairCheckpoint)
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,
+                from: FieldDraftCanonicalCodecV1.encode(pairCheckpoint)), pairCheckpoint)
+            let originalIDs = h.ids.callCount
+            h.clock.value = h.clock.value.addingTimeInterval(50)
+            let repeatedPair = try await wide.service.preparePhotoPair(parentDraftID: wide.parentID,
+                childDraftID: wide.childID)
+            XCTAssertEqual(repeatedPair, pairCheckpoint)
+            XCTAssertEqual(h.ids.callCount, originalIDs)
+
+            let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(pairCheckpoint)
+            let pair = try XCTUnwrap(payload.phase.pair)
+            let validAttempt = try wide.attempt(pairCheckpoint: pairCheckpoint)
+            let committedStage = try CheckRunnerPhotoContinuationEvidenceV1.committedStage(
+                raw: pair.raw, attempt: validAttempt)
+            let collision = try wide.attempt(pairCheckpoint: pairCheckpoint,
+                reservationMutationID: committedStage.mutationID)
+            let before = try h.snapshot()
+            let markerURL = h.session.generationRootURL.appendingPathComponent(
+                ".staging/evidence/\(wide.intent.evidenceID.uuidString.lowercased())/pair-publication.json")
+            let markerBytes = try Data(contentsOf: markerURL)
+            XCTAssertThrowsError(try wide.service.preparePhotoCommit(parentDraftID: wide.parentID,
+                childDraftID: wide.childID, expectedCheckpointSHA256: pairCheckpoint.checkpointSHA256,
+                proposal: collision))
+            let fractional = try wide.attempt(pairCheckpoint: pairCheckpoint,
+                instant: Date(timeIntervalSinceReferenceDate: 811_300_020.000002))
+            XCTAssertNotEqual(try FieldDraftCanonicalCodecV1.decode(CheckRunnerPhotoCommitAttemptV1.self,
+                from: FieldDraftCanonicalCodecV1.encode(fractional)), fractional)
+            XCTAssertThrowsError(try wide.service.preparePhotoCommit(parentDraftID: wide.parentID,
+                childDraftID: wide.childID, expectedCheckpointSHA256: pairCheckpoint.checkpointSHA256,
+                proposal: fractional))
+            XCTAssertEqual(try h.snapshot(), before)
+            XCTAssertEqual(try Data(contentsOf: markerURL), markerBytes)
+            XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DraftCommitSagaRow>()), 0)
+            XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DraftContentReservationRow>()), 0)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: h.session.generationRootURL
+                .appendingPathComponent("evidence/\(wide.intent.evidenceID.uuidString.lowercased())").path))
+
+            let committing = try wide.service.preparePhotoCommit(parentDraftID: wide.parentID,
+                childDraftID: wide.childID, expectedCheckpointSHA256: pairCheckpoint.checkpointSHA256,
+                proposal: validAttempt)
+            let committed = try await wide.service.resumePhotoCommit(parentDraftID: wide.parentID,
+                childDraftID: wide.childID)
+            XCTAssertEqual(committed.state, .committed)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: markerURL.path))
+            let terminal = try XCTUnwrap(h.coordinator.workspaceWriter.checkRunnerPhotoCommitEvidence(
+                workspaceID: h.workspaceID, draftID: wide.childID))
+            XCTAssertEqual(terminal.reconstruction.draftCommit.checkpoint, committing)
+            XCTAssertEqual(terminal.stage, committedStage)
+            XCTAssertEqual(terminal.reservation.createdAt, validAttempt.promotionAt)
+            let wideMediaRead = try await wide.service.readCurrentPhotoMedia(parentDraftID: wide.parentID,
+                childDraftID: wide.childID)
+            let wideMedia = try XCTUnwrap(wideMediaRead)
+            XCTAssertEqual(wideMedia.media.normalizedPair, pair.normalizedPair)
+            let postWide = try h.snapshot()
+            let postWideIDs = h.ids.callCount
+            h.clock.value = h.clock.value.addingTimeInterval(500)
+            let reopened = try FrozenProductionPhotoV1.reopen(owner: h.coordinator, root: h.root,
+                profile: h.profile, release: h.publishedRelease, clock: h.clock, ids: h.ids)
+            let repeated = try await reopened.service.resumePhotoCommit(parentDraftID: wide.parentID,
+                childDraftID: wide.childID)
+            XCTAssertEqual(repeated, committed)
+            XCTAssertEqual(try h.snapshot(), postWide)
+            XCTAssertEqual(h.ids.callCount, postWideIDs)
+
+            let close = try await FrozenProductionPhotoV1.make(h, parentID: wide.parentID, step: .close)
+            let closePair = try await close.service.preparePhotoPair(parentDraftID: close.parentID,
+                childDraftID: close.childID)
+            let closeAttempt = try close.attempt(pairCheckpoint: closePair)
+            XCTAssertEqual(closeAttempt.expectedWorkflowRecordRevision, 2)
+            _ = try close.service.preparePhotoCommit(parentDraftID: close.parentID, childDraftID: close.childID,
+                expectedCheckpointSHA256: closePair.checkpointSHA256, proposal: closeAttempt)
+            let closeCommitted = try await close.service.resumePhotoCommit(parentDraftID: close.parentID,
+                childDraftID: close.childID)
+            XCTAssertEqual(closeCommitted.state, .committed)
+            let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(close.service.read(draftID: close.parentID))
+            XCTAssertEqual(parent.field.wideContext?.childDraftID, wide.childID)
+            XCTAssertEqual(parent.field.closeDetail?.childDraftID, close.childID)
+            let currentWide = try XCTUnwrap(close.service.readCurrentPhotoTarget(parentDraftID: wide.parentID,
+                childDraftID: wide.childID))
+            XCTAssertEqual(currentWide.currentTarget.laterPhotos.count, 1)
+            XCTAssertEqual(currentWide.currentTarget.workflow.draftStepKey, WorkflowDraftStep.outcome.rawValue)
+            let currentWideMediaRead = try await close.service.readCurrentPhotoMedia(parentDraftID: wide.parentID,
+                childDraftID: wide.childID)
+            XCTAssertEqual(try XCTUnwrap(currentWideMediaRead).media, wideMedia.media)
+            XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<EvidenceFile>()), 2)
+            XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DraftCommitSagaRow>()), 10)
+        }
+
+        try await withAsyncFrozenBeginFixture("photo-existing-derived-mutation", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            let photo = try await FrozenProductionPhotoV1.make(h)
+            let checkpoint = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
+                childDraftID: photo.childID)
+            let attempt = try photo.attempt(pairCheckpoint: checkpoint)
+            let raw = try XCTUnwrap(CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint).phase.raw)
+            let occupied = try CheckRunnerPhotoContinuationEvidenceV1.committedStage(raw: raw, attempt: attempt).mutationID
+            let siteID = UUID()
+            _ = try h.coordinator.workspaceWriter.execute(.createFirstSign(.init(siteID: siteID,
+                newSite: .init(id: siteID, label: "Unrelated receipt", address: nil, timeZoneID: "America/Chicago"),
+                assetID: UUID(), assetLabel: "Independent sign", packID: h.signPack.packID,
+                packSchemaVersion: h.signPack.schemaVersion, packContentVersion: h.signPack.contentVersion,
+                createdAt: h.clock.millisecondValue, initialPlacementMutationID: occupied,
+                initialPlacementEventID: UUID(), initialPhysicalEpisodeID: .init(rawValue: UUID()))), mutationID: occupied)
+            let before = try h.snapshot()
+            XCTAssertThrowsError(try photo.service.preparePhotoCommit(parentDraftID: photo.parentID,
+                childDraftID: photo.childID, expectedCheckpointSHA256: checkpoint.checkpointSHA256, proposal: attempt))
+            XCTAssertEqual(try h.snapshot(), before)
+            XCTAssertEqual(try photo.checkpoint(), checkpoint)
+            XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DraftCommitSagaRow>()), 0)
+            XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DraftContentReservationRow>()), 0)
+        }
+
         try await withAsyncFrozenBeginFixture("stored-zone-check", entry: .check,
                                    storedTimeZoneID: "America/Chicago") { h in
             let source = try h.captureSource()
@@ -1793,6 +1915,112 @@ final class FrozenBeginFixture {
     }
 }
 
+/// Shared real-owner fixture for service and cold StartupRouter photo cases.
+@MainActor
+struct FrozenProductionPhotoV1 {
+    let owner: StoreSessionCoordinator
+    let service: ProductionCheckRunnerItemDraftServiceV1
+    let runner: CheckRunnerCoordinator
+    let adapter: DraftAttachmentStagingAdapterV1
+    let parentID: UUID
+    let childID: UUID
+    let intent: CheckRunnerPhotoRawStageIntentV1
+
+    static func make(_ h: FrozenBeginFixture, parentID: UUID? = nil,
+        step: WorkflowDraftStep = .wide, publishRaw: Bool = true,
+        failure: EvidenceBundleStoreFailureInjection? = nil) async throws -> Self {
+        let owners = try reopen(owner: h.coordinator, root: h.root, profile: h.profile,
+            release: h.publishedRelease, clock: h.clock, ids: h.ids, failure: failure)
+        let service = owners.service
+        let parent: FieldDraftCheckpointV1
+        if let parentID { parent = try service.read(draftID: parentID) }
+        else {
+            let initial = try service.create(source: h.captureSource(), preflight: .init(
+                timeZoneID: "America/Chicago", isTimeZoneConfirmed: true,
+                confirmedTimeZoneID: "America/Chicago", afterDarkAccepted: true, safePositionAccepted: true))
+            let prepared = try service.prepareBegin(draftID: initial.draftID,
+                expectedCheckpointSHA256: initial.checkpointSHA256, observedAtUTC: h.clock.millisecondValue)
+            parent = try service.resumeInitialBegin(draftID: prepared.draftID)
+        }
+        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent)
+        let begin = try XCTUnwrap(payload.field.begin.attempt)
+        let bytes = try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: step == .wide ? 183 : 184)
+        let base = max(parent.updatedAt, h.clock.millisecondValue)
+        let intent = try CheckRunnerPhotoRawStageIntentV1(stageID: UUID(), stageMutationID: .init(rawValue: UUID()),
+            stageCreatedAt: base.addingTimeInterval(2), expectedSourceByteCount: Int64(bytes.count),
+            provenanceID: "photo-production-journey", evidenceID: UUID(), evidenceCreatedAt: base.addingTimeInterval(1))
+        let childID = UUID()
+        let proposal = try CheckRunnerPhotoDraftPayloadV1(workspaceID: h.workspaceID,
+            childDraftID: childID, parentDraftID: parent.draftID, recordID: begin.recordCommand.recordID,
+            assetID: payload.source.assetID, sourceBinding: payload.source,
+            workflowStage: payload.source.requestedEntry.stage, captureStep: step,
+            purposeKey: step == .wide ? "wide_context" : "close_detail", origin: .humanCapture,
+            phase: .awaitingRawStage(intent))
+        _ = try service.prepareRawPhoto(parentDraftID: parent.draftID,
+            expectedCheckpointSHA256: parent.checkpointSHA256, proposal: proposal)
+        if publishRaw {
+            let url = h.root.appendingPathComponent("picker-\(childID.uuidString).png")
+            try bytes.write(to: url)
+            _ = try await service.publishRawPhoto(parentDraftID: parent.draftID, childDraftID: childID, sourceURL: url)
+        }
+        h.clock.value = intent.stageCreatedAt.addingTimeInterval(1)
+        return .init(owner: h.coordinator, service: service, runner: owners.runner, adapter: owners.adapter,
+            parentID: parent.draftID, childID: childID, intent: intent)
+    }
+
+    static func reopen(owner: StoreSessionCoordinator, root: URL,
+        profile: WorkspacePackageLifecycleProfileV1, release: InspectionPackageReleaseV1,
+        clock: any ApplicationClock, ids: any ApplicationIDSource,
+        failure: EvidenceBundleStoreFailureInjection? = nil) throws
+        -> (service: ProductionCheckRunnerItemDraftServiceV1, runner: CheckRunnerCoordinator,
+            adapter: DraftAttachmentStagingAdapterV1) {
+        let gate = AppAccessGateV1(setting: .absentDisabled, authentication: FrozenBeginAuthentication(),
+            clock: clock, identifiers: ids)
+        let transitions = try owner.makeRoundSessionTransitionService(accessGate: gate)
+        let progress = try owner.makeRepetitiveCaptureProgressService(transitions: transitions)
+        let runner = try CheckRunnerCoordinator(modelContext: owner.modelContext,
+            packageLifecycleDependencies: owner.packageLifecycleDependencies(),
+            packageLifecycleProfile: profile, evidenceStoreFailureInjection: failure)
+        runner.configureCapture(generationRootURL: owner.generationRootURL)
+        let adapter = try DraftAttachmentStagingAdapterV1(applicationSupportURL: root,
+            workspaceID: owner.workspaceID,
+            immutableContentWriter: EvidenceBundleStore(generationRootURL: owner.generationRootURL))
+        let service = try ProductionCheckRunnerItemDraftServiceV1(session: owner, progress: progress,
+            coordinator: runner, publishedRelease: release, clock: clock, ids: ids, attachmentStaging: adapter)
+        return (service, runner, adapter)
+    }
+
+    func checkpoint() throws -> FieldDraftCheckpointV1 {
+        let id = childID
+        return try XCTUnwrap(owner.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
+            predicate: #Predicate { $0.draftID == id })).first).value()
+    }
+
+    func attempt(pairCheckpoint: FieldDraftCheckpointV1,
+                 reservationMutationID: MutationIDV1? = nil,
+                 instant: Date? = nil) throws -> CheckRunnerPhotoCommitAttemptV1 {
+        let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(pairCheckpoint)
+        let instant = instant ?? pairCheckpoint.updatedAt.addingTimeInterval(1)
+        let continuation = try XCTUnwrap(owner.workspaceWriter.checkRunnerPhotoContinuationEvidence(
+            workspaceID: owner.workspaceID, parentDraftID: parentID, childDraftID: childID))
+        let outputs = try [WorkspaceEntityIdentityV1(kind: .workflowRecord, id: payload.recordID).stableKey,
+            WorkspaceEntityIdentityV1(kind: .evidenceFile, id: intent.evidenceID).stableKey].sorted()
+        return try .init(planID: UUID(), expectedWorkflowRecordRevision: continuation.currentWorkflowPostImage.revision,
+            targetMutationID: .init(rawValue: intent.evidenceID), outputKeys: outputs,
+            reservationMutationID: reservationMutationID ?? .init(rawValue: UUID()),
+            reservationReviewAfter: instant.addingTimeInterval(90), preparedSagaID: UUID(),
+            preparedSagaMutationID: .init(rawValue: UUID()), preparedUpdatedAt: instant,
+            contentPromotedSagaID: UUID(), contentPromotedSagaMutationID: .init(rawValue: UUID()),
+            contentPromotedUpdatedAt: instant.addingTimeInterval(2), targetCommittedSagaID: UUID(),
+            targetCommittedSagaMutationID: .init(rawValue: UUID()), targetCommittedUpdatedAt: instant.addingTimeInterval(3),
+            draftRetirePendingSagaID: UUID(), draftRetirePendingSagaMutationID: .init(rawValue: UUID()),
+            draftRetirePendingUpdatedAt: instant.addingTimeInterval(4), draftRetiredSagaID: UUID(),
+            draftRetiredUpdatedAt: instant.addingTimeInterval(5), commitReceiptID: UUID(),
+            terminalBundleMutationID: .init(rawValue: UUID()), terminalCheckpointUpdatedAt: instant.addingTimeInterval(6),
+            promotionAt: instant.addingTimeInterval(1))
+    }
+}
+
 final class FrozenBeginCountingIDs: ApplicationIDSource, @unchecked Sendable {
     private let lock = NSLock()
     private var queued: [UUID] = []
@@ -1814,11 +2042,16 @@ final class FrozenBeginCountingIDs: ApplicationIDSource, @unchecked Sendable {
 }
 
 final class FrozenBeginClock: ApplicationClock, @unchecked Sendable {
-    let value: Date
+    private let lock = NSLock()
+    private var storedValue: Date
+    var value: Date {
+        get { lock.withLock { storedValue } }
+        set { lock.withLock { storedValue = newValue } }
+    }
     var millisecondValue: Date {
         Date(timeIntervalSince1970: floor(value.timeIntervalSince1970 * 1_000) / 1_000)
     }
-    init(value: Date) { self.value = value }
+    init(value: Date) { storedValue = value }
     func now() -> Date { value }
 }
 

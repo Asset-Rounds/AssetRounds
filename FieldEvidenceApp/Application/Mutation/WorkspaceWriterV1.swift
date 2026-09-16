@@ -2405,6 +2405,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return value
     }
 
+    func checkRunnerPhotoContinuationEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID
+    ) throws -> CheckRunnerPhotoContinuationEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        let before = try currentRevision()
+        let value = try journalStore.checkRunnerPhotoContinuationEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID, writerInstanceID: writerInstanceID)
+        guard isActive, try currentRevision() == before else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return value
+    }
+
     func checkRunnerPhotoPreparationEvidence(workspaceID: WorkspaceID, parentDraftID: UUID,
         captureStep: WorkflowDraftStep) throws -> CheckRunnerPhotoPreparationEvidenceV1? {
         guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }

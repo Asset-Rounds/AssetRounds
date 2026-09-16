@@ -72,6 +72,29 @@ final class V23StoreSemanticValidationTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: pointerURL), facts.pointer)
             XCTAssertEqual(try Data(contentsOf: modelURL), storeBefore)
             XCTAssertFalse(cold.modelContext.hasChanges)
+            let laterLocation = try LocationNodeV1(
+                id: semanticID(702),
+                workspaceID: lighting.night.workspaceID,
+                siteID: lighting.system.siteID,
+                parentNodeID: nil,
+                kind: .building,
+                label: "Unadopted semantic validation building",
+                shortCode: "UV",
+                siblingOrder: 1,
+                state: .active,
+                revision: 1,
+                provenance: .init(
+                    mutationID: try MutationIDV1(rawValue: semanticID(703)),
+                    occurredAt: lighting.night.recordedAt.addingTimeInterval(200)
+                )
+            )
+            cold.modelContext.insert(try LocationNodeRow(laterLocation))
+            try cold.modelContext.save()
+            XCTAssertThrowsError(try cold.reproofAfterSave()) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+            }
+            XCTAssertEqual(try receiptBytes(in: cold.modelContext), facts.receipts)
+            XCTAssertFalse(cold.modelContext.hasChanges)
         }
         try FileManager.default.removeItem(at: root)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
@@ -332,6 +355,29 @@ final class V23StoreSemanticValidationTests: XCTestCase {
     ) throws -> (location: LocationNodeRow, night: LightingNightWorkflowRowV1) {
         let context = session.modelContext
         let assetID = try XCTUnwrap(lighting.night.deltas.first).assetID
+        let locationValue = try LocationNodeV1(
+            id: semanticID(700),
+            workspaceID: lighting.night.workspaceID,
+            siteID: lighting.system.siteID,
+            parentNodeID: nil,
+            kind: .building,
+            label: "Semantic validation building",
+            shortCode: "SV",
+            siblingOrder: 0,
+            state: .active,
+            revision: 1,
+            provenance: .init(
+                mutationID: try MutationIDV1(rawValue: semanticID(701)),
+                occurredAt: lighting.night.recordedAt.addingTimeInterval(-200)
+            )
+        )
+        let location = try LocationNodeRow(locationValue)
+        let night = try LightingNightWorkflowRowV1(lighting.night)
+        context.insert(location)
+        context.insert(night)
+        try semanticObserved("adopt semantic fixture deletion baseline") {
+            try V906Integration.adoptSeededDeletionBaseline(session)
+        }
         do {
             let coordinator = try semanticObserved("activate semantic fixture writer") {
                 try StoreSessionCoordinator(validatingSession: session)
@@ -359,30 +405,6 @@ final class V23StoreSemanticValidationTests: XCTestCase {
             try semanticObserved("release semantic fixture writer") {
                 try coordinator.invalidateAndReleaseWriter()
             }
-        }
-        let locationValue = try LocationNodeV1(
-            id: semanticID(700),
-            workspaceID: lighting.night.workspaceID,
-            siteID: lighting.system.siteID,
-            parentNodeID: nil,
-            kind: .building,
-            label: "Semantic validation building",
-            shortCode: "SV",
-            siblingOrder: 0,
-            state: .active,
-            revision: 1,
-            provenance: .init(
-                mutationID: try MutationIDV1(rawValue: semanticID(701)),
-                occurredAt: lighting.night.recordedAt.addingTimeInterval(-200)
-            )
-        )
-        let location = try LocationNodeRow(locationValue)
-        let night = try LightingNightWorkflowRowV1(lighting.night)
-        context.insert(location)
-        context.insert(night)
-        try semanticObserved("save semantic fixture rows") { try context.save() }
-        try semanticObserved("adopt semantic fixture deletion baseline") {
-            try V906Integration.adoptSeededDeletionBaseline(session)
         }
         try semanticObserved("reprove semantic fixture session") { try session.reproofAfterSave() }
         XCTAssertEqual(session.storeSchemaRelease, .v53)

@@ -14,24 +14,30 @@ struct MediaNormalizerV1 {
     }
 
     func normalizeWithSourceFacts(_ sourceData: Data) throws -> NormalizedMediaWithSourceFactsV1 {
+        try Task.checkCancellation()
         let inspected = try inspectedSource(sourceData)
         let source = inspected.source
         let sourceDimensions = (
             width: inspected.facts.pixelWidth,
             height: inspected.facts.pixelHeight
         )
+        try Task.checkCancellation()
         let original = try normalize(
             source: source,
             sourceDimensions: sourceDimensions,
             kind: .original
         )
+        try Task.checkCancellation()
         let thumbnail = try normalize(
             source: source,
             sourceDimensions: sourceDimensions,
             kind: .thumbnail
         )
+        try Task.checkCancellation()
         _ = try validateCanonicalJPEG(original, kind: .original)
+        try Task.checkCancellation()
         _ = try validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+        try Task.checkCancellation()
         return NormalizedMediaWithSourceFactsV1(
             sourceFacts: inspected.facts,
             normalized: NormalizedMediaV1(originalJPEG: original, thumbnailJPEG: thumbnail)
