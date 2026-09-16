@@ -1,6 +1,8 @@
 import CoreGraphics
 import CoreFoundation
+import Combine
 import CryptoKit
+import Darwin
 import Foundation
 import ImageIO
 import SwiftData
@@ -163,6 +165,7 @@ final class S6_2BackupExportTests: XCTestCase {
         _ = try inbox.commit(.putInboxItem(unresolved), mutationID: unresolved.mutationID)
         let (promotion, promoted) = try inbox.promotion(source: captured, kind: .assetEvidence)
         _ = try inbox.commit(.promote(promotion, promoted), mutationID: promotion.mutationID)
+        let historyBeforeSnippet = try inbox.writer.sourceMutationHistorySnapshot()
         let snippet = try inbox.snippet(title: "Preserved text", body: "Explicitly saved original snippet")
         _ = try inbox.commit(.putSnippet(snippet), mutationID: snippet.mutationID)
         let insertion = try inbox.insertion(snippet: snippet)
@@ -178,8 +181,79 @@ final class S6_2BackupExportTests: XCTestCase {
         XCTAssertEqual(expectedInbox.effectProvenance.filter { $0.mutationID == promotion.mutationID.rawValue }.count, 2)
         let originalHistory = try inbox.writer.sourceMutationHistorySnapshot()
         try MutationJournalStoreV1.validateImportedSnapshot(originalHistory)
+        let journalUnion = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(
+            source: historyBeforeSnippet, current: originalHistory,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity)
+        XCTAssertEqual(journalUnion.merged, originalHistory)
+        XCTAssertNoThrow(try journalUnion.requireDestination(originalHistory))
+        XCTAssertThrowsError(try journalUnion.requireDestination(historyBeforeSnippet))
+        let duplicateUnion = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(
+            source: originalHistory, current: originalHistory,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity)
+        XCTAssertEqual(duplicateUnion.merged, originalHistory)
+        let earlierUnion = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(
+            source: historyBeforeSnippet, current: historyBeforeSnippet,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity)
+        XCTAssertThrowsError(try earlierUnion.requireDestination(originalHistory))
+        let changedSequence = MutationHistorySnapshotV1(
+            workspaceRevision: originalHistory.workspaceRevision,
+            lastLocalSequence: originalHistory.lastLocalSequence + 1,
+            receipts: originalHistory.receipts, quarantines: originalHistory.quarantines,
+            entityRevisions: originalHistory.entityRevisions)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(changedSequence))
+        XCTAssertThrowsError(try journalUnion.requireDestination(changedSequence))
+        let changedWorkspaceRevision = MutationHistorySnapshotV1(
+            workspaceRevision: originalHistory.workspaceRevision + 1,
+            lastLocalSequence: originalHistory.lastLocalSequence,
+            receipts: originalHistory.receipts, quarantines: originalHistory.quarantines,
+            entityRevisions: originalHistory.entityRevisions)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(changedWorkspaceRevision))
+        XCTAssertThrowsError(try journalUnion.requireDestination(changedWorkspaceRevision))
+        let firstRevision = try XCTUnwrap(originalHistory.entityRevisions.first)
+        let conflictingRevisions = originalHistory.entityRevisions.map { row in
+            row.identity == firstRevision.identity
+                ? MutationHistoryEntityRevisionV1(identity: row.identity, revision: row.revision,
+                    externalProjectionSHA256: firstRevision.externalProjectionSHA256 == String(repeating: "a", count: 64)
+                        ? String(repeating: "b", count: 64) : String(repeating: "a", count: 64))
+                : row
+        }
+        let conflictingHistory = MutationHistorySnapshotV1(
+            workspaceRevision: originalHistory.workspaceRevision,
+            lastLocalSequence: originalHistory.lastLocalSequence,
+            receipts: originalHistory.receipts, quarantines: originalHistory.quarantines,
+            entityRevisions: conflictingRevisions)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(conflictingHistory))
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreHistoryUnionV1.compose(
+            source: originalHistory, current: conflictingHistory,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity))
+        let unrelatedReceipt = try MutationReceiptV1.decodeCanonical(
+            from: XCTUnwrap(originalHistory.receipts.last).receiptData)
+        let unrelatedQuarantine = MutationHistoryQuarantineRecordV1(
+            workspaceID: unrelatedReceipt.identity.workspaceID,
+            mutationID: unrelatedReceipt.mutationID.rawValue, identityDomain: .mutationEnvelope,
+            acceptedIdentitySHA256: unrelatedReceipt.envelopeSHA256,
+            conflictingIdentitySHA256: unrelatedReceipt.envelopeSHA256 == String(repeating: "a", count: 64)
+                ? String(repeating: "b", count: 64) : String(repeating: "a", count: 64),
+            detectedAt: Date(timeIntervalSince1970: 1_777_593_600))
+        let unrelatedQuarantinedHistory = MutationHistorySnapshotV1(
+            workspaceRevision: originalHistory.workspaceRevision,
+            lastLocalSequence: originalHistory.lastLocalSequence,
+            receipts: originalHistory.receipts, quarantines: [unrelatedQuarantine],
+            entityRevisions: originalHistory.entityRevisions)
+        let preservedQuarantineUnion = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(
+            source: historyBeforeSnippet, current: unrelatedQuarantinedHistory,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity)
+        XCTAssertEqual(preservedQuarantineUnion.merged, unrelatedQuarantinedHistory)
+        XCTAssertNoThrow(try preservedQuarantineUnion.requireDestination(unrelatedQuarantinedHistory))
         try inbox.journal.validateAll()
         try inbox.closeCurrentWriter()
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
         let sourceTree = try treeFacts(harness.session.generationRootURL)
         let sourceModels = try modelFacts(harness.context)
         let originalMedia = try Dictionary(uniqueKeysWithValues: evidence.map {
@@ -187,9 +261,11 @@ final class S6_2BackupExportTests: XCTestCase {
         })
         let destination = harness.applicationSupportURL.appendingPathComponent("populated-export", isDirectory: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
-        let exporter = makeService(harness, capacity: .max)
-        let preview = try exporter.prepare()
-        let package = try exporter.export(previewID: preview.id, to: destination)
+        let exporter = makeService(authorized, capacity: .max)
+        let preview = try authorized.contentAccess.withRead { try exporter.prepare() }
+        let package = try await exporter.export(previewID: preview.id, to: destination,
+            contentAccess: authorized.contentAccess)
+        authorized.close()
         let importer = try BackupImportService(generationRootURL: harness.session.generationRootURL,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
         let validated = try importer.stageAndValidate(selectedPackageURL: package)
@@ -295,19 +371,22 @@ final class S6_2BackupExportTests: XCTestCase {
 
     @MainActor
     func testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently() async throws {
-        let harness = try await makeMixedHarness("golden")
+        let harness = try await makeMixedHarness("golden", sharedRaw: true)
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
         let sourceFacts = try sourceMediaFacts(harness)
         let before = try treeFacts(harness.session.generationRootURL)
         let destination = harness.applicationSupportURL.appendingPathComponent("export", isDirectory: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
-        let service = makeService(harness, capacity: .max)
+        let service = makeService(authorized, capacity: .max)
 
-        let preview = try service.prepare()
+        let preview = try authorized.contentAccess.withRead { try service.prepare() }
         XCTAssertEqual(preview.signCount, 1)
         XCTAssertEqual(preview.reportCount, 3)
         XCTAssertEqual(preview.photoCount, 6)
-        let package = try service.export(previewID: preview.id, to: destination)
+        let package = try await service.export(previewID: preview.id, to: destination,
+            contentAccess: authorized.contentAccess)
         XCTAssertEqual(package.lastPathComponent, "AssetRounds.fieldrecordbackup")
         XCTAssertEqual(
             try package.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile,
@@ -326,8 +405,8 @@ final class S6_2BackupExportTests: XCTestCase {
         let validated = try importer.stageAndValidate(selectedPackageURL: package)
         defer { try? importer.discard(validated) }
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 53)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 52)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 54)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 53)
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
             Schema.Version(validated.manifest.source.persistentSchemaVersion, 0, 0)
@@ -349,12 +428,360 @@ final class S6_2BackupExportTests: XCTestCase {
 
         let recordsData = try XCTUnwrap(validated.members["records.json"])
         let decodedRecords = try BackupCanonicalDecoderV1().decodeRecords(recordsData)
-        XCTAssertEqual(decodedRecords.recordsSchemaVersion, 52)
+        XCTAssertEqual(decodedRecords.recordsSchemaVersion, 53)
         XCTAssertEqual(
             validated.manifest.source.recordsSchemaVersion,
             decodedRecords.recordsSchemaVersion
         )
         XCTAssertEqual(decodedRecords, validated.records)
+        let photoHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: validated.manifest.source, records: decodedRecords)
+        XCTAssertEqual(photoHistory.source, validated.manifest.source)
+        XCTAssertEqual(photoHistory.children.count, 6)
+        XCTAssertEqual(Set(photoHistory.children.map(\.currentCheckpoint.draftID)).count, 6)
+        for child in photoHistory.children {
+            XCTAssertNotNil(child.raw)
+            XCTAssertNotNil(child.pair)
+            XCTAssertNotNil(child.preparedReconstruction)
+            XCTAssertNotNil(child.committingCheckpoint)
+            XCTAssertNotNil(child.target)
+            XCTAssertNotNil(child.targetRecords)
+            XCTAssertNotNil(child.terminal)
+            XCTAssertNotNil(child.parentLink)
+            XCTAssertNotNil(child.currentTarget?.finalization)
+            XCTAssertEqual(child.currentTarget?.laterPhotos.count,
+                           child.payload.captureStep == .wide ? 1 : 0)
+            XCTAssertEqual(child.targetRecords?.permittedSuccessors.count,
+                           child.payload.captureStep == .wide ? 2 : 1)
+        }
+        let photoAdapter = try DraftAttachmentStagingAdapterV1(
+            photoBackupExistingRoot: harness.applicationSupportURL,
+            workspaceID: harness.session.workspaceID
+        )
+        var rawSnapshots: [DraftPhotoRawBackupSnapshotV1] = []
+        var committingCheckpoints: [UUID: FieldDraftCheckpointV1] = [:]
+        var childStageIDs: [UUID: UUID] = [:]
+        for child in photoHistory.children {
+            let raw = try XCTUnwrap(child.raw)
+            let committing = try XCTUnwrap(child.committingCheckpoint)
+            XCTAssertNil(committingCheckpoints.updateValue(
+                committing, forKey: raw.readyItem.draftID))
+            XCTAssertNil(childStageIDs.updateValue(
+                raw.intent.stageID, forKey: raw.readyItem.draftID))
+            rawSnapshots.append(try await photoAdapter.readPhotoBackupSnapshot(
+                raw: raw, committingCheckpoint: committing))
+        }
+        let canonicalStages = try decodedRecords.fieldDrafts
+            .filter { $0.kind == .stagingItem }
+            .map {
+                try FieldDraftCanonicalCodecV1.decode(
+                    AttachmentStagingItemV1.self, from: $0.canonicalData)
+            }
+        XCTAssertEqual(canonicalStages.count, rawSnapshots.count)
+        let censusFirstChild = try XCTUnwrap(photoHistory.children.first)
+        let censusFirstRaw = try XCTUnwrap(censusFirstChild.raw)
+        let censusFirstStageIndex = try XCTUnwrap(canonicalStages.firstIndex {
+            $0.stageID == censusFirstRaw.intent.stageID
+        })
+        let censusFirstSnapshot = try XCTUnwrap(rawSnapshots.first {
+            $0.raw.intent.stageID == censusFirstRaw.intent.stageID
+        })
+        let censusFirstPromotion = try DraftPhotoRawPromotionValuesV1(
+            checkpoint: XCTUnwrap(censusFirstChild.committingCheckpoint))
+        XCTAssertEqual(canonicalStages[censusFirstStageIndex].state, .committed)
+        XCTAssertEqual(censusFirstSnapshot.physicalEntry.entry,
+                       censusFirstPromotion.committedEntry)
+        var readyCanonicalStages = canonicalStages
+        readyCanonicalStages[censusFirstStageIndex] = censusFirstRaw.readyItem
+        let laggingCanonicalVerification = try await photoAdapter.preparePhotoBackupVerification(
+            rawSnapshots,
+            committingCheckpoints: committingCheckpoints,
+            canonicalStages: readyCanonicalStages,
+            childStageIDs: childStageIDs
+        )
+        XCTAssertNoThrow(try laggingCanonicalVerification.withVerificationLock {})
+
+        var missingCheckpoint = committingCheckpoints
+        XCTAssertNotNil(missingCheckpoint.removeValue(forKey: censusFirstRaw.readyItem.draftID))
+        do {
+            _ = try await photoAdapter.preparePhotoBackupVerification(
+                rawSnapshots,
+                committingCheckpoints: missingCheckpoint,
+                canonicalStages: readyCanonicalStages,
+                childStageIDs: childStageIDs
+            )
+            XCTFail("physical committed entry requires its exact COMMITTING checkpoint")
+        } catch {
+            XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .staleStage)
+        }
+
+        let otherChild = try XCTUnwrap(photoHistory.children.dropFirst().first)
+        var mismatchedCheckpoint = committingCheckpoints
+        mismatchedCheckpoint[censusFirstRaw.readyItem.draftID] = try XCTUnwrap(
+            otherChild.committingCheckpoint)
+        do {
+            _ = try await photoAdapter.preparePhotoBackupVerification(
+                rawSnapshots,
+                committingCheckpoints: mismatchedCheckpoint,
+                canonicalStages: readyCanonicalStages,
+                childStageIDs: childStageIDs
+            )
+            XCTFail("physical committed entry rejects another child's COMMITTING checkpoint")
+        } catch {
+            XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .staleStage)
+        }
+        let restorePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+            history: photoHistory, entries: validated.manifest.entries,
+            metadata: { try XCTUnwrap(validated.members[$0]) })
+        let repeatedRestorePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+            history: photoHistory, entries: validated.manifest.entries,
+            metadata: { try XCTUnwrap(validated.members[$0]) })
+        XCTAssertEqual(restorePlan, repeatedRestorePlan)
+        let composition = try CheckRunnerPhotoRestoreCompositionV1.compose(
+            source: validated.manifest.source, sourceRecords: decodedRecords, sourcePlan: restorePlan,
+            currentSource: validated.manifest.source, currentRecords: decodedRecords,
+            currentPlan: restorePlan, replacementRecords: decodedRecords,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity)
+        try composition.requireDestination(decodedRecords)
+        let compositionSourceSelection = try composition.sourceBinding.selectSource(in: decodedRecords)
+        XCTAssertEqual(compositionSourceSelection, composition.sourceSelection)
+        XCTAssertEqual(try CheckRunnerPhotoRestoreMemberBindingV1(plan: restorePlan)
+            .resolve(sourceSelection: compositionSourceSelection), restorePlan)
+        let compositionBindingBytes = try WorkspaceMutationCanonicalV1.encode(composition.sourceBinding)
+        let compositionBindingDecoder = JSONDecoder()
+        compositionBindingDecoder.dateDecodingStrategy = .millisecondsSince1970
+        let compositionBindingObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: compositionBindingBytes) as? [String: Any])
+        var changedFrontier = compositionBindingObject
+        changedFrontier["frontierSHA256"] = String(repeating: "f", count: 64)
+        let changedFrontierBinding = try compositionBindingDecoder.decode(
+            CheckRunnerPhotoRestoreCompositionBindingV1.self,
+            from: JSONSerialization.data(withJSONObject: changedFrontier, options: [.sortedKeys]))
+        XCTAssertThrowsError(try changedFrontierBinding.selectSource(in: decodedRecords))
+        var missingFrontier = compositionBindingObject
+        missingFrontier.removeValue(forKey: "frontierSHA256")
+        XCTAssertThrowsError(try compositionBindingDecoder.decode(
+            CheckRunnerPhotoRestoreCompositionBindingV1.self,
+            from: JSONSerialization.data(withJSONObject: missingFrontier, options: [.sortedKeys])))
+        try await assertPhotoRawRestoreKernel(package: validated, history: photoHistory, plan: restorePlan)
+        let sourceRawStageIDs = Set(restorePlan.rawPublications.map { $0.physicalEntry.entry.item.stageID })
+        let retainedRawStageIDs = Set(canonicalStages.map(\.stageID)).subtracting(sourceRawStageIDs)
+        let rawTransition = try await photoAdapter.preparePhotoRestoreRawTransition(
+            sourcePlan: restorePlan, sourceHistory: photoHistory,
+            currentSnapshots: rawSnapshots, currentCommittingCheckpoints: committingCheckpoints,
+            currentCanonicalStages: canonicalStages, currentChildStageIDs: childStageIDs,
+            retainedCurrentStageIDs: retainedRawStageIDs)
+        XCTAssertEqual(try rawTransition.before.canonicalBytes(), try rawTransition.after.canonicalBytes())
+        XCTAssertTrue(rawTransition.newStageIDs.isEmpty)
+        XCTAssertEqual(Set(rawTransition.reusedStageIDs), sourceRawStageIDs)
+        let rawTransitionBytes = try WorkspaceMutationCanonicalV1.encode(rawTransition)
+        let rawTransitionDecoder = JSONDecoder()
+        rawTransitionDecoder.dateDecodingStrategy = .millisecondsSince1970
+        let reopenedRawTransition = try rawTransitionDecoder.decode(
+            DraftPhotoRestoreRawTransitionV1.self, from: rawTransitionBytes)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.encode(reopenedRawTransition), rawTransitionBytes)
+        var rawTransitionObject = try XCTUnwrap(JSONSerialization.jsonObject(with: rawTransitionBytes) as? [String: Any])
+        rawTransitionObject["unbound"] = true
+        XCTAssertThrowsError(try rawTransitionDecoder.decode(DraftPhotoRestoreRawTransitionV1.self,
+            from: JSONSerialization.data(withJSONObject: rawTransitionObject, options: [.sortedKeys])))
+        do {
+            _ = try await photoAdapter.preparePhotoRestoreRawTransition(
+                sourcePlan: restorePlan, sourceHistory: photoHistory,
+                currentSnapshots: rawSnapshots, currentCommittingCheckpoints: committingCheckpoints,
+                currentCanonicalStages: canonicalStages, currentChildStageIDs: childStageIDs,
+                retainedCurrentStageIDs: retainedRawStageIDs.union([UUID()]))
+            XCTFail("restore requires an exact disposition for every old raw entry")
+        } catch { XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .staleStage) }
+        let truncatedRawPlan = CheckRunnerPhotoBackupRestorePlanV1(source: restorePlan.source,
+            children: restorePlan.children, rawPublications: Array(restorePlan.rawPublications.dropFirst()),
+            generationMembers: restorePlan.generationMembers, metadata: restorePlan.metadata)
+        let extraRawPlan = CheckRunnerPhotoBackupRestorePlanV1(source: restorePlan.source,
+            children: restorePlan.children,
+            rawPublications: restorePlan.rawPublications + [try XCTUnwrap(restorePlan.rawPublications.first)],
+            generationMembers: restorePlan.generationMembers, metadata: restorePlan.metadata)
+        for invalidPlan in [truncatedRawPlan, extraRawPlan] {
+            do {
+                _ = try await photoAdapter.preparePhotoRestoreRawTransition(
+                    sourcePlan: invalidPlan, sourceHistory: photoHistory,
+                    currentSnapshots: rawSnapshots, currentCommittingCheckpoints: committingCheckpoints,
+                    currentCanonicalStages: canonicalStages, currentChildStageIDs: childStageIDs,
+                    retainedCurrentStageIDs: retainedRawStageIDs)
+                XCTFail("restore rejects incomplete or extra raw publications")
+            } catch { XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .staleStage) }
+        }
+        let foreignPhotoAdapter = try DraftAttachmentStagingAdapterV1(
+            photoBackupExistingRoot: harness.applicationSupportURL,
+            workspaceID: WorkspaceID(rawValue: UUID()))
+        do {
+            _ = try await foreignPhotoAdapter.preparePhotoRestoreRawTransition(
+                sourcePlan: restorePlan, sourceHistory: photoHistory,
+                currentSnapshots: rawSnapshots, currentCommittingCheckpoints: committingCheckpoints,
+                currentCanonicalStages: canonicalStages, currentChildStageIDs: childStageIDs,
+                retainedCurrentStageIDs: retainedRawStageIDs)
+            XCTFail("restore binds the adapter workspace before preparing a transition")
+        } catch { XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .wrongWorkspace) }
+        let memberBinding = try CheckRunnerPhotoRestoreMemberBindingV1(plan: restorePlan)
+        let memberBindingBytes = try WorkspaceMutationCanonicalV1.encode(memberBinding)
+        let memberBindingDecoder = JSONDecoder()
+        memberBindingDecoder.dateDecodingStrategy = .millisecondsSince1970
+        let reopenedMemberBinding = try memberBindingDecoder.decode(
+            CheckRunnerPhotoRestoreMemberBindingV1.self, from: memberBindingBytes)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.encode(reopenedMemberBinding), memberBindingBytes)
+        XCTAssertEqual(try reopenedMemberBinding.resolve(history: photoHistory), restorePlan)
+        let originalBindingObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: memberBindingBytes) as? [String: Any])
+        func rejectsMemberBinding(_ edit: (inout [String: Any]) throws -> Void) throws {
+            var object = originalBindingObject
+            try edit(&object)
+            let bytes = try JSONSerialization.data(withJSONObject: object,
+                options: [.sortedKeys, .withoutEscapingSlashes])
+            XCTAssertThrowsError(try memberBindingDecoder.decode(
+                CheckRunnerPhotoRestoreMemberBindingV1.self, from: bytes)
+                .resolve(sourceSelection: compositionSourceSelection))
+        }
+        try rejectsMemberBinding { $0["schemaVersion"] = 2 }
+        try rejectsMemberBinding { $0.removeValue(forKey: "childDraftIDs") }
+        try rejectsMemberBinding { $0["childDraftIDs"] = [] }
+        try rejectsMemberBinding { $0["unbound"] = true }
+        try rejectsMemberBinding { object in
+            var entries = try XCTUnwrap(object["entries"] as? [[String: Any]])
+            entries.removeFirst()
+            object["entries"] = entries
+        }
+        try rejectsMemberBinding { object in
+            var entries = try XCTUnwrap(object["entries"] as? [[String: Any]])
+            entries.append(try XCTUnwrap(entries.first))
+            object["entries"] = entries
+        }
+        try rejectsMemberBinding { object in
+            var metadata = try XCTUnwrap(object["metadata"] as? [[String: Any]])
+            metadata.removeFirst()
+            object["metadata"] = metadata
+        }
+        try rejectsMemberBinding { object in
+            var metadata = try XCTUnwrap(object["metadata"] as? [[String: Any]])
+            metadata[0]["bytes"] = Data("changed witness".utf8).base64EncodedString()
+            object["metadata"] = metadata
+        }
+        try rejectsMemberBinding { object in
+            var metadata = try XCTUnwrap(object["metadata"] as? [[String: Any]])
+            metadata[0]["unbound"] = true
+            object["metadata"] = metadata
+        }
+        try rejectsMemberBinding { object in
+            var source = try XCTUnwrap(object["source"] as? [String: Any])
+            source["sourceGenerationID"] = UUID().uuidString.lowercased()
+            object["source"] = source
+        }
+        XCTAssertEqual(restorePlan.children.count, 6)
+        XCTAssertTrue(restorePlan.children.allSatisfy { $0.pairLocation == .targetOwned })
+        XCTAssertEqual(restorePlan.rawPublications.count, 6)
+        XCTAssertEqual(Set(restorePlan.rawPublications.map {
+            $0.physicalEntry.entry.item.stageID
+        }).count, 6)
+        for raw in restorePlan.rawPublications {
+            XCTAssertEqual(restorePlan.metadata[raw.witness.path], raw.witnessBytes)
+            XCTAssertEqual(validated.members[raw.witness.path], raw.witnessBytes)
+            let item = raw.physicalEntry.entry.item
+            let physicalPath = CheckRunnerPhotoBackupMemberKeyV1(
+                childDraftID: item.draftID, stageID: item.stageID, role: .physicalEntry).path
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(
+                CheckRunnerPhotoBackupPhysicalEntryV1.self,
+                from: XCTUnwrap(restorePlan.metadata[physicalPath])), raw.physicalEntry)
+        }
+        let evidencePaths = Set(try harness.context.fetch(FetchDescriptor<EvidenceFile>()).flatMap {
+            [$0.relativePath, $0.thumbnailRelativePath]
+        })
+        let targetPaths = Set(restorePlan.generationMembers.compactMap { member in
+            guard (member.kind == .original || member.kind == .thumbnail),
+                  member.relativePath.hasPrefix("evidence/") else { return nil }
+            return member.relativePath
+        })
+        XCTAssertEqual(targetPaths, evidencePaths)
+        let immutableClaims = restorePlan.children.compactMap { child -> String? in
+            child.immutableRawPath
+        }
+        XCTAssertEqual(immutableClaims.count, 6)
+        XCTAssertEqual(Set(immutableClaims).count, 5)
+        for path in Set(immutableClaims) {
+            let claims = restorePlan.children.compactMap { child in
+                child.entries.first { $0.path == path }
+            }
+            let members = restorePlan.generationMembers.filter { $0.relativePath == path }
+            XCTAssertEqual(members.count, 1)
+            XCTAssertTrue(claims.allSatisfy { $0 == members[0].entry })
+        }
+
+        let firstPhoto = try XCTUnwrap(photoHistory.children.first)
+        var missingRowObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(decodedRecords)) as? [String: Any])
+        var missingRows = try XCTUnwrap(missingRowObject["fieldDrafts"] as? [[String: Any]])
+        let missingRowIndex = try XCTUnwrap(missingRows.firstIndex {
+            ($0["id"] as? String)?.lowercased()
+                == firstPhoto.currentCheckpoint.draftID.uuidString.lowercased()
+                && ($0["kind"] as? String) == "checkpoint"
+        })
+        let removedRow = missingRows.remove(at: missingRowIndex)
+        missingRowObject["fieldDrafts"] = missingRows
+        let missingCurrent = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+            JSONSerialization.data(withJSONObject: missingRowObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(
+            source: validated.manifest.source, records: missingCurrent))
+
+        var duplicateRowObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(decodedRecords)) as? [String: Any])
+        var duplicateRows = try XCTUnwrap(duplicateRowObject["fieldDrafts"] as? [[String: Any]])
+        duplicateRows.append(removedRow)
+        duplicateRowObject["fieldDrafts"] = duplicateRows
+        let duplicateCurrent = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+            JSONSerialization.data(withJSONObject: duplicateRowObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(
+            source: validated.manifest.source, records: duplicateCurrent))
+
+        let completeSnapshot = try XCTUnwrap(decodedRecords.mutationHistory)
+        let samePhotoHistory = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(
+            source: completeSnapshot, current: completeSnapshot,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity)
+        XCTAssertNoThrow(try samePhotoHistory.requireDestination(completeSnapshot))
+        XCTAssertNoThrow(try samePhotoHistory.requireSourcePhotoHistory(photoHistory))
+        let requiredPhotoReceipt = try XCTUnwrap(photoHistory.requiredHistory.first)
+        let photoQuarantine = MutationHistoryQuarantineRecordV1(
+            workspaceID: requiredPhotoReceipt.envelope.workspaceID,
+            mutationID: requiredPhotoReceipt.envelope.mutationID.rawValue,
+            identityDomain: .mutationEnvelope,
+            acceptedIdentitySHA256: requiredPhotoReceipt.receipt.envelopeSHA256,
+            conflictingIdentitySHA256: requiredPhotoReceipt.receipt.envelopeSHA256 == String(repeating: "d", count: 64)
+                ? String(repeating: "e", count: 64) : String(repeating: "d", count: 64),
+            detectedAt: Date(timeIntervalSince1970: 1_777_593_600))
+        let quarantinedPhotoHistory = MutationHistorySnapshotV1(
+            workspaceRevision: completeSnapshot.workspaceRevision,
+            lastLocalSequence: completeSnapshot.lastLocalSequence,
+            receipts: completeSnapshot.receipts, quarantines: [photoQuarantine],
+            entityRevisions: completeSnapshot.entityRevisions)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(quarantinedPhotoHistory))
+        let quarantinedUnion = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(
+            source: completeSnapshot, current: quarantinedPhotoHistory,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity)
+        XCTAssertEqual(quarantinedUnion.merged.quarantines, [photoQuarantine])
+        XCTAssertThrowsError(try quarantinedUnion.requireSourcePhotoHistory(photoHistory))
+        XCTAssertThrowsError(try samePhotoHistory.requireDestination(quarantinedPhotoHistory))
+        let missingOriginalSnapshot = MutationHistorySnapshotV1(
+            workspaceRevision: completeSnapshot.workspaceRevision,
+            lastLocalSequence: completeSnapshot.lastLocalSequence,
+            receipts: completeSnapshot.receipts.filter { $0 != firstPhoto.originals[0].original },
+            quarantines: completeSnapshot.quarantines,
+            entityRevisions: completeSnapshot.entityRevisions)
+        var missingOriginalObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(decodedRecords)) as? [String: Any])
+        missingOriginalObject["mutationHistory"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(missingOriginalSnapshot))
+        let missingOriginal = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
+            JSONSerialization.data(withJSONObject: missingOriginalObject, options: [.sortedKeys]))
+        XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(
+            source: validated.manifest.source, records: missingOriginal))
         let emptyQuality = try XCTUnwrap(decodedRecords.evidenceQuality)
         let emptyInbox = try XCTUnwrap(decodedRecords.fastSurveyInbox)
         XCTAssertEqual(emptyQuality, try EvidenceQualityBackupSnapshotV1(ruleSets: [], assessments: [],
@@ -466,13 +893,13 @@ final class S6_2BackupExportTests: XCTestCase {
         var futureObject = try XCTUnwrap(JSONSerialization.jsonObject(
             with: JSONEncoder().encode(decodedRecords)
         ) as? [String: Any])
-        futureObject["recordsSchemaVersion"] = 53
+        futureObject["recordsSchemaVersion"] = 54
         let futureRecords = try JSONDecoder().decode(V4BackupRecordsV1.self, from:
             JSONSerialization.data(withJSONObject: futureObject, options: [.sortedKeys]))
         let hostilePackages = [
             boundaryPackage(records: decodedRecords, declaredRecords: 51, persistent: 53),
             boundaryPackage(records: decodedRecords, declaredRecords: 52, persistent: 52),
-            boundaryPackage(records: futureRecords, declaredRecords: 53, persistent: 54)
+            boundaryPackage(records: futureRecords, declaredRecords: 54, persistent: 55)
         ]
         XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(futureRecords)) {
             XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords)
@@ -488,7 +915,7 @@ final class S6_2BackupExportTests: XCTestCase {
         var unknownVersionObject = try XCTUnwrap(JSONSerialization.jsonObject(
             with: BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data
         ) as? [String: Any])
-        unknownVersionObject["recordsSchemaVersion"] = 53
+        unknownVersionObject["recordsSchemaVersion"] = 54
         // This is an unknown-version input derived from actual canonical
         // current bytes, not a claimed canonical unknown-schema round-trip.
         let unknownVersionData = try JSONSerialization.data(
@@ -587,6 +1014,394 @@ final class S6_2BackupExportTests: XCTestCase {
             XCTAssertEqual(validated.members[fact.exportPath]?.sha256, fact.sha256)
             XCTAssertEqual(try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(fact.sourcePath)).sha256, fact.sha256)
         }
+
+        // Build a genuinely later current state after the six-photo source was
+        // frozen: one disjoint two-photo check plus one typed empty My Day draft.
+        // The replacement candidate carries the merged current history but only
+        // the source canonical rows, so S, C and D are all populated and distinct.
+        authorized.close()
+        let retainedMyDayDraftID = try await appendCompositionCurrentOnlyState(harness)
+        let currentAuthorized = try await makeAuthorizedExportHarness(harness)
+        defer { currentAuthorized.close() }
+        let currentDestination = harness.applicationSupportURL.appendingPathComponent(
+            "composition-current-export", isDirectory: true)
+        try fileManager.createDirectory(at: currentDestination, withIntermediateDirectories: false)
+        let currentExporter = makeService(currentAuthorized, capacity: .max)
+        let currentPreview = try currentAuthorized.contentAccess.withRead {
+            try currentExporter.prepare()
+        }
+        XCTAssertEqual(currentPreview.photoCount, 8)
+        let currentPackage = try await currentExporter.export(previewID: currentPreview.id,
+            to: currentDestination, contentAccess: currentAuthorized.contentAccess)
+        let currentImporter = try BackupImportService(
+            generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: { UUID(uuidString: "62000000-0000-0000-0000-000000000097")! },
+            scopedAccess: .alreadyAuthorized)
+        let currentValidated = try currentImporter.stageAndValidate(selectedPackageURL: currentPackage)
+        defer { try? currentImporter.discard(currentValidated) }
+        let currentRecords = currentValidated.records
+        let sourceOriginals = try XCTUnwrap(decodedRecords.mutationHistory).receipts
+        let currentOriginals = try XCTUnwrap(currentRecords.mutationHistory).receipts
+        let sourceOriginalsByKey = try Dictionary(uniqueKeysWithValues: sourceOriginals.map { original in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+            return (MutationWorkspaceKeyV1.value(workspaceID: envelope.workspaceID,
+                mutationID: envelope.mutationID), original)
+        })
+        let currentOriginalsByKey = try Dictionary(uniqueKeysWithValues: currentOriginals.map { original in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+            return (MutationWorkspaceKeyV1.value(workspaceID: envelope.workspaceID,
+                mutationID: envelope.mutationID), original)
+        })
+        XCTAssertTrue(sourceOriginalsByKey.allSatisfy { currentOriginalsByKey[$0.key] == $0.value })
+        XCTAssertFalse(Set(currentOriginalsByKey.keys).subtracting(sourceOriginalsByKey.keys).isEmpty)
+        let currentPhotoHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: currentValidated.manifest.source, records: currentRecords)
+        XCTAssertEqual(currentPhotoHistory.children.count, 8)
+        let sourcePhotoIDs = Set(photoHistory.children.map { $0.payload.childDraftID })
+        let currentOnlyPhotoIDs = Set(currentPhotoHistory.children.map { $0.payload.childDraftID })
+            .subtracting(sourcePhotoIDs)
+        XCTAssertEqual(currentOnlyPhotoIDs.count, 2)
+        let currentRestorePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+            history: currentPhotoHistory, entries: currentValidated.manifest.entries,
+            metadata: { try XCTUnwrap(currentValidated.members[$0]) })
+        let replacementRecords = try compositionReplacementRecords(
+            current: currentRecords, source: decodedRecords)
+        XCTAssertNotEqual(replacementRecords, decodedRecords)
+        XCTAssertNotEqual(replacementRecords, currentRecords)
+        let populatedComposition = try CheckRunnerPhotoRestoreCompositionV1.compose(
+            source: validated.manifest.source, sourceRecords: decodedRecords,
+            sourcePlan: restorePlan, currentSource: currentValidated.manifest.source,
+            currentRecords: currentRecords, currentPlan: currentRestorePlan,
+            replacementRecords: replacementRecords,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity)
+        let populatedDestination = try populatedComposition.applying(to: replacementRecords)
+        XCTAssertEqual(populatedDestination, currentRecords)
+        try populatedComposition.requireDestination(currentRecords)
+        let retainedDraftIDs = Set(populatedComposition.retainedCurrentDrafts.map(\.draftID))
+        XCTAssertTrue(retainedDraftIDs.contains(retainedMyDayDraftID))
+        XCTAssertTrue(currentOnlyPhotoIDs.isSubset(of: retainedDraftIDs))
+        XCTAssertEqual(Set(populatedComposition.retainedCurrentPhotoChildDraftIDs),
+            currentOnlyPhotoIDs)
+        XCTAssertEqual(populatedComposition.photoRestorePlans.count, 2)
+        let selectedSource = try populatedComposition.sourceBinding.selectSource(in: currentRecords)
+        XCTAssertEqual(selectedSource, populatedComposition.sourceSelection)
+        XCTAssertEqual(try CheckRunnerPhotoRestoreMemberBindingV1(plan: restorePlan)
+            .resolve(sourceSelection: selectedSource), restorePlan)
+        let retainedBinding = try XCTUnwrap(populatedComposition.retainedCurrentBinding)
+        let selectedRetained = try retainedBinding.selectSource(in: currentRecords)
+        XCTAssertEqual(Set(selectedRetained.children.map { $0.payload.childDraftID }),
+            currentOnlyPhotoIDs)
+        let resolvedRetained = try CheckRunnerPhotoRestoreMemberBindingV1(plan: currentRestorePlan)
+            .resolve(sourceSelection: selectedRetained)
+        XCTAssertEqual(resolvedRetained, populatedComposition.photoRestorePlans[1])
+        XCTAssertThrowsError(try populatedComposition.requireDestination(replacementRecords))
+
+        let retainedRow = try XCTUnwrap(currentRecords.fieldDrafts.first { row in
+            guard row.kind == .checkpoint,
+                  let checkpoint = try? FieldDraftCanonicalCodecV1.decode(
+                    FieldDraftCheckpointV1.self, from: row.canonicalData) else { return false }
+            return checkpoint.draftID == retainedMyDayDraftID
+        })
+        let extraDestination = try replacingFieldDrafts(currentRecords,
+            with: currentRecords.fieldDrafts + [retainedRow])
+        XCTAssertThrowsError(try populatedComposition.requireDestination(extraDestination))
+        var changedRows = currentRecords.fieldDrafts
+        let retainedIndex = try XCTUnwrap(changedRows.firstIndex(where: { $0 == retainedRow }))
+        changedRows[retainedIndex] = V16BackupFieldDraftRecordV1(kind: retainedRow.kind,
+            id: retainedRow.id, workspaceID: retainedRow.workspaceID,
+            revision: retainedRow.revision, canonicalData: retainedRow.canonicalData + Data([0]))
+        let changedDestination = try replacingFieldDrafts(currentRecords, with: changedRows)
+        XCTAssertThrowsError(try populatedComposition.requireDestination(changedDestination))
+
+        // A later mutation that names the source site is an authenticated but
+        // touching current history. The actual composition entry point rejects it.
+        currentAuthorized.close()
+        try appendCompositionTouchingState(harness)
+        let touchingAuthorized = try await makeAuthorizedExportHarness(harness)
+        defer { touchingAuthorized.close() }
+        let touchingDestination = harness.applicationSupportURL.appendingPathComponent(
+            "composition-touching-export", isDirectory: true)
+        try fileManager.createDirectory(at: touchingDestination, withIntermediateDirectories: false)
+        let touchingExporter = makeService(touchingAuthorized, capacity: .max)
+        let touchingPreview = try touchingAuthorized.contentAccess.withRead {
+            try touchingExporter.prepare()
+        }
+        let touchingPackage = try await touchingExporter.export(previewID: touchingPreview.id,
+            to: touchingDestination, contentAccess: touchingAuthorized.contentAccess)
+        let touchingImporter = try BackupImportService(
+            generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: { UUID(uuidString: "62000000-0000-0000-0000-000000000096")! },
+            scopedAccess: .alreadyAuthorized)
+        let touchingValidated = try touchingImporter.stageAndValidate(selectedPackageURL: touchingPackage)
+        defer { try? touchingImporter.discard(touchingValidated) }
+        let touchingHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: touchingValidated.manifest.source, records: touchingValidated.records)
+        let touchingPlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+            history: touchingHistory, entries: touchingValidated.manifest.entries,
+            metadata: { try XCTUnwrap(touchingValidated.members[$0]) })
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1.requireDisjointHistory(
+            source: try XCTUnwrap(decodedRecords.mutationHistory).receipts,
+            current: try XCTUnwrap(touchingValidated.records.mutationHistory).receipts))
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1.compose(
+            source: validated.manifest.source, sourceRecords: decodedRecords,
+            sourcePlan: restorePlan, currentSource: touchingValidated.manifest.source,
+            currentRecords: touchingValidated.records, currentPlan: touchingPlan,
+            replacementRecords: touchingValidated.records,
+            sourceIdentity: harness.session.workspaceIdentity,
+            currentIdentity: harness.session.workspaceIdentity))
+    }
+
+    @MainActor
+    func testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic() async throws {
+        let success = try await makePhotoRestoreJourney("live-success")
+        defer { try? fileManager.removeItem(at: success.harness.applicationSupportURL) }
+        try await assertSameLengthCommonGenericCorruptionFailsBeforeEffects(success)
+        let successNewID = uuid(701), successRestoreID = uuid(702)
+        let successService = try BackupRestoreService(
+            applicationSupportURL: success.harness.applicationSupportURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: sequence([successNewID, successRestoreID])
+        )
+        let restored = try await successService.restore(
+            validatedPackage: success.sourcePackage,
+            currentModelContext: success.harness.context,
+            currentGenerationID: success.oldGenerationID,
+            currentGenerationRootURL: success.harness.session.generationRootURL,
+            mode: .replaceExisting
+        )
+        XCTAssertEqual(restored.generationID, successNewID)
+        try await assertCompletedPhotoRestoreJourney(success, session: restored,
+            expectedCurrentID: successNewID, restoreID: successRestoreID)
+
+        let oldOutcome: Set<BackupRestoreFailurePoint> = [
+            .beforePreparedWrite, .afterPreparedWrite, .afterGenerationInstall,
+        ]
+        let points: [BackupRestoreFailurePoint] = [
+            .beforePreparedWrite, .afterPreparedWrite, .afterGenerationInstall,
+            .afterPointerSwitch, .afterNewGenerationValidation,
+        ]
+        for (offset, point) in points.enumerated() {
+            let fixture = try await makePhotoRestoreJourney("cold-\(offset)-\(point)")
+            defer { try? fileManager.removeItem(at: fixture.harness.applicationSupportURL) }
+            let newID = uuid(710 + offset * 2), restoreID = uuid(711 + offset * 2)
+            let service = try BackupRestoreService(
+                applicationSupportURL: fixture.harness.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: sequence([newID, restoreID]),
+                failureInjection: BackupRestoreFailureInjection(failOnceAt: point)
+            )
+            await XCTAssertThrowsErrorAsync {
+                _ = try await service.restore(
+                    validatedPackage: fixture.sourcePackage,
+                    currentModelContext: fixture.harness.context,
+                    currentGenerationID: fixture.oldGenerationID,
+                    currentGenerationRootURL: fixture.harness.session.generationRootURL,
+                    mode: .replaceExisting
+                )
+            } verify: { error in
+                XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure, "\(point)")
+            }
+
+            let factory = StoreGenerationFactory(
+                applicationSupportURL: fixture.harness.applicationSupportURL)
+            let intentStore = try RestoreIntentStore(
+                applicationSupportURL: fixture.harness.applicationSupportURL)
+            let intent = try intentStore.load()
+            let bindingURL = photoRestoreBindingURL(
+                fixture.harness.applicationSupportURL, restoreID: restoreID)
+            let binding = try readPhotoRestoreBinding(bindingURL)
+            XCTAssertEqual(binding.schemaVersion, 2, "\(point)")
+            XCTAssertEqual(binding.core.restoreID, restoreID, "\(point)")
+            XCTAssertEqual(binding.core.oldGenerationID, fixture.oldGenerationID, "\(point)")
+            XCTAssertEqual(binding.core.newGenerationID, newID, "\(point)")
+            XCTAssertEqual(binding.core.selections.map { $0.members.childDraftIDs.count }, [6, 2], "\(point)")
+            XCTAssertNotEqual(binding.core.currentRecordsSHA256,
+                binding.core.destinationRecordsSHA256, "\(point)")
+            XCTAssertEqual(binding.completion, .active, "\(point)")
+            XCTAssertEqual(binding.intent.phase, .prepared, "\(point)")
+            if point == .beforePreparedWrite || point == .afterPreparedWrite {
+                XCTAssertNil(binding.genericReceipt, "\(point)")
+            } else {
+                let genericReceipt = try XCTUnwrap(binding.genericReceipt, "\(point)")
+                XCTAssertEqual(genericReceipt.adoptedStageIDs,
+                    [fixture.sourceOnlyGenericStage.item.stageID], "\(point)")
+                XCTAssertEqual(genericReceipt.reusedStageIDs,
+                    [fixture.commonGenericStage.item.stageID], "\(point)")
+                XCTAssertEqual(genericReceipt.publishedAt,
+                    try XCTUnwrap(binding.intent.replacementAt, "\(point)"), "\(point)")
+                let transition = try XCTUnwrap(binding.rawTransition, "\(point)")
+                XCTAssertEqual(Set(transition.genericStageIDs), Set([
+                    fixture.commonGenericStage.item.stageID,
+                    fixture.sourceOnlyGenericStage.item.stageID,
+                ]), "\(point)")
+                XCTAssertEqual(Set(transition.newStageIDs),
+                    [fixture.sourceOnlyGenericStage.item.stageID], "\(point)")
+                XCTAssertEqual(transition.reusedStageIDs.count, 7, "\(point)")
+                XCTAssertTrue(transition.reusedStageIDs.contains(
+                    fixture.commonGenericStage.item.stageID), "\(point)")
+                XCTAssertEqual(Set(transition.before.entries.map { $0.item.stageID }),
+                    try allStageIDs(fixture.oldRecords), "\(point)")
+                XCTAssertEqual(Set(transition.after.entries.map { $0.item.stageID }),
+                    try allStageIDs(fixture.restoredRecords), "\(point)")
+                let ownership = try XCTUnwrap(binding.rawOwnership, "\(point)")
+                let createdFiles = ownership.createdNodes.filter { !$0.directory }
+                XCTAssertEqual(createdFiles.count, 1, "\(point)")
+                let createdFile = try XCTUnwrap(createdFiles.first, "\(point)")
+                XCTAssertTrue(createdFile.path.hasSuffix("/payload.bin"), "\(point)")
+                XCTAssertFalse(createdFile.path.hasSuffix("/raw-publication.json"), "\(point)")
+            }
+            if let intent { try binding.requireIntent(intent) }
+
+            let sidecarURL = fixture.harness.applicationSupportURL.appendingPathComponent(
+                "FieldEvidenceRestore/portable-exchange-restore.json")
+            switch point {
+            case .beforePreparedWrite:
+                XCTAssertNil(intent)
+                XCTAssertNil(binding.rawTransition)
+                XCTAssertNil(binding.rawOwnership)
+                XCTAssertFalse(fileManager.fileExists(atPath: sidecarURL.path))
+                XCTAssertEqual(try factory.currentGenerationID(), fixture.oldGenerationID)
+            case .afterPreparedWrite:
+                XCTAssertEqual(intent?.phase, .prepared)
+                XCTAssertNil(binding.rawTransition)
+                XCTAssertNil(binding.rawOwnership)
+                XCTAssertTrue(fileManager.fileExists(atPath: sidecarURL.path))
+                XCTAssertEqual(try factory.currentGenerationID(), fixture.oldGenerationID)
+            case .afterGenerationInstall:
+                XCTAssertEqual(intent?.phase, .generationInstalled)
+                XCTAssertNotNil(binding.rawTransition)
+                XCTAssertNotNil(binding.rawOwnership)
+                XCTAssertEqual(Set(binding.rawTransition?.newStageIDs ?? []),
+                    [fixture.sourceOnlyGenericStage.item.stageID])
+                XCTAssertEqual(Set(binding.rawTransition?.reusedStageIDs ?? []).count, 7)
+                XCTAssertTrue(fileManager.fileExists(atPath: sidecarURL.path))
+                XCTAssertEqual(try factory.currentGenerationID(), fixture.oldGenerationID)
+            case .afterPointerSwitch:
+                XCTAssertEqual(intent?.phase, .pointerSwitched)
+                XCTAssertNotNil(binding.rawTransition)
+                XCTAssertNotNil(binding.rawOwnership)
+                XCTAssertTrue(fileManager.fileExists(atPath: sidecarURL.path))
+                XCTAssertEqual(try factory.currentGenerationID(), newID)
+            case .afterNewGenerationValidation:
+                XCTAssertEqual(intent?.phase, .newGenerationValidated)
+                XCTAssertNotNil(binding.rawTransition)
+                XCTAssertNotNil(binding.rawOwnership)
+                XCTAssertFalse(fileManager.fileExists(atPath: sidecarURL.path))
+                XCTAssertEqual(try factory.currentGenerationID(), newID)
+            default:
+                XCTFail("Unselected photo restore interruption \(point)")
+            }
+
+            // A fresh service instance is the production cold-start boundary.
+            let recovery = try BackupRestoreService(
+                applicationSupportURL: fixture.harness.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            let recovered = try await recovery
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            let expectedID = oldOutcome.contains(point) ? fixture.oldGenerationID : newID
+            XCTAssertEqual(try factory.currentGenerationID(), expectedID, "\(point)")
+            if oldOutcome.contains(point) {
+                XCTAssertNil(recovered, "\(point)")
+                try await assertPhotoRestoreSnapshot(fixture,
+                    session: fixture.harness.session, restored: false)
+            } else {
+                let recoveredSession = try XCTUnwrap(recovered, "\(point)")
+                XCTAssertEqual(recoveredSession.generationID, newID, "\(point)")
+                try await assertPhotoRestoreSnapshot(fixture,
+                    session: recoveredSession, restored: true)
+            }
+            XCTAssertNil(try intentStore.load(), "\(point)")
+            XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path), "\(point)")
+            XCTAssertFalse(fileManager.fileExists(atPath: sidecarURL.path), "\(point)")
+            XCTAssertFalse(fileManager.fileExists(
+                atPath: fixture.sourcePackage.stagedPackageURL.path), "\(point)")
+
+            // A second cold retry cannot replay any target receipt, raw publish,
+            // pointer switch, or generation retirement.
+            let stableRaw = try treeFacts(fixture.rawRoot)
+            let stablePointer = try factory.currentGenerationID()
+            let stableRetired = try factory.retiredGenerationIDs()
+            let noFurtherRecovery = try await recovery
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(noFurtherRecovery, "\(point)")
+            XCTAssertEqual(try factory.currentGenerationID(), stablePointer, "\(point)")
+            XCTAssertEqual(try factory.retiredGenerationIDs(), stableRetired, "\(point)")
+            XCTAssertEqual(try treeFacts(fixture.rawRoot), stableRaw, "\(point)")
+        }
+
+        try await assertUnsupportedCurrentOnlyGenericCompositionFailsBeforeEffects()
+
+        for (offset, point) in [BackupRestoreFailurePoint.afterGenerationInstall,
+                                .afterPointerSwitch].enumerated() {
+            let fixture = try await makeSourceEmptyPhotoRestoreJourney(
+                "source-empty-\(offset)-\(point)")
+            defer { try? fileManager.removeItem(at: fixture.harness.applicationSupportURL) }
+            let newID = uuid(760 + offset * 2), restoreID = uuid(761 + offset * 2)
+            let service = try BackupRestoreService(
+                applicationSupportURL: fixture.harness.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: sequence([newID, restoreID]),
+                failureInjection: BackupRestoreFailureInjection(failOnceAt: point))
+            await XCTAssertThrowsErrorAsync {
+                _ = try await service.restore(validatedPackage: fixture.sourcePackage,
+                    currentModelContext: fixture.harness.context,
+                    currentGenerationID: fixture.oldGenerationID,
+                    currentGenerationRootURL: fixture.harness.session.generationRootURL,
+                    mode: .replaceExisting)
+            } verify: { error in
+                XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure, "\(point)")
+            }
+            let bindingURL = photoRestoreBindingURL(
+                fixture.harness.applicationSupportURL, restoreID: restoreID)
+            let binding = try readPhotoRestoreBinding(bindingURL)
+            XCTAssertEqual(binding.core.selections.map {
+                $0.members.childDraftIDs.count
+            }, [0, 2], "\(point)")
+            XCTAssertEqual(binding.core.currentRecordsSHA256,
+                binding.core.destinationRecordsSHA256, "\(point)")
+            XCTAssertNil(binding.genericReceipt, "\(point)")
+            let transition = try XCTUnwrap(binding.rawTransition, "\(point)")
+            XCTAssertEqual(transition.newStageIDs, [], "\(point)")
+            XCTAssertEqual(transition.reusedStageIDs, [], "\(point)")
+            XCTAssertEqual(transition.genericStageIDs, [], "\(point)")
+            XCTAssertEqual(Set(transition.before.entries.map { $0.item.stageID }),
+                try allStageIDs(fixture.records), "\(point)")
+            XCTAssertEqual(transition.before, transition.after, "\(point)")
+            let ownership = try XCTUnwrap(binding.rawOwnership, "\(point)")
+            XCTAssertEqual(ownership.createdNodes.count, 1, "\(point)")
+            XCTAssertTrue(ownership.createdNodes.allSatisfy(\.directory), "\(point)")
+            let recovery = try BackupRestoreService(
+                applicationSupportURL: fixture.harness.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            let recovered = try await recovery
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            let expectedID = point == .afterGenerationInstall
+                ? fixture.oldGenerationID : newID
+            let factory = StoreGenerationFactory(
+                applicationSupportURL: fixture.harness.applicationSupportURL)
+            XCTAssertEqual(try factory.currentGenerationID(), expectedID, "\(point)")
+            let expectedRetired = fixture.initialRetiredGenerationIDs
+                + (point == .afterGenerationInstall ? [] : [fixture.oldGenerationID])
+            let retired = try factory.retiredGenerationIDs()
+            XCTAssertEqual(retired.count, expectedRetired.count, "\(point)")
+            XCTAssertEqual(Set(retired), Set(expectedRetired), "\(point)")
+            if point == .afterGenerationInstall {
+                XCTAssertNil(recovered, "\(point)")
+                try assertSourceEmptyPhotoSnapshot(fixture,
+                    session: fixture.harness.session)
+            } else {
+                try assertSourceEmptyPhotoSnapshot(fixture,
+                    session: XCTUnwrap(recovered, "\(point)"))
+            }
+            XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path), "\(point)")
+            XCTAssertNil(try RestoreIntentStore(
+                applicationSupportURL: fixture.harness.applicationSupportURL).load(), "\(point)")
+            XCTAssertFalse(fileManager.fileExists(
+                atPath: fixture.sourcePackage.stagedPackageURL.path), "\(point)")
+        }
     }
 
     @MainActor
@@ -619,23 +1434,155 @@ final class S6_2BackupExportTests: XCTestCase {
     func testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority() async throws {
         let harness = try await makeMixedHarness("capacity")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
         let destination = harness.applicationSupportURL.appendingPathComponent("export", isDirectory: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
-        let service = makeService(harness, capacity: 0)
-        let preview = try service.prepare()
+        let service = makeService(authorized, capacity: 0)
+        let preview = try authorized.contentAccess.withRead { try service.prepare() }
         let beforeFiles = try treeFacts(harness.session.generationRootURL)
         let beforeRecords = try modelFacts(harness.context)
 
-        XCTAssertThrowsError(try service.export(previewID: preview.id, to: destination)) {
-            guard let typed = $0 as? BackupExportServiceError else {
-                return XCTFail("Expected exact capacity failure, got \($0)")
-            }
-            XCTAssertEqual(typed, .insufficientStorage)
+        do {
+            _ = try await service.export(previewID: preview.id, to: destination,
+                contentAccess: authorized.contentAccess)
+            XCTFail("Expected exact capacity failure")
+        } catch {
+            XCTAssertEqual(error as? BackupExportServiceError, .insufficientStorage)
         }
         XCTAssertFalse(fileManager.fileExists(atPath: destination.appendingPathComponent("AssetRounds.fieldrecordbackup").path))
         XCTAssertEqual(try treeFacts(harness.session.generationRootURL), beforeFiles)
         XCTAssertEqual(try modelFacts(harness.context), beforeRecords)
         XCTAssertFalse(harness.context.hasChanges)
+    }
+
+    @MainActor
+    func testAsyncExportCancellationDuringWriterRemovesOwnedPackage() async throws {
+        let harness = try await makeMixedHarness("cancel-during-write", currentWriterSource: true,
+                                                 beginOnly: true)
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
+        let destination = harness.applicationSupportURL.appendingPathComponent("cancel-export", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let service = makeService(authorized, capacity: .max)
+        let preview = try authorized.contentAccess.withRead { try service.prepare() }
+        let gate = BackupExportCancellationGate()
+        let export = Task { @MainActor in
+            try await service.export(previewID: preview.id, to: destination,
+                contentAccess: authorized.contentAccess,
+                cancellation: StreamingArchiveCancellationV1 { try gate.checkpoint() })
+        }
+        defer { gate.resume() }
+        let enteredWriter = await Task.detached { gate.waitUntilEntered() }.value
+        guard enteredWriter else {
+            export.cancel()
+            gate.resume()
+            _ = try? await export.value
+            return XCTFail("Export did not reach the bounded writer checkpoint")
+        }
+        export.cancel()
+        gate.resume()
+
+        do {
+            _ = try await export.value
+            XCTFail("Cancelled writer must not publish")
+        } catch {
+            XCTAssertEqual(error as? BackupExportServiceError, .cancelled)
+        }
+        XCTAssertFalse(fileManager.fileExists(atPath: destination
+            .appendingPathComponent("AssetRounds.fieldrecordbackup").path))
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: destination.path), [])
+    }
+
+    @MainActor
+    func testAsyncExportCancellationImmediatelyAfterWriterSuccessCleansReceiptOwnedPackage() async throws {
+        let harness = try await makeMixedHarness("cancel-after-write", currentWriterSource: true,
+                                                 beginOnly: true)
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
+        let destination = harness.applicationSupportURL.appendingPathComponent("cancel-export", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let service = makeService(authorized, capacity: .max)
+        let preview = try authorized.contentAccess.withRead { try service.prepare() }
+        service.afterArchivePublicationForTesting = {
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
+        let export = Task { @MainActor in
+            try await service.export(previewID: preview.id, to: destination,
+                contentAccess: authorized.contentAccess)
+        }
+
+        do {
+            _ = try await export.value
+            XCTFail("Post-write cancellation must revoke publication")
+        } catch {
+            XCTAssertEqual(error as? BackupExportServiceError, .cancelled)
+        }
+        XCTAssertFalse(fileManager.fileExists(atPath: destination
+            .appendingPathComponent("AssetRounds.fieldrecordbackup").path))
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: destination.path), [])
+    }
+
+    func testPublishedArchiveCleanupDeletesOnlyExactOwnedInode() throws {
+        let root = try makeArchiveCleanupFixtureRoot("exact-owned")
+        defer { try? fileManager.removeItem(at: root) }
+        let receipt = try makeArchiveCleanupReceipt(in: root)
+
+        try BackupExportService.removeOwnedPublishedArchiveForTesting(
+            receipt: receipt, within: root)
+
+        XCTAssertFalse(fileManager.fileExists(atPath: receipt.archiveURL.path))
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: root.path).sorted(),
+                       ["source", "staging"])
+    }
+
+    func testPublishedArchiveCleanupPreservesEqualMagicReplacement() throws {
+        let root = try makeArchiveCleanupFixtureRoot("equal-magic-replacement")
+        defer { try? fileManager.removeItem(at: root) }
+        let receipt = try makeArchiveCleanupReceipt(in: root)
+        let original = try Data(contentsOf: receipt.archiveURL)
+        let retained = root.appendingPathComponent("retained-original.fieldrecordbackup")
+        try fileManager.moveItem(at: receipt.archiveURL, to: retained)
+        try original.write(to: receipt.archiveURL, options: .withoutOverwriting)
+
+        XCTAssertTrue(try StreamingArchiveService.hasFormatMagic(at: receipt.archiveURL))
+        XCTAssertThrowsError(try BackupExportService.removeOwnedPublishedArchiveForTesting(
+            receipt: receipt, within: root)) {
+            XCTAssertEqual($0 as? BackupExportServiceError, .cleanupFailed)
+        }
+        XCTAssertEqual(try Data(contentsOf: receipt.archiveURL), original)
+        XCTAssertTrue(fileManager.fileExists(atPath: retained.path))
+    }
+
+    func testPublishedArchiveCleanupPreservesReplacementRacedBeforePrivateClaim() throws {
+        let root = try makeArchiveCleanupFixtureRoot("raced-replacement")
+        defer { try? fileManager.removeItem(at: root) }
+        let receipt = try makeArchiveCleanupReceipt(in: root)
+        let replacement = StreamingArchiveFormatV1.magic + Data("replacement".utf8)
+        let retained = root.appendingPathComponent("retained-owned.fieldrecordbackup")
+
+        XCTAssertThrowsError(try BackupExportService.removeOwnedPublishedArchiveForTesting(
+            receipt: receipt, within: root, beforePrivateClaim: {
+                try self.fileManager.moveItem(at: receipt.archiveURL, to: retained)
+                try replacement.write(to: receipt.archiveURL, options: .withoutOverwriting)
+            })) {
+            XCTAssertEqual($0 as? BackupExportServiceError, .cleanupFailed)
+        }
+        XCTAssertEqual(try Data(contentsOf: receipt.archiveURL), replacement)
+        XCTAssertTrue(fileManager.fileExists(atPath: retained.path))
+    }
+
+    func testFormatMagicProbeRejectsFIFOWithoutBlocking() throws {
+        let root = try makeArchiveCleanupFixtureRoot("fifo-magic")
+        defer { try? fileManager.removeItem(at: root) }
+        let fifo = root.appendingPathComponent("hostile.fieldrecordbackup")
+        XCTAssertEqual(Darwin.mkfifo(fifo.path, mode_t(0o600)), 0)
+        let started = Date()
+
+        XCTAssertThrowsError(try StreamingArchiveService.hasFormatMagic(at: fifo))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2)
     }
 
     func testCanonicalFixturesAndExportedBundleTypeDeclaration() throws {
@@ -756,6 +1703,66 @@ extension S6_2BackupExportTests {
     }
 }
 
+private actor BackupExportTestAuthentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        .authenticated
+    }
+
+    func cancel(attemptID: UUID) {}
+}
+
+private final class BackupExportCancellationGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private let entered = DispatchSemaphore(value: 0)
+    private let release = DispatchSemaphore(value: 0)
+    private var didEnter = false
+
+    func checkpoint() throws {
+        // The exporter checks cancellation on MainActor before freezing. This
+        // gate targets the first archive-writer checkpoint only.
+        guard !Thread.isMainThread else { return }
+        lock.lock()
+        let shouldWait = !didEnter
+        if shouldWait { didEnter = true }
+        lock.unlock()
+        guard shouldWait else { return }
+        entered.signal()
+        guard release.wait(timeout: .now() + 10) == .success else {
+            throw StreamingArchiveFailureV1.cancelled
+        }
+    }
+
+    func waitUntilEntered() -> Bool {
+        entered.wait(timeout: .now() + 10) == .success
+    }
+    func resume() { release.signal() }
+}
+
+@MainActor
+private final class BackupExportTestNotificationSystem: NotificationSystemPortV1 {
+    private var requests: [NotificationSystemRequestV1] = []
+
+    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+
+    func observations() async throws -> [NotificationSystemObservationV1] {
+        requests.map {
+            .init(requestID: $0.notification.requestID, request: $0, delivered: false)
+        }
+    }
+
+    func add(_ request: NotificationSystemRequestV1) async throws {
+        requests.append(request)
+    }
+
+    func remove(_ requestIDs: [String]) async throws {
+        requests.removeAll { requestIDs.contains($0.notification.requestID) }
+    }
+}
+
 extension S6_2BackupExportTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
@@ -808,6 +1815,66 @@ private extension S6_2BackupExportTests {
         let context: ModelContext
         let countedRoots: [String]
     }
+    struct PhotoRestoreJourney {
+        let harness: Harness
+        let sourcePackage: ValidatedV4BackupPackageV1
+        let oldGenerationID: UUID
+        let initialRetiredGenerationIDs: [UUID]
+        let oldRecords: V4BackupRecordsV1
+        let oldRecordsData: Data
+        let restoredRecords: V4BackupRecordsV1
+        let restoredRecordsData: Data
+        let expectedMembers: [V4BackupEntryV1]
+        let expectedPlan: CheckRunnerPhotoBackupRestorePlanV1
+        let oldRawFacts: [String]
+        let rawRoot: URL
+        let retainedMyDayDraftID: UUID
+        let sourcePhotoDraftIDs: Set<UUID>
+        let retainedPhotoDraftIDs: Set<UUID>
+        let commonGenericStage: GenericCompositionStage
+        let sourceOnlyGenericStage: GenericCompositionStage
+    }
+    struct GenericCompositionStage {
+        let checkpoint: FieldDraftCheckpointV1
+        let item: AttachmentStagingItemV1
+        let bytes: Data
+    }
+    struct SourceEmptyPhotoRestoreJourney {
+        let harness: Harness
+        let sourcePackage: ValidatedV4BackupPackageV1
+        let oldGenerationID: UUID
+        let initialRetiredGenerationIDs: [UUID]
+        let records: V4BackupRecordsV1
+        let recordsData: Data
+        let members: [V4BackupEntryV1]
+        let rawRoot: URL
+        let rawFacts: [String]
+        let retainedMyDayDraftID: UUID
+        let retainedPhotoDraftIDs: Set<UUID>
+    }
+    @MainActor
+    final class AuthorizedExportHarness {
+        let defaultsSuiteName: String
+        let defaults: UserDefaults
+        let presentation: AppAccessPresentationV1
+        let coordinator: StoreSessionCoordinator
+        let contentAccess: AppAccessPresentationV1.ContentAccess
+
+        init(defaultsSuiteName: String, defaults: UserDefaults,
+             presentation: AppAccessPresentationV1, coordinator: StoreSessionCoordinator,
+             contentAccess: AppAccessPresentationV1.ContentAccess) {
+            self.defaultsSuiteName = defaultsSuiteName
+            self.defaults = defaults
+            self.presentation = presentation
+            self.coordinator = coordinator
+            self.contentAccess = contentAccess
+        }
+
+        func close() {
+            try? coordinator.invalidateAndReleaseWriter()
+            defaults.removePersistentDomain(forName: defaultsSuiteName)
+        }
+    }
     struct PayloadFact: Equatable {
         let path: String
         let byteCount: Int
@@ -829,10 +1896,334 @@ private extension S6_2BackupExportTests {
     }
 
     @MainActor
+    func makeService(_ harness: AuthorizedExportHarness, capacity: Int64) -> BackupExportService {
+        BackupExportService(
+            modelContext: harness.coordinator.modelContext,
+            generationRootURL: harness.coordinator.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in capacity }),
+            now: { Date(timeIntervalSince1970: 1_786_708_800) },
+            makeUUID: { UUID(uuidString: "62000000-0000-0000-0000-000000000099")! },
+            appVersion: { "4.0" }, appBuild: { "42" }
+        )
+    }
+
+    @MainActor
+    func makeAuthorizedExportHarness(_ source: Harness) async throws -> AuthorizedExportHarness {
+        let suite = "S6_2BackupExportTests.access.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let router = StartupRouter(applicationSupportURL: source.applicationSupportURL)
+        do {
+            let session = try await ProductionCompositionRoot.makeAppAccessSession(
+                applicationSupportURL: source.applicationSupportURL,
+                startupRouter: router,
+                defaults: defaults,
+                authenticationClient: BackupExportTestAuthentication(),
+                notificationSystem: BackupExportTestNotificationSystem()
+            )
+            let presentation = AppAccessPresentationV1(startupRouter: router,
+                sessionFactory: { session })
+            let published = expectation(description: "Production backup access published")
+            let publication = presentation.$permitsContentPresentation
+                .filter { $0 }.prefix(1).sink { _ in published.fulfill() }
+            defer { publication.cancel() }
+            await presentation.bootstrapIfNeeded()
+            await fulfillment(of: [published], timeout: 30)
+            guard case .ready(let coordinator, _, _) = router.route,
+                  coordinator.generationID == source.session.generationID,
+                  coordinator.generationRootURL == source.session.generationRootURL else {
+                throw FixtureError.invalid
+            }
+            return AuthorizedExportHarness(defaultsSuiteName: suite, defaults: defaults,
+                presentation: presentation, coordinator: coordinator,
+                contentAccess: try XCTUnwrap(presentation.backupPreviewAccess))
+        } catch {
+            if case .ready(let coordinator, _, _) = router.route {
+                try? coordinator.invalidateAndReleaseWriter()
+            }
+            defaults.removePersistentDomain(forName: suite)
+            throw error
+        }
+    }
+
+    @MainActor
+    func exportLivePackage(_ harness: Harness, directoryName: String) async throws -> URL {
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
+        let destination = harness.applicationSupportURL.appendingPathComponent(
+            directoryName, isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let exporter = makeService(authorized, capacity: .max)
+        let preview = try authorized.contentAccess.withRead { try exporter.prepare() }
+        return try await exporter.export(previewID: preview.id, to: destination,
+            contentAccess: authorized.contentAccess)
+    }
+
+    func makeArchiveCleanupFixtureRoot(_ label: String) throws -> URL {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "S6_2BackupExportTests-cleanup-\(label)-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: false)
+        return root
+    }
+
+    func makeArchiveCleanupReceipt(in root: URL) throws -> StreamingArchiveWriteReceiptV1 {
+        let source = root.appendingPathComponent("source", isDirectory: true)
+        let staging = root.appendingPathComponent("staging", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: false)
+        try fileManager.createDirectory(at: staging, withIntermediateDirectories: false)
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: staging)
+        let records = Data("{\"recordsSchemaVersion\":1}".utf8)
+        let sourceFile = source.appendingPathComponent("records.json")
+        try records.write(to: sourceFile)
+        let sourceDescriptor = Darwin.open(source.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard sourceDescriptor >= 0 else { throw FixtureError.invalid }
+        defer { _ = Darwin.close(sourceDescriptor) }
+        var sourceFacts = stat()
+        guard Darwin.fstat(sourceDescriptor, &sourceFacts) == 0 else { throw FixtureError.invalid }
+        let entry = StreamingArchiveWriteEntryV1(
+            path: "records.json", mimeType: "application/json",
+            sourceRootURL: source, sourceRelativePath: sourceFile.lastPathComponent,
+            expectedSourceRootIdentity: .init(device: UInt64(sourceFacts.st_dev),
+                                              inode: UInt64(sourceFacts.st_ino)),
+            expectedUncompressedByteCount: Int64(records.count),
+            expectedContentSHA256: SHA256.hash(data: records)
+                .map { String(format: "%02x", $0) }.joined(),
+            compression: .stored)
+        let destination = root.appendingPathComponent("AssetRounds.fieldrecordbackup")
+        return try StreamingArchiveService().write(
+            .init(entries: [entry], stagingDirectoryURL: staging), to: destination)
+    }
+
+    @MainActor
+    private func assertPhotoRawRestoreKernel(package: ValidatedV4BackupPackageV1,
+        history: CheckRunnerPhotoBackupHistoryV1, plan: CheckRunnerPhotoBackupRestorePlanV1) async throws {
+        let workspaceID = history.sourceWorkspaceID
+        let unrelatedBytes = Data(repeating: 0x5c, count: 2 * 1_024 * 1_024)
+        let cases = ["rollback", "public-group", "after-manifest", "private-group",
+                     "private-file-deletion", "hostile-private", "existing-parent", "finish", "reused",
+                     "replace-before-file-claim", "replace-before-directory-claim", "after-claim",
+                     "finish-after-claim"]
+        func run(_ name: String, at support: URL) async throws {
+            let adapter = try DraftAttachmentStagingAdapterV1(applicationSupportURL: support,
+                workspaceID: workspaceID)
+            let unrelated = try await adapter.stage(data: unrelatedBytes, draftID: UUID(),
+                workspaceID: workspaceID, attachmentKind: .file, createdAt: package.manifest.exportedAt)
+            let rawRoot = support.appendingPathComponent(OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+                .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName, isDirectory: true)
+            let unrelatedURL = rawRoot.appendingPathComponent(DraftAttachmentStagingAdapterV1.relativeDataPath(
+                draftID: unrelated.draftID, stageID: unrelated.stageID))
+            let manifestURL = rawRoot.appendingPathComponent(DraftAttachmentStagingAdapterV1.manifestName)
+            let beforeManifest = try Data(contentsOf: manifestURL)
+            var currentChildren: [UUID: UUID] = [:]
+            if name == "existing-parent" {
+                let raw = try XCTUnwrap(history.children.first?.raw)
+                currentChildren[raw.readyItem.draftID] = raw.intent.stageID
+                let parent = rawRoot.appendingPathComponent(
+                    String(DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                        draftID: raw.readyItem.draftID, stageID: raw.intent.stageID).split(separator: "/")[0]),
+                    isDirectory: true)
+                try fileManager.createDirectory(at: parent, withIntermediateDirectories: false)
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: parent)
+            }
+            let transition = try await adapter.preparePhotoRestoreRawTransition(
+                sourcePlan: plan, sourceHistory: history, currentSnapshots: [], currentCommittingCheckpoints: [:],
+                currentCanonicalStages: [unrelated], currentChildStageIDs: currentChildren,
+                retainedCurrentStageIDs: [unrelated.stageID])
+            XCTAssertEqual(Set(transition.newStageIDs), Set(plan.rawPublications.map { $0.physicalEntry.entry.item.stageID }))
+            XCTAssertTrue(transition.reusedStageIDs.isEmpty)
+            let proof = try await adapter.preparePhotoBackupVerification([], committingCheckpoints: [:],
+                canonicalStages: [unrelated], childStageIDs: currentChildren)
+            let authority = CheckRunnerPhotoRestoreRawKernelTestAccessV1.authority(restoreID: UUID(),
+                workspaceID: workspaceID, applicationSupportURL: support,
+                plannedBindingSHA256: String(repeating: "a", count: 64), transition: transition,
+                plan: plan, members: package.members)
+            let prepared = try await adapter.preparePhotoRestoreRawPublication(authority: authority,
+                currentVerification: proof)
+            let ownershipBytes = try FieldDraftCanonicalCodecV1.encode(prepared.ownership)
+            let ownership = try FieldDraftCanonicalCodecV1.decode(DraftPhotoRestoreRawOwnershipV1.self,
+                from: ownershipBytes)
+            XCTAssertEqual(try ownership.sha256, try prepared.ownership.sha256)
+            XCTAssertEqual(try ownership.sha256, CanonicalJSONV1.sha256(ownershipBytes))
+            XCTAssertEqual(Set(ownership.createdNodes.compactMap(\.claimPath)).count,
+                ownership.createdNodes.count)
+            let permit = try CheckRunnerPhotoRestoreRawKernelTestAccessV1.permit(ownership)
+            XCTAssertEqual(try Data(contentsOf: manifestURL), beforeManifest)
+            XCTAssertEqual(try Data(contentsOf: unrelatedURL), unrelatedBytes)
+            var hostileObject = try XCTUnwrap(JSONSerialization.jsonObject(with: ownershipBytes) as? [String: Any])
+            hostileObject["unbound"] = true
+            XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(DraftPhotoRestoreRawOwnershipV1.self,
+                from: JSONSerialization.data(withJSONObject: hostileObject, options: [.sortedKeys])))
+            var hostileClaimObject = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: ownershipBytes) as? [String: Any])
+            var hostileCreated = try XCTUnwrap(hostileClaimObject["createdNodes"] as? [[String: Any]])
+            hostileCreated[0]["claimPath"] = ".caller-selected-claim"
+            hostileClaimObject["createdNodes"] = hostileCreated
+            XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(DraftPhotoRestoreRawOwnershipV1.self,
+                from: JSONSerialization.data(withJSONObject: hostileClaimObject, options: [.sortedKeys])))
+            if name == "hostile-private" {
+                let hostileURL = rawRoot.appendingPathComponent(ownership.privateName, isDirectory: true)
+                    .appendingPathComponent("unowned.bin")
+                let hostile = Data("retain unknown bytes".utf8)
+                try hostile.write(to: hostileURL)
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: hostileURL)
+                XCTAssertThrowsError(try prepared.publish(permit: permit))
+                do {
+                    _ = try await adapter.reopenPhotoRestoreRawPublication(ownership: ownership,
+                        permit: permit, rollback: true)
+                    XCTFail("cold rollback must preserve an unknown private sibling")
+                } catch {}
+                XCTAssertEqual(try Data(contentsOf: hostileURL), hostile)
+                XCTAssertEqual(try Data(contentsOf: manifestURL), beforeManifest)
+                return
+            }
+            if name == "public-group" || name == "after-manifest" {
+                prepared.failAfterStepForTesting = name
+                XCTAssertThrowsError(try prepared.publish(permit: permit))
+            } else {
+                try prepared.publish(permit: permit)
+            }
+            if name == "finish" || name == "reused" || name == "finish-after-claim" {
+                let cold = try DraftAttachmentStagingAdapterV1(photoBackupExistingRoot: support, workspaceID: workspaceID)
+                let reopened = try await cold.reopenPhotoRestoreRawPublication(ownership: ownership,
+                    permit: permit, rollback: false)
+                if name == "finish-after-claim" {
+                    reopened.failAfterStepForTesting = "after-claim"
+                    XCTAssertThrowsError(try reopened.finish(permit: permit))
+                    let claimed = ownership.createdNodes.filter { node in
+                        guard let claim = node.claimPath else { return false }
+                        return fileManager.fileExists(atPath: rawRoot.appendingPathComponent(claim).path)
+                    }
+                    XCTAssertEqual(claimed.count, 1)
+                    XCTAssertEqual(claimed.first?.directory, true)
+                    let again = try await cold.reopenPhotoRestoreRawPublication(ownership: ownership,
+                        permit: permit, rollback: false)
+                    try again.finish(permit: permit)
+                } else { try reopened.finish(permit: permit) }
+                XCTAssertFalse(fileManager.fileExists(atPath: rawRoot.appendingPathComponent(ownership.privateName).path))
+                XCTAssertEqual(try Data(contentsOf: manifestURL), try transition.after.canonicalBytes())
+                var snapshots: [DraftPhotoRawBackupSnapshotV1] = []
+                var checkpoints: [UUID: FieldDraftCheckpointV1] = [:], childIDs: [UUID: UUID] = [:]
+                for child in history.children {
+                    let raw = try XCTUnwrap(child.raw), checkpoint = try XCTUnwrap(child.committingCheckpoint)
+                    snapshots.append(try await cold.readPhotoBackupSnapshot(raw: raw, committingCheckpoint: checkpoint))
+                    checkpoints[raw.readyItem.draftID] = checkpoint
+                    childIDs[raw.readyItem.draftID] = raw.intent.stageID
+                }
+                XCTAssertEqual(snapshots.count, plan.rawPublications.count)
+                if name == "reused" {
+                    let stages = transition.after.entries.map(\.item)
+                    let reuse = try await cold.preparePhotoRestoreRawTransition(sourcePlan: plan, sourceHistory: history,
+                        currentSnapshots: snapshots, currentCommittingCheckpoints: checkpoints,
+                        currentCanonicalStages: stages, currentChildStageIDs: childIDs,
+                        retainedCurrentStageIDs: [unrelated.stageID])
+                    XCTAssertTrue(reuse.newStageIDs.isEmpty)
+                    XCTAssertEqual(Set(reuse.reusedStageIDs), Set(transition.newStageIDs))
+                    let reuseProof = try await cold.preparePhotoBackupVerification(snapshots,
+                        committingCheckpoints: checkpoints, canonicalStages: stages, childStageIDs: childIDs)
+                    let reuseAuthority = CheckRunnerPhotoRestoreRawKernelTestAccessV1.authority(restoreID: UUID(),
+                        workspaceID: workspaceID, applicationSupportURL: support,
+                        plannedBindingSHA256: String(repeating: "b", count: 64), transition: reuse,
+                        plan: plan, members: package.members)
+                    let reused = try await cold.preparePhotoRestoreRawPublication(authority: reuseAuthority,
+                        currentVerification: reuseProof)
+                    let reusePermit = try CheckRunnerPhotoRestoreRawKernelTestAccessV1.permit(reused.ownership)
+                    try reused.publish(permit: reusePermit)
+                    try reused.rollback(permit: reusePermit)
+                    XCTAssertEqual(try Data(contentsOf: manifestURL), try transition.after.canonicalBytes())
+                    for snapshot in snapshots {
+                        let current = try await cold.readPhotoBackupSnapshot(raw: snapshot.raw,
+                            committingCheckpoint: checkpoints[snapshot.raw.readyItem.draftID])
+                        XCTAssertEqual(current, snapshot)
+                    }
+                }
+            } else {
+                let cold = try DraftAttachmentStagingAdapterV1(photoBackupExistingRoot: support, workspaceID: workspaceID)
+                let reopened = try await cold.reopenPhotoRestoreRawPublication(ownership: ownership,
+                    permit: permit, rollback: true)
+                if name == "replace-before-file-claim" || name == "replace-before-directory-claim" {
+                    let replaceDirectory = name == "replace-before-directory-claim"
+                    let replacement = Data("preserve claimed replacement".utf8)
+                    var replacementClaimURL: URL?
+                    reopened.beforeClaimForTesting = { url, directory in
+                        guard replacementClaimURL == nil, directory == replaceDirectory else { return }
+                        let prefix = rawRoot.path + "/"
+                        guard url.path.hasPrefix(prefix),
+                              let node = ownership.createdNodes.first(where: {
+                                  $0.path == String(url.path.dropFirst(prefix.count))
+                              }), let claimPath = node.claimPath else {
+                            throw DraftAttachmentStagingFailureV1.staleStage
+                        }
+                        try FileManager.default.removeItem(at: url)
+                        if directory {
+                            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+                            try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: url)
+                        } else {
+                            try replacement.write(to: url, options: .withoutOverwriting)
+                            try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: url)
+                        }
+                        replacementClaimURL = rawRoot.appendingPathComponent(claimPath,
+                            isDirectory: directory)
+                    }
+                    XCTAssertThrowsError(try reopened.rollback(permit: permit))
+                    let claimURL = try XCTUnwrap(replacementClaimURL)
+                    XCTAssertTrue(fileManager.fileExists(atPath: claimURL.path))
+                    if replaceDirectory {
+                        XCTAssertTrue(try fileManager.contentsOfDirectory(atPath: claimURL.path).isEmpty)
+                    } else { XCTAssertEqual(try Data(contentsOf: claimURL), replacement) }
+                    do {
+                        _ = try await cold.reopenPhotoRestoreRawPublication(ownership: ownership,
+                            permit: permit, rollback: true)
+                        XCTFail("cold recovery must preserve an inode-mismatched exact claim")
+                    } catch {}
+                    XCTAssertTrue(fileManager.fileExists(atPath: claimURL.path))
+                    if !replaceDirectory { XCTAssertEqual(try Data(contentsOf: claimURL), replacement) }
+                    XCTAssertEqual(try Data(contentsOf: manifestURL), beforeManifest)
+                    XCTAssertEqual(try Data(contentsOf: unrelatedURL), unrelatedBytes)
+                    return
+                } else if name == "after-claim" {
+                    reopened.failAfterStepForTesting = "after-claim"
+                    XCTAssertThrowsError(try reopened.rollback(permit: permit))
+                    let claimURLs = ownership.createdNodes.compactMap { node -> URL? in
+                        guard let claim = node.claimPath else { return nil }
+                        let url = rawRoot.appendingPathComponent(claim, isDirectory: node.directory)
+                        return fileManager.fileExists(atPath: url.path) ? url : nil
+                    }
+                    XCTAssertEqual(claimURLs.count, 1)
+                    let again = try await cold.reopenPhotoRestoreRawPublication(ownership: ownership,
+                        permit: permit, rollback: true)
+                    try again.rollback(permit: permit)
+                } else if name == "private-group" || name == "private-file-deletion" {
+                    reopened.failAfterStepForTesting = name
+                    XCTAssertThrowsError(try reopened.rollback(permit: permit))
+                    let again = try await cold.reopenPhotoRestoreRawPublication(ownership: ownership,
+                        permit: permit, rollback: true)
+                    try again.rollback(permit: permit)
+                } else { try reopened.rollback(permit: permit) }
+                XCTAssertEqual(try Data(contentsOf: manifestURL), beforeManifest)
+                XCTAssertFalse(fileManager.fileExists(atPath: rawRoot.appendingPathComponent(ownership.privateName).path))
+                for entry in plan.rawPublications {
+                    let item = entry.physicalEntry.entry.item
+                    XCTAssertFalse(fileManager.fileExists(atPath: rawRoot.appendingPathComponent(
+                        DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: item.draftID, stageID: item.stageID)).path))
+                }
+            }
+            XCTAssertEqual(try Data(contentsOf: unrelatedURL), unrelatedBytes)
+        }
+        for name in cases {
+            let support = fileManager.temporaryDirectory.appendingPathComponent("photo-raw-restore-\(name)-\(UUID())")
+            do { try await run(name, at: support) }
+            catch { XCTFail("photo raw restore \(name): \(String(reflecting: error))"); throw error }
+            // The case's actors and file owners have left scope before teardown.
+            try fileManager.removeItem(at: support)
+        }
+    }
+
+    @MainActor
     func makeMixedHarness(
         _ label: String,
         siteAddress: String? = nil,
-        currentWriterSource: Bool = false
+        currentWriterSource: Bool = false,
+        beginOnly: Bool = false,
+        sharedRaw: Bool = false
     ) async throws -> Harness {
         let support = fileManager.temporaryDirectory.appendingPathComponent("S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
@@ -863,7 +2254,10 @@ private extension S6_2BackupExportTests {
             let base = 10 + index * 10
             let observed = Date(timeIntervalSince1970: 1_776_420_100 + Double(base))
             _ = try coordinator.beginCheck(assetID: assetID, timeZoneID: nil, isTimeZoneConfirmed: false, afterDarkAccepted: true, safePositionAccepted: true, observedAt: observed)
-            let wide = try await coordinator.importCandidate(assetID: assetID, sourceData: try makePNG(seed: UInt8(31 + index)), createdAt: observed.addingTimeInterval(1))
+            if beginOnly { break }
+            let wideSeed = sharedRaw && index == 1 ? UInt8(31) : UInt8(31 + index)
+            let wide = try await coordinator.importCandidate(assetID: assetID,
+                sourceData: try makePNG(seed: wideSeed), createdAt: observed.addingTimeInterval(1))
             _ = try await coordinator.accept(candidate: wide, assetID: assetID)
             let close = try await coordinator.importCandidate(assetID: assetID, sourceData: try makePNG(seed: UInt8(71 + index)), createdAt: observed.addingTimeInterval(2))
             _ = try await coordinator.accept(candidate: close, assetID: assetID)
@@ -934,6 +2328,722 @@ private extension S6_2BackupExportTests {
         try MutationJournalStoreV1.validateImportedSnapshot(journal.exportSnapshot(),
             sourcePersistentSchemaVersion: session.storeSchemaRelease.versionIdentifier.major)
         return Harness(applicationSupportURL: support, session: session, context: context, countedRoots: roots)
+    }
+
+    @MainActor
+    func appendCompositionCurrentOnlyState(_ harness: Harness) async throws -> UUID {
+        let coordinator = try StoreSessionCoordinator(validatingSession: harness.session)
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+        let pack = SignPack.illuminatedSignV1
+        let siteID = uuid(601), assetID = uuid(602)
+        let placementMutationID = try MutationIDV1(rawValue: uuid(603))
+        _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID,
+            newSite: .init(id: siteID, label: "Retained composition site", address: nil,
+                timeZoneID: "America/New_York"),
+            assetID: assetID, assetLabel: "Retained composition asset",
+            packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+            packContentVersion: pack.contentVersion,
+            createdAt: Date(timeIntervalSince1970: 1_786_709_100),
+            initialPlacementMutationID: placementMutationID,
+            initialPlacementEventID: uuid(604),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: uuid(605))
+        )), mutationID: placementMutationID)
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let dependencies = try coordinator.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile]))
+        let runner = try CheckRunnerCoordinator(modelContext: harness.context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
+        runner.configureCapture(generationRootURL: harness.session.generationRootURL)
+        let observed = Date(timeIntervalSince1970: 1_786_709_200)
+        _ = try runner.beginCheck(assetID: assetID, timeZoneID: nil,
+            isTimeZoneConfirmed: false, afterDarkAccepted: true,
+            safePositionAccepted: true, observedAt: observed)
+        let wide = try await runner.importCandidate(assetID: assetID,
+            sourceData: try makePNG(seed: 141), createdAt: observed.addingTimeInterval(1))
+        _ = try await runner.accept(candidate: wide, assetID: assetID)
+        let close = try await runner.importCandidate(assetID: assetID,
+            sourceData: try makePNG(seed: 181), createdAt: observed.addingTimeInterval(2))
+        _ = try await runner.accept(candidate: close, assetID: assetID)
+        _ = try await runner.finalize(assetID: assetID, selection: .noVisibleIssue,
+            completedAt: observed.addingTimeInterval(5),
+            snapshotCreatedAt: observed.addingTimeInterval(6),
+            sourceApp: .init(build: "42", version: "4.0"),
+            identifiers: .init(mutationID: uuid(606), packetID: uuid(607),
+                stableRootID: uuid(608), reportID: uuid(609), issueID: nil))
+
+        let journal = try MutationJournalStoreV1(modelContext: harness.context,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false)
+        let drafts = FieldDraftLifecycleAdapterV1(writer: coordinator.workspaceWriter,
+            journal: journal, modelContext: harness.context)
+        let key = try MyDayKeyV1(workspaceID: harness.session.workspaceID,
+            civilDate: .init(year: 2026, month: 9, day: 16),
+            ianaTimeZoneIdentifier: "America/New_York")
+        let actor = try LocalActorReferenceV1(actorReferenceID: uuid(610),
+            workspaceID: harness.session.workspaceID, partyID: nil,
+            displayName: "Composition recorder")
+        let actorSnapshot = try ActorSnapshotV1(snapshotID: uuid(611),
+            workspaceID: harness.session.workspaceID, actor: actor,
+            responsibility: .recordedBy, displayNameAtTime: actor.displayName,
+            capturedAt: Date(timeIntervalSince1970: 1_786_709_300))
+        let payload = try MyDayPlanningDraftPayloadV1(editing: .init(key: key,
+            recordedBy: actorSnapshot, keyWasExplicitlyConfirmed: true,
+            recordedByWasExplicitlySelectedOrCaptured: true),
+            intent: .plan(draft: .init(key: key, items: [], eligibleReferences: []),
+                predecessor: nil))
+        let draftID = uuid(612)
+        let checkpoint = try FieldDraftCheckpointV1(draftID: draftID,
+            workspaceID: harness.session.workspaceID,
+            scope: MyDayPlanningDraftCodecV1.scope(for: key), purpose: .myDayPlanning,
+            codec: MyDayPlanningDraftCodecV1.release(), baseCanonicalRevision: 0,
+            draftRevision: 1, payloadData: MyDayPlanningDraftCodecV1.encode(payload),
+            stageIDs: [], resumeAnchor: .init(sectionID: "planning"), state: .active,
+            updatedAt: Date(timeIntervalSince1970: 1_786_709_300),
+            mutationID: try MutationIDV1(rawValue: uuid(613)))
+        _ = try drafts.compareAndSwap(checkpoint: checkpoint,
+            expectedDraftRevision: 0, expectedBaseRevision: 0)
+        return draftID
+    }
+
+    @MainActor
+    func appendGenericCompositionStage(_ harness: Harness, slot: Int,
+        bytes: Data) async throws -> GenericCompositionStage {
+        let coordinator = try StoreSessionCoordinator(validatingSession: harness.session)
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+        let workspaceID = harness.session.workspaceID
+        let timestamp = Date(timeIntervalSince1970: 1_786_710_000 + Double(slot))
+        let draftID = uuid(slot)
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture(seed: 936_000 + slot)
+        let staging = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: harness.applicationSupportURL,
+            workspaceID: workspaceID, clock: { timestamp })
+        let item = try await staging.stage(data: bytes, draftID: draftID,
+            workspaceID: workspaceID, attachmentKind: .file)
+        let checkpoint = try FieldDraftCheckpointV1(draftID: draftID,
+            workspaceID: workspaceID, scope: fixture.activeCheckpoint.scope,
+            purpose: fixture.activeCheckpoint.purpose, codec: fixture.activeCheckpoint.codec,
+            baseCanonicalRevision: 0, draftRevision: 1,
+            payloadData: fixture.activeCheckpoint.payloadData, stageIDs: [],
+            resumeAnchor: fixture.activeCheckpoint.resumeAnchor, state: .active,
+            updatedAt: timestamp, mutationID: try MutationIDV1(rawValue: uuid(slot + 1)))
+        _ = try coordinator.workspaceWriter.commitFieldDraft(.init(
+            workspaceID: workspaceID, expectedRevision: 0,
+            expectedBaseCanonicalRevision: 0, mutationID: checkpoint.mutationID,
+            postImage: .createCheckpoint(checkpoint)))
+        let successor = try FieldDraftCheckpointV1(draftID: draftID,
+            workspaceID: workspaceID, scope: checkpoint.scope, purpose: checkpoint.purpose,
+            codec: checkpoint.codec, baseCanonicalRevision: 0, draftRevision: 2,
+            payloadData: checkpoint.payloadData, stageIDs: [item.stageID],
+            resumeAnchor: checkpoint.resumeAnchor, state: .active,
+            updatedAt: timestamp.addingTimeInterval(1), mutationID: item.mutationID)
+        let bundle = try FieldDraftStagePublicationBundleV1(expectedCheckpoint: checkpoint,
+            readyItem: item, successorCheckpoint: successor)
+        _ = try coordinator.workspaceWriter.commitFieldDraft(.init(
+            workspaceID: workspaceID, expectedRevision: 1,
+            expectedBaseCanonicalRevision: 0, mutationID: item.mutationID,
+            postImage: .publishReadyStage(bundle)))
+        return GenericCompositionStage(checkpoint: successor, item: item, bytes: bytes)
+    }
+
+    @MainActor
+    func installCompositionBranchBase(_ archive: URL, label: String,
+        countedRoots: [String]) async throws -> Harness {
+        let support = fileManager.temporaryDirectory.appendingPathComponent(
+            "S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        do {
+            let initial = try StoreGenerationFactory(applicationSupportURL: support)
+                .openOrBootstrapCurrent()
+            let importer = try BackupImportService(
+                generationRootURL: initial.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: { UUID() }, scopedAccess: .alreadyAuthorized)
+            let package = try importer.stageAndValidate(selectedPackageURL: archive)
+            let restored = try await BackupRestoreService(applicationSupportURL: support,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+                .restore(validatedPackage: package, currentModelContext: initial.modelContext,
+                    currentGenerationID: initial.generationID,
+                    currentGenerationRootURL: initial.generationRootURL, mode: .emptyInstall)
+            return Harness(applicationSupportURL: support, session: restored,
+                context: restored.modelContext, countedRoots: countedRoots)
+        } catch {
+            try? fileManager.removeItem(at: support)
+            throw error
+        }
+    }
+
+    @MainActor
+    func makePhotoRestoreJourney(_ label: String) async throws -> PhotoRestoreJourney {
+        let sourceHarness = try await makeMixedHarness("\(label)-source", sharedRaw: true)
+        defer { try? fileManager.removeItem(at: sourceHarness.applicationSupportURL) }
+        do {
+            let commonGenericStage = try await appendGenericCompositionStage(sourceHarness,
+                slot: 630, bytes: Data("common generic branch bytes".utf8))
+            let branchArchive = try await exportLivePackage(sourceHarness,
+                directoryName: "photo-restore-branch-export")
+            let harness = try await installCompositionBranchBase(branchArchive,
+                label: "\(label)-target", countedRoots: sourceHarness.countedRoots)
+            let oldID = harness.session.generationID
+            let initialRetiredGenerationIDs = try StoreGenerationFactory(
+                applicationSupportURL: harness.applicationSupportURL).retiredGenerationIDs()
+            let retainedMyDayDraftID = try await appendCompositionCurrentOnlyState(harness)
+            let currentArchive = try await exportLivePackage(harness,
+                directoryName: "photo-restore-current-export")
+
+            let sourceOnlyGenericStage = try await appendGenericCompositionStage(sourceHarness,
+                slot: 640, bytes: Data(repeating: 0xa5, count: 2 * 1_024 * 1_024))
+            XCTAssertEqual(sourceOnlyGenericStage.bytes.count, 2 * 1_024 * 1_024)
+            let sourceArchive = try await exportLivePackage(sourceHarness,
+                directoryName: "photo-restore-source-export")
+
+            let currentImporter = try BackupImportService(
+                generationRootURL: harness.session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: { self.uuid(780) }, scopedAccess: .alreadyAuthorized)
+            let current = try currentImporter.stageAndValidate(selectedPackageURL: currentArchive)
+            let currentRecords = current.records
+            let currentRecordsData = try XCTUnwrap(current.members["records.json"])
+            let currentHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+                source: current.manifest.source, records: current.records)
+            let currentPlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+                history: currentHistory, entries: current.manifest.entries,
+                metadata: { try XCTUnwrap(current.members[$0]) })
+            let currentMembers = current.manifest.entries
+            try currentImporter.discard(current)
+
+            let sourceImporter = try BackupImportService(
+                generationRootURL: harness.session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: { self.uuid(781) }, scopedAccess: .alreadyAuthorized)
+            let source = try sourceImporter.stageAndValidate(selectedPackageURL: sourceArchive)
+            let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+                source: source.manifest.source, records: source.records)
+            let sourcePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+                history: sourceHistory, entries: source.manifest.entries,
+                metadata: { try XCTUnwrap(source.members[$0]) })
+            let sourceIDs = Set(sourceHistory.children.map { $0.payload.childDraftID })
+            let currentIDs = Set(currentHistory.children.map { $0.payload.childDraftID })
+            let retainedIDs = currentIDs.subtracting(sourceIDs)
+            XCTAssertEqual(sourceIDs.count, 6)
+            XCTAssertEqual(currentIDs.count, 8)
+            XCTAssertEqual(retainedIDs.count, 2)
+            XCTAssertEqual(sourcePlan.rawPublications.count, 6)
+            XCTAssertEqual(currentPlan.rawPublications.count, 8)
+            XCTAssertEqual(Set(currentPlan.generationMembers.map(\.relativePath)).count,
+                currentPlan.generationMembers.count)
+            XCTAssertEqual(currentPlan.generationMembers.filter {
+                $0.relativePath.hasPrefix("evidence/") && $0.relativePath.hasSuffix("/original.jpg")
+            }.count, 8)
+            XCTAssertEqual(currentPlan.generationMembers.filter {
+                $0.relativePath.hasPrefix("evidence/") && $0.relativePath.hasSuffix("/thumbnail.jpg")
+            }.count, 8)
+            let replacementRecords = try compositionReplacementRecords(
+                current: currentRecords, source: source.records)
+            let composition = try CheckRunnerPhotoRestoreCompositionV1.compose(
+                source: source.manifest.source, sourceRecords: source.records,
+                sourcePlan: sourcePlan, currentSource: current.manifest.source,
+                currentRecords: currentRecords, currentPlan: currentPlan,
+                replacementRecords: replacementRecords,
+                sourceIdentity: sourceHarness.session.workspaceIdentity,
+                currentIdentity: harness.session.workspaceIdentity)
+            let restoredRecords = try composition.applying(to: replacementRecords)
+            try composition.requireDestination(restoredRecords)
+            XCTAssertNotEqual(restoredRecords, currentRecords)
+            let restoredRecordsData = try BackupCanonicalEncoderV1()
+                .encodeRecords(restoredRecords).data
+            XCTAssertEqual(currentRecords.fieldDrafts.filter { row in
+                guard row.kind == .checkpoint,
+                      let value = try? FieldDraftCanonicalCodecV1.decode(
+                        FieldDraftCheckpointV1.self, from: row.canonicalData) else { return false }
+                return value.draftID == retainedMyDayDraftID
+            }.count, 1)
+            let oldGenericIDs = try expectedGenericStageIDs(currentRecords,
+                excluding: currentPlan)
+            let restoredGenericIDs = try expectedGenericStageIDs(restoredRecords,
+                excluding: currentPlan)
+            XCTAssertEqual(oldGenericIDs, Set([commonGenericStage.item.stageID]))
+            XCTAssertEqual(restoredGenericIDs,
+                Set([commonGenericStage.item.stageID, sourceOnlyGenericStage.item.stageID]))
+
+            let rawRoot = harness.applicationSupportURL.appendingPathComponent(
+                OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+                .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,
+                    isDirectory: true)
+            return PhotoRestoreJourney(harness: harness, sourcePackage: source,
+                oldGenerationID: oldID,
+                initialRetiredGenerationIDs: initialRetiredGenerationIDs,
+                oldRecords: currentRecords,
+                oldRecordsData: currentRecordsData, restoredRecords: restoredRecords,
+                restoredRecordsData: restoredRecordsData, expectedMembers: currentMembers,
+                expectedPlan: currentPlan, oldRawFacts: try treeFacts(rawRoot),
+                rawRoot: rawRoot, retainedMyDayDraftID: retainedMyDayDraftID,
+                sourcePhotoDraftIDs: sourceIDs, retainedPhotoDraftIDs: retainedIDs,
+                commonGenericStage: commonGenericStage,
+                sourceOnlyGenericStage: sourceOnlyGenericStage)
+        } catch {
+            throw error
+        }
+    }
+
+    @MainActor
+    func makeSourceEmptyPhotoRestoreJourney(_ label: String) async throws
+        -> SourceEmptyPhotoRestoreJourney {
+        let sourceHarness = try await makeMixedHarness("\(label)-source",
+            currentWriterSource: true, beginOnly: true, sharedRaw: true)
+        defer { try? fileManager.removeItem(at: sourceHarness.applicationSupportURL) }
+        let sourceArchive = try await exportLivePackage(sourceHarness,
+            directoryName: "source-empty-branch-export")
+        let harness = try await installCompositionBranchBase(sourceArchive,
+            label: "\(label)-target", countedRoots: sourceHarness.countedRoots)
+        do {
+            let oldGenerationID = harness.session.generationID
+            let initialRetiredGenerationIDs = try StoreGenerationFactory(
+                applicationSupportURL: harness.applicationSupportURL).retiredGenerationIDs()
+            let retainedMyDayDraftID = try await appendCompositionCurrentOnlyState(harness)
+            let currentArchive = try await exportLivePackage(harness,
+                directoryName: "source-empty-current-export")
+            let currentImporter = try BackupImportService(
+                generationRootURL: harness.session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: { self.uuid(790) }, scopedAccess: .alreadyAuthorized)
+            let current = try currentImporter.stageAndValidate(selectedPackageURL: currentArchive)
+            let records = current.records
+            let recordsData = try XCTUnwrap(current.members["records.json"])
+            let members = current.manifest.entries
+            let history = try CheckRunnerPhotoBackupHistoryV1.project(
+                source: current.manifest.source, records: records)
+            let retainedPhotoDraftIDs = Set(history.children.map { $0.payload.childDraftID })
+            XCTAssertEqual(retainedPhotoDraftIDs.count, 2)
+            try currentImporter.discard(current)
+
+            let sourceImporter = try BackupImportService(
+                generationRootURL: harness.session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: { self.uuid(791) }, scopedAccess: .alreadyAuthorized)
+            let sourcePackage = try sourceImporter.stageAndValidate(
+                selectedPackageURL: sourceArchive)
+            let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+                source: sourcePackage.manifest.source, records: sourcePackage.records)
+            XCTAssertTrue(sourceHistory.children.isEmpty)
+            let sourcePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+                history: sourceHistory, entries: sourcePackage.manifest.entries,
+                metadata: { try XCTUnwrap(sourcePackage.members[$0]) })
+            XCTAssertTrue(sourcePlan.rawPublications.isEmpty)
+            XCTAssertTrue(sourcePlan.generationMembers.isEmpty)
+            let rawRoot = harness.applicationSupportURL.appendingPathComponent(
+                OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+                .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,
+                    isDirectory: true)
+            return SourceEmptyPhotoRestoreJourney(harness: harness,
+                sourcePackage: sourcePackage, oldGenerationID: oldGenerationID,
+                initialRetiredGenerationIDs: initialRetiredGenerationIDs,
+                records: records, recordsData: recordsData, members: members,
+                rawRoot: rawRoot, rawFacts: try treeFacts(rawRoot),
+                retainedMyDayDraftID: retainedMyDayDraftID,
+                retainedPhotoDraftIDs: retainedPhotoDraftIDs)
+        } catch {
+            try? fileManager.removeItem(at: harness.applicationSupportURL)
+            throw error
+        }
+    }
+
+    @MainActor
+    func assertUnsupportedCurrentOnlyGenericCompositionFailsBeforeEffects() async throws {
+        let sourceHarness = try await makeMixedHarness(
+            "unsupported-current-generic-source", sharedRaw: true)
+        defer { try? fileManager.removeItem(at: sourceHarness.applicationSupportURL) }
+        let branchArchive = try await exportLivePackage(sourceHarness,
+            directoryName: "unsupported-current-generic-branch")
+        let target = try await installCompositionBranchBase(branchArchive,
+            label: "unsupported-current-generic-target",
+            countedRoots: sourceHarness.countedRoots)
+        defer { try? fileManager.removeItem(at: target.applicationSupportURL) }
+        let currentOnly = try await appendGenericCompositionStage(target,
+            slot: 650, bytes: Data("unsupported current-only opaque C36 bytes".utf8))
+        let importer = try BackupImportService(
+            generationRootURL: target.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: { self.uuid(792) }, scopedAccess: .alreadyAuthorized)
+        let sourcePackage = try importer.stageAndValidate(selectedPackageURL: branchArchive)
+        defer { try? importer.discard(sourcePackage) }
+        let before = try BackupExportService(modelContext: target.context,
+            generationRootURL: target.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            .canonicalCheckpointBasis()
+        let rawRoot = target.applicationSupportURL.appendingPathComponent(
+            OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+            .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,
+                isDirectory: true)
+        let rawBefore = try treeFacts(rawRoot)
+        let factory = StoreGenerationFactory(applicationSupportURL: target.applicationSupportURL)
+        let pointerBefore = try factory.currentGenerationID()
+        let retiredBefore = try factory.retiredGenerationIDs()
+        let newID = uuid(793), restoreID = uuid(794)
+        let service = try BackupRestoreService(
+            applicationSupportURL: target.applicationSupportURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: sequence([newID, restoreID]))
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.restore(validatedPackage: sourcePackage,
+                currentModelContext: target.context,
+                currentGenerationID: target.session.generationID,
+                currentGenerationRootURL: target.session.generationRootURL,
+                mode: .replaceExisting)
+        } verify: { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(try factory.currentGenerationID(), pointerBefore)
+        XCTAssertEqual(try factory.retiredGenerationIDs(), retiredBefore)
+        XCTAssertEqual(try treeFacts(rawRoot), rawBefore)
+        let after = try BackupExportService(modelContext: target.context,
+            generationRootURL: target.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            .canonicalCheckpointBasis()
+        XCTAssertEqual(after.recordsData, before.recordsData)
+        XCTAssertEqual(after.memberInventory, before.memberInventory)
+        XCTAssertNil(try RestoreIntentStore(
+            applicationSupportURL: target.applicationSupportURL).load())
+        XCTAssertFalse(fileManager.fileExists(atPath: photoRestoreBindingURL(
+            target.applicationSupportURL, restoreID: restoreID).path))
+        XCTAssertTrue(fileManager.fileExists(atPath: sourcePackage.stagedPackageURL.path))
+        let adapter = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: target.applicationSupportURL,
+            workspaceID: target.session.workspaceID)
+        XCTAssertEqual(try await adapter.data(stageID: currentOnly.item.stageID),
+            currentOnly.bytes)
+    }
+
+    @MainActor
+    func assertSameLengthCommonGenericCorruptionFailsBeforeEffects(
+        _ fixture: PhotoRestoreJourney) async throws {
+        let adapter = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: fixture.harness.applicationSupportURL,
+            workspaceID: fixture.harness.session.workspaceID)
+        let entries = try await adapter.entries()
+        let entry = try XCTUnwrap(entries.first {
+            $0.item.stageID == fixture.commonGenericStage.item.stageID
+        })
+        let payloadURL = fixture.rawRoot.appendingPathComponent(entry.relativeDataPath)
+        let original = try Data(contentsOf: payloadURL)
+        XCTAssertEqual(original, fixture.commonGenericStage.bytes)
+        let checkpointBefore = try BackupExportService(
+            modelContext: fixture.harness.context,
+            generationRootURL: fixture.harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            .canonicalCheckpointBasis()
+        var corrupted = original
+        corrupted[corrupted.startIndex] ^= 0xff
+        XCTAssertEqual(corrupted.count, original.count)
+        XCTAssertNotEqual(corrupted.sha256, original.sha256)
+        let writer = try FileHandle(forWritingTo: payloadURL)
+        try writer.write(contentsOf: corrupted)
+        try writer.synchronize()
+        try writer.close()
+        XCTAssertEqual(try Data(contentsOf: payloadURL), corrupted)
+
+        let rawBefore = try treeFacts(fixture.rawRoot)
+        let factory = StoreGenerationFactory(
+            applicationSupportURL: fixture.harness.applicationSupportURL)
+        let pointerBefore = try factory.currentGenerationID()
+        let retiredBefore = try factory.retiredGenerationIDs()
+        let newID = uuid(795), restoreID = uuid(796)
+        let service = try BackupRestoreService(
+            applicationSupportURL: fixture.harness.applicationSupportURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: sequence([newID, restoreID]))
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.restore(validatedPackage: fixture.sourcePackage,
+                currentModelContext: fixture.harness.context,
+                currentGenerationID: fixture.oldGenerationID,
+                currentGenerationRootURL: fixture.harness.session.generationRootURL,
+                mode: .replaceExisting)
+        } verify: { error in
+            XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .digestMismatch)
+        }
+        XCTAssertEqual(try factory.currentGenerationID(), pointerBefore)
+        XCTAssertEqual(try factory.retiredGenerationIDs(), retiredBefore)
+        XCTAssertEqual(try treeFacts(fixture.rawRoot), rawBefore)
+        XCTAssertEqual(try Data(contentsOf: payloadURL), corrupted)
+        let restoring = try FileHandle(forWritingTo: payloadURL)
+        try restoring.write(contentsOf: original)
+        try restoring.synchronize()
+        try restoring.close()
+        XCTAssertEqual(try Data(contentsOf: payloadURL), original)
+        let checkpointAfter = try BackupExportService(
+            modelContext: fixture.harness.context,
+            generationRootURL: fixture.harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            .canonicalCheckpointBasis()
+        XCTAssertEqual(checkpointAfter.recordsData, checkpointBefore.recordsData)
+        XCTAssertEqual(checkpointAfter.memberInventory, checkpointBefore.memberInventory)
+        XCTAssertNil(try RestoreIntentStore(
+            applicationSupportURL: fixture.harness.applicationSupportURL).load())
+        XCTAssertFalse(fileManager.fileExists(atPath: photoRestoreBindingURL(
+            fixture.harness.applicationSupportURL, restoreID: restoreID).path))
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: fixture.sourcePackage.stagedPackageURL.path))
+    }
+
+    @MainActor
+    func assertSourceEmptyPhotoSnapshot(_ fixture: SourceEmptyPhotoRestoreJourney,
+        session: StoreGenerationSession, file: StaticString = #filePath,
+        line: UInt = #line) throws {
+        let basis = try BackupExportService(modelContext: session.modelContext,
+            generationRootURL: session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            .canonicalCheckpointBasis()
+        XCTAssertEqual(basis.recordsData, fixture.recordsData, file: file, line: line)
+        XCTAssertEqual(basis.memberInventory, fixture.members, file: file, line: line)
+        let records = try BackupCanonicalDecoderV1().decodeRecords(basis.recordsData)
+        XCTAssertEqual(records, fixture.records, file: file, line: line)
+        XCTAssertEqual(try treeFacts(fixture.rawRoot), fixture.rawFacts,
+            file: file, line: line)
+        XCTAssertTrue(records.fieldDrafts.contains { row in
+            guard row.kind == .checkpoint,
+                  let checkpoint = try? FieldDraftCanonicalCodecV1.decode(
+                    FieldDraftCheckpointV1.self, from: row.canonicalData) else { return false }
+            return checkpoint.draftID == fixture.retainedMyDayDraftID
+        }, file: file, line: line)
+        let source = fixture.sourcePackage.manifest.source
+        let rebound = V4BackupSourceV1(appBuild: source.appBuild,
+            appVersion: source.appVersion,
+            persistentSchemaVersion: source.persistentSchemaVersion,
+            replicaID: session.replicaID.rawValue,
+            recordsSchemaVersion: records.recordsSchemaVersion,
+            sourceGenerationID: session.generationID,
+            workspaceID: session.workspaceID.rawValue)
+        let actualPhotoIDs = Set(try CheckRunnerPhotoBackupHistoryV1.project(
+            source: rebound, records: records).children.map { $0.payload.childDraftID })
+        XCTAssertEqual(actualPhotoIDs, fixture.retainedPhotoDraftIDs,
+            file: file, line: line)
+    }
+
+    @MainActor
+    func assertPhotoRestoreSnapshot(_ fixture: PhotoRestoreJourney,
+        session: StoreGenerationSession, restored: Bool,
+        file: StaticString = #filePath, line: UInt = #line) async throws {
+        let expectedRecords = restored ? fixture.restoredRecords : fixture.oldRecords
+        let expectedRecordsData = restored
+            ? fixture.restoredRecordsData : fixture.oldRecordsData
+        let basis = try BackupExportService(modelContext: session.modelContext,
+            generationRootURL: session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            .canonicalCheckpointBasis()
+        XCTAssertEqual(basis.recordsData, expectedRecordsData, file: file, line: line)
+        if restored {
+            let oldByPath = Dictionary(uniqueKeysWithValues:
+                fixture.expectedMembers.map { ($0.path, $0) })
+            let actualByPath = Dictionary(uniqueKeysWithValues:
+                basis.memberInventory.map { ($0.path, $0) })
+            let sourceOnlyPath = "draft-staging/"
+                + "\(fixture.sourceOnlyGenericStage.item.draftID.uuidString.lowercased())/"
+                + "\(fixture.sourceOnlyGenericStage.item.stageID.uuidString.lowercased()).bin"
+            XCTAssertEqual(Set(actualByPath.keys),
+                Set(oldByPath.keys).union([sourceOnlyPath]), file: file, line: line)
+            for (path, entry) in oldByPath where path != "records.json" {
+                XCTAssertEqual(actualByPath[path], entry, path, file: file, line: line)
+            }
+            XCTAssertEqual(actualByPath["records.json"]?.byteCount,
+                expectedRecordsData.count, file: file, line: line)
+            XCTAssertEqual(actualByPath["records.json"]?.sha256,
+                expectedRecordsData.sha256, file: file, line: line)
+            XCTAssertEqual(actualByPath[sourceOnlyPath]?.byteCount,
+                fixture.sourceOnlyGenericStage.bytes.count, file: file, line: line)
+            XCTAssertEqual(actualByPath[sourceOnlyPath]?.sha256,
+                fixture.sourceOnlyGenericStage.bytes.sha256, file: file, line: line)
+            XCTAssertEqual(actualByPath[sourceOnlyPath]?.mimeType,
+                "application/octet-stream", file: file, line: line)
+        } else {
+            XCTAssertEqual(basis.memberInventory, fixture.expectedMembers,
+                file: file, line: line)
+        }
+        let records = try BackupCanonicalDecoderV1().decodeRecords(basis.recordsData)
+        XCTAssertEqual(records, expectedRecords, file: file, line: line)
+        let history = try XCTUnwrap(records.mutationHistory, file: file, line: line)
+        let historyKeys = try history.receipts.map { original in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+            return MutationWorkspaceKeyV1.value(workspaceID: envelope.workspaceID,
+                mutationID: envelope.mutationID)
+        }
+        XCTAssertEqual(Set(historyKeys).count, historyKeys.count, file: file, line: line)
+        XCTAssertEqual(history, expectedRecords.mutationHistory, file: file, line: line)
+        XCTAssertEqual(fixture.expectedPlan.rawPublications.count, 8, file: file, line: line)
+        for member in fixture.expectedPlan.generationMembers {
+            let url = session.generationRootURL.appendingPathComponent(member.relativePath)
+            let bytes = try Data(contentsOf: url)
+            XCTAssertEqual(bytes.count, member.entry.byteCount,
+                member.relativePath, file: file, line: line)
+            XCTAssertEqual(bytes.sha256, member.entry.sha256,
+                member.relativePath, file: file, line: line)
+        }
+        let actualDraftIDs = Set(try CheckRunnerPhotoBackupHistoryV1.project(
+            source: V4BackupSourceV1(appBuild: fixture.expectedPlan.source.appBuild,
+                appVersion: fixture.expectedPlan.source.appVersion,
+                persistentSchemaVersion: fixture.expectedPlan.source.persistentSchemaVersion,
+                replicaID: session.replicaID.rawValue,
+                recordsSchemaVersion: records.recordsSchemaVersion,
+                sourceGenerationID: session.generationID,
+                workspaceID: session.workspaceID.rawValue),
+            records: records).children.map { $0.payload.childDraftID })
+        XCTAssertEqual(actualDraftIDs,
+            fixture.sourcePhotoDraftIDs.union(fixture.retainedPhotoDraftIDs),
+            file: file, line: line)
+        XCTAssertTrue(records.fieldDrafts.contains { row in
+            guard row.kind == .checkpoint,
+                  let value = try? FieldDraftCanonicalCodecV1.decode(
+                    FieldDraftCheckpointV1.self, from: row.canonicalData) else { return false }
+            return value.draftID == fixture.retainedMyDayDraftID
+        }, file: file, line: line)
+
+        let canonicalItems = try records.fieldDrafts.compactMap { row -> AttachmentStagingItemV1? in
+            guard row.kind == .stagingItem else { return nil }
+            return try FieldDraftCanonicalCodecV1.decode(
+                AttachmentStagingItemV1.self, from: row.canonicalData)
+        }
+        let adapter = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: fixture.harness.applicationSupportURL,
+            workspaceID: session.workspaceID)
+        let entries = try await adapter.entries()
+        XCTAssertEqual(Set(entries.map(\.item)), Set(canonicalItems), file: file, line: line)
+        XCTAssertEqual(try await adapter.data(stageID: fixture.commonGenericStage.item.stageID),
+            fixture.commonGenericStage.bytes, file: file, line: line)
+        if restored {
+            XCTAssertEqual(try await adapter.data(
+                stageID: fixture.sourceOnlyGenericStage.item.stageID),
+                fixture.sourceOnlyGenericStage.bytes, file: file, line: line)
+            let finalRawFacts = try treeFacts(fixture.rawRoot)
+            let manifestPrefix = DraftAttachmentStagingAdapterV1.manifestName + "|"
+            let stableOldFacts = Set(fixture.oldRawFacts.filter {
+                !$0.hasPrefix(manifestPrefix)
+            })
+            XCTAssertTrue(stableOldFacts.isSubset(of: Set(finalRawFacts)),
+                file: file, line: line)
+            XCTAssertEqual(finalRawFacts.count, fixture.oldRawFacts.count + 1,
+                file: file, line: line)
+            XCTAssertEqual(finalRawFacts.filter {
+                $0.hasSuffix("|\(fixture.sourceOnlyGenericStage.bytes.sha256)")
+            }.count, 1, file: file, line: line)
+        } else {
+            XCTAssertEqual(try treeFacts(fixture.rawRoot), fixture.oldRawFacts,
+                file: file, line: line)
+            XCTAssertFalse(entries.contains {
+                $0.item.stageID == fixture.sourceOnlyGenericStage.item.stageID
+            }, file: file, line: line)
+        }
+    }
+
+    @MainActor
+    func assertCompletedPhotoRestoreJourney(_ fixture: PhotoRestoreJourney,
+        session: StoreGenerationSession, expectedCurrentID: UUID, restoreID: UUID,
+        file: StaticString = #filePath, line: UInt = #line) async throws {
+        let factory = StoreGenerationFactory(
+            applicationSupportURL: fixture.harness.applicationSupportURL)
+        XCTAssertEqual(try factory.currentGenerationID(), expectedCurrentID,
+            file: file, line: line)
+        let retired = try factory.retiredGenerationIDs()
+        let expectedRetired = fixture.initialRetiredGenerationIDs + [fixture.oldGenerationID]
+        XCTAssertEqual(retired.count, expectedRetired.count, file: file, line: line)
+        XCTAssertEqual(Set(retired), Set(expectedRetired), file: file, line: line)
+        try await assertPhotoRestoreSnapshot(fixture, session: session,
+            restored: true, file: file, line: line)
+        XCTAssertNil(try RestoreIntentStore(
+            applicationSupportURL: fixture.harness.applicationSupportURL).load(),
+            file: file, line: line)
+        let bindingURL = photoRestoreBindingURL(
+            fixture.harness.applicationSupportURL, restoreID: restoreID)
+        XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path), file: file, line: line)
+        XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path + ".next"),
+            file: file, line: line)
+        XCTAssertFalse(fileManager.fileExists(atPath: fixture.harness.applicationSupportURL
+            .appendingPathComponent("FieldEvidenceRestore/portable-exchange-restore.json").path),
+            file: file, line: line)
+        XCTAssertFalse(fileManager.fileExists(atPath: fixture.sourcePackage.stagedPackageURL.path),
+            file: file, line: line)
+    }
+
+    func photoRestoreBindingURL(_ support: URL, restoreID: UUID) -> URL {
+        support.appendingPathComponent(
+            "FieldEvidenceRestore/draft-publication-\(restoreID.uuidString.lowercased()).json")
+    }
+
+    func readPhotoRestoreBinding(_ url: URL) throws
+        -> CheckRunnerPhotoRestorePublicationBindingV2 {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            CheckRunnerPhotoRestorePublicationBindingV2.self,
+            from: Data(contentsOf: url), validate: { try $0.validate() })
+    }
+
+    func sequence(_ values: [UUID]) -> () -> UUID {
+        var remaining = values
+        return { remaining.isEmpty ? UUID() : remaining.removeFirst() }
+    }
+
+    @MainActor
+    func appendCompositionTouchingState(_ harness: Harness) throws {
+        let coordinator = try StoreSessionCoordinator(validatingSession: harness.session)
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+        let pack = SignPack.illuminatedSignV1
+        let siteID = UUID(uuidString: "62000000-0000-0000-0000-000000000001")!
+        let placementMutationID = try MutationIDV1(rawValue: uuid(620))
+        _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID, newSite: nil, assetID: uuid(621),
+            assetLabel: "Source-touching composition asset", packID: pack.packID,
+            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+            createdAt: Date(timeIntervalSince1970: 1_786_709_400),
+            initialPlacementMutationID: placementMutationID,
+            initialPlacementEventID: uuid(622),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: uuid(623))
+        )), mutationID: placementMutationID)
+    }
+
+    func compositionReplacementRecords(current: V4BackupRecordsV1,
+                                       source: V4BackupRecordsV1) throws -> V4BackupRecordsV1 {
+        var currentObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(current)) as? [String: Any])
+        let sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(source)) as? [String: Any])
+        for key in ["fieldDrafts", "workflowRecords", "evidenceFiles", "roundSessions",
+                    "assets", "sites", "packets", "issues", "requirementAssurance"] {
+            currentObject[key] = sourceObject[key]
+        }
+        return try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: currentObject, options: [.sortedKeys]))
+    }
+
+    func expectedGenericStageIDs(_ records: V4BackupRecordsV1,
+        excluding photoPlan: CheckRunnerPhotoBackupRestorePlanV1) throws -> Set<UUID> {
+        let all = try records.fieldDrafts.reduce(into: Set<UUID>()) { result, row in
+            guard row.kind == .stagingItem else { return }
+            let item = try FieldDraftCanonicalCodecV1.decode(
+                AttachmentStagingItemV1.self, from: row.canonicalData)
+            if (item.state == .readyLocal || item.state == .committed),
+               item.actualByteCount != nil, item.contentDigest != nil {
+                result.insert(item.stageID)
+            }
+        }
+        let photo = Set(photoPlan.rawPublications.map {
+            $0.physicalEntry.entry.item.stageID
+        })
+        return all.subtracting(photo)
+    }
+
+    func allStageIDs(_ records: V4BackupRecordsV1) throws -> Set<UUID> {
+        try records.fieldDrafts.reduce(into: Set<UUID>()) { result, row in
+            guard row.kind == .stagingItem else { return }
+            let item = try FieldDraftCanonicalCodecV1.decode(
+                AttachmentStagingItemV1.self, from: row.canonicalData)
+            result.insert(item.stageID)
+        }
+    }
+
+    func replacingFieldDrafts(_ records: V4BackupRecordsV1,
+                              with rows: [V16BackupFieldDraftRecordV1]) throws -> V4BackupRecordsV1 {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(records)) as? [String: Any])
+        object["fieldDrafts"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(rows))
+        return try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
     }
 
     func sourceMediaFacts(_ harness: Harness) throws -> [MediaFact] {
@@ -1183,11 +3293,14 @@ extension S6_2BackupExportTests {
         let payload = c42Bytes.base64EncodedString()
         let harness = try await makeMixedHarness("c42-export", siteAddress: payload)
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
         let destination = harness.applicationSupportURL.appendingPathComponent("c42-export", isDirectory: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
-        let exporter = makeService(harness, capacity: .max)
-        let preview = try exporter.prepare()
-        let package = try exporter.export(previewID: preview.id, to: destination)
+        let exporter = makeService(authorized, capacity: .max)
+        let preview = try authorized.contentAccess.withRead { try exporter.prepare() }
+        let package = try await exporter.export(previewID: preview.id, to: destination,
+            contentAccess: authorized.contentAccess)
         let importer = try BackupImportService(
             generationRootURL: harness.session.generationRootURL,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
@@ -1348,5 +3461,53 @@ extension S6_2BackupExportTests {
         XCTAssertFalse(lifecycle.exportIncluded)
         XCTAssertFalse(lifecycle.journalIncluded)
         XCTAssertTrue(lifecycle.eraseClears)
+    }
+
+    @MainActor
+    func testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren() async throws {
+        let harness = try await makeMixedHarness(
+            "photo-history-begin-only", currentWriterSource: true, beginOnly: true)
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
+        let destination = harness.applicationSupportURL.appendingPathComponent("export", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let service = makeService(authorized, capacity: .max)
+        let preview = try authorized.contentAccess.withRead { try service.prepare() }
+        XCTAssertEqual(preview.photoCount, 0)
+        let package = try await service.export(previewID: preview.id, to: destination,
+            contentAccess: authorized.contentAccess)
+        let importer = try BackupImportService(
+            generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: { UUID() }, scopedAccess: .alreadyAuthorized)
+        let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        defer { try? importer.discard(validated) }
+        let history = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: validated.manifest.source, records: validated.records)
+        XCTAssertTrue(history.children.isEmpty)
+        let restorePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+            history: history, entries: validated.manifest.entries,
+            metadata: { try XCTUnwrap(validated.members[$0]) })
+        XCTAssertTrue(restorePlan.children.isEmpty)
+        XCTAssertTrue(restorePlan.rawPublications.isEmpty)
+        XCTAssertTrue(restorePlan.generationMembers.isEmpty)
+        XCTAssertTrue(restorePlan.metadata.isEmpty)
+        XCTAssertEqual(restorePlan, try CheckRunnerPhotoBackupRestorePlanV1.resolve(
+            history: history, entries: validated.manifest.entries,
+            metadata: { try XCTUnwrap(validated.members[$0]) }))
+        let parentRelease = try CheckRunnerItemDraftCodecV1.release()
+        let parents = try validated.records.fieldDrafts.compactMap { row -> CheckRunnerItemDraftPayloadV1? in
+            guard row.kind == .checkpoint else { return nil }
+            let checkpoint = try FieldDraftCanonicalCodecV1.decode(
+                FieldDraftCheckpointV1.self, from: row.canonicalData)
+            guard checkpoint.codec == parentRelease else { return nil }
+            return try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+        }
+        XCTAssertEqual(parents.count, 1)
+        let parent = try XCTUnwrap(parents.first)
+        guard case .bound = parent.field.begin else {
+            return XCTFail("The real zero-photo fixture must retain its bound parent")
+        }
     }
 }

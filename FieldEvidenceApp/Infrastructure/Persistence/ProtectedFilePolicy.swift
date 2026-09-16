@@ -305,6 +305,10 @@ enum ProtectedFilePolicyV1 {
     static let requiredFileProtection: FileProtectionType = .complete
     #if DEBUG
     private static let diagnosticWriter = ProtectedFileDiagnosticWriterV1(fileHandle: .standardError)
+
+    fileprivate static func emitResourceValueMismatchSource(_ source: StaticString) {
+        diagnosticWriter.write("ProtectedFilePolicy resource-value-mismatch-source=\(source)\n")
+    }
     #endif
 
     #if DEBUG && os(iOS) && targetEnvironment(simulator)
@@ -316,14 +320,30 @@ enum ProtectedFilePolicyV1 {
     static func validateAssetLocatorPersistencePosture() throws {
         guard disposition(for: .database).isExcludedFromBackup == false,
               disposition(for: .journal).isExcludedFromBackup else {
+            #if DEBUG
+            emitResourceValueMismatchSource("asset-locator-posture")
+            #endif
             throw ProtectedFilePolicyError.resourceValueMismatch
         }
     }
-    static func validateSchedulePersistencePosture()throws{guard disposition(for:.database).isExcludedFromBackup == false,disposition(for:.journal).isExcludedFromBackup,C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count==6,!C51ScheduleBackupClosureV1.derivedDueReminderAndPreviewStateIsArchived else{throw ProtectedFilePolicyError.resourceValueMismatch}}
+    static func validateSchedulePersistencePosture() throws {
+        guard disposition(for: .database).isExcludedFromBackup == false,
+              disposition(for: .journal).isExcludedFromBackup,
+              C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count == 6,
+              !C51ScheduleBackupClosureV1.derivedDueReminderAndPreviewStateIsArchived else {
+            #if DEBUG
+            emitResourceValueMismatchSource("schedule-posture")
+            #endif
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+    }
     static func validateSceneNavigationPosture() throws {
         guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate(),
               disposition(for: .sceneNavigation)
                 == .init(expectsDirectory: false, isExcludedFromBackup: true) else {
+            #if DEBUG
+            emitResourceValueMismatchSource("scene-navigation-posture")
+            #endif
             throw ProtectedFilePolicyError.resourceValueMismatch
         }
     }
@@ -873,6 +893,7 @@ enum ProtectedFilePolicyV1 {
                     + " expectedDirectory=\(disposition.expectsDirectory)"
                     + " expectedBackupExcluded=\(disposition.isExcludedFromBackup)\n"
                 diagnosticWriter.write(facts)
+                emitResourceValueMismatchSource("strict-resource-readback")
                 #endif
                 throw ProtectedFilePolicyError.resourceValueMismatch
             }
@@ -929,6 +950,7 @@ enum ProtectedFilePolicyV1 {
             guard simulatorReadbackIsExactFallback(before, disposition: disposition) else {
                 emitDirectoryProtectionReadback(kind: kind, at: url,
                     phase: "verifyInitialMismatch", readback: before)
+                emitResourceValueMismatchSource("initial-fallback-shape")
                 throw ProtectedFilePolicyError.resourceValueMismatch
             }
             guard try pin(kind, at: url, disposition: disposition) == identity else {
@@ -952,6 +974,7 @@ enum ProtectedFilePolicyV1 {
                 phase: "allowanceBeforeMismatch", readback: before)
             emitDirectoryProtectionReadback(kind: kind, at: url,
                 phase: "allowanceAfterMismatch", readback: after)
+            emitResourceValueMismatchSource("final-fallback-predicate")
             throw ProtectedFilePolicyError.resourceValueMismatch
         }
         return .simulatorFileProtectionUnsupported
@@ -1084,6 +1107,9 @@ enum PortableExchangeProtectedFilePolicyV2 {
               }),
               ProtectedFilePolicyV1.disposition(for: restoreSidecarKind)
                 == .init(expectsDirectory: false, isExcludedFromBackup: true) else {
+            #if DEBUG
+            ProtectedFilePolicyV1.emitResourceValueMismatchSource("portable-exchange-posture")
+            #endif
             throw ProtectedFilePolicyError.resourceValueMismatch
         }
     }
@@ -1151,6 +1177,9 @@ enum C49WorkResourceProtectedFileBoundaryV1 {
               !introducesWorkResourceFileKind,
               localPartReferenceIsEmbeddedSnapshot,
               exchangeScratchRemainsExcludedFromBackup else {
+            #if DEBUG
+            ProtectedFilePolicyV1.emitResourceValueMismatchSource("work-resource-posture")
+            #endif
             throw ProtectedFilePolicyError.resourceValueMismatch
         }
         try C49WorkResourcePersistenceBoundaryV1.validate()

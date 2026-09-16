@@ -330,6 +330,12 @@
         "S3_4ResumeRecoveryTests"
       ],
       "id": "c36-startup-recovery"
+    },
+    {
+      "classes": [
+        "S4_1DeterministicRendererTests"
+      ],
+      "id": "backup-capacity"
     }
   ],
   "profiles": [
@@ -337,39 +343,106 @@
       "excludedGroupIDs": [
         "mutation-receipt-safety",
         "c36-raw-staging",
-        "c36-startup-recovery"
+        "c36-startup-recovery",
+        "backup-capacity"
       ],
       "excludedSelectors": [
         "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
-        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA"
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationDuringWriterRemovesOwnedPackage",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationImmediatelyAfterWriterSuccessCleansReceiptOwnedPackage",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesEqualMagicReplacement",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesReplacementRacedBeforePrivateClaim",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testFormatMagicProbeRejectsFIFOWithoutBlocking",
+        "FieldEvidenceAppTests/S6_3BackupValidationTests/testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld"
       ],
       "id": "incumbent-v1"
     },
     {
       "excludedGroupIDs": [
         "c36-raw-staging",
-        "c36-startup-recovery"
+        "c36-startup-recovery",
+        "backup-capacity"
       ],
       "excludedSelectors": [
         "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
-        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA"
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationDuringWriterRemovesOwnedPackage",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationImmediatelyAfterWriterSuccessCleansReceiptOwnedPackage",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesEqualMagicReplacement",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesReplacementRacedBeforePrivateClaim",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testFormatMagicProbeRejectsFIFOWithoutBlocking",
+        "FieldEvidenceAppTests/S6_3BackupValidationTests/testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld"
       ],
       "id": "prospective-v1"
     },
     {
       "excludedGroupIDs": [
-        "c36-startup-recovery"
+        "c36-startup-recovery",
+        "backup-capacity"
       ],
       "excludedSelectors": [
         "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
-        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA"
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationDuringWriterRemovesOwnedPackage",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationImmediatelyAfterWriterSuccessCleansReceiptOwnedPackage",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesEqualMagicReplacement",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesReplacementRacedBeforePrivateClaim",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testFormatMagicProbeRejectsFIFOWithoutBlocking",
+        "FieldEvidenceAppTests/S6_3BackupValidationTests/testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld"
       ],
       "id": "raw-photo-v1"
     },
     {
+      "excludedGroupIDs": [
+        "backup-capacity"
+      ],
+      "excludedSelectors": [
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationDuringWriterRemovesOwnedPackage",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationImmediatelyAfterWriterSuccessCleansReceiptOwnedPackage",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesEqualMagicReplacement",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesReplacementRacedBeforePrivateClaim",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testFormatMagicProbeRejectsFIFOWithoutBlocking",
+        "FieldEvidenceAppTests/S6_3BackupValidationTests/testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld"
+      ],
+      "id": "pair-startup-v1"
+    },
+    {
       "excludedGroupIDs": [],
       "excludedSelectors": [],
-      "id": "pair-startup-v1"
+      "id": "photo-backup-v1"
     }
   ],
   "schemaVersion": 1,
@@ -1074,7 +1147,22 @@
     "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes",
     "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationStartupRecoveryTokenRejectsOperationMintABA",
     "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testMediaReconcileRemovesOrphansAndPreservesMismatchForMaintenance",
-    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testRelaunchAfterWideKeepsExactEvidenceAuthorityAndResumesClose"
+    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testRelaunchAfterWideKeepsExactEvidenceAuthorityAndResumesClose",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationDuringWriterRemovesOwnedPackage",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationImmediatelyAfterWriterSuccessCleansReceiptOwnedPackage",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesEqualMagicReplacement",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesReplacementRacedBeforePrivateClaim",
+    "FieldEvidenceAppTests/S6_2BackupExportTests/testFormatMagicProbeRejectsFIFOWithoutBlocking",
+    "FieldEvidenceAppTests/S6_3BackupValidationTests/testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored",
+    "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages",
+    "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld",
+    "FieldEvidenceAppTests/S4_1DeterministicRendererTests/testCapacityOverflowAndUnexpectedStageOrFinalFailClosed"
   ],
   "sourceRoot": "FieldEvidenceAppTests",
   "taskID": "V23-INTEGRATION-20260910",

@@ -37,15 +37,18 @@ final class AppAccessPresentationV1: ObservableObject {
         private let surface: AppAccessContentReadSurfaceV1
         private let gate: AppAccessGateV1
         private let isCurrent: @MainActor () -> Bool
+        private let backupStore: StoreSessionCoordinator?
 
         fileprivate init(token: AppAccessGateV1.ContentReadToken,
                          surface: AppAccessContentReadSurfaceV1,
                          gate: AppAccessGateV1,
-                         isCurrent: @escaping @MainActor () -> Bool) {
+                         isCurrent: @escaping @MainActor () -> Bool,
+                         backupStore: StoreSessionCoordinator? = nil) {
             self.token = token
             self.surface = surface
             self.gate = gate
             self.isCurrent = isCurrent
+            self.backupStore = backupStore
         }
 
         @MainActor
@@ -56,8 +59,78 @@ final class AppAccessPresentationV1: ObservableObject {
             guard isCurrent() else { throw AppAccessContractFailureV1.accessDenied }
             return try token.withContentRead(for: surface, body)
         }
+
+        /// Called only by the explicit backup action. The operation retains
+        /// this publication, including its original revocation reference.
+        @MainActor
+        func beginBackupOperation(modelContext: ModelContext, generationRootURL: URL) throws -> BackupOperationAccess {
+            try withRead {
+                guard let backupStore, backupStore.modelContext === modelContext,
+                      backupStore.generationRootURL == generationRootURL.standardizedFileURL else {
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+                return try BackupOperationAccess(content: self, store: backupStore, gate: gate)
+            }
+        }
     }
     typealias BackupPreviewAccess = ContentAccess
+
+    /// A private-minted, nonportable action capability. It neither reacquires
+    /// authentication nor adopts a replacement writer after an actor hop.
+    @MainActor
+    final class BackupOperationAccess {
+        private let content: ContentAccess
+        private let store: StoreSessionCoordinator
+        private let writer: WorkspaceWriterV1
+        private let generationID: UUID
+        private let generationRootURL: URL
+        private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+        private let gate: AppAccessGateV1
+        private var holdingOriginalRead = false
+
+        fileprivate init(content: ContentAccess, store: StoreSessionCoordinator, gate: AppAccessGateV1) throws {
+            self.content = content; self.store = store; self.gate = gate
+            writer = store.workspaceWriter; generationID = store.generationID
+            generationRootURL = store.generationRootURL
+            rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+            try validateStore()
+        }
+
+        private func validateStore() throws {
+            try Task.checkCancellation()
+            guard store.workspaceWriter === writer, store.generationID == generationID,
+                  store.generationRootURL == generationRootURL, !store.modelContext.hasChanges,
+                  try writer.currentRevision().generationID == generationID,
+                  try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == rootIdentity else {
+                throw BackupExportServiceError.generationLeaseLost
+            }
+        }
+
+        func validate(for expectedStore: StoreSessionCoordinator) throws {
+            guard expectedStore === store else { throw AppAccessContractFailureV1.accessDenied }
+            // Publication validators run inside the same synchronous access ->
+            // generation -> path locks. Never recursively acquire the NSLock.
+            if holdingOriginalRead { try validateStore() }
+            else { try content.withRead { try validateStore() } }
+        }
+
+        func withAuthorization<T>(_ body: (StoreSessionCoordinator) throws -> T) throws -> T {
+            guard !holdingOriginalRead else { throw AppAccessContractFailureV1.accessDenied }
+            return try content.withRead {
+                holdingOriginalRead = true
+                defer { holdingOriginalRead = false }
+                try validateStore()
+                return try body(store)
+            }
+        }
+
+        func makePhotoService(parentCheckpoint: FieldDraftCheckpointV1,
+                              staging: DraftAttachmentStagingAdapterV1) throws -> ProductionCheckRunnerItemDraftServiceV1 {
+            try withAuthorization { store in
+                try store.makePhotoBackupService(parentCheckpoint: parentCheckpoint, accessGate: gate, staging: staging)
+            }
+        }
+    }
 
     /// My Day reads and planning actions bound to one visible content publication.
     /// The provider retains its own gate/session/writer/source validation; the
@@ -1225,10 +1298,13 @@ final class AppAccessPresentationV1: ObservableObject {
                     && self.contentPublication === publication
                     && self.queuedLifecycleEvents.isEmpty
             }
+            let backupStore: StoreSessionCoordinator?
+            if case let .ready(store, _, _) = startupRouter.route { backupStore = store }
+            else { backupStore = nil }
             publishedBackupPreviewAccess = ContentAccess(token: backupToken, surface: .backupImport,
-                                                         gate: session.gate, isCurrent: stillCurrent)
+                gate: session.gate, isCurrent: stillCurrent, backupStore: backupStore)
             let renderAccess = ContentAccess(token: token, surface: .render,
-                                             gate: session.gate, isCurrent: stillCurrent)
+                gate: session.gate, isCurrent: stillCurrent, backupStore: backupStore)
             publishedRenderAccess = renderAccess
             if case .ready(let store, _, _) = startupRouter.route {
                 publishedSceneNavigationAccess = SceneNavigationAccess(token: sceneToken,

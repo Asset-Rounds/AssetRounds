@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -368,6 +369,52 @@ struct ValidatedV4BackupMembersV1: Equatable, @unchecked Sendable {
 
     var keys: Set<String> { Set(descriptors.keys) }
 
+    /// Bulk content is checked without retaining the member in memory.
+    func verify(_ path: String, expectedByteCount: Int64? = nil, expectedSHA256: String? = nil,
+                maximumByteCount: Int64? = nil,
+                cancellation: StreamingArchiveCancellationV1 = .none) throws {
+        try readVerifiedChunks(path, expectedByteCount: expectedByteCount,
+            expectedSHA256: expectedSHA256, maximumByteCount: maximumByteCount,
+            cancellation: cancellation) { _ in }
+    }
+
+    /// Restore owners consume bounded chunks into private files. They must not
+    /// publish those files until this complete digest and identity check returns.
+    func readVerifiedChunks(_ path: String, expectedByteCount: Int64? = nil,
+        expectedSHA256: String? = nil, maximumByteCount: Int64? = nil,
+        cancellation: StreamingArchiveCancellationV1 = .none,
+        consume: (Data) throws -> Void) throws {
+        guard let descriptor = descriptors[path],
+              expectedByteCount.map({ $0 == descriptor.byteCount }) ?? true,
+              expectedSHA256.map({ $0 == descriptor.sha256 }) ?? true else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        var digest = SHA256()
+        try BackupPackageAnchoredFile.readRegularFileChunks(path, within: rootURL,
+            rootIdentity: rootIdentity, expectedByteCount: descriptor.byteCount,
+            maximumByteCount: min(self.maximumMemberByteCount, maximumByteCount ?? self.maximumMemberByteCount),
+            cancellation: cancellation) {
+                digest.update(data: $0)
+                try consume($0)
+            }
+        guard digest.finalize().map({ String(format: "%02x", $0) }).joined() == descriptor.sha256 else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+    }
+
+    /// Validate a bulk image from the same bounded descriptor that was hashed.
+    /// The no-copy mapped value cannot escape this synchronous inspection.
+    func inspectMapped(_ path: String, maximumByteCount: Int64,
+        cancellation: StreamingArchiveCancellationV1,
+        inspect: (Data) throws -> Void) throws {
+        guard let descriptor = descriptors[path] else { throw BackupPackageValidationErrorV1.invalidPackage }
+        try BackupPackageAnchoredFile.inspectMappedRegularFile(path, within: rootURL,
+            rootIdentity: rootIdentity, expectedByteCount: descriptor.byteCount,
+            expectedSHA256: descriptor.sha256,
+            maximumByteCount: min(maximumMemberByteCount, maximumByteCount),
+            cancellation: cancellation, inspect: inspect)
+    }
+
     subscript(path: String) -> Data? {
         guard let descriptor = descriptors[path],
               descriptor.byteCount >= 0,
@@ -405,6 +452,54 @@ enum BackupPackageAnchoredFile {
         expectedByteCount: Int64? = nil,
         maximumByteCount: Int64 = Int64.max
     ) throws -> Data {
+        var data = Data()
+        try readRegularFileChunks(relativePath, within: rootURL, rootIdentity: rootIdentity,
+            expectedByteCount: expectedByteCount, maximumByteCount: maximumByteCount) { data.append($0) }
+        return data
+    }
+
+    /// One bounded reader serves metadata and bulk verification. Reopening the
+    /// named path after the read rejects namespace substitution as well as an
+    /// in-place write to the original descriptor.
+    static func readRegularFileChunks(
+        _ relativePath: String,
+        within rootURL: URL,
+        rootIdentity: BackupPackageRootIdentity,
+        expectedByteCount: Int64? = nil,
+        maximumByteCount: Int64 = Int64.max,
+        cancellation: StreamingArchiveCancellationV1 = .none,
+        consume: (Data) throws -> Void
+    ) throws {
+        try cancellation.checkpoint()
+        let descriptor = try openRegularFile(relativePath, within: rootURL, rootIdentity: rootIdentity)
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        defer { try? handle.close() }
+        let initial = try regularFileFacts(descriptor)
+        guard initial.st_size <= maximumByteCount,
+              expectedByteCount.map({ $0 == initial.st_size }) ?? true else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        var count: Int64 = 0
+        while count < initial.st_size {
+            try cancellation.checkpoint()
+            guard let chunk = try handle.read(upToCount: Int(min(64 * 1_024, initial.st_size - count))),
+                  !chunk.isEmpty else { throw BackupPackageValidationErrorV1.invalidPackage }
+            count += Int64(chunk.count)
+            try consume(chunk)
+        }
+        try cancellation.checkpoint()
+        guard count == initial.st_size, try handle.read(upToCount: 1)?.isEmpty != false else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        try requireSameFile(try regularFileFacts(descriptor), initial)
+        let named = try openRegularFile(relativePath, within: rootURL, rootIdentity: rootIdentity)
+        defer { Darwin.close(named) }
+        try requireSameFile(try regularFileFacts(named), initial)
+        try cancellation.checkpoint()
+    }
+
+    private static func openRegularFile(_ relativePath: String, within rootURL: URL,
+                                        rootIdentity: BackupPackageRootIdentity) throws -> Int32 {
         let components = relativePath.split(
             separator: "/",
             omittingEmptySubsequences: false
@@ -437,44 +532,65 @@ enum BackupPackageAnchoredFile {
         let fileDescriptor = Darwin.openat(
             descriptor,
             leaf,
-            O_RDONLY | O_NOFOLLOW
+            O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         )
         guard fileDescriptor >= 0 else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
-        let handle = FileHandle(
-            fileDescriptor: fileDescriptor,
-            closeOnDealloc: true
-        )
-        defer { try? handle.close() }
+        return fileDescriptor
+    }
+
+    static func inspectMappedRegularFile(_ relativePath: String, within rootURL: URL,
+        rootIdentity: BackupPackageRootIdentity, expectedByteCount: Int64,
+        expectedSHA256: String, maximumByteCount: Int64,
+        cancellation: StreamingArchiveCancellationV1, inspect: (Data) throws -> Void) throws {
+        try cancellation.checkpoint()
+        let descriptor = try openRegularFile(relativePath, within: rootURL, rootIdentity: rootIdentity)
+        defer { Darwin.close(descriptor) }
+        let initial = try regularFileFacts(descriptor)
+        guard initial.st_size > 0, initial.st_size == expectedByteCount,
+              initial.st_size <= maximumByteCount else { throw BackupPackageValidationErrorV1.invalidPackage }
+        var hasher = SHA256(), offset: Int64 = 0
+        var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+        while offset < initial.st_size {
+            try cancellation.checkpoint()
+            let wanted = Int(min(Int64(buffer.count), initial.st_size - offset))
+            let count = buffer.withUnsafeMutableBytes { Darwin.pread(descriptor, $0.baseAddress, wanted, off_t(offset)) }
+            guard count > 0 else { throw BackupPackageValidationErrorV1.invalidPackage }
+            hasher.update(data: Data(buffer.prefix(count))); offset += Int64(count)
+        }
+        guard hasher.finalize().map({ String(format: "%02x", $0) }).joined() == expectedSHA256 else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        try requireSameFile(try regularFileFacts(descriptor), initial)
+        try cancellation.checkpoint()
+        let mapped = mmap(nil, Int(initial.st_size), PROT_READ, MAP_PRIVATE, descriptor, 0)
+        guard let mapped, mapped != MAP_FAILED else { throw BackupPackageValidationErrorV1.invalidPackage }
+        defer { munmap(mapped, Int(initial.st_size)) }
+        try autoreleasepool {
+            try inspect(Data(bytesNoCopy: mapped, count: Int(initial.st_size), deallocator: .none))
+        }
+        try cancellation.checkpoint()
+        try requireSameFile(try regularFileFacts(descriptor), initial)
+        let named = try openRegularFile(relativePath, within: rootURL, rootIdentity: rootIdentity)
+        defer { Darwin.close(named) }
+        try requireSameFile(try regularFileFacts(named), initial)
+    }
+
+    private static func regularFileFacts(_ fileDescriptor: Int32) throws -> stat {
         var information = stat()
         guard Darwin.fstat(fileDescriptor, &information) == 0,
               (information.st_mode & S_IFMT) == S_IFREG,
               information.st_nlink == 1,
               information.st_size >= 0,
-              information.st_size <= maximumByteCount,
-              expectedByteCount.map({ $0 == information.st_size }) ?? true,
               information.st_size <= Int64(Int.max) else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
-        var data = Data()
-        let bufferByteCount = 64 * 1_024
-        while data.count < Int(information.st_size) {
-            let remaining = Int(information.st_size) - data.count
-            guard let chunk = try handle.read(
-                upToCount: min(bufferByteCount, remaining)
-            ), !chunk.isEmpty else {
-                throw BackupPackageValidationErrorV1.invalidPackage
-            }
-            data.append(chunk)
-        }
-        guard data.count == Int(information.st_size),
-              try handle.read(upToCount: 1)?.isEmpty != false else {
-            throw BackupPackageValidationErrorV1.invalidPackage
-        }
-        var finalInformation = stat()
-        guard Darwin.fstat(fileDescriptor, &finalInformation) == 0,
-              finalInformation.st_dev == information.st_dev,
+        return information
+    }
+
+    private static func requireSameFile(_ finalInformation: stat, _ information: stat) throws {
+        guard finalInformation.st_dev == information.st_dev,
               finalInformation.st_ino == information.st_ino,
               finalInformation.st_nlink == information.st_nlink,
               finalInformation.st_size == information.st_size,
@@ -484,7 +600,6 @@ enum BackupPackageAnchoredFile {
               finalInformation.st_ctimespec.tv_nsec == information.st_ctimespec.tv_nsec else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
-        return data
     }
 
     private static func openRoot(_ rootURL: URL) throws -> Int32 {
@@ -723,13 +838,8 @@ private extension BackupPackageValidatorV1 {
 #endif
         for entry in manifest.entries {
             try cancellation.checkpoint()
-            guard let bytes = members[entry.path] else {
-                throw BackupPackageValidationErrorV1.invalidPackage
-            }
-            guard bytes.count == entry.byteCount,
-                  CanonicalJSONV1.sha256(bytes) == entry.sha256 else {
-                throw BackupPackageValidationErrorV1.invalidPackage
-            }
+            try members.verify(entry.path, expectedByteCount: Int64(entry.byteCount),
+                               expectedSHA256: entry.sha256, cancellation: cancellation)
         }
         guard members.keys.count == expectedFiles.count else {
             throw BackupPackageValidationErrorV1.invalidPackage
@@ -745,11 +855,14 @@ private extension BackupPackageValidatorV1 {
         }()
         let records = decodedRecords.records
         try cancellation.checkpoint()
+        let photoHistory = try records.mutationHistory.map { _ in
+            try CheckRunnerPhotoBackupHistoryV1.project(source: manifest.source, records: records)
+        }
 #if DEBUG
         validationPhase = "records-graph"
 #endif
         try validateGraph(records, manifest: manifest, members: members,
-                          canonicalFacts: decodedRecords.facts)
+                          canonicalFacts: decodedRecords.facts, photoHistory: photoHistory)
         try cancellation.checkpoint()
 #if DEBUG
         validationPhase = "owned-members"
@@ -758,6 +871,7 @@ private extension BackupPackageValidatorV1 {
             records,
             manifest: manifest,
             members: members,
+            photoHistory: photoHistory,
             cancellation: cancellation
         )
         try cancellation.checkpoint()
@@ -896,9 +1010,11 @@ private extension BackupPackageValidatorV1 {
                         for stageFile in stageFiles {
                             let stageName=stageFile.lastPathComponent
                             try validateComponent(stageName)
-                            let stem=String(stageName.dropLast(4))
-                            guard stageName.hasSuffix(".bin"),canonicalUUIDComponent(stem),stageFolded.insert(fold(stageName)).inserted,try itemType(stageFile) == .regular,
-                                  result.files.insert("\(name)/\(childName)/\(stageName)").inserted else{throw BackupPackageValidationErrorV1.invalidPackage}
+                            let path = "\(name)/\(childName)/\(stageName)"
+                            guard CheckRunnerPhotoBackupMemberKeyV1(path: path) != nil,
+                                  stageFolded.insert(fold(stageName)).inserted,
+                                  try itemType(stageFile) == .regular,
+                                  result.files.insert(path).inserted else { throw BackupPackageValidationErrorV1.invalidPackage }
                         }
                         continue
                     }
@@ -1159,7 +1275,8 @@ private extension BackupPackageValidatorV1 {
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1,
         members: ValidatedV4BackupMembersV1,
-        canonicalFacts: BackupCanonicalRecordsValidationFactsV1? = nil
+        canonicalFacts: BackupCanonicalRecordsValidationFactsV1? = nil,
+        photoHistory: CheckRunnerPhotoBackupHistoryV1?
     ) throws {
 #if DEBUG
         var graphPhase = "kernel-registry"
@@ -1448,7 +1565,7 @@ private extension BackupPackageValidatorV1 {
 #if DEBUG
         graphPhase = "validate-field-drafts"
 #endif
-        try validateFieldDrafts(records, manifest: manifest, members: members)
+        try validateFieldDrafts(records, manifest: manifest, members: members, photoHistory: photoHistory)
 #if DEBUG
         graphPhase = "saved-smart-views"
 #endif
@@ -2648,7 +2765,8 @@ private extension BackupPackageValidatorV1 {
     func validateFieldDrafts(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1,
-        members: ValidatedV4BackupMembersV1
+        members: ValidatedV4BackupMembersV1,
+        photoHistory: CheckRunnerPhotoBackupHistoryV1?
     ) throws {
         _ = members
         guard records.recordsSchemaVersion >= 15 else {
@@ -2694,6 +2812,10 @@ private extension BackupPackageValidatorV1 {
                       discardReceipts.updateValue(v, forKey: v.receiptID) == nil else { throw invalid() }
             }
         }
+        let photoDraftIDs = Set(photoHistory?.children.map { $0.currentCheckpoint.draftID } ?? [])
+        let photoRelease = try CheckRunnerPhotoDraftCodecV1.release()
+        guard Set(checkpoints.values.filter { $0.codec.codecID == photoRelease.codecID }.map(\.draftID))
+                == photoDraftIDs else { throw invalid() }
         for checkpoint in checkpoints.values {
             guard checkpoint.stageIDs.allSatisfy({ stages[$0]?.draftID == checkpoint.draftID }) else { throw invalid() }
         }
@@ -2705,7 +2827,7 @@ private extension BackupPackageValidatorV1 {
                   checkpoints[reservation.draftID] != nil,
                   stage.contentDigest == reservation.contentDigest else { throw invalid() }
         }
-        for saga in sagas.values {
+        for saga in sagas.values where !photoDraftIDs.contains(saga.draftID) {
             let availableDigests = Set(stages.values.filter { $0.draftID == saga.draftID }.map { $0.stageSHA256 })
             guard checkpoints[saga.draftID] != nil,
                   Set(saga.plan.stageDigests).isSubset(of: availableDigests) else { throw invalid() }
@@ -2716,7 +2838,7 @@ private extension BackupPackageValidatorV1 {
         }
         var consumedSagaIDs = Set<UUID>()
         var committedReceiptDraftIDs = Set<UUID>()
-        for receipt in commitReceipts.values {
+        for receipt in commitReceipts.values where !photoDraftIDs.contains(receipt.draftID) {
             guard let saga = sagas[receipt.sagaID], saga.draftID == receipt.draftID,
                   saga.state == .draftRetired,
                   saga.plan.planSHA256 == receipt.commitPlanSHA256,
@@ -2764,8 +2886,8 @@ private extension BackupPackageValidatorV1 {
             }
             consumedSagaIDs.formUnion(chainIDs)
         }
-        guard consumedSagaIDs == Set(sagas.keys),
-              Set(checkpoints.values.filter { $0.state == .committed }.map(\.draftID))
+        guard consumedSagaIDs == Set(sagas.values.filter { !photoDraftIDs.contains($0.draftID) }.map(\.sagaID)),
+              Set(checkpoints.values.filter { $0.state == .committed && !photoDraftIDs.contains($0.draftID) }.map(\.draftID))
                 == committedReceiptDraftIDs else { throw invalid() }
         for receipt in discardReceipts.values {
             guard checkpoints[receipt.draftID] != nil,
@@ -4176,6 +4298,7 @@ private extension BackupPackageValidatorV1 {
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1,
         members: ValidatedV4BackupMembersV1,
+        photoHistory: CheckRunnerPhotoBackupHistoryV1?,
         cancellation: StreamingArchiveCancellationV1
     ) throws {
         var expected = Set(["manifest.json", "records.json"])
@@ -4187,6 +4310,51 @@ private extension BackupPackageValidatorV1 {
             expected.insert(PortableExchangeBackupMemberV2.path)
         }
         let normalizer = MediaNormalizerV1()
+        let photoChildren = photoHistory?.children ?? []
+        let photoDraftIDs = Set(photoChildren.map { $0.currentCheckpoint.draftID })
+        let entryByPath = Dictionary(uniqueKeysWithValues: manifest.entries.map { ($0.path, $0) })
+        var photoRawPaths = Set<String>()
+        for child in photoChildren {
+            try cancellation.checkpoint()
+            let plan = try CheckRunnerPhotoBackupPhysicalPlanV1.resolve(child: child,
+                descriptors: entryByPath) { path in
+                    guard let bytes = members[path] else { throw invalid() }
+                    return bytes
+                }
+            for entry in plan.entries {
+                if let key = CheckRunnerPhotoBackupMemberKeyV1(path: entry.path), key.role == .rawBytes {
+                    guard let raw = child.raw else { throw invalid() }
+                    try members.inspectMapped(entry.path, maximumByteCount: key.role.maximumByteCount,
+                        cancellation: cancellation) { bytes in
+                            let facts = try normalizer.inspectSource(bytes)
+                            let actual = try CheckRunnerPhotoSourceInspectionV1(facts: facts,
+                                sourceSHA256: raw.inspection.sourceSHA256, workspaceID: raw.readyItem.workspaceID,
+                                provenanceID: raw.intent.provenanceID)
+                            guard actual == raw.inspection else { throw invalid() }
+                        }
+                } else if entry.mimeType == "image/jpeg" {
+                    guard let pair = child.pair?.normalizedPair else { throw invalid() }
+                    let thumbnail = entry.path == "thumbnails/\(uuid(pair.evidenceID)).jpg"
+                        || CheckRunnerPhotoBackupMemberKeyV1(path: entry.path)?.role == .stagedThumbnail
+                        || CheckRunnerPhotoBackupMemberKeyV1(path: entry.path)?.role == .promotedThumbnail
+                    let kind: MediaContractV1.OutputKind = thumbnail ? .thumbnail : .original
+                    try members.inspectMapped(entry.path, maximumByteCount: Int64(kind.byteCountMaximum),
+                        cancellation: cancellation) { bytes in
+                            let facts = try normalizer.validateCanonicalJPEG(bytes, kind: kind)
+                            guard facts.pixelWidth == (thumbnail ? pair.thumbnailPixelWidth : pair.originalPixelWidth),
+                                  facts.pixelHeight == (thumbnail ? pair.thumbnailPixelHeight : pair.originalPixelHeight) else {
+                                throw invalid()
+                            }
+                        }
+                }
+                expected.insert(entry.path)
+            }
+            if let path = plan.immutableRawPath {
+                try members.verify(path, maximumByteCount: Int64(MediaContractV1.sourceByteCountMaximum),
+                                   cancellation: cancellation)
+                photoRawPaths.insert(path)
+            }
+        }
         for evidence in records.evidenceFiles {
             try cancellation.checkpoint()
             let id = uuid(evidence.id)
@@ -4240,12 +4408,15 @@ private extension BackupPackageValidatorV1 {
         }
         for record in records.fieldDrafts where record.kind == .stagingItem {
             let item = try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
+            if photoDraftIDs.contains(item.draftID) { continue }
             guard let byteCount=item.actualByteCount else { continue }
             let path="draft-staging/\(uuid(item.draftID))/\(uuid(item.stageID)).bin"
             let expectedSHA=item.contentReference?.digests.digest(for:.sha256)?.hexadecimalValue
                 ?? (item.contentDigest?.algorithm == .sha256 ? item.contentDigest?.hexadecimalValue:nil)
-            guard let bytes=members[path],bytes.count==Int(byteCount),let expectedSHA,
-                  CanonicalJSONV1.sha256(bytes)==expectedSHA else{throw invalid()}
+            guard let expectedSHA, byteCount <= Int64(FieldDraftLimitsV1.maximumPayloadBytes) else { throw invalid() }
+            try members.verify(path, expectedByteCount: byteCount, expectedSHA256: expectedSHA,
+                               maximumByteCount: Int64(FieldDraftLimitsV1.maximumPayloadBytes),
+                               cancellation: cancellation)
             expected.insert(path)
         }
         if records.recordsSchemaVersion >= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion {
@@ -4261,11 +4432,14 @@ private extension BackupPackageValidatorV1 {
                 let directory = "content/\(components[0])/\(components[1])"
                 let markerPath = "\(directory)/derivative-publication.json"
                 let bytesPath = "\(directory)/original.bin"
+                if photoRawPaths.contains(bytesPath) {
+                    guard members.descriptors[markerPath] == nil else { throw invalid() }
+                    continue
+                }
                 guard members.descriptors[markerPath] != nil || members.descriptors[bytesPath] == nil else {
                     throw invalid()
                 }
                 guard let markerData = members[markerPath] else { continue }
-                guard let bytes = members[bytesPath] else { throw invalid() }
                 let marker = try EvidenceCurationCanonicalCodecV1.decode(
                     EvidenceDerivativePublicationMarkerV1.self,
                     from: markerData
@@ -4274,11 +4448,11 @@ private extension BackupPackageValidatorV1 {
                 guard marker.workspaceID.rawValue.uuidString.lowercased() == components[0],
                       marker.result.derivative.workspaceID == components[0],
                       marker.result.derivative.contentID == components[1],
-                      Int64(bytes.count) == marker.result.derivative.byteLength,
-                      let digest = marker.result.derivative.digests.digest(for: .sha256),
-                      CanonicalJSONV1.sha256(bytes) == digest.hexadecimalValue else {
+                      let digest = marker.result.derivative.digests.digest(for: .sha256) else {
                     throw invalid()
                 }
+                try members.verify(bytesPath, expectedByteCount: marker.result.derivative.byteLength,
+                                   expectedSHA256: digest.hexadecimalValue, cancellation: cancellation)
                 expected.insert(markerPath)
                 expected.insert(bytesPath)
             }

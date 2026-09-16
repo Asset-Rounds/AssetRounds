@@ -2193,6 +2193,10 @@ private extension BackupCanonicalEncoderV1 {
         case .draftStaging:
             return recordsSchemaVersion >= V16FieldDraftImportBoundaryV1.recordsSchemaVersion
                 && value.mimeType == "application/octet-stream"
+        case let .draftPhoto(role):
+            return recordsSchemaVersion >= V16FieldDraftImportBoundaryV1.recordsSchemaVersion
+                && value.mimeType == role.mimeType && value.byteCount > 0
+                && Int64(value.byteCount) <= role.maximumByteCount
         case .contentOriginal:
             return recordsSchemaVersion >= TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion
                 && ContentContractValidationV1.validMediaType(value.mimeType)
@@ -2207,6 +2211,7 @@ private extension BackupCanonicalEncoderV1 {
     enum PathKind {
         case records, portableExchange, media, thumbnail, snapshot, pdf
         case draftStaging, contentOriginal, derivativePublication
+        case draftPhoto(CheckRunnerPhotoBackupMemberKeyV1.Role)
     }
 
     static func pathKind(_ path: String) -> PathKind? {
@@ -2214,9 +2219,8 @@ private extension BackupCanonicalEncoderV1 {
         if path == PortableExchangeBackupMemberV2.path { return .portableExchange }
         let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
         if components.count == 3, components[0] == "draft-staging" {
-            guard UUID(uuidString: components[1])?.uuidString.lowercased() == components[1],
-                  canonicalUUIDFilename(components[2], pathExtension: "bin") else { return nil }
-            return .draftStaging
+            guard let member = CheckRunnerPhotoBackupMemberKeyV1(path: path) else { return nil }
+            return member.role == .rawBytes ? .draftStaging : .draftPhoto(member.role)
         }
         if components.count == 4, components[0] == "content" {
             guard UUID(uuidString: components[1])?.uuidString.lowercased() == components[1],

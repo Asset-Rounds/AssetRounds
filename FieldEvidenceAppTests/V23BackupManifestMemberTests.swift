@@ -14,6 +14,24 @@ final class V23BackupManifestMemberTests: XCTestCase {
 
         XCTAssertNoThrow(try encode(manifest(entries: [member], persistent: 16, records: 15)))
         assertInvalid(manifest(entries: [member], persistent: 15, records: 14))
+
+        for role in CheckRunnerPhotoBackupMemberKeyV1.Role.allCases where role != .rawBytes {
+            let key = CheckRunnerPhotoBackupMemberKeyV1(childDraftID: draftID, stageID: stageID, role: role)
+            XCTAssertEqual(CheckRunnerPhotoBackupMemberKeyV1(path: key.path), key)
+            let photo = entry(path: key.path, mimeType: role.mimeType)
+            XCTAssertNoThrow(try encode(manifest(entries: [photo], persistent: 16, records: 15)))
+            assertInvalid(manifest(entries: [photo], persistent: 15, records: 14))
+            assertInvalid(manifest(entries: [entry(path: key.path, mimeType: "text/plain")]))
+            for path in [key.path.uppercased(), key.path + ".bin", key.path + "/extra",
+                         key.path.replacingOccurrences(of: "draft-staging/", with: "draft-staging//"),
+                         key.path.replacingOccurrences(of: "." + role.rawValue, with: ".unknown.json")] {
+                XCTAssertNil(CheckRunnerPhotoBackupMemberKeyV1(path: path))
+                assertInvalid(manifest(entries: [entry(path: path, mimeType: role.mimeType)]))
+            }
+            let oversized = V4BackupEntryV1(byteCount: Int(role.maximumByteCount + 1),
+                mimeType: role.mimeType, path: key.path, sha256: photo.sha256)
+            assertInvalid(manifest(entries: [oversized]))
+        }
     }
 
     func testTemporalOriginalUsesOwnerConstructorAndHonorsSchemaFloor() throws {

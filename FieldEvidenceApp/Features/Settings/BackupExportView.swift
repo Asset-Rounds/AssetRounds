@@ -23,6 +23,7 @@ struct BackupExportView: View {
     @State private var isWorking = false
     @State private var showsDestinationPicker = false
     @State private var exportedPackageName: String?
+    @State private var exportTask: Task<Void, Never>?
     @AccessibilityFocusState private var warningFocused: Bool
     @AccessibilityFocusState private var exportedFocused: Bool
 
@@ -99,6 +100,7 @@ struct BackupExportView: View {
             guard preview == nil, !isWorking else { return }
             loadPreview()
         }
+        .onDisappear { exportTask?.cancel() }
     }
 
     private func loadPreview() {
@@ -132,16 +134,19 @@ struct BackupExportView: View {
     }
 
     private func export(previewID: UUID, to destination: URL) {
+        guard !isWorking else { return }
         showsDestinationPicker = false
         isWorking = true
-        let accessed = destination.startAccessingSecurityScopedResource()
-        defer {
-            if accessed { destination.stopAccessingSecurityScopedResource() }
-            isWorking = false
-        }
-        if let url = try? contentAccess.withRead({ try service.export(previewID: previewID, to: destination) }) {
-            exportedPackageName = url.lastPathComponent
-            Task { @MainActor in
+        exportTask = Task { @MainActor in
+            let accessed = destination.startAccessingSecurityScopedResource()
+            defer {
+                if accessed { destination.stopAccessingSecurityScopedResource() }
+                isWorking = false
+                exportTask = nil
+            }
+            if let url = try? await service.export(previewID: previewID, to: destination,
+                contentAccess: contentAccess), !Task.isCancelled {
+                exportedPackageName = url.lastPathComponent
                 await Task.yield()
                 exportedFocused = true
             }

@@ -84,6 +84,33 @@ fileprivate final class DraftStagingRootOwnerV1: @unchecked Sendable {
             do { _ = try DraftStagingRootOwnerV1.regular(fd); return fd }
             catch { close(fd); throw error }
         }
+        func names() throws -> Set<String> {
+            try verifyNamed()
+            let duplicate = openat(descriptor, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard duplicate >= 0 else { throw DraftAttachmentStagingFailureV1.unsafePath }
+            guard let stream = fdopendir(duplicate) else {
+                close(duplicate); throw DraftAttachmentStagingFailureV1.unsafePath
+            }
+            defer { closedir(stream) }
+            var result = Set<String>()
+            errno = 0
+            while let entry = readdir(stream) {
+                let capacity = MemoryLayout.size(ofValue: entry.pointee.d_name)
+                let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: capacity) {
+                        String(cString: $0)
+                    }
+                }
+                if name != "." && name != ".." {
+                    try DraftStagingRootOwnerV1.component(name)
+                    guard result.insert(name).inserted else { throw DraftAttachmentStagingFailureV1.unsafePath }
+                }
+                errno = 0
+            }
+            guard errno == 0 else { throw DraftAttachmentStagingFailureV1.unsafePath }
+            try verifyNamed()
+            return result
+        }
         func verifyFile(_ fd: Int32, name: String) throws {
             let opened = try openFile(name)
             defer { close(opened) }
@@ -91,6 +118,19 @@ fileprivate final class DraftStagingRootOwnerV1: @unchecked Sendable {
             guard a.st_dev == b.st_dev, a.st_ino == b.st_ino else {
                 throw DraftAttachmentStagingFailureV1.staleStage
             }
+        }
+
+        /// A retained, previously admitted file is stale when its named
+        /// binding is lost. Initial open/type admission keeps its own errors.
+        func verifyPinnedFile(_ fd: Int32, name: String, facts: stat) throws {
+            try DraftStagingRootOwnerV1.component(name)
+            try DraftStagingRootOwnerV1.unchanged(fd, facts)
+            let current = openat(descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard current >= 0 else { throw DraftAttachmentStagingFailureV1.staleStage }
+            defer { close(current) }
+            try DraftStagingRootOwnerV1.unchanged(current, facts)
+            try verifyNamed()
+            try DraftStagingRootOwnerV1.unchanged(fd, facts)
         }
     }
     static func component(_ name: String) throws {
@@ -145,15 +185,8 @@ fileprivate final class DraftStagingRootOwnerV1: @unchecked Sendable {
         }
         deinit { close(descriptor) }
         func requireCurrent(_ owner: DraftStagingRootOwnerV1) throws {
-            try DraftStagingRootOwnerV1.unchanged(descriptor, facts)
-            let current = openat(owner.descriptor, DraftAttachmentStagingAdapterV1.manifestName,
-                                 O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
-            guard current >= 0 else { throw DraftAttachmentStagingFailureV1.corruptManifest }
-            defer { close(current) }
-            let value = try DraftStagingRootOwnerV1.regular(current)
-            guard value.st_dev == facts.st_dev, value.st_ino == facts.st_ino else {
-                throw DraftAttachmentStagingFailureV1.staleStage
-            }
+            try owner.directory([]).verifyPinnedFile(descriptor,
+                name: DraftAttachmentStagingAdapterV1.manifestName, facts: facts)
         }
     }
     static func pathExists(_ url: URL) -> Bool {
@@ -168,8 +201,9 @@ fileprivate final class DraftStagingRootOwnerV1: @unchecked Sendable {
         return value
     }
     static func unchanged(_ fd: Int32, _ prior: stat) throws {
-        let now = try regular(fd)
-        guard now.st_dev == prior.st_dev, now.st_ino == prior.st_ino, now.st_size == prior.st_size,
+        var now = stat()
+        guard fstat(fd, &now) == 0, now.st_mode & S_IFMT == S_IFREG, now.st_nlink == 1,
+              now.st_dev == prior.st_dev, now.st_ino == prior.st_ino, now.st_size == prior.st_size,
               now.st_mtimespec.tv_sec == prior.st_mtimespec.tv_sec,
               now.st_mtimespec.tv_nsec == prior.st_mtimespec.tv_nsec,
               now.st_ctimespec.tv_sec == prior.st_ctimespec.tv_sec,
@@ -297,8 +331,9 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         try base.requireCurrent(owner)
         try parent.verifyNamed()
         try directory.verifyNamed()
-        try directory.verifyFile(payloadDescriptor, name: DraftAttachmentStagingAdapterV1.payloadName)
-        try directory.verifyFile(witnessDescriptor, name: Self.witnessName)
+        try directory.verifyPinnedFile(payloadDescriptor,
+            name: DraftAttachmentStagingAdapterV1.payloadName, facts: payloadFacts)
+        try directory.verifyPinnedFile(witnessDescriptor, name: Self.witnessName, facts: witnessFacts)
         try DraftStagingRootOwnerV1.unchanged(payloadDescriptor, payloadFacts)
         try DraftStagingRootOwnerV1.unchanged(witnessDescriptor, witnessFacts)
         if privateName != nil, try parent.exists(finalName) {
@@ -333,7 +368,7 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
                     directory: self.owner.directory([]))
             }
             let readBack = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: self.owner).manifest
-            guard readBack == self.candidateManifest else {
+            guard try readBack.canonicalBytes() == self.candidateBytes else {
                 throw DraftAttachmentStagingFailureV1.corruptManifest
             }
             let visible = try self.owner.directory(self.parent.components + [self.finalName])
@@ -341,8 +376,10 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
                   visible.identity.st_ino == self.directory.identity.st_ino else {
                 throw DraftAttachmentStagingFailureV1.staleStage
             }
-            try visible.verifyFile(self.payloadDescriptor, name: DraftAttachmentStagingAdapterV1.payloadName)
-            try visible.verifyFile(self.witnessDescriptor, name: Self.witnessName)
+            try visible.verifyPinnedFile(self.payloadDescriptor,
+                name: DraftAttachmentStagingAdapterV1.payloadName, facts: self.payloadFacts)
+            try visible.verifyPinnedFile(self.witnessDescriptor,
+                name: Self.witnessName, facts: self.witnessFacts)
             published = true
         }
         guard published else { throw DraftAttachmentStagingFailureV1.invalidTransition }
@@ -351,10 +388,10 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
 
     private static let witnessName = "raw-publication.json"
 
-    fileprivate static func prepare(sourceURL: URL, payload: CheckRunnerPhotoDraftPayloadV1,
+    fileprivate static func prepare(sourceURL: URL?, payload: CheckRunnerPhotoDraftPayloadV1,
         publishedRawReady: CheckRunnerPhotoRawReadyV1?, applicationSupportURL: URL,
         adapterIdentity: ObjectIdentifier, owner: DraftStagingRootOwnerV1) throws
-        -> DraftPreparedRawPhotoPublicationV1 {
+        -> DraftPreparedRawPhotoPublicationV1? {
         try Task.checkCancellation()
         try payload.validate()
         guard case .awaitingRawStage = payload.phase else {
@@ -367,12 +404,26 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         var lockHeld = true
         defer { if lockHeld { lock.release() } }
         let base = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner)
-        let parent = try owner.directory([path[0]], create: publishedRawReady == nil)
-        try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: parent.url)
+        if sourceURL == nil, try !owner.directory([]).exists(path[0]) {
+            guard publishedRawReady == nil,
+                  !base.manifest.entries.contains(where: { $0.item.stageID == intent.stageID }) else {
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+            return nil
+        }
+        let parent = try owner.directory([path[0]], create: sourceURL != nil && publishedRawReady == nil)
+        if sourceURL == nil { try ProtectedFilePolicyV1.verify(.stagingDirectory, at: parent.url) }
+        else { try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: parent.url) }
         try parent.verifyNamed()
         let existing = try parent.exists(path[1])
         if publishedRawReady != nil, !existing {
             throw DraftAttachmentStagingFailureV1.stageNotFound
+        }
+        if sourceURL == nil, !existing {
+            guard !base.manifest.entries.contains(where: { $0.item.stageID == intent.stageID }) else {
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+            return nil
         }
         let directory: DraftStagingRootOwnerV1.Directory
         let privateName: String?
@@ -445,6 +496,7 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         // Existing publication wins before sourceURL is even inspected/opened.
         var copiedDigest: ContentDigestV1?
         if !existing {
+            guard let sourceURL else { throw DraftAttachmentStagingFailureV1.stageNotFound }
             let copied = try copySource(sourceURL, expectedCount: intent.expectedSourceByteCount,
                 into: directory, ownedIdentity: &ownedPayload)
             payloadFD = copied.descriptor; copiedDigest = copied.digest
@@ -710,8 +762,9 @@ fileprivate final class DraftRawPhotoReadSnapshotV1: @unchecked Sendable {
         try owner.requireNamedRoot()
         try base.requireCurrent(owner)
         try directory.verifyNamed()
-        try directory.verifyFile(payloadDescriptor, name: DraftAttachmentStagingAdapterV1.payloadName)
-        try directory.verifyFile(witnessDescriptor, name: "raw-publication.json")
+        try directory.verifyPinnedFile(payloadDescriptor,
+            name: DraftAttachmentStagingAdapterV1.payloadName, facts: payloadFacts)
+        try directory.verifyPinnedFile(witnessDescriptor, name: "raw-publication.json", facts: witnessFacts)
         try DraftStagingRootOwnerV1.unchanged(payloadDescriptor, payloadFacts)
         try DraftStagingRootOwnerV1.unchanged(witnessDescriptor, witnessFacts)
     }
@@ -732,6 +785,18 @@ fileprivate final class DraftRawPhotoReadSnapshotV1: @unchecked Sendable {
         }
         try Task.checkCancellation()
         try requireCurrent()
+    }
+
+    func backupSnapshot() throws -> DraftPhotoRawBackupSnapshotV1 {
+        try requireCurrent()
+        var rootFacts = stat()
+        guard fstat(owner.descriptor, &rootFacts) == 0 else { throw DraftAttachmentStagingFailureV1.invalidRoot }
+        return .init(raw: rawReady, physicalEntry: try .init(entry: entry),
+            rootURL: owner.rootURL,
+            rootIdentity: .init(device: UInt64(rootFacts.st_dev), inode: UInt64(rootFacts.st_ino)),
+            manifestSHA256: base.manifest.manifestSHA256,
+            payloadFacts: DraftPhotoRawBackupSnapshotV1.facts(payloadFacts),
+            witnessFacts: DraftPhotoRawBackupSnapshotV1.facts(witnessFacts))
     }
 
     private func mappedBytes() throws -> Data {
@@ -816,9 +881,360 @@ final class DraftPreparedRawPhotoVerificationV1: @unchecked Sendable {
     }
 }
 
-/// The root service can inspect frozen metadata but cannot manufacture a
-/// successful physical promotion. Only this adapter can construct/finish it.
-final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
+/// Bounded value facts: a backup does not retain one descriptor pair per child.
+struct DraftPhotoRawBackupSnapshotV1: Equatable, Sendable {
+    let raw: CheckRunnerPhotoRawReadyV1
+    let physicalEntry: CheckRunnerPhotoBackupPhysicalEntryV1
+    let rootURL: URL
+    let rootIdentity: StreamingArchiveRootIdentityV1
+    let manifestSHA256: String
+    let payloadFacts: StreamingArchiveSourceSnapshotV1
+    let witnessFacts: StreamingArchiveSourceSnapshotV1
+
+    fileprivate static func facts(_ value: stat) -> StreamingArchiveSourceSnapshotV1 {
+        .init(device: UInt64(value.st_dev), inode: UInt64(value.st_ino), linkCount: UInt64(value.st_nlink),
+              byteCount: value.st_size, modifiedSeconds: Int64(value.st_mtimespec.tv_sec),
+              modifiedNanoseconds: Int64(value.st_mtimespec.tv_nsec), changedSeconds: Int64(value.st_ctimespec.tv_sec),
+              changedNanoseconds: Int64(value.st_ctimespec.tv_nsec))
+    }
+}
+
+enum DraftPhotoBackupRootObservationV1: Sendable {
+    case existing(DraftAttachmentStagingAdapterV1)
+    case absent(DraftPhotoBackupAbsentRootVerificationV1)
+}
+
+/// Retains the incumbent data-directory identity without creating the global
+/// staging root. An empty canonical inventory is required while that root is
+/// absent; child intents may still describe photos that have not staged bytes.
+final class DraftPhotoBackupAbsentRootVerificationV1: @unchecked Sendable {
+    private let parent: DraftStagingRootOwnerV1
+    private let workspaceID: WorkspaceID
+    private static let zero = UUID(uuid: (
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ))
+
+    fileprivate init(parent: DraftStagingRootOwnerV1, workspaceID: WorkspaceID) {
+        self.parent = parent
+        self.workspaceID = workspaceID
+    }
+
+    func preparePhotoBackupVerification(canonicalStages: [AttachmentStagingItemV1],
+        childStageIDs: [UUID: UUID]) throws -> DraftPhotoBackupAbsentRootPreparedVerificationV1 {
+        guard canonicalStages.isEmpty,
+              childStageIDs.count <= FieldDraftLimitsV1.maximumStageItems,
+              Set(childStageIDs.values).count == childStageIDs.count else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+        for (childID, stageID) in childStageIDs {
+            guard childID != Self.zero, stageID != Self.zero else {
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+        }
+        let lock = try parent.acquire()
+        defer { lock.release() }
+        try Self.requireAbsent(parent)
+        return DraftPhotoBackupAbsentRootPreparedVerificationV1(
+            parent: parent, workspaceID: workspaceID, childStageIDs: childStageIDs)
+    }
+
+    fileprivate static func requireAbsent(_ parent: DraftStagingRootOwnerV1) throws {
+        try Task.checkCancellation()
+        try parent.requireNamedRoot()
+        guard try !parent.directory([]).exists(DraftAttachmentStagingAdapterV1.directoryName) else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+    }
+}
+
+/// Holds the data-parent lock while the archive finalizer consumes the proven
+/// empty raw inventory, then rechecks both the parent identity and leaf absence.
+final class DraftPhotoBackupAbsentRootPreparedVerificationV1: @unchecked Sendable {
+    private let parent: DraftStagingRootOwnerV1
+    let workspaceID: WorkspaceID
+    let childStageIDs: [UUID: UUID]
+
+    fileprivate init(parent: DraftStagingRootOwnerV1, workspaceID: WorkspaceID,
+        childStageIDs: [UUID: UUID]) {
+        self.parent = parent
+        self.workspaceID = workspaceID
+        self.childStageIDs = childStageIDs
+    }
+
+    func withVerificationLock<T>(_ body: () throws -> T) throws -> T {
+        let lock = try parent.acquire()
+        defer { lock.release() }
+        try DraftPhotoBackupAbsentRootVerificationV1.requireAbsent(parent)
+        let value = try body()
+        try DraftPhotoBackupAbsentRootVerificationV1.requireAbsent(parent)
+        return value
+    }
+}
+
+/// The actor already hashed and inspected these originals off the UI actor.
+/// Final validation holds R only for manifest, namespace and descriptor facts.
+final class DraftPhotoBackupPreparedVerificationV1: @unchecked Sendable {
+    let snapshots: [DraftPhotoRawBackupSnapshotV1]
+    fileprivate let owner: DraftStagingRootOwnerV1
+    private let canonicalStages: [AttachmentStagingItemV1]
+    private let childStageIDs: [UUID: UUID]
+    private let manifestSHA256: String
+    fileprivate let namespaceFacts: [String: StreamingArchiveSourceSnapshotV1]
+
+    fileprivate init(snapshots: [DraftPhotoRawBackupSnapshotV1], owner: DraftStagingRootOwnerV1,
+                     canonicalStages: [AttachmentStagingItemV1], childStageIDs: [UUID: UUID],
+                     committingCheckpoints: [UUID: FieldDraftCheckpointV1]) throws {
+        self.snapshots = snapshots; self.owner = owner
+        self.canonicalStages = canonicalStages
+        self.childStageIDs = childStageIDs
+        // The durable raw write can precede its canonical acknowledgement.
+        // Permit only the exact COMMITTING-derived physical successor while
+        // retaining the original ready row, never an arbitrary phase mismatch.
+        for snapshot in snapshots {
+            let promotion = try committingCheckpoints[snapshot.raw.readyItem.draftID].map {
+                try DraftPhotoRawPromotionValuesV1(checkpoint: $0)
+            }
+            let canonical = canonicalStages.first { $0.stageID == snapshot.raw.intent.stageID }
+            guard promotion.map({ $0.rawReady == snapshot.raw }) ?? true,
+                  canonical == snapshot.raw.readyItem || canonical == promotion?.committedStage,
+                  snapshot.physicalEntry.entry.item == canonical
+                    || (canonical == snapshot.raw.readyItem
+                        && snapshot.physicalEntry.entry == promotion?.committedEntry) else {
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+        }
+        let held = try owner.acquire(); defer { held.release() }
+        let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        manifestSHA256 = manifest.manifestSHA256
+        namespaceFacts = try Self.census(owner: owner, canonicalStages: canonicalStages,
+            childStageIDs: childStageIDs, snapshots: snapshots, manifest: manifest, hashGenericPayloads: true)
+        try requireCurrent()
+    }
+
+    func withVerificationLock<T>(_ body: () throws -> T) throws -> T {
+        let lock = try owner.acquire()
+        defer { lock.release() }
+        try requireCurrent()
+        let value = try body()
+        try requireCurrent()
+        return value
+    }
+
+    /// Restore changes the namespace only after recording this exact before
+    /// census. Its owner must verify the resulting closed operation census;
+    /// the unchanged backup census is deliberately not reusable afterwards.
+    fileprivate func withRestorePreparationLock<T>(_ body: () throws -> T) throws -> T {
+        let lock = try owner.acquire()
+        defer { lock.release() }
+        try requireCurrent()
+        return try body()
+    }
+
+    private func requireCurrent() throws {
+        try Task.checkCancellation()
+        try owner.requireNamedRoot()
+        let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        guard manifest.manifestSHA256 == manifestSHA256,
+              try Self.census(owner: owner, canonicalStages: canonicalStages,
+                childStageIDs: childStageIDs, snapshots: snapshots, manifest: manifest) == namespaceFacts else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+        var rootFacts = stat()
+        guard fstat(owner.descriptor, &rootFacts) == 0 else { throw DraftAttachmentStagingFailureV1.invalidRoot }
+        let rootIdentity = StreamingArchiveRootIdentityV1(device: UInt64(rootFacts.st_dev), inode: UInt64(rootFacts.st_ino))
+        for snapshot in snapshots {
+            guard snapshot.rootURL == owner.rootURL, snapshot.rootIdentity == rootIdentity,
+                  snapshot.manifestSHA256 == manifest.manifestSHA256,
+                  manifest.entries.first(where: { $0.item.stageID == snapshot.raw.intent.stageID })
+                    == snapshot.physicalEntry.entry else { throw DraftAttachmentStagingFailureV1.staleStage }
+            let parts = DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                draftID: snapshot.raw.readyItem.draftID, stageID: snapshot.raw.intent.stageID).split(separator: "/").map(String.init)
+            let directory = try owner.directory(parts)
+            for (name, expected) in [(DraftAttachmentStagingAdapterV1.payloadName, snapshot.payloadFacts),
+                                     ("raw-publication.json", snapshot.witnessFacts)] {
+                let file = try directory.openFile(name)
+                defer { close(file) }
+                guard try DraftPhotoRawBackupSnapshotV1.facts(DraftStagingRootOwnerV1.regular(file)) == expected else {
+                    throw DraftAttachmentStagingFailureV1.staleStage
+                }
+            }
+            try directory.verifyNamed()
+        }
+    }
+
+    private static func census(owner: DraftStagingRootOwnerV1,
+        canonicalStages: [AttachmentStagingItemV1], childStageIDs: [UUID: UUID],
+        snapshots: [DraftPhotoRawBackupSnapshotV1], manifest: DraftAttachmentStagingManifestV1,
+        hashGenericPayloads: Bool = false) throws
+        -> [String: StreamingArchiveSourceSnapshotV1] {
+        let rawByChild = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.raw.readyItem.draftID, $0) })
+        let rawByStage = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.raw.intent.stageID, $0) })
+        let canonicalByStage = Dictionary(uniqueKeysWithValues: canonicalStages.map { ($0.stageID, $0) })
+        let manifestByStage = Dictionary(uniqueKeysWithValues: manifest.entries.map { ($0.item.stageID, $0) })
+        guard rawByChild.count == snapshots.count,
+              rawByStage.count == snapshots.count,
+              canonicalByStage.count == canonicalStages.count,
+              manifestByStage.count == manifest.entries.count,
+              manifest.entries.count == canonicalStages.count,
+              Set(rawByChild.keys).isSubset(of: Set(childStageIDs.keys)),
+              manifest.entries.allSatisfy({ entry in
+                  let expected = rawByStage[entry.item.stageID]?.physicalEntry.entry.item
+                    ?? canonicalByStage[entry.item.stageID]
+                  return expected == entry.item
+              }),
+              snapshots.allSatisfy({ snapshot in
+                  childStageIDs[snapshot.raw.readyItem.draftID] == snapshot.raw.intent.stageID
+                    && manifestByStage[snapshot.raw.intent.stageID] == snapshot.physicalEntry.entry
+              }) else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+        let root = try owner.directory([])
+        let quarantine = try owner.directory([DraftAttachmentStagingAdapterV1.quarantineName])
+        var facts: [String: StreamingArchiveSourceSnapshotV1] = [
+            "directory:.": DraftPhotoRawBackupSnapshotV1.facts(root.identity),
+            "directory:\(DraftAttachmentStagingAdapterV1.quarantineName)":
+                DraftPhotoRawBackupSnapshotV1.facts(quarantine.identity)
+        ]
+
+        let manifestFile = try root.openFile(DraftAttachmentStagingAdapterV1.manifestName)
+        do {
+            defer { close(manifestFile) }
+            facts["file:\(DraftAttachmentStagingAdapterV1.manifestName)"] =
+                try DraftPhotoRawBackupSnapshotV1.facts(DraftStagingRootOwnerV1.regular(manifestFile))
+            try root.verifyFile(manifestFile, name: DraftAttachmentStagingAdapterV1.manifestName)
+        }
+
+        var stagesByParent: [String: [String: DraftAttachmentStagingEntryV1]] = [:]
+        var requiredParents = Set<String>()
+        var optionalParents = Set<String>()
+        for entry in manifest.entries {
+            try Task.checkCancellation()
+            if entry.item.state == .orphanQuarantined {
+                let stageName = "stage-\(entry.item.stageID.uuidString.lowercased())"
+                guard entry.relativeDataPath == "\(DraftAttachmentStagingAdapterV1.quarantineName)/\(stageName)/\(DraftAttachmentStagingAdapterV1.payloadName)",
+                      try quarantine.exists(stageName) else {
+                    throw DraftAttachmentStagingFailureV1.staleStage
+                }
+                let stageDirectory = try owner.directory([DraftAttachmentStagingAdapterV1.quarantineName, stageName])
+                try recordStageDirectory(stageDirectory, relativePath:
+                    "\(DraftAttachmentStagingAdapterV1.quarantineName)/\(stageName)",
+                    expectedNames: [DraftAttachmentStagingAdapterV1.payloadName], item: entry.item, facts: &facts)
+                continue
+            }
+            let parts = DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                draftID: entry.item.draftID, stageID: entry.item.stageID)
+                .split(separator: "/").map(String.init)
+            guard parts.count == 2,
+                  entry.relativeDataPath == DraftAttachmentStagingAdapterV1.relativeDataPath(
+                    draftID: entry.item.draftID, stageID: entry.item.stageID),
+                  stagesByParent[parts[0], default: [:]].updateValue(entry, forKey: parts[1]) == nil else {
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+            requiredParents.insert(parts[0])
+        }
+
+        for (child, stage) in childStageIDs {
+            try Task.checkCancellation()
+            let parts = DraftAttachmentStagingAdapterV1.relativeStageDirectory(draftID: child, stageID: stage)
+                .split(separator: "/").map(String.init)
+            let expected = rawByChild[child]
+            let entries = manifest.entries.filter { $0.item.draftID == child }
+            guard entries == (expected.map({ [$0.physicalEntry.entry] }) ?? []) else {
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+            if expected == nil { optionalParents.insert(parts[0]) }
+        }
+
+        var presentOptionalParents = Set<String>()
+        for parentName in optionalParents where !requiredParents.contains(parentName) {
+            if try root.exists(parentName) { presentOptionalParents.insert(parentName) }
+        }
+        let expectedRootNames: Set<String> = [
+            DraftAttachmentStagingAdapterV1.manifestName,
+            DraftAttachmentStagingAdapterV1.quarantineName
+        ]
+        guard try root.names() == expectedRootNames.union(requiredParents).union(presentOptionalParents) else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+
+        for parentName in requiredParents.union(presentOptionalParents) {
+            try Task.checkCancellation()
+            let parent = try owner.directory([parentName])
+            facts["directory:\(parentName)"] = DraftPhotoRawBackupSnapshotV1.facts(parent.identity)
+            let expectedStages = stagesByParent[parentName] ?? [:]
+            guard try parent.names() == Set(expectedStages.keys) else {
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+            for (stageName, entry) in expectedStages {
+                let relativeStage = "\(parentName)/\(stageName)"
+                let stageDirectory = try owner.directory([parentName, stageName])
+                let isPhoto = rawByStage[entry.item.stageID] != nil
+                let expectedNames: Set<String> = isPhoto
+                    ? [DraftAttachmentStagingAdapterV1.payloadName, "raw-publication.json"]
+                    : [DraftAttachmentStagingAdapterV1.payloadName]
+                try recordStageDirectory(stageDirectory, relativePath: relativeStage,
+                    expectedNames: expectedNames, item: entry.item, facts: &facts,
+                    hashGenericPayload: hashGenericPayloads && !isPhoto)
+            }
+        }
+        return facts
+    }
+
+    private static func recordStageDirectory(_ directory: DraftStagingRootOwnerV1.Directory,
+        relativePath: String, expectedNames: Set<String>, item: AttachmentStagingItemV1,
+        facts: inout [String: StreamingArchiveSourceSnapshotV1], hashGenericPayload: Bool = false) throws {
+        guard try directory.names() == expectedNames else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+        facts["directory:\(relativePath)"] = DraftPhotoRawBackupSnapshotV1.facts(directory.identity)
+        for name in expectedNames {
+            let file = try directory.openFile(name)
+            let fileFacts: stat
+            do {
+                defer { close(file) }
+                fileFacts = try DraftStagingRootOwnerV1.regular(file)
+                if hashGenericPayload, name == DraftAttachmentStagingAdapterV1.payloadName,
+                   item.state == .readyLocal || item.state == .committed {
+                    guard let count = item.actualByteCount, count > 0,
+                          count <= Int64(FieldDraftLimitsV1.maximumPayloadBytes),
+                          fileFacts.st_size == count, let digest = item.contentDigest,
+                          digest.algorithm == .sha256 else {
+                        throw DraftAttachmentStagingFailureV1.byteLengthMismatch
+                    }
+                    var hash = SHA256(), offset: Int64 = 0
+                    var chunk = [UInt8](repeating: 0, count: 64 * 1024)
+                    while offset < count {
+                        try Task.checkCancellation()
+                        let wanted = Int(min(Int64(chunk.count), count - offset))
+                        let read = chunk.withUnsafeMutableBytes {
+                            pread(file, $0.baseAddress, wanted, off_t(offset))
+                        }
+                        if read < 0 && errno == EINTR { continue }
+                        guard read > 0 else { throw DraftAttachmentStagingFailureV1.byteLengthMismatch }
+                        hash.update(data: Data(chunk.prefix(read)))
+                        offset += Int64(read)
+                    }
+                    guard hash.finalize().map({ String(format: "%02x", $0) }).joined()
+                            == digest.hexadecimalValue else {
+                        throw DraftAttachmentStagingFailureV1.digestMismatch
+                    }
+                }
+                try directory.verifyPinnedFile(file, name: name, facts: fileFacts)
+            }
+            if name == DraftAttachmentStagingAdapterV1.payloadName,
+               let expectedByteCount = item.actualByteCount,
+               fileFacts.st_size != expectedByteCount {
+                throw DraftAttachmentStagingFailureV1.byteLengthMismatch
+            }
+            facts["file:\(relativePath)/\(name)"] = DraftPhotoRawBackupSnapshotV1.facts(fileFacts)
+        }
+        try directory.verifyNamed()
+    }
+}
+
+/// Pure reconstruction shared by promotion and backup's physical phase proof.
+/// These values supply no file publication or canonical mutation authority.
+struct DraftPhotoRawPromotionValuesV1: Equatable, Sendable {
     let rawReady: CheckRunnerPhotoRawReadyV1
     let plan: DraftCommitPlanV1
     let attempt: CheckRunnerPhotoCommitAttemptV1
@@ -826,30 +1242,9 @@ final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
     let reservation: DraftContentReservationV1
     let committedStage: AttachmentStagingItemV1
     let contentReference: ContentReferenceV1
-    let applicationSupportURL: URL
-    let adapterIdentity: ObjectIdentifier
-    private let snapshot: DraftRawPhotoReadSnapshotV1
-    private let candidate: DraftAttachmentStagingManifestV1
-    private let candidateBytes: Data
-    private let stateLock = NSLock()
-    private var writing = false
-    private var verifiedReceipt: DraftImmutableContentWriteReceiptV1?
-    private var consumed = false
+    let committedEntry: DraftAttachmentStagingEntryV1
 
-    private init(rawReady: CheckRunnerPhotoRawReadyV1, plan: DraftCommitPlanV1,
-        attempt: CheckRunnerPhotoCommitAttemptV1, request: DraftImmutableContentWriteRequestV1,
-        reservation: DraftContentReservationV1, committedStage: AttachmentStagingItemV1,
-        contentReference: ContentReferenceV1, applicationSupportURL: URL,
-        adapterIdentity: ObjectIdentifier, snapshot: DraftRawPhotoReadSnapshotV1,
-        candidate: DraftAttachmentStagingManifestV1, candidateBytes: Data) {
-        self.rawReady = rawReady; self.plan = plan; self.attempt = attempt; self.request = request
-        self.reservation = reservation; self.committedStage = committedStage; self.contentReference = contentReference
-        self.applicationSupportURL = applicationSupportURL; self.adapterIdentity = adapterIdentity
-        self.snapshot = snapshot; self.candidate = candidate; self.candidateBytes = candidateBytes
-    }
-
-    fileprivate static func prepare(checkpoint: FieldDraftCheckpointV1, applicationSupportURL: URL,
-        adapterIdentity: ObjectIdentifier, owner: DraftStagingRootOwnerV1) throws -> DraftPreparedRawPhotoPromotionV1 {
+    init(checkpoint: FieldDraftCheckpointV1) throws {
         let reconstruction = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint)
         let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
         guard case let .preparedCommit(pair, attempt) = payload.phase else {
@@ -884,6 +1279,51 @@ final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
         let committedEntry = try DraftAttachmentStagingEntryV1(item: committed,
             relativeDataPath: DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: ready.draftID, stageID: ready.stageID),
             mediaType: request.mediaType, updatedAt: attempt.promotionAt)
+        rawReady = raw; self.plan = plan; self.attempt = attempt; self.request = request
+        self.reservation = reservation; committedStage = committed
+        contentReference = reference; self.committedEntry = committedEntry
+    }
+}
+
+/// The root service can inspect frozen metadata but cannot manufacture a
+/// successful physical promotion. Only this adapter can construct/finish it.
+final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
+    let rawReady: CheckRunnerPhotoRawReadyV1
+    let plan: DraftCommitPlanV1
+    let attempt: CheckRunnerPhotoCommitAttemptV1
+    let request: DraftImmutableContentWriteRequestV1
+    let reservation: DraftContentReservationV1
+    let committedStage: AttachmentStagingItemV1
+    let contentReference: ContentReferenceV1
+    let applicationSupportURL: URL
+    let adapterIdentity: ObjectIdentifier
+    private let snapshot: DraftRawPhotoReadSnapshotV1
+    private let candidate: DraftAttachmentStagingManifestV1
+    private let candidateBytes: Data
+    private let stateLock = NSLock()
+    private var writing = false
+    private var verifiedReceipt: DraftImmutableContentWriteReceiptV1?
+    private var consumed = false
+
+    private init(rawReady: CheckRunnerPhotoRawReadyV1, plan: DraftCommitPlanV1,
+        attempt: CheckRunnerPhotoCommitAttemptV1, request: DraftImmutableContentWriteRequestV1,
+        reservation: DraftContentReservationV1, committedStage: AttachmentStagingItemV1,
+        contentReference: ContentReferenceV1, applicationSupportURL: URL,
+        adapterIdentity: ObjectIdentifier, snapshot: DraftRawPhotoReadSnapshotV1,
+        candidate: DraftAttachmentStagingManifestV1, candidateBytes: Data) {
+        self.rawReady = rawReady; self.plan = plan; self.attempt = attempt; self.request = request
+        self.reservation = reservation; self.committedStage = committedStage; self.contentReference = contentReference
+        self.applicationSupportURL = applicationSupportURL; self.adapterIdentity = adapterIdentity
+        self.snapshot = snapshot; self.candidate = candidate; self.candidateBytes = candidateBytes
+    }
+
+    fileprivate static func prepare(checkpoint: FieldDraftCheckpointV1, applicationSupportURL: URL,
+        adapterIdentity: ObjectIdentifier, owner: DraftStagingRootOwnerV1) throws -> DraftPreparedRawPhotoPromotionV1 {
+        let values = try DraftPhotoRawPromotionValuesV1(checkpoint: checkpoint)
+        let raw = values.rawReady, ready = raw.readyItem, plan = values.plan
+        let attempt = values.attempt, request = values.request, reference = values.contentReference
+        let reservation = values.reservation, committed = values.committedStage
+        let committedEntry = values.committedEntry
         let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, committedEntry: committedEntry)
         try snapshot.verifyBytesAndInspection()
         let candidate = try DraftAttachmentStagingManifestV1(entries:
@@ -936,7 +1376,9 @@ final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
                     directory: self.snapshot.owner.directory([]))
             }
             let readback = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: self.snapshot.owner)
-            guard readback.manifest == self.candidate else { throw DraftAttachmentStagingFailureV1.corruptManifest }
+            guard try readback.manifest.canonicalBytes() == self.candidateBytes else {
+                throw DraftAttachmentStagingFailureV1.corruptManifest
+            }
             published = true
         }
         guard published else { throw DraftAttachmentStagingFailureV1.invalidTransition }
@@ -1050,6 +1492,11 @@ struct DraftAttachmentStagingManifestV1: Codable, Equatable, Sendable {
         }
     }
 
+    /// The wire representation is the persistence equality boundary. Date can
+    /// change one floating-point ULP across JSON's epoch conversion while these
+    /// canonical bytes remain identical; never round the domain instant.
+    func canonicalBytes() throws -> Data { try FieldDraftCanonicalCodecV1.encode(self) }
+
     private struct Basis: Codable {
         let schemaVersion: Int
         let entries: [DraftAttachmentStagingEntryV1]
@@ -1104,6 +1551,33 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     static let payloadName = "payload.bin"
     static let quarantineName = "quarantine"
 
+    /// Observes the process-global raw staging root without invoking the
+    /// ordinary initializer's directory or manifest publication effects.
+    static func observePhotoBackupRoot(applicationSupportURL: URL, workspaceID: WorkspaceID,
+        fileManager: FileManager = .default, clock: @escaping Clock = { Date() }) throws
+        -> DraftPhotoBackupRootObservationV1 {
+        guard applicationSupportURL.isFileURL, workspaceID.rawValue != Self.zero else {
+            throw DraftAttachmentStagingFailureV1.invalidRoot
+        }
+        let support = applicationSupportURL.standardizedFileURL
+        let dataRoot = support.appendingPathComponent(OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+        let parent = try DraftStagingRootOwnerV1(rootURL: dataRoot)
+        let exists: Bool
+        do {
+            let lock = try parent.acquire()
+            defer { lock.release() }
+            try parent.requireNamedRoot()
+            exists = try parent.directory([]).exists(Self.directoryName)
+        }
+        if exists {
+            return .existing(try DraftAttachmentStagingAdapterV1(
+                photoBackupExistingRoot: support, workspaceID: workspaceID,
+                fileManager: fileManager, clock: clock))
+        }
+        return .absent(DraftPhotoBackupAbsentRootVerificationV1(
+            parent: parent, workspaceID: workspaceID))
+    }
+
     private let fileManager: FileManager
     private let applicationSupportURL: URL
     private let rootURL: URL
@@ -1131,6 +1605,32 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
             fileManager: fileManager, rootURL: rootURL,
             workspaceScope: workspaceScope, clock: clock, owner: rootOwner
         )
+    }
+
+    /// Opens an incumbent photo root without the ordinary initializer's
+    /// directory, protection, or empty-manifest publication effects.
+    init(photoBackupExistingRoot applicationSupportURL: URL, workspaceID: WorkspaceID,
+         fileManager: FileManager = .default, clock: @escaping Clock = { Date() }) throws {
+        guard applicationSupportURL.isFileURL, workspaceID.rawValue != Self.zero else {
+            throw DraftAttachmentStagingFailureV1.invalidRoot
+        }
+        let support = applicationSupportURL.standardizedFileURL
+        let root = support.appendingPathComponent(OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+            .appendingPathComponent(Self.directoryName, isDirectory: true)
+        self.fileManager = fileManager; self.applicationSupportURL = support
+        rootURL = root; quarantineURL = root.appendingPathComponent(Self.quarantineName, isDirectory: true)
+        workspaceScope = workspaceID; scratchStore = nil; storageLedger = nil
+        immutableContentWriter = nil; self.clock = clock
+        let owner = try DraftStagingRootOwnerV1(rootURL: root)
+        rootOwner = owner
+        let held = try owner.acquire(); defer { held.release() }
+        try owner.requireNamedRoot()
+        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: root)
+        let quarantine = try owner.directory([Self.quarantineName])
+        try quarantine.verifyNamed()
+        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: quarantineURL)
+        manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
+        initialPublicationReceipt = nil
     }
 
     init(
@@ -1232,9 +1732,92 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
 
     /// Prepares raw bytes off-actor, then passes a descriptor-owned operation
     /// to the application's retained generation/session authority.
+    func readPhotoBackupSnapshot(raw: CheckRunnerPhotoRawReadyV1,
+                                committingCheckpoint: FieldDraftCheckpointV1?) async throws -> DraftPhotoRawBackupSnapshotV1 {
+        try validateScope(workspaceID: raw.readyItem.workspaceID, draftID: raw.readyItem.draftID, stageID: raw.intent.stageID)
+        try beginOperation()
+        defer { operationInFlight = false }
+        let owner = rootOwner
+        let task = Task.detached(priority: .userInitiated) {
+            let values = try committingCheckpoint.map { try DraftPhotoRawPromotionValuesV1(checkpoint: $0) }
+            guard values.map({ $0.rawReady == raw }) ?? true else { throw DraftAttachmentStagingFailureV1.staleStage }
+            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, committedEntry: values?.committedEntry)
+            try snapshot.verifyBytesAndInspection()
+            return try snapshot.backupSnapshot()
+        }
+        return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
+    }
+
+    func preparePhotoBackupVerification(_ snapshots: [DraftPhotoRawBackupSnapshotV1],
+        committingCheckpoints: [UUID: FieldDraftCheckpointV1],
+        canonicalStages: [AttachmentStagingItemV1], childStageIDs: [UUID: UUID]) async throws
+        -> DraftPhotoBackupPreparedVerificationV1 {
+        guard snapshots.count <= FieldDraftLimitsV1.maximumStageItems,
+              Set(snapshots.map { $0.raw.intent.stageID }).count == snapshots.count,
+              Set(snapshots.map { $0.raw.readyItem.draftID }).count == snapshots.count,
+              canonicalStages.count <= FieldDraftLimitsV1.maximumStageItems,
+              Set(canonicalStages.map(\.stageID)).count == canonicalStages.count,
+              childStageIDs.count <= FieldDraftLimitsV1.maximumStageItems,
+              Set(childStageIDs.values).count == childStageIDs.count,
+              snapshots.allSatisfy({
+                  childStageIDs[$0.raw.readyItem.draftID] == $0.raw.intent.stageID
+              }),
+              Set(committingCheckpoints.keys).isSubset(of: Set(snapshots.map { $0.raw.readyItem.draftID })) else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+        for (childID, stageID) in childStageIDs {
+            guard childID != Self.zero, stageID != Self.zero else {
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+        }
+        for stage in canonicalStages {
+            try stage.validate()
+            try validateScope(workspaceID: stage.workspaceID, draftID: stage.draftID, stageID: stage.stageID)
+        }
+        for snapshot in snapshots {
+            try validateScope(workspaceID: snapshot.raw.readyItem.workspaceID,
+                draftID: snapshot.raw.readyItem.draftID, stageID: snapshot.raw.intent.stageID)
+        }
+        try beginOperation()
+        defer { operationInFlight = false }
+        let owner = rootOwner
+        let task = Task.detached(priority: .userInitiated) {
+            for expected in snapshots {
+                try Task.checkCancellation()
+                let values = try committingCheckpoints[expected.raw.readyItem.draftID].map {
+                    try DraftPhotoRawPromotionValuesV1(checkpoint: $0)
+                }
+                guard values.map({ $0.rawReady == expected.raw }) ?? true else { throw DraftAttachmentStagingFailureV1.staleStage }
+                let observed = try DraftRawPhotoReadSnapshotV1.open(raw: expected.raw, owner: owner,
+                                                                   committedEntry: values?.committedEntry)
+                try observed.verifyBytesAndInspection()
+                guard try observed.backupSnapshot() == expected else { throw DraftAttachmentStagingFailureV1.staleStage }
+            }
+            return try DraftPhotoBackupPreparedVerificationV1(snapshots: snapshots, owner: owner,
+                canonicalStages: canonicalStages, childStageIDs: childStageIDs,
+                committingCheckpoints: committingCheckpoints)
+        }
+        return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
+    }
+
     @discardableResult
     func stageRawPhoto(sourceURL: URL, authority: CheckRunnerPhotoRawPublicationAuthorityV1)
         async throws -> FieldDraftCommittedEvidenceV1 {
+        guard !authority.adoptsExistingOnly,
+              let value = try await performRawPhotoPublication(sourceURL: sourceURL, authority: authority) else {
+            throw DraftAttachmentStagingFailureV1.stageNotFound
+        }
+        return value
+    }
+
+    func adoptExistingRawPhoto(authority: CheckRunnerPhotoRawPublicationAuthorityV1)
+        async throws -> FieldDraftCommittedEvidenceV1? {
+        guard authority.adoptsExistingOnly else { throw DraftAttachmentStagingFailureV1.staleStage }
+        return try await performRawPhotoPublication(sourceURL: nil, authority: authority)
+    }
+
+    private func performRawPhotoPublication(sourceURL: URL?, authority: CheckRunnerPhotoRawPublicationAuthorityV1)
+        async throws -> FieldDraftCommittedEvidenceV1? {
         guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
             throw DraftAttachmentStagingFailureV1.invalidRoot
         }
@@ -1257,6 +1840,7 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
                 try await preparation.value
             }, onCancel: { preparation.cancel() })
             try Task.checkCancellation()
+            guard let prepared else { return nil }
             let evidence = try await authority.publish(prepared)
             let lock = try rootOwner.acquire()
             defer { lock.release() }
@@ -1911,7 +2495,9 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
             fileManager: fileManager, owner: rootOwner
         )
         try reloadManifest()
-        guard manifest == nextManifest else { throw DraftAttachmentStagingFailureV1.corruptManifest }
+        guard try manifest.canonicalBytes() == nextManifest.canonicalBytes() else {
+            throw DraftAttachmentStagingFailureV1.corruptManifest
+        }
         return reservations
     }
 
@@ -1993,6 +2579,1051 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
 }
 
 // MARK: - C36 restore publication seam
+
+/// Durable before/after values for the existing global raw owner. This value
+/// grants no filesystem effect. The restore owner must persist it with the
+/// original generation/operation binding before preparing any new raw bytes.
+struct DraftPhotoRestoreRawTransitionV1: Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let before: DraftAttachmentStagingManifestV1
+    let after: DraftAttachmentStagingManifestV1
+    let newStageIDs: [UUID]
+    let reusedStageIDs: [UUID]
+    /// Exact generic ready/committed destination stages. These have only a
+    /// payload file; all other transitioned stages retain the raw witness.
+    let genericStageIDs: [UUID]
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, before, after, newStageIDs, reusedStageIDs, genericStageIDs
+    }
+
+    fileprivate init(before: DraftAttachmentStagingManifestV1,
+        sourcePlan: CheckRunnerPhotoBackupRestorePlanV1,
+        sourceHistory: CheckRunnerPhotoBackupHistoryV1,
+        currentSnapshots: [DraftPhotoRawBackupSnapshotV1],
+        retainedCurrentStageIDs: Set<UUID>,
+        genericEntries: [DraftAttachmentStagingEntryV1] = []) throws {
+        let failure = DraftAttachmentStagingFailureV1.staleStage
+        try before.validate()
+        do {
+            let binding = try CheckRunnerPhotoRestoreMemberBindingV1(plan: sourcePlan)
+            guard try binding.resolve(history: sourceHistory) == sourcePlan else { throw failure }
+        } catch { throw failure }
+        guard sourcePlan.source == sourceHistory.source,
+              Set(sourcePlan.rawPublications.map { $0.physicalEntry.entry.item.stageID }).count
+                == sourcePlan.rawPublications.count,
+              Set(currentSnapshots.map { $0.raw.intent.stageID }).count == currentSnapshots.count,
+              Set(sourceHistory.children.map { $0.payload.phase.intent.stageID }).count
+                == sourceHistory.children.count,
+              currentSnapshots.allSatisfy({ $0.manifestSHA256 == before.manifestSHA256 }) else { throw failure }
+        let old = Dictionary(uniqueKeysWithValues: before.entries.map { ($0.item.stageID, $0) })
+        let current = Dictionary(uniqueKeysWithValues: currentSnapshots.map { ($0.raw.intent.stageID, $0) })
+        let sourceChildren = Dictionary(uniqueKeysWithValues: sourceHistory.children.map {
+            ($0.payload.phase.intent.stageID, $0)
+        })
+        let sourceIDs = Set(sourcePlan.rawPublications.map { $0.physicalEntry.entry.item.stageID })
+        guard retainedCurrentStageIDs == Set(old.keys).subtracting(sourceIDs),
+              Set(current.keys).isSubset(of: Set(old.keys)) else { throw failure }
+        var updated = old
+        var added: [UUID] = [], reused: [UUID] = []
+        for publication in sourcePlan.rawPublications {
+            let entry = publication.physicalEntry.entry
+            let stageID = entry.item.stageID
+            guard let child = sourceChildren[stageID], let raw = child.raw,
+                  raw.readyItem.draftID == entry.item.draftID,
+                  raw.readyItem.workspaceID == entry.item.workspaceID,
+                  try FieldDraftCanonicalCodecV1.decode(CheckRunnerPhotoRawReadyV1.self,
+                    from: publication.witnessBytes) == raw else { throw failure }
+            let ready = try DraftAttachmentStagingEntryV1(item: raw.readyItem,
+                relativeDataPath: DraftAttachmentStagingAdapterV1.relativeDataPath(
+                    draftID: raw.readyItem.draftID, stageID: stageID),
+                mediaType: raw.inspection.sourceMediaType, updatedAt: raw.intent.stageCreatedAt)
+            let promotion = try child.committingCheckpoint.map {
+                try DraftPhotoRawPromotionValuesV1(checkpoint: $0)
+            }
+            func admitted(_ candidate: DraftAttachmentStagingEntryV1) -> Bool {
+                candidate == ready || promotion.map { candidate == $0.committedEntry } == true
+            }
+            guard admitted(entry), promotion.map({ $0.rawReady == raw }) ?? true else { throw failure }
+            if let previous = old[stageID] {
+                guard let observed = current[stageID], observed.raw == raw,
+                      observed.physicalEntry.entry == previous, admitted(previous) else { throw failure }
+                // The exact original witness and payload remain reusable. The
+                // bound after image restores the archive's physical phase/time;
+                // the persisted before image makes that transition reversible.
+                reused.append(stageID)
+            } else {
+                guard current[stageID] == nil else { throw failure }
+                added.append(stageID)
+            }
+            updated[stageID] = entry
+        }
+        let genericIDs = Set(genericEntries.map { $0.item.stageID })
+        guard genericIDs.count == genericEntries.count,
+              genericIDs.isDisjoint(with: sourceIDs),
+              genericIDs.isDisjoint(with: Set(current.keys)) else { throw failure }
+        for requested in genericEntries {
+            let item = requested.item
+            let path = DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: item.draftID, stageID: item.stageID)
+            guard requested.relativeDataPath == path,
+                  item.state == .readyLocal || item.state == .committed,
+                  let count = item.actualByteCount, count > 0,
+                  count <= Int64(FieldDraftLimitsV1.maximumPayloadBytes),
+                  item.contentDigest?.algorithm == .sha256 else { throw failure }
+            if let previous = old[item.stageID] {
+                // Exact incumbent metadata/time are retained. Reuse never
+                // rebases an older or different canonical generic stage.
+                guard previous.item == item, previous.relativeDataPath == path else { throw failure }
+                reused.append(item.stageID)
+                updated[item.stageID] = previous
+            } else {
+                added.append(item.stageID)
+                updated[item.stageID] = requested
+            }
+        }
+        schemaVersion = 1
+        self.before = before
+        genericStageIDs = genericIDs.sorted { $0.uuidString < $1.uuidString }
+        after = try DraftAttachmentStagingManifestV1(entries: Array(updated.values))
+        newStageIDs = added.sorted { $0.uuidString < $1.uuidString }
+        reusedStageIDs = reused.sorted { $0.uuidString < $1.uuidString }
+        try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        before = try values.decode(DraftAttachmentStagingManifestV1.self, forKey: .before)
+        after = try values.decode(DraftAttachmentStagingManifestV1.self, forKey: .after)
+        newStageIDs = try values.decode([UUID].self, forKey: .newStageIDs)
+        reusedStageIDs = try values.decode([UUID].self, forKey: .reusedStageIDs)
+        genericStageIDs = try values.decodeIfPresent([UUID].self, forKey: .genericStageIDs) ?? []
+        try validate()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(schemaVersion, forKey: .schemaVersion)
+        try values.encode(before, forKey: .before); try values.encode(after, forKey: .after)
+        try values.encode(newStageIDs, forKey: .newStageIDs)
+        try values.encode(reusedStageIDs, forKey: .reusedStageIDs)
+        // Preserve the original all-photo canonical representation.
+        if !genericStageIDs.isEmpty { try values.encode(genericStageIDs, forKey: .genericStageIDs) }
+    }
+
+    func validate() throws {
+        try before.validate(); try after.validate()
+        let failure = DraftAttachmentStagingFailureV1.corruptManifest
+        let old = Dictionary(uniqueKeysWithValues: before.entries.map { ($0.item.stageID, $0) })
+        let new = Dictionary(uniqueKeysWithValues: after.entries.map { ($0.item.stageID, $0) })
+        let added = Set(newStageIDs), reused = Set(reusedStageIDs)
+        guard schemaVersion == 1,
+              newStageIDs == newStageIDs.sorted(by: { $0.uuidString < $1.uuidString }),
+              reusedStageIDs == reusedStageIDs.sorted(by: { $0.uuidString < $1.uuidString }),
+              added.count == newStageIDs.count, reused.count == reusedStageIDs.count,
+              added.isDisjoint(with: reused),
+              Set(old.keys).isSubset(of: Set(new.keys)),
+              added == Set(new.keys).subtracting(old.keys),
+              reused.isSubset(of: Set(old.keys)),
+              old.allSatisfy({ reused.contains($0.key) || new[$0.key] == $0.value }),
+              genericStageIDs == genericStageIDs.sorted(by: { $0.uuidString < $1.uuidString }),
+              Set(genericStageIDs).count == genericStageIDs.count,
+              Set(genericStageIDs).isSubset(of: added.union(reused)),
+              added.union(reused).subtracting(genericStageIDs)
+                .allSatisfy({ new[$0]?.item.attachmentKind == .photo }) else { throw failure }
+        for id in genericStageIDs {
+            guard let entry = new[id], let count = entry.item.actualByteCount,
+                  count > 0, count <= Int64(FieldDraftLimitsV1.maximumPayloadBytes),
+                  entry.item.state == .readyLocal || entry.item.state == .committed,
+                  entry.item.contentDigest?.algorithm == .sha256,
+                  entry.relativeDataPath == DraftAttachmentStagingAdapterV1.relativeDataPath(
+                    draftID: entry.item.draftID, stageID: id),
+                  !reused.contains(id) || entry == old[id] else { throw failure }
+        }
+    }
+}
+
+/// The durable inode census of one restore operation. Paths inside the private
+/// container and their possible public placements are derived from the exact
+/// raw transition. A decoded receipt alone grants no filesystem authority.
+struct DraftPhotoRestoreRawOwnershipV1: Codable, Equatable, Sendable {
+    struct Node: Codable, Equatable, Sendable {
+        let path: String
+        let directory: Bool
+        let device: UInt64
+        let inode: UInt64
+        let linkCount: UInt64
+        let byteCount: Int64
+        let modifiedSeconds: Int64
+        let modifiedNanoseconds: Int64
+        let changedSeconds: Int64
+        let changedNanoseconds: Int64
+        let sha256: String?
+        let claimPath: String?
+
+        private enum CodingKeys: String, CodingKey, CaseIterable {
+            case path, directory, device, inode, linkCount, byteCount
+            case modifiedSeconds, modifiedNanoseconds, changedSeconds, changedNanoseconds, sha256, claimPath
+        }
+
+        fileprivate init(path: String, directory: Bool, facts: StreamingArchiveSourceSnapshotV1,
+            sha256: String? = nil, claimPath: String? = nil) {
+            self.path = path; self.directory = directory; device = facts.device; inode = facts.inode
+            linkCount = facts.linkCount; byteCount = facts.byteCount
+            modifiedSeconds = facts.modifiedSeconds; modifiedNanoseconds = facts.modifiedNanoseconds
+            changedSeconds = facts.changedSeconds; changedNanoseconds = facts.changedNanoseconds
+            self.sha256 = sha256; self.claimPath = claimPath
+        }
+
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            path = try c.decode(String.self, forKey: .path)
+            directory = try c.decode(Bool.self, forKey: .directory)
+            device = try c.decode(UInt64.self, forKey: .device); inode = try c.decode(UInt64.self, forKey: .inode)
+            linkCount = try c.decode(UInt64.self, forKey: .linkCount)
+            byteCount = try c.decode(Int64.self, forKey: .byteCount)
+            modifiedSeconds = try c.decode(Int64.self, forKey: .modifiedSeconds)
+            modifiedNanoseconds = try c.decode(Int64.self, forKey: .modifiedNanoseconds)
+            changedSeconds = try c.decode(Int64.self, forKey: .changedSeconds)
+            changedNanoseconds = try c.decode(Int64.self, forKey: .changedNanoseconds)
+            sha256 = try c.decodeIfPresent(String.self, forKey: .sha256)
+            claimPath = try c.decodeIfPresent(String.self, forKey: .claimPath)
+        }
+
+        fileprivate func matches(_ value: stat) -> Bool {
+            guard device == UInt64(value.st_dev), inode == UInt64(value.st_ino),
+                  value.st_mode & S_IFMT == (directory ? S_IFDIR : S_IFREG) else { return false }
+            // A named directory's own children change during this operation.
+            // Its exact child census is checked separately; its inode never rebases.
+            if directory { return true }
+            return value.st_nlink == 1 && linkCount == 1 && byteCount == value.st_size
+                && modifiedSeconds == Int64(value.st_mtimespec.tv_sec)
+                && modifiedNanoseconds == Int64(value.st_mtimespec.tv_nsec)
+                && changedSeconds == Int64(value.st_ctimespec.tv_sec)
+                && changedNanoseconds == Int64(value.st_ctimespec.tv_nsec)
+        }
+
+        fileprivate func reservingClaim(restoreID: UUID) -> Self {
+            let components = path.split(separator: "/").map(String.init)
+            let parent = components.dropLast().joined(separator: "/")
+            let basename = ".photo-restore-claim-\(restoreID.uuidString.lowercased())-"
+                + "\(String(device, radix: 16))-\(String(inode, radix: 16))-\(directory ? "d" : "f")"
+            let claim = parent.isEmpty ? basename : "\(parent)/\(basename)"
+            return .init(path: path, directory: directory,
+                facts: .init(device: device, inode: inode, linkCount: linkCount, byteCount: byteCount,
+                    modifiedSeconds: modifiedSeconds, modifiedNanoseconds: modifiedNanoseconds,
+                    changedSeconds: changedSeconds, changedNanoseconds: changedNanoseconds),
+                sha256: sha256, claimPath: claim)
+        }
+
+        /// A rename may change ctime. The original inode, type, link count,
+        /// length and mtime plus the recorded digest authenticate a cold claim;
+        /// its current complete facts are then frozen for the final named check.
+        fileprivate func admitsClaim(_ candidate: Self) -> Bool {
+            guard claimPath == candidate.path, candidate.claimPath == nil,
+                  directory == candidate.directory, device == candidate.device, inode == candidate.inode else {
+                return false
+            }
+            if directory { return candidate.sha256 == nil }
+            return linkCount == 1 && candidate.linkCount == 1 && byteCount == candidate.byteCount
+                && modifiedSeconds == candidate.modifiedSeconds
+                && modifiedNanoseconds == candidate.modifiedNanoseconds
+                && sha256 != nil && sha256 == candidate.sha256
+        }
+
+        fileprivate func strictlyMatches(_ value: stat) -> Bool {
+            device == UInt64(value.st_dev) && inode == UInt64(value.st_ino)
+                && value.st_mode & S_IFMT == (directory ? S_IFDIR : S_IFREG)
+                && linkCount == UInt64(value.st_nlink) && byteCount == value.st_size
+                && modifiedSeconds == Int64(value.st_mtimespec.tv_sec)
+                && modifiedNanoseconds == Int64(value.st_mtimespec.tv_nsec)
+                && changedSeconds == Int64(value.st_ctimespec.tv_sec)
+                && changedNanoseconds == Int64(value.st_ctimespec.tv_nsec)
+        }
+
+        /// The final unlink/rmdir changes link count and ctime. A retained
+        /// descriptor proves that the exact admitted inode lost its last name;
+        /// a swapped-aside inode would remain linked and fail this check.
+        fileprivate func provesUnlinked(_ value: stat) -> Bool {
+            device == UInt64(value.st_dev) && inode == UInt64(value.st_ino)
+                && value.st_mode & S_IFMT == (directory ? S_IFDIR : S_IFREG)
+                && value.st_nlink == 0
+        }
+    }
+
+    let schemaVersion: Int
+    let restoreID: UUID
+    let plannedBindingSHA256: String
+    let transition: DraftPhotoRestoreRawTransitionV1
+    let beforeNodes: [Node]
+    let createdNodes: [Node]
+    var privateName: String { ".photo-restore-\(restoreID.uuidString.lowercased())" }
+    var sha256: String { get throws { CanonicalJSONV1.sha256(try FieldDraftCanonicalCodecV1.encode(self)) } }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, restoreID, plannedBindingSHA256, transition, beforeNodes, createdNodes
+    }
+
+    fileprivate init(restoreID: UUID, plannedBindingSHA256: String,
+        transition: DraftPhotoRestoreRawTransitionV1, beforeNodes: [Node], createdNodes: [Node]) throws {
+        schemaVersion = 1; self.restoreID = restoreID; self.plannedBindingSHA256 = plannedBindingSHA256
+        self.transition = transition; self.beforeNodes = beforeNodes.sorted { $0.path < $1.path }
+        self.createdNodes = createdNodes.map { $0.reservingClaim(restoreID: restoreID) }
+            .sorted { $0.path < $1.path }
+        try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        restoreID = try c.decode(UUID.self, forKey: .restoreID)
+        plannedBindingSHA256 = try c.decode(String.self, forKey: .plannedBindingSHA256)
+        transition = try c.decode(DraftPhotoRestoreRawTransitionV1.self, forKey: .transition)
+        beforeNodes = try c.decode([Node].self, forKey: .beforeNodes)
+        createdNodes = try c.decode([Node].self, forKey: .createdNodes)
+        try validate()
+    }
+
+    func validate() throws {
+        let failure = DraftAttachmentStagingFailureV1.corruptManifest
+        try transition.validate()
+        guard schemaVersion == 1, restoreID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(plannedBindingSHA256),
+              beforeNodes.count <= FieldDraftLimitsV1.maximumStageItems * 5 + 3,
+              createdNodes.count <= FieldDraftLimitsV1.maximumStageItems * 4 + 1,
+              beforeNodes == beforeNodes.sorted(by: { $0.path < $1.path }),
+              createdNodes == createdNodes.sorted(by: { $0.path < $1.path }),
+              Set(beforeNodes.map(\.path)).count == beforeNodes.count,
+              Set(createdNodes.map(\.path)).count == createdNodes.count,
+              beforeNodes.contains(where: { $0.path == "." && $0.directory }),
+              beforeNodes.contains(where: { $0.path == DraftAttachmentStagingAdapterV1.manifestName && !$0.directory }),
+              beforeNodes.allSatisfy({ $0.sha256 == nil && $0.claimPath == nil }),
+              createdNodes.allSatisfy({ $0.claimPath != nil }),
+              Set(createdNodes.compactMap(\.claimPath)).count == createdNodes.count else { throw failure }
+        for node in beforeNodes + createdNodes {
+            guard node.inode != 0, node.byteCount >= 0,
+                  (node.directory || node.linkCount == 1),
+                  (0..<1_000_000_000).contains(node.modifiedNanoseconds),
+                  (0..<1_000_000_000).contains(node.changedNanoseconds) else { throw failure }
+            if node.path != "." {
+                let components = node.path.split(separator: "/", omittingEmptySubsequences: false)
+                guard components.count <= 4 else { throw failure }
+                for component in components { try DraftStagingRootOwnerV1.component(String(component)) }
+            }
+            if let claimPath = node.claimPath {
+                let claim = claimPath.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+                let original = node.path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+                guard claim.count == original.count, claim.dropLast() == original.dropLast(),
+                      node.reservingClaim(restoreID: restoreID).claimPath == claimPath else { throw failure }
+                for component in claim { try DraftStagingRootOwnerV1.component(component) }
+            }
+        }
+        let allOriginalPaths = Set((beforeNodes + createdNodes).map(\.path))
+        guard Set(createdNodes.compactMap(\.claimPath)).isDisjoint(with: allOriginalPaths) else { throw failure }
+        var expected: [String: Bool] = [privateName: true]
+        let added = Set(transition.newStageIDs)
+        for entry in transition.after.entries where added.contains(entry.item.stageID) {
+            let relative = DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                draftID: entry.item.draftID, stageID: entry.item.stageID)
+            let parent = String(relative.split(separator: "/")[0])
+            expected["\(privateName)/\(parent)"] = true
+            expected["\(privateName)/\(relative)"] = true
+            expected["\(privateName)/\(relative)/payload.bin"] = false
+            if !transition.genericStageIDs.contains(entry.item.stageID) {
+                expected["\(privateName)/\(relative)/raw-publication.json"] = false
+            }
+        }
+        guard Set(createdNodes.map(\.path)) == Set(expected.keys),
+              createdNodes.allSatisfy({ node in
+                  node.directory == expected[node.path]
+                    && (node.directory ? node.sha256 == nil
+                        : node.sha256.map(StoreMigrationCanonicalJSONV1.isLowercaseSHA256) == true)
+              }),
+              !beforeNodes.contains(where: { $0.path == privateName || $0.path.hasPrefix(privateName + "/") }) else {
+            throw failure
+        }
+        let old = Dictionary(uniqueKeysWithValues: beforeNodes.map { ($0.path, $0) })
+        for node in beforeNodes where node.path != "." {
+            let parts = node.path.split(separator: "/")
+            let parent = parts.count == 1 ? "." : parts.dropLast().joined(separator: "/")
+            guard old[parent]?.directory == true else { throw failure }
+        }
+    }
+}
+
+/// One physical kernel for private preparation, publication and reversal. It
+/// retains no payload buffers and never deletes unknown or replaced paths.
+/// The generation owner holds G outside its synchronous visibility methods;
+/// this kernel acquires R and performs no actor hop inside either lock.
+final class DraftPhotoRestorePreparedPublicationV1: @unchecked Sendable {
+    let ownership: DraftPhotoRestoreRawOwnershipV1
+#if DEBUG
+    var failAfterStepForTesting: String?
+    var beforeClaimForTesting: ((URL, Bool) throws -> Void)?
+    private func observeForTesting(_ step: String) throws {
+        if failAfterStepForTesting == step { throw DraftAttachmentStagingFailureV1.cleanupFailed }
+    }
+#endif
+    private let owner: DraftStagingRootOwnerV1
+    private let useLock = NSLock()
+    private var admittedClaimNodes: [String: Node] = [:]
+    private typealias Node = DraftPhotoRestoreRawOwnershipV1.Node
+    private static let failure = DraftAttachmentStagingFailureV1.staleStage
+
+    private final class ClaimSource {
+        let directory: DraftStagingRootOwnerV1.Directory?
+        private(set) var file: Int32
+        init(directory: DraftStagingRootOwnerV1.Directory) { self.directory = directory; file = -1 }
+        init(file: Int32) { directory = nil; self.file = file }
+        deinit { if file >= 0 { close(file) } }
+    }
+
+    private init(owner: DraftStagingRootOwnerV1, ownership: DraftPhotoRestoreRawOwnershipV1) {
+        self.owner = owner; self.ownership = ownership
+    }
+
+    fileprivate static func prepare(authority: CheckRunnerPhotoRestoreRawAuthorityV1,
+        verification: DraftPhotoBackupPreparedVerificationV1) throws -> Self {
+        let owner = verification.owner
+        return try verification.withRestorePreparationLock {
+            try authority.transition.validate()
+            guard authority.applicationSupportURL
+                .appendingPathComponent(OwnedStorageRootKindV1.data.rawValue, isDirectory: true).appendingPathComponent(
+                DraftAttachmentStagingAdapterV1.directoryName, isDirectory: true).standardizedFileURL
+                    == owner.rootURL.standardizedFileURL,
+                  authority.plan.source.workspaceID == authority.workspaceID.rawValue,
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(authority.plannedBindingSHA256),
+                  try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest.canonicalBytes()
+                    == authority.transition.before.canonicalBytes(),
+                  Set(authority.plan.rawPublications.map { $0.physicalEntry.entry.item.stageID })
+                    .union(authority.transition.genericStageIDs)
+                    == Set(authority.transition.newStageIDs + authority.transition.reusedStageIDs),
+                  Set(authority.genericPayloads.keys)
+                    == Set(authority.transition.genericStageIDs).intersection(authority.transition.newStageIDs),
+                  authority.plan.rawPublications.allSatisfy({
+                      authority.transition.after.entries.contains($0.physicalEntry.entry)
+                  }) else {
+                throw failure
+            }
+            let before = verification.namespaceFacts.map { key, facts in
+                Node(path: String(key.dropFirst(key.hasPrefix("directory:") ? 10 : 5)),
+                    directory: key.hasPrefix("directory:"), facts: facts)
+            }
+            let privateName = ".photo-restore-\(authority.restoreID.uuidString.lowercased())"
+            let root = try owner.directory([])
+            guard try !root.exists(privateName),
+                  mkdirat(root.descriptor, privateName, 0o700) == 0 else { throw failure }
+            // From here, failure retains the exclusive private bytes. Only a
+            // durably saved ownership receipt may authorize later cleanup.
+            var directories = Set([privateName])
+            var expectedFiles: [String: V4BackupEntryV1] = [:]
+            let added = Set(authority.transition.newStageIDs)
+            for publication in authority.plan.rawPublications where added.contains(publication.physicalEntry.entry.item.stageID) {
+                try Task.checkCancellation()
+                let entry = publication.physicalEntry.entry
+                guard authority.transition.after.entries.contains(entry),
+                      entry.item.workspaceID == authority.workspaceID else { throw failure }
+                let relative = DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                    draftID: entry.item.draftID, stageID: entry.item.stageID)
+                let parts = relative.split(separator: "/").map(String.init)
+                guard parts.count == 2 else { throw failure }
+                var components = [privateName]
+                for part in parts {
+                    let parent = try owner.directory(components)
+                    components.append(part)
+                    let path = components.joined(separator: "/")
+                    if directories.insert(path).inserted {
+                        guard mkdirat(parent.descriptor, part, 0o700) == 0 else { throw failure }
+                    }
+                }
+                let directory = try owner.directory(components)
+                expectedFiles["\(privateName)/\(relative)/payload.bin"] = publication.payload
+                expectedFiles["\(privateName)/\(relative)/raw-publication.json"] = publication.witness
+                try write(publication.payload, named: "payload.bin", directory: directory,
+                    memberSource: authority.memberSource)
+                try write(publication.witness, named: "raw-publication.json", directory: directory,
+                    memberSource: authority.memberSource)
+                let witness = try directory.openFile("raw-publication.json")
+                do {
+                    defer { close(witness) }
+                    let facts = try DraftStagingRootOwnerV1.regular(witness)
+                    guard facts.st_size == publication.witnessBytes.count,
+                          try DraftStagingRootOwnerV1.read(witness, count: publication.witnessBytes.count)
+                            == publication.witnessBytes else { throw failure }
+                }
+            }
+            for stageID in authority.genericPayloads.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
+                try Task.checkCancellation()
+                guard let payload = authority.genericPayloads[stageID],
+                      let entry = authority.transition.after.entries.first(where: { $0.item.stageID == stageID }),
+                      entry.item.workspaceID == authority.workspaceID,
+                      payload == (try CheckRunnerPhotoRestoreGenericStageV1.payloadEntry(entry.item)) else { throw failure }
+                let relative = DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                    draftID: entry.item.draftID, stageID: stageID)
+                var components = [privateName]
+                for part in relative.split(separator: "/").map(String.init) {
+                    let parent = try owner.directory(components)
+                    components.append(part)
+                    if directories.insert(components.joined(separator: "/")).inserted {
+                        guard mkdirat(parent.descriptor, part, 0o700) == 0 else { throw failure }
+                    }
+                }
+                let directory = try owner.directory(components)
+                expectedFiles["\(privateName)/\(relative)/payload.bin"] = payload
+                try write(payload, named: "payload.bin", directory: directory, memberSource: authority.memberSource,
+                    maximumByteCount: Int64(FieldDraftLimitsV1.maximumPayloadBytes))
+            }
+            // Protect directories before their facts are frozen. No later
+            // protection setter is permitted to silently replace these facts.
+            for path in directories.sorted(by: { $0.count > $1.count }) {
+                let directory = try owner.directory(path.split(separator: "/").map(String.init))
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: directory.url,
+                    authorityCheck: { try directory.verifyNamed() })
+                guard fsync(directory.descriptor) == 0 else { throw failure }
+            }
+            guard fsync(root.descriptor) == 0 else { throw failure }
+            let created = try scan(owner: owner, beneath: [privateName], hashFiles: true)
+            guard created.filter({ !$0.directory }).count == expectedFiles.count,
+                  created.filter({ !$0.directory }).allSatisfy({ node in
+                      guard let entry = expectedFiles[node.path] else { return false }
+                      return node.byteCount == Int64(entry.byteCount) && node.sha256 == entry.sha256
+                  }) else { throw failure }
+            let receipt = try DraftPhotoRestoreRawOwnershipV1(restoreID: authority.restoreID,
+                plannedBindingSHA256: authority.plannedBindingSHA256, transition: authority.transition,
+                beforeNodes: before, createdNodes: created)
+            let prepared = Self(owner: owner, ownership: receipt)
+            try prepared.requireCurrent(mode: .prepared, hashFiles: false)
+            return prepared
+        }
+    }
+
+    private static func write(_ entry: V4BackupEntryV1, named name: String,
+        directory: DraftStagingRootOwnerV1.Directory, memberSource: CheckRunnerPhotoRestoreMemberSourceV1,
+        maximumByteCount: Int64 = Int64(MediaContractV1.sourceByteCountMaximum)) throws {
+        let file = openat(directory.descriptor, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard file >= 0 else { throw failure }
+        defer { close(file) }
+        try memberSource.read(entry, maximumByteCount: maximumByteCount) { bytes in
+            try Task.checkCancellation()
+            try directory.verifyNamed()
+            try DraftStagingRootOwnerV1.write(bytes, to: file)
+        }
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, relativePath: name, within: directory.url,
+            authorityCheck: { try directory.verifyNamed(); try directory.verifyFile(file, name: name) })
+        guard fsync(file) == 0 else { throw failure }
+        try directory.verifyFile(file, name: name)
+    }
+
+    private static func digest(_ fd: Int32, facts: stat) throws -> String {
+        var hash = SHA256(), offset: Int64 = 0
+        var chunk = [UInt8](repeating: 0, count: 64 * 1024)
+        while offset < facts.st_size {
+            try Task.checkCancellation()
+            let wanted = Int(min(Int64(chunk.count), facts.st_size - offset))
+            let count = chunk.withUnsafeMutableBytes { pread(fd, $0.baseAddress, wanted, off_t(offset)) }
+            guard count > 0, count <= wanted else { throw failure }
+            hash.update(data: Data(chunk.prefix(count))); offset += Int64(count)
+        }
+        try DraftStagingRootOwnerV1.unchanged(fd, facts)
+        return hash.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func scan(owner: DraftStagingRootOwnerV1, beneath components: [String],
+        hashFiles: Bool) throws -> [Node] {
+        var result: [Node] = []
+        func walk(_ parts: [String]) throws {
+            try Task.checkCancellation()
+            guard parts.count <= 4, result.count <= FieldDraftLimitsV1.maximumStageItems * 9 + 4 else { throw failure }
+            let directory = try owner.directory(parts)
+            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: directory.url)
+            let path = parts.isEmpty ? "." : parts.joined(separator: "/")
+            result.append(.init(path: path, directory: true, facts: DraftPhotoRawBackupSnapshotV1.facts(directory.identity)))
+            let names = try directory.names()
+            guard names.count <= FieldDraftLimitsV1.maximumStageItems * 2 + 3 else { throw failure }
+            for name in names.sorted() {
+                var facts = stat()
+                guard fstatat(directory.descriptor, name, &facts, AT_SYMLINK_NOFOLLOW) == 0 else { throw failure }
+                if facts.st_mode & S_IFMT == S_IFDIR { try walk(parts + [name]) }
+                else {
+                    let file = try directory.openFile(name)
+                    defer { close(file) }
+                    let opened = try DraftStagingRootOwnerV1.regular(file)
+                    guard opened.st_dev == facts.st_dev, opened.st_ino == facts.st_ino else { throw failure }
+                    try ProtectedFilePolicyV1.verify(.stagingFile, at: directory.url.appendingPathComponent(name))
+                    let digest = hashFiles ? try digest(file, facts: opened) : nil
+                    result.append(.init(path: (parts + [name]).joined(separator: "/"), directory: false,
+                        facts: DraftPhotoRawBackupSnapshotV1.facts(opened), sha256: digest))
+                    guard result.count <= FieldDraftLimitsV1.maximumStageItems * 9 + 4 else { throw failure }
+                    try directory.verifyPinnedFile(file, name: name, facts: opened)
+                }
+            }
+            guard try directory.names() == names else { throw failure }
+        }
+        try walk(components)
+        return result.sorted { $0.path < $1.path }
+    }
+
+    private enum Mode: Equatable { case prepared, publishing, committed, rollingBack }
+
+    /// Finds each entire parent or individual stage in exactly one possible
+    /// location. A rollback may have already removed an owned private group.
+    private func placements(mode: Mode) throws -> [String: String?] {
+        let old = Set(ownership.beforeNodes.filter(\.directory).map(\.path))
+        var roots = Set<String>()
+        for entry in ownership.transition.after.entries where ownership.transition.newStageIDs.contains(entry.item.stageID) {
+            let stage = DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                draftID: entry.item.draftID, stageID: entry.item.stageID)
+            let parent = String(stage.split(separator: "/")[0])
+            roots.insert(old.contains(parent) ? stage : parent)
+        }
+        var result: [String: String?] = [:]
+        for relative in roots {
+            let privatePath = "\(ownership.privateName)/\(relative)"
+            func exists(_ path: String) throws -> Bool {
+                let parts = path.split(separator: "/").map(String.init)
+                var directory = try owner.directory([])
+                for part in parts.dropLast() {
+                    guard try directory.exists(part) else { return false }
+                    directory = try owner.directory(directory.components + [part])
+                }
+                return try directory.exists(parts.last!)
+            }
+            let hidden = try exists(privatePath), visible = try exists(relative)
+            guard !(hidden && visible) else { throw Self.failure }
+            switch mode {
+            case .prepared: guard hidden && !visible else { throw Self.failure }
+            case .publishing: guard hidden || visible else { throw Self.failure }
+            case .committed: guard visible && !hidden else { throw Self.failure }
+            case .rollingBack: break
+            }
+            // updateValue preserves an explicit nil value in this dictionary.
+            result.updateValue(hidden ? privatePath : (visible ? relative : nil), forKey: relative)
+        }
+        return result
+    }
+
+    private func requireCurrent(mode: Mode, hashFiles: Bool) throws {
+        try ownership.validate()
+        let actualManifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest.canonicalBytes()
+        let before = try ownership.transition.before.canonicalBytes(), after = try ownership.transition.after.canonicalBytes()
+        switch mode {
+        case .prepared: guard actualManifest == before else { throw Self.failure }
+        case .committed: guard actualManifest == after else { throw Self.failure }
+        case .publishing, .rollingBack: guard actualManifest == before || actualManifest == after else { throw Self.failure }
+        }
+        // An old-pointer recovery may first encounter the complete after image.
+        // Claims are admitted only after rollback has restored the before image.
+        let placementMode: Mode = mode == .rollingBack && actualManifest == after && before != after
+            ? .committed : mode
+        let claimsAllowed = (mode == .rollingBack && actualManifest == before)
+            || (mode == .committed && actualManifest == after)
+        let locations = try placements(mode: placementMode)
+        var expected = Dictionary(uniqueKeysWithValues: ownership.beforeNodes.map { ($0.path, $0) })
+        var required = Set(expected.keys)
+        var claimExpected: [String: Node] = [:]
+        var normalForClaim: [String: String] = [:]
+        for node in ownership.createdNodes {
+            let suffix = String(node.path.dropFirst(ownership.privateName.count + 1))
+            let group = locations.keys.first { suffix == $0 || suffix.hasPrefix($0 + "/") }
+            var path = node.path
+            if let group {
+                guard let wrapped = locations[group], let location = wrapped else {
+                    if claimsAllowed, mode == .rollingBack, let claim = node.claimPath {
+                        guard claimExpected.updateValue(node, forKey: claim) == nil else { throw Self.failure }
+                    }
+                    continue
+                }
+                path = location + suffix.dropFirst(group.count)
+                if location == group || placementMode != .rollingBack { required.insert(path) }
+            } else if placementMode == .prepared || placementMode == .publishing { required.insert(path) }
+            guard expected[path] == nil else { throw Self.failure }
+            expected[path] = node
+            if claimsAllowed, let claim = node.claimPath,
+               mode == .rollingBack || (mode == .committed && node.directory && group == nil) {
+                guard claimExpected.updateValue(node, forKey: claim) == nil else { throw Self.failure }
+                normalForClaim[claim] = path
+            }
+        }
+        let observed = try Self.scan(owner: owner, beneath: [], hashFiles: false)
+        let genericIDs = Set(ownership.transition.genericStageIDs)
+        let incumbentGenericDigests = Dictionary(uniqueKeysWithValues:
+            ownership.transition.before.entries.compactMap { entry -> (String, String)? in
+                guard genericIDs.contains(entry.item.stageID),
+                      let digest = entry.item.contentDigest, digest.algorithm == .sha256 else { return nil }
+                return (entry.relativeDataPath, digest.hexadecimalValue)
+            })
+        let observedPaths = Set(observed.map(\.path))
+        guard observedPaths.isSubset(of: Set(expected.keys).union(claimExpected.keys)),
+              required.isSubset(of: observedPaths),
+              normalForClaim.allSatisfy({ claim, normal in
+                  !(observedPaths.contains(claim) && observedPaths.contains(normal))
+              }) else { throw Self.failure }
+        admittedClaimNodes = admittedClaimNodes.filter { observedPaths.contains($0.key) }
+        for node in observed {
+            if let expectedClaim = claimExpected[node.path] {
+                let parts = node.path.split(separator: "/").map(String.init)
+                let parent = try owner.directory(Array(parts.dropLast()))
+                let name = parts.last!
+                let frozen: Node
+                if expectedClaim.directory {
+                    let directory = try owner.directory(parts)
+                    guard try directory.names().isEmpty else { throw Self.failure }
+                    var facts = stat()
+                    guard fstat(directory.descriptor, &facts) == 0 else { throw Self.failure }
+                    let candidate = Node(path: node.path, directory: true,
+                        facts: DraftPhotoRawBackupSnapshotV1.facts(facts))
+                    if let admitted = admittedClaimNodes[node.path] {
+                        guard admitted.strictlyMatches(facts) else { throw Self.failure }
+                        frozen = admitted
+                    } else {
+                        guard hashFiles, expectedClaim.admitsClaim(candidate) else { throw Self.failure }
+                        frozen = candidate
+                    }
+                    try directory.verifyNamed()
+                } else {
+                    let file = try parent.openFile(name)
+                    defer { close(file) }
+                    let facts = try DraftStagingRootOwnerV1.regular(file)
+                    if let admitted = admittedClaimNodes[node.path] {
+                        guard admitted.strictlyMatches(facts) else { throw Self.failure }
+                        frozen = admitted
+                    } else {
+                        guard hashFiles, let digest = expectedClaim.sha256 else { throw Self.failure }
+                        let candidate = Node(path: node.path, directory: false,
+                            facts: DraftPhotoRawBackupSnapshotV1.facts(facts),
+                            sha256: try Self.digest(file, facts: facts))
+                        guard candidate.sha256 == digest, expectedClaim.admitsClaim(candidate) else {
+                            throw Self.failure
+                        }
+                        frozen = candidate
+                    }
+                    try parent.verifyPinnedFile(file, name: name, facts: facts)
+                }
+                admittedClaimNodes[node.path] = frozen
+                continue
+            }
+            if node.path == DraftAttachmentStagingAdapterV1.manifestName, placementMode != .prepared { continue }
+            guard let expected = expected[node.path] else { throw Self.failure }
+            let parts = node.path == "." ? [] : node.path.split(separator: "/").map(String.init)
+            if expected.directory {
+                let directory = try owner.directory(parts)
+                guard expected.matches(directory.identity) else { throw Self.failure }
+            } else {
+                let directory = try owner.directory(Array(parts.dropLast()))
+                let name = parts.last!, file = try directory.openFile(name)
+                defer { close(file) }
+                let facts = try DraftStagingRootOwnerV1.regular(file)
+                guard expected.matches(facts) else { throw Self.failure }
+                if hashFiles, let expectedDigest = expected.sha256 ?? incumbentGenericDigests[node.path] {
+                    guard try Self.digest(file, facts: facts) == expectedDigest else { throw Self.failure }
+                }
+                try directory.verifyPinnedFile(file, name: name, facts: facts)
+            }
+        }
+    }
+
+    private func requirePermit(_ permit: CheckRunnerPhotoRestoreRawPublicationPermitV1) throws {
+        guard permit.restoreID == ownership.restoreID,
+              permit.plannedBindingSHA256 == ownership.plannedBindingSHA256,
+              try permit.ownershipSHA256 == ownership.sha256 else { throw Self.failure }
+    }
+
+    fileprivate static func reopen(owner: DraftStagingRootOwnerV1,
+        ownership: DraftPhotoRestoreRawOwnershipV1, permit: CheckRunnerPhotoRestoreRawPublicationPermitV1,
+        rollback: Bool) throws -> Self {
+        let value = Self(owner: owner, ownership: ownership)
+        try value.requirePermit(permit)
+        let lock = try owner.acquire(); defer { lock.release() }
+        try value.requireCurrent(mode: rollback ? .rollingBack : .committed, hashFiles: true)
+        return value
+    }
+
+    func publish(permit: CheckRunnerPhotoRestoreRawPublicationPermitV1) throws {
+        guard useLock.try() else { throw Self.failure }
+        defer { useLock.unlock() }
+        try requirePermit(permit)
+        let lock = try owner.acquire(); defer { lock.release() }
+        try requireCurrent(mode: .publishing, hashFiles: false)
+        let locations = try placements(mode: .publishing)
+        for relative in locations.keys.sorted() {
+            guard let wrapped = locations[relative], let location = wrapped else { throw Self.failure }
+            if location == relative { continue }
+            try move(from: location, to: relative)
+#if DEBUG
+            try observeForTesting("public-group")
+#endif
+        }
+        try requireCurrent(mode: .publishing, hashFiles: false)
+        try replaceManifest(ownership.transition.after)
+#if DEBUG
+        try observeForTesting("after-manifest")
+#endif
+        try requireCurrent(mode: .committed, hashFiles: false)
+    }
+
+    private func move(from: String, to: String) throws {
+        let a = from.split(separator: "/").map(String.init), b = to.split(separator: "/").map(String.init)
+        let source = try owner.directory(Array(a.dropLast())), target = try owner.directory(Array(b.dropLast()))
+        try source.verifyNamed(); try target.verifyNamed()
+        let privatePath = from.hasPrefix(ownership.privateName + "/") ? from : to
+        guard let expected = ownership.createdNodes.first(where: { $0.path == privatePath && $0.directory }),
+              expected.matches(try owner.directory(a).identity) else { throw Self.failure }
+        guard renameatx_np(source.descriptor, a.last!, target.descriptor, b.last!, UInt32(RENAME_EXCL)) == 0,
+              fsync(source.descriptor) == 0, fsync(target.descriptor) == 0 else { throw Self.failure }
+        guard expected.matches(try owner.directory(b).identity) else { throw Self.failure }
+    }
+
+    /// Called only while the incumbent restore owner proves the old generation
+    /// is still active. The before manifest is restored before any owned group
+    /// is moved back under the private container and removed.
+    func rollback(permit: CheckRunnerPhotoRestoreRawPublicationPermitV1) throws {
+        guard useLock.try() else { throw Self.failure }
+        defer { useLock.unlock() }
+        try requirePermit(permit)
+        let lock = try owner.acquire(); defer { lock.release() }
+        try requireCurrent(mode: .rollingBack, hashFiles: false)
+        try replaceManifest(ownership.transition.before)
+        let locations = try placements(mode: .rollingBack)
+        for relative in locations.keys.sorted() {
+            guard let wrapped = locations[relative], let location = wrapped else { continue }
+            if location == relative {
+                try move(from: relative, to: "\(ownership.privateName)/\(relative)")
+#if DEBUG
+                try observeForTesting("private-group")
+#endif
+            }
+        }
+        try requireCurrent(mode: .rollingBack, hashFiles: false)
+        try removePrivateTree()
+        try requireCurrent(mode: .rollingBack, hashFiles: false)
+        guard try placements(mode: .rollingBack).values.allSatisfy({ $0 == nil }) else { throw Self.failure }
+    }
+
+    /// The new pointer and canonical destination must be verified by the
+    /// restore owner first. Only empty, inode-proven private scaffolding remains.
+    func finish(permit: CheckRunnerPhotoRestoreRawPublicationPermitV1) throws {
+        guard useLock.try() else { throw Self.failure }
+        defer { useLock.unlock() }
+        try requirePermit(permit)
+        let lock = try owner.acquire(); defer { lock.release() }
+        try requireCurrent(mode: .committed, hashFiles: false)
+        try removePrivateTree()
+        try requireCurrent(mode: .committed, hashFiles: false)
+    }
+
+    private func removePrivateTree() throws {
+        // The whole operation census was checked immediately before this
+        // method. Each node is first claimed under its exact receipt-reserved
+        // private name. A crash may leave that one claim; cold recovery hashes
+        // and freezes it before deletion. A mismatched claim is preserved.
+        for expected in ownership.createdNodes.sorted(by: {
+            let a = $0.path.split(separator: "/").count, b = $1.path.split(separator: "/").count
+            return a == b ? $0.path > $1.path : a > b
+        }) {
+            guard let claimPath = expected.claimPath else { throw Self.failure }
+            let original = try namedLocation(expected.path), claim = try namedLocation(claimPath)
+            let originalExists = try original.map { try $0.parent.exists($0.name) } ?? false
+            let claimExists = try claim.map { try $0.parent.exists($0.name) } ?? false
+            guard !(originalExists && claimExists) else { throw Self.failure }
+            if claimExists {
+                guard let claim, let frozen = admittedClaimNodes[claimPath] else { throw Self.failure }
+                try removeClaim(expected: expected, frozen: frozen, parent: claim.parent, name: claim.name)
+            } else if originalExists {
+                guard let original, let claim else { throw Self.failure }
+                let source = try requireOriginalForClaim(expected, parent: original.parent, name: original.name)
+#if DEBUG
+                try beforeClaimForTesting?(original.parent.url.appendingPathComponent(original.name,
+                    isDirectory: expected.directory), expected.directory)
+#endif
+                try original.parent.verifyNamed(); try claim.parent.verifyNamed()
+                guard renameatx_np(original.parent.descriptor, original.name,
+                        claim.parent.descriptor, claim.name, UInt32(RENAME_EXCL)) == 0,
+                      fsync(original.parent.descriptor) == 0 else { throw Self.failure }
+                let frozen = try freezeOwnedClaim(expected, source: source,
+                    parent: claim.parent, name: claim.name)
+                admittedClaimNodes[claimPath] = frozen
+#if DEBUG
+                try observeForTesting("after-claim")
+#endif
+                try removeClaim(expected: expected, frozen: frozen, parent: claim.parent, name: claim.name)
+            }
+#if DEBUG
+            if !expected.directory { try observeForTesting("private-file-deletion") }
+#endif
+        }
+    }
+
+    private func namedLocation(_ path: String) throws
+        -> (parent: DraftStagingRootOwnerV1.Directory, name: String)? {
+        let parts = path.split(separator: "/").map(String.init)
+        guard let name = parts.last else { throw Self.failure }
+        var parent = try owner.directory([])
+        for component in parts.dropLast() {
+            if try !parent.exists(component) { return nil }
+            parent = try owner.directory(parent.components + [component])
+        }
+        return (parent, name)
+    }
+
+    private func requireOriginalForClaim(_ expected: Node,
+        parent: DraftStagingRootOwnerV1.Directory, name: String) throws -> ClaimSource {
+        if expected.directory {
+            let directory = try owner.directory(parent.components + [name])
+            guard expected.matches(directory.identity), try directory.names().isEmpty else { throw Self.failure }
+            try directory.verifyNamed()
+            return ClaimSource(directory: directory)
+        }
+        let file = try parent.openFile(name)
+        do {
+            let facts = try DraftStagingRootOwnerV1.regular(file)
+            guard expected.matches(facts) else { throw Self.failure }
+            try parent.verifyPinnedFile(file, name: name, facts: facts)
+            return ClaimSource(file: file)
+        } catch { close(file); throw error }
+    }
+
+    /// Called immediately after this operation's exclusive rename. The old
+    /// ctime is not reused: exact causal post-claim facts are frozen instead.
+    private func freezeOwnedClaim(_ expected: Node, source: ClaimSource,
+        parent: DraftStagingRootOwnerV1.Directory, name: String) throws -> Node {
+        guard let path = expected.claimPath else { throw Self.failure }
+        if expected.directory {
+            guard let sourceDirectory = source.directory else { throw Self.failure }
+            var sourceFacts = stat()
+            guard fstat(sourceDirectory.descriptor, &sourceFacts) == 0 else { throw Self.failure }
+            let directory = try owner.directory(parent.components + [name])
+            guard directory.identity.st_dev == sourceFacts.st_dev,
+                  directory.identity.st_ino == sourceFacts.st_ino,
+                  try directory.names().isEmpty else { throw Self.failure }
+            var claimedFacts = stat()
+            guard fstat(directory.descriptor, &claimedFacts) == 0,
+                  claimedFacts.st_dev == sourceFacts.st_dev,
+                  claimedFacts.st_ino == sourceFacts.st_ino else { throw Self.failure }
+            let frozen = Node(path: path, directory: true,
+                facts: DraftPhotoRawBackupSnapshotV1.facts(claimedFacts))
+            guard expected.admitsClaim(frozen) else { throw Self.failure }
+            try directory.verifyNamed()
+            return frozen
+        }
+        guard source.file >= 0 else { throw Self.failure }
+        let facts = try DraftStagingRootOwnerV1.regular(source.file)
+        let frozen = Node(path: path, directory: false,
+            facts: DraftPhotoRawBackupSnapshotV1.facts(facts), sha256: expected.sha256)
+        guard expected.admitsClaim(frozen) else { throw Self.failure }
+        try parent.verifyPinnedFile(source.file, name: name, facts: facts)
+        return frozen
+    }
+
+    private func removeClaim(expected: Node, frozen: Node,
+        parent: DraftStagingRootOwnerV1.Directory, name: String) throws {
+        guard expected.claimPath == frozen.path, try parent.exists(name) else { throw Self.failure }
+        if expected.directory {
+            let directory = try owner.directory(parent.components + [name])
+            guard try directory.names().isEmpty else {
+                throw Self.failure
+            }
+            var facts = stat()
+            guard fstat(directory.descriptor, &facts) == 0, frozen.strictlyMatches(facts) else {
+                throw Self.failure
+            }
+            try directory.verifyNamed(); try parent.verifyNamed()
+            var after = stat()
+            guard unlinkat(parent.descriptor, name, AT_REMOVEDIR) == 0,
+                  fstat(directory.descriptor, &after) == 0, frozen.provesUnlinked(after),
+                  fsync(parent.descriptor) == 0 else {
+                throw Self.failure
+            }
+        } else {
+            let file = try parent.openFile(name)
+            defer { close(file) }
+            let facts = try DraftStagingRootOwnerV1.regular(file)
+            guard frozen.strictlyMatches(facts) else { throw Self.failure }
+            try parent.verifyPinnedFile(file, name: name, facts: facts)
+            var after = stat()
+            guard unlinkat(parent.descriptor, name, 0) == 0,
+                  fstat(file, &after) == 0, frozen.provesUnlinked(after),
+                  fsync(parent.descriptor) == 0 else { throw Self.failure }
+        }
+        admittedClaimNodes.removeValue(forKey: frozen.path)
+    }
+
+    private func replaceManifest(_ manifest: DraftAttachmentStagingManifestV1) throws {
+        let bytes = try manifest.canonicalBytes()
+        if try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest.canonicalBytes() != bytes {
+            try DraftStagingRootOwnerV1.replaceFile(bytes,
+                at: owner.rootURL.appendingPathComponent(DraftAttachmentStagingAdapterV1.manifestName),
+                directory: owner.directory([]))
+        }
+        guard try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest.canonicalBytes() == bytes else {
+            throw Self.failure
+        }
+    }
+}
+
+extension DraftAttachmentStagingAdapterV1 {
+    func preparePhotoRestoreRawPublication(authority: CheckRunnerPhotoRestoreRawAuthorityV1,
+        currentVerification: DraftPhotoBackupPreparedVerificationV1) async throws
+        -> DraftPhotoRestorePreparedPublicationV1 {
+        guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL,
+              authority.workspaceID == workspaceScope,
+              currentVerification.owner.rootURL.standardizedFileURL == rootURL.standardizedFileURL else {
+            throw DraftAttachmentStagingFailureV1.wrongWorkspace
+        }
+        try beginOperation(); defer { operationInFlight = false }
+        let task = Task.detached(priority: .userInitiated) {
+            try DraftPhotoRestorePreparedPublicationV1.prepare(authority: authority, verification: currentVerification)
+        }
+        return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
+    }
+
+    func reopenPhotoRestoreRawPublication(ownership: DraftPhotoRestoreRawOwnershipV1,
+        permit: CheckRunnerPhotoRestoreRawPublicationPermitV1, rollback: Bool) async throws
+        -> DraftPhotoRestorePreparedPublicationV1 {
+        guard let workspaceScope,
+              ownership.transition.after.entries.allSatisfy({ $0.item.workspaceID == workspaceScope }) else {
+            throw DraftAttachmentStagingFailureV1.wrongWorkspace
+        }
+        try beginOperation(); defer { operationInFlight = false }
+        let owner = rootOwner
+        let task = Task.detached(priority: .userInitiated) {
+            try DraftPhotoRestorePreparedPublicationV1.reopen(owner: owner, ownership: ownership,
+                permit: permit, rollback: rollback)
+        }
+        return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
+    }
+
+    /// The complete old-root census is checked through the existing backup
+    /// verifier before freezing reversible values. No stage or manifest changes.
+    func preparePhotoRestoreRawTransition(sourcePlan: CheckRunnerPhotoBackupRestorePlanV1,
+        sourceHistory: CheckRunnerPhotoBackupHistoryV1,
+        currentSnapshots: [DraftPhotoRawBackupSnapshotV1],
+        currentCommittingCheckpoints: [UUID: FieldDraftCheckpointV1],
+        currentCanonicalStages: [AttachmentStagingItemV1],
+        currentChildStageIDs: [UUID: UUID], retainedCurrentStageIDs: Set<UUID>,
+        genericEntries: [DraftAttachmentStagingEntryV1] = []) async throws
+        -> DraftPhotoRestoreRawTransitionV1 {
+        guard let workspaceScope, sourceHistory.sourceWorkspaceID == workspaceScope,
+              sourceHistory.source.workspaceID == workspaceScope.rawValue,
+              sourcePlan.source.workspaceID == workspaceScope.rawValue else {
+            throw DraftAttachmentStagingFailureV1.wrongWorkspace
+        }
+        let proof = try await preparePhotoBackupVerification(currentSnapshots,
+            committingCheckpoints: currentCommittingCheckpoints,
+            canonicalStages: currentCanonicalStages, childStageIDs: currentChildStageIDs)
+        return try proof.withVerificationLock {
+            let before = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: rootOwner).manifest
+            return try DraftPhotoRestoreRawTransitionV1(before: before, sourcePlan: sourcePlan,
+                sourceHistory: sourceHistory, currentSnapshots: currentSnapshots,
+                retainedCurrentStageIDs: retainedCurrentStageIDs, genericEntries: genericEntries)
+        }
+    }
+}
 
 /// Receipt for adopting staged bytes from a backup restore staging root.  The
 /// destination draft root and the generation root are separate authorities;
@@ -2274,11 +3905,11 @@ private extension DraftAttachmentStagingAdapterV1 {
     }
 
     func persistManifest() throws {
+        let expected = try manifest.canonicalBytes()
         try Self.writeManifest(manifest, to: rootURL.appendingPathComponent(Self.manifestName),
                                fileManager: fileManager, owner: rootOwner)
-        let expected = manifest
         try reloadManifest()
-        guard manifest == expected else { throw DraftAttachmentStagingFailureV1.corruptManifest }
+        guard try manifest.canonicalBytes() == expected else { throw DraftAttachmentStagingFailureV1.corruptManifest }
     }
 
     static func writeManifest(
@@ -2288,10 +3919,7 @@ private extension DraftAttachmentStagingAdapterV1 {
         owner: DraftStagingRootOwnerV1
     ) throws {
         try value.validate()
-        var encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        encoder.dateEncodingStrategy = .millisecondsSince1970
-        let data = try encoder.encode(value)
+        let data = try value.canonicalBytes()
         try DraftStagingRootOwnerV1.replaceFile(data, at: url, directory: owner.directory([]))
         do {
             try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: url)
@@ -2517,7 +4145,9 @@ private extension DraftAttachmentStagingAdapterV1 {
                     fileManager: fileManager, owner: owner
                 )
                 manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
-                guard manifest == updated else { throw DraftAttachmentStagingFailureV1.corruptManifest }
+                guard try manifest.canonicalBytes() == updated.canonicalBytes() else {
+                    throw DraftAttachmentStagingFailureV1.corruptManifest
+                }
                 return try DraftAttachmentRestorePublicationReceiptV1(
                     restoreID: restoreID,
                     workspaceID: workspaceID,

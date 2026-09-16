@@ -17,8 +17,8 @@ enum StoragePreflightError: Error, Equatable, LocalizedError {
     }
 }
 
-struct StoragePreflightService {
-    typealias CapacityProvider = (URL) throws -> Int64?
+struct StoragePreflightService: Sendable {
+    typealias CapacityProvider = @Sendable (URL) throws -> Int64?
 
     static let evidenceAcceptanceEstimateBytes: Int64 = 68 * 1_048_576
     static let pdfOperationAllowanceBytes: Int64 = 32 * 1_048_576

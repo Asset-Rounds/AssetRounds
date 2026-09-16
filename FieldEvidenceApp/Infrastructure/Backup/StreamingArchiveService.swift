@@ -148,13 +148,71 @@ struct StreamingArchiveService: Sendable {
         self.makeOperationID = makeOperationID
     }
 
+    /// Observes exactly the source path accepted by the sole writer. Callers
+    /// compare this value at publication boundaries; hashing remains in write.
+    func sourceObservation(_ entry: StreamingArchiveWriteEntryV1) throws -> StreamingArchiveSourceObservationV1 {
+        guard entry.sourceRootURL.isFileURL, validSourceRelativePath(entry.sourceRelativePath),
+              entry.expectedUncompressedByteCount >= 0,
+              entry.expectedUncompressedByteCount <= limits.maximumUncompressedEntryByteCount else {
+            throw StreamingArchiveFailureV1.invalidPlan
+        }
+        try validatePathAndMIME(entry.path, mimeType: entry.mimeType)
+        let rootURL = entry.sourceRootURL.standardizedFileURL
+        let root = try Self.openDirectory(rootURL)
+        var held = [root]
+        defer { for descriptor in held.reversed() { Darwin.close(descriptor) } }
+        let components = entry.sourceRelativePath.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard let leaf = components.last else { throw StreamingArchiveFailureV1.invalidPlan }
+        let rootFacts = try Self.snapshotDirectory(root)
+        guard Self.matchesRootIdentity(rootFacts, entry.expectedSourceRootIdentity) else {
+            throw StreamingArchiveFailureV1.sourceChanged
+        }
+        var directories = [StreamingArchiveRootIdentityV1(device: rootFacts.device, inode: rootFacts.inode)]
+        var parent = root
+        for component in components.dropLast() {
+            let next = Darwin.openat(parent, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard next >= 0 else { throw Self.mapOpenFailure() }
+            held.append(next)
+            let facts = try Self.snapshotDirectory(next)
+            directories.append(.init(device: facts.device, inode: facts.inode))
+            parent = next
+        }
+        let file = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard file >= 0 else { throw Self.mapOpenFailure() }
+        held.append(file)
+        let facts = try Self.snapshotRegularFile(file)
+        guard facts.byteCount == entry.expectedUncompressedByteCount else {
+            throw StreamingArchiveFailureV1.sourceChanged
+        }
+        // Rewalk names from the current root, proving every held ancestor and
+        // the final leaf still occupy the observed names, without reading bytes.
+        var named = try Self.openDirectory(rootURL)
+        defer { Darwin.close(named) }
+        let namedRoot = try Self.snapshotDirectory(named)
+        guard Self.matchesRootIdentity(namedRoot, directories[0]) else { throw StreamingArchiveFailureV1.sourceChanged }
+        for (offset, component) in components.dropLast().enumerated() {
+            let next = Darwin.openat(named, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard next >= 0 else { throw Self.mapOpenFailure() }
+            Darwin.close(named); named = next
+            guard Self.matchesRootIdentity(try Self.snapshotDirectory(named), directories[offset + 1]) else {
+                throw StreamingArchiveFailureV1.sourceChanged
+            }
+        }
+        let namedFile = Darwin.openat(named, leaf, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard namedFile >= 0 else { throw Self.mapOpenFailure() }
+        defer { Darwin.close(namedFile) }
+        guard try Self.snapshotRegularFile(namedFile) == facts,
+              try Self.snapshotRegularFile(file) == facts else { throw StreamingArchiveFailureV1.sourceChanged }
+        return .init(ancestorIdentities: directories, file: facts)
+    }
+
     static func hasFormatMagic(at archiveURL: URL) throws -> Bool {
         guard archiveURL.isFileURL else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
         let descriptor = Darwin.open(
             archiveURL.standardizedFileURL.path,
-            O_RDONLY | O_NOFOLLOW
+            O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         )
         guard descriptor >= 0 else {
             throw mapOpenFailure()
@@ -550,6 +608,28 @@ struct StreamingArchiveService: Sendable {
                 }
                 throw StreamingArchiveFailureV1.cleanupFailed
             }
+            let publishedDescriptor = Darwin.openat(
+                destinationParent, destination.lastPathComponent, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
+            )
+            guard publishedDescriptor >= 0 else { throw StreamingArchiveFailureV1.sourceChanged }
+            let publicationSnapshot: StreamingArchiveSourceSnapshotV1
+            do {
+                publicationSnapshot = try Self.snapshotRegularFile(publishedDescriptor)
+                guard publicationSnapshot.device == finalTemporarySnapshot.device,
+                      publicationSnapshot.inode == finalTemporarySnapshot.inode,
+                      publicationSnapshot.byteCount == finalTemporarySnapshot.byteCount,
+                      publicationSnapshot.modifiedSeconds == finalTemporarySnapshot.modifiedSeconds,
+                      publicationSnapshot.modifiedNanoseconds == finalTemporarySnapshot.modifiedNanoseconds,
+                      Self.identityMatches(parent: destinationParent,
+                        name: destination.lastPathComponent, snapshot: publicationSnapshot) else {
+                    throw StreamingArchiveFailureV1.sourceChanged
+                }
+                Darwin.close(publishedDescriptor)
+            } catch {
+                Darwin.close(publishedDescriptor)
+                throw error
+            }
+            let publicationParent = try Self.snapshotDirectory(destinationParent)
             published = nil
             Darwin.close(destinationParent)
             destinationParentDescriptor = nil
@@ -568,7 +648,9 @@ struct StreamingArchiveService: Sendable {
                 archiveURL: destination,
                 archiveByteCount: archiveByteCount,
                 archiveSHA256: archiveDigest,
-                index: index
+                index: index,
+                publicationSnapshot: publicationSnapshot,
+                publicationParentIdentity: .init(device: publicationParent.device, inode: publicationParent.inode)
             )
         } catch {
             var cleanupSucceeded = true
@@ -1125,9 +1207,7 @@ private extension StreamingArchiveService {
             valid = canonicalUUIDLeaf(components[1], suffix: ".pdf")
                 && mimeType == "application/pdf"
         } else if components.count == 3, components[0] == "draft-staging" {
-            valid = UUID(uuidString: components[1])?.uuidString.lowercased() == components[1]
-                && canonicalUUIDLeaf(components[2], suffix: ".bin")
-                && mimeType == "application/octet-stream"
+            valid = CheckRunnerPhotoBackupMemberKeyV1(path: path)?.role.mimeType == mimeType
         } else if components.count == 4, components[0] == "content",
                   components[3] == "original.bin" {
             valid = UUID(uuidString: components[1])?.uuidString.lowercased() == components[1]
@@ -1159,6 +1239,7 @@ private extension StreamingArchiveService {
         to destinationDescriptor: Int32,
         cancellation: StreamingArchiveCancellationV1
     ) throws -> (byteCount: Int64, sha256: String) {
+        let namedBefore = try sourceObservation(entry)
         let rootURL = entry.sourceRootURL.standardizedFileURL
         let rootDescriptor = try Self.openDirectory(rootURL)
         var retainedDescriptors = [rootDescriptor]
@@ -1197,12 +1278,13 @@ private extension StreamingArchiveService {
         let descriptor = Darwin.openat(
             parentDescriptor,
             leaf,
-            O_RDONLY | O_NOFOLLOW
+            O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         )
         guard descriptor >= 0 else { throw Self.mapOpenFailure() }
         retainedDescriptors.append(descriptor)
         let before = try Self.snapshotRegularFile(descriptor)
-        guard before.byteCount == entry.expectedUncompressedByteCount,
+        guard before == namedBefore.file,
+              before.byteCount == entry.expectedUncompressedByteCount,
               before.byteCount <= limits.maximumUncompressedEntryByteCount else {
             throw StreamingArchiveFailureV1.sourceChanged
         }
@@ -1234,6 +1316,9 @@ private extension StreamingArchiveService {
             reopenedRootSnapshot,
             entry.expectedSourceRootIdentity
         ) else {
+            throw StreamingArchiveFailureV1.sourceChanged
+        }
+        guard try sourceObservation(entry) == namedBefore else {
             throw StreamingArchiveFailureV1.sourceChanged
         }
         return (before.byteCount, Self.hex(hasher.finalize()))

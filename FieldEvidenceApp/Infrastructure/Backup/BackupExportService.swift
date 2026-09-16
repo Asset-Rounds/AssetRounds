@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -209,6 +210,7 @@ final class BackupExportService {
         enum Location: Equatable, Sendable {
             case generatedRecords
             case generatedPortableExchangeSnapshot
+            case generatedPhotoMetadata(String)
             case generationRelative(String)
             case draftRelative(String)
         }
@@ -229,9 +231,42 @@ final class BackupExportService {
         let mutationHistory: MutationHistorySnapshotV1
         let checkpointBasis: BackupCanonicalCheckpointBasisV1
         let sources: [StreamingSource]
+        let photoHistory: CheckRunnerPhotoBackupHistoryV1
+        let generatedPhotoMetadata: [String: Data]
     }
 
-    private struct OwnedStagingSource {
+    private struct PhotoStreamingSnapshot: Equatable, Sendable {
+        let history: CheckRunnerPhotoBackupHistoryV1
+        let raw: [DraftPhotoRawBackupSnapshotV1]
+        let media: [CheckRunnerPhotoMediaBackupChildSnapshotV1]
+    }
+
+    private enum PhotoRawVerification {
+        case existing(DraftPhotoBackupPreparedVerificationV1)
+        case absent(DraftPhotoBackupAbsentRootPreparedVerificationV1)
+
+        func withVerificationLock<T>(_ body: () throws -> T) throws -> T {
+            switch self {
+            case .existing(let value): return try value.withVerificationLock(body)
+            case .absent(let value): return try value.withVerificationLock(body)
+            }
+        }
+    }
+
+    private struct PhotoExportFreeze {
+        let prepared: StreamingPrepared
+        let revision: WorkspaceRevisionV1
+        let rawVerification: PhotoRawVerification
+        let mediaVerification: CheckRunnerPhotoMediaBackupPreparedVerificationV1
+        let observedSources: [ObservedStreamingSource]
+    }
+
+    private struct ObservedStreamingSource: Sendable {
+        let entry: StreamingArchiveWriteEntryV1
+        let observation: StreamingArchiveSourceObservationV1
+    }
+
+    private struct OwnedStagingSource: Sendable {
         let url: URL
         let device: UInt64
         let inode: UInt64
@@ -252,6 +287,9 @@ final class BackupExportService {
     private let generationLeaseValidation: @Sendable () throws -> Void
     private var prepared: PreparedV4BackupV1?
     private var streamingPrepared: StreamingPrepared?
+#if DEBUG
+    var afterArchivePublicationForTesting: (@MainActor () throws -> Void)?
+#endif
 
     init(
         modelContext: ModelContext,
@@ -536,6 +574,75 @@ final class BackupExportService {
 
     /// Compatibility alias for callers introduced with the V23 streaming
     /// archive. `export(previewID:to:)` uses this same current writer.
+    func export(previewID: UUID, to destinationDirectoryURL: URL,
+        contentAccess: AppAccessPresentationV1.ContentAccess,
+        cancellation: StreamingArchiveCancellationV1 = .none) async throws -> URL {
+        try C34SceneNavigationBackupExportBoundaryV1.validate()
+        guard !Task.isCancelled else { throw BackupExportServiceError.cancelled }
+        do { try cancellation.checkpoint() }
+        catch StreamingArchiveFailureV1.cancelled { throw BackupExportServiceError.cancelled }
+        let operation = try contentAccess.beginBackupOperation(modelContext: modelContext,
+            generationRootURL: generationRootURL)
+        try validateLifecycleScope(try fetchRows(), operation: .exportOpen)
+        let freeze: PhotoExportFreeze
+        do { freeze = try await freezePhotoExport(previewID: previewID, operation: operation) }
+        catch is CancellationError { throw BackupExportServiceError.cancelled }
+        let generationRoot = generationRootURL
+        let pinnedRoot = rootIdentity
+        let capacity = storagePreflight
+        let limits = archiveLimits
+        let writer = archiveService
+        let lease = generationLeaseValidation
+        let value = freeze.prepared
+        let task = Task.detached(priority: .userInitiated) {
+            let taskCancellation = StreamingArchiveCancellationV1 {
+                try StreamingArchiveCancellationV1.task.checkpoint()
+                try cancellation.checkpoint()
+            }
+            return try Self.publishStreaming(value, to: destinationDirectoryURL, generationRootURL: generationRoot,
+                pinnedRootIdentity: pinnedRoot, storagePreflight: capacity, archiveLimits: limits,
+                archiveService: writer, cancellation: taskCancellation, generationLeaseValidation: lease)
+        }
+        let receipt = try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
+        do {
+#if DEBUG
+            try afterArchivePublicationForTesting?()
+#endif
+            try StreamingArchiveCancellationV1.task.checkpoint()
+            try cancellation.checkpoint()
+            try operation.withAuthorization { store in
+                try store.withCheckRunnerPhotoPublication(expectedWriter: store.workspaceWriter,
+                    applicationSupportURL: store.checkRunnerPhotoApplicationSupportURL) {
+                    try freeze.rawVerification.withVerificationLock {
+                        try freeze.mediaVerification.withVerificationLock {
+                            guard try store.workspaceWriter.currentRevision() == freeze.revision else {
+                                throw BackupExportServiceError.stalePreview
+                            }
+                            try validateFrozenCanonical(freeze.prepared)
+                            for source in freeze.observedSources {
+                                try StreamingArchiveCancellationV1.task.checkpoint()
+                                try cancellation.checkpoint()
+                                guard try archiveService.sourceObservation(source.entry) == source.observation else {
+                                    throw BackupExportServiceError.sourceChanged
+                                }
+                            }
+                            try validateGenerationLease()
+                            try StreamingArchiveCancellationV1.task.checkpoint()
+                        }
+                    }
+                }
+            }
+            streamingPrepared = nil
+            return receipt.archiveURL
+        } catch {
+            let cleanup = Task.detached(priority: .userInitiated) {
+                try Self.removeOwnedPublishedArchive(receipt, within: destinationDirectoryURL)
+            }
+            guard (try? await cleanup.value) != nil else { throw BackupExportServiceError.cleanupFailed }
+            throw Self.mapStreamingExportError(error)
+        }
+    }
+
     func exportStreaming(
         previewID: UUID,
         to destinationDirectoryURL: URL,
@@ -557,9 +664,42 @@ final class BackupExportService {
         guard rebuilt == frozen, !modelContext.hasChanges else {
             throw BackupExportServiceError.stalePreview
         }
+        guard frozen.photoHistory.children.isEmpty else { throw BackupExportServiceError.invalidAuthority }
+        let receipt = try Self.publishStreaming(
+            frozen, to: destinationDirectoryURL, generationRootURL: generationRootURL,
+            pinnedRootIdentity: rootIdentity, storagePreflight: storagePreflight,
+            archiveLimits: archiveLimits, archiveService: archiveService,
+            cancellation: cancellation, generationLeaseValidation: generationLeaseValidation
+        )
+        do {
+            try validateGenerationLease()
+            guard !modelContext.hasChanges else { throw BackupExportServiceError.stalePreview }
+            streamingPrepared = nil
+            return receipt.archiveURL
+        } catch {
+            guard (try? Self.removeOwnedPublishedArchive(receipt, within: destinationDirectoryURL)) != nil else {
+                throw BackupExportServiceError.cleanupFailed
+            }
+            throw Self.mapStreamingExportError(error)
+        }
+    }
+
+    /// One value-only publication kernel serves synchronous compatibility
+    /// callers and the explicit asynchronous backup action.
+    private nonisolated static func publishStreaming(
+        _ frozen: StreamingPrepared,
+        to destinationDirectoryURL: URL,
+        generationRootURL: URL,
+        pinnedRootIdentity: ReportPDFAnchoredFile.RootIdentity?,
+        storagePreflight: StoragePreflightService,
+        archiveLimits: StreamingArchiveLimitsV1,
+        archiveService: StreamingArchiveService,
+        cancellation: StreamingArchiveCancellationV1,
+        generationLeaseValidation: @Sendable () throws -> Void
+    ) throws -> StreamingArchiveWriteReceiptV1 {
         let destination = destinationDirectoryURL.standardizedFileURL
         guard destinationDirectoryURL.isFileURL,
-              try itemType(at: destination) == .directory else {
+              try Self.itemType(at: destination) == .directory else {
             throw BackupExportServiceError.destinationInvalid
         }
         do {
@@ -568,30 +708,30 @@ final class BackupExportService {
                 onVolumeContaining: destination
             )
         } catch {
-            throw mapStreamingExportError(error)
+            throw Self.mapStreamingExportError(error)
         }
 
         let packageURL = destination.appendingPathComponent(
             "AssetRounds.fieldrecordbackup",
             isDirectory: false
         )
-        guard try itemType(at: packageURL) == nil else {
+        guard try Self.itemType(at: packageURL) == nil else {
             throw BackupExportServiceError.destinationExists
         }
         let stagingRoot: URL
-        guard let pinnedGenerationRootIdentity = rootIdentity else {
+        guard let pinnedGenerationRootIdentity = pinnedRootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
         do {
             stagingRoot = try StoreGenerationFactory.backupImportStagingDirectory(
                 containing: generationRootURL
             )
-            guard try itemType(at: stagingRoot) == .directory else {
+            guard try Self.itemType(at: stagingRoot) == .directory else {
                 throw BackupExportServiceError.invalidGeneration
             }
             let verifyStagingAuthority = {
-                guard try self.itemType(at: stagingRoot) == .directory,
-                      try ReportPDFAnchoredFile.rootIdentity(at: self.generationRootURL)
+                guard try Self.itemType(at: stagingRoot) == .directory,
+                      try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
                         == pinnedGenerationRootIdentity else {
                     throw BackupExportServiceError.invalidGeneration
                 }
@@ -636,33 +776,47 @@ final class BackupExportService {
         let draftSourceRootIdentity = StreamingArchiveRootIdentityV1(device:UInt64(draftInfo.st_dev),inode:UInt64(draftInfo.st_ino))
 
         let manifestSource = stagingRoot.appendingPathComponent(
-            ".backup-export-\(uuid(previewID))-manifest.json"
+            ".backup-export-\(Self.uuid(frozen.preview.id))-manifest.json"
         )
         let recordsSource = stagingRoot.appendingPathComponent(
-            ".backup-export-\(uuid(previewID))-records.json"
+            ".backup-export-\(Self.uuid(frozen.preview.id))-records.json"
         )
         let portableExchangeSnapshotSource = stagingRoot.appendingPathComponent(
-            ".backup-export-\(uuid(previewID))-portable-exchange.json"
+            ".backup-export-\(Self.uuid(frozen.preview.id))-portable-exchange.json"
         )
         var createdSources = [OwnedStagingSource]()
-        var publishedURL: URL?
+        var publishedReceipt: StreamingArchiveWriteReceiptV1?
         do {
-            createdSources.append(try writeOwnedStagingSource(
+            createdSources.append(try Self.writeOwnedStagingSource(
                 frozen.manifestData,
                 to: manifestSource,
-                expectedRootIdentity: stagingRootIdentity
+                expectedRootIdentity: stagingRootIdentity,
+                archiveLimits: archiveLimits
             ))
-            createdSources.append(try writeOwnedStagingSource(
+            createdSources.append(try Self.writeOwnedStagingSource(
                 frozen.recordsData,
                 to: recordsSource,
-                expectedRootIdentity: stagingRootIdentity
+                expectedRootIdentity: stagingRootIdentity,
+                archiveLimits: archiveLimits
             ))
-            createdSources.append(try writeOwnedStagingSource(
+            createdSources.append(try Self.writeOwnedStagingSource(
                 frozen.portableExchangeSnapshotData,
                 to: portableExchangeSnapshotSource,
-                expectedRootIdentity: stagingRootIdentity
+                expectedRootIdentity: stagingRootIdentity,
+                archiveLimits: archiveLimits
             ))
-            try validateGenerationLease()
+            var generatedPhotoNames: [String: String] = [:]
+            for (offset, path) in frozen.generatedPhotoMetadata.keys.sorted().enumerated() {
+                guard let bytes = frozen.generatedPhotoMetadata[path] else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                let name = ".backup-export-\(Self.uuid(frozen.preview.id))-photo-\(offset).json"
+                createdSources.append(try Self.writeOwnedStagingSource(bytes,
+                    to: stagingRoot.appendingPathComponent(name),
+                    expectedRootIdentity: stagingRootIdentity, archiveLimits: archiveLimits))
+                generatedPhotoNames[path] = name
+            }
+            try generationLeaseValidation()
 
             var entries = [StreamingArchiveWriteEntryV1(
                 path: "manifest.json",
@@ -674,7 +828,7 @@ final class BackupExportService {
                 expectedContentSHA256: CanonicalJSONV1.sha256(frozen.manifestData),
                 compression: .stored
             )]
-            entries.append(contentsOf: frozen.sources.map { source in
+            entries.append(contentsOf: try frozen.sources.map { source in
                 let sourceRootURL: URL
                 let sourceRelativePath: String
                 let expectedSourceRootIdentity: StreamingArchiveRootIdentityV1
@@ -686,6 +840,13 @@ final class BackupExportService {
                 case .generatedPortableExchangeSnapshot:
                     sourceRootURL = stagingRoot
                     sourceRelativePath = portableExchangeSnapshotSource.lastPathComponent
+                    expectedSourceRootIdentity = stagingRootIdentity
+                case .generatedPhotoMetadata(let path):
+                    guard let name = generatedPhotoNames[path] else {
+                        throw BackupExportServiceError.invalidAuthority
+                    }
+                    sourceRootURL = stagingRoot
+                    sourceRelativePath = name
                     expectedSourceRootIdentity = stagingRootIdentity
                 case .generationRelative(let relativePath):
                     sourceRootURL = generationRootURL
@@ -723,12 +884,12 @@ final class BackupExportService {
                     isDirectory: false
                 )
                 coordinatedResult = Result {
-                    try self.archiveService.write(
+                    try archiveService.write(
                         plan,
                         to: coordinatedPackage,
                         cancellation: cancellation,
                         storageCheck: { requiredBytes in
-                            try self.storagePreflight.checkBackupExport(
+                            try storagePreflight.checkBackupExport(
                                 declaredPayloadByteCount: requiredBytes,
                                 onVolumeContaining: coordinatedDirectory
                             )
@@ -740,10 +901,10 @@ final class BackupExportService {
                 throw BackupExportServiceError.writeFailed
             }
             let receipt = try coordinatedResult.get()
-            try validateGenerationLease()
-            publishedURL = receipt.archiveURL
+            publishedReceipt = receipt
+            try generationLeaseValidation()
             guard receipt.index.entries.map(\.path) == entries
-                    .sorted(by: { utf8Less($0.path, $1.path) })
+                    .sorted(by: { Self.utf8Less($0.path, $1.path) })
                     .map(\.path),
                   receipt.index.uncompressedPayloadByteCount
                     == Int64(frozen.manifestData.count)
@@ -751,37 +912,233 @@ final class BackupExportService {
                   try StreamingArchiveService.hasFormatMagic(at: receipt.archiveURL) else {
                 throw BackupExportServiceError.writeFailed
             }
-            try cleanupOwnedStagingSources(
+            try Self.cleanupOwnedStagingSources(
                 createdSources,
                 within: stagingRoot,
                 directoryDescriptor: stagingRootDescriptor,
                 expectedRootIdentity: stagingRootIdentity
             )
             createdSources.removeAll()
-            streamingPrepared = nil
-            return receipt.archiveURL
+            return receipt
         } catch {
             let original = error
-            let cleaned = (try? cleanupOwnedStagingSources(
+            let cleaned = (try? Self.cleanupOwnedStagingSources(
                 createdSources,
                 within: stagingRoot,
                 directoryDescriptor: stagingRootDescriptor,
                 expectedRootIdentity: stagingRootIdentity
             )) != nil
-            if let publishedURL,
-               (try? removeOwnedPublishedArchive(publishedURL, within: destination)) == nil {
+            if let publishedReceipt,
+               (try? Self.removeOwnedPublishedArchive(publishedReceipt, within: destination)) == nil {
                 throw BackupExportServiceError.cleanupFailed
             }
             guard cleaned else { throw BackupExportServiceError.cleanupFailed }
-            throw mapStreamingExportError(original)
+            throw Self.mapStreamingExportError(original)
         }
     }
 }
 
 private extension BackupExportService {
+    /// The only quiescence allowed by an explicit backup action is acknowledging
+    /// an already-published raw file or marked pair. Every actor hop retains
+    /// the original access publication and exact expected writer interval.
+    func freezePhotoExport(previewID: UUID,
+        operation: AppAccessPresentationV1.BackupOperationAccess) async throws -> PhotoExportFreeze {
+        guard let frozen = streamingPrepared, frozen.preview.id == previewID,
+              let rootIdentity else { throw BackupExportServiceError.stalePreview }
+        let store = try operation.withAuthorization { $0 }
+        let initialRevision = try operation.withAuthorization { try $0.workspaceWriter.currentRevision() }
+        var current = try buildStreamingPrepared(previewID: previewID, exportedAt: frozen.manifest.exportedAt)
+        guard current == frozen else { throw BackupExportServiceError.stalePreview }
+        var revision = initialRevision
+        func validateInterval() throws {
+            guard !Task.isCancelled else { throw BackupExportServiceError.cancelled }
+            try operation.withAuthorization { currentStore in
+                guard currentStore === store, try currentStore.workspaceWriter.currentRevision() == revision,
+                      revision.revision == current.mutationHistory.workspaceRevision else {
+                    throw BackupExportServiceError.stalePreview
+                }
+            }
+        }
+        try validateInterval()
+        let support = store.checkRunnerPhotoApplicationSupportURL
+        let rootObservation = try DraftAttachmentStagingAdapterV1.observePhotoBackupRoot(
+            applicationSupportURL: support, workspaceID: current.photoHistory.sourceWorkspaceID)
+
+        func acknowledge(_ mutationID: MutationIDV1?) throws {
+            let observed = try operation.withAuthorization { try $0.workspaceWriter.currentRevision() }
+            let (expected, overflow) = revision.revision.addingReportingOverflow(mutationID == nil ? 0 : 1)
+            guard !overflow, observed.workspaceID == revision.workspaceID,
+                  observed.generationID == revision.generationID,
+                  observed.writerInstanceID == revision.writerInstanceID,
+                  observed.revision == expected else { throw BackupExportServiceError.stalePreview }
+            let rebuilt = try buildStreamingPrepared(previewID: previewID, exportedAt: frozen.manifest.exportedAt)
+            try Self.validatePhotoAcknowledgement(from: current.mutationHistory,
+                to: rebuilt.mutationHistory, mutationID: mutationID)
+            current = rebuilt; revision = observed
+            try validateInterval()
+        }
+
+        if case .existing(let staging) = rootObservation {
+            let childIDs = current.photoHistory.children.map { $0.currentCheckpoint.draftID }
+            for childID in childIDs {
+                try validateInterval()
+                guard var child = current.photoHistory.children.first(where: { $0.currentCheckpoint.draftID == childID }) else {
+                    throw BackupExportServiceError.stalePreview
+                }
+                let service = try operation.makePhotoService(parentCheckpoint: child.parentCheckpoint, staging: staging)
+                if case .awaitingRawStage = child.payload.phase {
+                    let result = try await service.adoptExistingRawPhotoForBackup(
+                        parentDraftID: child.parentCheckpoint.draftID, childDraftID: childID, authorizing: operation)
+                    try acknowledge(result?.envelope.mutationID)
+                    guard let updated = current.photoHistory.children.first(where: { $0.currentCheckpoint.draftID == childID }) else {
+                        throw BackupExportServiceError.stalePreview
+                    }
+                    child = updated
+                }
+                if case .rawReady = child.payload.phase {
+                    let result = try await service.adoptExistingPhotoPairForBackup(
+                        parentDraftID: child.parentCheckpoint.draftID, childDraftID: childID, authorizing: operation)
+                    try acknowledge(result?.mutationID)
+                }
+            }
+        }
+
+        var rawSnapshots: [DraftPhotoRawBackupSnapshotV1] = []
+        let children = current.photoHistory.children
+        let canonicalStages = try fetchRows().attachmentStagingItems.map { try $0.value() }
+        let childStageIDs = Dictionary(uniqueKeysWithValues: children.map {
+            ($0.currentCheckpoint.draftID, $0.payload.phase.intent.stageID)
+        })
+        let rawVerification: PhotoRawVerification
+        switch rootObservation {
+        case .existing(let staging):
+            for child in children {
+                guard let raw = child.raw else { continue }
+                let snapshot = try await staging.readPhotoBackupSnapshot(raw: raw, committingCheckpoint: child.committingCheckpoint)
+                try validateInterval()
+                rawSnapshots.append(snapshot)
+            }
+            let committing = Dictionary(uniqueKeysWithValues: children.compactMap { child in
+                child.committingCheckpoint.map { (child.currentCheckpoint.draftID, $0) }
+            })
+            let value = try await staging.preparePhotoBackupVerification(rawSnapshots,
+                committingCheckpoints: committing, canonicalStages: canonicalStages, childStageIDs: childStageIDs)
+            try validateInterval()
+            rawVerification = .existing(value)
+        case .absent(let observation):
+            guard children.allSatisfy({ $0.raw == nil }) else { throw BackupExportServiceError.invalidAuthority }
+            rawVerification = .absent(try observation.preparePhotoBackupVerification(
+                canonicalStages: canonicalStages, childStageIDs: childStageIDs))
+        }
+        let mediaStore = EvidenceBundleStore(generationRootURL: generationRootURL)
+        let mediaVerification = try await mediaStore.prepareCheckRunnerPhotoBackupMedia(
+            children: children, expectedGenerationRootIdentity: rootIdentity)
+        try validateInterval()
+        let snapshot = PhotoStreamingSnapshot(history: current.photoHistory, raw: rawSnapshots,
+            media: mediaVerification.snapshots)
+        let ready = try buildStreamingPrepared(previewID: previewID, exportedAt: frozen.manifest.exportedAt,
+            photoSnapshot: snapshot)
+        guard ready.mutationHistory == current.mutationHistory,
+              ready.recordsData == current.recordsData else { throw BackupExportServiceError.stalePreview }
+        try validateInterval()
+        let observations = try observeStreamingSources(ready)
+        try validateInterval()
+        return PhotoExportFreeze(prepared: ready, revision: revision,
+            rawVerification: rawVerification, mediaVerification: mediaVerification,
+            observedSources: observations)
+    }
+
+    func observeStreamingSources(_ prepared: StreamingPrepared) throws -> [ObservedStreamingSource] {
+        guard let rootIdentity else { throw BackupExportServiceError.invalidGeneration }
+        let generationIdentity = StreamingArchiveRootIdentityV1(device: UInt64(rootIdentity.device), inode: UInt64(rootIdentity.inode))
+        let draftRoot = generationRootURL.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName, isDirectory: true)
+        var draftIdentity: StreamingArchiveRootIdentityV1?
+        var result: [ObservedStreamingSource] = []
+        for source in prepared.sources {
+            let root: URL, relative: String, identity: StreamingArchiveRootIdentityV1
+            switch source.location {
+            case .generatedRecords, .generatedPortableExchangeSnapshot, .generatedPhotoMetadata:
+                continue
+            case .generationRelative(let path):
+                root = generationRootURL; relative = path; identity = generationIdentity
+            case .draftRelative(let path):
+                if draftIdentity == nil {
+                    let descriptor = Darwin.open(draftRoot.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                    guard descriptor >= 0 else { throw BackupExportServiceError.invalidGeneration }
+                    defer { Darwin.close(descriptor) }
+                    var information = stat()
+                    guard Darwin.fstat(descriptor, &information) == 0, (information.st_mode & S_IFMT) == S_IFDIR else {
+                        throw BackupExportServiceError.invalidGeneration
+                    }
+                    draftIdentity = .init(device: UInt64(information.st_dev), inode: UInt64(information.st_ino))
+                }
+                guard let draftIdentity else { throw BackupExportServiceError.invalidGeneration }
+                root = draftRoot; relative = path; identity = draftIdentity
+            }
+            let entry = StreamingArchiveWriteEntryV1(path: source.path, mimeType: source.mimeType,
+                sourceRootURL: root, sourceRelativePath: relative, expectedSourceRootIdentity: identity,
+                expectedUncompressedByteCount: Int64(source.byteCount), expectedContentSHA256: source.sha256,
+                compression: .stored)
+            result.append(.init(entry: entry, observation: try archiveService.sourceObservation(entry)))
+        }
+        return result
+    }
+
+    func validateFrozenCanonical(_ prepared: StreamingPrepared) throws {
+        guard !modelContext.hasChanges,
+              try currentStreamingWorkspaceIdentity() == prepared.checkpointBasis.workspaceIdentity,
+              try currentStreamingGenerationID() == prepared.checkpointBasis.generationID else {
+            throw BackupExportServiceError.stalePreview
+        }
+        let history = try MutationJournalStoreV1(modelContext: modelContext,
+            identity: prepared.checkpointBasis.workspaceIdentity,
+            generationID: prepared.checkpointBasis.generationID).exportSnapshot()
+        guard history == prepared.mutationHistory else { throw BackupExportServiceError.stalePreview }
+        let rows = try fetchRows()
+        let ledger = try DeletionLedgerStore(context: modelContext).snapshot()
+        let records = try makeRecords(rows, deletionLedger: ledger, mutationHistory: history)
+        guard try BackupCanonicalEncoderV1().encodeRecords(records).data == prepared.recordsData,
+              try portableExchangeBackupSnapshotData(snapshotID: prepared.preview.id,
+                createdAt: prepared.manifest.exportedAt) == prepared.portableExchangeSnapshotData,
+              !modelContext.hasChanges else { throw BackupExportServiceError.stalePreview }
+    }
+
+    nonisolated static func validatePhotoAcknowledgement(from before: MutationHistorySnapshotV1,
+        to after: MutationHistorySnapshotV1, mutationID: MutationIDV1?) throws {
+        guard let mutationID else {
+            guard before == after else { throw BackupExportServiceError.stalePreview }
+            return
+        }
+        let (revision, revisionOverflow) = before.workspaceRevision.addingReportingOverflow(1)
+        let (sequence, sequenceOverflow) = before.lastLocalSequence.addingReportingOverflow(1)
+        guard !revisionOverflow, !sequenceOverflow, after.workspaceRevision == revision,
+              after.lastLocalSequence == sequence, after.quarantines == before.quarantines,
+              after.receipts.count == before.receipts.count + 1 else { throw BackupExportServiceError.stalePreview }
+        // Full original records, including reversal bytes, remain byte-for-byte.
+        var remaining = after.receipts
+        for original in before.receipts {
+            guard let index = remaining.firstIndex(of: original) else { throw BackupExportServiceError.stalePreview }
+            remaining.remove(at: index)
+        }
+        guard remaining.count == 1 else { throw BackupExportServiceError.stalePreview }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let envelope = try decoder.decode(MutationEnvelopeV1.self, from: remaining[0].envelopeData)
+        let receipt = try decoder.decode(MutationReceiptV1.self, from: remaining[0].receiptData)
+        guard try WorkspaceMutationCanonicalV1.data(envelope) == remaining[0].envelopeData,
+              try WorkspaceMutationCanonicalV1.data(receipt) == remaining[0].receiptData else {
+            throw BackupExportServiceError.stalePreview
+        }
+        let original = try FieldDraftCommittedEvidenceV1(envelope: envelope, receipt: receipt)
+        guard original.envelope.mutationID == mutationID else { throw BackupExportServiceError.stalePreview }
+    }
+
     private func buildStreamingPrepared(
         previewID: UUID,
-        exportedAt: Date
+        exportedAt: Date,
+        photoSnapshot: PhotoStreamingSnapshot? = nil
     ) throws -> StreamingPrepared {
 #if DEBUG
         var backupTracePhase = "identity"
@@ -850,6 +1207,19 @@ private extension BackupExportService {
             deletionLedger: deletionLedger,
             mutationHistory: mutationHistory
         )
+        let source = V4BackupSourceV1(
+            appBuild: appBuild(), appVersion: appVersion(),
+            persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
+            replicaID: sourceIdentity.replicaID.rawValue,
+            recordsSchemaVersion: records.recordsSchemaVersion,
+            sourceGenerationID: generationID, workspaceID: sourceIdentity.workspaceID.rawValue)
+        let photoHistory = try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: records)
+        guard photoSnapshot.map({ $0.history == photoHistory }) ?? true else {
+            throw BackupExportServiceError.stalePreview
+        }
+        let photoChildIDs = Set(photoHistory.children.map { $0.currentCheckpoint.draftID })
+        let photoEvidenceIDs = Set(photoHistory.children.compactMap { $0.targetRecords?.evidence.id })
+        var generatedPhotoMetadata: [String: Data] = [:]
 #if DEBUG
         backupTracePhase = "canonical-records"
 #endif
@@ -900,12 +1270,12 @@ private extension BackupExportService {
             location: .generatedPortableExchangeSnapshot
         ))
         let normalizer = MediaNormalizerV1()
-        for evidence in rows.evidence.sorted(by: { uuid($0.id) < uuid($1.id) }) {
+        for evidence in rows.evidence.sorted(by: { Self.uuid($0.id) < Self.uuid($1.id) }) {
             guard !Task.isCancelled else {
                 throw BackupExportServiceError.cancelled
             }
             try validateGenerationLease()
-            let canonicalID = uuid(evidence.id)
+            let canonicalID = Self.uuid(evidence.id)
             guard evidence.relativePath == "evidence/\(canonicalID)/original.jpg",
                   evidence.thumbnailRelativePath
                     == "evidence/\(canonicalID)/thumbnail.jpg",
@@ -918,6 +1288,7 @@ private extension BackupExportService {
                     <= archiveLimits.maximumUncompressedEntryByteCount else {
                 throw BackupExportServiceError.invalidAuthority
             }
+            if !photoEvidenceIDs.contains(evidence.id) {
             do {
                 let original = try boundedStreamingRead(
                     evidence.relativePath,
@@ -935,6 +1306,7 @@ private extension BackupExportService {
                     rootIdentity: rootIdentity
                 )
                 _ = try normalizer.validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+            }
             }
             sources.append(.init(
                 path: V4BackupEvidenceMemberKeyV1.original(evidence.id),
@@ -998,16 +1370,30 @@ private extension BackupExportService {
         }
 
         for item in try rows.attachmentStagingItems.map({try $0.value()}).sorted(by:{$0.stageID.uuidString<$1.stageID.uuidString}){
+            guard !photoChildIDs.contains(item.draftID) else { continue }
             guard let byteCount=item.actualByteCount else{continue}
+            guard byteCount >= 0, byteCount <= Int64(FieldDraftLimitsV1.maximumPayloadBytes) else {
+                throw BackupExportServiceError.invalidAuthority
+            }
             let relative=DraftAttachmentStagingAdapterV1.relativeDataPath(draftID:item.draftID,stageID:item.stageID)
             let draftRoot=generationRootURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,isDirectory:true)
             let bytes=try Data(contentsOf:draftRoot.appendingPathComponent(relative),options:.mappedIfSafe)
             let expectedSHA=item.contentReference?.digests.digest(for:.sha256)?.hexadecimalValue ?? (item.contentDigest?.algorithm == .sha256 ? item.contentDigest?.hexadecimalValue:nil)
             guard bytes.count==Int(byteCount),let expectedSHA,CanonicalJSONV1.sha256(bytes)==expectedSHA else{throw BackupExportServiceError.invalidAuthority}
-            sources.append(.init(path:"draft-staging/\(uuid(item.draftID))/\(uuid(item.stageID)).bin",mimeType:"application/octet-stream",byteCount:bytes.count,sha256:expectedSHA,location:.draftRelative(relative)))
+            sources.append(.init(path:"draft-staging/\(Self.uuid(item.draftID))/\(Self.uuid(item.stageID)).bin",mimeType:"application/octet-stream",byteCount:bytes.count,sha256:expectedSHA,location:.draftRelative(relative)))
         }
 
-        for report in rows.reports.sorted(by: { uuid($0.id) < uuid($1.id) }) {
+        if let photoSnapshot {
+            let additions = try photoStreamingSources(photoSnapshot)
+            generatedPhotoMetadata = additions.metadata
+            for source in additions.sources {
+                if let existing = sources.first(where: { $0.path == source.path }) {
+                    guard existing == source else { throw BackupExportServiceError.invalidAuthority }
+                } else { sources.append(source) }
+            }
+        }
+
+        for report in rows.reports.sorted(by: { Self.uuid($0.id) < Self.uuid($1.id) }) {
             guard !Task.isCancelled else {
                 throw BackupExportServiceError.cancelled
             }
@@ -1024,7 +1410,7 @@ private extension BackupExportService {
                 try delivery.validateRecoveryAuthority(id: report.id)
             }
             catch { throw BackupExportServiceError.invalidAuthority }
-            let canonicalID = uuid(report.id)
+            let canonicalID = Self.uuid(report.id)
             guard (report.snapshotSchemaVersion == 1
                     || report.snapshotSchemaVersion == 2),
                   report.snapshotRelativePath == "snapshots/\(canonicalID).json" else {
@@ -1091,7 +1477,7 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidGeneration
         }
 
-        sources.sort { utf8Less($0.path, $1.path) }
+        sources.sort { Self.utf8Less($0.path, $1.path) }
 #if DEBUG
         backupTracePhase = "budget"
 #endif
@@ -1138,20 +1524,12 @@ private extension BackupExportService {
             consumedEvaluationRootIDs: rows.packets
                 .filter(\.evaluationCounted)
                 .map(\.stableRootID)
-                .sorted { uuid($0) < uuid($1) },
+                .sorted { Self.uuid($0) < Self.uuid($1) },
             declaredPayloadByteCount: declaredPayloadByteCount,
             entries: entries,
             exportedAt: exportedAt,
             packs: packs,
-            source: .init(
-                appBuild: appBuild(),
-                appVersion: appVersion(),
-                persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
-                replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: records.recordsSchemaVersion,
-                sourceGenerationID: generationID,
-                workspaceID: sourceIdentity.workspaceID.rawValue
-            )
+            source: source
         )
         let manifestData: Data
 #if DEBUG
@@ -1199,8 +1577,79 @@ private extension BackupExportService {
             portableExchangeSnapshotData: portableExchangeSnapshotData,
             mutationHistory: mutationHistory,
             checkpointBasis: checkpointBasis,
-            sources: sources
+            sources: sources,
+            photoHistory: photoHistory,
+            generatedPhotoMetadata: generatedPhotoMetadata
         )
+    }
+
+    private func photoStreamingSources(_ snapshot: PhotoStreamingSnapshot) throws
+        -> (sources: [StreamingSource], metadata: [String: Data]) {
+        let children = snapshot.history.children
+        guard Set(snapshot.raw.map { $0.raw.readyItem.draftID }).count == snapshot.raw.count,
+              Set(snapshot.media.map(\.childDraftID)).count == snapshot.media.count,
+              Set(snapshot.raw.map { $0.raw.readyItem.draftID }) == Set(children.filter { $0.raw != nil }.map { $0.currentCheckpoint.draftID }),
+              Set(snapshot.media.map(\.childDraftID)) == Set(children.map { $0.currentCheckpoint.draftID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        var sources: [String: StreamingSource] = [:]
+        var metadata: [String: Data] = [:]
+        func include(_ source: StreamingSource) throws {
+            if let old = sources[source.path], old != source { throw BackupExportServiceError.invalidAuthority }
+            sources[source.path] = source
+        }
+        for raw in snapshot.raw {
+            let childID = raw.raw.readyItem.draftID
+            let stageID = raw.raw.intent.stageID
+            let relative = DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: childID, stageID: stageID)
+            func key(_ role: CheckRunnerPhotoBackupMemberKeyV1.Role) -> String {
+                CheckRunnerPhotoBackupMemberKeyV1(childDraftID: childID, stageID: stageID, role: role).path
+            }
+            let witness = try FieldDraftCanonicalCodecV1.encode(raw.raw)
+            let entry = try FieldDraftCanonicalCodecV1.encode(raw.physicalEntry)
+            metadata[key(.rawPublication)] = witness
+            metadata[key(.physicalEntry)] = entry
+            try include(.init(path: key(.rawBytes), mimeType: "application/octet-stream",
+                byteCount: Int(raw.raw.inspection.sourceByteCount),
+                sha256: raw.raw.inspection.sourceSHA256.hexadecimalValue, location: .draftRelative(relative)))
+            let witnessRelative = (relative as NSString).deletingLastPathComponent + "/raw-publication.json"
+            try include(.init(path: key(.rawPublication), mimeType: "application/json",
+                byteCount: witness.count, sha256: CanonicalJSONV1.sha256(witness), location: .draftRelative(witnessRelative)))
+            try include(.init(path: key(.physicalEntry), mimeType: "application/json",
+                byteCount: entry.count, sha256: CanonicalJSONV1.sha256(entry), location: .generatedPhotoMetadata(key(.physicalEntry))))
+        }
+        for media in snapshot.media {
+            if let marker = media.markerBytes {
+                let key = CheckRunnerPhotoBackupMemberKeyV1(childDraftID: media.childDraftID,
+                    stageID: media.stageID, role: .stagedPublication)
+                metadata[key.path] = marker
+            }
+            for file in media.files {
+                try include(.init(path: file.entry.path, mimeType: file.entry.mimeType,
+                    byteCount: file.entry.byteCount, sha256: file.entry.sha256,
+                    location: .generationRelative(file.generationRelativePath)))
+            }
+        }
+        let entries = sources.mapValues { V4BackupEntryV1(byteCount: $0.byteCount,
+            mimeType: $0.mimeType, path: $0.path, sha256: $0.sha256) }
+        var ownedPaths = Set<String>()
+        for child in children {
+            let plan = try CheckRunnerPhotoBackupPhysicalPlanV1.resolve(child: child,
+                descriptors: entries, metadata: { path in
+                    guard let bytes = metadata[path] else { throw BackupExportServiceError.invalidAuthority }
+                    return bytes
+                })
+            ownedPaths.formUnion(plan.entries.map(\.path))
+        }
+        // Shared immutable originals are emitted once, and still need at least
+        // one complete authenticated child plan to claim their ownership.
+        guard ownedPaths == Set(sources.keys) else { throw BackupExportServiceError.invalidAuthority }
+        let generated = metadata.filter { path, _ in
+            guard let source = sources[path] else { return false }
+            if case .generatedPhotoMetadata = source.location { return true }
+            return false
+        }
+        return (sources.values.sorted { Self.utf8Less($0.path, $1.path) }, generated)
     }
 
     func currentStreamingWorkspaceIdentity() throws -> WorkspaceReplicaIdentityV1 {
@@ -1324,8 +1773,8 @@ private extension BackupExportService {
             data: recordsData
         )]
         let normalizer = MediaNormalizerV1()
-        for evidence in rows.evidence.sorted(by: { uuid($0.id) < uuid($1.id) }) {
-            let canonicalID = uuid(evidence.id)
+        for evidence in rows.evidence.sorted(by: { Self.uuid($0.id) < Self.uuid($1.id) }) {
+            let canonicalID = Self.uuid(evidence.id)
             guard evidence.relativePath == "evidence/\(canonicalID)/original.jpg",
                   evidence.thumbnailRelativePath
                     == "evidence/\(canonicalID)/thumbnail.jpg",
@@ -1367,7 +1816,7 @@ private extension BackupExportService {
             members.append(.init(path: member.path, mimeType: member.mimeType, data: member.data))
         }
 
-        for item in try rows.attachmentStagingItems.map({ try $0.value() }).sorted(by: { uuid($0.stageID) < uuid($1.stageID) }) {
+        for item in try rows.attachmentStagingItems.map({ try $0.value() }).sorted(by: { Self.uuid($0.stageID) < Self.uuid($1.stageID) }) {
             guard let byteCount = item.actualByteCount else { continue }
             let relative = DraftAttachmentStagingAdapterV1.relativeDataPath(draftID:item.draftID,stageID:item.stageID)
             let dataRoot = generationRootURL.deletingLastPathComponent().deletingLastPathComponent()
@@ -1377,10 +1826,10 @@ private extension BackupExportService {
                 ?? (item.contentDigest?.algorithm == .sha256 ? item.contentDigest?.hexadecimalValue : nil)
             guard bytes.count == Int(byteCount), let expectedSHA,
                   CanonicalJSONV1.sha256(bytes) == expectedSHA else { throw BackupExportServiceError.invalidAuthority }
-            members.append(.init(path:"draft-staging/\(uuid(item.draftID))/\(uuid(item.stageID)).bin",mimeType:"application/octet-stream",data:bytes))
+            members.append(.init(path:"draft-staging/\(Self.uuid(item.draftID))/\(Self.uuid(item.stageID)).bin",mimeType:"application/octet-stream",data:bytes))
         }
 
-        for report in rows.reports.sorted(by: { uuid($0.id) < uuid($1.id) }) {
+        for report in rows.reports.sorted(by: { Self.uuid($0.id) < Self.uuid($1.id) }) {
             let profile = try lifecycleProfile(for: report, rows: rows)
             let delivery: ReportDeliveryCoordinator
             do {
@@ -1393,7 +1842,7 @@ private extension BackupExportService {
                 try delivery.validateRecoveryAuthority(id: report.id)
             }
             catch { throw BackupExportServiceError.invalidAuthority }
-            let canonicalID = uuid(report.id)
+            let canonicalID = Self.uuid(report.id)
             guard (report.snapshotSchemaVersion == 1
                     || report.snapshotSchemaVersion == 2),
                   report.snapshotRelativePath == "snapshots/\(canonicalID).json" else {
@@ -1477,7 +1926,7 @@ private extension BackupExportService {
             consumedEvaluationRootIDs: rows.packets
                 .filter(\.evaluationCounted)
                 .map(\.stableRootID)
-                .sorted { uuid($0) < uuid($1) },
+                .sorted { Self.uuid($0) < Self.uuid($1) },
             declaredPayloadByteCount: declaredPayloadByteCount,
             entries: entries,
             exportedAt: exportedAt,
@@ -1781,7 +2230,7 @@ private extension BackupExportService {
             guard components.count == 2 else { throw BackupExportServiceError.invalidAuthority }
             let directory = "content/\(components[0])/\(components[1])"
             let markerPath = "\(directory)/derivative-publication.json"
-            guard try itemType(at: generationRootURL.appendingPathComponent(markerPath)) != nil else {
+            guard try Self.itemType(at: generationRootURL.appendingPathComponent(markerPath)) != nil else {
                 continue // Incumbent original/temporal content has its existing archive owner.
             }
             let markerData = try anchoredRead(markerPath, rootIdentity: rootIdentity)
@@ -3778,7 +4227,7 @@ private extension BackupExportService {
 
     enum LocalItemType { case directory, regular }
 
-    func itemType(at url: URL) throws -> LocalItemType? {
+    nonisolated static func itemType(at url: URL) throws -> LocalItemType? {
         var information = stat()
         if Darwin.lstat(url.standardizedFileURL.path, &information) != 0 {
             if errno == ENOENT { return nil }
@@ -3797,17 +4246,18 @@ private extension BackupExportService {
         }
     }
 
-    private func writeOwnedStagingSource(
+    private nonisolated static func writeOwnedStagingSource(
         _ data: Data,
         to url: URL,
-        expectedRootIdentity: StreamingArchiveRootIdentityV1
+        expectedRootIdentity: StreamingArchiveRootIdentityV1,
+        archiveLimits: StreamingArchiveLimitsV1
     ) throws -> OwnedStagingSource {
         let value = url.standardizedFileURL
         let stagingRoot = value.deletingLastPathComponent()
         guard value.lastPathComponent.hasPrefix(".backup-export-"),
               value.lastPathComponent.hasSuffix(".json"),
               Int64(data.count) <= archiveLimits.maximumUncompressedEntryByteCount,
-              try itemType(at: value) == nil else {
+              try Self.itemType(at: value) == nil else {
             throw BackupExportServiceError.invalidAuthority
         }
         let parent = Darwin.open(
@@ -3973,7 +4423,7 @@ private extension BackupExportService {
         )
     }
 
-    private func cleanupOwnedStagingSources(
+    private nonisolated static func cleanupOwnedStagingSources(
         _ sources: [OwnedStagingSource],
         within stagingRootURL: URL,
         directoryDescriptor: Int32,
@@ -4020,32 +4470,133 @@ private extension BackupExportService {
         }
     }
 
-    func removeOwnedPublishedArchive(
-        _ url: URL,
-        within destinationDirectoryURL: URL
+#if DEBUG
+    nonisolated static func removeOwnedPublishedArchiveForTesting(
+        receipt: StreamingArchiveWriteReceiptV1,
+        within destinationDirectoryURL: URL,
+        beforePrivateClaim: (() throws -> Void)? = nil
     ) throws {
-        let value = url.standardizedFileURL
+        try removeOwnedPublishedArchive(receipt, within: destinationDirectoryURL,
+            beforePrivateClaim: beforePrivateClaim)
+    }
+#endif
+
+    nonisolated static func removeOwnedPublishedArchive(
+        _ receipt: StreamingArchiveWriteReceiptV1,
+        within destinationDirectoryURL: URL,
+        beforePrivateClaim: (() throws -> Void)? = nil
+    ) throws {
+        let value = receipt.archiveURL.standardizedFileURL
         let parentURL = destinationDirectoryURL.standardizedFileURL
         guard value.deletingLastPathComponent() == parentURL,
-              value.lastPathComponent == "AssetRounds.fieldrecordbackup",
-              try itemType(at: value) == .regular,
-              try StreamingArchiveService.hasFormatMagic(at: value) else {
+              value.lastPathComponent == "AssetRounds.fieldrecordbackup" else {
             throw BackupExportServiceError.cleanupFailed
         }
-        let parent = Darwin.open(
-            parentURL.path,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard parent >= 0,
-              Darwin.unlinkat(parent, value.lastPathComponent, 0) == 0,
-              Darwin.fsync(parent) == 0 else {
-            if parent >= 0 { _ = Darwin.close(parent) }
+        let parent = Darwin.open(parentURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard parent >= 0 else { throw BackupExportServiceError.cleanupFailed }
+        defer { _ = Darwin.close(parent) }
+        var directory = stat()
+        var file = stat()
+        let expected = receipt.publicationSnapshot
+        guard Darwin.fstat(parent, &directory) == 0,
+              (directory.st_mode & S_IFMT) == S_IFDIR,
+              UInt64(directory.st_dev) == receipt.publicationParentIdentity.device,
+              UInt64(directory.st_ino) == receipt.publicationParentIdentity.inode,
+              Darwin.fstatat(parent, value.lastPathComponent, &file, AT_SYMLINK_NOFOLLOW) == 0,
+              (file.st_mode & S_IFMT) == S_IFREG, file.st_nlink == 1,
+              UInt64(file.st_dev) == expected.device, UInt64(file.st_ino) == expected.inode,
+              Int64(file.st_size) == receipt.archiveByteCount,
+              Int64(file.st_size) == expected.byteCount,
+              Int64(file.st_mtimespec.tv_sec) == expected.modifiedSeconds,
+              Int64(file.st_mtimespec.tv_nsec) == expected.modifiedNanoseconds,
+              Int64(file.st_ctimespec.tv_sec) == expected.changedSeconds,
+              Int64(file.st_ctimespec.tv_nsec) == expected.changedNanoseconds else {
             throw BackupExportServiceError.cleanupFailed
         }
-        _ = Darwin.close(parent)
+        try beforePrivateClaim?()
+        let operationName = ".backup-export-cleanup-\(UUID().uuidString.lowercased())"
+        guard Darwin.mkdirat(parent, operationName, mode_t(0o700)) == 0 else {
+            throw BackupExportServiceError.cleanupFailed
+        }
+        let operation = Darwin.openat(parent, operationName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard operation >= 0 else {
+            // Without a retained identity we cannot claim or remove this name.
+            throw BackupExportServiceError.cleanupFailed
+        }
+        defer { Darwin.close(operation) }
+        var privateDirectory = stat()
+        guard Darwin.fstat(operation, &privateDirectory) == 0,
+              (privateDirectory.st_mode & S_IFMT) == S_IFDIR else {
+            throw BackupExportServiceError.cleanupFailed
+        }
+        func removeEmptyOperation() throws {
+            var named = stat()
+            guard Darwin.fstatat(parent, operationName, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  named.st_dev == privateDirectory.st_dev, named.st_ino == privateDirectory.st_ino,
+                  (named.st_mode & S_IFMT) == S_IFDIR,
+                  Darwin.unlinkat(parent, operationName, AT_REMOVEDIR) == 0,
+                  Darwin.fsync(parent) == 0 else { throw BackupExportServiceError.cleanupFailed }
+        }
+        // Claim the name atomically inside an exclusive private directory.
+        // The moved inode, not a prior stat of the public name, decides deletion.
+        guard Darwin.renameatx_np(parent, value.lastPathComponent, operation, "archive", UInt32(RENAME_EXCL)) == 0 else {
+            try? removeEmptyOperation()
+            throw BackupExportServiceError.cleanupFailed
+        }
+        do {
+            let descriptor = Darwin.openat(operation, "archive", O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+            guard descriptor >= 0 else { throw BackupExportServiceError.cleanupFailed }
+            defer { Darwin.close(descriptor) }
+            var moved = stat()
+            guard Darwin.fstat(descriptor, &moved) == 0,
+                  (moved.st_mode & S_IFMT) == S_IFREG, moved.st_nlink == 1,
+                  UInt64(moved.st_dev) == expected.device, UInt64(moved.st_ino) == expected.inode,
+                  Int64(moved.st_size) == receipt.archiveByteCount,
+                  Int64(moved.st_mtimespec.tv_sec) == expected.modifiedSeconds,
+                  Int64(moved.st_mtimespec.tv_nsec) == expected.modifiedNanoseconds else {
+                throw BackupExportServiceError.cleanupFailed
+            }
+            var hasher = SHA256()
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            var total: Int64 = 0
+            while total < receipt.archiveByteCount {
+                let requested = Int(min(Int64(buffer.count), receipt.archiveByteCount - total))
+                var count: Int
+                repeat { count = buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, requested) } }
+                while count < 0 && errno == EINTR
+                guard count > 0 else { throw BackupExportServiceError.cleanupFailed }
+                buffer.withUnsafeBytes { hasher.update(bufferPointer: UnsafeRawBufferPointer(rebasing: $0[..<count])) }
+                total += Int64(count)
+            }
+            var after = stat(), named = stat()
+            guard hasher.finalize().map({ String(format: "%02x", $0) }).joined() == receipt.archiveSHA256,
+                  Darwin.fstat(descriptor, &after) == 0,
+                  Darwin.fstatat(operation, "archive", &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  after.st_dev == moved.st_dev, after.st_ino == moved.st_ino, after.st_nlink == 1,
+                  after.st_size == moved.st_size, after.st_mtimespec.tv_sec == moved.st_mtimespec.tv_sec,
+                  after.st_mtimespec.tv_nsec == moved.st_mtimespec.tv_nsec,
+                  after.st_ctimespec.tv_sec == moved.st_ctimespec.tv_sec,
+                  after.st_ctimespec.tv_nsec == moved.st_ctimespec.tv_nsec,
+                  named.st_dev == moved.st_dev, named.st_ino == moved.st_ino, named.st_nlink == 1,
+                  Darwin.fsync(operation) == 0, Darwin.fsync(parent) == 0 else {
+                throw BackupExportServiceError.cleanupFailed
+            }
+            guard Darwin.unlinkat(operation, "archive", 0) == 0, Darwin.fsync(operation) == 0 else {
+                throw BackupExportServiceError.cleanupFailed
+            }
+        } catch {
+            // Never overwrite a newly occupied public destination. If restoring
+            // the claimed file is impossible, retain it in the private directory.
+            if Darwin.renameatx_np(operation, "archive", parent, value.lastPathComponent, UInt32(RENAME_EXCL)) == 0 {
+                _ = Darwin.fsync(operation); _ = Darwin.fsync(parent)
+                try? removeEmptyOperation()
+            }
+            throw BackupExportServiceError.cleanupFailed
+        }
+        try removeEmptyOperation()
     }
 
-    func mapStreamingExportError(_ error: Error) -> BackupExportServiceError {
+    nonisolated static func mapStreamingExportError(_ error: Error) -> BackupExportServiceError {
         if error is GenerationLeaseRegistryFailureV1 {
             return .generationLeaseLost
         }
@@ -4081,7 +4632,7 @@ private extension BackupExportService {
         }
     }
 
-    func utf8Less(_ lhs: String, _ rhs: String) -> Bool {
+    nonisolated static func utf8Less(_ lhs: String, _ rhs: String) -> Bool {
         lhs.utf8.lexicographicallyPrecedes(rhs.utf8)
     }
 
@@ -4089,10 +4640,10 @@ private extension BackupExportService {
         Set(values).count == values.count
     }
 
-    func uuid(_ value: UUID) -> String { value.uuidString.lowercased() }
+    nonisolated static func uuid(_ value: UUID) -> String { value.uuidString.lowercased() }
 
     func dtoOrder<T>(_ lhs: T, _ rhs: T) -> Bool where T: Identifiable, T.ID == UUID {
-        uuid(lhs.id) < uuid(rhs.id)
+        Self.uuid(lhs.id) < Self.uuid(rhs.id)
     }
 
     func requireAcyclic<T>(

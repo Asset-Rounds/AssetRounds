@@ -531,11 +531,20 @@ struct StreamingArchiveSourceSnapshotV1: Equatable, Sendable {
     let changedNanoseconds: Int64
 }
 
+/// Value-only named-path observation. No descriptor survives the bounded walk.
+struct StreamingArchiveSourceObservationV1: Equatable, Sendable {
+    let ancestorIdentities: [StreamingArchiveRootIdentityV1]
+    let file: StreamingArchiveSourceSnapshotV1
+}
+
 struct StreamingArchiveWriteReceiptV1: Equatable, Sendable {
     let archiveURL: URL
     let archiveByteCount: Int64
     let archiveSHA256: String
     let index: StreamingArchiveIndexV1
+    /// Actual publication authority, retained for failure cleanup by the owner.
+    let publicationSnapshot: StreamingArchiveSourceSnapshotV1
+    let publicationParentIdentity: StreamingArchiveRootIdentityV1
 }
 
 struct StreamingArchiveExtractionV1: Equatable, Sendable {

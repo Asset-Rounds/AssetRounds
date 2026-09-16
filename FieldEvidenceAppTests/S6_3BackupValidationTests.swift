@@ -1,5 +1,6 @@
 import CoreGraphics
 import CryptoKit
+import Darwin
 import Foundation
 import ImageIO
 import SwiftData
@@ -35,6 +36,76 @@ private final class C30EvidenceContextAnchorS6_3BackupValidation: XCTestCase {
 }
 
 final class S6_3BackupValidationTests: XCTestCase {
+    func testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent("photo-backup-stream-\(UUID().uuidString)", isDirectory: true)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? manager.removeItem(at: root) }
+        let file = root.appendingPathComponent("raw.bin")
+        XCTAssertTrue(manager.createFile(atPath: file.path, contents: nil))
+        let writer = try FileHandle(forWritingTo: file)
+        let block = Data(repeating: 0x63, count: 1_024 * 1_024)
+        var expectedDigest = SHA256()
+        for _ in 0..<80 {
+            try writer.write(contentsOf: block)
+            expectedDigest.update(data: block)
+        }
+        try writer.close()
+        let count = Int64(MediaContractV1.sourceByteCountMaximum)
+        let digest = expectedDigest.finalize().map { String(format: "%02x", $0) }.joined()
+        let identity = try BackupPackageAnchoredFile.rootIdentity(at: root)
+        let members = ValidatedV4BackupMembersV1(rootURL: root, rootIdentity: identity,
+            descriptors: ["raw.bin": .init(byteCount: count, sha256: digest)], maximumMemberByteCount: count)
+        try members.verify("raw.bin", expectedByteCount: count, expectedSHA256: digest, maximumByteCount: count)
+        var total: Int64 = 0
+        var largestChunk = 0
+        try BackupPackageAnchoredFile.readRegularFileChunks("raw.bin", within: root,
+            rootIdentity: identity, expectedByteCount: count, maximumByteCount: count) {
+            total += Int64($0.count); largestChunk = max(largestChunk, $0.count)
+        }
+        XCTAssertEqual(total, count)
+        XCTAssertGreaterThan(largestChunk, 0)
+        XCTAssertLessThanOrEqual(largestChunk, 64 * 1_024)
+        XCTAssertThrowsError(try members.verify("raw.bin", maximumByteCount: count - 1))
+        XCTAssertThrowsError(try members.verify("raw.bin", expectedByteCount: count - 1))
+        XCTAssertThrowsError(try members.verify("raw.bin", expectedSHA256: String(repeating: "0", count: 64)))
+        XCTAssertThrowsError(try members.verify("absent.bin"))
+
+        enum Interrupted: Error { case requested }
+        var checkpoints = 0
+        XCTAssertThrowsError(try members.verify("raw.bin", cancellation: .init {
+            checkpoints += 1
+            if checkpoints == 4 { throw Interrupted.requested }
+        })) { XCTAssertTrue($0 is Interrupted) }
+        XCTAssertEqual(checkpoints, 4)
+
+        let link = root.appendingPathComponent("link.bin")
+        try manager.createSymbolicLink(at: link, withDestinationURL: file)
+        XCTAssertThrowsError(try BackupPackageAnchoredFile.readRegularFileChunks("link.bin", within: root,
+            rootIdentity: identity) { _ in XCTFail("A link must not be consumed") })
+        let pipe = root.appendingPathComponent("pipe.bin")
+        XCTAssertEqual(mkfifo(pipe.path, mode_t(0o600)), 0)
+        XCTAssertThrowsError(try BackupPackageAnchoredFile.readRegularFileChunks("pipe.bin", within: root,
+            rootIdentity: identity) { _ in XCTFail("A FIFO must not be consumed") })
+
+        let directory = root.appendingPathComponent("nested", isDirectory: true)
+        try manager.createDirectory(at: directory, withIntermediateDirectories: false)
+        let source = directory.appendingPathComponent("value.bin")
+        try block.write(to: source)
+        var replaced = false
+        XCTAssertThrowsError(try BackupPackageAnchoredFile.readRegularFileChunks("nested/value.bin", within: root,
+            rootIdentity: identity, expectedByteCount: Int64(block.count)) { _ in
+            guard !replaced else { return }
+            replaced = true
+            try manager.moveItem(at: directory, to: root.appendingPathComponent("retained", isDirectory: true))
+            try manager.createDirectory(at: directory, withIntermediateDirectories: false)
+            try block.write(to: source)
+        })
+        XCTAssertTrue(replaced)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("retained/value.bin")), block)
+        XCTAssertEqual(try Data(contentsOf: source), block)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

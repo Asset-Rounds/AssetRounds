@@ -38,6 +38,67 @@ struct CheckRunnerPhotoStagedPairReadbackV1: Equatable, Sendable {
     let staged: StagedEvidenceBundle
 }
 
+/// One archive member backed by an incumbent generation-root file. The archive
+/// path can differ from its physical path (target-owned evidence uses the
+/// existing `media/` transport grammar while remaining in `evidence/`).
+struct CheckRunnerPhotoMediaBackupFileV1: Equatable, Sendable {
+    let entry: V4BackupEntryV1
+    let generationRelativePath: String
+    let snapshot: StreamingArchiveSourceSnapshotV1
+}
+
+/// Bounded values for one authenticated photo child. Only the optional marker
+/// is retained as Data; raw originals and JPEGs remain descriptor-streamed.
+struct CheckRunnerPhotoMediaBackupChildSnapshotV1: Equatable, Sendable {
+    let childDraftID: UUID
+    let stageID: UUID
+    let files: [CheckRunnerPhotoMediaBackupFileV1]
+    let markerBytes: Data?
+}
+
+fileprivate struct CheckRunnerPhotoMediaBackupNodeV1: Sendable {
+    enum State: Sendable {
+        case absent
+        case directory(snapshot: StreamingArchiveSourceSnapshotV1, names: [String])
+        case file(snapshot: StreamingArchiveSourceSnapshotV1)
+    }
+
+    let relativePath: String
+    let state: State
+}
+
+fileprivate enum CheckRunnerPhotoMediaBackupPairPlacementV1 {
+    case staged(marker: Bool)
+    case promoted
+    case target
+}
+
+/// The initial scan performs bounded hashing and JPEG inspection. The final
+/// check holds only the generation descriptor and compares namespace and stat
+/// facts under the existing media exclusion lock; it performs no bulk I/O.
+final class CheckRunnerPhotoMediaBackupPreparedVerificationV1: @unchecked Sendable {
+    let snapshots: [CheckRunnerPhotoMediaBackupChildSnapshotV1]
+    fileprivate let store: EvidenceBundleStore
+    fileprivate let generationDescriptor: Int32
+    fileprivate let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    fileprivate let nodes: [CheckRunnerPhotoMediaBackupNodeV1]
+    fileprivate let consumption = NSLock()
+    fileprivate var consumed = false
+
+    fileprivate init(snapshots: [CheckRunnerPhotoMediaBackupChildSnapshotV1], store: EvidenceBundleStore,
+        generationDescriptor: Int32, rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        nodes: [CheckRunnerPhotoMediaBackupNodeV1]) {
+        self.snapshots = snapshots; self.store = store; self.generationDescriptor = generationDescriptor
+        self.rootIdentity = rootIdentity; self.nodes = nodes
+    }
+
+    deinit { _ = Darwin.close(generationDescriptor) }
+
+    func withVerificationLock<T>(_ body: () throws -> T) throws -> T {
+        try store.withCheckRunnerPhotoBackupMediaVerification(self, body)
+    }
+}
+
 /// Immutable, descriptor-retained physical preparation. Application authority
 /// must enter its original generation fence, revalidate inside the media lock,
 /// invoke the nonescaping effect, then persist/read back its canonical receipt.
@@ -870,6 +931,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     private let fileManager: FileManager
     private let failureInjection: EvidenceBundleStoreFailureInjection?
     nonisolated private let assetLabelPublications: EvidenceBundleStoreAssetLabelPublicationV1
+    private let photoRestoreGenerationAuthority: CheckRunnerPhotoRestoreGenerationAuthorityV1?
 
     init(
         generationRootURL: URL,
@@ -877,6 +939,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         failureInjection: EvidenceBundleStoreFailureInjection? = nil,
         expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
     ) {
+        self.photoRestoreGenerationAuthority = nil
         self.sourceMutationGuard = nil
         self.expectedGenerationRootIdentity = expectedGenerationRootIdentity
         self.generationRootURL = generationRootURL.standardizedFileURL
@@ -891,6 +954,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     @MainActor
     init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        photoRestoreGenerationAuthority = nil
         generationRootURL = authority.generationRootURL.standardizedFileURL
         expectedGenerationRootIdentity = nil
         fileManager = .default
@@ -899,6 +963,65 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         assetLabelPublications = EvidenceBundleStoreAssetLabelPublicationV1(
             rootURL: authority.generationRootURL, fileManager: .default, failureInjection: nil
         )
+    }
+
+    init(photoRestoreGeneration authority: CheckRunnerPhotoRestoreGenerationAuthorityV1) {
+        photoRestoreGenerationAuthority = authority
+        generationRootURL = authority.rootURL.standardizedFileURL
+        expectedGenerationRootIdentity = authority.rootIdentity
+        fileManager = .default
+        failureInjection = nil
+        sourceMutationGuard = nil
+        assetLabelPublications = EvidenceBundleStoreAssetLabelPublicationV1(
+            rootURL: authority.rootURL, fileManager: .default, failureInjection: nil)
+    }
+
+    /// Runs on the media actor, publishing only to the restore service's private
+    /// generation. The enclosing restore owns whole-generation rollback.
+    func restoreCheckRunnerPhotoGeneration() throws -> CheckRunnerPhotoMediaBackupPreparedVerificationV1 {
+        guard let authority = photoRestoreGenerationAuthority,
+              authority.rootURL.standardizedFileURL == generationRootURL,
+              authority.rootURL.lastPathComponent == authority.generationID.uuidString.lowercased() else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try validateGenerationRoot()
+        guard Set(authority.membersToMaterialize.map(\.relativePath)).count == authority.membersToMaterialize.count,
+              authority.membersToMaterialize.allSatisfy({ authority.plan.generationMembers.contains($0) }) else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        for member in authority.membersToMaterialize {
+            try Task.checkCancellation()
+            let components = member.relativePath.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard components.count > 1, components.allSatisfy(validPathComponent) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            try ensureDirectory(relativeComponents: Array(components.dropLast()))
+            let url = generationRootURL.appendingPathComponent(member.relativePath)
+            try writeProtectedStream(to: url, policy: member.kind.protection,
+                cancellationChecks: true) { output in
+                try authority.memberSource.read(member.entry) { chunk in
+                    try chunk.withUnsafeBytes { bytes in
+                        guard let base = bytes.baseAddress else { return }
+                        var offset = 0
+                        while offset < bytes.count {
+                            try Task.checkCancellation()
+                            let written = Darwin.write(output, base.advanced(by: offset), bytes.count - offset)
+                            if written > 0 { offset += written }
+                            else if written < 0, errno == EINTR { continue }
+                            else { throw EvidenceBundleStoreError.fileOperationFailed }
+                        }
+                    }
+                }
+            }
+        }
+        for (path, expected) in authority.plan.metadata {
+            guard authority.memberSource.metadataBytes(path) == expected else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        }
+        try Task.checkCancellation()
+        return try prepareCheckRunnerPhotoBackupMedia(children: authority.children,
+            expectedGenerationRootIdentity: authority.rootIdentity)
     }
 
     nonisolated func publishOrAdoptAssetLabelArtifacts(
@@ -2342,6 +2465,493 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         }
     }
 
+    /// Census the incumbent media owner without publishing, normalizing or
+    /// advancing a photo saga. Bulk bytes are streamed only during this scan.
+    func prepareCheckRunnerPhotoBackupMedia(
+        children: [CheckRunnerPhotoBackupHistoryChildV1],
+        expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> CheckRunnerPhotoMediaBackupPreparedVerificationV1 {
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        return try withGenerationRootAuthority { root in
+            try requireCheckRunnerPhotoRoot(root, expected: expectedGenerationRootIdentity)
+            var childIDs = Set<UUID>(), stageIDs = Set<UUID>(), evidenceIDs = Set<UUID>()
+            var archivedFiles: [String: CheckRunnerPhotoMediaBackupFileV1] = [:]
+            var actualFiles: [String: CheckRunnerPhotoMediaBackupFileV1] = [:]
+            var nodes: [CheckRunnerPhotoMediaBackupNodeV1] = []
+            var nodePaths = Set<String>()
+            var results: [CheckRunnerPhotoMediaBackupChildSnapshotV1] = []
+
+            func appendNode(_ node: CheckRunnerPhotoMediaBackupNodeV1) {
+                guard nodePaths.insert(node.relativePath).inserted else { return }
+                nodes.append(node)
+            }
+            func appendFile(_ value: CheckRunnerPhotoMediaBackupFileV1,
+                            to values: inout [CheckRunnerPhotoMediaBackupFileV1]) throws {
+                if let existing = archivedFiles[value.entry.path] {
+                    guard existing == value else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                } else {
+                    archivedFiles[value.entry.path] = value
+                }
+                if let existing = actualFiles[value.generationRelativePath] {
+                    guard existing == value else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                } else {
+                    actualFiles[value.generationRelativePath] = value
+                }
+                if nodePaths.insert(value.generationRelativePath).inserted {
+                    nodes.append(.init(relativePath: value.generationRelativePath,
+                                       state: .file(snapshot: value.snapshot)))
+                }
+                values.append(value)
+            }
+
+            for child in children.sorted(by: {
+                $0.payload.childDraftID.uuidString < $1.payload.childDraftID.uuidString
+            }) {
+                try Task.checkCancellation()
+                let payload = child.payload, intent = payload.phase.intent
+                let childID = payload.childDraftID, stageID = intent.stageID
+                guard child.currentCheckpoint.draftID == childID,
+                      childIDs.insert(childID).inserted, stageIDs.insert(stageID).inserted else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                var files: [CheckRunnerPhotoMediaBackupFileV1] = []
+                var markerBytes: Data?
+
+                guard let raw = child.raw else {
+                    guard case .awaitingRawStage = payload.phase, child.pair == nil,
+                          child.target == nil, child.currentStage == nil else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    let bundlePaths = paths(for: intent.evidenceID)
+                    guard evidenceIDs.insert(intent.evidenceID).inserted else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    let staged = try checkRunnerPhotoBackupNode(
+                        bundlePaths.stagingDirectoryRelativePath,
+                        rootDescriptor: root.generationDescriptor)
+                    let promoted = try checkRunnerPhotoBackupNode(
+                        "evidence/\(intent.evidenceID.uuidString.lowercased())",
+                        rootDescriptor: root.generationDescriptor)
+                    guard checkRunnerPhotoBackupAbsent(staged),
+                          checkRunnerPhotoBackupAbsent(promoted) else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    appendNode(staged); appendNode(promoted)
+                    results.append(.init(childDraftID: childID, stageID: stageID,
+                                         files: [], markerBytes: nil))
+                    continue
+                }
+                try raw.validate()
+                guard raw.intent.stageID == stageID, raw.readyItem.draftID == childID,
+                      raw.readyItem.stageID == stageID,
+                      let currentStage = child.currentStage else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                let promotion = try child.committingCheckpoint.map {
+                    try DraftPhotoRawPromotionValuesV1(checkpoint: $0)
+                }
+                if let promotion {
+                    guard promotion.rawReady == raw else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                }
+
+                let immutablePath = "content/\(raw.readyItem.workspaceID.rawValue.uuidString.lowercased())/\(raw.inspection.rawContentID)/original.bin"
+                let immutableNode = try checkRunnerPhotoBackupNode(
+                    immutablePath, rootDescriptor: root.generationDescriptor)
+                appendNode(immutableNode)
+                let immutablePresent: Bool
+                switch immutableNode.state {
+                case .absent:
+                    immutablePresent = false
+                case .directory:
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                case .file:
+                    let expectedByteCount = promotion?.request.byteLength
+                        ?? raw.inspection.sourceByteCount
+                    let expectedSHA256 = promotion?.request.digest.hexadecimalValue
+                        ?? raw.inspection.sourceSHA256.hexadecimalValue
+                    let value = try checkRunnerPhotoBackupFile(
+                        archivePath: immutablePath, actualPath: immutablePath,
+                        mimeType: "application/octet-stream", expectedByteCount: expectedByteCount,
+                        expectedSHA256: expectedSHA256,
+                        maximumByteCount: Int64(MediaContractV1.sourceByteCountMaximum),
+                        kind: .mediaOriginal, retainData: false,
+                        rootDescriptor: root.generationDescriptor).file
+                    try appendFile(value, to: &files)
+                    immutablePresent = true
+                }
+                let canonicalCommitted = promotion.map { currentStage == $0.committedStage } ?? false
+                guard currentStage == raw.readyItem || canonicalCommitted else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                let contentPromoted = child.sagas.contains { $0.state == .contentPromotedUnbound }
+                if canonicalCommitted || contentPromoted || child.target != nil {
+                    guard immutablePresent else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                }
+
+                let bundlePaths = paths(for: raw.intent.evidenceID)
+                guard evidenceIDs.insert(raw.intent.evidenceID).inserted else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                let stagedNode = try checkRunnerPhotoBackupNode(
+                    bundlePaths.stagingDirectoryRelativePath,
+                    rootDescriptor: root.generationDescriptor)
+                let promotedDirectoryPath = "evidence/\(raw.intent.evidenceID.uuidString.lowercased())"
+                let promotedNode = try checkRunnerPhotoBackupNode(
+                    promotedDirectoryPath, rootDescriptor: root.generationDescriptor)
+                appendNode(stagedNode); appendNode(promotedNode)
+
+                guard let pair = child.pair else {
+                    guard case .rawReady = payload.phase, promotion == nil, child.target == nil,
+                          checkRunnerPhotoBackupAbsent(stagedNode),
+                          checkRunnerPhotoBackupAbsent(promotedNode) else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    results.append(.init(childDraftID: childID, stageID: stageID,
+                        files: files.sorted { $0.entry.path < $1.entry.path }, markerBytes: nil))
+                    continue
+                }
+                try pair.validate(childDraftID: childID, parentDraftID: payload.parentDraftID)
+                guard pair.raw == raw else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                let normalized = pair.normalizedPair
+                guard normalized.evidenceID == raw.intent.evidenceID,
+                      normalized.originalRelativePath == bundlePaths.originalRelativePath,
+                      normalized.thumbnailRelativePath == bundlePaths.thumbnailRelativePath else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+
+                let placement: CheckRunnerPhotoMediaBackupPairPlacementV1
+                if let target = child.target {
+                    guard checkRunnerPhotoBackupAbsent(stagedNode),
+                          checkRunnerPhotoBackupDirectory(promotedNode, names: ["original.jpg", "thumbnail.jpg"]),
+                          canonicalCommitted, contentPromoted, immutablePresent,
+                          target.command.evidenceID == normalized.evidenceID,
+                          target.command.relativePath == normalized.originalRelativePath,
+                          target.command.thumbnailRelativePath == normalized.thumbnailRelativePath,
+                          target.command.mimeType == "image/jpeg",
+                          Int64(target.command.byteCount) == normalized.originalByteCount,
+                          target.command.sha256 == normalized.originalSHA256,
+                          Int64(target.command.thumbnailByteCount) == normalized.thumbnailByteCount,
+                          target.command.thumbnailSHA256 == normalized.thumbnailSHA256 else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    placement = .target
+                } else if case let .directory(_, names) = stagedNode.state {
+                    guard checkRunnerPhotoBackupAbsent(promotedNode),
+                          names == ["original.jpg", "pair-publication.json", "thumbnail.jpg"]
+                            || names == ["original.jpg", "thumbnail.jpg"] else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    let hasMarker = names.contains("pair-publication.json")
+                    guard hasMarker || (promotion != nil && canonicalCommitted
+                        && contentPromoted && immutablePresent) else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    placement = .staged(marker: hasMarker)
+                } else {
+                    guard checkRunnerPhotoBackupAbsent(stagedNode), promotion != nil,
+                          canonicalCommitted, contentPromoted, immutablePresent,
+                          checkRunnerPhotoBackupDirectory(promotedNode, names: ["original.jpg", "thumbnail.jpg"]) else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    placement = .promoted
+                }
+
+                let actualOriginal: String, actualThumbnail: String
+                let archiveOriginal: String, archiveThumbnail: String
+                let fileKinds: (OwnedFileKindV1, OwnedFileKindV1)
+                switch placement {
+                case .staged:
+                    actualOriginal = "\(bundlePaths.stagingDirectoryRelativePath)/original.jpg"
+                    actualThumbnail = "\(bundlePaths.stagingDirectoryRelativePath)/thumbnail.jpg"
+                    archiveOriginal = CheckRunnerPhotoBackupMemberKeyV1(
+                        childDraftID: childID, stageID: stageID, role: .stagedOriginal).path
+                    archiveThumbnail = CheckRunnerPhotoBackupMemberKeyV1(
+                        childDraftID: childID, stageID: stageID, role: .stagedThumbnail).path
+                    fileKinds = (.stagingFile, .stagingFile)
+                case .promoted:
+                    actualOriginal = normalized.originalRelativePath
+                    actualThumbnail = normalized.thumbnailRelativePath
+                    archiveOriginal = CheckRunnerPhotoBackupMemberKeyV1(
+                        childDraftID: childID, stageID: stageID, role: .promotedOriginal).path
+                    archiveThumbnail = CheckRunnerPhotoBackupMemberKeyV1(
+                        childDraftID: childID, stageID: stageID, role: .promotedThumbnail).path
+                    fileKinds = (.mediaOriginal, .mediaThumbnail)
+                case .target:
+                    actualOriginal = normalized.originalRelativePath
+                    actualThumbnail = normalized.thumbnailRelativePath
+                    archiveOriginal = V4BackupEvidenceMemberKeyV1.original(normalized.evidenceID)
+                    archiveThumbnail = V4BackupEvidenceMemberKeyV1.thumbnail(normalized.evidenceID)
+                    fileKinds = (.mediaOriginal, .mediaThumbnail)
+                }
+                let original = try checkRunnerPhotoBackupFile(
+                    archivePath: archiveOriginal, actualPath: actualOriginal, mimeType: "image/jpeg",
+                    expectedByteCount: normalized.originalByteCount, expectedSHA256: normalized.originalSHA256,
+                    maximumByteCount: Int64(MediaContractV1.OutputKind.original.byteCountMaximum),
+                    kind: fileKinds.0, retainData: true, rootDescriptor: root.generationDescriptor)
+                let thumbnail = try checkRunnerPhotoBackupFile(
+                    archivePath: archiveThumbnail, actualPath: actualThumbnail, mimeType: "image/jpeg",
+                    expectedByteCount: normalized.thumbnailByteCount, expectedSHA256: normalized.thumbnailSHA256,
+                    maximumByteCount: Int64(MediaContractV1.OutputKind.thumbnail.byteCountMaximum),
+                    kind: fileKinds.1, retainData: true, rootDescriptor: root.generationDescriptor)
+                guard let originalData = original.data, let thumbnailData = thumbnail.data else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                let originalFacts = try validateCanonicalJPEG(originalData, kind: .original)
+                let thumbnailFacts = try validateCanonicalJPEG(thumbnailData, kind: .thumbnail)
+                guard originalFacts.pixelWidth == normalized.originalPixelWidth,
+                      originalFacts.pixelHeight == normalized.originalPixelHeight,
+                      thumbnailFacts.pixelWidth == normalized.thumbnailPixelWidth,
+                      thumbnailFacts.pixelHeight == normalized.thumbnailPixelHeight else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                try appendFile(original.file, to: &files)
+                try appendFile(thumbnail.file, to: &files)
+
+                if case .staged(marker: true) = placement {
+                    let actual = "\(bundlePaths.stagingDirectoryRelativePath)/pair-publication.json"
+                    let archive = CheckRunnerPhotoBackupMemberKeyV1(
+                        childDraftID: childID, stageID: stageID, role: .stagedPublication).path
+                    let marker = try checkRunnerPhotoBackupFile(
+                        archivePath: archive, actualPath: actual, mimeType: "application/json",
+                        expectedByteCount: nil, expectedSHA256: pair.pairPublicationMarkerSHA256,
+                        maximumByteCount: Int64(FieldDraftLimitsV1.maximumCanonicalBytes),
+                        kind: .stagingFile, retainData: true, rootDescriptor: root.generationDescriptor)
+                    guard let data = marker.data else {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    }
+                    let observed = try FieldDraftCanonicalCodecV1.decode(
+                        CheckRunnerPhotoPairPublicationMarkerV1.self, from: data)
+                    let expected = try CheckRunnerPhotoPairPublicationMarkerV1(
+                        childDraftID: childID, parentDraftID: payload.parentDraftID,
+                        raw: raw, normalizedPair: normalized)
+                    guard observed == expected else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+                    markerBytes = data
+                    try appendFile(marker.file, to: &files)
+                }
+                results.append(.init(childDraftID: childID, stageID: stageID,
+                    files: files.sorted { $0.entry.path < $1.entry.path }, markerBytes: markerBytes))
+            }
+
+            let descriptor = Darwin.dup(root.generationDescriptor)
+            guard descriptor >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            do {
+                try checkRunnerPhotoBackupVerifyNodes(nodes, rootDescriptor: descriptor,
+                    rootIdentity: expectedGenerationRootIdentity)
+                return .init(snapshots: results, store: self, generationDescriptor: descriptor,
+                    rootIdentity: expectedGenerationRootIdentity, nodes: nodes)
+            } catch {
+                _ = Darwin.close(descriptor)
+                throw error
+            }
+        }
+    }
+
+    nonisolated fileprivate func withCheckRunnerPhotoBackupMediaVerification<T>(
+        _ prepared: CheckRunnerPhotoMediaBackupPreparedVerificationV1,
+        _ body: () throws -> T
+    ) throws -> T {
+        guard prepared.store === self, prepared.consumption.try() else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        defer { prepared.consumption.unlock() }
+        guard !prepared.consumed else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        prepared.consumed = true
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try checkRunnerPhotoBackupVerifyNodes(prepared.nodes,
+            rootDescriptor: prepared.generationDescriptor, rootIdentity: prepared.rootIdentity)
+        let result = try body()
+        try checkRunnerPhotoBackupVerifyNodes(prepared.nodes,
+            rootDescriptor: prepared.generationDescriptor, rootIdentity: prepared.rootIdentity)
+        return result
+    }
+
+    nonisolated private func checkRunnerPhotoBackupSnapshot(_ value: stat)
+        -> StreamingArchiveSourceSnapshotV1 {
+        .init(device: UInt64(value.st_dev), inode: UInt64(value.st_ino),
+              linkCount: UInt64(value.st_nlink), byteCount: value.st_size,
+              modifiedSeconds: Int64(value.st_mtimespec.tv_sec),
+              modifiedNanoseconds: Int64(value.st_mtimespec.tv_nsec),
+              changedSeconds: Int64(value.st_ctimespec.tv_sec),
+              changedNanoseconds: Int64(value.st_ctimespec.tv_nsec))
+    }
+
+    nonisolated private func withCheckRunnerPhotoBackupParent<T>(
+        _ relativePath: String, rootDescriptor: Int32,
+        _ body: (Int32, String) throws -> T
+    ) throws -> T? {
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard !components.isEmpty, components.joined(separator: "/") == relativePath,
+              components.allSatisfy(validPathComponent), let leaf = components.last else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        var descriptor = Darwin.dup(rootDescriptor)
+        guard descriptor >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+        defer { _ = Darwin.close(descriptor) }
+        for component in components.dropLast() {
+            let next = Darwin.openat(descriptor, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            if next < 0, errno == ENOENT { return nil }
+            guard next >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            _ = Darwin.close(descriptor)
+            descriptor = next
+        }
+        return try body(descriptor, leaf)
+    }
+
+    nonisolated private func checkRunnerPhotoBackupNode(
+        _ relativePath: String, rootDescriptor: Int32
+    ) throws -> CheckRunnerPhotoMediaBackupNodeV1 {
+        let state = try withCheckRunnerPhotoBackupParent(relativePath, rootDescriptor: rootDescriptor) {
+            parent, leaf -> CheckRunnerPhotoMediaBackupNodeV1.State in
+            var named = stat()
+            if Darwin.fstatat(parent, leaf, &named, AT_SYMLINK_NOFOLLOW) != 0 {
+                if errno == ENOENT { return .absent }
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            switch named.st_mode & S_IFMT {
+            case S_IFREG:
+                guard named.st_nlink == 1 else { throw EvidenceBundleStoreError.fileTypeInvalid }
+                return .file(snapshot: checkRunnerPhotoBackupSnapshot(named))
+            case S_IFDIR:
+                let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                guard descriptor >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+                defer { _ = Darwin.close(descriptor) }
+                var before = stat(), after = stat()
+                guard Darwin.fstat(descriptor, &before) == 0,
+                      (before.st_mode & S_IFMT) == S_IFDIR else {
+                    throw EvidenceBundleStoreError.fileTypeInvalid
+                }
+                let url = generationRootURL.appendingPathComponent(relativePath, isDirectory: true)
+                do {
+                    try ProtectedFilePolicyV1.verify(
+                        relativePath.hasPrefix(".staging/") ? .stagingDirectory : .durableDirectory,
+                        at: url)
+                } catch { throw EvidenceBundleStoreError.fileOperationFailed }
+                let names = try directoryNames(descriptor)
+                guard Darwin.fstat(descriptor, &after) == 0,
+                      checkRunnerPhotoBackupSnapshot(after) == checkRunnerPhotoBackupSnapshot(before),
+                      try directoryIdentity(parent: parent, name: leaf) == checkRunnerPhotoIdentity(before),
+                      try directoryIdentity(at: url) == checkRunnerPhotoIdentity(before) else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                return .directory(snapshot: checkRunnerPhotoBackupSnapshot(before), names: names)
+            default:
+                throw EvidenceBundleStoreError.fileTypeInvalid
+            }
+        }
+        return .init(relativePath: relativePath, state: state ?? .absent)
+    }
+
+    nonisolated private func checkRunnerPhotoBackupAbsent(
+        _ node: CheckRunnerPhotoMediaBackupNodeV1
+    ) -> Bool {
+        if case .absent = node.state { return true }
+        return false
+    }
+
+    nonisolated private func checkRunnerPhotoBackupDirectory(
+        _ node: CheckRunnerPhotoMediaBackupNodeV1, names: [String]
+    ) -> Bool {
+        if case let .directory(_, actual) = node.state { return actual == names.sorted() }
+        return false
+    }
+
+    nonisolated private func checkRunnerPhotoBackupFile(
+        archivePath: String, actualPath: String, mimeType: String,
+        expectedByteCount: Int64?, expectedSHA256: String, maximumByteCount: Int64,
+        kind: OwnedFileKindV1, retainData: Bool, rootDescriptor: Int32
+    ) throws -> (file: CheckRunnerPhotoMediaBackupFileV1, data: Data?) {
+        guard maximumByteCount > 0 else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        guard let result = try withCheckRunnerPhotoBackupParent(actualPath, rootDescriptor: rootDescriptor, {
+            parent, leaf -> (CheckRunnerPhotoMediaBackupFileV1, Data?) in
+            let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw EvidenceBundleStoreError.bundleMissing }
+            defer { _ = Darwin.close(descriptor) }
+            var before = stat()
+            guard Darwin.fstat(descriptor, &before) == 0,
+                  before.st_mode & S_IFMT == S_IFREG, before.st_nlink == 1,
+                  before.st_size > 0, before.st_size <= maximumByteCount,
+                  expectedByteCount == nil || before.st_size == expectedByteCount else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            let beforeSnapshot = checkRunnerPhotoBackupSnapshot(before)
+            let expectedIdentity = checkRunnerPhotoIdentity(before)
+            let parentIdentity = try directoryIdentity(parent)
+            let url = generationRootURL.appendingPathComponent(actualPath, isDirectory: false)
+            do { try ProtectedFilePolicyV1.verify(kind, at: url) }
+            catch { throw EvidenceBundleStoreError.fileOperationFailed }
+            guard try regularIdentity(parent: parent, name: leaf) == expectedIdentity,
+                  try regularIdentity(at: url) == expectedIdentity else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+
+            var hasher = SHA256(), total: Int64 = 0
+            var retained = retainData ? Data() : nil
+            if retainData { retained?.reserveCapacity(Int(before.st_size)) }
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while total < before.st_size {
+                try Task.checkCancellation()
+                let requested = Int(min(Int64(buffer.count), before.st_size - total))
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, requested)
+                }
+                if count > 0 {
+                    let chunk = Data(buffer.prefix(count))
+                    hasher.update(data: chunk); retained?.append(chunk); total += Int64(count)
+                } else if count == 0 {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                } else if errno != EINTR {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+            }
+            var trailing: UInt8 = 0
+            guard Darwin.read(descriptor, &trailing, 1) == 0 else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            var after = stat()
+            let digest = Data(hasher.finalize()).map { String(format: "%02x", $0) }.joined()
+            guard digest == expectedSHA256, Darwin.fstat(descriptor, &after) == 0,
+                  checkRunnerPhotoBackupSnapshot(after) == beforeSnapshot,
+                  try regularIdentity(parent: parent, name: leaf) == expectedIdentity,
+                  try regularIdentity(at: url) == expectedIdentity,
+                  try directoryIdentity(parent) == parentIdentity,
+                  let count = Int(exactly: before.st_size) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            return (.init(entry: .init(byteCount: count, mimeType: mimeType,
+                                      path: archivePath, sha256: digest),
+                          generationRelativePath: actualPath, snapshot: beforeSnapshot), retained)
+        }) else { throw EvidenceBundleStoreError.bundleMissing }
+        return result
+    }
+
+    nonisolated private func checkRunnerPhotoBackupVerifyNodes(
+        _ nodes: [CheckRunnerPhotoMediaBackupNodeV1], rootDescriptor: Int32,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws {
+        try Task.checkCancellation()
+        let expectedRoot = FileIdentity(device: rootIdentity.device, inode: rootIdentity.inode)
+        func requireRoot() throws {
+            guard try directoryIdentity(rootDescriptor) == expectedRoot,
+                  try directoryIdentity(at: generationRootURL) == expectedRoot else {
+                throw EvidenceBundleStoreError.generationRootInvalid
+            }
+        }
+        try requireRoot()
+        for expected in nodes {
+            let actual = try checkRunnerPhotoBackupNode(expected.relativePath, rootDescriptor: rootDescriptor)
+            switch (expected.state, actual.state) {
+            case (.absent, .absent): break
+            case let (.file(lhs), .file(rhs)) where lhs == rhs: break
+            case let (.directory(lhs, leftNames), .directory(rhs, rightNames))
+                where lhs == rhs && leftNames == rightNames: break
+            default: throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+        }
+        try requireRoot()
+    }
+
     func prepareStartupRecovery(authority applicationAuthority: StartupMediaRecoveryAuthorityV1,
         expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity
     ) async throws -> StartupMediaPreparedRecoveryV1 {
@@ -2971,8 +3581,9 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         let dataRootURL = generationsURL.deletingLastPathComponent()
         let applicationSupportURL = dataRootURL.deletingLastPathComponent()
         let generationName = root.lastPathComponent
+        let namespace = photoRestoreGenerationAuthority == nil ? "FieldEvidenceData" : "FieldEvidenceRestore"
         guard generationsURL.lastPathComponent == "generations",
-              dataRootURL.lastPathComponent == "FieldEvidenceData",
+              dataRootURL.lastPathComponent == namespace,
               let generationID = UUID(uuidString: generationName),
               generationID.uuidString.lowercased() == generationName,
               !applicationSupportURL.path.isEmpty else {
@@ -2998,7 +3609,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
         let dataRootDescriptor = Darwin.openat(
             applicationSupportDescriptor,
-            "FieldEvidenceData",
+            namespace,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard dataRootDescriptor >= 0 else {
@@ -3064,7 +3675,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                 == authority.generationIdentity,
               try directoryIdentity(
                 parent: authority.applicationSupportDescriptor,
-                name: "FieldEvidenceData"
+                name: photoRestoreGenerationAuthority == nil ? "FieldEvidenceData" : "FieldEvidenceRestore"
               ) == authority.dataRootIdentity,
               try directoryIdentity(
                 parent: authority.dataRootDescriptor,
@@ -3234,6 +3845,24 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         policy: OwnedFileKindV1,
         cancellationChecks: Bool = false
     ) throws {
+        try writeProtectedStream(to: url, policy: policy, cancellationChecks: cancellationChecks) { descriptor in
+            try data.withUnsafeBytes { raw in
+                guard let base = raw.baseAddress else { return }
+                var offset = 0
+                while offset < raw.count {
+                    if cancellationChecks { try Task.checkCancellation() }
+                    let count = Darwin.write(descriptor, base.advanced(by: offset),
+                        cancellationChecks ? min(raw.count - offset, 64 * 1024) : raw.count - offset)
+                    if count > 0 { offset += count }
+                    else if count < 0, errno == EINTR { continue }
+                    else { throw EvidenceBundleStoreError.fileOperationFailed }
+                }
+            }
+        }
+    }
+
+    private func writeProtectedStream(to url: URL, policy: OwnedFileKindV1,
+        cancellationChecks: Bool, write: (Int32) throws -> Void) throws {
         let temporaryName = ".\(url.lastPathComponent).\(UUID().uuidString.lowercased()).tmp"
         let temporaryURL = url
             .deletingLastPathComponent()
@@ -3260,25 +3889,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                     descriptor: descriptor,
                     expected: expected
                 )
-                try data.withUnsafeBytes { raw in
-                    guard let base = raw.baseAddress else { return }
-                    var offset = 0
-                    while offset < raw.count {
-                        if cancellationChecks { try Task.checkCancellation() }
-                        let count = Darwin.write(
-                            descriptor,
-                            base.advanced(by: offset),
-                            cancellationChecks ? min(raw.count - offset, 64 * 1024) : raw.count - offset
-                        )
-                        if count > 0 {
-                            offset += count
-                        } else if count < 0, errno == EINTR {
-                            continue
-                        } else {
-                            throw EvidenceBundleStoreError.fileOperationFailed
-                        }
-                    }
-                }
+                try write(descriptor)
                 if cancellationChecks { try Task.checkCancellation() }
                 guard Darwin.fsync(descriptor) == 0 else {
                     throw EvidenceBundleStoreError.fileOperationFailed

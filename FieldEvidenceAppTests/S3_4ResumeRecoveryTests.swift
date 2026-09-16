@@ -1045,76 +1045,19 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
     func testMediaReconcileRemovesOrphansAndPreservesMismatchForMaintenance() async throws {
         let applicationSupportURL = try makeTemporaryDirectory("MediaReconcile")
         defer { try? fileManager.removeItem(at: applicationSupportURL) }
-        let session = try StoreGenerationFactory(
-            applicationSupportURL: applicationSupportURL
-        ).openOrBootstrapCurrent()
-        let store = EvidenceBundleStore(generationRootURL: session.generationRootURL)
-        let normalized = try MediaNormalizerV1().normalize(makePNG(seed: 177))
-
-        let orphanID = UUID()
-        let orphanStaged = try await store.stage(
-            evidenceID: orphanID,
-            normalized: normalized
+        let releaseProbe = MediaReconcileSeedReleaseProbe()
+        let seeded = try await seedMediaReconcileOrphans(
+            applicationSupportURL: applicationSupportURL,
+            releaseProbe: releaseProbe
         )
-        let orphan = try await store.promote(orphanStaged)
-        try await store.reconcile(authorities: [])
-        XCTAssertFalse(fileManager.fileExists(atPath:
-            session.generationRootURL.appendingPathComponent(orphan.originalRelativePath).path
-        ))
-
-        let stagingOrphanID = UUID()
-        let stagingOrphan = try await store.stage(
-            evidenceID: stagingOrphanID,
-            normalized: normalized
-        )
-        try await store.reconcile(authorities: [])
-        XCTAssertFalse(fileManager.fileExists(atPath:
-            session.generationRootURL
-                .appendingPathComponent(stagingOrphan.stagingDirectoryRelativePath).path
-        ))
-
-        let retainedID = UUID()
-        let retainedStaged = try await store.stage(
-            evidenceID: retainedID,
-            normalized: normalized
-        )
-        let retained = try await store.promote(retainedStaged)
-        let mismatch = EvidenceBundleAuthority(
-            schemaVersion: 1,
-            id: retainedID,
-            recordID: UUID(),
-            purposeKey: "wide_context",
-            relativePath: retained.originalRelativePath,
-            mimeType: MediaContractV1.durableMIMEType,
-            byteCount: retained.originalByteCount,
-            sha256: String(repeating: "0", count: 64),
-            thumbnailRelativePath: retained.thumbnailRelativePath,
-            thumbnailByteCount: retained.thumbnailByteCount,
-            thumbnailSHA256: retained.thumbnailSHA256
-        )
-        do {
-            try await store.reconcile(authorities: [mismatch])
-            XCTFail("Expected exact media authority mismatch")
-        } catch {
-            XCTAssertEqual(error as? EvidenceBundleStoreError, .bundleFactsMismatch)
+        await Task.yield()
+        guard releaseProbe.session == nil,
+              releaseProbe.context == nil,
+              releaseProbe.container == nil,
+              releaseProbe.store == nil else {
+            return XCTFail("The seed session, context, container and media store must release before cold startup")
         }
-        XCTAssertTrue(fileManager.fileExists(atPath:
-            session.generationRootURL.appendingPathComponent(retained.originalRelativePath).path
-        ))
-
-        // Startup preparation must retain bounded facts, not three descriptors
-        // per bundle. Sixty-four additional authentic generic orphans distinguish
-        // constant startup overhead from descriptor growth tied to bundle count.
-        var boundedOrphanDirectories = [
-            session.generationRootURL.appendingPathComponent(retained.originalRelativePath)
-                .deletingLastPathComponent()
-        ]
-        for _ in 0..<64 {
-            let staged = try await store.stage(evidenceID: UUID(), normalized: normalized)
-            let promoted = try await store.promote(staged)
-            boundedOrphanDirectories.append(session.generationRootURL
-                .appendingPathComponent(promoted.originalRelativePath).deletingLastPathComponent())
-        }
+        let boundedOrphanDirectories = seeded.boundedOrphanDirectories
         let descriptorsBeforeStartup = try openFileDescriptorCount()
         var descriptorsAfterPreparation: Int?
         let boundedRouter = StartupRouter(applicationSupportURL: applicationSupportURL,
@@ -1126,15 +1069,20 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         try boundedRouter.bindStartupAccessGate(boundedGate)
         try await boundedRouter.startIfNeeded(accessGate: boundedGate)
         guard case .ready = boundedRouter.route else {
+            let routeCategory = startupRouteCategory(boundedRouter.route)
+            #if DEBUG
+            let runtimePhase = boundedRouter.runtimeObservation?.phase.rawValue ?? "none"
+            #else
+            let runtimePhase = "unavailable"
+            #endif
             boundedRouter.failClosedPDFRecovery()
-            return XCTFail("Authentic generic orphans must be cleaned during real startup")
+            return XCTFail("Authentic generic orphans must be cleaned during real startup; route=\(routeCategory) runtimePhase=\(runtimePhase)")
         }
         XCTAssertLessThanOrEqual(try XCTUnwrap(descriptorsAfterPreparation), descriptorsBeforeStartup + 24)
         for directory in boundedOrphanDirectories {
             XCTAssertFalse(fileManager.fileExists(atPath: directory.path))
         }
         boundedRouter.failClosedPDFRecovery()
-        withExtendedLifetime(session) {}
 
         // Every hostile post-preparation change must fail before deletion while
         // preserving both the orphan candidate and canonical photo authority.
@@ -1276,7 +1224,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         var thumbnailPath = ""
         var originalHash = ""
         var thumbnailHash = ""
+        var relaunchDiagnosticPhase = "wide.initial-open-write"
 
+        do {
         do {
             let session = try factory.openOrBootstrapCurrent()
             let context = session.modelContext
@@ -1296,10 +1246,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 afterDarkAccepted: true, safePositionAccepted: true,
                 observedAt: Date(timeIntervalSince1970: 1_768_438_923)
             )
+            relaunchDiagnosticPhase = "wide.import"
             let candidate = try await coordinator.importCandidate(
                 assetID: asset.id, sourceData: retainedPNG,
                 createdAt: Date(timeIntervalSince1970: 1_768_438_924)
             )
+            relaunchDiagnosticPhase = "wide.accept"
             let evidence = try await coordinator.accept(candidate: candidate, assetID: asset.id)
             capturedEvidenceID = evidence.id
             originalPath = evidence.relativePath
@@ -1310,6 +1262,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
 
         do {
+            relaunchDiagnosticPhase = "wide.first-reopen-read-prepare"
             let assetID = try XCTUnwrap(capturedAssetID)
             let evidenceID = try XCTUnwrap(capturedEvidenceID)
             let reopened = try factory.openOrBootstrapCurrent()
@@ -1333,6 +1286,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
 
         // Awaiting raw has no normalized pair for startup to invent or delete.
+        relaunchDiagnosticPhase = "cold-photo.awaiting-raw"
         try await withAsyncFrozenBeginFixture("startup-awaiting-raw", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
             let photo = try await FrozenProductionPhotoV1.make(h, publishRaw: false)
@@ -1349,6 +1303,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
 
         // RawReady without a pair remains absent until the cold service prepares it.
+        relaunchDiagnosticPhase = "cold-photo.raw-ready-without-pair"
         try await withAsyncFrozenBeginFixture("startup-raw-ready-without-pair", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
             let photo = try await FrozenProductionPhotoV1.make(h)
@@ -1377,6 +1332,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
 
         // A physical marked pair whose publication acknowledgement was lost is
         // adopted by the cold service from the unchanged rawReady checkpoint.
+        relaunchDiagnosticPhase = "cold-photo.raw-ready-lost-ack"
         try await withAsyncFrozenBeginFixture("startup-raw-ready-lost-ack", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
             let injection = EvidenceBundleStoreFailureInjection(failOnceAt: .checkRunnerPhotoPublished)
@@ -1410,6 +1366,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         let points: [EvidenceBundleStoreFailurePoint?] = [nil, .checkRunnerPhotoMarkerRemoved,
             .checkRunnerPhotoPromotionMoved, .checkRunnerPhotoPromoted]
         for point in points {
+            relaunchDiagnosticPhase = "cold-photo.interrupted-promotion"
             try await withAsyncFrozenBeginFixture("startup-photo-\(String(describing: point))", entry: .check,
                 storedTimeZoneID: "America/Chicago") { h in
                 let injection = point.map { EvidenceBundleStoreFailureInjection(failOnceAt: $0) }
@@ -1452,6 +1409,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
 
         // The target receipt may be durable before the saga observes its acknowledgement.
+        relaunchDiagnosticPhase = "cold-photo.target-before-terminal"
         try await withAsyncFrozenBeginFixture("startup-target-before-terminal", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
             let photo = try await FrozenProductionPhotoV1.make(h)
@@ -1489,6 +1447,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
 
         // Force the only generated parent-slot mutation ID invalid after the
         // child terminal is durable. Cold resume must adopt that same terminal.
+        relaunchDiagnosticPhase = "cold-photo.child-terminal-before-parent"
         try await withAsyncFrozenBeginFixture("startup-child-terminal-before-parent", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
             let photo = try await FrozenProductionPhotoV1.make(h)
@@ -1527,6 +1486,110 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 evidenceID: photo.intent.evidenceID).original, physical.original)
             XCTAssertEqual(try self.photoPhysicalBytes(root: cold.owner.generationRootURL,
                 evidenceID: photo.intent.evidenceID).thumbnail, physical.thumbnail)
+        }
+        } catch {
+            XCTFail("Unexpected relaunch error at \(relaunchDiagnosticPhase): \(String(reflecting: type(of: error)))")
+            throw error
+        }
+    }
+
+    private final class MediaReconcileSeedReleaseProbe {
+        weak var session: StoreGenerationSession?
+        weak var context: ModelContext?
+        weak var container: ModelContainer?
+        weak var store: EvidenceBundleStore?
+    }
+
+    private struct MediaReconcileSeedFacts {
+        let boundedOrphanDirectories: [URL]
+    }
+
+    @MainActor
+    private func seedMediaReconcileOrphans(
+        applicationSupportURL: URL,
+        releaseProbe: MediaReconcileSeedReleaseProbe
+    ) async throws -> MediaReconcileSeedFacts {
+        let session = try StoreGenerationFactory(
+            applicationSupportURL: applicationSupportURL
+        ).openOrBootstrapCurrent()
+        let context = session.modelContext
+        let container = context.container
+        let store = EvidenceBundleStore(generationRootURL: session.generationRootURL)
+        releaseProbe.session = session
+        releaseProbe.context = context
+        releaseProbe.container = container
+        releaseProbe.store = store
+        let normalized = try MediaNormalizerV1().normalize(makePNG(seed: 177))
+
+        let orphanID = UUID()
+        let orphanStaged = try await store.stage(evidenceID: orphanID, normalized: normalized)
+        let orphan = try await store.promote(orphanStaged)
+        try await store.reconcile(authorities: [])
+        XCTAssertFalse(fileManager.fileExists(atPath:
+            session.generationRootURL.appendingPathComponent(orphan.originalRelativePath).path
+        ))
+
+        let stagingOrphanID = UUID()
+        let stagingOrphan = try await store.stage(
+            evidenceID: stagingOrphanID,
+            normalized: normalized
+        )
+        try await store.reconcile(authorities: [])
+        XCTAssertFalse(fileManager.fileExists(atPath:
+            session.generationRootURL
+                .appendingPathComponent(stagingOrphan.stagingDirectoryRelativePath).path
+        ))
+
+        let retainedID = UUID()
+        let retainedStaged = try await store.stage(evidenceID: retainedID, normalized: normalized)
+        let retained = try await store.promote(retainedStaged)
+        let mismatch = EvidenceBundleAuthority(
+            schemaVersion: 1,
+            id: retainedID,
+            recordID: UUID(),
+            purposeKey: "wide_context",
+            relativePath: retained.originalRelativePath,
+            mimeType: MediaContractV1.durableMIMEType,
+            byteCount: retained.originalByteCount,
+            sha256: String(repeating: "0", count: 64),
+            thumbnailRelativePath: retained.thumbnailRelativePath,
+            thumbnailByteCount: retained.thumbnailByteCount,
+            thumbnailSHA256: retained.thumbnailSHA256
+        )
+        do {
+            try await store.reconcile(authorities: [mismatch])
+            XCTFail("Expected exact media authority mismatch")
+        } catch {
+            XCTAssertEqual(error as? EvidenceBundleStoreError, .bundleFactsMismatch)
+        }
+        XCTAssertTrue(fileManager.fileExists(atPath:
+            session.generationRootURL.appendingPathComponent(retained.originalRelativePath).path
+        ))
+
+        // Startup preparation must retain bounded facts, not three descriptors
+        // per bundle. Sixty-four additional authentic generic orphans distinguish
+        // constant startup overhead from descriptor growth tied to bundle count.
+        var boundedOrphanDirectories = [
+            session.generationRootURL.appendingPathComponent(retained.originalRelativePath)
+                .deletingLastPathComponent()
+        ]
+        for _ in 0..<64 {
+            let staged = try await store.stage(evidenceID: UUID(), normalized: normalized)
+            let promoted = try await store.promote(staged)
+            boundedOrphanDirectories.append(session.generationRootURL
+                .appendingPathComponent(promoted.originalRelativePath).deletingLastPathComponent())
+        }
+        withExtendedLifetime(container) {}
+        return MediaReconcileSeedFacts(boundedOrphanDirectories: boundedOrphanDirectories)
+    }
+
+    private func startupRouteCategory(_ route: StartupRouter.Route) -> String {
+        switch route {
+        case .checking: return "checking"
+        case .awaitingIndependentValidation: return "awaiting-independent-validation"
+        case .ready: return "ready"
+        case .eraseCleanupPending: return "erase-cleanup-pending"
+        case .maintenance(let reason): return "maintenance-\(reason.rawValue)"
         }
     }
 

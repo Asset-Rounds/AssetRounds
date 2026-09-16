@@ -45,28 +45,52 @@ struct ReviewedRepetitiveCaptureSourceGraphsV2: Equatable, Sendable {
     }
 }
 
+/// Complete canonical-value proof shared by source-graph and source-history
+/// readers. It grants no archive-member, filesystem, writer, or effect authority.
+struct ReviewedRepetitiveCaptureCanonicalSourceV2: Equatable, Sendable {
+    let sourceWorkspaceID: WorkspaceID
+    let graphs: [ReviewedRepetitiveCaptureSourceGraphV2]
+    let requiredHistory: [RepetitiveCaptureSourceHistoryRecordV2]
+    let history: RepetitiveCaptureSourceGraphReviewV2.History
+}
+
 /// Authenticates original C36 graphs inside a complete validated package. This
 /// reader owns no store, filesystem operation, destination identity or writer.
 enum RepetitiveCaptureSourceGraphReviewV2 {
     static func review(sourcePackage: ValidatedRepetitiveCaptureSourcePackageV2) throws
         -> ReviewedRepetitiveCaptureSourceGraphsV2 {
-        guard let rawWorkspaceID = sourcePackage.source.workspaceID,
-              let snapshot = sourcePackage.records.mutationHistory else { throw invalid() }
+        let reviewed = try reviewCanonicalSource(
+            source: sourcePackage.source, records: sourcePackage.records)
+        return .init(sourceWorkspaceID: reviewed.sourceWorkspaceID,
+                     sourcePersistentSchemaVersion: sourcePackage.source.persistentSchemaVersion,
+                     sourceRecordsSchemaVersion: sourcePackage.source.recordsSchemaVersion,
+                     manifestJSONSHA256: sourcePackage.manifestJSONSHA256,
+                     recordsJSONSHA256: sourcePackage.recordsJSONSHA256,
+                     graphs: reviewed.graphs, requiredHistory: reviewed.requiredHistory)
+    }
+
+    /// Pure value entry used before physical membership acceptance. The
+    /// incumbent package entry above remains the only capability-bearing API.
+    static func reviewCanonicalSource(source: V4BackupSourceV1, records: V4BackupRecordsV1) throws
+        -> ReviewedRepetitiveCaptureCanonicalSourceV2 {
+        guard let rawWorkspaceID = source.workspaceID,
+              source.recordsSchemaVersion == records.recordsSchemaVersion,
+              let snapshot = records.mutationHistory else { throw invalid() }
         let workspace = WorkspaceID(rawValue: rawWorkspaceID)
         try MutationJournalStoreV1.validateImportedSnapshot(
-            snapshot, sourcePersistentSchemaVersion: sourcePackage.source.persistentSchemaVersion)
+            snapshot, sourcePersistentSchemaVersion: source.persistentSchemaVersion)
         let history = try History(snapshot: snapshot)
         let release = try RepetitiveCaptureProgressDraftCodecV2.release()
         var currentByID: [UUID: FieldDraftCheckpointV1] = [:]
         var discardReceiptsByDraft: [UUID: [DraftDiscardReceiptV1]] = [:]
-        for row in sourcePackage.records.fieldDrafts where row.kind == .discardReceipt {
+        for row in records.fieldDrafts where row.kind == .discardReceipt {
             let receipt = try FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self,
                                                                from: row.canonicalData)
             guard row.workspaceID == rawWorkspaceID, receipt.workspaceID == workspace,
                   row.id == receipt.receiptID, row.revision == receipt.revision else { throw invalid() }
             discardReceiptsByDraft[receipt.draftID, default: []].append(receipt)
         }
-        for row in sourcePackage.records.fieldDrafts where row.kind == .checkpoint {
+        for row in records.fieldDrafts where row.kind == .checkpoint {
             let value = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,
                                                              from: row.canonicalData)
             guard value.workspaceID == workspace, row.workspaceID == rawWorkspaceID,
@@ -126,7 +150,7 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
             if let existing = roundHistories[sessionID] {
                 fullRounds = existing
             } else {
-                fullRounds = sourcePackage.records.roundSessions.filter {
+                fullRounds = records.roundSessions.filter {
                     $0.workspaceID == workspace && $0.sessionID == sessionID
                 }
                 guard try RoundSessionHistoryValidatorV1.validate(fullRounds,
@@ -219,28 +243,26 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
         guard covered == Set(currentByID.keys),
               requiredKeys.isDisjoint(with: history.quarantinedKeys) else { throw invalid() }
         let required = try requiredKeys.map { try history.authenticated($0) }.sorted(by: recordLess)
-        return .init(sourceWorkspaceID: workspace,
-                     sourcePersistentSchemaVersion: sourcePackage.source.persistentSchemaVersion,
-                     sourceRecordsSchemaVersion: sourcePackage.source.recordsSchemaVersion,
-                     manifestJSONSHA256: sourcePackage.manifestJSONSHA256,
-                     recordsJSONSHA256: sourcePackage.recordsJSONSHA256,
-                     graphs: graphs, requiredHistory: required)
+        return .init(sourceWorkspaceID: workspace, graphs: graphs,
+                     requiredHistory: required, history: history)
     }
 
-    private struct WorkspaceObjectKey: Hashable {
+    struct WorkspaceObjectKey: Hashable, Sendable {
         let workspaceID: WorkspaceID
         let id: UUID
     }
 
-    private struct History {
+    struct History: Equatable, Sendable {
         let records: [String: RepetitiveCaptureSourceHistoryRecordV2]
         let quarantinedKeys: Set<String>
         let checkpointsByDraft: [WorkspaceObjectKey: [RepetitiveCaptureSourceHistoryRecordV2]]
+        let fieldDraftRecordsByDraft: [WorkspaceObjectKey: [RepetitiveCaptureSourceHistoryRecordV2]]
         let roundsBySession: [WorkspaceObjectKey: [RoundSessionV1]]
 
         init(snapshot: MutationHistorySnapshotV1) throws {
             var values: [String: RepetitiveCaptureSourceHistoryRecordV2] = [:]
             var checkpoints: [WorkspaceObjectKey: [RepetitiveCaptureSourceHistoryRecordV2]] = [:]
+            var fieldDrafts: [WorkspaceObjectKey: [RepetitiveCaptureSourceHistoryRecordV2]] = [:]
             var rounds: [WorkspaceObjectKey: [RoundSessionV1]] = [:]
             for original in snapshot.receipts {
                 let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
@@ -251,6 +273,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                 else { throw RepetitiveCaptureSourceGraphReviewV2.invalid() }
                 switch envelope.command {
                 case let .applyFieldDraft(mutation):
+                    let draftID = RepetitiveCaptureSourceGraphReviewV2.draftID(mutation.postImage)
+                    fieldDrafts[.init(workspaceID: envelope.workspaceID, id: draftID),
+                                default: []].append(record)
                     if let checkpoint = RepetitiveCaptureSourceGraphReviewV2.checkpointPostImage(mutation.postImage) {
                         checkpoints[.init(workspaceID: envelope.workspaceID, id: checkpoint.draftID),
                                     default: []].append(record)
@@ -263,6 +288,7 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
             }
             records = values
             checkpointsByDraft = checkpoints
+            fieldDraftRecordsByDraft = fieldDrafts
             roundsBySession = rounds
             // Both quarantine identity domains use the same source mutation
             // closure. A valid unrelated quarantine does not taint this graph.
@@ -288,6 +314,21 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                 throw RepetitiveCaptureSourceGraphReviewV2.invalid()
             }
             return value
+        }
+
+        func authenticated(workspaceID: WorkspaceID, mutationID: MutationIDV1) throws
+            -> RepetitiveCaptureSourceHistoryRecordV2 {
+            try authenticated(RepetitiveCaptureSourceGraphReviewV2.key(workspaceID, mutationID))
+        }
+
+        func fieldDraftHistory(workspaceID: WorkspaceID, draftID: UUID)
+            -> [RepetitiveCaptureSourceHistoryRecordV2] {
+            fieldDraftRecordsByDraft[.init(workspaceID: workspaceID, id: draftID), default: []]
+                .sorted(by: RepetitiveCaptureSourceGraphReviewV2.recordLess)
+        }
+
+        func isQuarantined(_ record: RepetitiveCaptureSourceHistoryRecordV2) -> Bool {
+            quarantinedKeys.contains(RepetitiveCaptureSourceGraphReviewV2.key(record.envelope))
         }
     }
 
@@ -361,7 +402,7 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
         }
     }
 
-    private static func checkpointPostImage(_ payload: FieldDraftMutationPayloadV1) -> FieldDraftCheckpointV1? {
+    static func checkpointPostImage(_ payload: FieldDraftMutationPayloadV1) -> FieldDraftCheckpointV1? {
         switch payload {
         case let .createCheckpoint(value), let .reviseCheckpoint(value): return value
         case let .resolveConflict(value): return value.successorCheckpoint
@@ -369,6 +410,19 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
         case let .applyCommitTerminal(value, _): return value.committedCheckpoint
         case let .applyDiscardTerminal(value): return value.discardedCheckpoint
         default: return nil
+        }
+    }
+
+    static func draftID(_ payload: FieldDraftMutationPayloadV1) -> UUID {
+        switch payload {
+        case let .createCheckpoint(value), let .reviseCheckpoint(value): return value.draftID
+        case let .appendStagingItem(value), let .reviseStagingItem(value): return value.draftID
+        case let .appendCommitSaga(value), let .advanceCommitSaga(value): return value.draftID
+        case let .appendContentReservation(value), let .reviseContentReservation(value): return value.draftID
+        case let .applyCommitTerminal(value, _): return value.committedCheckpoint.draftID
+        case let .applyDiscardTerminal(value): return value.discardedCheckpoint.draftID
+        case let .resolveConflict(value): return value.successorCheckpoint.draftID
+        case let .publishReadyStage(value): return value.successorCheckpoint.draftID
         }
     }
 
@@ -403,14 +457,14 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
         return step.expectedRound
     }
 
-    private static func key(_ envelope: MutationEnvelopeV1) -> String {
+    static func key(_ envelope: MutationEnvelopeV1) -> String {
         key(envelope.workspaceID, envelope.mutationID)
     }
-    private static func key(_ workspace: WorkspaceID, _ mutation: MutationIDV1) -> String {
+    static func key(_ workspace: WorkspaceID, _ mutation: MutationIDV1) -> String {
         MutationWorkspaceKeyV1.value(workspaceID: workspace, mutationID: mutation)
     }
-    private static func recordLess(_ lhs: RepetitiveCaptureSourceHistoryRecordV2,
-                                   _ rhs: RepetitiveCaptureSourceHistoryRecordV2) -> Bool {
+    static func recordLess(_ lhs: RepetitiveCaptureSourceHistoryRecordV2,
+                           _ rhs: RepetitiveCaptureSourceHistoryRecordV2) -> Bool {
         let left = lhs.receipt.resultingRevision.workspaceRevision
         let right = rhs.receipt.resultingRevision.workspaceRevision
         return left == right ? lhs.receipt.identity.stableKey < rhs.receipt.identity.stableKey : left < right

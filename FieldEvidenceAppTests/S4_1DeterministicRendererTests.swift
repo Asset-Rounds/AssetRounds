@@ -6,6 +6,23 @@ import PDFKit
 import SwiftData
 import UniformTypeIdentifiers
 import XCTest
+
+private final class CapacityTargetObservation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var target: URL?
+
+    func record(_ value: URL) {
+        lock.lock()
+        defer { lock.unlock() }
+        target = value
+    }
+
+    var value: URL? {
+        lock.lock()
+        defer { lock.unlock() }
+        return target
+    }
+}
 @testable import FieldEvidenceApp
 
 private enum C52ServiceRequestBoundary_S4_1DeterministicRendererTests {
@@ -337,9 +354,9 @@ final class S4_1DeterministicRendererTests: XCTestCase {
         }
 
         for available in [Int64?.none, Int64?(0)] {
-            var observedTarget: URL?
+            let observedTarget = CapacityTargetObservation()
             let harness = try makeHarness(label: "capacity", capacity: {
-                observedTarget = $0
+                observedTarget.record($0)
                 return available
             })
             defer {
@@ -347,7 +364,7 @@ final class S4_1DeterministicRendererTests: XCTestCase {
                 withExtendedLifetime(harness.session) {}
             }
             XCTAssertThrowsError(try harness.service.renderPendingReport(id: Fixture.reportID))
-            XCTAssertEqual(observedTarget, harness.session.generationRootURL)
+            XCTAssertEqual(observedTarget.value, harness.session.generationRootURL)
             XCTAssertEqual(harness.report.pdfState, ReportPDFState.pending.rawValue)
             XCTAssertNil(harness.report.pdfRelativePath)
             XCTAssertNil(harness.report.pdfSHA256)

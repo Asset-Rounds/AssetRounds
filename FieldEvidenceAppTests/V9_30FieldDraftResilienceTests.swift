@@ -73,6 +73,7 @@ private actor C36StagingContentGate: DraftImmutableContentWriterV1 {
     let entered: XCTestExpectation
     private var continuation: CheckedContinuation<Void, Never>?
     private var resumed = false
+    private var announcedFirstReceipt = false
     private var requests: [DraftImmutableContentWriteRequestV1] = []
     private var receipts: [DraftImmutableContentWriteReceiptV1] = []
     init(writer: EvidenceBundleStore, entered: XCTestExpectation) { self.writer = writer; self.entered = entered }
@@ -80,14 +81,20 @@ private actor C36StagingContentGate: DraftImmutableContentWriterV1 {
         async throws -> DraftImmutableContentWriteReceiptV1 {
         let receipt = try await writer.persistImmutableOriginal(bytes: bytes, request: request)
         requests.append(request); receipts.append(receipt)
-        entered.fulfill()
+        if !announcedFirstReceipt, !resumed {
+            announcedFirstReceipt = true
+            entered.fulfill()
+        }
+        try Task.checkCancellation()
         if !resumed { await withCheckedContinuation { continuation = $0 } }
+        try Task.checkCancellation()
         return receipt
     }
     func resume() { resumed = true; continuation?.resume(); continuation = nil }
     func observed() -> ([DraftImmutableContentWriteRequestV1], [DraftImmutableContentWriteReceiptV1]) {
         (requests, receipts)
     }
+    func reachedDurableBoundary() -> Bool { announcedFirstReceipt }
 }
 
 private enum C36PhotoReceiptFailure: Error { case savedThenLostAcknowledgement }
@@ -959,6 +966,47 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
                 workspaceID: fixture.workspaceID, attachmentKind: .file)
         }
 
+        // Foundation's millisecond strategy can preserve its canonical bytes
+        // while changing the exact in-memory Date by one floating-point ULP.
+        // Manifest publication must compare that wire truth, not Date equality.
+        let nonRoundTrippingDate = Date(timeIntervalSinceReferenceDate:
+            Double(bitPattern: 0x41c82d31d4461c57))
+        let dateEncoder = JSONEncoder()
+        dateEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        dateEncoder.dateEncodingStrategy = .millisecondsSince1970
+        let originalDateBytes = try dateEncoder.encode(nonRoundTrippingDate)
+        let dateDecoder = JSONDecoder()
+        dateDecoder.dateDecodingStrategy = .millisecondsSince1970
+        let decodedDate = try dateDecoder.decode(Date.self, from: originalDateBytes)
+        XCTAssertNotEqual(decodedDate, nonRoundTrippingDate)
+        XCTAssertEqual(try dateEncoder.encode(decodedDate), originalDateBytes)
+
+        let dateSupport = fm.temporaryDirectory.appendingPathComponent(
+            "staging-date-roundtrip-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: dateSupport) }
+        let dateWriter = try DraftAttachmentStagingAdapterV1(applicationSupportURL: dateSupport)
+        let datedItem = try await dateWriter.stage(data: Data("sub-millisecond manifest entry".utf8),
+            draftID: fixture.draftID, workspaceID: fixture.workspaceID, attachmentKind: .file,
+            createdAt: nonRoundTrippingDate)
+        let dateManifestURL = dateSupport.appendingPathComponent(
+            "FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)/manifest.json")
+        let persistedManifestBytes = try Data(contentsOf: dateManifestURL)
+        let dateReader = try DraftAttachmentStagingAdapterV1(applicationSupportURL: dateSupport)
+        let persistedEntries = try await dateReader.entries()
+        XCTAssertEqual(persistedEntries.map(\.item), [datedItem])
+        XCTAssertEqual(persistedEntries.map(\.updatedAt), [decodedDate])
+        let persistedManifest = try DraftAttachmentStagingManifestV1(entries: persistedEntries)
+        XCTAssertEqual(try dateEncoder.encode(persistedManifest), persistedManifestBytes)
+
+        var tamperedManifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: persistedManifestBytes) as? [String: Any])
+        tamperedManifest["manifestSHA256"] = String(repeating: "0", count: 64)
+        let tamperedManifestBytes = try JSONSerialization.data(
+            withJSONObject: tamperedManifest, options: [.sortedKeys, .withoutEscapingSlashes])
+        try tamperedManifestBytes.write(to: dateManifestURL, options: .atomic)
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: dateManifestURL)
+        await assertStagingFailure(.corruptManifest) { _ = try await dateReader.entries() }
+
         let root = support.appendingPathComponent("FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)")
         let payloadURL = root.appendingPathComponent(DraftAttachmentStagingAdapterV1.relativeDataPath(
             draftID: one.draftID, stageID: one.stageID))
@@ -1402,6 +1450,12 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
             }
             defer { pending.cancel(); Task { await gate.resume() } }
             await fulfillment(of: [entered], timeout: 10)
+            guard await gate.reachedDurableBoundary() else {
+                pending.cancel()
+                await gate.resume()
+                _ = try? await pending.value
+                return XCTFail("The unchanged timeout must not permit a manifest race before the real durable receipt")
+            }
             let competitor = try DraftAttachmentStagingAdapterV1(applicationSupportURL: h.root,
                 workspaceID: await h.workspaceID)
             let retained = try await competitor.stage(data: Data("unrelated manifest winner".utf8),
@@ -1748,6 +1802,12 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         }
         defer { promotion.cancel(); Task { await gate.resume() } }
         await fulfillment(of: [entered], timeout: 10)
+        guard await gate.reachedDurableBoundary() else {
+            promotion.cancel()
+            await gate.resume()
+            _ = try? await promotion.value
+            return XCTFail("The unchanged timeout must not permit quarantine before the real durable receipt")
+        }
         await assertStagingFailure(.staleStage) { _ = try await staging.entries() }
         let quarantined = try await competitor.quarantine(stageID: staged.stageID, expectedRevision: staged.revision)
         await gate.resume()
@@ -1992,6 +2052,12 @@ extension V9_30FieldDraftResilienceTests {
             }
             defer { pending.cancel(); Task { await gate.resume() } }
             await fulfillment(of: [entered], timeout: 10)
+            guard await gate.reachedDurableBoundary() else {
+                pending.cancel()
+                await gate.resume()
+                _ = try? await pending.value
+                return XCTFail("The unchanged timeout must not permit witness replacement before the real durable receipt")
+            }
             try Data("replaced witness".utf8).write(to: witnessURL, options: .atomic)
             try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: witnessURL)
             await gate.resume()
@@ -2024,6 +2090,8 @@ extension V9_30FieldDraftResilienceTests {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appendingPathComponent("draft-publication-hostile-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: root) }
+        var hostileRestorePhase = "hostile-restore.setup-source"
+        do {
         let sourceSupport = root.appendingPathComponent("source")
         let workspace = WorkspaceID(rawValue: UUID())
         let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -2053,26 +2121,26 @@ extension V9_30FieldDraftResilienceTests {
             ("photo-witness", workspace, entries, manifest.manifestSHA256, .invalidTransition),
         ]
         for (name, targetWorkspace, candidateEntries, digest, expected) in cases {
+            hostileRestorePhase = "hostile-restore.\(name).arrange"
             try bytes.write(to: sourceURL, options: .atomic)
             if fm.fileExists(atPath: witnessURL.path) { try fm.removeItem(at: witnessURL) }
             if name == "tampered" { try Data(repeating: 0x78, count: bytes.count).write(to: sourceURL) }
             if name == "missing" { try fm.removeItem(at: sourceURL) }
             if name == "photo-witness" { try Data("unknown photo owner".utf8).write(to: witnessURL) }
             let support = root.appendingPathComponent(name)
+            hostileRestorePhase = "hostile-restore.\(name).publish"
             XCTAssertThrowsError(try DraftAttachmentStagingAdapterV1.publishRestoredStagingSynchronously(
                 applicationSupportURL: support, from: sourceRoot, entries: candidateEntries,
                 workspaceID: targetWorkspace, sourceManifestSHA256: digest,
                 restoreID: UUID(), clock: { now })) { error in
                 XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, expected, name)
             }
-            let reopened = try stagingDiagnosticPhase("hostile-restore.\(name).reopen") {
-                try DraftAttachmentStagingAdapterV1(
-                    applicationSupportURL: support, workspaceID: targetWorkspace
-                )
-            }
-            let retained = try await stagingDiagnosticPhase("hostile-restore.\(name).read-empty") {
-                try await reopened.entries()
-            }
+            hostileRestorePhase = "hostile-restore.\(name).reopen"
+            let reopened = try DraftAttachmentStagingAdapterV1(
+                applicationSupportURL: support, workspaceID: targetWorkspace
+            )
+            hostileRestorePhase = "hostile-restore.\(name).read-empty"
+            let retained = try await reopened.entries()
             XCTAssertTrue(retained.isEmpty, name)
             let destination = support.appendingPathComponent(
                 "FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)/"
@@ -2080,6 +2148,7 @@ extension V9_30FieldDraftResilienceTests {
             )
             XCTAssertFalse(fm.fileExists(atPath: destination.path), name)
         }
+        hostileRestorePhase = "hostile-restore.fifo-arrange"
         try fm.removeItem(at: witnessURL)
         try bytes.write(to: sourceURL, options: .atomic)
         let sourceAfter = try Data(contentsOf: sourceURL)
@@ -2089,26 +2158,32 @@ extension V9_30FieldDraftResilienceTests {
         try fm.moveItem(at: sourceURL, to: retainedSource)
         XCTAssertEqual(mkfifo(sourceURL.path, mode_t(0o600)), 0)
         let fifoSupport = root.appendingPathComponent("fifo-restore")
+        hostileRestorePhase = "hostile-restore.fifo-initialize"
         let fifoDestination = try DraftAttachmentStagingAdapterV1(applicationSupportURL: fifoSupport)
+        hostileRestorePhase = "hostile-restore.fifo-actor-reject"
         await assertFIFORejected(.unsafePath, at: sourceURL) {
             _ = try await fifoDestination.adoptRestoredStaging(from: sourceRoot, entries: entries,
                 workspaceID: workspace, sourceManifestSHA256: manifest.manifestSHA256, restoreID: UUID())
         }
+        hostileRestorePhase = "hostile-restore.fifo-sync-reject"
         await assertFIFORejected(.unsafePath, at: sourceURL) {
             _ = try DraftAttachmentStagingAdapterV1.publishRestoredStagingSynchronously(
                 applicationSupportURL: fifoSupport, from: sourceRoot, entries: entries,
                 workspaceID: workspace, sourceManifestSHA256: manifest.manifestSHA256, restoreID: UUID())
         }
+        hostileRestorePhase = "hostile-restore.fifo-read-empty"
         let afterFIFOFailure = try await fifoDestination.entries()
         XCTAssertTrue(afterFIFOFailure.isEmpty)
         try fm.removeItem(at: sourceURL)
         try fm.moveItem(at: retainedSource, to: sourceURL)
+        hostileRestorePhase = "hostile-restore.fifo-recover"
         let fifoRecovery = try await fifoDestination.adoptRestoredStaging(from: sourceRoot, entries: entries,
             workspaceID: workspace, sourceManifestSHA256: manifest.manifestSHA256, restoreID: UUID())
         XCTAssertEqual(fifoRecovery.adoptedStageIDs, [item.stageID])
         let fifoRecoveryBytes = try await fifoDestination.data(stageID: item.stageID)
         XCTAssertEqual(fifoRecoveryBytes, bytes)
 
+        hostileRestorePhase = "hostile-restore.occupied-arrange"
         let occupiedSupport = root.appendingPathComponent("occupied")
         let occupied = try DraftAttachmentStagingAdapterV1(applicationSupportURL: occupiedSupport)
         let occupiedRoot = occupiedSupport.appendingPathComponent(
@@ -2119,6 +2194,7 @@ extension V9_30FieldDraftResilienceTests {
         let foreignPayload = foreignDirectory.appendingPathComponent("payload.bin")
         let foreignBytes = Data("unindexed foreign publication".utf8)
         try foreignBytes.write(to: foreignPayload)
+        hostileRestorePhase = "hostile-restore.occupied-reject"
         await assertStagingFailure(.staleStage) {
             _ = try await occupied.adoptRestoredStaging(from: sourceRoot, entries: entries,
                 workspaceID: workspace, sourceManifestSHA256: manifest.manifestSHA256, restoreID: UUID())
@@ -2127,15 +2203,21 @@ extension V9_30FieldDraftResilienceTests {
         let occupiedEntries = try await occupied.entries()
         XCTAssertTrue(occupiedEntries.isEmpty)
 
+        hostileRestorePhase = "hostile-restore.old-owner-arrange"
         let moved = root.appendingPathComponent("retained-old-owner")
         try fm.moveItem(at: occupiedRoot, to: moved)
         let replacement = try DraftAttachmentStagingAdapterV1(applicationSupportURL: occupiedSupport)
+        hostileRestorePhase = "hostile-restore.old-owner-reject"
         await assertStagingFailure(.staleStage) { _ = try await occupied.entries() }
         await assertStagingFailure(.staleStage) { try await occupied.erase() }
         let replacementEntries = try await replacement.entries()
         XCTAssertTrue(replacementEntries.isEmpty)
         XCTAssertEqual(try Data(contentsOf: moved.appendingPathComponent(
             DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: item.draftID, stageID: item.stageID))), foreignBytes)
+        } catch {
+            XCTFail("Unexpected staging error at \(hostileRestorePhase): \(String(reflecting: type(of: error)))")
+            throw error
+        }
     }
 }
 

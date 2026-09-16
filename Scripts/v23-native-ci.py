@@ -69,9 +69,47 @@ DURABLE_BEGIN_METHOD_PARTITIONS = (
 )
 DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
-GENERATED_SELECTION_PROFILE = "pair-startup-v1"
-GENERATED_SELECTION_POOL_SHA256 = "62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722"
-GENERATED_SELECTION_MAP_SHA256 = "70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110"
+GENERATED_SELECTION_PROFILE = "photo-backup-v1"
+GENERATED_SELECTION_POOL_SHA256 = "930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D"
+GENERATED_SELECTION_MAP_SHA256 = "5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248"
+PHOTO_BACKUP_PARENT_SELECTORS = (
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationDuringWriterRemovesOwnedPackage',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationImmediatelyAfterWriterSuccessCleansReceiptOwnedPackage',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesEqualMagicReplacement',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesReplacementRacedBeforePrivateClaim',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testFormatMagicProbeRejectsFIFOWithoutBlocking',
+    'FieldEvidenceAppTests/S6_3BackupValidationTests/testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld',
+    'FieldEvidenceAppTests/S4_1DeterministicRendererTests/testCapacityOverflowAndUnexpectedStageOrFinalFailClosed',
+)
+PHOTO_BACKUP_METHOD_PARTITIONS = (
+    ('c36-photo-backup-transport', (
+        PHOTO_BACKUP_PARENT_SELECTORS[0],
+        PHOTO_BACKUP_PARENT_SELECTORS[2],
+        PHOTO_BACKUP_PARENT_SELECTORS[3],
+        PHOTO_BACKUP_PARENT_SELECTORS[4],
+        PHOTO_BACKUP_PARENT_SELECTORS[5],
+        PHOTO_BACKUP_PARENT_SELECTORS[6],
+        PHOTO_BACKUP_PARENT_SELECTORS[7],
+        PHOTO_BACKUP_PARENT_SELECTORS[8],
+        PHOTO_BACKUP_PARENT_SELECTORS[9],
+        PHOTO_BACKUP_PARENT_SELECTORS[10],
+        PHOTO_BACKUP_PARENT_SELECTORS[11],
+        PHOTO_BACKUP_PARENT_SELECTORS[14],
+    )),
+    ('c36-photo-backup-restore', (
+        PHOTO_BACKUP_PARENT_SELECTORS[1],
+        PHOTO_BACKUP_PARENT_SELECTORS[12],
+        PHOTO_BACKUP_PARENT_SELECTORS[13],
+    )),
+)
 SOURCE_GRAPH_PARENT_ID = "c36-source-graph"
 SOURCE_GRAPH_PARENT_SELECTORS = (
     "FieldEvidenceAppTests/V23RepetitiveCaptureSourcePackageTests/testOrdinaryDirectoryPackageIsValidatedAndBoundToExactCanonicalMembers",
@@ -113,7 +151,7 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "8F4D5AC023088B01D9D450FC9BBAD8B977F2B82BF4AB28CED1E943227D1F17F5"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB"
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 SIMULATOR_DIAGNOSTIC_MARKER_STEM = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_"
 SIMULATOR_DIAGNOSTIC_OUTPUT = "simulator-file-protection-diagnostics.json"
@@ -772,7 +810,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 40
+        isinstance(groups, list) and len(groups) == 41
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )
@@ -848,6 +886,26 @@ def resolve_selection(default, selection_map, selection_id):
         for partition_id, members in SOURCE_GRAPH_METHOD_PARTITIONS:
             require(tuple(item for item in graph_parent_members if item in set(members)) == members,
                     "source graph fixed ordered partition members")
+            derived = dict(default)
+            derived["unitTestSelectors"] = list(members)
+            validate_selection(derived)
+            resolved[partition_id] = derived
+    if generated_profile_shape:
+        photo_parent = tuple(default["unitTestSelectors"][-15:])
+        require(photo_parent == PHOTO_BACKUP_PARENT_SELECTORS,
+                "photo backup exact ordered source enrollment")
+        photo_ids = tuple(item[0] for item in PHOTO_BACKUP_METHOD_PARTITIONS)
+        photo_members = tuple(member for _, members in PHOTO_BACKUP_METHOD_PARTITIONS
+                              for member in members)
+        require(len(photo_ids) == len(set(photo_ids)) == 2
+                and not (set(photo_ids) & (set(resolved) | {DEFAULT_SELECTION_ID})),
+                "photo backup fixed partition IDs")
+        require(len(photo_members) == len(set(photo_members)) == 15
+                and set(photo_members) == set(photo_parent),
+                "photo backup complete disjoint union")
+        for partition_id, members in PHOTO_BACKUP_METHOD_PARTITIONS:
+            require(tuple(item for item in photo_parent if item in set(members)) == members,
+                    "photo backup fixed ordered partition members")
             derived = dict(default)
             derived["unitTestSelectors"] = list(members)
             validate_selection(derived)

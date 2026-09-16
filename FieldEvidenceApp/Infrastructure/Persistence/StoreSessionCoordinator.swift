@@ -275,6 +275,30 @@ final class StoreSessionCoordinator: ObservableObject {
         try .init(session: self, transitions: transitions, clock: clock, idSource: idSource)
     }
 
+    /// The explicit backup operation reuses the incumbent source, publication
+    /// and physical owners. This factory does not register a capture route.
+    func makePhotoBackupService(parentCheckpoint: FieldDraftCheckpointV1,
+                               accessGate: AppAccessGateV1,
+                               staging: DraftAttachmentStagingAdapterV1) throws -> ProductionCheckRunnerItemDraftServiceV1 {
+        let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parentCheckpoint)
+        guard parentCheckpoint.workspaceID == workspaceID else { throw FieldDraftFailureV1.invalidValue }
+        let lifecycle = try packageLifecycleDependencies()
+        let profile = try lifecycle.profileRegistry.resolve(parent.source.legacyPackageIdentity)
+        let published = try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(
+            from: profile.package, stage: parent.source.requestedEntry.stage)
+        guard try RoundPackageReleaseReferenceV1(published) == parent.source.packageRelease else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let transitions = try makeRoundSessionTransitionService(accessGate: accessGate)
+        let progress = try makeRepetitiveCaptureProgressService(transitions: transitions)
+        let coordinator = try CheckRunnerCoordinator(modelContext: modelContext,
+            packageLifecycleDependencies: lifecycle, packageLifecycleProfile: profile)
+        coordinator.configureCapture(generationRootURL: generationRootURL)
+        return try ProductionCheckRunnerItemDraftServiceV1(session: self, progress: progress,
+            coordinator: coordinator, publishedRelease: published, clock: clock, ids: idSource,
+            attachmentStaging: staging)
+    }
+
     func dropSearchProjectionForRebuild() async throws {
         try await searchIndexStore.dropProjection(workspaceID: workspaceID.rawValue)
     }

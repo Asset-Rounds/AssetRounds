@@ -23,6 +23,96 @@ final class V23FieldDraftStageDigestBackupTests: XCTestCase {
         XCTAssertEqual(fixture.receipt.targetReceiptSHA256, fixture.targetReceipt.resultSHA256)
         XCTAssertEqual(fixture.receipt.consumedStageToContentID,
                        [fixture.storedStage.stageID.uuidString: fixture.clip.original.contentID])
+
+        // The same real committed generic draft is the current-only family in
+        // this pure composition vector. Its canonical rows and original journal
+        // bytes remain addressable together, while an exact source duplicate
+        // requires no destination amendment.
+        let closures = try CheckRunnerPhotoRestoreCompositionV1
+            .authenticatedDraftClosures(in: fixture.records)
+        let closure = try XCTUnwrap(closures.first {
+            $0.draftID == fixture.storedStage.draftID
+        })
+        XCTAssertEqual(closure.stageIDs, [fixture.storedStage.stageID])
+        XCTAssertEqual(try CheckRunnerPhotoRestoreCompositionV1
+            .retainedCurrentDraftClosures(source: [], current: [closure]), [closure])
+        XCTAssertEqual(try CheckRunnerPhotoRestoreCompositionV1
+            .retainedCurrentDraftClosures(source: [closure], current: [closure]), [])
+
+        let snapshot = try XCTUnwrap(fixture.records.mutationHistory)
+        let createRecord = try XCTUnwrap(snapshot.receipts.first { original in
+            guard let envelope = try? MutationEnvelopeV1.decodeCanonical(
+                from: original.envelopeData),
+                  case let .applyFieldDraft(mutation) = envelope.command,
+                  case let .createCheckpoint(checkpoint) = mutation.postImage else { return false }
+            return checkpoint.draftID == closure.draftID
+        })
+        let earlier = try CheckRunnerPhotoRestoreCompositionV1.authenticatedDraftClosure(
+            draftID: closure.draftID, history: [createRecord])
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1
+            .retainedCurrentDraftClosures(source: [earlier], current: [closure]))
+
+        let disjointTargetRecord = try XCTUnwrap(snapshot.receipts.first { original in
+            guard let envelope = try? MutationEnvelopeV1.decodeCanonical(
+                from: original.envelopeData) else { return false }
+            return envelope.mutationID == fixture.targetReceipt.mutationID
+        })
+        let earlierDisjointRecord = try XCTUnwrap(snapshot.receipts.first { original in
+            guard let envelope = try? MutationEnvelopeV1.decodeCanonical(
+                from: original.envelopeData),
+                  case .applyPartyAccountability = envelope.command else { return false }
+            return true
+        })
+        let earlierDisjointReceipt = try MutationReceiptV1.decodeCanonical(
+            from: earlierDisjointRecord.receiptData)
+        let earlierDisjointIdentity = try XCTUnwrap(
+            earlierDisjointReceipt.postImages.first.map { try $0.identity })
+        let laterDisjointReceipt = try MutationReceiptV1.decodeCanonical(
+            from: disjointTargetRecord.receiptData)
+        XCTAssertTrue(laterDisjointReceipt.resultingRevision.entityRevisions.contains {
+            $0.identity == earlierDisjointIdentity
+        })
+        XCTAssertNoThrow(try CheckRunnerPhotoRestoreCompositionV1.requireDisjointHistory(
+            source: [earlierDisjointRecord],
+            current: [earlierDisjointRecord, disjointTargetRecord]))
+        let touchingStageRecord = try XCTUnwrap(snapshot.receipts.first { original in
+            guard let envelope = try? MutationEnvelopeV1.decodeCanonical(
+                from: original.envelopeData),
+                  case let .applyFieldDraft(mutation) = envelope.command,
+                  case let .appendStagingItem(item) = mutation.postImage else { return false }
+            return item.draftID == closure.draftID
+        })
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1.requireDisjointHistory(
+            source: [createRecord], current: [createRecord, touchingStageRecord]))
+
+        let missingHistory = CheckRunnerPhotoRestoreDraftClosureV1(
+            draftID: closure.draftID, rows: closure.rows,
+            history: Array(closure.history.dropLast()), stageIDs: closure.stageIDs)
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1
+            .retainedCurrentDraftClosures(source: [], current: [missingHistory]))
+        let extraHistory = CheckRunnerPhotoRestoreDraftClosureV1(
+            draftID: closure.draftID, rows: closure.rows,
+            history: closure.history + [try XCTUnwrap(closure.history.first)],
+            stageIDs: closure.stageIDs)
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1
+            .retainedCurrentDraftClosures(source: [], current: [extraHistory]))
+        let extraRows = CheckRunnerPhotoRestoreDraftClosureV1(
+            draftID: closure.draftID,
+            rows: closure.rows + [try XCTUnwrap(closure.rows.first)],
+            history: closure.history, stageIDs: closure.stageIDs)
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1
+            .retainedCurrentDraftClosures(source: [], current: [extraRows]))
+        let firstRow = try XCTUnwrap(closure.rows.first)
+        let conflictingRow = V16BackupFieldDraftRecordV1(
+            kind: firstRow.kind, id: firstRow.id, workspaceID: firstRow.workspaceID,
+            revision: firstRow.revision, canonicalData: firstRow.canonicalData + Data([0]))
+        var conflictingRows = closure.rows
+        conflictingRows[0] = conflictingRow
+        let conflicting = CheckRunnerPhotoRestoreDraftClosureV1(
+            draftID: closure.draftID, rows: conflictingRows,
+            history: closure.history, stageIDs: closure.stageIDs)
+        XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1
+            .retainedCurrentDraftClosures(source: [], current: [conflicting]))
     }
 
     func testPublicPackageValidatorAcceptsAsyncTargetReceiptFromExistingWriter() async throws {

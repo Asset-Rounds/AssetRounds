@@ -371,6 +371,494 @@ private struct EntityIdentityResolutionPackageResolverV1:
     }
 }
 
+/// Bounded retained-generation sources. The restore service mints these only
+/// for composition-selected current children after the media owner's read-only
+/// snapshot. Original named ancestors and file facts are checked on every copy.
+struct CheckRunnerPhotoRestoreRetainedMembersV1: Sendable {
+    private let members: ValidatedV4BackupMembersV1
+    private let files: [String: CheckRunnerPhotoMediaBackupFileV1]
+    private let observations: [String: StreamingArchiveSourceObservationV1]
+    private let metadata: [String: Data]
+    private let rootIdentity: StreamingArchiveRootIdentityV1
+
+    fileprivate init(rootURL: URL, rootIdentity: StreamingArchiveRootIdentityV1,
+        snapshots: [CheckRunnerPhotoMediaBackupChildSnapshotV1],
+        plan: CheckRunnerPhotoBackupRestorePlanV1) throws {
+        let failure = BackupRestoreServiceError.invalidPackage
+        let wanted = Set(plan.children.map(\.childDraftID))
+        guard Set(snapshots.map(\.childDraftID)).count == snapshots.count,
+              Set(snapshots.map(\.childDraftID)) == wanted,
+              let device = dev_t(exactly: rootIdentity.device),
+              let inode = ino_t(exactly: rootIdentity.inode) else { throw failure }
+        var files: [String: CheckRunnerPhotoMediaBackupFileV1] = [:]
+        var descriptors: [String: ValidatedV4BackupMembersV1.Descriptor] = [:]
+        var observations: [String: StreamingArchiveSourceObservationV1] = [:]
+        let observer = StreamingArchiveService()
+        for snapshot in snapshots {
+            for file in snapshot.files {
+                if let existing = files[file.entry.path], existing != file { throw failure }
+                let descriptor = ValidatedV4BackupMembersV1.Descriptor(
+                    byteCount: Int64(file.entry.byteCount), sha256: file.entry.sha256)
+                if let existing = descriptors[file.generationRelativePath], existing != descriptor { throw failure }
+                let writeEntry = StreamingArchiveWriteEntryV1(path: file.entry.path,
+                    mimeType: file.entry.mimeType, sourceRootURL: rootURL,
+                    sourceRelativePath: file.generationRelativePath,
+                    expectedSourceRootIdentity: rootIdentity,
+                    expectedUncompressedByteCount: Int64(file.entry.byteCount),
+                    expectedContentSHA256: file.entry.sha256, compression: .stored)
+                let observation = try observer.sourceObservation(writeEntry)
+                guard observation.file == file.snapshot else { throw failure }
+                files[file.entry.path] = file
+                descriptors[file.generationRelativePath] = descriptor
+                observations[file.entry.path] = observation
+            }
+        }
+        // Only generation members are copied; raw global publications and their
+        // immutable witnesses continue to belong to the existing raw owner.
+        guard plan.generationMembers.allSatisfy({ member in
+            files[member.entry.path]?.entry == member.entry
+                && files[member.entry.path]?.generationRelativePath == member.relativePath
+        }) else { throw failure }
+        self.members = .init(rootURL: rootURL,
+            rootIdentity: .init(device: device, inode: inode), descriptors: descriptors,
+            maximumMemberByteCount: Int64(MediaContractV1.sourceByteCountMaximum))
+        self.files = files; self.observations = observations
+        self.metadata = plan.metadata; self.rootIdentity = rootIdentity
+    }
+
+    func read(_ entry: V4BackupEntryV1, consume: (Data) throws -> Void) throws {
+        guard let file = files[entry.path], file.entry == entry,
+              let observation = observations[entry.path] else { throw BackupRestoreServiceError.invalidPackage }
+        let writeEntry = StreamingArchiveWriteEntryV1(path: entry.path, mimeType: entry.mimeType,
+            sourceRootURL: members.rootURL, sourceRelativePath: file.generationRelativePath,
+            expectedSourceRootIdentity: rootIdentity, expectedUncompressedByteCount: Int64(entry.byteCount),
+            expectedContentSHA256: entry.sha256, compression: .stored)
+        let observer = StreamingArchiveService()
+        guard try observer.sourceObservation(writeEntry) == observation else { throw BackupRestoreServiceError.invalidPackage }
+        try members.readVerifiedChunks(file.generationRelativePath,
+            expectedByteCount: Int64(entry.byteCount), expectedSHA256: entry.sha256,
+            maximumByteCount: Int64(MediaContractV1.sourceByteCountMaximum), cancellation: .task,
+            consume: consume)
+        guard try observer.sourceObservation(writeEntry) == observation else { throw BackupRestoreServiceError.invalidPackage }
+    }
+
+    func metadataBytes(_ path: String) -> Data? { metadata[path] }
+}
+
+enum CheckRunnerPhotoRestoreMemberSourceV1: Sendable {
+    case package(ValidatedV4BackupMembersV1)
+    case retained(CheckRunnerPhotoRestoreRetainedMembersV1)
+
+    func read(_ entry: V4BackupEntryV1,
+        maximumByteCount: Int64 = Int64(MediaContractV1.sourceByteCountMaximum),
+        consume: (Data) throws -> Void) throws {
+        guard entry.byteCount >= 0, Int64(entry.byteCount) <= maximumByteCount else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        switch self {
+        case .package(let members):
+            try members.readVerifiedChunks(entry.path, expectedByteCount: Int64(entry.byteCount),
+                expectedSHA256: entry.sha256,
+                maximumByteCount: maximumByteCount, cancellation: .task, consume: consume)
+        case .retained(let members): try members.read(entry, consume: consume)
+        }
+    }
+
+    func metadataBytes(_ path: String) -> Data? {
+        switch self {
+        case .package(let members): members[path]
+        case .retained(let members): members.metadataBytes(path)
+        }
+    }
+}
+
+/// Generic staging remains under the incumbent staging owner, with the
+/// released generic limit and canonical archive path independent of photo limits.
+enum CheckRunnerPhotoRestoreGenericStageV1 {
+    static func payloadEntry(_ item: AttachmentStagingItemV1) throws -> V4BackupEntryV1 {
+        guard item.state == .readyLocal || item.state == .committed,
+              let count = item.actualByteCount, count > 0,
+              count <= Int64(FieldDraftLimitsV1.maximumPayloadBytes),
+              let digest = item.contentDigest, digest.algorithm == .sha256,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(digest.hexadecimalValue) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        return .init(byteCount: Int(count), mimeType: "application/octet-stream",
+            path: "draft-staging/\(item.draftID.uuidString.lowercased())/\(item.stageID.uuidString.lowercased()).bin",
+            sha256: digest.hexadecimalValue)
+    }
+
+    static func plannedReceipt(_ transition: DraftPhotoRestoreRawTransitionV1,
+        restoreID: UUID, workspaceID: WorkspaceID, publishedAt: Date) throws
+        -> DraftAttachmentRestorePublicationReceiptV1? {
+        let ids = Set(transition.genericStageIDs)
+        guard !ids.isEmpty else { return nil }
+        let entries = transition.after.entries.filter { ids.contains($0.item.stageID) }
+        guard entries.count == ids.count else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        let manifest = try DraftAttachmentStagingManifestV1(entries: entries)
+        // This is a prebound disposition, not evidence of a public effect.
+        // Only the saved combined inode receipt and kernel decision authorize
+        // publication or cleanup; the generic receipt never authorizes deletion.
+        return try .init(restoreID: restoreID, workspaceID: workspaceID,
+            sourceManifestSHA256: manifest.manifestSHA256,
+            adoptedStageIDs: transition.newStageIDs.filter { ids.contains($0) },
+            reusedStageIDs: transition.reusedStageIDs.filter { ids.contains($0) },
+            publishedAt: publishedAt)
+    }
+}
+
+/// Minted only by the incumbent restore service after canonical validation and
+/// creation of its private staging generation. Media publication keeps this
+/// original root and package binding across the actor hop.
+struct CheckRunnerPhotoRestoreGenerationAuthorityV1: Sendable {
+    let generationID: UUID
+    let rootURL: URL
+    let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    let children: [CheckRunnerPhotoBackupHistoryChildV1]
+    let plan: CheckRunnerPhotoBackupRestorePlanV1
+    let memberSource: CheckRunnerPhotoRestoreMemberSourceV1
+    let membersToMaterialize: [CheckRunnerPhotoBackupRestorePlanV1.GenerationMember]
+
+    fileprivate init(generationID: UUID, rootURL: URL,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        children: [CheckRunnerPhotoBackupHistoryChildV1],
+        plan: CheckRunnerPhotoBackupRestorePlanV1, memberSource: CheckRunnerPhotoRestoreMemberSourceV1,
+        membersToMaterialize: [CheckRunnerPhotoBackupRestorePlanV1.GenerationMember]? = nil) {
+        self.membersToMaterialize = membersToMaterialize ?? plan.generationMembers
+        self.generationID = generationID
+        self.rootURL = rootURL
+        self.rootIdentity = rootIdentity
+        self.children = children
+        self.plan = plan
+        self.memberSource = memberSource
+    }
+}
+
+/// Created only after the incumbent restore owner has saved and reread its
+/// planned photo binding. This value cannot authorize public raw publication;
+/// that needs the separately saved inode-ownership receipt below.
+struct CheckRunnerPhotoRestoreRawAuthorityV1: Sendable {
+    let restoreID: UUID
+    let workspaceID: WorkspaceID
+    let applicationSupportURL: URL
+    let plannedBindingSHA256: String
+    let transition: DraftPhotoRestoreRawTransitionV1
+    let plan: CheckRunnerPhotoBackupRestorePlanV1
+    let memberSource: CheckRunnerPhotoRestoreMemberSourceV1
+    let genericPayloads: [UUID: V4BackupEntryV1]
+
+    fileprivate init(restoreID: UUID, workspaceID: WorkspaceID, applicationSupportURL: URL,
+        plannedBindingSHA256: String, transition: DraftPhotoRestoreRawTransitionV1,
+        plan: CheckRunnerPhotoBackupRestorePlanV1, memberSource: CheckRunnerPhotoRestoreMemberSourceV1,
+        genericPayloads: [UUID: V4BackupEntryV1] = [:]) {
+        self.restoreID = restoreID; self.workspaceID = workspaceID
+        self.genericPayloads = genericPayloads
+        self.applicationSupportURL = applicationSupportURL
+        self.plannedBindingSHA256 = plannedBindingSHA256
+        self.transition = transition; self.plan = plan; self.memberSource = memberSource
+    }
+}
+
+/// The restore service mints this only after the exact ownership receipt is
+/// durably included in its operation binding. Recovery mints it after authenticating
+/// that same binding against the intent, pointer and source/destination records.
+struct CheckRunnerPhotoRestoreRawPublicationPermitV1: Sendable {
+    let restoreID: UUID
+    let plannedBindingSHA256: String
+    let ownershipSHA256: String
+
+    fileprivate init(restoreID: UUID, plannedBindingSHA256: String, ownershipSHA256: String) {
+        self.restoreID = restoreID; self.plannedBindingSHA256 = plannedBindingSHA256
+        self.ownershipSHA256 = ownershipSHA256
+    }
+}
+
+#if DEBUG
+/// Tests of the physical kernel supply already authenticated fixture values.
+/// This hook is absent from production; it never stands in for service binding
+/// or end-to-end restore/recovery tests.
+enum CheckRunnerPhotoRestoreRawKernelTestAccessV1 {
+    static func authority(restoreID: UUID, workspaceID: WorkspaceID, applicationSupportURL: URL,
+        plannedBindingSHA256: String, transition: DraftPhotoRestoreRawTransitionV1,
+        plan: CheckRunnerPhotoBackupRestorePlanV1, members: ValidatedV4BackupMembersV1)
+        -> CheckRunnerPhotoRestoreRawAuthorityV1 {
+        .init(restoreID: restoreID, workspaceID: workspaceID, applicationSupportURL: applicationSupportURL,
+            plannedBindingSHA256: plannedBindingSHA256, transition: transition, plan: plan,
+            memberSource: .package(members))
+    }
+
+    static func permit(_ ownership: DraftPhotoRestoreRawOwnershipV1) throws
+        -> CheckRunnerPhotoRestoreRawPublicationPermitV1 {
+        .init(restoreID: ownership.restoreID, plannedBindingSHA256: ownership.plannedBindingSHA256,
+            ownershipSHA256: try ownership.sha256)
+    }
+}
+#endif
+
+/// The immutable part of the incumbent draft-publication binding. Its digest
+/// can be included in the generation manifest before the mutable raw ownership
+/// layer exists. All selections are re-proved from complete destination records.
+struct CheckRunnerPhotoRestoreBindingCoreV1: Codable, Equatable, Sendable {
+    struct Selection: Codable, Equatable, Sendable {
+        let composition: CheckRunnerPhotoRestoreCompositionBindingV1
+        let members: CheckRunnerPhotoRestoreMemberBindingV1
+        private enum CodingKeys: String, CodingKey { case composition, members }
+
+        fileprivate init(composition: CheckRunnerPhotoRestoreCompositionBindingV1,
+            plan: CheckRunnerPhotoBackupRestorePlanV1) throws {
+            self.composition = composition
+            members = try .init(plan: plan)
+        }
+
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: ["composition", "members"])
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            composition = try c.decode(CheckRunnerPhotoRestoreCompositionBindingV1.self, forKey: .composition)
+            members = try c.decode(CheckRunnerPhotoRestoreMemberBindingV1.self, forKey: .members)
+        }
+
+        func resolve(in records: V4BackupRecordsV1) throws -> CheckRunnerPhotoBackupRestorePlanV1 {
+            try members.resolve(sourceSelection: composition.selectSource(in: records))
+        }
+    }
+
+    let schemaVersion: Int
+    let restoreID: UUID
+    let oldGenerationID: UUID
+    let newGenerationID: UUID
+    let workspaceID: WorkspaceID
+    let sourceManifestSHA256: String
+    let currentRecordsSHA256: String
+    let destinationRecordsSHA256: String
+    let selections: [Selection]
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, restoreID, oldGenerationID, newGenerationID, workspaceID
+        case sourceManifestSHA256, currentRecordsSHA256, destinationRecordsSHA256, selections
+    }
+
+    fileprivate init(restoreID: UUID, oldGenerationID: UUID, newGenerationID: UUID,
+        workspaceID: WorkspaceID, sourceManifestSHA256: String,
+        currentRecordsSHA256: String, destinationRecordsSHA256: String,
+        composition: CheckRunnerPhotoRestoreCompositionPlanV1) throws {
+        schemaVersion = 1; self.restoreID = restoreID
+        self.oldGenerationID = oldGenerationID; self.newGenerationID = newGenerationID
+        self.workspaceID = workspaceID; self.sourceManifestSHA256 = sourceManifestSHA256
+        self.currentRecordsSHA256 = currentRecordsSHA256
+        self.destinationRecordsSHA256 = destinationRecordsSHA256
+        guard let first = composition.photoRestorePlans.first else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        var values = [try Selection(composition: composition.sourceBinding, plan: first)]
+        if let retained = composition.retainedCurrentBinding {
+            guard composition.photoRestorePlans.count == 2 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            values.append(try Selection(composition: retained, plan: composition.photoRestorePlans[1]))
+        } else if composition.photoRestorePlans.count != 1 {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        selections = values
+        try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        restoreID = try c.decode(UUID.self, forKey: .restoreID)
+        oldGenerationID = try c.decode(UUID.self, forKey: .oldGenerationID)
+        newGenerationID = try c.decode(UUID.self, forKey: .newGenerationID)
+        workspaceID = try c.decode(WorkspaceID.self, forKey: .workspaceID)
+        sourceManifestSHA256 = try c.decode(String.self, forKey: .sourceManifestSHA256)
+        currentRecordsSHA256 = try c.decode(String.self, forKey: .currentRecordsSHA256)
+        destinationRecordsSHA256 = try c.decode(String.self, forKey: .destinationRecordsSHA256)
+        selections = try c.decode([Selection].self, forKey: .selections)
+        try validate()
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        guard Set([restoreID, oldGenerationID, newGenerationID]).count == 3,
+              ![restoreID, oldGenerationID, newGenerationID, workspaceID.rawValue].contains(zero),
+              schemaVersion == 1, (1...2).contains(selections.count),
+              [sourceManifestSHA256, currentRecordsSHA256, destinationRecordsSHA256]
+                .allSatisfy(StoreMigrationCanonicalJSONV1.isLowercaseSHA256),
+              selections.allSatisfy({
+                  $0.composition.source.workspaceID == workspaceID.rawValue
+                    && $0.members.source == $0.composition.source
+                    && $0.members.childDraftIDs == $0.composition.childDraftIDs
+              }) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        let ids = selections.flatMap { $0.composition.childDraftIDs }
+        guard !ids.isEmpty, Set(ids).count == ids.count else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        guard selections.dropFirst().allSatisfy({ !$0.composition.childDraftIDs.isEmpty }) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if let first = selections.first, first.composition.childDraftIDs.isEmpty {
+            guard selections.count == 2, first.members.entries.isEmpty, first.members.metadata.isEmpty else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+    }
+
+    func canonicalSHA256() throws -> String {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.digest(self)
+    }
+
+    func resolve(in records: V4BackupRecordsV1) throws -> [CheckRunnerPhotoBackupRestorePlanV1] {
+        try validate()
+        return try selections.map { try $0.resolve(in: records) }
+    }
+
+    func manifestProof(plans: [CheckRunnerPhotoBackupRestorePlanV1]) throws
+        -> StoreRestoreGenerationManifestProofV1 {
+        guard plans.count == selections.count,
+              try zip(plans, selections).allSatisfy({ plan, selection in
+                  try CheckRunnerPhotoRestoreMemberBindingV1(plan: plan) == selection.members
+              }) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        return try .init(restoreID: restoreID, predecessorGenerationID: oldGenerationID,
+            generationID: newGenerationID, incumbentPublicationBindingSHA256: canonicalSHA256(), plans: plans)
+    }
+}
+
+/// Schema two shares the existing operation-owned draft-publication path.
+/// Raw publication is authorized only after its complete inode receipt is saved.
+struct CheckRunnerPhotoRestorePublicationBindingV2: Codable, Equatable, Sendable {
+    enum Completion: String, Codable, Sendable { case active, rolledBack, finished }
+    let schemaVersion: Int
+    let core: CheckRunnerPhotoRestoreBindingCoreV1
+    let intent: RestoreIntentV1
+    let genericReceipt: DraftAttachmentRestorePublicationReceiptV1?
+    let rawTransition: DraftPhotoRestoreRawTransitionV1?
+    let rawOwnership: DraftPhotoRestoreRawOwnershipV1?
+    let completion: Completion
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, core, intent, genericReceipt, rawTransition, rawOwnership, completion
+    }
+
+    fileprivate init(core: CheckRunnerPhotoRestoreBindingCoreV1, intent: RestoreIntentV1,
+        genericReceipt: DraftAttachmentRestorePublicationReceiptV1? = nil,
+        rawTransition: DraftPhotoRestoreRawTransitionV1? = nil,
+        rawOwnership: DraftPhotoRestoreRawOwnershipV1? = nil,
+        completion: Completion = .active) throws {
+        schemaVersion = 2; self.core = core; self.intent = intent
+        self.genericReceipt = genericReceipt; self.rawTransition = rawTransition
+        self.rawOwnership = rawOwnership; self.completion = completion
+        try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        core = try c.decode(CheckRunnerPhotoRestoreBindingCoreV1.self, forKey: .core)
+        intent = try RestoreIntentCodecV1.decode(c.decode(Data.self, forKey: .intent))
+        genericReceipt = try c.decodeIfPresent(DraftAttachmentRestorePublicationReceiptV1.self, forKey: .genericReceipt)
+        rawTransition = try c.decodeIfPresent(DraftPhotoRestoreRawTransitionV1.self, forKey: .rawTransition)
+        rawOwnership = try c.decodeIfPresent(DraftPhotoRestoreRawOwnershipV1.self, forKey: .rawOwnership)
+        completion = try c.decode(Completion.self, forKey: .completion)
+        try validate()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
+        try c.encode(core, forKey: .core)
+        try c.encode(RestoreIntentCodecV1.encode(intent), forKey: .intent)
+        try c.encodeIfPresent(genericReceipt, forKey: .genericReceipt)
+        try c.encodeIfPresent(rawTransition, forKey: .rawTransition)
+        try c.encodeIfPresent(rawOwnership, forKey: .rawOwnership)
+        try c.encode(completion, forKey: .completion)
+    }
+
+    func validate() throws {
+        try core.validate()
+        guard schemaVersion == 2, RestoreIntentCodecV1.valid(intent), intent.phase == .prepared,
+              intent.restoreID == core.restoreID, intent.oldGenerationID == core.oldGenerationID,
+              intent.newGenerationID == core.newGenerationID,
+              intent.identity?.targetPointer.workspaceID == core.workspaceID.rawValue else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if let genericReceipt {
+            try genericReceipt.validate()
+            guard genericReceipt.restoreID == core.restoreID,
+                  genericReceipt.workspaceID == core.workspaceID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        try rawTransition?.validate()
+        if let rawOwnership {
+            try rawOwnership.validate()
+            guard rawOwnership.restoreID == core.restoreID,
+                  rawOwnership.transition == rawTransition,
+                  try rawOwnership.plannedBindingSHA256 == plannedSHA256() else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        if completion == .finished, rawOwnership == nil {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    private struct Planned: Encodable {
+        let core: CheckRunnerPhotoRestoreBindingCoreV1
+        let intent: Data
+        let genericReceipt: DraftAttachmentRestorePublicationReceiptV1?
+        let rawTransition: DraftPhotoRestoreRawTransitionV1
+    }
+
+    func plannedSHA256() throws -> String {
+        guard let rawTransition else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        return try StoreMigrationCanonicalJSONV1.digest(Planned(core: core, intent: RestoreIntentCodecV1.encode(intent),
+            genericReceipt: genericReceipt, rawTransition: rawTransition))
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    func requireIntent(_ current: RestoreIntentV1) throws {
+        guard current == intent.advancing(to: current.phase) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func isImmediateSuccessor(of previous: Self) -> Bool {
+        guard core == previous.core, intent == previous.intent,
+              previous.completion == .active else { return false }
+        if completion == .rolledBack {
+            return genericReceipt == previous.genericReceipt && rawTransition == previous.rawTransition
+                && rawOwnership == previous.rawOwnership
+        }
+        if completion == .finished {
+            return previous.rawOwnership != nil && genericReceipt == previous.genericReceipt
+                && rawTransition == previous.rawTransition && rawOwnership == previous.rawOwnership
+        }
+        if previous.rawTransition == nil {
+            return previous.genericReceipt == nil && previous.rawOwnership == nil
+                && rawTransition != nil && rawOwnership == nil
+        }
+        return previous.rawOwnership == nil && rawOwnership != nil
+            && rawTransition == previous.rawTransition && genericReceipt == previous.genericReceipt
+    }
+
+    fileprivate func publicationPermit() throws -> CheckRunnerPhotoRestoreRawPublicationPermitV1 {
+        try validate()
+        guard let rawOwnership else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        return try .init(restoreID: core.restoreID, plannedBindingSHA256: plannedSHA256(),
+            ownershipSHA256: rawOwnership.sha256)
+    }
+}
+
 @MainActor
 final class BackupRestoreService {
     private struct RestoreAccessValidationFailure: Error {
@@ -857,21 +1345,29 @@ final class BackupRestoreService {
         case .clone, .fork:
             frozenCurrentRecords = try records(in: currentModelContext)
         }
+        let packageValidator = BackupPackageValidatorV1(route: packageValidationRoute())
+        let packageURL = validatedPackage.stagedPackageURL
         do {
-            _ = try BackupPackageValidatorV1(
-                route: packageValidationRoute()
-            ).validate(
-                stagedPackageURL: validatedPackage.stagedPackageURL
-            )
+            _ = try await BackupOffMainWorkV1.run {
+                try packageValidator.validate(stagedPackageURL: packageURL)
+            }
         } catch {
             throw BackupRestoreServiceError.invalidPackage
         }
-        guard try BackupPackageValidatorV1(
-            route: packageValidationRoute()
-        ).validate(
-            stagedPackageURL: validatedPackage.stagedPackageURL
-        ) == validatedPackage else {
+        try await validateRestoreAccess(validateAccess)
+        let revalidatedPackage = try await BackupOffMainWorkV1.run {
+            try packageValidator.validate(stagedPackageURL: packageURL)
+        }
+        try await validateRestoreAccess(validateAccess)
+        guard revalidatedPackage == validatedPackage else {
             throw BackupRestoreServiceError.invalidPackage
+        }
+        guard !currentModelContext.hasChanges,
+              try records(in: currentModelContext) == frozenCurrentRecords,
+              try generationFactory.currentGenerationID(authority: generationAuthority) == currentGenerationID,
+              try generationFactory.currentWorkspaceIdentity(expectedGenerationID: currentGenerationID,
+                authority: generationAuthority) == frozenCurrentIdentity else {
+            throw BackupRestoreServiceError.contextHasChanges
         }
         try C31LightingBackupRestorePolicyV1.validate(
             validatedPackage.records,
@@ -1033,6 +1529,21 @@ final class BackupRestoreService {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
 
+        func validatePhotoCurrentLocked() throws {
+            guard !currentModelContext.hasChanges,
+                  try generationFactory.currentGenerationID(authority: generationAuthority) == currentGenerationID,
+                  try generationFactory.currentWorkspaceIdentity(expectedGenerationID: currentGenerationID,
+                    authority: generationAuthority) == frozenCurrentIdentity,
+                  try records(in: currentModelContext) == frozenCurrentRecords else {
+                throw BackupRestoreServiceError.contextHasChanges
+            }
+        }
+        func validatePhotoCurrent() async throws {
+            try await validateRestoreAccess(validateAccess)
+            try Task.checkCancellation()
+            try validatePhotoCurrentLocked()
+        }
+
         do {
             try Task.checkCancellation()
             let preliminaryIdentityDecision = try makeIdentityDecision(
@@ -1117,6 +1628,15 @@ final class BackupRestoreService {
             guard uniqueModelIDs(in: expectedRecords) else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
+            let photo = try await preparePhotoRestore(package: validatedPackage,
+                currentRecords: frozenCurrentRecords, replacementRecords: expectedRecords,
+                currentIdentity: frozenCurrentIdentity, sourceIdentity: incomingIdentity,
+                currentGenerationID: currentGenerationID, currentRoot: currentGenerationRootURL,
+                newGenerationID: newGenerationID, restoreID: restoreID, mode: mode,
+                validateCurrent: validatePhotoCurrent)
+            if let photo { expectedRecords = photo.records }
+            let photoPlans = photo?.plans ?? []
+            let photoProof = try photo?.proof
             try materialize(
                 validatedPackage,
                 records: expectedRecords,
@@ -1124,21 +1644,31 @@ final class BackupRestoreService {
                 identityDecision: preliminaryIdentityDecision,
                 legacyDestinationIdentity: frozenCurrentIdentity,
                 partsStockOperationID: restoreID,
-                partsStockCompletedAt: replacementAt
+                partsStockCompletedAt: replacementAt,
+                photoPlans: photoPlans
             )
+            if let photo { try await materializePhotoMembers(photo, validateCurrent: validatePhotoCurrent) }
             try Task.checkCancellation()
             try validateStagingGeneration(
                 id: newGenerationID,
                 expected: expectedRecords,
                 identity: try preliminaryIdentityDecision.map {
                     try workspaceIdentity($0)
-                } ?? frozenCurrentIdentity
+                } ?? frozenCurrentIdentity,
+                photoPlans: photoPlans
             )
             try Task.checkCancellation()
+            let stagingPhotoFiles: StoreRestoreGenerationFileSnapshotV1?
+            if let photo {
+                stagingPhotoFiles = try await preparePhotoFileSnapshot(core: photo.core, plans: photoPlans, staging: true)
+                try await validatePhotoCurrent()
+            } else { stagingPhotoFiles = nil }
             let targetManifestDigest = try generationFactory
                 .prepareRestoreStagingGenerationManifest(
                     expectedOldID: currentGenerationID,
                     newID: newGenerationID,
+                    restoreProof: photoProof,
+                    restoreFileSnapshot: stagingPhotoFiles,
                     authority: generationAuthority
                 )
             guard try generationFactory.currentWorkspaceIdentity(
@@ -1175,13 +1705,13 @@ final class BackupRestoreService {
             default:
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
-            try validateStagingGeneration(
-                id: newGenerationID,
-                expected: expectedRecords,
-                identity: try identityDecision.map {
-                    try workspaceIdentity($0)
-                } ?? frozenCurrentIdentity
-            )
+            if photo == nil {
+                try validateStagingGeneration(id: newGenerationID, expected: expectedRecords,
+                    identity: try identityDecision.map { try workspaceIdentity($0) } ?? frozenCurrentIdentity)
+            } else {
+                try validatePhotoCurrentLocked()
+                try photo?.composition.requireDestination(expectedRecords)
+            }
             try PortableExchangeProtectedFilePolicyV2.validate()
             let targetPortableExchangeWorkspaceID =
                 identityDecision?.targetPointer.workspaceID
@@ -1218,6 +1748,12 @@ final class BackupRestoreService {
             guard RestoreIntentCodecV1.valid(intent) else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
+            let initialPhotoBinding: CheckRunnerPhotoRestorePublicationBindingV2?
+            if let photo {
+                let initial = try CheckRunnerPhotoRestorePublicationBindingV2(core: photo.core, intent: intent)
+                try persistPhotoPublicationBinding(initial, replacing: nil)
+                initialPhotoBinding = initial
+            } else { initialPhotoBinding = nil }
             try inject(.beforePreparedWrite)
             try Task.checkCancellation()
             try intentStore.create(intent)
@@ -1239,14 +1775,17 @@ final class BackupRestoreService {
             )
             try persistPortableExchangeRestoreSidecar(portableExchangeRestoreSidecar)
             try inject(.afterPreparedWrite)
-            let draftPublicationReceipt = try publishRestoredDraftStaging(
-                package: validatedPackage,
-                records: expectedRecords,
-                identityDecision: identityDecision,
-                restoreID: restoreID
-            )
-            if let draftPublicationReceipt {
-                try persistDraftPublicationBinding(draftPublicationReceipt)
+            let photoPublication: PhotoRawPublication?
+            if let photo, let initialPhotoBinding {
+                photoPublication = try await publishPhotoRaw(photo, package: validatedPackage,
+                    initial: initialPhotoBinding, validateCurrent: validatePhotoCurrent,
+                    validateCurrentLocked: validatePhotoCurrentLocked)
+            } else {
+                photoPublication = nil
+                if let receipt = try publishRestoredDraftStaging(package: validatedPackage,
+                    records: expectedRecords, identityDecision: identityDecision, restoreID: restoreID) {
+                    try persistDraftPublicationBinding(receipt)
+                }
             }
             try validateDraftPublicationBinding(intent: intent, records: expectedRecords)
             try discardImportedPackage(validatedPackage, currentGenerationRootURL)
@@ -1264,15 +1803,12 @@ final class BackupRestoreService {
             try inject(.beforeGenerationInstall)
             try Task.checkCancellation()
             try validateDraftPublicationBinding(intent: intent, records: expectedRecords)
-            try protectGenerationTree(
-                id: newGenerationID,
-                root: generationFactory.restoreStagingGenerationURL(id: newGenerationID),
-                staging: true
-            )
-            try generationFactory.installRestoreStagingGeneration(
-                id: newGenerationID,
-                authority: generationAuthority
-            )
+            if photo == nil {
+                try protectGenerationTree(id: newGenerationID,
+                    root: generationFactory.restoreStagingGenerationURL(id: newGenerationID), staging: true)
+            }
+            try generationFactory.installRestoreStagingGeneration(id: newGenerationID,
+                restoreProof: photoProof, restoreFileSnapshot: stagingPhotoFiles, authority: generationAuthority)
             try protectGenerationTree(
                 id: newGenerationID,
                 root: generationFactory.installedGenerationURL(id: newGenerationID),
@@ -1285,8 +1821,14 @@ final class BackupRestoreService {
                 expected: expectedRecords,
                 identity: try identityDecision.map {
                     try workspaceIdentity($0)
-                } ?? frozenCurrentIdentity
+                } ?? frozenCurrentIdentity,
+                photoPlans: photoPlans
             )
+            let installedPhotoFiles: StoreRestoreGenerationFileSnapshotV1?
+            if let photo {
+                installedPhotoFiles = try await preparePhotoFileSnapshot(core: photo.core, plans: photoPlans, staging: false)
+                try await validatePhotoCurrent()
+            } else { installedPhotoFiles = nil }
             try Task.checkCancellation()
             try inject(.afterGenerationInstall)
 
@@ -1321,7 +1863,19 @@ final class BackupRestoreService {
                     },
                     knownReplicaIDs: knownReplicaIDs(identityDecision),
                     preparedGenerationManifestSHA256: targetManifestDigest,
-                    authority: generationAuthority
+                    restoreProof: photoProof,
+                    restoreFileSnapshot: installedPhotoFiles,
+                    authority: generationAuthority,
+                    publicationValidation: {
+                        guard let photoPublication else { return }
+                        try validatePhotoCurrentLocked()
+                        guard try self.photoPublicationBinding(restoreID: restoreID) == photoPublication.binding else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                        try photoPublication.binding.requireIntent(self.requiredPhotoRestoreIntent())
+                        try self.validatePhotoBindingValues(photoPublication.binding, records: expectedRecords)
+                        try photoPublication.publication.publish(permit: photoPublication.binding.publicationPermit())
+                    }
                 )
             } else {
                 try generationFactory.switchCurrentGeneration(
@@ -1353,10 +1907,19 @@ final class BackupRestoreService {
                     authority: generationAuthority
                 )
             }
-            try validateLiveSession(
-                session,
-                expected: expectedRecords
-            )
+            try validateLiveSession(session, expected: expectedRecords, photoPlans: photoPlans)
+            if let photo {
+                try await validatePhotoMedia(core: photo.core, records: expectedRecords,
+                    root: session.generationRootURL, validate: {
+                        try await self.validateRestoreAccess(validateAccess)
+                        try Task.checkCancellation()
+                        guard !session.modelContext.hasChanges,
+                              try self.generationFactory.currentGenerationID(authority: self.generationAuthority) == newGenerationID,
+                              try self.records(in: session.modelContext) == expectedRecords else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                    })
+            }
             try Task.checkCancellation()
             try applyPortableExchangeRestoreSidecar(
                 matching: switched,
@@ -1384,6 +1947,15 @@ final class BackupRestoreService {
                 session: session
             )
             try await validateRestoreAccess(validateAccess)
+            if let photoPublication {
+                try finishPhotoPublication(photoPublication, intent: validated, records: expectedRecords,
+                    validateDestinationLocked: {
+                        guard !session.modelContext.hasChanges,
+                              try self.records(in: session.modelContext) == expectedRecords else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                    })
+            }
             try intentStore.remove(expected: validated)
             try removeDraftPublicationBinding(validated)
             try cleanupEmptyRestoreDirectories()
@@ -1467,6 +2039,13 @@ final class BackupRestoreService {
         validateAccess: @MainActor () async throws -> Void
     ) async throws -> StoreGenerationSession? {
         try await validateRestoreAccess(validateAccess)
+        if fileManager.fileExists(atPath: applicationSupportURL
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true).path) {
+            try ensureGenerationAuthority()
+            if let binding = try pendingPhotoBindingAtStartup(intent: intentStore.load()) {
+                return try await reconcilePhotoRestoreAtStartup(binding, validateAccess: validateAccess)
+            }
+        }
         guard let session = try reconcileAtStartup() else { return nil }
         guard let intent = try intentStore.load(),
               intent.phase == .newGenerationValidated,
@@ -1495,6 +2074,13 @@ final class BackupRestoreService {
     /// fully validated new current generation; nil means old remains current or
     /// no intent existed.
     func reconcileAtStartup() throws -> StoreGenerationSession? {
+        if fileManager.fileExists(atPath: applicationSupportURL
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true).path) {
+            try ensureGenerationAuthority()
+            guard try pendingPhotoBindingAtStartup(intent: intentStore.load()) == nil else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
         guard let intent = try intentStore.load() else {
             guard !fileManager.fileExists(
                 atPath: portableExchangeRestoreSidecarURL().path
@@ -9253,7 +9839,8 @@ private extension BackupRestoreService {
         identityDecision: RestoreIdentityV1?,
         legacyDestinationIdentity: WorkspaceReplicaIdentityV1,
         partsStockOperationID: UUID,
-        partsStockCompletedAt: Date
+        partsStockCompletedAt: Date,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
     ) throws {
 #if DEBUG
         var restoreStagingPhase = "validate-records"
@@ -9348,7 +9935,8 @@ private extension BackupRestoreService {
                 to: generationFactory.restoreStagingGenerationURL(
                     id: generationID
                 ),
-                generationID: generationID
+                generationID: generationID,
+                photoPlans: photoPlans
             )
 #if DEBUG
             beginRestoreStagingPhase("protect-tree")
@@ -9395,11 +9983,893 @@ private extension BackupRestoreService {
         }
     }
 
+    private func photoGenerationMembers(_ plans: [CheckRunnerPhotoBackupRestorePlanV1]) throws
+        -> [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] {
+        var result: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:]
+        for plan in plans {
+            for member in plan.generationMembers {
+                if let previous = result[member.relativePath], previous != member {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                result[member.relativePath] = member
+            }
+        }
+        return result
+    }
+
+    private func photoOwnsEvidence(_ evidence: V4BackupEvidenceFileDTO,
+        members: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember]) throws -> Bool {
+        let original = members[evidence.relativePath]
+        let thumbnail = members[evidence.thumbnailRelativePath]
+        guard original != nil || thumbnail != nil else { return false }
+        guard let original, let thumbnail,
+              original.kind == .original, thumbnail.kind == .thumbnail,
+              original.entry.byteCount == evidence.byteCount, original.entry.sha256 == evidence.sha256,
+              thumbnail.entry.byteCount == evidence.thumbnailByteCount,
+              thumbnail.entry.sha256 == evidence.thumbnailSHA256 else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        return true
+    }
+
+    private struct PhotoRestorePreparation {
+        let composition: CheckRunnerPhotoRestoreCompositionPlanV1
+        let records: V4BackupRecordsV1
+        let core: CheckRunnerPhotoRestoreBindingCoreV1
+        let sources: [CheckRunnerPhotoRestoreMemberSourceV1]
+        let currentRecords: V4BackupRecordsV1
+
+        var plans: [CheckRunnerPhotoBackupRestorePlanV1] { composition.photoRestorePlans }
+        var childStageIDs: Set<UUID> { Set(plans.flatMap { $0.children.map(\.stageID) }) }
+        var proof: StoreRestoreGenerationManifestProofV1 { get throws { try core.manifestProof(plans: plans) } }
+    }
+
+    private func hasPhotoCheckpoints(_ records: V4BackupRecordsV1) throws -> Bool {
+        let release = try CheckRunnerPhotoDraftCodecV1.release()
+        for row in records.fieldDrafts where row.kind == .checkpoint {
+            let checkpoint = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: row.canonicalData)
+            if checkpoint.codec == release { return true }
+        }
+        return false
+    }
+
+    private func replacingPhotoRestoreHistory(in records: V4BackupRecordsV1,
+        with history: MutationHistorySnapshotV1) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            guidedSurveys: records.guidedSurveys,
+            assetLocators: records.assetLocators,
+            schedules: records.schedules,
+            plans: records.plans,
+            placementPoses: records.placementPoses,
+            accessibleDocumentAssessments: records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
+            fieldReferences: records.fieldReferences,
+            recoverabilityReceipts: records.recoverabilityReceipts,
+            clientCapabilities: records.clientCapabilities,
+            privacyTransforms: records.privacyTransforms,
+            measurementIntegrity: records.measurementIntegrity,
+            packageEvolution: records.packageEvolution,
+            fieldDrafts: records.fieldDrafts,
+            workPackets: records.workPackets,
+            inspectionReview: records.inspectionReview,
+            evidenceAssurance: records.evidenceAssurance,
+            functionalRelationships: records.functionalRelationships,
+            authorityCriterion: records.authorityCriterion,
+            assetSemantics: records.assetSemantics,
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
+            assets: records.assets,
+            deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
+            mutationHistory: history,
+            packets: records.packets,
+            partyAccountability: records.partyAccountability,
+            recordsSchemaVersion: records.recordsSchemaVersion,
+            reports: records.reports,
+            requirementAssurance: records.requirementAssurance,
+            savedSmartViews: records.savedSmartViews,
+            sites: records.sites,
+            workflowRecords: records.workflowRecords,
+            evidenceContexts: records.evidenceContexts,
+            pairedObservationLinks: records.pairedObservationLinks,
+            lighting: records.lighting,
+            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: records.lightingNightWorkflows,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence,
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+            operationalContacts: records.operationalContacts,
+            activityContracts: records.activityContracts,
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts,
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences,
+            evidenceAssociationEvents: records.evidenceAssociationEvents,
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions,
+            shopReportProfiles: records.shopReportProfiles,
+            roundSessions: records.roundSessions,
+            importMappingProfiles: records.importMappingProfiles,
+            bulkSessions: records.bulkSessions,
+            bulkCommitReceipts: records.bulkCommitReceipts,
+            evidenceQuality: records.evidenceQuality,
+            fastSurveyInbox: records.fastSurveyInbox,
+            reinspectionExceptionQueue: records.reinspectionExceptionQueue,
+            entityIdentityResolution: records.entityIdentityResolution,
+            practiceWorkspaceProvenance: records.practiceWorkspaceProvenance)
+    }
+
+    private func canonicalStageItems(_ records: V4BackupRecordsV1) throws -> [AttachmentStagingItemV1] {
+        try records.fieldDrafts.compactMap { row in
+            guard row.kind == .stagingItem else { return nil }
+            return try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self, from: row.canonicalData)
+        }
+    }
+
+    /// Read-only source preparation; every actor return is followed by the
+    /// original live context/pointer/access validation supplied by restore.
+    private func preparePhotoRestore(package: ValidatedV4BackupPackageV1,
+        currentRecords: V4BackupRecordsV1, replacementRecords: V4BackupRecordsV1,
+        currentIdentity: WorkspaceReplicaIdentityV1, sourceIdentity: WorkspaceReplicaIdentityV1?,
+        currentGenerationID: UUID, currentRoot: URL, newGenerationID: UUID, restoreID: UUID,
+        mode: BackupRestoreMode, validateCurrent: @MainActor () async throws -> Void) async throws
+        -> PhotoRestorePreparation? {
+        let sourceHasPhotos = try hasPhotoCheckpoints(package.records)
+        let currentHasPhotos = try hasPhotoCheckpoints(currentRecords)
+        guard sourceHasPhotos || currentHasPhotos else { return nil }
+        let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: package.manifest.source, records: package.records)
+        guard (mode == .emptyInstall || mode == .replaceExisting), let sourceIdentity,
+              sourceIdentity.workspaceID == currentIdentity.workspaceID else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let currentSource = V4BackupSourceV1(appBuild: package.manifest.source.appBuild,
+            appVersion: package.manifest.source.appVersion,
+            persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
+            replicaID: currentIdentity.replicaID.rawValue, recordsSchemaVersion: currentRecords.recordsSchemaVersion,
+            sourceGenerationID: currentGenerationID, workspaceID: currentIdentity.workspaceID.rawValue)
+        let currentHistory = try CheckRunnerPhotoBackupHistoryV1.project(source: currentSource, records: currentRecords)
+        let sourcePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(history: sourceHistory,
+            entries: package.manifest.entries) { path in
+                guard let bytes = package.members[path] else { throw BackupRestoreServiceError.invalidPackage }
+                return bytes
+            }
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: currentRoot)
+        let observation = try DraftAttachmentStagingAdapterV1.observePhotoBackupRoot(
+            applicationSupportURL: applicationSupportURL, workspaceID: currentIdentity.workspaceID)
+        let currentStages = try canonicalStageItems(currentRecords)
+        let childStages = Dictionary(uniqueKeysWithValues: currentHistory.children.map {
+            ($0.payload.childDraftID, $0.payload.phase.intent.stageID)
+        })
+        var raw: [DraftPhotoRawBackupSnapshotV1] = []
+        switch observation {
+        case .existing(let owner):
+            for child in currentHistory.children {
+                guard let value = child.raw else { continue }
+                raw.append(try await owner.readPhotoBackupSnapshot(raw: value,
+                    committingCheckpoint: child.committingCheckpoint))
+                try await validateCurrent()
+            }
+            let committing = Dictionary(uniqueKeysWithValues: currentHistory.children.compactMap { child in
+                child.committingCheckpoint.map { (child.payload.childDraftID, $0) }
+            })
+            let verification = try await owner.preparePhotoBackupVerification(raw,
+                committingCheckpoints: committing, canonicalStages: currentStages, childStageIDs: childStages)
+            try await validateCurrent()
+            try verification.withVerificationLock {}
+        case .absent(let absent):
+            guard raw.isEmpty, currentHistory.children.allSatisfy({ $0.raw == nil }) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let verification = try absent.preparePhotoBackupVerification(
+                canonicalStages: currentStages, childStageIDs: childStages)
+            try verification.withVerificationLock {}
+        }
+        let mediaOwner = EvidenceBundleStore(generationRootURL: currentRoot,
+            expectedGenerationRootIdentity: rootIdentity)
+        let media = try await mediaOwner.prepareCheckRunnerPhotoBackupMedia(
+            children: currentHistory.children, expectedGenerationRootIdentity: rootIdentity)
+        try await validateCurrent()
+        let currentPlan = try CheckRunnerPhotoBackupRestorePlanV1.observed(
+            history: currentHistory, raw: raw, media: media.snapshots)
+        guard let sourceSnapshot = package.records.mutationHistory,
+              let currentSnapshot = currentRecords.mutationHistory else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let union = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(source: sourceSnapshot,
+            current: currentSnapshot, sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
+        let replacement = replacingPhotoRestoreHistory(in: replacementRecords, with: union.merged)
+        let composition = try CheckRunnerPhotoRestoreCompositionV1.compose(source: package.manifest.source,
+            sourceRecords: package.records, sourcePlan: sourcePlan, currentSource: currentSource,
+            currentRecords: currentRecords, currentPlan: currentPlan, replacementRecords: replacement,
+            sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
+        let target = try composition.applying(to: replacement)
+        var sources: [CheckRunnerPhotoRestoreMemberSourceV1] = [.package(package.members)]
+        if composition.photoRestorePlans.count == 2 {
+            let retainedPlan = composition.photoRestorePlans[1]
+            let wanted = Set(retainedPlan.children.map(\.childDraftID))
+            let retained = try CheckRunnerPhotoRestoreRetainedMembersV1(rootURL: currentRoot,
+                rootIdentity: .init(device: UInt64(rootIdentity.device), inode: UInt64(rootIdentity.inode)),
+                snapshots: media.snapshots.filter { wanted.contains($0.childDraftID) }, plan: retainedPlan)
+            sources.append(.retained(retained))
+        }
+        try media.withVerificationLock {}
+        let encoder = BackupCanonicalEncoderV1()
+        let oldDigest = try await encoder.encodeRecordsOffMain(currentRecords).sha256
+        try await validateCurrent()
+        let targetDigest = try await encoder.encodeRecordsOffMain(target).sha256
+        try await validateCurrent()
+        let manifestDigest = try await encoder.encodeManifestOffMain(package.manifest).sha256
+        try await validateCurrent()
+        let core = try CheckRunnerPhotoRestoreBindingCoreV1(restoreID: restoreID,
+            oldGenerationID: currentGenerationID, newGenerationID: newGenerationID,
+            workspaceID: currentIdentity.workspaceID, sourceManifestSHA256: manifestDigest,
+            currentRecordsSHA256: oldDigest, destinationRecordsSHA256: targetDigest, composition: composition)
+        return .init(composition: composition, records: target, core: core, sources: sources,
+            currentRecords: currentRecords)
+    }
+
+    private func materializePhotoMembers(_ photo: PhotoRestorePreparation,
+        validateCurrent: @MainActor () async throws -> Void) async throws {
+        let root = generationFactory.restoreStagingGenerationURL(id: photo.core.newGenerationID)
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        var written: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:]
+        guard photo.sources.count == photo.plans.count else { throw BackupRestoreServiceError.invalidPackage }
+        for (index, plan) in photo.plans.enumerated() {
+            let members = try plan.generationMembers.filter { member in
+                if let existing = written[member.relativePath] {
+                    guard existing == member else { throw BackupRestoreServiceError.invalidPackage }
+                    return false
+                }
+                written[member.relativePath] = member
+                return true
+            }
+            let selected = try photo.core.selections[index].composition.selectSource(in: photo.records)
+            let authority = CheckRunnerPhotoRestoreGenerationAuthorityV1(generationID: photo.core.newGenerationID,
+                rootURL: root, rootIdentity: rootIdentity, children: selected.children, plan: plan,
+                memberSource: photo.sources[index], membersToMaterialize: members)
+            let owner = EvidenceBundleStore(photoRestoreGeneration: authority)
+            let verification = try await owner.restoreCheckRunnerPhotoGeneration()
+            try await validateCurrent()
+            try verification.withVerificationLock {}
+        }
+        guard try written == photoGenerationMembers(photo.plans) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+    }
+
+    private struct PhotoRawPublication {
+        let binding: CheckRunnerPhotoRestorePublicationBindingV2
+        let publication: DraftPhotoRestorePreparedPublicationV1
+    }
+
+    private func publishPhotoRaw(_ photo: PhotoRestorePreparation,
+        package: ValidatedV4BackupPackageV1,
+        initial: CheckRunnerPhotoRestorePublicationBindingV2,
+        validateCurrent: @MainActor () async throws -> Void,
+        validateCurrentLocked: () throws -> Void) async throws -> PhotoRawPublication {
+        guard initial.core == photo.core, initial.rawTransition == nil,
+              try photoPublicationBinding(restoreID: photo.core.restoreID) == initial,
+              let sourcePlan = photo.plans.first else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: photo.core.restoreID)
+        let owner = try registry.withNoMigrationReservation {
+            try validateCurrentLocked()
+            try initial.requireIntent(requiredPhotoRestoreIntent())
+            return try DraftAttachmentStagingAdapterV1(applicationSupportURL: applicationSupportURL,
+                workspaceID: photo.core.workspaceID)
+        }
+        let history = photo.composition.currentPhotoHistory
+        var current: [DraftPhotoRawBackupSnapshotV1] = []
+        for child in history.children {
+            guard let raw = child.raw else { continue }
+            current.append(try await owner.readPhotoBackupSnapshot(raw: raw,
+                committingCheckpoint: child.committingCheckpoint))
+            try await validateCurrent()
+        }
+        let canonicalStages = try canonicalStageItems(photo.currentRecords)
+        let stages = Dictionary(uniqueKeysWithValues: canonicalStages.map { ($0.stageID, $0) })
+        let sourceStages = Dictionary(uniqueKeysWithValues: try canonicalStageItems(package.records).map { ($0.stageID, $0) })
+        guard let publishedAt = initial.intent.replacementAt else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let genericItems = try canonicalStageItems(photo.records).filter {
+            !photo.childStageIDs.contains($0.stageID) && ($0.state == .readyLocal || $0.state == .committed)
+        }
+        let genericEntries = try genericItems.map { item -> DraftAttachmentStagingEntryV1 in
+            let payload = try CheckRunnerPhotoRestoreGenericStageV1.payloadEntry(item)
+            if let old = stages[item.stageID] {
+                guard old == item else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            } else {
+                guard sourceStages[item.stageID] == item, package.manifest.entries.contains(payload) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            }
+            return try .init(item: item, relativeDataPath: DraftAttachmentStagingAdapterV1.relativeDataPath(
+                draftID: item.draftID, stageID: item.stageID),
+                mediaType: draftAttachmentMediaType(item.attachmentKind), updatedAt: publishedAt)
+        }
+        let childStages = Dictionary(uniqueKeysWithValues: history.children.map {
+            ($0.payload.childDraftID, $0.payload.phase.intent.stageID)
+        })
+        let committing = Dictionary(uniqueKeysWithValues: history.children.compactMap { child in
+            child.committingCheckpoint.map { (child.payload.childDraftID, $0) }
+        })
+        let sourceIDs = Set(sourcePlan.rawPublications.map { $0.physicalEntry.entry.item.stageID })
+        let transition = try await owner.preparePhotoRestoreRawTransition(sourcePlan: sourcePlan,
+            sourceHistory: photo.composition.sourcePhotoHistory, currentSnapshots: current,
+            currentCommittingCheckpoints: committing, currentCanonicalStages: canonicalStages,
+            currentChildStageIDs: childStages, retainedCurrentStageIDs: Set(stages.keys).subtracting(sourceIDs),
+            genericEntries: genericEntries)
+        try await validateCurrent()
+        let genericReceipt = try CheckRunnerPhotoRestoreGenericStageV1.plannedReceipt(transition,
+            restoreID: photo.core.restoreID, workspaceID: photo.core.workspaceID, publishedAt: publishedAt)
+        let planned = try CheckRunnerPhotoRestorePublicationBindingV2(core: photo.core, intent: initial.intent,
+            genericReceipt: genericReceipt, rawTransition: transition)
+        try validatePhotoBindingValues(planned, records: photo.records, requireOwnership: false)
+        try validatePhotoRawBeforeImage(planned, oldRecords: photo.currentRecords)
+        let genericAdded = Set(transition.genericStageIDs).intersection(transition.newStageIDs)
+        var genericPayloads: [UUID: V4BackupEntryV1] = [:]
+        for entry in transition.after.entries where genericAdded.contains(entry.item.stageID) {
+            let payload = try CheckRunnerPhotoRestoreGenericStageV1.payloadEntry(entry.item)
+            guard package.manifest.entries.contains(payload) else { throw BackupRestoreServiceError.invalidPackage }
+            genericPayloads[entry.item.stageID] = payload
+        }
+        try persistPhotoPublicationBinding(planned, replacing: initial)
+        let verification = try await owner.preparePhotoBackupVerification(current,
+            committingCheckpoints: committing, canonicalStages: canonicalStages, childStageIDs: childStages)
+        try await validateCurrent()
+        let authority = try CheckRunnerPhotoRestoreRawAuthorityV1(restoreID: photo.core.restoreID,
+            workspaceID: photo.core.workspaceID, applicationSupportURL: applicationSupportURL,
+            plannedBindingSHA256: planned.plannedSHA256(), transition: transition,
+            plan: sourcePlan, memberSource: photo.sources[0], genericPayloads: genericPayloads)
+        let prepared = try await owner.preparePhotoRestoreRawPublication(authority: authority,
+            currentVerification: verification)
+        try await validateCurrent()
+        let owned = try CheckRunnerPhotoRestorePublicationBindingV2(core: photo.core, intent: initial.intent,
+            genericReceipt: genericReceipt, rawTransition: transition, rawOwnership: prepared.ownership)
+        try validatePhotoBindingValues(owned, records: photo.records)
+        try persistPhotoPublicationBinding(owned, replacing: planned)
+        let permit = try owned.publicationPermit()
+        try registry.withNoMigrationReservation {
+            try validateCurrentLocked()
+            guard try photoPublicationBinding(restoreID: photo.core.restoreID) == owned else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try owned.requireIntent(requiredPhotoRestoreIntent())
+            try prepared.publish(permit: permit)
+        }
+        return .init(binding: owned, publication: prepared)
+    }
+
+    private func validatePhotoBindingValues(_ binding: CheckRunnerPhotoRestorePublicationBindingV2,
+        records: V4BackupRecordsV1, requireOwnership: Bool = true) throws {
+        try binding.validate()
+        let plans = try binding.core.resolve(in: records)
+        guard let source = plans.first else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        _ = try binding.core.manifestProof(plans: plans)
+        let canonical = try canonicalStageItems(records)
+        let rawEntries = plans.flatMap(\.rawPublications).map { $0.physicalEntry.entry }
+        let rawIDs = Set(rawEntries.map { $0.item.stageID })
+        guard Set(rawEntries.map { $0.item.stageID }).count == rawEntries.count else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let generic = try expectedDraftPublicationStageIDs(in: records).subtracting(rawIDs)
+        let receiptIDs = binding.genericReceipt.map { $0.adoptedStageIDs + $0.reusedStageIDs } ?? []
+        guard Set(receiptIDs).count == receiptIDs.count, Set(receiptIDs) == generic else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        guard let transition = binding.rawTransition, let publishedAt = binding.intent.replacementAt else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let genericIDs = Set(transition.genericStageIDs)
+        guard genericIDs == generic,
+              try binding.genericReceipt == CheckRunnerPhotoRestoreGenericStageV1.plannedReceipt(transition,
+                restoreID: binding.core.restoreID, workspaceID: binding.core.workspaceID, publishedAt: publishedAt) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let sourceIDs = Set(source.rawPublications.map { $0.physicalEntry.entry.item.stageID })
+        let after = Dictionary(uniqueKeysWithValues: transition.after.entries.map { ($0.item.stageID, $0) })
+        guard sourceIDs.union(genericIDs) == Set(transition.newStageIDs + transition.reusedStageIDs),
+              Set(after.keys) == Set(canonical.map(\.stageID)),
+              rawEntries.allSatisfy({ after[$0.item.stageID] == $0 }),
+              canonical.allSatisfy({ rawIDs.contains($0.stageID) || after[$0.stageID]?.item == $0 }) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let created = Set(transition.newStageIDs)
+        for item in canonical where genericIDs.contains(item.stageID) {
+            let payload = try CheckRunnerPhotoRestoreGenericStageV1.payloadEntry(item)
+            guard let entry = after[item.stageID], entry.item == item else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            if created.contains(item.stageID) {
+                guard entry.updatedAt == publishedAt,
+                      entry.mediaType == draftAttachmentMediaType(item.attachmentKind),
+                      entry.item.actualByteCount == Int64(payload.byteCount) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            }
+        }
+        guard let ownership = binding.rawOwnership else {
+            guard !requireOwnership else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            return
+        }
+        var expectedFiles: [String: String] = [:]
+        for item in canonical where genericIDs.contains(item.stageID) && created.contains(item.stageID) {
+            let relative = DraftAttachmentStagingAdapterV1.relativeStageDirectory(draftID: item.draftID, stageID: item.stageID)
+            expectedFiles["\(ownership.privateName)/\(relative)/payload.bin"] =
+                try CheckRunnerPhotoRestoreGenericStageV1.payloadEntry(item).sha256
+        }
+        for raw in source.rawPublications where created.contains(raw.physicalEntry.entry.item.stageID) {
+            let item = raw.physicalEntry.entry.item
+            let directory = "\(ownership.privateName)/" + DraftAttachmentStagingAdapterV1.relativeStageDirectory(
+                draftID: item.draftID, stageID: item.stageID)
+            expectedFiles["\(directory)/payload.bin"] = raw.payload.sha256
+            expectedFiles["\(directory)/raw-publication.json"] = raw.witness.sha256
+        }
+        let files = ownership.createdNodes.filter { !$0.directory }
+        guard Set(files.map(\.path)) == Set(expectedFiles.keys),
+              files.allSatisfy({ $0.sha256 == expectedFiles[$0.path] }) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    private func preparePhotoFileSnapshot(core: CheckRunnerPhotoRestoreBindingCoreV1,
+        plans: [CheckRunnerPhotoBackupRestorePlanV1], staging: Bool) async throws
+        -> StoreRestoreGenerationFileSnapshotV1 {
+        let identity = try generationAuthority.restoreGenerationRootIdentity(id: core.newGenerationID, staging: staging)
+        return try await generationFactory.prepareRestoreGenerationFileSnapshot(generationID: core.newGenerationID,
+            staging: staging, expectedRootIdentity: identity, restoreProof: core.manifestProof(plans: plans))
+    }
+
+    private func validatePhotoMedia(core: CheckRunnerPhotoRestoreBindingCoreV1,
+        records: V4BackupRecordsV1, root: URL, validate: @MainActor () async throws -> Void) async throws {
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        let store = EvidenceBundleStore(generationRootURL: root, expectedGenerationRootIdentity: identity)
+        for selection in core.selections {
+            let selected = try selection.composition.selectSource(in: records)
+            let plan = try selection.members.resolve(sourceSelection: selected)
+            let verification = try await store.prepareCheckRunnerPhotoBackupMedia(children: selected.children,
+                expectedGenerationRootIdentity: identity)
+            try await validate()
+            let observed = verification.snapshots.flatMap(\.files)
+            let expected = try photoGenerationMembers([plan])
+            guard Set(observed.map(\.generationRelativePath)) == Set(expected.keys),
+                  observed.allSatisfy({ expected[$0.generationRelativePath]?.entry == $0.entry }) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try verification.withVerificationLock {}
+        }
+    }
+
+    private func finishPhotoPublication(_ value: PhotoRawPublication, intent: RestoreIntentV1,
+        records: V4BackupRecordsV1, validateDestinationLocked: () throws -> Void) throws {
+        let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: value.binding.core.restoreID)
+        try registry.withNoMigrationReservation {
+            try validateDestinationLocked()
+            try value.binding.requireIntent(intent)
+            guard try generationFactory.currentGenerationID(authority: generationAuthority) == value.binding.core.newGenerationID,
+                  try requiredPhotoRestoreIntent() == intent,
+                  try photoPublicationBinding(restoreID: intent.restoreID) == value.binding else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try validatePhotoBindingValues(value.binding, records: records)
+            try value.publication.finish(permit: value.binding.publicationPermit())
+        }
+        let finished = try CheckRunnerPhotoRestorePublicationBindingV2(core: value.binding.core,
+            intent: value.binding.intent, genericReceipt: value.binding.genericReceipt,
+            rawTransition: value.binding.rawTransition, rawOwnership: value.binding.rawOwnership, completion: .finished)
+        try persistPhotoPublicationBinding(finished, replacing: value.binding)
+    }
+
+
+    /// Recovery is entered before generic abandoned-staging cleanup. Every
+    /// await is followed by the same pointer/intent/binding/record check.
+    private func reconcilePhotoRestoreAtStartup(
+        _ initial: CheckRunnerPhotoRestorePublicationBindingV2,
+        validateAccess: @MainActor () async throws -> Void
+    ) async throws -> StoreGenerationSession? {
+        try initial.validate()
+        let core = initial.core
+        guard let identity = initial.intent.identity else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        var binding = initial
+        var actualIntent = try intentStore.load()
+        let currentID = try generationFactory.currentGenerationID(authority: generationAuthority)
+        guard currentID == core.oldGenerationID || currentID == core.newGenerationID else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if let actualIntent { try binding.requireIntent(actualIntent) }
+        else {
+            guard binding.completion != .active
+                    || (binding.rawTransition == nil && currentID == core.oldGenerationID) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        guard (binding.completion != .rolledBack || currentID == core.oldGenerationID),
+              (binding.completion != .finished || currentID == core.newGenerationID) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        try requireCurrentPointerBinding(binding.intent, currentID: currentID)
+        let retired = try generationAuthority.retiredGenerationIDs()
+        guard !retired.contains(core.newGenerationID),
+              currentID == core.newGenerationID || !retired.contains(core.oldGenerationID) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let presence = try generationFactory.generationPresence(id: core.newGenerationID,
+            authority: generationAuthority)
+        guard !(presence.staging && presence.installed),
+              currentID != core.newGenerationID || (presence.installed && !presence.staging),
+              presence.installed || presence.staging || binding.completion == .rolledBack else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        var installedNames = Set(retired.map(canonical))
+        installedNames.insert(canonical(core.oldGenerationID))
+        if presence.installed { installedNames.insert(canonical(core.newGenerationID)) }
+        guard Set(try generationAuthority.installedGenerationNames()) == installedNames,
+              Set(try generationAuthority.restoreGenerationNames())
+                == (presence.staging ? [canonical(core.newGenerationID)] : []) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        // The old canonical image is necessary even after the switch: it
+        // authenticates the saved raw before image and rollback relationships.
+        let oldSession = try generationFactory.openInstalledGeneration(id: core.oldGenerationID,
+            identity: workspaceIdentity(identity.oldPointer), authority: generationAuthority)
+        let oldRecords = try records(in: oldSession.modelContext)
+        try validateRows(oldSession.modelContext, expected: oldRecords)
+        var targetSession: StoreGenerationSession?
+        var targetRecords: V4BackupRecordsV1?
+        var plans: [CheckRunnerPhotoBackupRestorePlanV1] = []
+        func validateLocked() throws {
+            try generationAuthority.requireNoEraseAuthority()
+            guard try generationFactory.currentGenerationID(authority: generationAuthority) == currentID,
+                  try intentStore.load() == actualIntent,
+                  try photoPublicationBinding(restoreID: core.restoreID) == binding,
+                  !oldSession.modelContext.hasChanges,
+                  try records(in: oldSession.modelContext) == oldRecords else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try requireCurrentPointerBinding(binding.intent, currentID: currentID)
+            if let targetSession, let targetRecords {
+                guard !targetSession.modelContext.hasChanges,
+                      try records(in: targetSession.modelContext) == targetRecords else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                _ = try core.resolve(in: targetRecords)
+            }
+        }
+        func validate() async throws {
+            try await validateRestoreAccess(validateAccess)
+            try validateLocked()
+        }
+        let encoder = BackupCanonicalEncoderV1()
+        let oldDigest = try await encoder.encodeRecordsOffMain(oldRecords).sha256
+        try await validate()
+        guard oldDigest == core.currentRecordsSHA256 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if presence.staging {
+            targetSession = try generationFactory.openRestoreStagingGeneration(id: core.newGenerationID,
+                identity: workspaceIdentity(identity.targetPointer), authority: generationAuthority)
+        } else if presence.installed {
+            targetSession = try generationFactory.openInstalledGeneration(id: core.newGenerationID,
+                identity: workspaceIdentity(identity.targetPointer), authority: generationAuthority)
+        }
+        var fileSnapshot: StoreRestoreGenerationFileSnapshotV1?
+        if let session = targetSession {
+            let values = try records(in: session.modelContext)
+            targetRecords = values
+            let digest = try await encoder.encodeRecordsOffMain(values).sha256
+            try await validate()
+            guard digest == core.destinationRecordsSHA256 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            plans = try core.resolve(in: values)
+            try protectGenerationTree(id: core.newGenerationID, root: session.generationRootURL,
+                staging: presence.staging)
+            try validateUnpublishedTargetSession(session, expected: values, staging: presence.staging,
+                photoPlans: plans)
+            try await validatePhotoMedia(core: core, records: values, root: session.generationRootURL,
+                validate: validate)
+            fileSnapshot = try await preparePhotoFileSnapshot(core: core, plans: plans, staging: presence.staging)
+            try await validate()
+            if presence.installed, binding.completion != .rolledBack {
+                try generationFactory.requireInstalledRestoreGenerationSnapshot(
+                    expectedOldID: core.oldGenerationID, generationID: core.newGenerationID,
+                    expectedManifestDigest: identity.targetPointer.generationManifestSHA256,
+                    restoreProof: core.manifestProof(plans: plans), restoreFileSnapshot: fileSnapshot,
+                    authority: generationAuthority)
+            }
+            if binding.rawOwnership != nil {
+                try validatePhotoBindingValues(binding, records: values)
+            }
+        }
+        if binding.rawTransition != nil {
+            // This remains necessary after a completed rollback has already
+            // removed the target generation; the old canonical image survives.
+            try validatePhotoRawBeforeImage(binding, oldRecords: oldRecords)
+        }
+        let importNames = try generationAuthority.importStagingNames()
+        guard importNames.count <= 1 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        var importedPackage: ValidatedV4BackupPackageV1?
+        if let name = importNames.first {
+            guard currentID == core.oldGenerationID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let url = applicationSupportURL.appendingPathComponent("FieldEvidenceRestore/staging",
+                isDirectory: true).appendingPathComponent(name, isDirectory: true)
+            let validator = BackupPackageValidatorV1(route: packageValidationRoute())
+            let package = try await BackupOffMainWorkV1.run { try validator.validate(stagedPackageURL: url) }
+            try await validate()
+            let digest = try await encoder.encodeManifestOffMain(package.manifest).sha256
+            try await validate()
+            guard digest == core.sourceManifestSHA256 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            importedPackage = package
+        }
+        let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: core.restoreID)
+        var rawPublication: DraftPhotoRestorePreparedPublicationV1?
+        if let ownership = binding.rawOwnership {
+            let owner = try registry.withNoMigrationReservation {
+                try validateLocked()
+                return try DraftAttachmentStagingAdapterV1(photoBackupExistingRoot: applicationSupportURL,
+                    workspaceID: core.workspaceID)
+            }
+            rawPublication = try await owner.reopenPhotoRestoreRawPublication(ownership: ownership,
+                permit: binding.publicationPermit(), rollback: currentID == core.oldGenerationID)
+            try await validate()
+        }
+        if currentID == core.oldGenerationID {
+            if let rawPublication {
+                try registry.withNoMigrationReservation {
+                    try validateLocked()
+                    try rawPublication.rollback(permit: binding.publicationPermit())
+                }
+            }
+            // Without a saved ownership receipt, only an exact unchanged old
+            // root is recoverable. Private preparation remnants are retained.
+            try await verifyPhotoOldRawState(binding: binding, records: oldRecords, validate: validate)
+            if binding.completion == .active {
+                let rolledBack = try CheckRunnerPhotoRestorePublicationBindingV2(core: core, intent: binding.intent,
+                    genericReceipt: binding.genericReceipt, rawTransition: binding.rawTransition,
+                    rawOwnership: binding.rawOwnership, completion: .rolledBack)
+                try persistPhotoPublicationBinding(rolledBack, replacing: binding)
+                binding = rolledBack
+            }
+            try validateLocked()
+            if presence.staging || presence.installed {
+                guard let fileSnapshot else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                try generationFactory.removePreparedRestoreGenerationManifestBeforeDiscard(
+                    expectedOldID: core.oldGenerationID, generationID: core.newGenerationID,
+                    expectedDigest: identity.targetPointer.generationManifestSHA256,
+                    restoreProof: core.manifestProof(plans: plans), restoreFileSnapshot: fileSnapshot,
+                    authority: generationAuthority)
+                // End the service's target session before deleting its tree.
+                targetSession = nil; targetRecords = nil
+                if presence.staging {
+                    try generationFactory.removeRestoreStagingGeneration(id: core.newGenerationID,
+                        authority: generationAuthority)
+                } else {
+                    try generationFactory.removeInstalledGeneration(id: core.newGenerationID,
+                        keeping: core.oldGenerationID, authority: generationAuthority)
+                }
+            } else {
+                try removePreparedRestoreManifestBeforeDiscard(expectedOldID: core.oldGenerationID,
+                    generationID: core.newGenerationID,
+                    expectedDigest: identity.targetPointer.generationManifestSHA256)
+            }
+            if let importedPackage {
+                try discardImportedPackage(importedPackage, oldSession.generationRootURL)
+            }
+            try removePortableExchangeRestoreSidecar(matching: binding.intent)
+            if let intent = actualIntent {
+                try intentStore.remove(expected: intent); actualIntent = nil
+            }
+            try removePhotoPublicationBinding(binding)
+            try cleanupEmptyRestoreDirectories()
+            return nil
+        }
+        guard let session = targetSession, let values = targetRecords, let rawPublication,
+              binding.completion != .rolledBack else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        // Raw reopen verifies the complete after image before any live export
+        // reconciliation can observe the current generation.
+        try validateLiveSession(session, expected: values, photoPlans: plans)
+        if let intent = actualIntent, intent.phase != .newGenerationValidated {
+            // A crash can occur after pointer visibility but before either
+            // preceding journal update. Preserve the store's one-step CAS.
+            for phase in [RestoreIntentPhaseV1.generationInstalled, .pointerSwitched] {
+                guard let prior = actualIntent else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                if (prior.phase == .prepared && phase == .generationInstalled)
+                    || (prior.phase == .generationInstalled && phase == .pointerSwitched) {
+                    let advanced = prior.advancing(to: phase)
+                    try intentStore.replace(expected: prior, with: advanced)
+                    actualIntent = advanced
+                }
+            }
+            guard let switched = actualIntent, switched.phase == .pointerSwitched else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try applyPortableExchangeRestoreSidecar(matching: switched, targetWorkspaceID: session.workspaceID.rawValue)
+            let validated = switched.advancing(to: .newGenerationValidated)
+            try intentStore.replace(expected: switched, with: validated)
+            actualIntent = validated
+        }
+        try removePortableExchangeRestoreSidecar(matching: actualIntent ?? binding.intent)
+        try protectDataPointer(named: "retired.json")
+        try generationFactory.retireGeneration(oldID: core.oldGenerationID,
+            currentID: core.newGenerationID, authority: generationAuthority)
+        try await searchIndexLifecycle.dropProjection(workspaceID: session.workspaceID.rawValue)
+        try await validate()
+        try await dropPrivateSystemDiscoveryAfterRestore(restoreID: core.restoreID, session: session)
+        try await validate()
+        try registry.withNoMigrationReservation {
+            try validateLocked()
+            try rawPublication.finish(permit: binding.publicationPermit())
+        }
+        if binding.completion == .active {
+            let finished = try CheckRunnerPhotoRestorePublicationBindingV2(core: core, intent: binding.intent,
+                genericReceipt: binding.genericReceipt, rawTransition: binding.rawTransition,
+                rawOwnership: binding.rawOwnership, completion: .finished)
+            try persistPhotoPublicationBinding(finished, replacing: binding)
+            binding = finished
+        }
+        if let intent = actualIntent {
+            try intentStore.remove(expected: intent); actualIntent = nil
+        }
+        try removePhotoPublicationBinding(binding)
+        try cleanupEmptyRestoreDirectories()
+        return session
+    }
+
+    private func photoOldHistory(_ binding: CheckRunnerPhotoRestorePublicationBindingV2,
+        records: V4BackupRecordsV1) throws -> CheckRunnerPhotoBackupHistoryV1 {
+        guard let identity = binding.intent.identity,
+              let template = binding.core.selections.first?.composition.source else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let source = V4BackupSourceV1(appBuild: template.appBuild, appVersion: template.appVersion,
+            persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
+            replicaID: identity.oldPointer.replicaID, recordsSchemaVersion: records.recordsSchemaVersion,
+            sourceGenerationID: binding.core.oldGenerationID, workspaceID: binding.core.workspaceID.rawValue)
+        return try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: records)
+    }
+
+    private func validatePhotoRawBeforeImage(_ binding: CheckRunnerPhotoRestorePublicationBindingV2,
+        oldRecords: V4BackupRecordsV1) throws {
+        guard let transition = binding.rawTransition else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let history = try photoOldHistory(binding, records: oldRecords)
+        // The before image is the entire exact old canonical census. No
+        // incoming generic addition is allowed to enter it before ownership.
+        let expected = Dictionary(uniqueKeysWithValues: try canonicalStageItems(oldRecords).map { ($0.stageID, $0) })
+        let before = Dictionary(uniqueKeysWithValues: transition.before.entries.map { ($0.item.stageID, $0) })
+        let oldPhotos = Dictionary(uniqueKeysWithValues: history.children.compactMap { child in
+            child.raw.map { ($0.intent.stageID, child) }
+        })
+        guard Set(before.keys) == Set(expected.keys) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        for (stageID, item) in expected {
+            guard let entry = before[stageID] else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            if let child = oldPhotos[stageID], let raw = child.raw {
+                let ready = try DraftAttachmentStagingEntryV1(item: raw.readyItem,
+                    relativeDataPath: DraftAttachmentStagingAdapterV1.relativeDataPath(
+                        draftID: raw.readyItem.draftID, stageID: stageID),
+                    mediaType: raw.inspection.sourceMediaType, updatedAt: raw.intent.stageCreatedAt)
+                let committed = try child.committingCheckpoint.map { try DraftPhotoRawPromotionValuesV1(checkpoint: $0).committedEntry }
+                guard entry == ready || entry == committed else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            } else if entry.item != item {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+    }
+
+    private func verifyPhotoOldRawState(binding: CheckRunnerPhotoRestorePublicationBindingV2,
+        records: V4BackupRecordsV1, validate: @MainActor () async throws -> Void) async throws {
+        let history = try photoOldHistory(binding, records: records)
+        let stages = try canonicalStageItems(records)
+        let childStages = Dictionary(uniqueKeysWithValues: history.children.map {
+            ($0.payload.childDraftID, $0.payload.phase.intent.stageID)
+        })
+        let committing = Dictionary(uniqueKeysWithValues: history.children.compactMap { child in
+            child.committingCheckpoint.map { (child.payload.childDraftID, $0) }
+        })
+        switch try DraftAttachmentStagingAdapterV1.observePhotoBackupRoot(
+            applicationSupportURL: applicationSupportURL, workspaceID: binding.core.workspaceID) {
+        case .existing(let owner):
+            var snapshots: [DraftPhotoRawBackupSnapshotV1] = []
+            for child in history.children {
+                guard let raw = child.raw else { continue }
+                snapshots.append(try await owner.readPhotoBackupSnapshot(raw: raw,
+                    committingCheckpoint: child.committingCheckpoint))
+                try await validate()
+            }
+            let proof = try await owner.preparePhotoBackupVerification(snapshots,
+                committingCheckpoints: committing, canonicalStages: stages, childStageIDs: childStages)
+            try await validate()
+            try proof.withVerificationLock {}
+        case .absent(let absent):
+            guard history.children.allSatisfy({ $0.raw == nil }) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try absent.preparePhotoBackupVerification(canonicalStages: stages,
+                childStageIDs: childStages).withVerificationLock {}
+        }
+    }
+
+    private func requiredPhotoRestoreIntent() throws -> RestoreIntentV1 {
+        guard let value = try intentStore.load() else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        return value
+    }
+
+    func preparePhotoRestoreGeneration(
+        package: ValidatedV4BackupPackageV1,
+        records: V4BackupRecordsV1,
+        generationID: UUID
+    ) throws -> CheckRunnerPhotoRestoreGenerationAuthorityV1? {
+        guard package.records.mutationHistory != nil else { return nil }
+        let history = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: package.manifest.source, records: package.records)
+        guard !history.children.isEmpty else { return nil }
+        // Other destination modes need their own complete causal correspondence;
+        // this capability cannot grant an opaque payload/history rebound.
+        guard records.fieldDrafts == package.records.fieldDrafts,
+              records.mutationHistory == package.records.mutationHistory,
+              generationID != package.manifest.source.sourceGenerationID else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let destinationHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: package.manifest.source, records: records)
+        guard destinationHistory == history else { throw BackupRestoreServiceError.invalidPackage }
+        let plan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(history: history,
+            entries: package.manifest.entries) { path in
+                guard let bytes = package.members[path] else { throw BackupRestoreServiceError.invalidPackage }
+                return bytes
+            }
+        let root = generationFactory.restoreStagingGenerationURL(id: generationID)
+        let identity = try withPinnedDirectory(root: applicationSupportURL,
+            relativePath: "FieldEvidenceRestore/generations/\(canonical(generationID))", createMissing: false,
+            authorityCheck: { try self.generationAuthority.requireStagingGeneration(id: generationID) }
+        ) { descriptor, verify in
+            try verify()
+            var facts = stat()
+            guard Darwin.fstat(descriptor, &facts) == 0, (facts.st_mode & S_IFMT) == S_IFDIR else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return ReportPDFAnchoredFile.RootIdentity(device: facts.st_dev, inode: facts.st_ino)
+        }
+        return .init(generationID: generationID, rootURL: root, rootIdentity: identity,
+            children: history.children, plan: plan, memberSource: .package(package.members))
+    }
+
     func publishRestoredDraftStaging(
         package: ValidatedV4BackupPackageV1,
         records: V4BackupRecordsV1,
         identityDecision: RestoreIdentityV1?,
-        restoreID: UUID
+        restoreID: UUID,
+        excludingPhotoStageIDs: Set<UUID> = []
     ) throws -> DraftAttachmentRestorePublicationReceiptV1? {
         // Configuration clone intentionally has no target draft authority or
         // published staging bytes. A nonempty target is a transform failure.
@@ -9411,11 +10881,13 @@ private extension BackupRestoreService {
         }
         let sourceItems = try package.records.fieldDrafts.compactMap { record -> AttachmentStagingItemV1? in
             guard record.kind == .stagingItem else { return nil }
-            return try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
+            let item = try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
+            return excludingPhotoStageIDs.contains(item.stageID) ? nil : item
         }
         let targetItems = try records.fieldDrafts.compactMap { record -> AttachmentStagingItemV1? in
             guard record.kind == .stagingItem else { return nil }
-            return try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
+            let item = try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
+            return excludingPhotoStageIDs.contains(item.stageID) ? nil : item
         }
         let restorableSources = sourceItems.filter {
             ($0.state == .readyLocal || $0.state == .committed)
@@ -9667,6 +11139,221 @@ private extension BackupRestoreService {
         })
     }
 
+    private struct PhotoBindingLeaf {
+        let value: CheckRunnerPhotoRestorePublicationBindingV2
+        let data: Data
+        let identity: PinnedIdentity
+    }
+
+    private func photoBindingSnapshot(_ value: stat) -> StreamingArchiveSourceSnapshotV1 {
+        .init(device: UInt64(value.st_dev), inode: UInt64(value.st_ino),
+            linkCount: UInt64(value.st_nlink), byteCount: Int64(value.st_size),
+            modifiedSeconds: Int64(value.st_mtimespec.tv_sec),
+            modifiedNanoseconds: Int64(value.st_mtimespec.tv_nsec),
+            changedSeconds: Int64(value.st_ctimespec.tv_sec),
+            changedNanoseconds: Int64(value.st_ctimespec.tv_nsec))
+    }
+
+    private func photoBindingNames(_ restoreID: UUID) -> (current: String, next: String) {
+        let current = "draft-publication-\(canonical(restoreID)).json"
+        return (current, ".\(current).next")
+    }
+
+    /// Metadata only. All raw originals and generation media remain streamed
+    /// by their existing owners; no payload is admitted through this bound.
+    private func readPhotoBindingLeaf(_ name: String, parent: Int32,
+        allowLegacy: Bool = false, verify: () throws -> Void) throws -> PhotoBindingLeaf? {
+        guard try itemExists(parent: parent, name: name) else { return nil }
+        let identity = try itemIdentity(parent: parent, name: name)
+        guard identity.type == UInt32(S_IFREG), identity.linkCount == 1 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let fd = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard fd >= 0 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        defer { _ = Darwin.close(fd) }
+        var before = stat()
+        let maximum = FieldDraftLimitsV1.maximumCanonicalBytes * (FieldDraftLimitsV1.maximumStageItems + 4)
+        guard Darwin.fstat(fd, &before) == 0, PinnedIdentity(before) == identity,
+              before.st_size > 0, before.st_size <= maximum else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let snapshot = photoBindingSnapshot(before)
+        let url = applicationSupportURL.appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
+            .appendingPathComponent(name)
+        try verify()
+        try ProtectedFilePolicyV1.verify(.stagingFile, at: url)
+        try verify()
+        var data = Data(); var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, $0.count) }
+            if count > 0 {
+                guard data.count <= maximum - count else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                data.append(contentsOf: buffer.prefix(count))
+            } else if count == 0 { break }
+            else if errno != EINTR { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        }
+        var after = stat()
+        guard Darwin.fstat(fd, &after) == 0, photoBindingSnapshot(after) == snapshot,
+              data.count == before.st_size, try itemIdentity(parent: parent, name: name) == identity else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        try verify()
+        if allowLegacy, let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+           object["schemaVersion"] as? Int == 1 {
+            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .millisecondsSince1970
+            let legacy = try decoder.decode(DraftRestorePublicationBindingV1.self, from: data)
+            try legacy.validate()
+            return nil
+        }
+        let value = try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            CheckRunnerPhotoRestorePublicationBindingV2.self, from: data, validate: { try $0.validate() })
+        return .init(value: value, data: data, identity: identity)
+    }
+
+    private func selectedPhotoBinding(current: PhotoBindingLeaf?, next: PhotoBindingLeaf?) throws
+        -> CheckRunnerPhotoRestorePublicationBindingV2? {
+        switch (current, next) {
+        case (nil, nil): return nil
+        case (let current?, nil): return current.value
+        case (nil, let next?):
+            guard next.value.rawTransition == nil, next.value.rawOwnership == nil,
+                  next.value.genericReceipt == nil, next.value.completion == .active else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            return next.value
+        case (let current?, let next?):
+            if next.value.isImmediateSuccessor(of: current.value) { return next.value }
+            if current.value.isImmediateSuccessor(of: next.value) { return current.value }
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    /// Reading never rewrites an interrupted metadata exchange. Recovery first
+    /// proves the intent, records and physical state, then persists that exact
+    /// selected value through the same incumbent operation path.
+    private func photoPublicationBinding(restoreID: UUID) throws -> CheckRunnerPhotoRestorePublicationBindingV2? {
+        let names = photoBindingNames(restoreID)
+        return try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+            createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
+        ) { parent, verify in
+            let hasNext = try itemExists(parent: parent, name: names.next)
+            let current = try readPhotoBindingLeaf(names.current, parent: parent, allowLegacy: !hasNext, verify: verify)
+            let next = try readPhotoBindingLeaf(names.next, parent: parent, verify: verify)
+            let result = try selectedPhotoBinding(current: current, next: next)
+            guard result.map({ $0.core.restoreID == restoreID }) ?? true else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            return result
+        }
+    }
+
+    private func persistPhotoPublicationBinding(_ value: CheckRunnerPhotoRestorePublicationBindingV2,
+        replacing expected: CheckRunnerPhotoRestorePublicationBindingV2?) throws {
+        try value.validate()
+        guard expected.map({ value == $0 || value.isImmediateSuccessor(of: $0) })
+                ?? (value.rawTransition == nil && value.rawOwnership == nil && value.genericReceipt == nil
+                    && value.completion == .active) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        let names = photoBindingNames(value.core.restoreID)
+        let bytes = try value.canonicalData()
+        let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: value.core.restoreID)
+        try registry.withNoMigrationReservation {
+            let currentID = try generationFactory.currentGenerationID(authority: generationAuthority)
+            try requireCurrentPointerBinding(value.intent, currentID: currentID)
+            let requiredID = value.completion == .finished
+                ? value.core.newGenerationID : value.core.oldGenerationID
+            guard currentID == requiredID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            if let intent = try intentStore.load() { try value.requireIntent(intent) }
+            else {
+                guard value.completion != .active || value.rawTransition == nil else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            }
+            try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+                createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
+            ) { parent, verify in
+                var current = try readPhotoBindingLeaf(names.current, parent: parent, verify: verify)
+                var next = try readPhotoBindingLeaf(names.next, parent: parent, verify: verify)
+                let selected = try selectedPhotoBinding(current: current, next: next)
+                guard selected == expected else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+
+                func remove(_ leaf: PhotoBindingLeaf, named name: String) throws {
+                    guard try readPhotoBindingLeaf(name, parent: parent, verify: verify)?.identity == leaf.identity,
+                          Darwin.unlinkat(parent, name, 0) == 0, Darwin.fsync(parent) == 0 else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                    try verify()
+                }
+
+                if let pending = next {
+                    if current == nil {
+                        guard Darwin.renameatx_np(parent, names.next, parent, names.current, UInt32(RENAME_EXCL)) == 0,
+                              Darwin.fsync(parent) == 0 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                    } else if pending.value == selected {
+                        guard Darwin.renameatx_np(parent, names.next, parent, names.current, UInt32(RENAME_SWAP)) == 0,
+                              Darwin.fsync(parent) == 0,
+                              let prior = current,
+                              try readPhotoBindingLeaf(names.next, parent: parent, verify: verify)?.data == prior.data else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                        try remove(prior, named: names.next)
+                    } else { try remove(pending, named: names.next) }
+                    current = try readPhotoBindingLeaf(names.current, parent: parent, verify: verify)
+                    next = nil
+                    guard current?.value == selected else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                }
+                if current?.value == value { return }
+                guard next == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                let fd = Darwin.openat(parent, names.next, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+                    mode_t(0o600))
+                guard fd >= 0 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                defer { _ = Darwin.close(fd) }
+                var facts = stat()
+                guard Darwin.fstat(fd, &facts) == 0, facts.st_nlink == 1 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let identity = PinnedIdentity(facts)
+                try bytes.withUnsafeBytes { buffer in
+                    guard let base = buffer.baseAddress else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                    var offset = 0
+                    while offset < buffer.count {
+                        let count = Darwin.write(fd, base.advanced(by: offset), buffer.count - offset)
+                        if count > 0 { offset += count }
+                        else if count < 0, errno == EINTR { continue }
+                        else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                    }
+                }
+                let url = applicationSupportURL.appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
+                    .appendingPathComponent(names.next)
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: url) {
+                    try verify()
+                    guard try self.itemIdentity(parent: parent, name: names.next) == identity else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                }
+                guard Darwin.fsync(fd) == 0, Darwin.fsync(parent) == 0,
+                      try readPhotoBindingLeaf(names.next, parent: parent, verify: verify)?.data == bytes else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                guard Darwin.renameatx_np(parent, names.next, parent, names.current,
+                    UInt32(current == nil ? RENAME_EXCL : RENAME_SWAP)) == 0,
+                    Darwin.fsync(parent) == 0,
+                    let installed = try readPhotoBindingLeaf(names.current, parent: parent, verify: verify),
+                    installed.identity == identity, installed.data == bytes else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                if let prior = current {
+                    guard let old = try readPhotoBindingLeaf(names.next, parent: parent, verify: verify),
+                          old.identity == prior.identity, old.data == prior.data else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                    try remove(old, named: names.next)
+                }
+            }
+        }
+    }
+
     func persistDraftPublicationBinding(
         _ receipt: DraftAttachmentRestorePublicationReceiptV1
     ) throws {
@@ -9708,6 +11395,11 @@ private extension BackupRestoreService {
         intent: RestoreIntentV1,
         records: V4BackupRecordsV1
     ) throws {
+        if let binding = try photoPublicationBinding(restoreID: intent.restoreID) {
+            try binding.requireIntent(intent)
+            try validatePhotoBindingValues(binding, records: records)
+            return
+        }
         let expected = try expectedDraftPublicationStageIDs(in: records)
         let url = draftPublicationBindingURL(restoreID: intent.restoreID)
         guard !expected.isEmpty else {
@@ -9741,6 +11433,11 @@ private extension BackupRestoreService {
     }
 
     func removeDraftPublicationBinding(_ intent: RestoreIntentV1) throws {
+        if let binding = try photoPublicationBinding(restoreID: intent.restoreID) {
+            try binding.requireIntent(intent)
+            try removePhotoPublicationBinding(binding)
+            return
+        }
         let url = draftPublicationBindingURL(restoreID: intent.restoreID)
         guard fileManager.fileExists(atPath: url.path) else { return }
         try ProtectedFilePolicyV1.verify(.stagingFile, at: url)
@@ -9756,6 +11453,60 @@ private extension BackupRestoreService {
         guard Darwin.fsync(directory) == 0 else {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
+    }
+
+    private func removePhotoPublicationBinding(_ binding: CheckRunnerPhotoRestorePublicationBindingV2) throws {
+        guard binding.completion != .active else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        // Complete an interrupted metadata swap only after its caller proved
+        // the destination/rollback state. The final binding is removed last.
+        try persistPhotoPublicationBinding(binding, replacing: binding)
+        let names = photoBindingNames(binding.core.restoreID)
+        let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: binding.core.restoreID)
+        try registry.withNoMigrationReservation {
+            guard try intentStore.load() == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+                createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
+            ) { parent, verify in
+                guard let current = try readPhotoBindingLeaf(names.current, parent: parent, verify: verify),
+                      current.value == binding,
+                      try !itemExists(parent: parent, name: names.next),
+                      try itemIdentity(parent: parent, name: names.current) == current.identity,
+                      Darwin.unlinkat(parent, names.current, 0) == 0, Darwin.fsync(parent) == 0 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                try verify()
+            }
+        }
+    }
+
+    private func pendingPhotoBindingAtStartup(intent: RestoreIntentV1?) throws
+        -> CheckRunnerPhotoRestorePublicationBindingV2? {
+        let root = applicationSupportURL.appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
+        guard fileManager.fileExists(atPath: root.path) else { return nil }
+        var operationIDs = Set<UUID>()
+        for name in try fileManager.contentsOfDirectory(atPath: root.path) {
+            let candidate: String
+            if name.hasPrefix(".draft-publication-"), name.hasSuffix(".json.next") {
+                candidate = String(name.dropFirst().dropLast(".next".count))
+            } else if name.hasPrefix("draft-publication-"), name.hasSuffix(".json") {
+                candidate = name
+            } else { continue }
+            let rawID = String(candidate.dropFirst("draft-publication-".count).dropLast(".json".count))
+            guard let id = UUID(uuidString: rawID), canonical(id) == rawID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            operationIDs.insert(id)
+        }
+        var result: CheckRunnerPhotoRestorePublicationBindingV2?
+        for id in operationIDs {
+            if let value = try photoPublicationBinding(restoreID: id) {
+                guard result == nil, intent == nil || intent?.restoreID == id else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                result = value
+            }
+        }
+        return result
     }
 
     func draftAttachmentMediaType(_ kind:DraftAttachmentKindV1)->String{
@@ -11635,9 +13386,12 @@ private extension BackupRestoreService {
         _ value: ValidatedV4BackupPackageV1,
         records: V4BackupRecordsV1,
         to root: URL,
-        generationID: UUID
+        generationID: UUID,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
     ) throws {
+        let photoMembers = try photoGenerationMembers(photoPlans)
         for evidence in records.evidenceFiles {
+            if try photoOwnsEvidence(evidence, members: photoMembers) { continue }
             let id = canonical(evidence.id)
             try protectStagingDirectory(
                 root: root,
@@ -11686,6 +13440,12 @@ private extension BackupRestoreService {
             }
             let sourcePath = "content/\(sourceWorkspaceID.uuidString.lowercased())/\(clip.original.contentID)/original.bin"
             let targetPath = try TemporalEvidenceBackupMemberV1.original(for: clip)
+            if let owned = photoMembers[targetPath] {
+                guard owned.entry.sha256 == digest,
+                      Int64(owned.entry.byteCount) == clip.original.byteLength,
+                      owned.kind == .original else { throw BackupRestoreServiceError.invalidPackage }
+                continue
+            }
             guard let bytes = value.members[sourcePath], Int64(bytes.count) == clip.original.byteLength else {
                 throw BackupRestoreServiceError.invalidPackage
             }
@@ -11726,9 +13486,15 @@ private extension BackupRestoreService {
                     throw BackupRestoreServiceError.invalidPackage
                 }
                 try protectStagingDirectory(root: root, relativePath: directory, generationID: generationID)
-                try writeExact(value.members["\(directory)/original.bin"],
-                    to: root.appendingPathComponent("\(directory)/original.bin"),
-                    expectedHash: digest.hexadecimalValue, generationID: generationID)
+                if let owned = photoMembers["\(directory)/original.bin"] {
+                    guard owned.entry.sha256 == digest.hexadecimalValue,
+                          Int64(owned.entry.byteCount) == marker.result.derivative.byteLength,
+                          owned.kind == .original else { throw BackupRestoreServiceError.invalidPackage }
+                } else {
+                    try writeExact(value.members["\(directory)/original.bin"],
+                        to: root.appendingPathComponent("\(directory)/original.bin"),
+                        expectedHash: digest.hexadecimalValue, generationID: generationID)
+                }
                 try writeExact(markerData, to: root.appendingPathComponent(markerPath),
                     expectedHash: CanonicalJSONV1.sha256(markerData), generationID: generationID)
             }
@@ -12277,7 +14043,8 @@ private extension BackupRestoreService {
     func validateStagingGeneration(
         id: UUID,
         expected: V4BackupRecordsV1,
-        identity: WorkspaceReplicaIdentityV1? = nil
+        identity: WorkspaceReplicaIdentityV1? = nil,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
     ) throws {
         let session: StoreGenerationSession
         if let identity {
@@ -12301,6 +14068,7 @@ private extension BackupRestoreService {
         try validateFrozenFiles(
             root: session.generationRootURL,
             records: expected,
+            photoPlans: photoPlans,
             authorityCheck: {
                 try generationAuthority.requireStagingGeneration(id: id)
             }
@@ -12308,7 +14076,8 @@ private extension BackupRestoreService {
         try validateGenerationTree(
             generationAuthority.stagingTree(id: id),
             records: expected,
-            generationRootURL: session.generationRootURL
+            generationRootURL: session.generationRootURL,
+            photoPlans: photoPlans
         )
         try requireAbsentAssetLabelPublications(
             generationAuthority.stagingTree(id: id),
@@ -12319,7 +14088,8 @@ private extension BackupRestoreService {
     func validateInstalledGeneration(
         id: UUID,
         expected: V4BackupRecordsV1,
-        identity: WorkspaceReplicaIdentityV1? = nil
+        identity: WorkspaceReplicaIdentityV1? = nil,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
     ) throws {
         let session: StoreGenerationSession
         if let identity {
@@ -12342,14 +14112,16 @@ private extension BackupRestoreService {
         try validateUnpublishedTargetSession(
             session,
             expected: expected,
-            staging: false
+            staging: false,
+            photoPlans: photoPlans
         )
     }
 
     func validateUnpublishedTargetSession(
         _ session: StoreGenerationSession,
         expected: V4BackupRecordsV1,
-        staging: Bool
+        staging: Bool,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
     ) throws {
         guard !session.modelContext.hasChanges else {
             throw attributedRestoreAuthorityFailureV1(line: #line)
@@ -12358,6 +14130,7 @@ private extension BackupRestoreService {
         try validateFrozenFiles(
             root: session.generationRootURL,
             records: expected,
+            photoPlans: photoPlans,
             authorityCheck: {
                 if staging {
                     try generationAuthority.requireStagingGeneration(
@@ -12379,7 +14152,8 @@ private extension BackupRestoreService {
         try validateGenerationTree(
             tree,
             records: expected,
-            generationRootURL: session.generationRootURL
+            generationRootURL: session.generationRootURL,
+            photoPlans: photoPlans
         )
         if staging {
             try requireAbsentAssetLabelPublications(tree, records: expected)
@@ -12388,7 +14162,8 @@ private extension BackupRestoreService {
 
     func validateLiveSession(
         _ session: StoreGenerationSession,
-        expected: V4BackupRecordsV1?
+        expected: V4BackupRecordsV1?,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
     ) throws {
         guard !session.modelContext.hasChanges else {
             throw attributedRestoreAuthorityFailureV1(line: #line)
@@ -12437,16 +14212,18 @@ private extension BackupRestoreService {
         try validateGenerationTree(
             generationAuthority.installedTree(id: session.generationID),
             records: frozenRecords,
-            generationRootURL: session.generationRootURL
+            generationRootURL: session.generationRootURL,
+            photoPlans: photoPlans
         )
     }
 
     func validateGenerationTree(
         _ tree: StoreRestoreGenerationAuthority.Tree,
         records: V4BackupRecordsV1,
-        generationRootURL: URL
+        generationRootURL: URL,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
     ) throws {
-        let expected = try expectedGenerationTree(records: records)
+        let expected = try expectedGenerationTree(records: records, photoPlans: photoPlans)
         let allowedDirectories = expected.directories.union(
             allowedEmptyStagingDirectories
         ).union(expected.optionalDirectories)
@@ -12588,7 +14365,8 @@ private extension BackupRestoreService {
     }
 
     func expectedGenerationTree(
-        records: V4BackupRecordsV1
+        records: V4BackupRecordsV1,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = []
     ) throws -> (
         directories: Set<String>,
         files: Set<String>,
@@ -12599,6 +14377,15 @@ private extension BackupRestoreService {
         var expectedDirectories = Set<String>()
         var optionalDirectories = Set<String>()
         var optionalFiles = Set<String>()
+        for path in try photoGenerationMembers(photoPlans).keys {
+            expectedFiles.insert(path)
+            var components = path.split(separator: "/").map(String.init)
+            components.removeLast()
+            while !components.isEmpty {
+                expectedDirectories.insert(components.joined(separator: "/"))
+                components.removeLast()
+            }
+        }
         if !records.evidenceFiles.isEmpty {
             expectedDirectories.insert("evidence")
         }
@@ -13014,10 +14801,13 @@ private extension BackupRestoreService {
     func validateFrozenFiles(
         root: URL,
         records: V4BackupRecordsV1,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = [],
         authorityCheck: () throws -> Void = {}
     ) throws {
         try authorityCheck()
+        let photoMembers = try photoGenerationMembers(photoPlans)
         for evidence in records.evidenceFiles {
+            if try photoOwnsEvidence(evidence, members: photoMembers) { continue }
             let original = try readValidatedRegularFile(
                 root: root,
                 relativePath: evidence.relativePath,

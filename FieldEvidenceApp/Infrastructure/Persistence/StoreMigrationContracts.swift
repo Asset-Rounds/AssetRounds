@@ -384,6 +384,9 @@ enum GenerationOwnedPathV1 {
             if components.count == 3, components[0] == "evidence", uuid(components[1]) {
                 if components[2] == "original.jpg" { return result(.mediaOriginal) }
                 if components[2] == "thumbnail.jpg" { return result(.mediaThumbnail) }
+                if staging && components[2] == "pair-publication.json" {
+                    return result(.stagingFile)
+                }
             }
             if components.count == 2, components[0] == "snapshots",
                suffixedUUID(components[1], suffix: ".json") { return result(.reportSnapshot) }
@@ -403,6 +406,403 @@ enum GenerationOwnedPathV1 {
             }
         }
         throw StoreMigrationFailure.invalidPath
+    }
+}
+
+/// Exact recovery-owned generation membership for one authenticated photo
+/// restore. This value is derived from the closed photo member plan; callers
+/// cannot turn arbitrary staging paths into restore manifest input.
+struct StoreRestoreGenerationManifestProofV1: Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let restoreID: UUID
+    let predecessorGenerationID: UUID
+    let generationID: UUID
+    /// SHA-256 of the incumbent restore publication-binding payload before
+    /// this proof is attached. Keeping the layers separate avoids a circular
+    /// digest while still binding the authenticated member mappings.
+    let incumbentPublicationBindingSHA256: String
+    /// Ordered canonical digests of the complete freshly resolved plans. These
+    /// bind source, child phase, raw publications, every generation member,
+    /// and metadata even when the recovery-owned subset is empty.
+    let planBindingSHA256s: [String]
+    let selectedChildCount: Int
+    let generationFiles: [StoreGenerationFileDigestV1]
+    let recoveryFiles: [StoreGenerationFileDigestV1]
+    let recoveryDirectories: [String]
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, restoreID, predecessorGenerationID, generationID
+        case incumbentPublicationBindingSHA256, planBindingSHA256s
+        case selectedChildCount
+        case generationFiles, recoveryFiles, recoveryDirectories
+    }
+
+    private struct PlanBinding: Codable {
+        struct Child: Codable {
+            let childDraftID: UUID
+            let stageID: UUID
+            let physicalEntry: CheckRunnerPhotoBackupPhysicalEntryV1?
+            let pairLocation: String
+            let stagedMarkerPresent: Bool?
+            let immutableRawPath: String?
+            let entries: [V4BackupEntryV1]
+        }
+        struct RawPublication: Codable {
+            let physicalEntry: CheckRunnerPhotoBackupPhysicalEntryV1
+            let payload: V4BackupEntryV1
+            let witness: V4BackupEntryV1
+            let witnessBytes: Data
+        }
+        struct GenerationMember: Codable {
+            let entry: V4BackupEntryV1
+            let relativePath: String
+            let kind: String
+        }
+        struct Metadata: Codable {
+            let path: String
+            let bytes: Data
+        }
+
+        let source: V4BackupSourceV1
+        let children: [Child]
+        let rawPublications: [RawPublication]
+        let generationMembers: [GenerationMember]
+        let metadata: [Metadata]
+
+        init(_ plan: CheckRunnerPhotoBackupRestorePlanV1) {
+            source = plan.source
+            children = plan.children.map { child in
+                let location: String
+                let marker: Bool?
+                switch child.pairLocation {
+                case .absent:
+                    location = "absent"
+                    marker = nil
+                case .staged(let markerPresent):
+                    location = "staged"
+                    marker = markerPresent
+                case .promoted:
+                    location = "promoted"
+                    marker = nil
+                case .targetOwned:
+                    location = "targetOwned"
+                    marker = nil
+                }
+                return Child(
+                    childDraftID: child.childDraftID,
+                    stageID: child.stageID,
+                    physicalEntry: child.physicalEntry,
+                    pairLocation: location,
+                    stagedMarkerPresent: marker,
+                    immutableRawPath: child.immutableRawPath,
+                    entries: child.entries
+                )
+            }
+            rawPublications = plan.rawPublications.map {
+                RawPublication(
+                    physicalEntry: $0.physicalEntry,
+                    payload: $0.payload,
+                    witness: $0.witness,
+                    witnessBytes: $0.witnessBytes
+                )
+            }
+            generationMembers = plan.generationMembers.map {
+                let kind: String
+                switch $0.kind {
+                case .original: kind = "original"
+                case .thumbnail: kind = "thumbnail"
+                case .staging: kind = "staging"
+                }
+                return GenerationMember(
+                    entry: $0.entry,
+                    relativePath: $0.relativePath,
+                    kind: kind
+                )
+            }
+            metadata = plan.metadata.keys.sorted().map {
+                Metadata(path: $0, bytes: plan.metadata[$0]!)
+            }
+        }
+    }
+
+    private static func planBindingSHA256(
+        _ plan: CheckRunnerPhotoBackupRestorePlanV1
+    ) throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(
+            try StoreMigrationCanonicalJSONV1.encode(PlanBinding(plan))
+        )
+    }
+
+    init(
+        restoreID: UUID,
+        predecessorGenerationID: UUID,
+        generationID: UUID,
+        incumbentPublicationBindingSHA256: String,
+        plans: [CheckRunnerPhotoBackupRestorePlanV1]
+    ) throws {
+        self.schemaVersion = 1
+        self.restoreID = restoreID
+        self.predecessorGenerationID = predecessorGenerationID
+        self.generationID = generationID
+        self.incumbentPublicationBindingSHA256 = incumbentPublicationBindingSHA256
+        guard !plans.isEmpty else { throw StoreMigrationFailure.invalidContract }
+        planBindingSHA256s = try plans.map {
+            try Self.planBindingSHA256($0)
+        }
+        guard Set(planBindingSHA256s).count == planBindingSHA256s.count else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        selectedChildCount = plans.reduce(0) { $0 + $1.children.count }
+        var childIDsBySource: [Data: Set<UUID>] = [:]
+        for plan in plans {
+            let sourceTuple = try StoreMigrationCanonicalJSONV1.encode(
+                plan.source
+            )
+            for child in plan.children {
+                let inserted = childIDsBySource[sourceTuple, default: []]
+                    .insert(child.childDraftID)
+                guard inserted.inserted else {
+                    throw StoreMigrationFailure.invalidContract
+                }
+            }
+        }
+        // A plan may contribute no child only as an explicitly hashed member of
+        // a larger nonempty selection. The ordered binding above keeps that plan
+        // visible and rejects an exact duplicate even when it owns no files.
+        guard childIDsBySource.values.contains(where: { !$0.isEmpty }) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        var fileByPath: [String: StoreGenerationFileDigestV1] = [:]
+        for plan in plans {
+            for member in plan.generationMembers {
+                let owned = try GenerationOwnedPathV1.classify(
+                    member.relativePath,
+                    nodeType: .regularFile
+                )
+                guard member.kind.protection == owned.kind,
+                      member.entry.byteCount >= 0 else {
+                    throw StoreMigrationFailure.invalidContract
+                }
+                let value = try StoreGenerationFileDigestV1(
+                    relativePath: member.relativePath,
+                    byteCount: member.entry.byteCount,
+                    sha256: member.entry.sha256,
+                    kind: owned.kind
+                )
+                if let existing = fileByPath[member.relativePath],
+                   existing != value {
+                    throw StoreMigrationFailure.invalidContract
+                }
+                fileByPath[member.relativePath] = value
+            }
+        }
+        generationFiles = fileByPath.values.sorted {
+            $0.relativePath < $1.relativePath
+        }
+        recoveryFiles = try generationFiles.filter {
+            try GenerationOwnedPathV1.classify(
+                $0.relativePath,
+                nodeType: .regularFile
+            ).recoveryOwned
+        }
+        recoveryDirectories = try Self.requiredDirectories(for: recoveryFiles)
+        try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        restoreID = try values.decode(UUID.self, forKey: .restoreID)
+        predecessorGenerationID = try values.decode(UUID.self, forKey: .predecessorGenerationID)
+        generationID = try values.decode(UUID.self, forKey: .generationID)
+        incumbentPublicationBindingSHA256 = try values.decode(
+            String.self,
+            forKey: .incumbentPublicationBindingSHA256
+        )
+        planBindingSHA256s = try values.decode(
+            [String].self,
+            forKey: .planBindingSHA256s
+        )
+        selectedChildCount = try values.decode(
+            Int.self,
+            forKey: .selectedChildCount
+        )
+        generationFiles = try values.decode(
+            [StoreGenerationFileDigestV1].self,
+            forKey: .generationFiles
+        )
+        recoveryFiles = try values.decode(
+            [StoreGenerationFileDigestV1].self,
+            forKey: .recoveryFiles
+        )
+        recoveryDirectories = try values.decode(
+            [String].self,
+            forKey: .recoveryDirectories
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        guard schemaVersion == 1,
+              restoreID != zero,
+              predecessorGenerationID != zero,
+              generationID != zero,
+              restoreID != predecessorGenerationID,
+              restoreID != generationID,
+              predecessorGenerationID != generationID,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                  incumbentPublicationBindingSHA256
+              ),
+              !planBindingSHA256s.isEmpty,
+              selectedChildCount > 0,
+              Set(planBindingSHA256s).count == planBindingSHA256s.count,
+              planBindingSHA256s.allSatisfy(
+                StoreMigrationCanonicalJSONV1.isLowercaseSHA256
+              ),
+              generationFiles == generationFiles.sorted(by: {
+                  $0.relativePath < $1.relativePath
+              }),
+              Set(generationFiles.map(\.relativePath)).count
+                == generationFiles.count,
+              recoveryFiles == recoveryFiles.sorted(by: {
+                  $0.relativePath < $1.relativePath
+              }),
+              Set(recoveryFiles.map(\.relativePath)).count
+                == recoveryFiles.count,
+              recoveryDirectories == (try Self.requiredDirectories(
+                  for: recoveryFiles
+              )) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        try generationFiles.forEach { file in
+            try file.validate()
+            let owned = try GenerationOwnedPathV1.classify(
+                file.relativePath,
+                nodeType: .regularFile
+            )
+            guard owned.kind == file.kind else {
+                throw StoreMigrationFailure.invalidContract
+            }
+        }
+        let derivedRecovery = try generationFiles.filter {
+            try GenerationOwnedPathV1.classify(
+                $0.relativePath,
+                nodeType: .regularFile
+            ).recoveryOwned
+        }
+        guard derivedRecovery == recoveryFiles else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        var leavesByEvidenceID: [String: Set<String>] = [:]
+        for file in recoveryFiles {
+            try file.validate()
+            let parts = file.relativePath.split(
+                separator: "/",
+                omittingEmptySubsequences: false
+            ).map(String.init)
+            guard parts.count == 4,
+                  parts[0] == ".staging",
+                  parts[1] == "evidence",
+                  UUID(uuidString: parts[2])?.uuidString.lowercased()
+                    == parts[2],
+                  ["original.jpg", "thumbnail.jpg", "pair-publication.json"]
+                    .contains(parts[3]),
+                  let owned = try? GenerationOwnedPathV1.classify(
+                      file.relativePath,
+                      nodeType: .regularFile
+                  ),
+                  owned.recoveryOwned,
+                  owned.kind == file.kind else {
+                throw StoreMigrationFailure.invalidPath
+            }
+            leavesByEvidenceID[parts[2], default: []].insert(parts[3])
+        }
+        for leaves in leavesByEvidenceID.values {
+            guard leaves == ["original.jpg", "thumbnail.jpg"]
+                    || leaves == [
+                        "original.jpg", "thumbnail.jpg",
+                        "pair-publication.json",
+                    ] else {
+                throw StoreMigrationFailure.invalidContract
+            }
+        }
+    }
+
+    func matches(
+        incumbentPublicationBindingSHA256 expectedBindingSHA256: String,
+        plans: [CheckRunnerPhotoBackupRestorePlanV1]
+    ) throws -> Bool {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+            expectedBindingSHA256
+        ) else {
+            throw StoreMigrationFailure.invalidDigest
+        }
+        return try Self(
+            restoreID: restoreID,
+            predecessorGenerationID: predecessorGenerationID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: expectedBindingSHA256,
+            plans: plans
+        ) == self
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    func canonicalSHA256() throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(try canonicalData())
+    }
+
+    static func decodeCanonical(
+        from data: Data,
+        incumbentPublicationBindingSHA256 expectedBindingSHA256: String,
+        resolving plans: [CheckRunnerPhotoBackupRestorePlanV1]
+    ) throws -> Self {
+        let value = try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            Self.self,
+            from: data,
+            validate: { try $0.validate() }
+        )
+        guard try value.matches(
+            incumbentPublicationBindingSHA256: expectedBindingSHA256,
+            plans: plans
+        ) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        return value
+    }
+
+    private static func requiredDirectories(
+        for files: [StoreGenerationFileDigestV1]
+    ) throws -> [String] {
+        var paths = Set<String>()
+        for file in files {
+            var components = file.relativePath.split(separator: "/").map(String.init)
+            guard components.count > 1 else {
+                throw StoreMigrationFailure.invalidPath
+            }
+            components.removeLast()
+            while !components.isEmpty {
+                let path = components.joined(separator: "/")
+                let owned = try GenerationOwnedPathV1.classify(
+                    path,
+                    nodeType: .directory
+                )
+                guard owned.recoveryOwned else {
+                    throw StoreMigrationFailure.invalidPath
+                }
+                paths.insert(path)
+                components.removeLast()
+            }
+        }
+        return paths.sorted()
     }
 }
 
@@ -501,6 +901,13 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
     let semanticSHA256: String?
     let frozenIdentityDigest: String
     let files: [StoreGenerationFileDigestV1]
+    let restoreProof: StoreRestoreGenerationManifestProofV1?
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, generationID, predecessorGenerationID, migrationID
+        case storeSchemaRelease, semanticSHA256, frozenIdentityDigest, files
+        case restoreProof
+    }
 
     init(
         schemaVersion: Int = 1,
@@ -510,7 +917,8 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
         storeSchemaRelease: PersistentSchemaReleaseV1,
         semanticSHA256: String?,
         frozenIdentityDigest: String,
-        files: [StoreGenerationFileDigestV1]
+        files: [StoreGenerationFileDigestV1],
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil
     ) throws {
         self.schemaVersion = schemaVersion
         self.generationID = generationID
@@ -520,7 +928,57 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
         self.semanticSHA256 = semanticSHA256
         self.frozenIdentityDigest = frozenIdentityDigest
         self.files = files
+        self.restoreProof = restoreProof
         try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        generationID = try values.decode(UUID.self, forKey: .generationID)
+        predecessorGenerationID = try values.decode(
+            UUID.self,
+            forKey: .predecessorGenerationID
+        )
+        migrationID = try values.decode(UUID.self, forKey: .migrationID)
+        storeSchemaRelease = try values.decode(
+            PersistentSchemaReleaseV1.self,
+            forKey: .storeSchemaRelease
+        )
+        semanticSHA256 = try values.decodeIfPresent(
+            String.self,
+            forKey: .semanticSHA256
+        )
+        frozenIdentityDigest = try values.decode(
+            String.self,
+            forKey: .frozenIdentityDigest
+        )
+        files = try values.decode(
+            [StoreGenerationFileDigestV1].self,
+            forKey: .files
+        )
+        restoreProof = try values.decodeIfPresent(
+            StoreRestoreGenerationManifestProofV1.self,
+            forKey: .restoreProof
+        )
+        try validate()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try validate()
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(schemaVersion, forKey: .schemaVersion)
+        try values.encode(generationID, forKey: .generationID)
+        try values.encode(
+            predecessorGenerationID,
+            forKey: .predecessorGenerationID
+        )
+        try values.encode(migrationID, forKey: .migrationID)
+        try values.encode(storeSchemaRelease, forKey: .storeSchemaRelease)
+        try values.encodeIfPresent(semanticSHA256, forKey: .semanticSHA256)
+        try values.encode(frozenIdentityDigest, forKey: .frozenIdentityDigest)
+        try values.encode(files, forKey: .files)
+        try values.encodeIfPresent(restoreProof, forKey: .restoreProof)
     }
 
     func validate() throws {
@@ -541,15 +999,38 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
         }
         try files.forEach { try $0.validate() }
         let paths = files.map(\.relativePath)
+        let classified = try files.map { file -> GenerationOwnedPathV1.Classification in
+            try GenerationOwnedPathV1.classify(
+                file.relativePath,
+                nodeType: .regularFile
+            )
+        }
+        let recoveryFiles = zip(files, classified).compactMap { file, owned in
+            owned.recoveryOwned ? file : nil
+        }
         guard paths == paths.sorted(),
               Set(paths).count == paths.count,
               paths.contains("model.sqlite"),
-              files.allSatisfy({ file in
-                guard let owned = try? GenerationOwnedPathV1.classify(
-                    file.relativePath, nodeType: .regularFile
-                ) else { return false }
-                return !owned.recoveryOwned && file.kind == owned.kind
+              zip(files, classified).allSatisfy({ file, owned in
+                  file.kind == owned.kind
               }) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        if let restoreProof {
+            try restoreProof.validate()
+            let manifestFiles = Dictionary(
+                uniqueKeysWithValues: files.map { ($0.relativePath, $0) }
+            )
+            guard restoreProof.generationID == generationID,
+                  restoreProof.predecessorGenerationID
+                    == predecessorGenerationID,
+                  recoveryFiles == restoreProof.recoveryFiles,
+                  restoreProof.generationFiles.allSatisfy {
+                      manifestFiles[$0.relativePath] == $0
+                  } else {
+                throw StoreMigrationFailure.invalidContract
+            }
+        } else if !recoveryFiles.isEmpty {
             throw StoreMigrationFailure.invalidContract
         }
     }

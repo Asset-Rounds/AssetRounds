@@ -53,6 +53,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         try Data("not a generation member".utf8).write(to: unowned)
         XCTAssertThrowsError(try authority.removeStagingGeneration(id: generationID))
         XCTAssertEqual(try Data(contentsOf: unowned), Data("not a generation member".utf8))
+        try assertPhotoRestoreManifestProofAdmitsOnlyExactAuthenticatedPendingPairs()
     }
 
     func testV23P03C37TypedPoseContractAnchor() throws {
@@ -95,8 +96,647 @@ final class S6_4AtomicRestoreTests: XCTestCase {
 
     private let fileManager = FileManager.default
 
+    private func assertPhotoRestoreManifestProofAdmitsOnlyExactAuthenticatedPendingPairs() throws {
+        let predecessorID = uuid("64000000-0000-4000-8000-00000000f101")
+        let generationID = uuid("64000000-0000-4000-8000-00000000f102")
+        let restoreID = uuid("64000000-0000-4000-8000-00000000f103")
+        let evidenceID = uuid("64000000-0000-4000-8000-00000000f104")
+        let otherEvidenceID = uuid("64000000-0000-4000-8000-00000000f105")
+        let firstChildID = uuid("64000000-0000-4000-8000-00000000f110")
+        let secondChildID = uuid("64000000-0000-4000-8000-00000000f111")
+        let originalDigest = String(repeating: "a", count: 64)
+        let thumbnailDigest = String(repeating: "b", count: 64)
+        let markerDigest = String(repeating: "c", count: 64)
+        let bindingDigest = String(repeating: "d", count: 64)
+        let modelDigest = String(repeating: "e", count: 64)
+
+        func member(
+            evidenceID: UUID,
+            leaf: String,
+            byteCount: Int,
+            digest: String,
+            sourcePath: String? = nil
+        ) -> CheckRunnerPhotoBackupRestorePlanV1.GenerationMember {
+            let canonicalID = evidenceID.uuidString.lowercased()
+            let relativePath = ".staging/evidence/\(canonicalID)/\(leaf)"
+            return .init(
+                entry: .init(
+                    byteCount: byteCount,
+                    mimeType: leaf == "pair-publication.json"
+                        ? "application/json" : "image/jpeg",
+                    path: sourcePath ?? "photo-plan/\(canonicalID)/\(leaf)",
+                    sha256: digest
+                ),
+                relativePath: relativePath,
+                kind: .staging
+            )
+        }
+
+        func plan(
+            sourceGenerationID: UUID,
+            childDraftIDs: [UUID],
+            pairLocation: CheckRunnerPhotoBackupPhysicalPlanV1.PairLocation =
+                .staged(markerPresent: true),
+            members: [CheckRunnerPhotoBackupRestorePlanV1.GenerationMember],
+            rawPublications:
+                [CheckRunnerPhotoBackupRestorePlanV1.RawPublication] = []
+        ) -> CheckRunnerPhotoBackupRestorePlanV1 {
+            .init(
+                source: .init(
+                    appBuild: "restore-proof-test",
+                    appVersion: "23",
+                    persistentSchemaVersion:
+                        PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major,
+                    recordsSchemaVersion: 1,
+                    sourceGenerationID: sourceGenerationID
+                ),
+                children: childDraftIDs.map {
+                    .init(
+                        childDraftID: $0,
+                        stageID: $0,
+                        physicalEntry: nil,
+                        pairLocation: pairLocation,
+                        immutableRawPath: nil,
+                        entries: members.map(\.entry)
+                    )
+                },
+                rawPublications: rawPublications,
+                generationMembers: members,
+                metadata: [:]
+            )
+        }
+
+        let members = [
+            member(
+                evidenceID: evidenceID,
+                leaf: "original.jpg",
+                byteCount: 101,
+                digest: originalDigest
+            ),
+            member(
+                evidenceID: evidenceID,
+                leaf: "thumbnail.jpg",
+                byteCount: 37,
+                digest: thumbnailDigest
+            ),
+            member(
+                evidenceID: evidenceID,
+                leaf: "pair-publication.json",
+                byteCount: 73,
+                digest: markerDigest
+            ),
+        ]
+        let rawWitnessBytes = Data("restore-proof-raw-witness".utf8)
+        let rawItem = try AttachmentStagingItemV1(
+            stageID: firstChildID,
+            draftID: firstChildID,
+            workspaceID: WorkspaceID(
+                rawValue: uuid("64000000-0000-4000-8000-00000000f118")
+            ),
+            attachmentKind: .photo,
+            scratchLeaseID: uuid("64000000-0000-4000-8000-00000000f119"),
+            expectedByteCount: Int64(rawWitnessBytes.count),
+            actualByteCount: Int64(rawWitnessBytes.count),
+            contentDigest: try ContentDigestV1(
+                algorithm: .sha256,
+                hexadecimalValue: StoreMigrationCanonicalJSONV1.sha256(
+                    rawWitnessBytes
+                )
+            ),
+            retryClass: .none,
+            state: .readyLocal,
+            protectionState: .available,
+            revision: 1,
+            mutationID: try MutationIDV1(
+                rawValue: uuid("64000000-0000-4000-8000-00000000f120")
+            )
+        )
+        let physicalEntry = try CheckRunnerPhotoBackupPhysicalEntryV1(
+            entry: DraftAttachmentStagingEntryV1(
+                item: rawItem,
+                relativeDataPath:
+                    DraftAttachmentStagingAdapterV1.relativeDataPath(
+                        draftID: rawItem.draftID,
+                        stageID: rawItem.stageID
+                    ),
+                mediaType: "image/jpeg",
+                updatedAt: Date(timeIntervalSinceReferenceDate: 123)
+            )
+        )
+        let rawPublication = CheckRunnerPhotoBackupRestorePlanV1.RawPublication(
+            physicalEntry: physicalEntry,
+            payload: .init(
+                byteCount: rawWitnessBytes.count,
+                mimeType: "application/octet-stream",
+                path: "photo-plan/raw.bin",
+                sha256: StoreMigrationCanonicalJSONV1.sha256(rawWitnessBytes)
+            ),
+            witness: .init(
+                byteCount: rawWitnessBytes.count,
+                mimeType: "application/json",
+                path: "photo-plan/raw.json",
+                sha256: StoreMigrationCanonicalJSONV1.sha256(rawWitnessBytes)
+            ),
+            witnessBytes: rawWitnessBytes
+        )
+        let firstPlan = plan(
+            sourceGenerationID: uuid("64000000-0000-4000-8000-00000000f106"),
+            childDraftIDs: [firstChildID],
+            members: members,
+            rawPublications: [rawPublication]
+        )
+        let duplicateDestinationPlan = plan(
+            sourceGenerationID: firstPlan.source.sourceGenerationID!,
+            childDraftIDs: [secondChildID],
+            members: members.enumerated().map { index, value in
+                member(
+                    evidenceID: evidenceID,
+                    leaf: value.relativePath.split(separator: "/").last.map(String.init)!,
+                    byteCount: value.entry.byteCount,
+                    digest: value.entry.sha256,
+                    sourcePath: "duplicate-source/\(index)"
+                )
+            }
+        )
+        let boundEmptyPlan = plan(
+            sourceGenerationID: uuid("64000000-0000-4000-8000-00000000f107"),
+            childDraftIDs: [],
+            members: []
+        )
+        let proof = try StoreRestoreGenerationManifestProofV1(
+            restoreID: restoreID,
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [firstPlan, duplicateDestinationPlan, boundEmptyPlan]
+        )
+        XCTAssertEqual(proof.recoveryFiles.count, 3)
+        XCTAssertEqual(
+            proof.recoveryDirectories,
+            [
+                ".staging",
+                ".staging/evidence",
+                ".staging/evidence/\(evidenceID.uuidString.lowercased())",
+            ]
+        )
+        XCTAssertEqual(
+            try StoreRestoreGenerationManifestProofV1.decodeCanonical(
+                from: proof.canonicalData(),
+                incumbentPublicationBindingSHA256: bindingDigest,
+                resolving: [firstPlan, duplicateDestinationPlan, boundEmptyPlan]
+            ),
+            proof
+        )
+        var unknownKeyObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: proof.canonicalData())
+                as? [String: Any]
+        )
+        unknownKeyObject["unknown"] = true
+        let unknownKeyBytes = try JSONSerialization.data(
+            withJSONObject: unknownKeyObject,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        )
+        XCTAssertThrowsError(
+            try StoreRestoreGenerationManifestProofV1.decodeCanonical(
+                from: unknownKeyBytes,
+                incumbentPublicationBindingSHA256: bindingDigest,
+                resolving: [firstPlan, duplicateDestinationPlan, boundEmptyPlan]
+            )
+        )
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [
+                firstPlan, duplicateDestinationPlan,
+            ]
+        ))
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [
+                duplicateDestinationPlan, firstPlan, boundEmptyPlan,
+            ]
+        ))
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: String(repeating: "0", count: 64),
+            plans: [firstPlan, duplicateDestinationPlan, boundEmptyPlan]
+        ))
+
+        let changedSourcePlan = CheckRunnerPhotoBackupRestorePlanV1(
+            source: .init(
+                appBuild: "changed-source",
+                appVersion: firstPlan.source.appVersion,
+                persistentSchemaVersion:
+                    firstPlan.source.persistentSchemaVersion,
+                replicaID: firstPlan.source.replicaID,
+                recordsSchemaVersion: firstPlan.source.recordsSchemaVersion,
+                sourceGenerationID: firstPlan.source.sourceGenerationID,
+                workspaceID: firstPlan.source.workspaceID
+            ),
+            children: firstPlan.children,
+            rawPublications: firstPlan.rawPublications,
+            generationMembers: firstPlan.generationMembers,
+            metadata: firstPlan.metadata
+        )
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [
+                changedSourcePlan, duplicateDestinationPlan, boundEmptyPlan,
+            ]
+        ))
+        let changedChildPlan = CheckRunnerPhotoBackupRestorePlanV1(
+            source: firstPlan.source,
+            children: firstPlan.children.map {
+                .init(
+                    childDraftID: $0.childDraftID,
+                    stageID: secondChildID,
+                    physicalEntry: $0.physicalEntry,
+                    pairLocation: $0.pairLocation,
+                    immutableRawPath: $0.immutableRawPath,
+                    entries: $0.entries
+                )
+            },
+            rawPublications: firstPlan.rawPublications,
+            generationMembers: firstPlan.generationMembers,
+            metadata: firstPlan.metadata
+        )
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [
+                changedChildPlan, duplicateDestinationPlan, boundEmptyPlan,
+            ]
+        ))
+        let changedRawPlan = CheckRunnerPhotoBackupRestorePlanV1(
+            source: firstPlan.source,
+            children: firstPlan.children,
+            rawPublications: [.init(
+                physicalEntry: rawPublication.physicalEntry,
+                payload: rawPublication.payload,
+                witness: rawPublication.witness,
+                witnessBytes: rawWitnessBytes + Data("changed".utf8)
+            )],
+            generationMembers: firstPlan.generationMembers,
+            metadata: firstPlan.metadata
+        )
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [
+                changedRawPlan, duplicateDestinationPlan, boundEmptyPlan,
+            ]
+        ))
+        let durableMember = member(
+            evidenceID: otherEvidenceID,
+            leaf: "original.jpg",
+            byteCount: 29,
+            digest: String(repeating: "4", count: 64)
+        )
+        let changedDurablePlan = CheckRunnerPhotoBackupRestorePlanV1(
+            source: firstPlan.source,
+            children: firstPlan.children,
+            rawPublications: firstPlan.rawPublications,
+            generationMembers: firstPlan.generationMembers + [.init(
+                entry: durableMember.entry,
+                relativePath: "evidence/\(otherEvidenceID.uuidString.lowercased())/original.jpg",
+                kind: .original
+            )],
+            metadata: firstPlan.metadata
+        )
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [
+                changedDurablePlan, duplicateDestinationPlan, boundEmptyPlan,
+            ]
+        ))
+        let changedMetadataPlan = CheckRunnerPhotoBackupRestorePlanV1(
+            source: firstPlan.source,
+            children: firstPlan.children,
+            rawPublications: firstPlan.rawPublications,
+            generationMembers: firstPlan.generationMembers,
+            metadata: ["photo-plan/metadata.json": Data("changed".utf8)]
+        )
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [
+                changedMetadataPlan, duplicateDestinationPlan, boundEmptyPlan,
+            ]
+        ))
+
+        let terminalMembers = [
+            CheckRunnerPhotoBackupRestorePlanV1.GenerationMember(
+                entry: .init(
+                    byteCount: 61,
+                    mimeType: "image/jpeg",
+                    path: "terminal/original.jpg",
+                    sha256: String(repeating: "5", count: 64)
+                ),
+                relativePath: "evidence/\(otherEvidenceID.uuidString.lowercased())/original.jpg",
+                kind: .original
+            ),
+            CheckRunnerPhotoBackupRestorePlanV1.GenerationMember(
+                entry: .init(
+                    byteCount: 23,
+                    mimeType: "image/jpeg",
+                    path: "terminal/thumbnail.jpg",
+                    sha256: String(repeating: "6", count: 64)
+                ),
+                relativePath: "evidence/\(otherEvidenceID.uuidString.lowercased())/thumbnail.jpg",
+                kind: .thumbnail
+            ),
+        ]
+        let terminalPlan = plan(
+            sourceGenerationID: firstPlan.source.sourceGenerationID!,
+            childDraftIDs: [firstChildID],
+            pairLocation: .targetOwned,
+            members: terminalMembers
+        )
+        let awaitingRawPlan = plan(
+            sourceGenerationID: firstPlan.source.sourceGenerationID!,
+            childDraftIDs: [secondChildID],
+            pairLocation: .absent,
+            members: []
+        )
+        let emptyRecoveryProof = try StoreRestoreGenerationManifestProofV1(
+            restoreID: uuid("64000000-0000-4000-8000-00000000f112"),
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [terminalPlan, awaitingRawPlan]
+        )
+        XCTAssertEqual(emptyRecoveryProof.recoveryFiles, [])
+        XCTAssertEqual(emptyRecoveryProof.recoveryDirectories, [])
+        let terminalOnlyProof = try StoreRestoreGenerationManifestProofV1(
+            restoreID: uuid("64000000-0000-4000-8000-00000000f115"),
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [terminalPlan]
+        )
+        let awaitingOnlyProof = try StoreRestoreGenerationManifestProofV1(
+            restoreID: uuid("64000000-0000-4000-8000-00000000f116"),
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [awaitingRawPlan]
+        )
+        XCTAssertEqual(terminalOnlyProof.recoveryFiles, [])
+        XCTAssertEqual(awaitingOnlyProof.recoveryFiles, [])
+        XCTAssertTrue(try emptyRecoveryProof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [
+                terminalPlan, awaitingRawPlan,
+            ]
+        ))
+        XCTAssertEqual(
+            try StoreRestoreGenerationManifestProofV1.decodeCanonical(
+                from: emptyRecoveryProof.canonicalData(),
+                incumbentPublicationBindingSHA256: bindingDigest,
+                resolving: [terminalPlan, awaitingRawPlan]
+            ),
+            emptyRecoveryProof
+        )
+
+        let model = try StoreGenerationFileDigestV1(
+            relativePath: "model.sqlite",
+            byteCount: 211,
+            sha256: modelDigest,
+            kind: .database
+        )
+        XCTAssertNoThrow(try StoreGenerationManifestV1(
+            generationID: generationID,
+            predecessorGenerationID: predecessorID,
+            migrationID: uuid("64000000-0000-4000-8000-00000000f113"),
+            storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
+            semanticSHA256: String(repeating: "7", count: 64),
+            frozenIdentityDigest: String(repeating: "8", count: 64),
+            files: [model],
+            restoreProof: awaitingOnlyProof
+        ))
+        let terminalGenerationFiles = try terminalMembers.map {
+            try StoreGenerationFileDigestV1(
+                relativePath: $0.relativePath,
+                byteCount: $0.entry.byteCount,
+                sha256: $0.entry.sha256,
+                kind: $0.kind.protection
+            )
+        }
+        XCTAssertNoThrow(try StoreGenerationManifestV1(
+            generationID: generationID,
+            predecessorGenerationID: predecessorID,
+            migrationID: uuid("64000000-0000-4000-8000-00000000f117"),
+            storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
+            semanticSHA256: String(repeating: "7", count: 64),
+            frozenIdentityDigest: String(repeating: "8", count: 64),
+            files: ([model] + terminalGenerationFiles).sorted {
+                $0.relativePath < $1.relativePath
+            },
+            restoreProof: terminalOnlyProof
+        ))
+        let unexpectedRecoveryFiles = try members.map {
+            try StoreGenerationFileDigestV1(
+                relativePath: $0.relativePath,
+                byteCount: $0.entry.byteCount,
+                sha256: $0.entry.sha256,
+                kind: .stagingFile
+            )
+        }
+        XCTAssertThrowsError(try StoreGenerationManifestV1(
+            generationID: generationID,
+            predecessorGenerationID: predecessorID,
+            migrationID: uuid("64000000-0000-4000-8000-00000000f114"),
+            storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
+            semanticSHA256: String(repeating: "7", count: 64),
+            frozenIdentityDigest: String(repeating: "8", count: 64),
+            files: ([model] + unexpectedRecoveryFiles).sorted {
+                $0.relativePath < $1.relativePath
+            },
+            restoreProof: awaitingOnlyProof
+        ))
+        let manifest = try StoreGenerationManifestV1(
+            generationID: generationID,
+            predecessorGenerationID: predecessorID,
+            migrationID: uuid("64000000-0000-4000-8000-00000000f108"),
+            storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
+            semanticSHA256: String(repeating: "f", count: 64),
+            frozenIdentityDigest: String(repeating: "0", count: 64),
+            files: ([model] + proof.recoveryFiles).sorted {
+                $0.relativePath < $1.relativePath
+            },
+            restoreProof: proof
+        )
+        XCTAssertEqual(
+            try StoreGenerationManifestV1.decodeCanonical(
+                from: manifest.canonicalData()
+            ),
+            manifest
+        )
+        XCTAssertThrowsError(try StoreGenerationManifestV1(
+            generationID: generationID,
+            predecessorGenerationID: predecessorID,
+            migrationID: manifest.migrationID,
+            storeSchemaRelease: manifest.storeSchemaRelease,
+            semanticSHA256: manifest.semanticSHA256,
+            frozenIdentityDigest: manifest.frozenIdentityDigest,
+            files: manifest.files
+        ))
+
+        let missingPlan = plan(
+            sourceGenerationID: firstPlan.source.sourceGenerationID!,
+            childDraftIDs: [firstChildID],
+            members: Array(members.dropLast())
+        )
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [missingPlan]
+        ))
+        XCTAssertThrowsError(try StoreRestoreGenerationManifestProofV1.decodeCanonical(
+            from: proof.canonicalData(),
+            incumbentPublicationBindingSHA256: bindingDigest,
+            resolving: [missingPlan]
+        ))
+
+        let extraPlan = plan(
+            sourceGenerationID: firstPlan.source.sourceGenerationID!,
+            childDraftIDs: [firstChildID],
+            members: members + [
+                member(
+                    evidenceID: otherEvidenceID,
+                    leaf: "original.jpg",
+                    byteCount: 41,
+                    digest: String(repeating: "1", count: 64)
+                ),
+                member(
+                    evidenceID: otherEvidenceID,
+                    leaf: "thumbnail.jpg",
+                    byteCount: 19,
+                    digest: String(repeating: "2", count: 64)
+                ),
+            ]
+        )
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [extraPlan]
+        ))
+
+        let changedDigestMembers = members.enumerated().map { index, value in
+            index == 0
+                ? member(
+                    evidenceID: evidenceID,
+                    leaf: "original.jpg",
+                    byteCount: value.entry.byteCount,
+                    digest: String(repeating: "3", count: 64)
+                )
+                : value
+        }
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [plan(
+                sourceGenerationID: firstPlan.source.sourceGenerationID!,
+                childDraftIDs: [firstChildID],
+                members: changedDigestMembers
+            )]
+        ))
+        let changedPathMembers = members.map { value in
+            member(
+                evidenceID: otherEvidenceID,
+                leaf: String(value.relativePath.split(separator: "/").last!),
+                byteCount: value.entry.byteCount,
+                digest: value.entry.sha256
+            )
+        }
+        XCTAssertFalse(try proof.matches(
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [plan(
+                sourceGenerationID: firstPlan.source.sourceGenerationID!,
+                childDraftIDs: [firstChildID],
+                members: changedPathMembers
+            )]
+        ))
+        let conflictingDestinationPlan = plan(
+            sourceGenerationID: uuid("64000000-0000-4000-8000-00000000f109"),
+            childDraftIDs: [secondChildID],
+            members: changedDigestMembers
+        )
+        XCTAssertThrowsError(try StoreRestoreGenerationManifestProofV1(
+            restoreID: restoreID,
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [firstPlan, conflictingDestinationPlan]
+        ))
+
+        let invalidPathMember = CheckRunnerPhotoBackupRestorePlanV1.GenerationMember(
+            entry: members[0].entry,
+            relativePath: ".staging/evidence/\(evidenceID.uuidString.lowercased())/unknown.jpg",
+            kind: .staging
+        )
+        XCTAssertThrowsError(try StoreRestoreGenerationManifestProofV1(
+            restoreID: restoreID,
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [plan(
+                sourceGenerationID: firstPlan.source.sourceGenerationID!,
+                childDraftIDs: [firstChildID],
+                members: [invalidPathMember]
+            )]
+        ))
+
+        XCTAssertThrowsError(try StoreRestoreGenerationManifestProofV1(
+            restoreID: restoreID,
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [boundEmptyPlan]
+        ))
+
+        XCTAssertThrowsError(try StoreRestoreGenerationManifestProofV1(
+            restoreID: restoreID,
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [firstPlan, firstPlan]
+        ))
+        XCTAssertThrowsError(try StoreRestoreGenerationManifestProofV1(
+            restoreID: restoreID,
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [firstPlan, boundEmptyPlan, boundEmptyPlan]
+        ))
+        XCTAssertThrowsError(try StoreRestoreGenerationManifestProofV1(
+            restoreID: restoreID,
+            predecessorGenerationID: predecessorID,
+            generationID: generationID,
+            incumbentPublicationBindingSHA256: bindingDigest,
+            plans: [plan(
+                sourceGenerationID: firstPlan.source.sourceGenerationID!,
+                childDraftIDs: [firstChildID, firstChildID],
+                members: members
+            )]
+        ))
+
+        let migrationCheckpoint = StoreMigrationSourceCheckpointV1(
+            files: manifest.files,
+            directories: proof.recoveryDirectories,
+            frozenIdentityDigest: manifest.frozenIdentityDigest,
+            semanticSHA256: manifest.semanticSHA256!
+        )
+        XCTAssertThrowsError(try migrationCheckpoint.validate())
+
+        let markerPath = ".staging/evidence/\(evidenceID.uuidString.lowercased())/pair-publication.json"
+        let markerClassification = try GenerationOwnedPathV1.classify(
+            markerPath,
+            nodeType: .regularFile
+        )
+        XCTAssertTrue(markerClassification.recoveryOwned)
+        XCTAssertEqual(markerClassification.kind, .stagingFile)
+        XCTAssertThrowsError(try GenerationOwnedPathV1.classify(
+            String(markerPath.dropFirst(".staging/".count)),
+            nodeType: .regularFile
+        ))
+    }
+
     @MainActor
     func testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld() async throws {
+        try await assertProofBoundOffActorRestoreFactoryJourney()
         let harness = try makeHarness("golden")
         defer { try? fileManager.removeItem(at: harness.root) }
         let package = try makeSourcePackage(in: harness.root, name: "source")
@@ -1024,7 +1664,7 @@ private extension S6_4AtomicRestoreTests {
         let bytes: Data
     }
 
-    enum FixtureError: Error { case invalid }
+    enum FixtureError: Error { case invalid, publicationDenied }
 
     @MainActor
     func makeHarness(_ name: String) throws -> Harness {
@@ -1037,6 +1677,263 @@ private extension S6_4AtomicRestoreTests {
         let factory = StoreGenerationFactory(applicationSupportURL: support)
         let session = try factory.openOrBootstrapCurrent()
         return Harness(root: root, support: support, factory: factory, session: session)
+    }
+
+    @MainActor
+    func assertProofBoundOffActorRestoreFactoryJourney() async throws {
+        let harness = try makeHarness("proof-bound-off-actor-factory")
+        defer { try? fileManager.removeItem(at: harness.root) }
+        let authority = try harness.factory.makeRestoreGenerationAuthority()
+        let oldID = harness.session.generationID
+        let newID = uuid("64000000-0000-4000-8000-00000000fa01")
+        let evidenceID = uuid("64000000-0000-4000-8000-00000000fa02")
+        let childID = uuid("64000000-0000-4000-8000-00000000fa03")
+        try harness.factory.createRestoreStagingGeneration(
+            id: newID,
+            authority: authority,
+            recordsSchemaVersion:
+                C05EvidenceCurationMigrationBoundaryV1.currentRecordsSchemaVersion,
+            sourceGenerationID: oldID,
+            archiveProvenanceSHA256: String(repeating: "a", count: 64),
+            populate: { _ in }
+        )
+        let stagingRoot = harness.factory.restoreStagingGenerationURL(id: newID)
+        let pairRoot = stagingRoot
+            .appendingPathComponent(".staging/evidence", isDirectory: true)
+            .appendingPathComponent(
+                evidenceID.uuidString.lowercased(),
+                isDirectory: true
+            )
+        try fileManager.createDirectory(
+            at: pairRoot,
+            withIntermediateDirectories: true
+        )
+        let original = Data("off-actor-original".utf8)
+        let thumbnail = Data("off-actor-thumbnail".utf8)
+        let originalURL = pairRoot.appendingPathComponent("original.jpg")
+        let thumbnailURL = pairRoot.appendingPathComponent("thumbnail.jpg")
+        try original.write(to: originalURL)
+        try thumbnail.write(to: thumbnailURL)
+        func entry(_ name: String, _ bytes: Data) -> V4BackupEntryV1 {
+            .init(
+                byteCount: bytes.count,
+                mimeType: "image/jpeg",
+                path: "factory-fixture/\(name)",
+                sha256: StoreMigrationCanonicalJSONV1.sha256(bytes)
+            )
+        }
+        let originalEntry = entry("original.jpg", original)
+        let thumbnailEntry = entry("thumbnail.jpg", thumbnail)
+        let members = [
+            CheckRunnerPhotoBackupRestorePlanV1.GenerationMember(
+                entry: originalEntry,
+                relativePath: ".staging/evidence/\(evidenceID.uuidString.lowercased())/original.jpg",
+                kind: .staging
+            ),
+            CheckRunnerPhotoBackupRestorePlanV1.GenerationMember(
+                entry: thumbnailEntry,
+                relativePath: ".staging/evidence/\(evidenceID.uuidString.lowercased())/thumbnail.jpg",
+                kind: .staging
+            ),
+        ]
+        let plan = CheckRunnerPhotoBackupRestorePlanV1(
+            source: .init(
+                appBuild: "factory-fixture",
+                appVersion: "23",
+                persistentSchemaVersion:
+                    PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major,
+                recordsSchemaVersion:
+                    C05EvidenceCurationMigrationBoundaryV1.currentRecordsSchemaVersion,
+                sourceGenerationID: oldID
+            ),
+            children: [.init(
+                childDraftID: childID,
+                stageID: childID,
+                physicalEntry: nil,
+                pairLocation: .staged(markerPresent: false),
+                immutableRawPath: nil,
+                entries: [originalEntry, thumbnailEntry]
+            )],
+            rawPublications: [],
+            generationMembers: members,
+            metadata: [:]
+        )
+        let proof = try StoreRestoreGenerationManifestProofV1(
+            restoreID: uuid("64000000-0000-4000-8000-00000000fa04"),
+            predecessorGenerationID: oldID,
+            generationID: newID,
+            incumbentPublicationBindingSHA256: String(repeating: "b", count: 64),
+            plans: [plan]
+        )
+
+        func protectAndSnapshot()
+            async throws -> StoreRestoreGenerationFileSnapshotV1 {
+            try authority.protectStagingGeneration(id: newID, requireModel: true)
+            let identity = try authority.restoreGenerationRootIdentity(
+                id: newID,
+                staging: true
+            )
+            return try await harness.factory.prepareRestoreGenerationFileSnapshot(
+                generationID: newID,
+                staging: true,
+                expectedRootIdentity: identity,
+                restoreProof: proof
+            )
+        }
+
+        var stagingSnapshot = try await protectAndSnapshot()
+        XCTAssertThrowsError(try harness.factory
+            .prepareRestoreStagingGenerationManifest(
+                expectedOldID: oldID,
+                newID: newID,
+                restoreProof: proof,
+                authority: authority
+            ))
+
+        let movedURL = pairRoot.appendingPathComponent("original-moved.jpg")
+        try fileManager.moveItem(at: originalURL, to: movedURL)
+        XCTAssertThrowsError(try harness.factory
+            .prepareRestoreStagingGenerationManifest(
+                expectedOldID: oldID,
+                newID: newID,
+                restoreProof: proof,
+                restoreFileSnapshot: stagingSnapshot,
+                authority: authority
+            ))
+        try fileManager.moveItem(at: movedURL, to: originalURL)
+        stagingSnapshot = try await protectAndSnapshot()
+
+        let markerURL = pairRoot.appendingPathComponent("pair-publication.json")
+        try Data("{}".utf8).write(to: markerURL)
+        XCTAssertThrowsError(try harness.factory
+            .prepareRestoreStagingGenerationManifest(
+                expectedOldID: oldID,
+                newID: newID,
+                restoreProof: proof,
+                restoreFileSnapshot: stagingSnapshot,
+                authority: authority
+            ))
+        try fileManager.removeItem(at: markerURL)
+        stagingSnapshot = try await protectAndSnapshot()
+
+        let changed = Data("off-actor-ORIGINAL".utf8)
+        XCTAssertEqual(changed.count, original.count)
+        let writer = try FileHandle(forWritingTo: originalURL)
+        try writer.write(contentsOf: changed)
+        try writer.synchronize()
+        try writer.close()
+        XCTAssertThrowsError(try harness.factory
+            .prepareRestoreStagingGenerationManifest(
+                expectedOldID: oldID,
+                newID: newID,
+                restoreProof: proof,
+                restoreFileSnapshot: stagingSnapshot,
+                authority: authority
+            ))
+        let restoring = try FileHandle(forWritingTo: originalURL)
+        try restoring.write(contentsOf: original)
+        try restoring.synchronize()
+        try restoring.close()
+        stagingSnapshot = try await protectAndSnapshot()
+
+        let manifestDigest = try harness.factory
+            .prepareRestoreStagingGenerationManifest(
+                expectedOldID: oldID,
+                newID: newID,
+                restoreProof: proof,
+                restoreFileSnapshot: stagingSnapshot,
+                authority: authority
+            )
+        try harness.factory.installRestoreStagingGeneration(
+            id: newID,
+            restoreProof: proof,
+            restoreFileSnapshot: stagingSnapshot,
+            authority: authority
+        )
+        XCTAssertThrowsError(try harness.factory
+            .requireInstalledRestoreGenerationSnapshot(
+                expectedOldID: oldID,
+                generationID: newID,
+                expectedManifestDigest: manifestDigest,
+                restoreProof: proof,
+                restoreFileSnapshot: stagingSnapshot,
+                authority: authority
+            ))
+        let coldAuthority = try harness.factory.makeRestoreGenerationAuthority()
+        let installedIdentity = try coldAuthority.restoreGenerationRootIdentity(
+            id: newID,
+            staging: false
+        )
+        let installedSnapshot = try await harness.factory
+            .prepareRestoreGenerationFileSnapshot(
+                generationID: newID,
+                staging: false,
+                expectedRootIdentity: installedIdentity,
+                restoreProof: proof
+            )
+        let expectedCurrentPointer = try harness.factory
+            .currentGenerationPointerV3(
+                expectedGenerationID: oldID,
+                authority: coldAuthority
+            )
+        var publicationValidationRan = false
+        do {
+            try harness.factory.switchCurrentGeneration(
+                expected: oldID,
+                to: newID,
+                expectedCurrentPointer: expectedCurrentPointer,
+                identity: harness.session.workspaceIdentity,
+                knownReplicaIDs: [harness.session.workspaceIdentity.replicaID],
+                preparedGenerationManifestSHA256: manifestDigest,
+                restoreProof: proof,
+                restoreFileSnapshot: installedSnapshot,
+                authority: coldAuthority,
+                publicationValidation: {
+                    publicationValidationRan = true
+                    throw FixtureError.publicationDenied
+                }
+            )
+            XCTFail("publication denial must prevent the pointer switch")
+        } catch FixtureError.publicationDenied {}
+        XCTAssertTrue(publicationValidationRan)
+        XCTAssertEqual(
+            try harness.factory.currentGenerationID(authority: coldAuthority),
+            oldID
+        )
+        XCTAssertEqual(
+            try harness.factory.currentGenerationPointerV3(
+                expectedGenerationID: oldID,
+                authority: coldAuthority
+            ),
+            expectedCurrentPointer
+        )
+        try harness.factory.requireInstalledRestoreGenerationSnapshot(
+            expectedOldID: oldID,
+            generationID: newID,
+            expectedManifestDigest: manifestDigest,
+            restoreProof: proof,
+            restoreFileSnapshot: installedSnapshot,
+            authority: coldAuthority
+        )
+        try harness.factory.removePreparedRestoreGenerationManifestBeforeDiscard(
+            expectedOldID: oldID,
+            generationID: newID,
+            expectedDigest: manifestDigest,
+            restoreProof: proof,
+            restoreFileSnapshot: installedSnapshot,
+            authority: coldAuthority
+        )
+        try harness.factory.removeInstalledGeneration(
+            id: newID,
+            keeping: oldID,
+            authority: coldAuthority
+        )
+        let presence = try harness.factory.generationPresence(
+            id: newID,
+            authority: coldAuthority
+        )
+        XCTAssertFalse(presence.staging)
+        XCTAssertFalse(presence.installed)
     }
 
     @MainActor

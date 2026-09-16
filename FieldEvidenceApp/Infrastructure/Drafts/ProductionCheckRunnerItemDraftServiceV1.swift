@@ -29,6 +29,8 @@ final class CheckRunnerPhotoRawPublicationAuthorityV1 {
     nonisolated let payload: CheckRunnerPhotoDraftPayloadV1
     nonisolated let publishedRawReady: CheckRunnerPhotoRawReadyV1?
     nonisolated let applicationSupportURL: URL
+    nonisolated let adoptsExistingOnly: Bool
+    fileprivate let backupOperation: AppAccessPresentationV1.BackupOperationAccess?
     fileprivate let evidence: CheckRunnerPhotoRawStageEvidenceV1
     fileprivate let revision: WorkspaceRevisionV1
     fileprivate let owner: CurrentPhotoTargetReadOwnerV1
@@ -38,11 +40,13 @@ final class CheckRunnerPhotoRawPublicationAuthorityV1 {
     fileprivate init(service: ProductionCheckRunnerItemDraftServiceV1,
         writer: WorkspaceWriterV1, owner: CurrentPhotoTargetReadOwnerV1,
         evidence: CheckRunnerPhotoRawStageEvidenceV1, revision: WorkspaceRevisionV1,
-        applicationSupportURL: URL) {
+        applicationSupportURL: URL, backupOperation: AppAccessPresentationV1.BackupOperationAccess? = nil) {
         self.service = service; self.writer = writer; self.owner = owner
         self.evidence = evidence; self.revision = revision
         payload = evidence.initialPayload; publishedRawReady = evidence.rawReady
         self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        self.backupOperation = backupOperation
+        adoptsExistingOnly = backupOperation != nil
     }
 
     func publish(_ prepared: DraftPreparedRawPhotoPublicationV1) throws -> FieldDraftCommittedEvidenceV1 {
@@ -64,14 +68,17 @@ final class CheckRunnerPhotoRawReadAuthorityV1 {
     fileprivate let owner: CurrentPhotoTargetReadOwnerV1
     fileprivate weak var service: ProductionCheckRunnerItemDraftServiceV1?
     fileprivate weak var writer: WorkspaceWriterV1?
+    fileprivate let backupOperation: AppAccessPresentationV1.BackupOperationAccess?
 
     fileprivate init(service: ProductionCheckRunnerItemDraftServiceV1, writer: WorkspaceWriterV1,
         owner: CurrentPhotoTargetReadOwnerV1, evidence: CheckRunnerPhotoContinuationEvidenceV1,
-        revision: WorkspaceRevisionV1, applicationSupportURL: URL, normalizationAllowed: Bool) {
+        revision: WorkspaceRevisionV1, applicationSupportURL: URL, normalizationAllowed: Bool,
+        backupOperation: AppAccessPresentationV1.BackupOperationAccess? = nil) {
         self.service = service; self.writer = writer; self.owner = owner; self.evidence = evidence
         self.revision = revision; rawReady = evidence.raw
         self.applicationSupportURL = applicationSupportURL.standardizedFileURL
         self.normalizationAllowed = normalizationAllowed
+        self.backupOperation = backupOperation
     }
 
     func validate(adapterIdentity: ObjectIdentifier) throws {
@@ -131,13 +138,16 @@ fileprivate final class CurrentPhotoOperationReadV1 {
     let revision: WorkspaceRevisionV1
     let media: CheckRunnerPhotoMediaOwnerV1
     let applicationSupportURL: URL
+    let backupOperation: AppAccessPresentationV1.BackupOperationAccess?
 
     init(service: ProductionCheckRunnerItemDraftServiceV1, writer: WorkspaceWriterV1,
          owner: CurrentPhotoTargetReadOwnerV1, evidence: CheckRunnerPhotoContinuationEvidenceV1,
-         revision: WorkspaceRevisionV1, media: CheckRunnerPhotoMediaOwnerV1, applicationSupportURL: URL) {
+         revision: WorkspaceRevisionV1, media: CheckRunnerPhotoMediaOwnerV1, applicationSupportURL: URL,
+         backupOperation: AppAccessPresentationV1.BackupOperationAccess? = nil) {
         self.service = service; self.writer = writer; self.owner = owner; self.evidence = evidence
         self.revision = revision; self.media = media
         self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        self.backupOperation = backupOperation
     }
 }
 
@@ -494,6 +504,39 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         return try await attachmentStaging.stageRawPhoto(sourceURL: sourceURL, authority: authority)
     }
 
+    /// Export can acknowledge only an already published raw stage. Absence
+    /// leaves the original pending child untouched; no source URL is supplied.
+    func adoptExistingRawPhotoForBackup(parentDraftID: UUID, childDraftID: UUID,
+        authorizing operation: AppAccessPresentationV1.BackupOperationAccess) async throws -> FieldDraftCommittedEvidenceV1? {
+        guard let attachmentStaging, photoOperations.insert(childDraftID).inserted else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        defer { photoOperations.remove(childDraftID) }
+        let authority = try operation.withAuthorization { store in
+            guard try currentSession() === store else { throw ScanToWorkFailureV1.authorityMismatch }
+            let writer = store.workspaceWriter
+            let revision = try writer.currentRevision()
+            let evidence = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
+            guard try writer.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
+            return CheckRunnerPhotoRawPublicationAuthorityV1(service: self, writer: writer,
+                owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
+                applicationSupportURL: store.checkRunnerPhotoApplicationSupportURL, backupOperation: operation)
+        }
+        let result = try await attachmentStaging.adoptExistingRawPhoto(authority: authority)
+        return try operation.withAuthorization { store in
+            guard try currentSession() === store else { throw ScanToWorkFailureV1.authorityMismatch }
+            let observed = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
+            if let result {
+                guard observed.publication == result else { throw FieldDraftFailureV1.missingReceipt }
+            } else {
+                guard observed == authority.evidence, try store.workspaceWriter.currentRevision() == authority.revision else {
+                    throw FieldDraftFailureV1.staleDraftRevision
+                }
+            }
+            return result
+        }
+    }
+
     private func currentRawPhotoEvidence(parentDraftID: UUID, childDraftID: UUID) throws
         -> CheckRunnerPhotoRawStageEvidenceV1 {
         let current = try currentSession()
@@ -517,7 +560,8 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         return evidence
     }
 
-    private func photoOperationRead(_ evidence: CheckRunnerPhotoContinuationEvidenceV1) throws -> CurrentPhotoOperationReadV1 {
+    private func photoOperationRead(_ evidence: CheckRunnerPhotoContinuationEvidenceV1,
+        backupOperation: AppAccessPresentationV1.BackupOperationAccess? = nil) throws -> CurrentPhotoOperationReadV1 {
         let current = try currentSession()
         let revision = try current.workspaceWriter.currentRevision()
         let media = try coordinator.checkRunnerPhotoMediaOwner(progress: progress)
@@ -526,11 +570,15 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
               try current.workspaceWriter.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
         return .init(service: self, writer: current.workspaceWriter, owner: currentPhotoReadOwner,
             evidence: evidence, revision: revision, media: media,
-            applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL)
+            applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL, backupOperation: backupOperation)
     }
 
     fileprivate func validatePhotoOperation(_ value: CurrentPhotoOperationReadV1) throws {
         try Task.checkCancellation()
+        if let operation = value.backupOperation {
+            guard let session else { throw ScanToWorkFailureV1.authorityMismatch }
+            try operation.validate(for: session)
+        }
         guard value.service === self, value.owner === currentPhotoReadOwner else { throw ScanToWorkFailureV1.authorityMismatch }
         let current = try currentSession()
         let media = try coordinator.checkRunnerPhotoMediaOwner(progress: progress)
@@ -549,17 +597,33 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         -> CheckRunnerPhotoRawReadAuthorityV1 {
         .init(service: self, writer: value.writer, owner: currentPhotoReadOwner,
             evidence: value.evidence, revision: value.revision, applicationSupportURL: value.applicationSupportURL,
-            normalizationAllowed: normalizationAllowed)
+            normalizationAllowed: normalizationAllowed, backupOperation: value.backupOperation)
     }
 
     /// Exact marked pairs are adopted without the picker or normalizer. A
     /// retained pairReady claim cannot authorize replacement of missing bytes.
     func preparePhotoPair(parentDraftID: UUID, childDraftID: UUID) async throws -> FieldDraftCheckpointV1 {
+        guard let result = try await preparePhotoPair(parentDraftID: parentDraftID,
+            childDraftID: childDraftID, backupOperation: nil) else { throw FieldDraftFailureV1.missingContent }
+        return result
+    }
+
+    func adoptExistingPhotoPairForBackup(parentDraftID: UUID, childDraftID: UUID,
+        authorizing operation: AppAccessPresentationV1.BackupOperationAccess) async throws -> FieldDraftCheckpointV1? {
+        try await preparePhotoPair(parentDraftID: parentDraftID, childDraftID: childDraftID, backupOperation: operation)
+    }
+
+    private func preparePhotoPair(parentDraftID: UUID, childDraftID: UUID,
+        backupOperation: AppAccessPresentationV1.BackupOperationAccess?) async throws -> FieldDraftCheckpointV1? {
         guard photoOperations.insert(childDraftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
         defer { photoOperations.remove(childDraftID) }
         guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
+        if let backupOperation {
+            guard let session else { throw ScanToWorkFailureV1.authorityMismatch }
+            try backupOperation.validate(for: session)
+        }
         let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID, childDraftID: childDraftID)
-        let read = try photoOperationRead(evidence)
+        let read = try photoOperationRead(evidence, backupOperation: backupOperation)
         let authority = CheckRunnerPhotoPairPublicationAuthorityV1(read: read)
         try authority.validatePreparation()
         let root = read.media.rootIdentity
@@ -576,6 +640,7 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
             normalized = nil
         } else {
             guard case .rawReady = evidence.payload.phase else { throw FieldDraftFailureV1.missingContent }
+            if backupOperation != nil { return nil }
             normalized = try await attachmentStaging.normalizeRawPhoto(
                 authority: rawReadAuthority(read, normalizationAllowed: true))
         }
@@ -609,6 +674,17 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     }
 
     fileprivate func publishPreparedPair(authority: CheckRunnerPhotoPairPublicationAuthorityV1,
+        prepared: CheckRunnerPhotoPreparedPairPublicationV1) throws -> FieldDraftCheckpointV1 {
+        if let operation = authority.read.backupOperation {
+            return try operation.withAuthorization { store in
+                guard try currentSession() === store else { throw ScanToWorkFailureV1.authorityMismatch }
+                return try publishPreparedPairUnderAccess(authority: authority, prepared: prepared)
+            }
+        }
+        return try publishPreparedPairUnderAccess(authority: authority, prepared: prepared)
+    }
+
+    private func publishPreparedPairUnderAccess(authority: CheckRunnerPhotoPairPublicationAuthorityV1,
         prepared: CheckRunnerPhotoPreparedPairPublicationV1) throws -> FieldDraftCheckpointV1 {
         let read = authority.read
         guard !authority.publishing, let verification = authority.rawVerification else { throw ScanToWorkFailureV1.authorityMismatch }
@@ -901,6 +977,10 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
 
     fileprivate func validateRawPhotoRead(_ authority: CheckRunnerPhotoRawReadAuthorityV1,
                                          adapterIdentity: ObjectIdentifier) throws {
+        if let operation = authority.backupOperation {
+            guard let session else { throw ScanToWorkFailureV1.authorityMismatch }
+            try operation.validate(for: session)
+        }
         try Task.checkCancellation()
         guard authority.service === self, authority.owner === currentPhotoReadOwner,
               let writer = authority.writer, let attachmentStaging,
@@ -981,6 +1061,17 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     }
 
     fileprivate func publishPreparedRawPhoto(authority: CheckRunnerPhotoRawPublicationAuthorityV1,
+        prepared: DraftPreparedRawPhotoPublicationV1) throws -> FieldDraftCommittedEvidenceV1 {
+        if let operation = authority.backupOperation {
+            return try operation.withAuthorization { store in
+                guard try currentSession() === store else { throw ScanToWorkFailureV1.authorityMismatch }
+                return try publishPreparedRawPhotoUnderAccess(authority: authority, prepared: prepared)
+            }
+        }
+        return try publishPreparedRawPhotoUnderAccess(authority: authority, prepared: prepared)
+    }
+
+    private func publishPreparedRawPhotoUnderAccess(authority: CheckRunnerPhotoRawPublicationAuthorityV1,
         prepared: DraftPreparedRawPhotoPublicationV1) throws -> FieldDraftCommittedEvidenceV1 {
         try Task.checkCancellation()
         guard authority.service === self, authority.owner === currentPhotoReadOwner,

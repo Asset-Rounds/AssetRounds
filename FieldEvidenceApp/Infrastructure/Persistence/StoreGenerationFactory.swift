@@ -4746,15 +4746,28 @@ private extension StoreGenerationFactory {
 
     private func generationFileDigests(
         at generationRootURL: URL,
-        durable: Bool
+        durable: Bool,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil
     ) throws -> [StoreGenerationFileDigestV1] {
+        if let snapshot = try requireRestoreFileSnapshot(
+            restoreFileSnapshot,
+            generationID: restoreProof?.generationID,
+            at: generationRootURL,
+            restoreProof: restoreProof
+        ) {
+            return snapshot.files
+        }
         let descriptor = try openOwnedDirectory(at: generationRootURL)
         defer { _ = Darwin.close(descriptor) }
         try verifyOwnedDirectory(at: generationRootURL, descriptor: descriptor)
         let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
             parent: descriptor, requireModel: true
         )
-        let values = try inventory.fileDigests(durable: durable)
+        let values = try inventory.fileDigests(
+            durable: durable,
+            restoreProof: restoreProof
+        )
         try verifyOwnedDirectory(at: generationRootURL, descriptor: descriptor)
         try inventory.revalidate()
         return values
@@ -4770,14 +4783,30 @@ private extension StoreGenerationFactory {
         )
     }
 
-    private func frozenIdentityDigest(for generationRootURL: URL) throws -> String {
+    private func frozenIdentityDigest(
+        for generationRootURL: URL,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil
+    ) throws -> String {
+        if let snapshot = try requireRestoreFileSnapshot(
+            restoreFileSnapshot,
+            generationID: restoreProof?.generationID,
+            at: generationRootURL,
+            restoreProof: restoreProof
+        ) {
+            return snapshot.frozenIdentityDigest
+        }
         let descriptor = try openOwnedDirectory(at: generationRootURL)
         defer { _ = Darwin.close(descriptor) }
         try verifyOwnedDirectory(at: generationRootURL, descriptor: descriptor)
         let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
             parent: descriptor, requireModel: true
         )
-        try inventory.requireSettledMigrationInput()
+        if let restoreProof {
+            try inventory.requireRestoreManifestInput(restoreProof)
+        } else {
+            try inventory.requireSettledMigrationInput()
+        }
         let directory = inventory.root.identity
         var tokens = ["directory|\(directory.device)|\(directory.inode)"]
         for name in inventory.files.keys.sorted() {
@@ -4791,6 +4820,33 @@ private extension StoreGenerationFactory {
         return StoreMigrationCanonicalJSONV1.sha256(
             Data(tokens.joined(separator: "\n").utf8)
         )
+    }
+
+    private func requireRestoreFileSnapshot(
+        _ snapshot: StoreRestoreGenerationFileSnapshotV1?,
+        generationID: UUID?,
+        at generationRootURL: URL,
+        restoreProof: StoreRestoreGenerationManifestProofV1?
+    ) throws -> StoreRestoreGenerationFileSnapshotV1? {
+        guard let restoreProof else {
+            guard snapshot == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            return nil
+        }
+        guard let snapshot,
+              let generationID,
+              snapshot.generationID == generationID else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        try StoreRestoreGenerationAuthority.validateRestoreGenerationFileSnapshot(
+            snapshot,
+            generationID: generationID,
+            staging: snapshot.staging,
+            rootURL: generationRootURL.standardizedFileURL,
+            restoreProof: restoreProof
+        )
+        return snapshot
     }
 
     private func syntheticPredecessor(excluding generationID: UUID) -> UUID {
@@ -4930,12 +4986,25 @@ private extension StoreGenerationFactory {
     @MainActor
     private func makeRestoreCurrentPointer(
         expectedOldID: UUID,
-        newID: UUID
+        newID: UUID,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil
     ) throws -> CurrentGenerationPointerV3 {
         guard try currentGenerationID() == expectedOldID else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         let root = installedGenerationURL(id: newID)
+        if let restoreFileSnapshot,
+           !restoreFileSnapshot.staging {
+            _ = try requireRestoreFileSnapshot(
+                restoreFileSnapshot,
+                generationID: newID,
+                at: root,
+                restoreProof: restoreProof
+            )
+        } else if restoreProof != nil || restoreFileSnapshot != nil {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
             let container = try makeV53Container(at: modelStoreURL, migrate: false)
@@ -4963,7 +5032,9 @@ private extension StoreGenerationFactory {
                 expectedOldID: expectedOldID,
                 generationID: newID,
                 at: root,
-                staging: false
+                staging: false,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
             )
             return try restorePointerV3(
                 generationID: newID,
@@ -4975,15 +5046,27 @@ private extension StoreGenerationFactory {
             release: PersistentSchemaReleaseRegistryV1.activeRelease,
             markerMigrationID: markerMigrationID
         )
-        try protectGeneration(at: root, staging: false, requireModel: true)
+        if restoreProof == nil {
+            try protectGeneration(at: root, staging: false, requireModel: true)
+        }
         let manifest = try StoreGenerationManifestV1(
             generationID: newID,
             predecessorGenerationID: expectedOldID,
             migrationID: markerMigrationID,
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
             semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(semantic),
-            frozenIdentityDigest: try frozenIdentityDigest(for: root),
-            files: try generationFileDigests(at: root, durable: true)
+            frozenIdentityDigest: try frozenIdentityDigest(
+                for: root,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
+            ),
+            files: try generationFileDigests(
+                at: root,
+                durable: true,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
+            ),
+            restoreProof: restoreProof
         )
         let digest = try store.writeManifest(manifest)
         return try restorePointerV3(generationID: newID, manifestDigest: digest)
@@ -5026,7 +5109,9 @@ private extension StoreGenerationFactory {
         newID: UUID,
         identity: WorkspaceReplicaIdentityV1,
         knownReplicaIDs: Set<ReplicaID>,
-        preparedGenerationManifestSHA256: String
+        preparedGenerationManifestSHA256: String,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil
     ) throws -> CurrentGenerationPointerV3 {
         guard try currentGenerationID() == expectedOldID else {
             throw StoreGenerationFailure.dataPointerInvalid
@@ -5046,7 +5131,9 @@ private extension StoreGenerationFactory {
             expectedOldID: expectedOldID,
             generationID: newID,
             at: installedGenerationURL(id: newID),
-            staging: false
+            staging: false,
+            restoreProof: restoreProof,
+            restoreFileSnapshot: restoreFileSnapshot
         )
         return try CurrentGenerationPointerV3(
             generationID: newID,
@@ -5064,8 +5151,26 @@ private extension StoreGenerationFactory {
         expectedOldID: UUID,
         generationID: UUID,
         at root: URL,
-        staging: Bool
+        staging: Bool,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil
     ) throws {
+        guard manifest.restoreProof == restoreProof else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        if let restoreFileSnapshot {
+            guard restoreFileSnapshot.staging == staging else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            _ = try requireRestoreFileSnapshot(
+                restoreFileSnapshot,
+                generationID: generationID,
+                at: root,
+                restoreProof: restoreProof
+            )
+        } else if restoreProof != nil {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
             let context: ModelContext
@@ -5244,12 +5349,27 @@ private extension StoreGenerationFactory {
               )),
               manifest.files == (try generationFileDigests(
                   at: root,
-                  durable: true
+                  durable: true,
+                  restoreProof: restoreProof,
+                  restoreFileSnapshot: restoreFileSnapshot
               )),
-              manifest.frozenIdentityDigest == (try frozenIdentityDigest(for: root)) else {
+              manifest.frozenIdentityDigest == (try frozenIdentityDigest(
+                   for: root,
+                   restoreProof: restoreProof,
+                   restoreFileSnapshot: restoreFileSnapshot
+               )) else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
-        try protectGeneration(at: root, staging: staging, requireModel: true)
+        if restoreProof == nil {
+            try protectGeneration(at: root, staging: staging, requireModel: true)
+        } else {
+            _ = try requireRestoreFileSnapshot(
+                restoreFileSnapshot,
+                generationID: generationID,
+                at: root,
+                restoreProof: restoreProof
+            )
+        }
     }
 
 }
@@ -5569,6 +5689,60 @@ final class StoreGenerationSession {
     }
 }
 
+/// Immutable, privately minted capability for one exact restore-generation
+/// pathname and inode. Large file hashing happens while this value is minted
+/// off the main actor; consumers rewalk and compare metadata without rehashing.
+struct StoreRestoreGenerationFileSnapshotV1: Equatable, Sendable {
+    fileprivate enum NodeType: String, Equatable, Sendable {
+        case directory
+        case regularFile
+    }
+
+    fileprivate struct NodeFact: Equatable, Sendable {
+        let relativePath: String
+        let parentRelativePath: String
+        let name: String
+        let type: NodeType
+        let device: UInt64
+        let inode: UInt64
+        let linkCount: UInt64?
+        let byteCount: Int?
+        let modificationSeconds: Int64?
+        let modificationNanoseconds: Int64?
+        let statusChangeSeconds: Int64?
+        let statusChangeNanoseconds: Int64?
+    }
+
+    let generationID: UUID
+    let staging: Bool
+    let expectedRootIdentity: StreamingArchiveRootIdentityV1
+    let restoreProof: StoreRestoreGenerationManifestProofV1
+    fileprivate let rootURL: URL
+    fileprivate let facts: [NodeFact]
+    fileprivate let files: [StoreGenerationFileDigestV1]
+    fileprivate let frozenIdentityDigest: String
+
+    fileprivate init(
+        generationID: UUID,
+        staging: Bool,
+        rootURL: URL,
+        expectedRootIdentity: StreamingArchiveRootIdentityV1,
+        restoreProof: StoreRestoreGenerationManifestProofV1,
+        facts: [NodeFact],
+        files: [StoreGenerationFileDigestV1],
+        frozenIdentityDigest: String
+    ) {
+        self.generationID = generationID
+        self.staging = staging
+        self.rootURL = rootURL
+        self.expectedRootIdentity = expectedRootIdentity
+        self.restoreProof = restoreProof
+        self.facts = facts
+        self.files = files
+        self.frozenIdentityDigest = frozenIdentityDigest
+    }
+}
+
 /// Descriptor-pinned authority used only by atomic backup restore. It keeps the
 /// installed and restore-staging generation parents bound to the same directory
 /// identities for the complete restore/recovery operation, so a renamed or
@@ -5596,6 +5770,21 @@ final class StoreRestoreGenerationAuthority {
         let linkCount: nlink_t
         let type: mode_t
         let byteCount: off_t
+        let modificationSeconds: Int64
+        let modificationNanoseconds: Int64
+        let statusChangeSeconds: Int64
+        let statusChangeNanoseconds: Int64
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            // Preserve the settled migration path's historical identity
+            // predicate. Restore capabilities compare the timestamp fields in
+            // their separately minted immutable NodeFact values.
+            lhs.device == rhs.device
+                && lhs.inode == rhs.inode
+                && lhs.linkCount == rhs.linkCount
+                && lhs.type == rhs.type
+                && lhs.byteCount == rhs.byteCount
+        }
     }
 
     fileprivate struct StreamedFileDigest {
@@ -5685,9 +5874,17 @@ final class StoreRestoreGenerationAuthority {
         private(set) var directories: [String: Identity] = [:]
         private(set) var files: [String: File] = [:]
         private var children: [String: Set<String>] = [:]
+        private let cancellationCheck: () throws -> Void
         private var closed = false
 
-        init(parent: Int32, requireModel: Bool, partialCleanup: Bool = false) throws {
+        init(
+            parent: Int32,
+            requireModel: Bool,
+            partialCleanup: Bool = false,
+            cancellationCheck: @escaping () throws -> Void = {}
+        ) throws {
+            self.cancellationCheck = cancellationCheck
+            try cancellationCheck()
             let descriptor = Darwin.openat(parent, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
             guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
             do {
@@ -5713,6 +5910,11 @@ final class StoreRestoreGenerationAuthority {
         }
 
         deinit { if !closed { _ = Darwin.close(root.descriptor) } }
+        func close() {
+            guard !closed else { return }
+            closed = true
+            _ = Darwin.close(root.descriptor)
+        }
         var tree: Tree { Tree(directories: Set(directories.keys), files: Set(files.keys)) }
         static func parentPath(_ path: String) -> String {
             path.split(separator: "/").dropLast().joined(separator: "/")
@@ -5731,9 +5933,11 @@ final class StoreRestoreGenerationAuthority {
         }
 
         private func scan(directory: Directory, prefix: String) throws {
+            try cancellationCheck()
             let names = try StoreRestoreGenerationAuthority.names(in: directory.descriptor)
             children[prefix] = Set(names)
             for name in names {
+                try cancellationCheck()
                 try StoreRestoreGenerationAuthority.requireSafeBasename(name)
                 let path = prefix.isEmpty ? name : "\(prefix)/\(name)"
                 var info = stat()
@@ -5790,6 +5994,7 @@ final class StoreRestoreGenerationAuthority {
 
         func revalidate() throws {
             for path in [""] + directories.keys.sorted() {
+                try cancellationCheck()
                 guard let expected = children[path] else { throw StoreGenerationFailure.dataPointerInvalid }
                 try withDirectory(path) { chain in
                     guard Set(try StoreRestoreGenerationAuthority.names(in: chain.descriptor)) == expected else {
@@ -5797,7 +6002,10 @@ final class StoreRestoreGenerationAuthority {
                     }
                 }
             }
-            for path in files.keys.sorted() { try withFile(path) { _, _ in } }
+            for path in files.keys.sorted() {
+                try cancellationCheck()
+                try withFile(path) { _, _ in }
+            }
         }
 
         /// O_NONBLOCK prevents a regular-file -> FIFO replacement from
@@ -5832,15 +6040,53 @@ final class StoreRestoreGenerationAuthority {
             }
         }
 
-        func fileDigests(durable: Bool) throws -> [StoreGenerationFileDigestV1] {
-            try requireSettledMigrationInput()
+        func requireRestoreManifestInput(
+            _ proof: StoreRestoreGenerationManifestProofV1
+        ) throws {
+            try proof.validate()
+            let recoveryFilePaths = Set(files.compactMap { path, value in
+                value.ownership.recoveryOwned ? path : nil
+            })
+            let recoveryDirectoryPaths = Set(try directories.keys.filter { path in
+                try GenerationOwnedPathV1.classify(
+                    path,
+                    nodeType: .directory
+                ).recoveryOwned
+            })
+            guard recoveryFilePaths == Set(proof.recoveryFiles.map(\.relativePath)),
+                  recoveryDirectoryPaths == Set(proof.recoveryDirectories) else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            for expected in proof.recoveryFiles {
+                guard let file = files[expected.relativePath],
+                      file.ownership.recoveryOwned,
+                      file.ownership.kind == expected.kind,
+                      file.snapshot.byteCount == off_t(expected.byteCount) else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+            }
+        }
+
+        func fileDigests(
+            durable: Bool,
+            restoreProof: StoreRestoreGenerationManifestProofV1? = nil
+        ) throws -> [StoreGenerationFileDigestV1] {
+            if let restoreProof {
+                try requireRestoreManifestInput(restoreProof)
+            } else {
+                try requireSettledMigrationInput()
+            }
             try revalidate()
             var values = [StoreGenerationFileDigestV1]()
             for path in files.keys.sorted() {
+                try cancellationCheck()
                 guard let file = files[path] else { throw StoreGenerationFailure.dataPointerInvalid }
                 let digest = try withFile(path) { descriptor, snapshot in
                     let digest = try StoreRestoreGenerationAuthority.streamedDigest(
-                        descriptor: descriptor, expectedSnapshot: snapshot, mismatchReason: .sourceMismatch)
+                        descriptor: descriptor,
+                        expectedSnapshot: snapshot,
+                        mismatchReason: .sourceMismatch,
+                        cancellationCheck: cancellationCheck)
                     if durable, Darwin.fsync(descriptor) != 0 {
                         throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
                     }
@@ -5850,9 +6096,13 @@ final class StoreRestoreGenerationAuthority {
                     relativePath: path, byteCount: digest.byteCount, sha256: digest.sha256, kind: file.ownership.kind))
             }
             for value in values {
+                try cancellationCheck()
                 let reproof = try withFile(value.relativePath) { descriptor, snapshot in
                     try StoreRestoreGenerationAuthority.streamedDigest(
-                        descriptor: descriptor, expectedSnapshot: snapshot, mismatchReason: .sourceMismatch)
+                        descriptor: descriptor,
+                        expectedSnapshot: snapshot,
+                        mismatchReason: .sourceMismatch,
+                        cancellationCheck: cancellationCheck)
                 }
                 guard reproof.sha256 == value.sha256 else {
                     throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
@@ -5868,6 +6118,27 @@ final class StoreRestoreGenerationAuthority {
                     }
                 }
             }
+            if let restoreProof {
+                let recovery = try values.filter {
+                    try GenerationOwnedPathV1.classify(
+                        $0.relativePath,
+                        nodeType: .regularFile
+                    ).recoveryOwned
+                }
+                guard recovery == restoreProof.recoveryFiles else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+                let observed = Dictionary(
+                    uniqueKeysWithValues: values.map {
+                        ($0.relativePath, $0)
+                    }
+                )
+                guard restoreProof.generationFiles.allSatisfy({
+                    observed[$0.relativePath] == $0
+                }) else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+            }
             return values
         }
 
@@ -5877,6 +6148,116 @@ final class StoreRestoreGenerationAuthority {
                 let identity = directories[path]!
                 return "subdirectory|\(path)|\(identity.device)|\(identity.inode)"
             }
+        }
+
+        func frozenIdentityDigest(
+            restoreProof: StoreRestoreGenerationManifestProofV1
+        ) throws -> String {
+            try requireRestoreManifestInput(restoreProof)
+            let directory = root.identity
+            var tokens = ["directory|\(directory.device)|\(directory.inode)"]
+            for name in files.keys.sorted() {
+                guard let file = files[name] else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let identity = file.snapshot
+                tokens.append(
+                    "\(name)|\(identity.device)|\(identity.inode)|\(identity.linkCount)"
+                )
+            }
+            tokens.append(contentsOf: directoryIdentityTokens)
+            return StoreMigrationCanonicalJSONV1.sha256(
+                Data(tokens.joined(separator: "\n").utf8)
+            )
+        }
+
+        func snapshotFacts(rootName: String) throws
+            -> [StoreRestoreGenerationFileSnapshotV1.NodeFact] {
+            try StoreRestoreGenerationAuthority.requireSafeBasename(rootName)
+            var result = [StoreRestoreGenerationFileSnapshotV1.NodeFact(
+                relativePath: "",
+                parentRelativePath: "",
+                name: rootName,
+                type: .directory,
+                device: UInt64(root.identity.device),
+                inode: UInt64(root.identity.inode),
+                linkCount: nil,
+                byteCount: nil,
+                modificationSeconds: nil,
+                modificationNanoseconds: nil,
+                statusChangeSeconds: nil,
+                statusChangeNanoseconds: nil
+            )]
+            for path in directories.keys.sorted() {
+                guard let identity = directories[path] else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                result.append(.init(
+                    relativePath: path,
+                    parentRelativePath: Self.parentPath(path),
+                    name: Self.basename(path),
+                    type: .directory,
+                    device: UInt64(identity.device),
+                    inode: UInt64(identity.inode),
+                    linkCount: nil,
+                    byteCount: nil,
+                    modificationSeconds: nil,
+                    modificationNanoseconds: nil,
+                    statusChangeSeconds: nil,
+                    statusChangeNanoseconds: nil
+                ))
+            }
+            for path in files.keys.sorted() {
+                guard let file = files[path] else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let value = file.snapshot
+                result.append(.init(
+                    relativePath: path,
+                    parentRelativePath: Self.parentPath(path),
+                    name: Self.basename(path),
+                    type: .regularFile,
+                    device: UInt64(value.device),
+                    inode: UInt64(value.inode),
+                    linkCount: UInt64(value.linkCount),
+                    byteCount: Int(value.byteCount),
+                    modificationSeconds: value.modificationSeconds,
+                    modificationNanoseconds: value.modificationNanoseconds,
+                    statusChangeSeconds: value.statusChangeSeconds,
+                    statusChangeNanoseconds: value.statusChangeNanoseconds
+                ))
+            }
+            return result.sorted {
+                if $0.relativePath != $1.relativePath {
+                    return $0.relativePath < $1.relativePath
+                }
+                return $0.type.rawValue < $1.type.rawValue
+            }
+        }
+
+        func verifyProtection(rootURL: URL, staging: Bool) throws {
+            try revalidate()
+            let rootKind: OwnedFileKindV1 = staging ? .restoreStaging : .durableDirectory
+            try ProtectedFilePolicyV1.verify(rootKind, at: rootURL)
+            for path in directories.keys.sorted() + files.keys.sorted() {
+                try cancellationCheck()
+                let isDirectory = directories[path] != nil
+                let owned = try GenerationOwnedPathV1.classify(
+                    path,
+                    nodeType: isDirectory ? .directory : .regularFile
+                )
+                let kind: OwnedFileKindV1 = staging
+                    ? (isDirectory ? .stagingDirectory : .stagingFile)
+                    : owned.kind
+                try ProtectedFilePolicyV1.verify(
+                    kind,
+                    at: rootURL.appendingPathComponent(
+                        path,
+                        isDirectory: isDirectory
+                    )
+                )
+            }
+            try revalidate()
         }
 
         func protect(rootURL: URL, staging: Bool,
@@ -6631,6 +7012,34 @@ final class StoreRestoreGenerationAuthority {
         expected oldID: UUID,
         to newID: UUID,
         pointer: CurrentGenerationPointerV3,
+        expectedCurrentPointer: CurrentGenerationPointerV3,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1
+    ) throws {
+        guard !restoreFileSnapshot.staging,
+              restoreFileSnapshot.generationID == newID else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try Self.validateRestoreGenerationFileSnapshot(
+            restoreFileSnapshot,
+            generationID: newID,
+            staging: false,
+            rootURL: installedGenerationsURL
+                .appendingPathComponent(Self.canonical(newID), isDirectory: true)
+                .standardizedFileURL,
+            restoreProof: restoreFileSnapshot.restoreProof
+        )
+        try switchCurrentGeneration(
+            expected: oldID,
+            to: newID,
+            pointer: pointer,
+            expectedCurrentPointer: expectedCurrentPointer
+        )
+    }
+
+    func switchCurrentGeneration(
+        expected oldID: UUID,
+        to newID: UUID,
+        pointer: CurrentGenerationPointerV3,
         expectedCurrentPointerData: Data
     ) throws {
         let expected = try CurrentPointerCodecV1.decode(expectedCurrentPointerData)
@@ -6707,6 +7116,154 @@ final class StoreRestoreGenerationAuthority {
         let value = try Self.requiredDirectoryIdentity(parent: staging ? stagingGenerationsDescriptor : installedGenerationsDescriptor,
                                                        name: Self.canonical(id))
         return (UInt64(value.device), UInt64(value.inode))
+    }
+
+    func restoreGenerationRootIdentity(
+        id: UUID,
+        staging: Bool
+    ) throws -> StreamingArchiveRootIdentityV1 {
+        try verify()
+        let identity = try Self.requiredDirectoryIdentity(
+            parent: staging
+                ? stagingGenerationsDescriptor : installedGenerationsDescriptor,
+            name: Self.canonical(id)
+        )
+        return StreamingArchiveRootIdentityV1(
+            device: UInt64(identity.device),
+            inode: UInt64(identity.inode)
+        )
+    }
+
+    fileprivate static func prepareRestoreGenerationFileSnapshot(
+        generationID: UUID,
+        staging: Bool,
+        rootURL: URL,
+        expectedRootIdentity: StreamingArchiveRootIdentityV1,
+        restoreProof: StoreRestoreGenerationManifestProofV1,
+        cancellationCheck: @escaping () throws -> Void
+    ) throws -> StoreRestoreGenerationFileSnapshotV1 {
+        try cancellationCheck()
+        try restoreProof.validate()
+        guard restoreProof.generationID == generationID,
+              rootURL.isFileURL,
+              rootURL.standardizedFileURL == rootURL else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        let descriptor = Darwin.open(
+            rootURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        defer { _ = Darwin.close(descriptor) }
+        let observedRoot = try identity(descriptor)
+        guard UInt64(observedRoot.device) == expectedRootIdentity.device,
+              UInt64(observedRoot.inode) == expectedRootIdentity.inode,
+              try directoryIdentity(at: rootURL) == observedRoot else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let inventory = try GenerationInventory(
+            parent: descriptor,
+            requireModel: true,
+            cancellationCheck: cancellationCheck
+        )
+        defer { inventory.close() }
+        guard inventory.root.identity == observedRoot else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let before = try inventory.snapshotFacts(
+            rootName: rootURL.lastPathComponent
+        )
+        let files = try inventory.fileDigests(
+            durable: true,
+            restoreProof: restoreProof
+        )
+        let frozenIdentityDigest = try inventory.frozenIdentityDigest(
+            restoreProof: restoreProof
+        )
+        try inventory.verifyProtection(rootURL: rootURL, staging: staging)
+        try cancellationCheck()
+        guard try inventory.snapshotFacts(rootName: rootURL.lastPathComponent)
+                == before,
+              try identity(descriptor) == observedRoot,
+              try directoryIdentity(at: rootURL) == observedRoot else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        return StoreRestoreGenerationFileSnapshotV1(
+            generationID: generationID,
+            staging: staging,
+            rootURL: rootURL,
+            expectedRootIdentity: expectedRootIdentity,
+            restoreProof: restoreProof,
+            facts: before,
+            files: files,
+            frozenIdentityDigest: frozenIdentityDigest
+        )
+    }
+
+    fileprivate static func validateRestoreGenerationFileSnapshot(
+        _ snapshot: StoreRestoreGenerationFileSnapshotV1,
+        generationID: UUID,
+        staging: Bool,
+        rootURL: URL,
+        restoreProof: StoreRestoreGenerationManifestProofV1
+    ) throws {
+        try restoreProof.validate()
+        guard snapshot.generationID == generationID,
+              snapshot.staging == staging,
+              snapshot.rootURL == rootURL,
+              snapshot.restoreProof == restoreProof,
+              restoreProof.generationID == generationID,
+              rootURL.isFileURL,
+              rootURL.standardizedFileURL == rootURL else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        func freshInventory(
+            verifyProtection: Bool
+        ) throws -> [StoreRestoreGenerationFileSnapshotV1.NodeFact] {
+            let descriptor = Darwin.open(
+                rootURL.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard descriptor >= 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            defer { _ = Darwin.close(descriptor) }
+            let root = try identity(descriptor)
+            guard UInt64(root.device) == snapshot.expectedRootIdentity.device,
+                  UInt64(root.inode) == snapshot.expectedRootIdentity.inode,
+                  try directoryIdentity(at: rootURL) == root else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let inventory = try GenerationInventory(
+                parent: descriptor,
+                requireModel: true
+            )
+            defer { inventory.close() }
+            try inventory.requireRestoreManifestInput(restoreProof)
+            let before = try inventory.snapshotFacts(
+                rootName: rootURL.lastPathComponent
+            )
+            guard before == snapshot.facts else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            if verifyProtection {
+                try inventory.verifyProtection(rootURL: rootURL, staging: staging)
+            }
+            try inventory.revalidate()
+            guard try inventory.snapshotFacts(rootName: rootURL.lastPathComponent)
+                    == before,
+                  try identity(descriptor) == root,
+                  try directoryIdentity(at: rootURL) == root else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            return before
+        }
+        _ = try freshInventory(verifyProtection: true)
+        guard try freshInventory(verifyProtection: false) == snapshot.facts else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
     }
 
     fileprivate func clearAggregateStagingGeneration(reservation: StoreAggregateMigrationJournalV1) throws {
@@ -6936,6 +7493,18 @@ final class StoreRestoreGenerationAuthority {
         try mutationRegistry.withNoMigrationReservation { try installStagingGenerationLocked(id: id) }
     }
 
+    func installStagingGeneration(
+        id: UUID,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1
+    ) throws {
+        try mutationRegistry.withNoMigrationReservation {
+            try installRestoreStagingGenerationLocked(
+                id: id,
+                restoreFileSnapshot: restoreFileSnapshot
+            )
+        }
+    }
+
     fileprivate func installAggregateGeneration(reservation: StoreAggregateMigrationJournalV1) throws {
         guard reservation.phase == .targetValidated else { throw StoreMigrationFailure.invalidPhaseTransition }
         try mutationRegistry.withMigrationReservation(expected: reservation) {
@@ -6976,6 +7545,62 @@ final class StoreRestoreGenerationAuthority {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         try protectInstalledGeneration(id: id, requireModel: true)
+    }
+
+    private func installRestoreStagingGenerationLocked(
+        id: UUID,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1
+    ) throws {
+        try verify()
+        let name = Self.canonical(id)
+        let rootURL = stagingGenerationsURL
+            .appendingPathComponent(name, isDirectory: true)
+            .standardizedFileURL
+        guard restoreFileSnapshot.staging,
+              restoreFileSnapshot.generationID == id else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try Self.validateRestoreGenerationFileSnapshot(
+            restoreFileSnapshot,
+            generationID: id,
+            staging: true,
+            rootURL: rootURL,
+            restoreProof: restoreFileSnapshot.restoreProof
+        )
+        let sourceIdentity = try Self.requiredDirectoryIdentity(
+            parent: stagingGenerationsDescriptor,
+            name: name
+        )
+        guard UInt64(sourceIdentity.device)
+                == restoreFileSnapshot.expectedRootIdentity.device,
+              UInt64(sourceIdentity.inode)
+                == restoreFileSnapshot.expectedRootIdentity.inode,
+              try !Self.itemExists(
+                parent: installedGenerationsDescriptor,
+                name: name
+              ),
+              Darwin.renameatx_np(
+                stagingGenerationsDescriptor,
+                name,
+                installedGenerationsDescriptor,
+                name,
+                UInt32(RENAME_EXCL)
+              ) == 0,
+              Darwin.fsync(stagingGenerationsDescriptor) == 0,
+              Darwin.fsync(installedGenerationsDescriptor) == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try verify()
+        guard try !Self.itemExists(
+                parent: stagingGenerationsDescriptor,
+                name: name
+              ),
+              try Self.requiredDirectoryIdentity(
+                parent: installedGenerationsDescriptor,
+                name: name
+              ) == sourceIdentity else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
     }
 
     /// Snapshots the classified durable file closure and binds each owned
@@ -7977,7 +8602,11 @@ final class StoreRestoreGenerationAuthority {
             inode: information.st_ino,
             linkCount: information.st_nlink,
             type: information.st_mode & S_IFMT,
-            byteCount: information.st_size
+            byteCount: information.st_size,
+            modificationSeconds: Int64(information.st_mtimespec.tv_sec),
+            modificationNanoseconds: Int64(information.st_mtimespec.tv_nsec),
+            statusChangeSeconds: Int64(information.st_ctimespec.tv_sec),
+            statusChangeNanoseconds: Int64(information.st_ctimespec.tv_nsec)
         )
     }
 
@@ -8001,8 +8630,10 @@ final class StoreRestoreGenerationAuthority {
     private static func streamedDigest(
         descriptor: Int32,
         expectedSnapshot: RegularFileSnapshot,
-        mismatchReason: StoreMigrationMaintenanceReasonV1
+        mismatchReason: StoreMigrationMaintenanceReasonV1,
+        cancellationCheck: () throws -> Void = {}
     ) throws -> StreamedFileDigest {
+        try cancellationCheck()
         guard Darwin.lseek(descriptor, 0, SEEK_SET) == 0 else {
             throw StoreMigrationFailure.maintenanceRequired(mismatchReason)
         }
@@ -8013,6 +8644,7 @@ final class StoreRestoreGenerationAuthority {
             count: migrationStreamBufferByteCount
         )
         while true {
+            try cancellationCheck()
             let count = buffer.withUnsafeMutableBytes {
                 Darwin.read(descriptor, $0.baseAddress, $0.count)
             }
@@ -8027,6 +8659,7 @@ final class StoreRestoreGenerationAuthority {
             }
             byteCount = nextCount
             hasher.update(data: Data(buffer.prefix(count)))
+            try cancellationCheck()
         }
         guard byteCount == Int(expectedSnapshot.byteCount),
               try regularFileSnapshot(
@@ -8926,14 +9559,36 @@ struct StoreGenerationFactory {
     func prepareRestoreStagingGenerationManifest(
         expectedOldID: UUID,
         newID: UUID,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
         authority: StoreRestoreGenerationAuthority
     ) throws -> String {
         guard try authority.currentGenerationID() == expectedOldID else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         try authority.requireStagingGeneration(id: newID)
-        try authority.protectStagingGeneration(id: newID)
+        if let restoreProof {
+            try restoreProof.validate()
+            guard restoreProof.predecessorGenerationID == expectedOldID,
+                  restoreProof.generationID == newID else {
+                throw StoreMigrationFailure.invalidContract
+            }
+            guard restoreFileSnapshot?.staging == true else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        } else {
+            guard restoreFileSnapshot == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            try authority.protectStagingGeneration(id: newID)
+        }
         let root = restoreStagingGenerationURL(id: newID)
+        _ = try requireRestoreFileSnapshot(
+            restoreFileSnapshot,
+            generationID: restoreProof?.generationID,
+            at: root,
+            restoreProof: restoreProof
+        )
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
             let container = try makeV53Container(at: modelStoreURL, migrate: false)
@@ -8956,7 +9611,9 @@ struct StoreGenerationFactory {
                 expectedOldID: expectedOldID,
                 generationID: newID,
                 at: root,
-                staging: true
+                staging: true,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
             )
             digest = existing.digest
         } else {
@@ -8969,8 +9626,18 @@ struct StoreGenerationFactory {
                     at: modelStoreURL,
                     release: PersistentSchemaReleaseRegistryV1.activeRelease
                 ),
-                frozenIdentityDigest: try frozenIdentityDigest(for: root),
-                files: try generationFileDigests(at: root, durable: true)
+                frozenIdentityDigest: try frozenIdentityDigest(
+                    for: root,
+                    restoreProof: restoreProof,
+                    restoreFileSnapshot: restoreFileSnapshot
+                ),
+                files: try generationFileDigests(
+                    at: root,
+                    durable: true,
+                    restoreProof: restoreProof,
+                    restoreFileSnapshot: restoreFileSnapshot
+                ),
+                restoreProof: restoreProof
             )
             digest = try store.writeManifest(manifest)
             try requireRestoreManifestSnapshot(
@@ -8978,7 +9645,9 @@ struct StoreGenerationFactory {
                 expectedOldID: expectedOldID,
                 generationID: newID,
                 at: root,
-                staging: true
+                staging: true,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
             )
         }
         guard try authority.currentGenerationID() == expectedOldID else {
@@ -8993,6 +9662,8 @@ struct StoreGenerationFactory {
         expectedOldID: UUID,
         generationID: UUID,
         expectedManifestDigest: String,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
         authority: StoreRestoreGenerationAuthority
     ) throws {
         guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
@@ -9001,7 +9672,16 @@ struct StoreGenerationFactory {
             throw StoreMigrationFailure.invalidDigest
         }
         try authority.requireInstalledGeneration(id: generationID)
-        try authority.protectInstalledGeneration(id: generationID)
+        if restoreProof == nil {
+            guard restoreFileSnapshot == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            try authority.protectInstalledGeneration(id: generationID)
+        } else {
+            guard restoreFileSnapshot?.staging == false else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        }
         let store = try StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
@@ -9014,9 +9694,20 @@ struct StoreGenerationFactory {
             expectedOldID: expectedOldID,
             generationID: generationID,
             at: installedGenerationURL(id: generationID),
-            staging: false
+            staging: false,
+            restoreProof: restoreProof,
+            restoreFileSnapshot: restoreFileSnapshot
         )
-        try authority.protectInstalledGeneration(id: generationID)
+        if restoreProof == nil {
+            try authority.protectInstalledGeneration(id: generationID)
+        } else {
+            _ = try requireRestoreFileSnapshot(
+                restoreFileSnapshot,
+                generationID: generationID,
+                at: installedGenerationURL(id: generationID),
+                restoreProof: restoreProof
+            )
+        }
         try authority.requireInstalledGeneration(id: generationID)
     }
 
@@ -9025,6 +9716,8 @@ struct StoreGenerationFactory {
         expectedOldID: UUID,
         generationID: UUID,
         expectedDigest: String,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
         authority: StoreRestoreGenerationAuthority
     ) throws {
         guard generationID != expectedOldID,
@@ -9039,10 +9732,30 @@ struct StoreGenerationFactory {
         guard !(presence.staging && presence.installed) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        if presence.staging {
+        if let restoreProof {
+            guard let restoreFileSnapshot,
+                  restoreFileSnapshot.staging == presence.staging,
+                  presence.staging || presence.installed else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            _ = try requireRestoreFileSnapshot(
+                restoreFileSnapshot,
+                generationID: generationID,
+                at: presence.staging
+                    ? restoreStagingGenerationURL(id: generationID)
+                    : installedGenerationURL(id: generationID),
+                restoreProof: restoreProof
+            )
+        } else if presence.staging {
+            guard restoreFileSnapshot == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
             try authority.protectStagingGeneration(id: generationID)
             try authority.requireStagingGeneration(id: generationID)
         } else if presence.installed {
+            guard restoreFileSnapshot == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
             try authority.protectInstalledGeneration(id: generationID)
             try authority.requireInstalledGeneration(id: generationID)
         }
@@ -9065,7 +9778,9 @@ struct StoreGenerationFactory {
                 at: presence.staging
                     ? restoreStagingGenerationURL(id: generationID)
                     : installedGenerationURL(id: generationID),
-                staging: presence.staging
+                staging: presence.staging,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
             )
             try store.removeManifest(
                 targetGenerationID: generationID,
@@ -9090,7 +9805,16 @@ struct StoreGenerationFactory {
               !(after.staging && after.installed) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        if after.staging {
+        if let restoreProof {
+            _ = try requireRestoreFileSnapshot(
+                restoreFileSnapshot,
+                generationID: generationID,
+                at: after.staging
+                    ? restoreStagingGenerationURL(id: generationID)
+                    : installedGenerationURL(id: generationID),
+                restoreProof: restoreProof
+            )
+        } else if after.staging {
             try authority.protectStagingGeneration(id: generationID)
             try authority.requireStagingGeneration(id: generationID)
         } else if after.installed {
@@ -9103,6 +9827,8 @@ struct StoreGenerationFactory {
     func removePreparedRestoreStagingGenerationManifest(
         generationID: UUID,
         expectedDigest: String,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
         authority: StoreRestoreGenerationAuthority
     ) throws {
         guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(expectedDigest),
@@ -9113,6 +9839,19 @@ struct StoreGenerationFactory {
               ).installed) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
+        if let restoreProof {
+            guard restoreFileSnapshot?.staging == true else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            _ = try requireRestoreFileSnapshot(
+                restoreFileSnapshot,
+                generationID: generationID,
+                at: restoreStagingGenerationURL(id: generationID),
+                restoreProof: restoreProof
+            )
+        } else if restoreFileSnapshot != nil {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
         let store = try StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
@@ -9122,7 +9861,8 @@ struct StoreGenerationFactory {
             return
         }
         guard existing.digest == expectedDigest,
-              existing.manifest.generationID == generationID else {
+              existing.manifest.generationID == generationID,
+              existing.manifest.restoreProof == restoreProof else {
             throw StoreMigrationFailure.digestMismatch
         }
         try store.removeManifest(
@@ -9133,6 +9873,14 @@ struct StoreGenerationFactory {
             targetGenerationID: generationID
         ) {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        if let restoreProof {
+            _ = try requireRestoreFileSnapshot(
+                restoreFileSnapshot,
+                generationID: generationID,
+                at: restoreStagingGenerationURL(id: generationID),
+                restoreProof: restoreProof
+            )
         }
     }
 
@@ -9147,6 +9895,36 @@ struct StoreGenerationFactory {
         generationsURL.appendingPathComponent(
             canonicalString(for: id),
             isDirectory: true
+        )
+    }
+
+    func prepareRestoreGenerationFileSnapshot(
+        generationID: UUID,
+        staging: Bool,
+        expectedRootIdentity: StreamingArchiveRootIdentityV1,
+        restoreProof: StoreRestoreGenerationManifestProofV1
+    ) async throws -> StoreRestoreGenerationFileSnapshotV1 {
+        try Task.checkCancellation()
+        try restoreProof.validate()
+        guard restoreProof.generationID == generationID else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        let rootURL = (staging
+            ? restoreStagingGenerationURL(id: generationID)
+            : installedGenerationURL(id: generationID)).standardizedFileURL
+        let task = Task.detached {
+            try StoreRestoreGenerationAuthority.prepareRestoreGenerationFileSnapshot(
+                generationID: generationID,
+                staging: staging,
+                rootURL: rootURL,
+                expectedRootIdentity: expectedRootIdentity,
+                restoreProof: restoreProof,
+                cancellationCheck: { try Task.checkCancellation() }
+            )
+        }
+        return try await withTaskCancellationHandler(
+            operation: { try await task.value },
+            onCancel: { task.cancel() }
         )
     }
 
@@ -9564,9 +10342,39 @@ struct StoreGenerationFactory {
 
     func installRestoreStagingGeneration(
         id: UUID,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
         authority: StoreRestoreGenerationAuthority
     ) throws {
-        try authority.installStagingGeneration(id: id)
+        let store = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: applicationSupportURL
+        )
+        if let manifest = try store.loadManifestIfPresent(
+            targetGenerationID: id
+        )?.manifest {
+            guard manifest.restoreProof == restoreProof else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        } else if restoreProof != nil {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        if let restoreProof {
+            guard let restoreFileSnapshot,
+                  restoreFileSnapshot.restoreProof == restoreProof,
+                  restoreFileSnapshot.generationID == id,
+                  restoreFileSnapshot.staging else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            try authority.installStagingGeneration(
+                id: id,
+                restoreFileSnapshot: restoreFileSnapshot
+            )
+        } else {
+            guard restoreFileSnapshot == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            try authority.installStagingGeneration(id: id)
+        }
     }
 
     @MainActor
@@ -9708,7 +10516,10 @@ struct StoreGenerationFactory {
         sourceReplicaID: ReplicaID? = nil,
         knownReplicaIDs: Set<ReplicaID> = [],
         preparedGenerationManifestSHA256: String,
-        authority: StoreRestoreGenerationAuthority
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
+        authority: StoreRestoreGenerationAuthority,
+        publicationValidation: () throws -> Void = {}
     ) throws {
         let registry = try makeGenerationLeaseRegistry()
         try registry.withNoMigrationReservation {
@@ -9721,7 +10532,10 @@ struct StoreGenerationFactory {
                 knownReplicaIDs: knownReplicaIDs,
                 preparedGenerationManifestSHA256:
                     preparedGenerationManifestSHA256,
-                authority: authority
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot,
+                authority: authority,
+                publicationValidation: publicationValidation
             )
         }
     }
@@ -9735,7 +10549,10 @@ struct StoreGenerationFactory {
         sourceReplicaID: ReplicaID?,
         knownReplicaIDs: Set<ReplicaID>,
         preparedGenerationManifestSHA256: String,
-        authority: StoreRestoreGenerationAuthority
+        restoreProof: StoreRestoreGenerationManifestProofV1?,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1?,
+        authority: StoreRestoreGenerationAuthority,
+        publicationValidation: () throws -> Void
     ) throws {
         guard expectedCurrentPointer.generationID == canonicalString(for: oldID),
               try currentGenerationPointerV3(
@@ -9755,17 +10572,39 @@ struct StoreGenerationFactory {
             identity: identity,
             knownReplicaIDs: history,
             preparedGenerationManifestSHA256:
-                preparedGenerationManifestSHA256
+                preparedGenerationManifestSHA256,
+            restoreProof: restoreProof,
+            restoreFileSnapshot: restoreFileSnapshot
         )
         if pointer.generationManifestSHA256 != preparedGenerationManifestSHA256 {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        try authority.switchCurrentGeneration(
-            expected: oldID,
-            to: newID,
-            pointer: pointer,
-            expectedCurrentPointer: expectedCurrentPointer
-        )
+        // The existing generation lock remains held. This synchronous
+        // check may enter the incumbent raw/media locks, but never reacquires G.
+        try publicationValidation()
+        if let restoreProof {
+            guard let restoreFileSnapshot,
+                  restoreFileSnapshot.restoreProof == restoreProof else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            try authority.switchCurrentGeneration(
+                expected: oldID,
+                to: newID,
+                pointer: pointer,
+                expectedCurrentPointer: expectedCurrentPointer,
+                restoreFileSnapshot: restoreFileSnapshot
+            )
+        } else {
+            guard restoreFileSnapshot == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            try authority.switchCurrentGeneration(
+                expected: oldID,
+                to: newID,
+                pointer: pointer,
+                expectedCurrentPointer: expectedCurrentPointer
+            )
+        }
         guard try currentGenerationID(authority: authority) == newID,
               try currentWorkspaceIdentity(
                   expectedGenerationID: newID,

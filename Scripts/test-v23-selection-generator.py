@@ -35,6 +35,24 @@ STARTUP_SELECTORS = [
     "testRelaunchAfterWideKeepsExactEvidenceAuthorityAndResumesClose",
 ]
 
+PHOTO_BACKUP_SELECTORS = [
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testDirtyMalformedAndUnsafeAuthorityFailClosed',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationDuringWriterRemovesOwnedPackage',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testAsyncExportCancellationImmediatelyAfterWriterSuccessCleansReceiptOwnedPackage',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesEqualMagicReplacement',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesReplacementRacedBeforePrivateClaim',
+    'FieldEvidenceAppTests/S6_2BackupExportTests/testFormatMagicProbeRejectsFIFOWithoutBlocking',
+    'FieldEvidenceAppTests/S6_3BackupValidationTests/testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages',
+    'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld',
+    'FieldEvidenceAppTests/S4_1DeterministicRendererTests/testCapacityOverflowAndUnexpectedStageOrFinalFailClosed',
+]
+
 spec = importlib.util.spec_from_file_location("v23_selection_generator", GENERATOR)
 generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
@@ -57,6 +75,10 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                "S6_2BackupExportTests": REPO / "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+                "S6_3BackupValidationTests": REPO / "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+                "S6_4AtomicRestoreTests": REPO / "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+                "S4_1DeterministicRendererTests": REPO / "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift",
                 "V9_15AppLockLifecycleTests":
                     REPO / "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift",
                 "S3_4ResumeRecoveryTests":
@@ -138,6 +160,28 @@ class GeneratorTests(unittest.TestCase):
             historical, historical_map, _ = self.generate(profile)
             self.assertFalse(set(STARTUP_SELECTORS) & set(historical['unitTestSelectors']))
             self.assertNotIn('c36-startup-recovery', [g['id'] for g in historical_map['groups']])
+
+    def test_photo_backup_profile_retains_all_historical_outputs_and_appends_exact_fifteen(self):
+        prior, prior_map, _ = self.generate('pair-startup-v1')
+        current, current_map, report = self.generate('photo-backup-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (716, 41))
+        self.assertEqual(current['unitTestSelectors'][:-15], prior['unitTestSelectors'])
+        self.assertEqual(current['unitTestSelectors'][-15:], PHOTO_BACKUP_SELECTORS)
+        increments = {'report-camera-recovery': 11, 'archive-contracts': 1, 'restore-acceptance': 2}
+        self.assertEqual(current_map['groups'][:-1], [
+            {**group, 'methodCount': group['methodCount'] + increments.get(group['id'], 0)}
+            for group in prior_map['groups']
+        ])
+        self.assertEqual(current_map['groups'][-1], {
+            'id': 'backup-capacity', 'classes': ['S4_1DeterministicRendererTests'], 'methodCount': 1})
+        self.assertEqual((report['selectionSHA256'], report['selectionMapSHA256']),
+                         ('930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D', '5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248'))
+        for profile in ('incumbent-v1', 'prospective-v1', 'raw-photo-v1', 'pair-startup-v1'):
+            historical, historical_map, _ = self.generate(profile)
+            self.assertFalse(set(PHOTO_BACKUP_SELECTORS) & set(historical['unitTestSelectors']))
+            self.assertNotIn('backup-capacity', [g['id'] for g in historical_map['groups']])
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
 
     def test_legacy_consumer_shape_disjoint_exhaustive_and_deterministic(self):
         selection, selection_map, report = self.generate()
