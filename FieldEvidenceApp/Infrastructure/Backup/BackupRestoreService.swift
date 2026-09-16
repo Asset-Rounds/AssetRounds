@@ -13067,7 +13067,7 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         switch (
             records.recordsSchemaVersion,
@@ -13105,10 +13105,10 @@ private extension BackupRestoreService {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         default:
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= 28 {
             do {
@@ -13122,11 +13122,11 @@ private extension BackupRestoreService {
                     context.insert(try SpatialAnchorObservationRow(value))
                 }
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         } else {
             guard records.placementPoses.isEmpty else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         for value in records.sites {
@@ -13159,7 +13159,7 @@ private extension BackupRestoreService {
                     )
                     guard value.id == record.id,
                           record.secondaryCanonicalData == nil else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try LocationNodeRow(value))
                 }
@@ -13169,7 +13169,7 @@ private extension BackupRestoreService {
                     )
                     guard value.id == record.id,
                           record.secondaryCanonicalData == nil else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try AssetPlacementEventRow(value))
                 }
@@ -13179,7 +13179,7 @@ private extension BackupRestoreService {
                     )
                     guard value.id == record.id,
                           record.secondaryCanonicalData == nil else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try AssetCompositionEdgeRow(value))
                 }
@@ -13189,13 +13189,13 @@ private extension BackupRestoreService {
                     )
                     guard value.id == record.id,
                           record.secondaryCanonicalData == nil else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try AssetCompositionEventRow(value))
                 }
                 for record in records.locationHierarchyEvents {
                     guard let receiptData = record.secondaryCanonicalData else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     let plan = try LocationPersistenceCodecV1.decode(
                         LocationHierarchyChangePlanV1.self, from: record.canonicalData
@@ -13204,7 +13204,7 @@ private extension BackupRestoreService {
                         LocationHierarchyChangeReceiptV1.self, from: receiptData
                     )
                     guard plan.operationID == record.id else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try LocationHierarchyEventRow(
                         plan: plan, receipt: receipt
@@ -13216,12 +13216,12 @@ private extension BackupRestoreService {
                     )
                     guard value.candidateGenerationID == record.id,
                           record.secondaryCanonicalData == nil else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try LocationMigrationReceiptRow(value))
                 }
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         for value in records.workflowRecords {
@@ -13234,11 +13234,11 @@ private extension BackupRestoreService {
                   let state = WorkflowState(rawValue: value.state),
                   value.draftStepKey == nil
                     || WorkflowDraftStep(rawValue: value.draftStepKey!) != nil else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             guard let basisData = observationAndTime.basis,
                   let temporalData = observationAndTime.temporal else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             context.insert(WorkflowRecord(
                 id: value.id,
@@ -13312,7 +13312,7 @@ private extension BackupRestoreService {
         }
         for value in records.issues {
             guard let status = IssueStatus(rawValue: value.status) else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             context.insert(Issue(
                 id: value.id,
@@ -13338,7 +13338,7 @@ private extension BackupRestoreService {
         }
         for value in records.reports {
             guard let state = ReportPDFState(rawValue: value.pdfState) else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             context.insert(Report(
                 id: value.id,
@@ -13374,12 +13374,12 @@ private extension BackupRestoreService {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
                     guard descriptor.id == record.id else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try SavedSmartViewRowV1(descriptor))
                 }
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         if records.recordsSchemaVersion >= 7 {
@@ -13393,7 +13393,7 @@ private extension BackupRestoreService {
                         updatedAt: record.updatedAt
                     ))
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 8 {
             do {
@@ -13438,7 +13438,7 @@ private extension BackupRestoreService {
                         value, predecessor: value.supersedesSnapshotID.flatMap { signoffValues[$0] }
                     ))
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 9 {
             do {
@@ -13483,7 +13483,7 @@ private extension BackupRestoreService {
                         ))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 10 {
             do {
@@ -13500,7 +13500,7 @@ private extension BackupRestoreService {
                     case .derivedFactProvenance: context.insert(try DerivedFactProvenanceRow(AuthorityCriterionCanonicalCodecV1.decode(DerivedFactProvenanceV1.self, from: record.canonicalData)))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 11 {
             do {
@@ -13522,7 +13522,7 @@ private extension BackupRestoreService {
                         ))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 12 {
             do {
@@ -13534,7 +13534,7 @@ private extension BackupRestoreService {
                     case .attestation: context.insert(try AttestationRow(EvidenceAssuranceCanonicalCodecV1.decode(AttestationV1.self, from: record.canonicalData)))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 13 {
             do {
@@ -13547,7 +13547,7 @@ private extension BackupRestoreService {
                     case .correctiveActionEvent: context.insert(try CorrectiveActionEventRow(InspectionReviewCanonicalCodecV1.decode(CorrectiveActionEventV1.self, from: record.canonicalData)))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 14 {
             do {for record in records.workPackets {switch record.kind {
@@ -13556,7 +13556,7 @@ private extension BackupRestoreService {
                 case .lease:context.insert(try WorkLeaseRow(WorkPacketCanonicalCodecV1.decode(WorkLeaseV1.self,from:record.canonicalData)))
                 case .release:context.insert(try WorkReleaseRow(WorkPacketCanonicalCodecV1.decode(WorkReleaseV1.self,from:record.canonicalData)))
                 case .handoff:context.insert(try WorkHandoffRow(WorkPacketCanonicalCodecV1.decode(WorkHandoffV1.self,from:record.canonicalData)))
-            }}}catch{throw BackupRestoreServiceError.invalidPackage}
+            }}}catch{throw attributedRestorePackageFailureV1(line: #line)}
         }
         if records.recordsSchemaVersion >= 15 {
             do {
@@ -13570,7 +13570,7 @@ private extension BackupRestoreService {
                     case .discardReceipt: context.insert(try DraftDiscardReceiptRow(FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self, from: record.canonicalData)))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 16 {
             do {
@@ -13582,7 +13582,7 @@ private extension BackupRestoreService {
                     case .activePointer: context.insert(try ActivePackageRegistryPointerRow(PackageEvolutionCanonicalCodecV1.decode(ActivePackageRegistryPointerV1.self, from: record.canonicalData)))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 17 {
             do {
@@ -13595,7 +13595,7 @@ private extension BackupRestoreService {
                     case .qualityAssessment: context.insert(try MeasurementQualityAssessmentRow(MeasurementIntegrityCanonicalCodecV1.decode(MeasurementQualityAssessmentV1.self,from:record.canonicalData)))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 18 {
             do {
@@ -13608,7 +13608,7 @@ private extension BackupRestoreService {
                 }
                 let manifests = try Dictionary(uniqueKeysWithValues: records.privacyTransforms.filter { $0.kind == .manifest }.map { record in
                     let reference = try JSONDecoder().decode(PrivacyTransformRestoreManifestEnvelopeV1.self, from: record.canonicalData)
-                    guard let policy = policies[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw BackupRestoreServiceError.invalidPackage }
+                    guard let policy = policies[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw attributedRestorePackageFailureV1(line: #line) }
                     let provisional = try PrivacyTransformCanonicalCodecV1.decodeManifest(from: record.canonicalData, policy: policy)
                     let row = try PrivacyTransformManifestRow(provisional)
                     let value = try row.value(policy: policy)
@@ -13617,40 +13617,40 @@ private extension BackupRestoreService {
                 for record in records.privacyTransforms where record.kind == .reviewReceipt {
                     let reference = try JSONDecoder().decode(PrivacyTransformRestoreReviewEnvelopeV1.self, from: record.canonicalData)
                     guard let manifest = manifests[reference.manifestID], manifest.revision == reference.manifestRevision, manifest.manifestSHA256 == reference.manifestSHA256,
-                          let policy = policies[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw BackupRestoreServiceError.invalidPackage }
+                          let policy = policies[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw attributedRestorePackageFailureV1(line: #line) }
                     let provisional = try PrivacyTransformCanonicalCodecV1.decodeReview(from: record.canonicalData, manifest: manifest, policy: policy)
                     let row = try PrivacyReviewReceiptRow(provisional)
                     _ = try row.value(manifest: manifest, policy: policy)
                     context.insert(row)
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 19 {
             do {
                 let releases=try Dictionary(uniqueKeysWithValues:records.packageEvolution.filter{$0.kind == .promotedRelease}.map{let v=try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self,from:$0.canonicalData);return(v.packageRelease.packageReleaseID,v.packageRelease)})
                 let profileEntries=try records.clientCapabilities.filter{$0.kind == .profile}.map{record in let v=try ClientCapabilityCanonicalCodecV1.decode(ClientCapabilityProfileV1.self,from:record.canonicalData);return(try ClientCapabilityProfileRow(v),v)}
                 let profiles=Dictionary(uniqueKeysWithValues:profileEntries.map{($0.1.profileID,$0.1)})
-                let policyEntries=try records.clientCapabilities.filter{$0.kind == .policy}.map{record in let seed=try ClientCapabilityCanonicalCodecV1.decode(PackageLifecyclePolicyV1.self,from:record.canonicalData);guard let release=releases[seed.packageReleaseID]else{throw BackupRestoreServiceError.invalidPackage};let row=try PackageLifecyclePolicyRow(seed,release:release),v=try row.value(release:release);return(row,v)}
+                let policyEntries=try records.clientCapabilities.filter{$0.kind == .policy}.map{record in let seed=try ClientCapabilityCanonicalCodecV1.decode(PackageLifecyclePolicyV1.self,from:record.canonicalData);guard let release=releases[seed.packageReleaseID]else{throw attributedRestorePackageFailureV1(line: #line)};let row=try PackageLifecyclePolicyRow(seed,release:release),v=try row.value(release:release);return(row,v)}
                 let policies=Dictionary(uniqueKeysWithValues:policyEntries.map{($0.1.policyID,$0.1)})
-                let dispositionEntries=try records.clientCapabilities.filter{$0.kind == .disposition}.map{record in let seed=try ClientCapabilityCanonicalCodecV1.decode(PackageLifecycleDispositionV1.self,from:record.canonicalData);guard let release=releases[seed.packageReleaseID]else{throw BackupRestoreServiceError.invalidPackage};let row=try PackageLifecycleDispositionRow(seed,release:release),v=try row.value(release:release);return(row,v)}
+                let dispositionEntries=try records.clientCapabilities.filter{$0.kind == .disposition}.map{record in let seed=try ClientCapabilityCanonicalCodecV1.decode(PackageLifecycleDispositionV1.self,from:record.canonicalData);guard let release=releases[seed.packageReleaseID]else{throw attributedRestorePackageFailureV1(line: #line)};let row=try PackageLifecycleDispositionRow(seed,release:release),v=try row.value(release:release);return(row,v)}
                 let dispositions=Dictionary(uniqueKeysWithValues:dispositionEntries.map{($0.1.dispositionID,$0.1)})
-                let decisionEntries=try records.clientCapabilities.filter{$0.kind == .admissionDecision}.map{record in let seed=try ClientCapabilityCanonicalCodecV1.decode(ClientCapabilityAdmissionDecisionV1.self,from:record.canonicalData);guard let profile=profiles[seed.profileID],let policy=policies[seed.policyID],let disposition=dispositions[seed.dispositionID],let release=releases[seed.packageReleaseID]else{throw BackupRestoreServiceError.invalidPackage};let row=try ClientCapabilityAdmissionDecisionRow(seed,profile:profile,policy:policy,disposition:disposition,release:release);let value=try row.value(profile:profile,policy:policy,disposition:disposition,release:release);try ClientCapabilityLifecycleClosureV1(profile:profile,policy:policy,disposition:disposition,decision:value,release:release).validate();return row}
+                let decisionEntries=try records.clientCapabilities.filter{$0.kind == .admissionDecision}.map{record in let seed=try ClientCapabilityCanonicalCodecV1.decode(ClientCapabilityAdmissionDecisionV1.self,from:record.canonicalData);guard let profile=profiles[seed.profileID],let policy=policies[seed.policyID],let disposition=dispositions[seed.dispositionID],let release=releases[seed.packageReleaseID]else{throw attributedRestorePackageFailureV1(line: #line)};let row=try ClientCapabilityAdmissionDecisionRow(seed,profile:profile,policy:policy,disposition:disposition,release:release);let value=try row.value(profile:profile,policy:policy,disposition:disposition,release:release);try ClientCapabilityLifecycleClosureV1(profile:profile,policy:policy,disposition:disposition,decision:value,release:release).validate();return row}
                 profileEntries.forEach{context.insert($0.0)};policyEntries.forEach{context.insert($0.0)};dispositionEntries.forEach{context.insert($0.0)};decisionEntries.forEach{context.insert($0)}
-            }catch{throw BackupRestoreServiceError.invalidPackage}
+            }catch{throw attributedRestorePackageFailureV1(line: #line)}
         }
         if records.recordsSchemaVersion >= 20 {
-            do{let rows=try records.recoverabilityReceipts.map{record in let value=try RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData);let row=try RecoverabilityVerificationReceiptRow(value);_ = try row.value();return row};rows.forEach{context.insert($0)}}catch{throw BackupRestoreServiceError.invalidPackage}
+            do{let rows=try records.recoverabilityReceipts.map{record in let value=try RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData);let row=try RecoverabilityVerificationReceiptRow(value);_ = try row.value();return row};rows.forEach{context.insert($0)}}catch{throw attributedRestorePackageFailureV1(line: #line)}
         }
         if records.recordsSchemaVersion >= 21 {
             do{
                 let releaseEntries=try records.fieldReferences.filter{$0.kind == .release}.map{record in let value=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceReleaseV1.self,from:record.canonicalData);let row=try FieldReferenceReleaseRow(value);return(row,try row.value())}
                 let releases=Dictionary(uniqueKeysWithValues:releaseEntries.map{($0.1.releaseID,$0.1)})
-                let bindingRows=try records.fieldReferences.filter{$0.kind == .binding}.map{record in let seed=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceBindingV1.self,from:record.canonicalData);guard let release=releases[seed.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let row=try FieldReferenceBindingRow(seed,release:release);_ = try row.value(release:release);return row}
+                let bindingRows=try records.fieldReferences.filter{$0.kind == .binding}.map{record in let seed=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceBindingV1.self,from:record.canonicalData);guard let release=releases[seed.releaseID]else{throw attributedRestorePackageFailureV1(line: #line)};let row=try FieldReferenceBindingRow(seed,release:release);_ = try row.value(release:release);return row}
                 releaseEntries.forEach{context.insert($0.0)};bindingRows.forEach{context.insert($0)}
-            }catch{throw BackupRestoreServiceError.invalidPackage}
+            }catch{throw attributedRestorePackageFailureV1(line: #line)}
         }
         if records.recordsSchemaVersion >= 22 {
-            do{let rows=try records.accessibleDocumentAssessments.map{record in let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);guard let tree=preparedAccessibleDocumentTrees[value.receiptID] else{throw attributedRestoreAuthorityFailureV1(line: #line)};let row=try AccessibleDocumentAssessmentReceiptRow(value,tree:tree);_ = try row.value(tree:tree);return row};rows.forEach{context.insert($0)}}catch{throw BackupRestoreServiceError.invalidPackage}
+            do{let rows=try records.accessibleDocumentAssessments.map{record in let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);guard let tree=preparedAccessibleDocumentTrees[value.receiptID] else{throw attributedRestoreAuthorityFailureV1(line: #line)};let row=try AccessibleDocumentAssessmentReceiptRow(value,tree:tree);_ = try row.value(tree:tree);return row};rows.forEach{context.insert($0)}}catch{throw attributedRestorePackageFailureV1(line: #line)}
         }
         if records.recordsSchemaVersion >= 23 {
             do {
@@ -13670,7 +13670,7 @@ private extension BackupRestoreService {
                         ))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 24 {
             do {
@@ -13683,7 +13683,7 @@ private extension BackupRestoreService {
                     case .publicationSnapshot: context.insert(try SurveyPublicationSnapshotRow(SurveySessionCanonicalCodecV1.decode(SurveyPublicationSnapshotV1.self,from:record.canonicalData)))
                     }
                 }
-            } catch { throw BackupRestoreServiceError.invalidPackage }
+            } catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if records.recordsSchemaVersion >= 25 {
             do {
@@ -13698,7 +13698,7 @@ private extension BackupRestoreService {
                         guard value.locatorID == record.id,
                               value.workspaceID.rawValue == record.workspaceID,
                               value.revision == record.revision else {
-                            throw BackupRestoreServiceError.invalidPackage
+                            throw attributedRestorePackageFailureV1(line: #line)
                         }
                         locators.append(value)
                     case .bindingReceipt:
@@ -13708,7 +13708,7 @@ private extension BackupRestoreService {
                         guard value.receiptID == record.id,
                               value.workspaceID.rawValue == record.workspaceID,
                               value.revision == record.revision else {
-                            throw BackupRestoreServiceError.invalidPackage
+                            throw attributedRestorePackageFailureV1(line: #line)
                         }
                         receipts.append(value)
                     }
@@ -13729,7 +13729,7 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         if records.recordsSchemaVersion >= 26 {
@@ -13745,7 +13745,7 @@ private extension BackupRestoreService {
                     guard record.workspaceID == expectedWorkspaceID.rawValue,
                           record.revision > 0,
                           !record.canonicalData.isEmpty else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     switch record.kind {
                     case .scheduleRelease:
@@ -13757,7 +13757,7 @@ private extension BackupRestoreService {
                         guard value.releaseID == record.id,
                               value.workspaceID == expectedWorkspaceID,
                               value.revision == record.revision else {
-                            throw BackupRestoreServiceError.invalidPackage
+                            throw attributedRestorePackageFailureV1(line: #line)
                         }
                         releases.append(value)
                     case .occurrenceHistory:
@@ -13769,7 +13769,7 @@ private extension BackupRestoreService {
                         guard value.eventID == record.id,
                               value.workspaceID == expectedWorkspaceID,
                               value.revision == record.revision else {
-                            throw BackupRestoreServiceError.invalidPackage
+                            throw attributedRestorePackageFailureV1(line: #line)
                         }
                         events.append(value)
                     case .exceptionCalendarRelease:
@@ -13781,7 +13781,7 @@ private extension BackupRestoreService {
                         guard value.releaseID == record.id,
                               value.workspaceID == expectedWorkspaceID,
                               value.revision == record.revision else {
-                            throw BackupRestoreServiceError.invalidPackage
+                            throw attributedRestorePackageFailureV1(line: #line)
                         }
                         calendars.append(value)
                     case .scheduleOverrideEvent:
@@ -13793,7 +13793,7 @@ private extension BackupRestoreService {
                         guard value.eventID == record.id,
                               value.workspaceID == expectedWorkspaceID,
                               value.revision == record.revision else {
-                            throw BackupRestoreServiceError.invalidPackage
+                            throw attributedRestorePackageFailureV1(line: #line)
                         }
                         overrides.append(value)
                     }
@@ -13805,7 +13805,7 @@ private extension BackupRestoreService {
                 guard C51ScheduleBackupClosureV1.validatesAdvancedCalendarReferences(
                     definitions: releases, calendars: calendars
                 ) else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
                 for value in releases.sorted(by: { $0.releaseID.uuidString < $1.releaseID.uuidString }) {
                     context.insert(try ScheduleDefinitionReleaseRow(value))
@@ -13822,7 +13822,7 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         if records.recordsSchemaVersion >= 30 {
@@ -13885,7 +13885,7 @@ private extension BackupRestoreService {
                             $0.systemID == sourceWorkflow.systemID
                                 && $0.revision == sourceWorkflow.systemRevision
                                 && $0.systemSHA256 == sourceWorkflow.systemSHA256
-                        }) else { throw BackupRestoreServiceError.invalidPackage }
+                        }) else { throw attributedRestorePackageFailureV1(line: #line) }
                         let destinationSystem = try sourceSystem.rebound(
                             recordID: makeUUID(), systemID: makeUUID(), to: expectedWorkspaceID,
                             siteID: sourceSystem.siteID, zones: sourceSystem.zones,
@@ -13900,7 +13900,7 @@ private extension BackupRestoreService {
                                 $0.observationID == sourceSnapshot.observation.observationID
                                     && $0.revision == sourceSnapshot.observation.revision
                                     && $0.observationSHA256 == sourceSnapshot.observation.observationSHA256
-                            }) else { throw BackupRestoreServiceError.invalidPackage }
+                            }) else { throw attributedRestorePackageFailureV1(line: #line) }
                             let destinationPose: AssetPoseEventV1?
                             if let sourcePose = sourceSnapshot.poseEvent {
                                 destinationPose = poseValues.first(where: {
@@ -13915,11 +13915,11 @@ private extension BackupRestoreService {
                                           sourceSnapshot.poseDisposition,
                                           destinationPose.pose.disposition
                                       ) else {
-                                    throw BackupRestoreServiceError.invalidPackage
+                                    throw attributedRestorePackageFailureV1(line: #line)
                                 }
                             } else {
                                 guard sourceSnapshot.poseDisposition == .notDeclared else {
-                                    throw BackupRestoreServiceError.invalidPackage
+                                    throw attributedRestorePackageFailureV1(line: #line)
                                 }
                                 destinationPose = nil
                             }
@@ -14009,7 +14009,7 @@ private extension BackupRestoreService {
                                   $0.eventID == sourcePlan.occurrence.eventID
                               }), let packet = destinationPackets.first(where: {
                                   $0.manifestID == sourcePlan.workPacket.manifestID
-                              }) else { throw BackupRestoreServiceError.invalidPackage }
+                              }) else { throw attributedRestorePackageFailureV1(line: #line) }
                         let destinationPlan = try LightingNightFollowupPlanV1(
                             planID: makeUUID(), workspaceID: expectedWorkspaceID,
                             sourceSystemID: destinationSystem.systemID,
@@ -14038,7 +14038,7 @@ private extension BackupRestoreService {
                         let destinationDeltas = try sourceNight.deltas.map { sourceDelta in
                             guard let observation = destinationObservationBySourceID[
                                 sourceDelta.observation.observationID
-                            ] else { throw BackupRestoreServiceError.invalidPackage }
+                            ] else { throw attributedRestorePackageFailureV1(line: #line) }
                             let media = try sourceDelta.comparableMedia.map {
                                 try ContentReferenceV1(
                                     workspaceID: expectedWorkspaceID.rawValue.uuidString.lowercased(),
@@ -14140,12 +14140,12 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         } else {
             guard records.lighting.isEmpty, records.lightingDayInventoryWorkflows.isEmpty,
                   records.lightingNightWorkflows.isEmpty else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         if records.recordsSchemaVersion >= 31 {
@@ -14170,11 +14170,11 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         } else {
             guard records.assistanceAcceptanceReceipts.isEmpty else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         if records.recordsSchemaVersion >= TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion {
@@ -14204,11 +14204,11 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         } else {
             guard records.temporalEvidence.isEmpty else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         if records.recordsSchemaVersion >= AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion {
@@ -14228,9 +14228,9 @@ private extension BackupRestoreService {
                     context.insert(try AcceptedLabelGenerationSnapshotRow(value))
                 }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.acceptedLabelGenerationSnapshots.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
             do {
@@ -14260,9 +14260,9 @@ private extension BackupRestoreService {
                     context.insert(try SystemHandoffIntentRow(value))
                 }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.operationalContacts.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
             do {
@@ -14281,9 +14281,9 @@ private extension BackupRestoreService {
                 for value in values.asBuilt { context.insert(try InstallationAsBuiltSnapshotRow(value)) }
                 for value in values.punchBasis { context.insert(try PunchReviewBasisSnapshotRow(value)) }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.activityContracts.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
             do {
@@ -14295,9 +14295,9 @@ private extension BackupRestoreService {
                 }
                 for value in values { context.insert(try ManualWorkResourceRecordRow(value)) }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.workResources.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= C57MyDayBackupEnrollmentV1.recordsSchemaVersion {
             do {
@@ -14317,10 +14317,10 @@ private extension BackupRestoreService {
                     context.insert(try MyDayCarryoverReceiptRowV1(value))
                 }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.myDayPlans.isEmpty || !records.myDayCarryoverReceipts.isEmpty
                     || !records.nonactivePlanReferences.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion {
             do {
@@ -14339,10 +14339,10 @@ private extension BackupRestoreService {
                     context.insert(try EvidenceSequenceRevisionRowV1(value))
                 }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.evidenceAssociationEvents.isEmpty
                     || !records.evidenceSequenceRevisions.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion {
             do {
@@ -14356,9 +14356,9 @@ private extension BackupRestoreService {
                     context.insert(try ShopReportProfileRowV1(value))
                 }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.shopReportProfiles.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion {
             do {
@@ -14372,9 +14372,9 @@ private extension BackupRestoreService {
                     context.insert(try RoundSessionRevisionRowV1(value))
                 }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.roundSessions.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion {
             do {
@@ -14412,9 +14412,9 @@ private extension BackupRestoreService {
                 for value in records.bulkSessions { context.insert(try BulkSessionRowV1(value)) }
                 for value in records.bulkCommitReceipts { context.insert(try BulkCommitReceiptRowV1(value)) }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if !records.importMappingProfiles.isEmpty || !records.bulkSessions.isEmpty || !records.bulkCommitReceipts.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if let evidenceQuality = records.evidenceQuality {
             do {
@@ -14452,7 +14452,7 @@ private extension BackupRestoreService {
                 for value in evidenceQuality.ruleSets {
                     guard let receipt = receipts[value.mutationID.rawValue],
                           let writerInstanceID = writerInstances[value.mutationID.rawValue] else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try EvidenceQualityRuleSetRowV1(
                         restoring: value, receipt: receipt, writerInstanceID: writerInstanceID
@@ -14464,7 +14464,7 @@ private extension BackupRestoreService {
                     guard let ruleSet = ruleSets[value.ruleSetID],
                           let receipt = receipts[value.mutationID.rawValue],
                           let writerInstanceID = writerInstances[value.mutationID.rawValue] else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try EvidenceQualityAssessmentRowV1(
                         restoring: value, ruleSet: ruleSet, receipt: receipt,
@@ -14476,7 +14476,7 @@ private extension BackupRestoreService {
                     guard let assessment = assessments[value.assessmentID],
                           let receipt = receipts[value.mutationID.rawValue],
                           let writerInstanceID = writerInstances[value.mutationID.rawValue] else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     context.insert(try EvidenceQualityWaiverRowV1(
                         restoring: value, assessment: assessment, receipt: receipt,
@@ -14487,7 +14487,7 @@ private extension BackupRestoreService {
                     context.insert(try EvidenceQualityMutationReceiptRowV1(receipt))
                 }
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if let fastSurveyInbox = records.fastSurveyInbox {
             do {
@@ -14517,7 +14517,7 @@ private extension BackupRestoreService {
                     modelContext: context, workspaceID: WorkspaceID(rawValue: workspaceID)
                 ).replaceRestore(fastSurveyInbox)
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         }
         if let reinspectionExceptionQueue = records.reinspectionExceptionQueue {
             do {
@@ -14548,9 +14548,9 @@ private extension BackupRestoreService {
                     modelContext: context, workspaceID: WorkspaceID(rawValue: workspaceID)
                 ).replaceRestore(reinspectionExceptionQueue)
             } catch let error as BackupRestoreServiceError { throw error }
-            catch { throw BackupRestoreServiceError.invalidPackage }
+            catch { throw attributedRestorePackageFailureV1(line: #line) }
         } else if records.recordsSchemaVersion >= ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if let identityResolution = records.entityIdentityResolution {
             do {
@@ -14586,7 +14586,7 @@ private extension BackupRestoreService {
                     throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
                 guard let mutationHistory = records.mutationHistory else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
                 let commands = try entityIdentityResolutionCommands(
                     from: mutationHistory,
@@ -14594,7 +14594,7 @@ private extension BackupRestoreService {
                 )
                 if sourceIsEmpty {
                     guard commands.isEmpty else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                 } else {
                     let packageResolver = try EntityIdentityResolutionPackageResolverV1(
@@ -14609,11 +14609,11 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         } else if records.recordsSchemaVersion
                     >= EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion {
             do {
@@ -14637,7 +14637,7 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
@@ -14671,12 +14671,12 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         } else if !records.serviceRequests.isEmpty
                     || !records.serviceRequestDispositionEvents.isEmpty
                     || !records.serviceRequestWorkLinkEvents.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
             do {
@@ -14707,7 +14707,7 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError {
                 throw error
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         } else if !records.serviceReliabilityIncidents.isEmpty
                     || !records.serviceImpactSegments.isEmpty
@@ -14717,7 +14717,7 @@ private extension BackupRestoreService {
                     || !records.serviceRestorationAssertions.isEmpty
                     || !records.qualifiedServiceExposures.isEmpty
                     || !records.serviceReliabilityReceipts.isEmpty {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
@@ -14766,7 +14766,7 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             do {
                 let identity = try identityDecision.map {
@@ -14805,7 +14805,7 @@ private extension BackupRestoreService {
                     identityDisposition: disposition
                 )
             } catch {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
     }
@@ -17686,4 +17686,11 @@ private func attributedRestoreAuthorityFailureV1(line: UInt) -> BackupRestoreSer
     print("BackupRestoreService invalidRestoreAuthorityLine=\(line)")
     #endif
     return .invalidRestoreAuthority
+}
+
+private func attributedRestorePackageFailureV1(line: UInt) -> BackupRestoreServiceError {
+    #if DEBUG
+    print("BackupRestoreService invalidPackageLine=\(line)")
+    #endif
+    return .invalidPackage
 }

@@ -4,13 +4,13 @@ import Foundation
 /// these originals and current parent row. Source, mutable workflow, media,
 /// destination correspondence and the eventual adoption CAS remain separate.
 struct CheckRunnerPhotoParentEvidenceV1: Equatable, Sendable {
-    struct CheckpointHistoryEntry {
+    struct CheckpointHistoryEntry: Equatable, Sendable {
         let evidence: FieldDraftCommittedEvidenceV1
         let checkpoint: FieldDraftCheckpointV1
         let payload: CheckRunnerItemDraftPayloadV1
     }
 
-    struct ValidatedCheckpointHistory {
+    struct ValidatedCheckpointHistory: Equatable, Sendable {
         let parent: CheckRunnerItemDraftPayloadV1
         let entries: [CheckpointHistoryEntry]
         let selectedChildDraftIDs: Set<UUID>
@@ -23,10 +23,18 @@ struct CheckRunnerPhotoParentEvidenceV1: Equatable, Sendable {
 
     init(history: [FieldDraftCommittedEvidenceV1], checkpoint: FieldDraftCheckpointV1,
          child: CheckRunnerPhotoCommitEvidenceV1, workflow: CheckRunnerBeginCommittedEvidenceV1,
-         timeZone: CheckRunnerBeginCommittedEvidenceV1?) throws {
+         timeZone: CheckRunnerBeginCommittedEvidenceV1?,
+         finalization: CheckRunnerItemFinalizationEvidenceV1? = nil) throws {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
-        let validated = try Self.validateCheckpointHistory(history: history, checkpoint: checkpoint,
-            workflow: workflow, timeZone: timeZone)
+        let validated: ValidatedCheckpointHistory
+        if let finalization {
+            guard finalization.checkpoint == checkpoint, finalization.history == history,
+                  finalization.workflow == workflow, finalization.timeZone == timeZone else { throw failure }
+            validated = finalization.editing
+        } else {
+            validated = try Self.validateCheckpointHistory(history: history, checkpoint: checkpoint,
+                workflow: workflow, timeZone: timeZone)
+        }
         let parent = validated.parent
         guard case let .createCheckpoint(createdChild) = child.creating.mutation.postImage,
               case let .applyCommitTerminal(terminal, _) = child.terminal.mutation.postImage else { throw failure }

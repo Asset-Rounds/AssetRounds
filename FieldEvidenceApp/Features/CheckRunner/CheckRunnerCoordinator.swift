@@ -1301,6 +1301,202 @@ final class CheckRunnerCoordinator {
         return media
     }
 
+    /// No identifiers or times are allocated here. The parent service freezes
+    /// those only after current source, outcome, target and media checks pass.
+    func prepareParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws
+        -> (outcome: CheckRunnerOutcomeSnapshotV1, workflowRevision: UInt64) {
+        let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+            progress: progress, publishedRelease: publishedRelease)
+        guard parentCheckpoint.state == .active, current.parent.finalization == nil else {
+            throw FieldDraftFailureV1.invalidTransition
+        }
+        return (current.outcome, current.workflowRevision)
+    }
+
+    func reconstructParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> CheckRunnerDraftCommitReconstructionV1 {
+        let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+            progress: progress, publishedRelease: publishedRelease)
+        guard let finalization = current.parent.finalization else { throw FieldDraftFailureV1.invalidTransition }
+        let reconstructed = try CheckRunnerItemDraftCodecV1.reconstructFinalizationCommit(
+            from: finalization.reconstruction.checkpoint, signPack: signPack,
+            activeLifecycleProfile: { current.profile })
+        guard reconstructed == finalization.reconstruction else { throw FieldDraftFailureV1.digestMismatch }
+        return reconstructed
+    }
+
+    func readParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> ReviewedFinalizationCommitV1? {
+        let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+            progress: progress, publishedRelease: publishedRelease)
+        let target = try parentFinalizationTarget(current)
+        let read = try target.adapter.readCommittedFinalization(target.input, binding: target.binding,
+            expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision)
+        guard read?.receipt == current.parent.finalization?.target?.receipt else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        return read
+    }
+
+    /// Uses only the incumbent package-bound finalizer. A saved effect is
+    /// recovered through its real readback; it is never replaced by a receipt
+    /// constructed from the frozen parent values.
+    func commitParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1,
+        revalidate: @MainActor () throws -> Void) async throws -> MutationReceiptV1 {
+        try Task.checkCancellation(); try revalidate()
+        let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+            progress: progress, publishedRelease: publishedRelease)
+        let target = try parentFinalizationTarget(current)
+        if let read = try target.adapter.readCommittedFinalization(target.input, binding: target.binding,
+            expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision) {
+            guard read.receipt == current.parent.finalization?.target?.receipt else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            try revalidate()
+            return read.receipt
+        }
+        guard current.parent.finalization?.target == nil,
+              current.workflowRevision == target.attempt.expectedWorkflowRecordRevision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        var failure: Error?
+        var returnedIdentity: MutationReceiptIdentityV1?
+        do {
+            returnedIdentity = try await target.adapter.finalize(target.input, binding: target.binding,
+                expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision).durableReceiptIdentity
+        } catch { failure = error }
+        try Task.checkCancellation(); try revalidate()
+        if let read = try readParentFinalization(parentCheckpoint: parentCheckpoint,
+            progress: progress, publishedRelease: publishedRelease) {
+            guard returnedIdentity == nil || returnedIdentity == read.receipt.identity else {
+                throw FieldDraftFailureV1.digestMismatch
+            }
+            return read.receipt
+        }
+        if let failure { throw failure }
+        throw FieldDraftFailureV1.missingReceipt
+    }
+
+    private struct ParentFinalizationContext {
+        let parent: CheckRunnerItemParentEvidenceV1
+        let dependencies: WorkspacePackageLifecycleDependenciesV1
+        let profile: WorkspacePackageLifecycleProfileV1
+        let asset: Asset
+        let site: Site
+        let record: WorkflowRecord
+        let evidence: [EvidenceFile]
+        let outcome: CheckRunnerOutcomeSnapshotV1
+        let workflowRevision: UInt64
+    }
+
+    private func parentFinalizationContext(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> ParentFinalizationContext {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        guard let lifecycle = liveLifecycle,
+              let parent = try dependencies.writer.checkRunnerItemParentEvidence(
+                workspaceID: dependencies.workspaceID, draftID: parentCheckpoint.draftID),
+              parent.checkpoint == parentCheckpoint else { throw FieldDraftFailureV1.staleDraftRevision }
+        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parentCheckpoint)
+        guard case let .bound(begin, _, _) = payload.field.begin else { throw FieldDraftFailureV1.missingReceipt }
+        let sourceRead = try progress.read(sourceDraftID: payload.source.sourceCheckpoint.draftID)
+        try validateHistoricalCheckRunnerSource(payload.source, read: sourceRead,
+            progress: progress, publishedRelease: publishedRelease)
+        if parent.finalization?.target == nil {
+            try payload.source.validate(read: sourceRead, publishedRelease: publishedRelease, signPack: signPack)
+        }
+        try validateFrozenBeginContext(payload.source, dependencies: dependencies)
+        let outcome = try CheckRunnerOutcomeSnapshotV1.prepare(editor: payload.field.outcome,
+            stage: payload.source.requestedEntry.stage, signPack: signPack,
+            activeLifecycleProfile: { lifecycle.profile })
+        if let finalization = parent.finalization {
+            try finalization.validatePreparedOutcome(profile: lifecycle.profile)
+            guard outcome == finalization.attempt.normalizedOutcome else { throw FieldDraftFailureV1.digestMismatch }
+        }
+        let recordID = begin.recordCommand.recordID
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }))
+        guard records.count == 1, let record = records.first else { throw FieldDraftFailureV1.missingReceipt }
+        let asset = try requiredAsset(id: payload.source.assetID)
+        let site = try requiredSite(id: asset.siteID)
+        let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>(
+            predicate: #Predicate { $0.recordID == recordID }))
+        let slots = [payload.field.wideContext, payload.field.closeDetail].compactMap { $0 }
+        guard slots.allSatisfy({ if case .committed = $0 { return true }; return false }),
+              Set(evidence.map(\.id)) == Set(slots.compactMap(\.evidenceID)),
+              evidence.count == slots.count else { throw FieldDraftFailureV1.missingContent }
+        let revision = try dependencies.writer.currentRevision()
+        let identity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: recordID)
+        let revisions = revision.entityRevisions.filter { $0.identity == identity }
+        guard revisions.count == 1, let workflowRevision = revisions.first?.revision,
+              workflowRevision > 0 else { throw FieldDraftFailureV1.staleDraftRevision }
+        for slot in slots {
+            guard let photo = try dependencies.writer.checkRunnerPhotoCurrentTargetEvidence(
+                workspaceID: dependencies.workspaceID, parentDraftID: parentCheckpoint.draftID,
+                childDraftID: slot.childDraftID), photo.parent.checkpoint == parentCheckpoint,
+                  photo.parent.slot == slot, photo.workflow.id == recordID,
+                  photo.workflowPostImage.revision == workflowRevision,
+                  photo.finalization == parent.finalization?.target else { throw FieldDraftFailureV1.digestMismatch }
+        }
+        if parent.finalization?.target == nil {
+            if slots.isEmpty { try requireInitialBeginRecord(record, command: begin.recordCommand) }
+            try validateInitialBeginAccess(begin, workflow: parent.workflow)
+            let review = try prepareReview(assetID: asset.id, selection: outcome.selection)
+            guard review.draftID == recordID else { throw FieldDraftFailureV1.staleDraftRevision }
+        } else {
+            guard record.state == WorkflowState.completed.rawValue,
+                  record.finalizationMutationID == parent.finalization?.attempt.identifiers.mutationID,
+                  let entry = draftAccessEntry(for: payload.source.requestedEntry.stage) else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            if let draftAccessState {
+                let proof = RepositoryValidatedDraftV1(draftID: recordID, assetID: payload.source.assetID,
+                    issueID: begin.recordCommand.issueID, entry: entry,
+                    createdAt: parent.workflow.receipt.committedAt, gateCheckedAt: clock.now())
+                let decision = try evaluateDraftAccess(state: draftAccessState(), entry: entry, existingDraft: proof)
+                guard decision == .allow || decision == .continueExisting else {
+                    throw CheckRunnerCoordinatorError.accessDenied(decision)
+                }
+            }
+        }
+        guard try dependencies.writer.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
+        _ = try frozenBeginDependencies(progress: progress)
+        return .init(parent: parent, dependencies: dependencies, profile: lifecycle.profile,
+            asset: asset, site: site, record: record, evidence: evidence,
+            outcome: outcome, workflowRevision: workflowRevision)
+    }
+
+    private func parentFinalizationTarget(_ current: ParentFinalizationContext) throws
+        -> (adapter: PackFinalizationAdapterV1, input: FinalizationServiceInput,
+            binding: PackFinalizationBindingV1, attempt: CheckRunnerFinalizationAttemptInputsV1) {
+        guard let finalization = current.parent.finalization else { throw FieldDraftFailureV1.invalidTransition }
+        let attempt = finalization.attempt
+        let outcome = try attempt.normalizedOutcome.resolve(
+            stage: finalization.editing.parent.source.requestedEntry.stage, signPack: signPack,
+            activeLifecycleProfile: { current.profile })
+        let input = FinalizationServiceInput(draft: current.record, asset: current.asset, site: current.site,
+            evidence: current.evidence, outcomeKey: outcome.key, outcomeDisplay: outcome.display,
+            issueLabel: outcome.issueLabel, couldNotVerify: outcome.couldNotVerify, note: outcome.note,
+            completedAt: attempt.completedAt, snapshotCreatedAt: attempt.snapshotCreatedAt,
+            sourceApp: attempt.sourceApp, identifiers: attempt.identifiers.finalizationIdentifiers)
+        let adapter = try PackFinalizationAdapterV1(dependencies: current.dependencies,
+            profile: current.profile, legacyModelContext: modelContext,
+            intentStoreFailureInjection: finalizationStoreFailureInjection,
+            failureInjection: finalizationServiceFailureInjection)
+        let binding = try PackFinalizationBindingV1(workspaceID: current.dependencies.workspaceID,
+            generationID: current.dependencies.generationID, packageRelease: current.profile.release,
+            mutationID: .init(rawValue: attempt.identifiers.mutationID),
+            durableReceiptIdentity: finalization.target?.receipt.identity,
+            preservesReservedLegacyRawWriteDebt: false)
+        return (adapter, input, binding, attempt)
+    }
+
     /// Produces source inputs only. The eventual parent owner must retain this
     /// exact value before any effect; this method does not perform retry/resume.
     func prepareFrozenBegin(

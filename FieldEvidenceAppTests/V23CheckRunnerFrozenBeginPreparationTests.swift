@@ -2032,6 +2032,49 @@ struct FrozenProductionPhotoV1 {
     }
 }
 
+/// Real Begin, photo and finalizer owners; no fabricated positive receipt.
+@MainActor
+func makeFrozenParentFinalizationDraft(_ h: FrozenBeginFixture, selection: CheckOutcomeSelection,
+    photoCount: Int) async throws -> (service: ProductionCheckRunnerItemDraftServiceV1, checkpoint: FieldDraftCheckpointV1) {
+    let outcome: CheckRunnerEditableOutcomeV1
+    switch selection {
+    case .noVisibleIssue: outcome = .init(selection: .noVisibleIssue)
+    case let .visibleIssue(key): outcome = .init(selection: .visibleIssue(labelKey: key), choice: .visibleIssue)
+    case let .couldNotVerify(key, note):
+        outcome = .init(selection: .couldNotVerify(reasonKey: key, note: note), choice: .couldNotVerify,
+            selectedCouldNotVerifyReasonKey: key, couldNotVerifyNote: note ?? "", startsWithCouldNotVerify: true)
+    case let .resolved(note): outcome = .init(selection: .resolved(note: note), recheckNote: note ?? "")
+    case let .issueStillVisible(note): outcome = .init(selection: .issueStillVisible(note: note), recheckNote: note ?? "")
+    case let .originalResolvedDifferentIssue(key, note):
+        outcome = .init(selection: .originalResolvedDifferentIssue(labelKey: key, note: note),
+            choice: .differentIssue, recheckNote: note ?? "")
+    }
+    h.runner.configureCapture(generationRootURL: h.coordinator.generationRootURL)
+    let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: h.root, workspaceID: h.workspaceID,
+        immutableContentWriter: EvidenceBundleStore(generationRootURL: h.coordinator.generationRootURL))
+    let service = try ProductionCheckRunnerItemDraftServiceV1(session: h.coordinator, progress: h.progress,
+        coordinator: h.runner, publishedRelease: h.publishedRelease, clock: h.clock, ids: h.ids, attachmentStaging: staging)
+    let created = try service.create(source: h.captureSource(), preflight: .init(
+        timeZoneID: "America/Chicago", isTimeZoneConfirmed: true, confirmedTimeZoneID: "America/Chicago",
+        afterDarkAccepted: true, safePositionAccepted: true), outcome: outcome)
+    _ = try service.prepareBegin(draftID: created.draftID, expectedCheckpointSHA256: created.checkpointSHA256,
+        observedAtUTC: h.clock.millisecondValue)
+    _ = try service.resumeInitialBegin(draftID: created.draftID)
+    let photoSteps: [WorkflowDraftStep] = [.wide, .close]
+    for step in photoSteps.prefix(photoCount) {
+        let photo = try await FrozenProductionPhotoV1.make(h, parentID: created.draftID, step: step)
+        let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID, childDraftID: photo.childID)
+        let attempt = try photo.attempt(pairCheckpoint: pair)
+        _ = try photo.service.preparePhotoCommit(parentDraftID: photo.parentID, childDraftID: photo.childID,
+            expectedCheckpointSHA256: pair.checkpointSHA256, proposal: attempt)
+        _ = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID, childDraftID: photo.childID)
+        h.clock.value = attempt.terminalCheckpointUpdatedAt.addingTimeInterval(1)
+    }
+    let checkpoint = try service.read(draftID: created.draftID)
+    h.clock.value = max(h.clock.millisecondValue, checkpoint.updatedAt).addingTimeInterval(1)
+    return (service, checkpoint)
+}
+
 final class FrozenBeginCountingIDs: ApplicationIDSource, @unchecked Sendable {
     private let lock = NSLock()
     private var queued: [UUID] = []

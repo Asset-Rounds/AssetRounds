@@ -367,6 +367,12 @@ final class AppAccessPresentationV1: ObservableObject {
         private let repetitiveCapture: ProductionRepetitiveCaptureProgressServiceV2?
 
         #if DEBUG
+        func repetitiveCaptureOwnerForTesting() throws -> ProductionRepetitiveCaptureProgressServiceV2 {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return repetitiveCapture
+            }
+        }
         private final class DraftOrderingDebugHooks {
             var afterReceipt: (@MainActor () throws -> Void)?
         }
@@ -438,6 +444,58 @@ final class AppAccessPresentationV1: ObservableObject {
                 guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
                 return try repetitiveCapture.read(sourceDraftID: sourceDraftID)
             }
+        }
+
+        func prepareCheckRunnerFinalization(service: ProductionCheckRunnerItemDraftServiceV1,
+            draftID: UUID, expectedCheckpointSHA256: String, sourceApp: SourceAppSnapshotV1,
+            validateIntent: @MainActor () throws -> Void) async throws -> FieldDraftCheckpointV1 {
+            guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            func validate() throws {
+                try Task.checkCancellation(); try validateIntent()
+                try publicationAccess.withRead { try service.validateFinalizationOwner(repetitiveCapture) }
+            }
+            try validate()
+            let result = try await service.prepareFinalization(draftID: draftID,
+                expectedCheckpointSHA256: expectedCheckpointSHA256, sourceApp: sourceApp, validateIntent: validate)
+            try validate()
+            return result
+        }
+
+        /// The original publication owns both effects. Uncertain progress is
+        /// retried from its original COMPLETE checkpoint without refinalizing.
+        func resumeCheckRunnerFinalization(service: ProductionCheckRunnerItemDraftServiceV1,
+            draftID: UUID, focus: RepetitiveCaptureRequirementFocusV1, recordedByName: String,
+            validateIntent: @escaping @MainActor () throws -> Void) async throws -> RepetitiveCaptureProgressResultV2 {
+            guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            let validate: @MainActor () throws -> Void = {
+                try Task.checkCancellation(); try validateIntent()
+                try self.publicationAccess.withRead { try service.validateFinalizationOwner(repetitiveCapture) }
+            }
+            try validate()
+            _ = try await service.resumeFinalization(draftID: draftID, validateIntent: validate)
+            try validate()
+            let terminal = try publicationAccess.withRead {
+                try service.terminalFinalizationSource(draftID: draftID, progress: repetitiveCapture)
+            }
+            let read = try readRepetitiveCaptureProgress(sourceDraftID: terminal.source.sourceCheckpoint.draftID)
+            if let checkpoint = try publicationAccess.withRead({
+                try repetitiveCapture.checkRunnerCompletion(read: read, source: terminal.source, recordID: terminal.recordID)
+            }) {
+                return try await resumeRepetitiveCaptureProgress(sourceDraftID: terminal.source.sourceCheckpoint.draftID,
+                    stepDraftID: checkpoint.draftID, validateIntent: validate)
+            }
+            let readiness = try await rebuildReadiness(for: read.chain.currentRound, previous: nil)
+            try validate()
+            try publicationAccess.withRead {
+                let refreshed = try service.terminalFinalizationSource(draftID: draftID, progress: repetitiveCapture)
+                guard refreshed.source == terminal.source, refreshed.recordID == terminal.recordID else {
+                    throw ScanToWorkFailureV1.stale
+                }
+                try repetitiveCapture.validateForPublication(read)
+            }
+            let step = try prepareRepetitiveCaptureStep(read: read, readiness: readiness, action: .complete,
+                focus: focus, completionRecordID: terminal.recordID, recordedByName: recordedByName)
+            return try await executeRepetitiveCaptureStep(step, validateIntent: validate)
         }
 
         func prepareRepetitiveCaptureStep(read: ProductionRepetitiveCaptureReadV2,

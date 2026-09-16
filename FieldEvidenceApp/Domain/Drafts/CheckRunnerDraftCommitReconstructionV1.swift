@@ -96,12 +96,26 @@ extension CheckRunnerItemDraftCodecV1 {
         -> CheckRunnerDraftCommitReconstructionV1 {
         let payload = try validateCheckpoint(checkpoint)
         guard checkpoint.state == .committing, payload.phase == .preparedFinalization,
-              let attempt = payload.finalizationAttempt,
-              case let .bound(begin, _, _) = payload.field.begin else {
+              payload.finalizationAttempt != nil,
+              case .bound = payload.field.begin else {
             throw FieldDraftFailureV1.invalidTransition
         }
         try payload.validatePreparedOutcome(signPack: signPack,
             activeLifecycleProfile: activeLifecycleProfile)
+        return try reconstructFinalizationHistory(from: checkpoint)
+    }
+
+    /// Pure reconstruction of retained values. This does not validate a live
+    /// package, current source, media or finalizer input and grants no effect
+    /// authority. Live preparation/resume uses reconstructFinalizationCommit.
+    static func reconstructFinalizationHistory(from checkpoint: FieldDraftCheckpointV1) throws
+        -> CheckRunnerDraftCommitReconstructionV1 {
+        let payload = try validateCheckpoint(checkpoint)
+        guard checkpoint.state == .committing, payload.phase == .preparedFinalization,
+              let attempt = payload.finalizationAttempt,
+              case let .bound(begin, _, _) = payload.field.begin else {
+            throw FieldDraftFailureV1.invalidTransition
+        }
         // Attempt validation already proves the seven outcome/identifier cases.
         // The actual finalizer must later return this exact affected identity set.
         var outputs = try [

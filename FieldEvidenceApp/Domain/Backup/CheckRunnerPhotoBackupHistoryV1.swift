@@ -147,6 +147,7 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
     let sourceWorkspaceID: WorkspaceID
     let sourceGenerationID: UUID?
     let children: [CheckRunnerPhotoBackupHistoryChildV1]
+    let parentFinalizations: [CheckRunnerItemFinalizationEvidenceV1]
     let requiredHistory: [RepetitiveCaptureSourceHistoryRecordV2]
 
     /// Pure correspondence for an original Begin effect. Presence and quarantine
@@ -225,7 +226,10 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
         guard requiredHistory.allSatisfy({ !history.isQuarantined($0) }) else { throw failure }
         return .init(source: source, sourceWorkspaceID: workspaceID,
                      sourceGenerationID: source.sourceGenerationID,
-                     children: results, requiredHistory: requiredHistory)
+                     children: results,
+                     parentFinalizations: membership.parentCache.values.compactMap(\.finalization)
+                        .sorted { $0.checkpoint.draftID.uuidString < $1.checkpoint.draftID.uuidString },
+                     requiredHistory: requiredHistory)
     }
 }
 
@@ -297,6 +301,12 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         var required = Set<String>()
         for parent in parents.values {
             parent.originals.forEach { required.insert(key($0)) }
+            if let target = parent.finalization?.target {
+                let targetKey = RepetitiveCaptureSourceGraphReviewV2.key(
+                    target.envelope.workspaceID, target.receipt.mutationID)
+                _ = try history.authenticated(targetKey)
+                required.insert(targetKey)
+            }
             var attempts: [String: CheckRunnerFrozenBeginAttemptV1] = [:]
             var hasBoundBegin = false
             for checkpoint in parent.checkpoints {
@@ -391,7 +401,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         var referencedPhotoIDs = Set<UUID>()
         for parent in currentParents.values {
             let reviewed = try parentHistory(
-                current: parent, history: history, workspaceID: workspaceID)
+                current: parent, rows: rows, history: history, workspaceID: workspaceID)
             let graph = try sourceGraph(for: reviewed.currentPayload.source, in: graphs)
             try validateHistoricalEntry(reviewed.currentPayload.source, graph: graph)
             parentCache[parent.draftID] = reviewed
@@ -579,6 +589,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         let originals: [RepetitiveCaptureSourceHistoryRecordV2]
         let checkpointEvidence: [FieldDraftCommittedEvidenceV1]
         let checkpoints: [FieldDraftCheckpointV1]
+        let finalization: CheckRunnerItemFinalizationEvidenceV1?
 
         func frontier(for child: FieldDraftCheckpointV1, committed: Bool) throws
             -> FieldDraftCheckpointV1 {
@@ -624,7 +635,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         let target: CheckRunnerPhotoCommittedEvidenceV1?
     }
 
-    static func parentHistory(current: FieldDraftCheckpointV1,
+    static func parentHistory(current: FieldDraftCheckpointV1, rows: Rows,
         history: RepetitiveCaptureSourceGraphReviewV2.History, workspaceID: WorkspaceID) throws
         -> ParentHistory {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -636,8 +647,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             RepetitiveCaptureSourceGraphReviewV2.checkpointPostImage(value.mutation.postImage)
                 .map { (value, $0) }
         }.sorted { $0.1.draftRevision < $1.1.draftRevision }
-        guard checkpointEntries.count == originals.count,
-              let first = checkpointEntries.first, let last = checkpointEntries.last,
+        guard let first = checkpointEntries.first, let last = checkpointEntries.last,
               case .createCheckpoint = first.0.mutation.postImage,
               first.1.draftRevision == 1, last.1 == current,
               checkpointEntries.map(\.1.draftRevision) == Array(1...checkpointEntries.count).map(UInt64.init)
@@ -655,10 +665,43 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
                     expectedBaseRevision: checkpointEntries[index - 1].1.baseCanonicalRevision)
             }
         }
+        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(current)
+        let sagas = rows.sagas.values.filter { $0.draftID == current.draftID }
+        let reservations = rows.reservations.values.filter { $0.draftID == current.draftID }
+        let stages = rows.stages.values.filter { $0.draftID == current.draftID }
+        let receipts = rows.commitReceipts.values.filter { $0.draftID == current.draftID }
+        let finalization: CheckRunnerItemFinalizationEvidenceV1?
+        if let attempt = payload.finalizationAttempt {
+            guard case let .bound(_, workflowReference, zoneReference) = payload.field.begin else { throw failure }
+            let workflowRecord = try history.authenticated(
+                workspaceID: workflowReference.workspaceID, mutationID: workflowReference.mutationID)
+            let workflow = try CheckRunnerBeginCommittedEvidenceV1(
+                envelope: workflowRecord.envelope, receipt: workflowRecord.receipt)
+            try workflowReference.validate(evidence: workflow)
+            let timeZone = try zoneReference.map { reference in
+                let record = try history.authenticated(workspaceID: reference.workspaceID, mutationID: reference.mutationID)
+                let value = try CheckRunnerBeginCommittedEvidenceV1(envelope: record.envelope, receipt: record.receipt)
+                try reference.validate(evidence: value)
+                return value
+            }
+            let targetKey = RepetitiveCaptureSourceGraphReviewV2.key(
+                workspaceID, .init(rawValue: attempt.identifiers.mutationID))
+            guard !history.quarantinedKeys.contains(targetKey) else { throw failure }
+            let target = try history.records[targetKey].map { record in
+                try FinalizationCommittedEvidenceV1(envelope: record.envelope, receipt: record.receipt)
+            }
+            finalization = try .init(history: evidence, checkpoint: current, sagas: sagas,
+                reservations: reservations, stages: stages, receipts: receipts,
+                workflow: workflow, timeZone: timeZone, target: target)
+        } else {
+            guard checkpointEntries.count == originals.count,
+                  sagas.isEmpty, reservations.isEmpty, stages.isEmpty, receipts.isEmpty else { throw failure }
+            finalization = nil
+        }
         return .init(current: current,
-            currentPayload: try CheckRunnerItemDraftCodecV1.validateCheckpoint(current),
+            currentPayload: payload,
             originals: originals, checkpointEvidence: checkpointEntries.map(\.0),
-            checkpoints: checkpointEntries.map(\.1))
+            checkpoints: checkpointEntries.map(\.1), finalization: finalization)
     }
 
     static func beginEvidence(parent: ParentHistory,

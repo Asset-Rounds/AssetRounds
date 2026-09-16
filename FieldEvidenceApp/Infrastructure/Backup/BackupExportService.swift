@@ -1217,6 +1217,19 @@ private extension BackupExportService {
         guard photoSnapshot.map({ $0.history == photoHistory }) ?? true else {
             throw BackupExportServiceError.stalePreview
         }
+        var parentFinalizationsByReport: [UUID: [CheckRunnerItemFinalizationEvidenceV1]] = [:]
+        for parent in photoHistory.parentFinalizations {
+            guard !Task.isCancelled else { throw BackupExportServiceError.cancelled }
+            let profile = try lifecycleProfile(parent.editing.parent.source.legacyPackageIdentity)
+            try parent.validatePreparedOutcome(profile: profile)
+            if parent.target != nil {
+                let reportID = parent.attempt.identifiers.reportID
+                let reports = records.reports.filter { $0.id == reportID }
+                guard reports.count == 1, let report = reports.first else { throw BackupExportServiceError.invalidAuthority }
+                try parent.validateTargetReport(report)
+                parentFinalizationsByReport[reportID, default: []].append(parent)
+            }
+        }
         let photoChildIDs = Set(photoHistory.children.map { $0.currentCheckpoint.draftID })
         let photoEvidenceIDs = Set(photoHistory.children.compactMap { $0.targetRecords?.evidence.id })
         var generatedPhotoMetadata: [String: Data] = [:]
@@ -1423,6 +1436,10 @@ private extension BackupExportService {
                     expectedSHA256: report.snapshotSHA256,
                     rootIdentity: rootIdentity
                 )
+                if let parents = parentFinalizationsByReport[report.id] {
+                    let decoded = try ReportSnapshotEncoderV1().decode(snapshot)
+                    for parent in parents { try parent.validateTargetSnapshot(decoded) }
+                }
                 return snapshot.count
             }()
             sources.append(.init(

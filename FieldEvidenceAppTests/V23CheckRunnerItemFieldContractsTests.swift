@@ -1387,6 +1387,7 @@ final class V23CheckRunnerItemFieldContractsTests: XCTestCase {
             let payload = try reconstructionParentPayload(recheck: row.0, selection: row.1, seed: 90_000 + index * 100)
             let checkpoint = try reconstructionParentCheckpoint(payload)
             let value = try reconstructParent(checkpoint)
+            XCTAssertEqual(try CheckRunnerItemDraftCodecV1.reconstructFinalizationHistory(from: checkpoint), value)
             let attempt = try XCTUnwrap(payload.finalizationAttempt)
             guard case let .bound(begin, _, _) = payload.field.begin else { return XCTFail("Missing fixture Begin") }
             var expected = try [

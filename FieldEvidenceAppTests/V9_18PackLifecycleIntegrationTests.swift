@@ -4,6 +4,227 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_18PackLifecycleIntegrationTests: XCTestCase {
+    @MainActor
+    func testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory() async throws {
+        try await assertParentFinalizationHistory("check-clear", entry: .check, selection: .noVisibleIssue, photoCount: 2)
+    }
+
+    @MainActor
+    func testParentFinalizationCheckVisibleIssueUsesOriginalFiveSagaHistory() async throws {
+        try await assertParentFinalizationHistory("check-issue", entry: .check,
+            selection: .visibleIssue(labelKey: "physical_damage"), photoCount: 2)
+    }
+
+    @MainActor
+    func testParentFinalizationCheckCouldNotVerifyUsesOriginalFiveSagaHistory() async throws {
+        try await assertParentFinalizationHistory("check-cnv", entry: .check,
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), photoCount: 0)
+    }
+
+    @MainActor
+    func testParentFinalizationRecheckResolvedUsesOriginalFiveSagaHistory() async throws {
+        try await assertParentFinalizationHistory("recheck-resolved", entry: .recheck(issueID: beginPreparationUUID(10_050)),
+            selection: .resolved(note: "Resolved"), photoCount: 2)
+    }
+
+    @MainActor
+    func testParentFinalizationRecheckStillVisibleUsesOriginalFiveSagaHistory() async throws {
+        try await assertParentFinalizationHistory("recheck-visible", entry: .recheck(issueID: beginPreparationUUID(10_050)),
+            selection: .issueStillVisible(note: "Retained"), photoCount: 2)
+    }
+
+    @MainActor
+    func testParentFinalizationRecheckDifferentIssueUsesOriginalFiveSagaHistory() async throws {
+        try await assertParentFinalizationHistory("recheck-different", entry: .recheck(issueID: beginPreparationUUID(10_050)),
+            selection: .originalResolvedDifferentIssue(labelKey: "physical_damage", note: "Different issue"), photoCount: 2)
+    }
+
+    @MainActor
+    func testParentFinalizationRecheckCouldNotVerifyUsesOriginalFiveSagaHistory() async throws {
+        try await assertParentFinalizationHistory("recheck-cnv", entry: .recheck(issueID: beginPreparationUUID(10_050)),
+            selection: .couldNotVerify(reasonKey: "conditions_changed", note: "Unavailable"), photoCount: 1)
+    }
+
+    @MainActor
+    private func assertParentFinalizationHistory(_ label: String, entry: CheckRunnerRequestedEntryV1,
+        selection: CheckOutcomeSelection, photoCount: Int) async throws {
+        try await withAsyncFrozenBeginFixture(label, entry: entry, storedTimeZoneID: "America/Chicago") { h in
+            let draft = try await makeFrozenParentFinalizationDraft(h, selection: selection, photoCount: photoCount)
+            let sourceApp = SourceAppSnapshotV1(build: "parent-finalization", version: "1.0")
+            let prepared = try await draft.service.prepareFinalization(draftID: draft.checkpoint.draftID,
+                expectedCheckpointSHA256: draft.checkpoint.checkpointSHA256, sourceApp: sourceApp) {}
+            let writer = h.coordinator.workspaceWriter
+            func proof() throws -> CheckRunnerItemFinalizationEvidenceV1 {
+                try XCTUnwrap(writer.checkRunnerItemFinalizationEvidence(workspaceID: h.workspaceID, draftID: prepared.draftID))
+            }
+            let initial = try proof(), frozen = initial.reconstruction
+            XCTAssertThrowsError(try writer.checkRunnerItemFinalizationEvidence(workspaceID: WorkspaceID(),
+                draftID: prepared.draftID)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .wrongWorkspace)
+            }
+            XCTAssertEqual(initial.recordedSagaCount, 0)
+            XCTAssertNil(initial.target); XCTAssertNil(initial.terminal)
+            XCTAssertEqual(initial.editingCheckpoint, draft.checkpoint)
+            XCTAssertEqual(initial.attempt.normalizedOutcome.selection, selection)
+            XCTAssertEqual(initial.attempt.sourceApp, sourceApp)
+            let preparedSnapshot = try h.snapshot(), allocated = h.ids.callCount
+            let repeated = try await draft.service.prepareFinalization(draftID: prepared.draftID,
+                expectedCheckpointSHA256: draft.checkpoint.checkpointSHA256, sourceApp: sourceApp) {}
+            XCTAssertEqual(repeated, prepared)
+            XCTAssertEqual(try h.snapshot(), preparedSnapshot); XCTAssertEqual(h.ids.callCount, allocated)
+            for (digest, app) in [(String(repeating: "0", count: 64), sourceApp),
+                (prepared.checkpointSHA256, SourceAppSnapshotV1(build: "foreign", version: "1.0"))] {
+                do {
+                    _ = try await draft.service.prepareFinalization(draftID: prepared.draftID,
+                        expectedCheckpointSHA256: digest, sourceApp: app) {}
+                    XCTFail("Prepared retry must retain the original editor and SourceApp")
+                } catch {}
+            }
+            do {
+                _ = try await draft.service.resumeFinalization(draftID: prepared.draftID) { throw CancellationError() }
+                XCTFail("Revoked intent must not start a saga")
+            } catch { XCTAssertTrue(error is CancellationError) }
+            XCTAssertEqual(try h.snapshot(), preparedSnapshot); XCTAssertEqual(h.ids.callCount, allocated)
+            try assertParentFinalizationHistoryDenials(initial)
+            let lifecycle = try writer.makeFieldDraftLifecycleAdapter(modelContext: h.context)
+            for (index, saga) in [frozen.prepared, frozen.contentPromoted].enumerated() {
+                _ = try lifecycle.append(saga: saga, expectedRevision: UInt64(index))
+                let observed = try proof()
+                XCTAssertEqual(observed.recordedSagaCount, index + 1)
+                XCTAssertEqual(observed.reconstruction, frozen); XCTAssertNil(observed.target)
+                try assertParentFinalizationHistoryDenials(observed)
+            }
+            #if DEBUG
+            var reached = false
+            draft.service.beforeParentTargetAcknowledgementForTesting = {
+                reached = true; throw CancellationError()
+            }
+            do {
+                _ = try await draft.service.resumeFinalization(draftID: prepared.draftID) {}
+                XCTFail("Original target acknowledgement must interrupt before the terminal")
+            } catch { XCTAssertTrue(error is CancellationError) }
+            XCTAssertTrue(reached)
+            draft.service.beforeParentTargetAcknowledgementForTesting = nil
+            let uncertain = try proof()
+            let actualTarget = try XCTUnwrap(uncertain.target)
+            XCTAssertEqual(uncertain.recordedSagaCount, 2); XCTAssertNil(uncertain.terminal)
+            XCTAssertEqual(actualTarget.receipt.mutationID, frozen.plan.mutationID)
+            guard case let .finalizeCheck(actualCommand) = actualTarget.envelope.command else {
+                return XCTFail("Expected the original Check finalization")
+            }
+            XCTAssertNotNil(actualCommand.writerAuthority)
+            try assertParentFinalizationHistoryDenials(uncertain)
+            XCTAssertEqual(try h.runner.readParentFinalization(parentCheckpoint: prepared,
+                progress: h.progress, publishedRelease: h.publishedRelease)?.receipt, actualTarget.receipt)
+            for (index, saga) in [frozen.targetCommitted, frozen.retirePending].enumerated() {
+                _ = try lifecycle.append(saga: saga, expectedRevision: UInt64(index + 2))
+                let observed = try proof()
+                XCTAssertEqual(observed.recordedSagaCount, index + 3)
+                XCTAssertEqual(observed.target, actualTarget); XCTAssertEqual(observed.reconstruction, frozen)
+                try assertParentFinalizationHistoryDenials(observed)
+            }
+            #endif
+            let cold = try ProductionCheckRunnerItemDraftServiceV1(session: h.coordinator, progress: h.progress,
+                coordinator: h.runner, publishedRelease: h.publishedRelease, clock: h.clock, ids: h.ids)
+            let terminal = try await cold.resumeFinalization(draftID: prepared.draftID) {}
+            let completed = try proof(), target = try XCTUnwrap(completed.target)
+            XCTAssertEqual(completed.recordedSagaCount, 5); XCTAssertNotNil(completed.terminal)
+            XCTAssertEqual(terminal.state, .committed); XCTAssertEqual(completed.reconstruction, frozen)
+            XCTAssertEqual(terminal.payloadData, prepared.payloadData)
+            XCTAssertEqual(terminal.mutationID, frozen.rowMutationIDs.terminalBundleMutationID)
+            XCTAssertEqual(h.ids.callCount, allocated)
+            try assertParentFinalizationHistoryDenials(completed)
+            let settled = try h.snapshot()
+            let retried = try await cold.resumeFinalization(draftID: prepared.draftID) {}
+            XCTAssertEqual(retried, terminal); XCTAssertEqual(try h.snapshot(), settled)
+            XCTAssertEqual(h.ids.callCount, allocated)
+            let facts = try cold.terminalFinalizationSource(draftID: prepared.draftID, progress: h.progress)
+            guard case let .finalizeCheck(finalCommand) = target.envelope.command else {
+                return XCTFail("Expected the original Check finalization")
+            }
+            let report = try XCTUnwrap(finalCommand.writerAuthority?.payload.reportInsert)
+            let snapshotBytes = try Data(contentsOf: h.coordinator.generationRootURL
+                .appendingPathComponent(report.snapshotRelativePath))
+            let snapshot = try ReportSnapshotEncoderV1().decode(snapshotBytes)
+            try completed.validateTargetSnapshot(snapshot)
+            let snapshotObject = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(snapshot)) as? [String: Any])
+            for key in ["reportID", "packetID", "stableRootID", "sourceRecordID"] {
+                var changed = snapshotObject; changed[key] = UUID().uuidString
+                let hostile = try JSONDecoder().decode(ReportSnapshotV1.self,
+                    from: JSONSerialization.data(withJSONObject: changed))
+                XCTAssertThrowsError(try completed.validateTargetSnapshot(hostile))
+            }
+            let hostileFields: [(String, Any)] = [
+                ("sourceApp", ["build": "foreign", "version": "1.0"]),
+                ("outcome", "foreign-outcome"), ("note", "foreign-note"),
+                ("stage", "foreign-stage"), ("snapshotCreatedAt", 0.0)]
+            for (key, value) in hostileFields {
+                var changed = snapshotObject; changed[key] = value
+                let hostile = try JSONDecoder().decode(ReportSnapshotV1.self,
+                    from: JSONSerialization.data(withJSONObject: changed))
+                XCTAssertThrowsError(try completed.validateTargetSnapshot(hostile))
+            }
+            XCTAssertEqual(try Data(contentsOf: h.coordinator.generationRootURL
+                .appendingPathComponent(report.snapshotRelativePath)), snapshotBytes)
+            XCTAssertEqual(try h.snapshot(), settled); XCTAssertEqual(h.ids.callCount, allocated)
+            XCTAssertEqual(facts.recordID, finalCommand.recordID)
+            let progress = try h.progress.read(sourceDraftID: facts.source.sourceCheckpoint.draftID)
+            XCTAssertNil(try h.progress.checkRunnerCompletion(read: progress, source: facts.source, recordID: facts.recordID))
+            let step = try h.progress.prepareStep(read: progress, action: .complete, focus: .facts,
+                completionRecordID: facts.recordID, recordedByName: "Original parent completion")
+            _ = try h.progress.persistStep(step)
+            let checkpointOnly = try h.progress.read(sourceDraftID: facts.source.sourceCheckpoint.draftID)
+            let beforeLookup = try h.snapshot(), beforeLookupIDs = h.ids.callCount
+            XCTAssertEqual(try h.progress.checkRunnerCompletion(read: checkpointOnly, source: facts.source,
+                recordID: facts.recordID), step.checkpoint)
+            XCTAssertTrue(try XCTUnwrap(checkpointOnly.chain.nodes.last).isPendingRoundEffect)
+            XCTAssertThrowsError(try h.progress.checkRunnerCompletion(read: checkpointOnly,
+                source: facts.source, recordID: UUID()))
+            XCTAssertEqual(try h.snapshot(), beforeLookup); XCTAssertEqual(h.ids.callCount, beforeLookupIDs)
+        }
+    }
+
+    /// Every positive input is an original writer observation. Negative variants
+    /// remove, duplicate or misjoin that observation without fabricating a pass.
+    private func assertParentFinalizationHistoryDenials(_ value: CheckRunnerItemFinalizationEvidenceV1) throws {
+        let sagas = Array(value.reconstruction.sagas.prefix(value.recordedSagaCount))
+        let receipts: [DraftCommitReceiptV1]
+        if let terminal = value.terminal,
+           case let .applyCommitTerminal(bundle, _) = terminal.mutation.postImage { receipts = [bundle.receipt] }
+        else { receipts = [] }
+        func reconstruct(history: [FieldDraftCommittedEvidenceV1], checkpoint: FieldDraftCheckpointV1,
+            physical: [DraftCommitSagaV1], target: FinalizationCommittedEvidenceV1?,
+            commitReceipts: [DraftCommitReceiptV1]) throws -> CheckRunnerItemFinalizationEvidenceV1 {
+            try .init(history: history, checkpoint: checkpoint, sagas: physical, reservations: [], stages: [],
+                receipts: commitReceipts, workflow: value.workflow, timeZone: value.timeZone, target: target)
+        }
+        XCTAssertEqual(try reconstruct(history: value.history, checkpoint: value.checkpoint, physical: sagas,
+            target: value.target, commitReceipts: receipts), value)
+        XCTAssertThrowsError(try reconstruct(history: Array(value.history.dropFirst()), checkpoint: value.checkpoint,
+            physical: sagas, target: value.target, commitReceipts: receipts))
+        XCTAssertThrowsError(try reconstruct(history: value.history + [value.committing], checkpoint: value.checkpoint,
+            physical: sagas, target: value.target, commitReceipts: receipts))
+        XCTAssertThrowsError(try reconstruct(history: value.history, checkpoint: value.editingCheckpoint,
+            physical: sagas, target: value.target, commitReceipts: receipts))
+        if sagas.isEmpty {
+            XCTAssertThrowsError(try reconstruct(history: value.history, checkpoint: value.checkpoint,
+                physical: [value.reconstruction.contentPromoted], target: value.target, commitReceipts: receipts))
+        } else {
+            XCTAssertThrowsError(try reconstruct(history: value.history, checkpoint: value.checkpoint,
+                physical: Array(sagas.dropLast()), target: value.target, commitReceipts: receipts))
+            XCTAssertThrowsError(try reconstruct(history: value.history, checkpoint: value.checkpoint,
+                physical: sagas + [sagas[0]], target: value.target, commitReceipts: receipts))
+        }
+        if value.recordedSagaCount >= 3 {
+            XCTAssertThrowsError(try reconstruct(history: value.history, checkpoint: value.checkpoint,
+                physical: sagas, target: nil, commitReceipts: receipts))
+        }
+        if value.terminal != nil {
+            XCTAssertThrowsError(try reconstruct(history: value.history, checkpoint: value.checkpoint,
+                physical: sagas, target: value.target, commitReceipts: []))
+        }
+    }
     func testV23P03C39WorkflowBindingKeepsEndedDispositionTyped() throws {
         let event = try AssetWorkflowCapabilityBindingEventV1(
             eventID: UUID(uuidString: "00000000-0000-0000-0000-000000002401")!,

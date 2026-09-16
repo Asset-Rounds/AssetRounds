@@ -69,9 +69,9 @@ DURABLE_BEGIN_METHOD_PARTITIONS = (
 )
 DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
-GENERATED_SELECTION_PROFILE = "clone-retirement-v1"
-GENERATED_SELECTION_POOL_SHA256 = "42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878"
-GENERATED_SELECTION_MAP_SHA256 = "1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85"
+GENERATED_SELECTION_PROFILE = "parent-finalization-v1"
+GENERATED_SELECTION_POOL_SHA256 = "1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572"
+GENERATED_SELECTION_MAP_SHA256 = "E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -82,6 +82,17 @@ CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRechecksAccessCancellationAndRootAfterMediaCopy',
     'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetainsIntentWhenStagingChangesDuringFinalColdCleanup',
 )
+PARENT_FINALIZATION_METHOD_PARTITIONS = (
+    ('c36-parent-finalization-check-no-issue', ('FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory',)),
+    ('c36-parent-finalization-check-visible-issue', ('FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckVisibleIssueUsesOriginalFiveSagaHistory',)),
+    ('c36-parent-finalization-check-could-not-verify', ('FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckCouldNotVerifyUsesOriginalFiveSagaHistory',)),
+    ('c36-parent-finalization-recheck-resolved', ('FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckResolvedUsesOriginalFiveSagaHistory',)),
+    ('c36-parent-finalization-recheck-still-visible', ('FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckStillVisibleUsesOriginalFiveSagaHistory',)),
+    ('c36-parent-finalization-recheck-different-issue', ('FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckDifferentIssueUsesOriginalFiveSagaHistory',)),
+    ('c36-parent-finalization-recheck-could-not-verify', ('FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckCouldNotVerifyUsesOriginalFiveSagaHistory',)),
+)
+PARENT_FINALIZATION_SELECTORS = tuple(
+    member for _, members in PARENT_FINALIZATION_METHOD_PARTITIONS for member in members)
 CLONE_RETIREMENT_METHOD_PARTITIONS = (
     ('c36-clone-retirement-old-pointer', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementOldPointerRollbackRestoresExactIncumbent',)),
     ('c36-clone-retirement-pointer-cleanup', ('FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementPointerLagAndPrivateCleanupResume',)),
@@ -944,7 +955,7 @@ def resolve_selection(default, selection_map, selection_id):
         derived["unitTestSelectors"] = list(clone_members)
         validate_selection(derived)
         resolved[CONFIGURATION_CLONE_SELECTION_ID] = derived
-        retirement_members = tuple(default["unitTestSelectors"][723:])
+        retirement_members = tuple(default["unitTestSelectors"][723:731])
         require(retirement_members == CLONE_RETIREMENT_SELECTORS
                 and len(retirement_members) == len(set(retirement_members)) == 8,
                 "clone retirement exact ordered source enrollment")
@@ -956,6 +967,22 @@ def resolve_selection(default, selection_map, selection_id):
         for partition_id, members in CLONE_RETIREMENT_METHOD_PARTITIONS:
             require(len(members) == 1 and members[0] in retirement_members,
                     "clone retirement singleton source partition")
+            derived = dict(default)
+            derived["unitTestSelectors"] = list(members)
+            validate_selection(derived)
+            resolved[partition_id] = derived
+        parent_members = tuple(default["unitTestSelectors"][731:])
+        require(parent_members == PARENT_FINALIZATION_SELECTORS
+                and len(parent_members) == len(set(parent_members)) == 7,
+                "parent finalization exact ordered source enrollment")
+        parent_ids = tuple(item[0] for item in PARENT_FINALIZATION_METHOD_PARTITIONS)
+        require(len(parent_ids) == len(set(parent_ids)) == 7
+                and not (set(parent_ids) & (set(resolved) | {DEFAULT_SELECTION_ID}))
+                and not (set(parent_members) & set(default["unitTestSelectors"][:731])),
+                "parent finalization fixed distinct partitions")
+        for partition_id, members in PARENT_FINALIZATION_METHOD_PARTITIONS:
+            require(len(members) == 1 and members[0] in parent_members,
+                    "parent finalization singleton source partition")
             derived = dict(default)
             derived["unitTestSelectors"] = list(members)
             validate_selection(derived)

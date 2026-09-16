@@ -195,6 +195,102 @@ final class V23ProductionCaptureRecoveryTests: V23ProductionFourRootShellTestSup
         XCTAssertEqual(explicitRetry.progress.chain, committed.chain)
         XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), beforeRetry)
         XCTAssertFalse(context.work.store.modelContext.hasChanges)
+        try await assertParentFinalizationResumesOriginalRoundCompletion()
+        #endif
+    }
+
+    @MainActor
+    private func assertParentFinalizationResumesOriginalRoundCompletion() async throws {
+        #if DEBUG
+        let fixture = try await makeFixture("parent-finalization-round-recovery")
+        defer { fixture.cleanUp() }
+        let context = try await V23RoundRouteHarness.make(in: fixture, label: "parent-finalization-round-recovery")
+        let active = try await startActualRound(in: context, recorder: "Parent capture")
+        let readiness = try await context.access.rebuildReadiness(for: active, previous: nil)
+        let launch = try context.access.prepareRepetitiveCaptureLaunch(round: active, readiness: readiness)
+        _ = try context.access.persistRepetitiveCaptureLaunch(launch) {}
+        let entry = try await prepareActualCaptureStep(in: context, sourceDraftID: launch.checkpoint.draftID, action: .enter)
+        let entered = try await context.access.executeRepetitiveCaptureStep(entry) {}
+        let progress = try context.access.repetitiveCaptureOwnerForTesting()
+        let selectedItem = try XCTUnwrap(active.items.first)
+        let releases = try context.work.store.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).map { try $0.value() }
+        let matchingReleases = try releases.filter {
+            try RoundPackageReleaseReferenceV1($0.packageRelease) == selectedItem.requirement.packageRelease
+        }
+        XCTAssertEqual(matchingReleases.count, 1)
+        let release = try XCTUnwrap(matchingReleases.first).packageRelease
+        let runner = context.work.workflow.checkRunner
+        let source = try runner.captureFrozenBeginSource(read: entered.progress, progress: progress,
+            itemID: selectedItem.itemID, publishedRelease: release, requestedEntry: .check)
+        let clock = FrozenBeginClock(value: Date()), ids = FrozenBeginCountingIDs()
+        let service = try ProductionCheckRunnerItemDraftServiceV1(session: context.work.store, progress: progress,
+            coordinator: runner, publishedRelease: release, clock: clock, ids: ids)
+        let created = try service.create(source: source, preflight: .init(timeZoneID: "America/New_York",
+            isTimeZoneConfirmed: true, confirmedTimeZoneID: "America/New_York",
+            afterDarkAccepted: true, safePositionAccepted: true), outcome: .init(
+                selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), choice: .couldNotVerify,
+                selectedCouldNotVerifyReasonKey: "conditions_changed", startsWithCouldNotVerify: true))
+        _ = try service.prepareBegin(draftID: created.draftID, expectedCheckpointSHA256: created.checkpointSHA256,
+            observedAtUTC: clock.millisecondValue)
+        let bound = try service.resumeInitialBegin(draftID: created.draftID)
+        clock.value = max(clock.millisecondValue, bound.updatedAt).addingTimeInterval(1)
+        let prepared = try await context.access.prepareCheckRunnerFinalization(service: service,
+            draftID: created.draftID, expectedCheckpointSHA256: bound.checkpointSHA256,
+            sourceApp: .init(build: "parent-round", version: "1")) {}
+        context.access.setAfterRepetitiveCaptureStepReceiptForTesting { throw CancellationError() }
+        do {
+            _ = try await context.access.resumeCheckRunnerFinalization(service: service, draftID: prepared.draftID,
+                focus: .facts, recordedByName: "Parent completion") {}
+            XCTFail("COMPLETE checkpoint acknowledgement must interrupt before the Round effect")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        context.access.setAfterRepetitiveCaptureStepReceiptForTesting(nil)
+        let pending = try context.access.readRepetitiveCaptureProgress(sourceDraftID: launch.checkpoint.draftID)
+        let saved = try XCTUnwrap(pending.chain.nodes.last)
+        XCTAssertEqual(saved.step.action, .complete); XCTAssertTrue(saved.isPendingRoundEffect)
+        let parentTerminal = try service.read(draftID: prepared.draftID)
+        XCTAssertEqual(parentTerminal.state, .committed)
+        let targetBefore = try XCTUnwrap(context.work.store.workspaceWriter.checkRunnerItemFinalizationEvidence(
+            workspaceID: context.work.store.workspaceID, draftID: prepared.draftID)).target
+        let originalRevision = try context.work.store.workspaceWriter.currentRevision()
+        let originalIDs = ids.callCount
+        fixture.presentation.receive(.sceneInactive)
+        let publication = expectation(description: "Fresh owner after parent completion checkpoint")
+        let observation = fixture.presentation.$permitsContentPresentation.filter { $0 }.prefix(1)
+            .sink { _ in publication.fulfill() }
+        fixture.presentation.receive(.sceneActive)
+        await fulfillment(of: [publication], timeout: 30)
+        observation.cancel()
+        let fresh = try XCTUnwrap(fixture.presentation.roundAccess)
+        do {
+            _ = try await fresh.resumeCheckRunnerFinalization(service: service, draftID: prepared.draftID,
+                focus: .facts, recordedByName: "Foreign old owner") {}
+            XCTFail("Fresh publication must reject the previous progress owner")
+        } catch {}
+        XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), originalRevision)
+        let resumedService = try ProductionCheckRunnerItemDraftServiceV1(session: context.work.store,
+            progress: fresh.repetitiveCaptureOwnerForTesting(), coordinator: runner,
+            publishedRelease: release, clock: clock, ids: ids)
+        fresh.setAfterSessionTransitionReceiptForTesting { throw CancellationError() }
+        do {
+            _ = try await fresh.resumeCheckRunnerFinalization(service: resumedService, draftID: prepared.draftID,
+                focus: .facts, recordedByName: "Retry retains original recorder") {}
+            XCTFail("Round receipt acknowledgement must interrupt after the exact saved effect")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        fresh.setAfterSessionTransitionReceiptForTesting(nil)
+        let afterEffect = try context.work.store.workspaceWriter.currentRevision()
+        XCTAssertEqual(afterEffect.revision, originalRevision.revision + 1)
+        let completed = try await fresh.resumeCheckRunnerFinalization(service: resumedService,
+            draftID: prepared.draftID, focus: .facts, recordedByName: "Repeated completion") {}
+        try fresh.validateRepetitiveCaptureProgressForPublication(completed)
+        XCTAssertEqual(completed.progress.chain.nodes.last?.checkpoint, saved.checkpoint)
+        XCTAssertEqual(completed.progress.chain.nodes.last?.step.roundMutation, saved.step.roundMutation)
+        XCTAssertNotNil(completed.progress.chain.nodes.last?.roundReceipt)
+        XCTAssertEqual(completed.progress.chain.currentRound.mutationID, saved.step.roundMutation?.mutationID)
+        XCTAssertEqual(try resumedService.read(draftID: prepared.draftID), parentTerminal)
+        XCTAssertEqual(try context.work.store.workspaceWriter.checkRunnerItemFinalizationEvidence(
+            workspaceID: context.work.store.workspaceID, draftID: prepared.draftID)?.target, targetBefore)
+        XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterEffect)
+        XCTAssertEqual(ids.callCount, originalIDs)
         #endif
     }
 

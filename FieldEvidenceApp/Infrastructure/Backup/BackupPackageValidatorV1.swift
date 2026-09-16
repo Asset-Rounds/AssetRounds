@@ -881,6 +881,7 @@ private extension BackupPackageValidatorV1 {
         try validateReports(
             records,
             members: members,
+            photoHistory: photoHistory,
             cancellation: cancellation
         )
         try cancellation.checkpoint()
@@ -4893,6 +4894,7 @@ private extension BackupPackageValidatorV1 {
     func validateReports(
         _ records: V4BackupRecordsV1,
         members: ValidatedV4BackupMembersV1,
+        photoHistory: CheckRunnerPhotoBackupHistoryV1?,
         cancellation: StreamingArchiveCancellationV1
     ) throws {
         let workflow = Dictionary(uniqueKeysWithValues: records.workflowRecords.map { ($0.id, $0) })
@@ -4901,6 +4903,21 @@ private extension BackupPackageValidatorV1 {
         let issues = Dictionary(uniqueKeysWithValues: records.issues.map { ($0.id, $0) })
         let assets = Dictionary(uniqueKeysWithValues: records.assets.map { ($0.id, $0) })
         let sites = Dictionary(uniqueKeysWithValues: records.sites.map { ($0.id, $0) })
+        var parentFinalizationsByReport: [UUID: [CheckRunnerItemFinalizationEvidenceV1]] = [:]
+        for parent in photoHistory?.parentFinalizations ?? [] {
+            try cancellation.checkpoint()
+            let release = parent.editing.parent.source.legacyPackageIdentity
+            let profile = try profile(packageID: release.packageID,
+                schemaVersion: release.schemaVersion, contentVersion: release.contentVersion)
+            try parent.validatePreparedOutcome(profile: profile)
+            if parent.target != nil {
+                let reportID = parent.attempt.identifiers.reportID
+                let reports = records.reports.filter { $0.id == reportID }
+                guard reports.count == 1, let report = reports.first else { throw invalid() }
+                try parent.validateTargetReport(report)
+                parentFinalizationsByReport[reportID, default: []].append(parent)
+            }
+        }
         for report in records.reports {
             try cancellation.checkpoint()
             guard let bytes = members["snapshots/\(uuid(report.id)).json"],
@@ -4921,6 +4938,9 @@ private extension BackupPackageValidatorV1 {
                 continue
             }
             let snapshot = try ReportSnapshotEncoderV1().decode(bytes)
+            for parent in parentFinalizationsByReport[report.id] ?? [] {
+                try parent.validateTargetSnapshot(snapshot)
+            }
             let effectiveSourceID = source.evidenceSourceRecordID ?? source.id
             guard snapshot.reportID == report.id,
                   snapshot.sourceRecordID == source.id,

@@ -2380,6 +2380,26 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             parentDraftID: parentDraftID, childDraftID: childDraftID)
     }
 
+    /// Read-only parent finalization history; the live target adapter still
+    /// owns current package/input validation, media and committed readback.
+    func checkRunnerItemFinalizationEvidence(workspaceID: WorkspaceID, draftID: UUID) throws
+        -> CheckRunnerItemFinalizationEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        let before = try currentRevision()
+        let value = try journalStore.checkRunnerItemFinalizationEvidence(workspaceID: workspaceID, draftID: draftID)
+        guard isActive, try currentRevision() == before else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return value
+    }
+
+    func checkRunnerItemParentEvidence(workspaceID: WorkspaceID, draftID: UUID) throws
+        -> CheckRunnerItemParentEvidenceV1? {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        let before = try currentRevision()
+        let value = try journalStore.checkRunnerItemParentEvidence(workspaceID: workspaceID, draftID: draftID)
+        guard isActive, try currentRevision() == before else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return value
+    }
+
     /// Reads the exact current target chain without granting media or adoption.
     func checkRunnerPhotoCurrentTargetEvidence(
         workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID

@@ -176,10 +176,23 @@ PAIR_STARTUP_MAP_SHA256 = '70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72
 PHOTO_BACKUP_PARTITION_CHOICES = ['c36-photo-backup-transport', 'c36-photo-backup-restore']
 
 
+EXPECTED_PARENT_FINALIZATION_PARTITIONS = [['c36-parent-finalization-check-no-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-check-visible-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckVisibleIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-check-could-not-verify', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckCouldNotVerifyUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-resolved', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckResolvedUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-still-visible', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckStillVisibleUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-different-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckDifferentIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-could-not-verify', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckCouldNotVerifyUsesOriginalFiveSagaHistory']]
+
 def prepartition_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) == 731:
+    if len(default.get('unitTestSelectors', [])) == 738:
         if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
                 CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError('changed generated parent-finalization inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        if tuple(default['unitTestSelectors'][731:]) != CI.PARENT_FINALIZATION_SELECTORS:
+            raise AssertionError('changed exact parent finalization append')
+        default['unitTestSelectors'] = default['unitTestSelectors'][:731]
+        for group in mapping['groups']:
+            group['methodCount'] -= 7 if group['id'] == 'report-camera-recovery' else 0
+    if len(default.get('unitTestSelectors', [])) == 731:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                '42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878',
+                '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'):
             raise AssertionError('changed generated clone-retirement inputs')
         default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
         if tuple(default['unitTestSelectors'][723:]) != CI.CLONE_RETIREMENT_SELECTORS:
@@ -271,6 +284,12 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    for group_id, _ in CI.PARENT_FINALIZATION_METHOD_PARTITIONS:
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact parent finalization choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 738 methods across 41 bounded groups',
+                                'all 731 methods across 41 bounded groups')
     for group_id, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS:
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact retirement choice')
@@ -332,7 +351,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (731, 41))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (738, 41))
         for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 4),
                                 ('notification-owner', 77), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
@@ -410,9 +429,53 @@ class ReportPartitionTests(unittest.TestCase):
             source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
             self.assertEqual(len(re.findall(r'func\s+' + method + r'\s*\(', source)), 1)
             observed.extend(selected['unitTestSelectors'])
-        self.assertEqual(observed, default['unitTestSelectors'][723:])
+        self.assertEqual(observed, default['unitTestSelectors'][723:731])
         self.assertEqual(len(observed), len(set(observed)))
         self.assertFalse(set(observed) & set(default['unitTestSelectors'][:723]))
+
+    def test_parent_finalization_singletons_have_exact_membership_and_unchanged_contract(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual([(i, list(m)) for i, m in CI.PARENT_FINALIZATION_METHOD_PARTITIONS],
+                         [(i, [m]) for i, m in EXPECTED_PARENT_FINALIZATION_PARTITIONS])
+        observed = []
+        for selection_id, member in EXPECTED_PARENT_FINALIZATION_PARTITIONS:
+            selected = CI.resolve_selection(default, mapping, selection_id)
+            self.assertEqual(selected['unitTestSelectors'], [member])
+            self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
+                             {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+            e = environment(); e['NATIVE_SELECTION_ID'] = selection_id
+            admitted, record = CI.selected_input(ROOT, e)
+            self.assertEqual(admitted, selected)
+            self.assertEqual(record['selectionID'], selection_id)
+            self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+            observed.extend(selected['unitTestSelectors'])
+        self.assertEqual(observed, default['unitTestSelectors'][731:])
+        self.assertEqual(len(observed), len(set(observed)))
+        self.assertFalse(set(observed) & set(default['unitTestSelectors'][:731]))
+
+    def test_parent_finalization_rejects_omission_duplicate_substitution_reorder_and_unknown_route(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected_id = EXPECTED_PARENT_FINALIZATION_PARTITIONS[0][0]
+        for index in range(731, 738):
+            missing = copy.deepcopy(default); missing['unitTestSelectors'].pop(index)
+            duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'][index] = default['unitTestSelectors'][731 if index != 731 else 732]
+            substituted = copy.deepcopy(default); substituted['unitTestSelectors'][index] = default['unitTestSelectors'][0]
+            foreign = copy.deepcopy(default); foreign['unitTestSelectors'][index] += 'Unknown'
+            for hostile in (missing, duplicate, substituted, foreign):
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    CI.resolve_selection(hostile, mapping, selected_id)
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][731:] = reversed(reordered['unitTestSelectors'][731:])
+        changed_budget = copy.deepcopy(default); changed_budget['testTimeoutSeconds'] += 1
+        for hostile in (reordered, changed_budget):
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, selected_id)
+        changed_map = copy.deepcopy(mapping)
+        next(g for g in changed_map['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] -= 1
+        with self.assertRaises(ValueError): CI.resolve_selection(default, changed_map, selected_id)
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-parent-finalization-unknown')
 
     def test_retirement_denies_missing_reordered_foreign_duplicate_and_unknown_inputs(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
@@ -440,7 +503,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),731)
+        self.assertEqual(len(default['unitTestSelectors']),738)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -458,7 +521,7 @@ class ReportPartitionTests(unittest.TestCase):
         self.assertEqual(set(seen),set(default['unitTestSelectors']))
         report=[s for s in seen if s.split('/')[1] in {c for g in [mapping['groups'][13]]+REPORT_PARTITION_GROUPS for c in g['classes']}]
         self.assertEqual({REPORT_PARTITION_ALIASES.get(s,s) for s in report
-                          if s not in CI.PHOTO_BACKUP_PARENT_SELECTORS + CI.CONFIGURATION_CLONE_SELECTORS},
+                          if s not in CI.PHOTO_BACKUP_PARENT_SELECTORS + CI.CONFIGURATION_CLONE_SELECTORS + CI.PARENT_FINALIZATION_SELECTORS},
                          set(CI.resolve_selection(prior,prior_map,'report-camera-recovery')['unitTestSelectors']))
         workflow=(ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
         prepartition_workflow(workflow)
@@ -468,7 +531,7 @@ class ReportPartitionTests(unittest.TestCase):
             expected.append(group['id'])
             if group['id']=='c36-source-graph': expected.extend(SOURCE_GRAPH_PARTITION_CHOICES)
             if group['id']=='c36-durable-begin': expected.extend(DURABLE_PARTITION_CHOICES)
-            if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES + [CI.CONFIGURATION_CLONE_SELECTION_ID] + [i for i, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS])
+            if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES + [CI.CONFIGURATION_CLONE_SELECTION_ID] + [i for i, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS] + [i for i, _ in CI.PARENT_FINALIZATION_METHOD_PARTITIONS])
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):

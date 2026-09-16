@@ -1734,21 +1734,31 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             return try .init(history: original.history, checkpoint: original.checkpoint, child: child,
-                             workflow: original.workflow, timeZone: original.timeZone)
+                             workflow: original.workflow, timeZone: original.timeZone,
+                             finalization: original.finalization)
         }
     }
 
-    private struct CheckRunnerPhotoParentOriginals {
-        let checkpoint: FieldDraftCheckpointV1
-        let history: [FieldDraftCommittedEvidenceV1]
-        let workflow: CheckRunnerBeginCommittedEvidenceV1
-        let timeZone: CheckRunnerBeginCommittedEvidenceV1?
-        let validated: CheckRunnerPhotoParentEvidenceV1.ValidatedCheckpointHistory
+    /// Complete parent commit prefixes and terminal history under the current
+    /// clean lease. No package, scene, media or finalization effect capability.
+    func checkRunnerItemFinalizationEvidence(workspaceID: WorkspaceID, draftID: UUID) throws
+        -> CheckRunnerItemFinalizationEvidenceV1? {
+        try checkRunnerItemParentEvidence(workspaceID: workspaceID, draftID: draftID)?.finalization
+    }
+
+    func checkRunnerItemParentEvidence(workspaceID: WorkspaceID, draftID: UUID) throws
+        -> CheckRunnerItemParentEvidenceV1? {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        return try readCheckRunnerPhotoParentOriginals(workspaceID: workspaceID,
+            parentDraftID: draftID)
     }
 
     private func readCheckRunnerPhotoParentOriginals(
         workspaceID: WorkspaceID, parentDraftID: UUID
-    ) throws -> CheckRunnerPhotoParentOriginals? {
+    ) throws -> CheckRunnerItemParentEvidenceV1? {
         return try validateCheckRunnerBeginHistoryValue {
             let workspaceUUID = workspaceID.rawValue
             var descriptor = FetchDescriptor<MutationReceiptRow>(
@@ -1797,7 +1807,8 @@ final class MutationJournalStoreV1 {
                 return try .init(envelope: original.1, receipt: validate(row: original.0, expectedEnvelope: nil))
             }
             let selected = Set(history.map { $0.mutation.mutationID.rawValue }
-                + [attempt.recordMutationID.rawValue] + (attempt.timeZone.map { [$0.mutationID.rawValue] } ?? []))
+                + [attempt.recordMutationID.rawValue] + (attempt.timeZone.map { [$0.mutationID.rawValue] } ?? [])
+                + (payload.finalizationAttempt.map { [$0.identifiers.mutationID] } ?? []))
             var quarantines = FetchDescriptor<MutationQuarantineRow>(
                 predicate: #Predicate { $0.workspaceID == workspaceUUID })
             quarantines.fetchLimit = Self.maximumReceiptValidationCount + 1
@@ -1808,10 +1819,32 @@ final class MutationJournalStoreV1 {
             guard !quarantineRows.contains(where: { selected.contains($0.mutationID) }) else {
                 throw WorkspaceMutationFailureV1.mutationIDQuarantined
             }
-            let parent = try CheckRunnerPhotoParentEvidenceV1.validateCheckpointHistory(
-                history: history, checkpoint: checkpoint, workflow: workflow, timeZone: timeZone)
-            return .init(checkpoint: checkpoint, history: history, workflow: workflow,
-                         timeZone: timeZone, validated: parent)
+            var sagaDescriptor = FetchDescriptor<DraftCommitSagaRow>(
+                    predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == parentDraftID })
+                sagaDescriptor.fetchLimit = 6
+                var reservationDescriptor = FetchDescriptor<DraftContentReservationRow>(
+                    predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == parentDraftID })
+                reservationDescriptor.fetchLimit = 1
+                var stageDescriptor = FetchDescriptor<AttachmentStagingItemRow>(
+                    predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == parentDraftID })
+                stageDescriptor.fetchLimit = 1
+                var receiptDescriptor = FetchDescriptor<DraftCommitReceiptRow>(
+                    predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == parentDraftID })
+                receiptDescriptor.fetchLimit = 2
+            let target = try payload.finalizationAttempt.flatMap { finalizationAttempt in
+                try originals[.init(rawValue: finalizationAttempt.identifiers.mutationID)]
+                    .map { original in
+                        try FinalizationCommittedEvidenceV1(envelope: original.1,
+                            receipt: validate(row: original.0, expectedEnvelope: nil))
+                    }
+            }
+            return try CheckRunnerItemParentEvidenceV1(
+                    history: history, checkpoint: checkpoint,
+                    sagas: modelContext.fetch(sagaDescriptor).map { try $0.value() },
+                    reservations: modelContext.fetch(reservationDescriptor).map { try $0.value() },
+                    stages: modelContext.fetch(stageDescriptor).map { try $0.value() },
+                    receipts: modelContext.fetch(receiptDescriptor).map { try $0.value() },
+                    workflow: workflow, timeZone: timeZone, target: target)
         }
     }
 

@@ -164,6 +164,13 @@ struct CheckRunnerPhotoCurrentTargetEvidenceV1: Equatable, Sendable {
                                     temporalData: authority.sourceBinding.temporalContextV1Data)
     }
 
+    /// Shared pure original-field join. The caller still authenticates the
+    /// finalization receipt and its exact frozen parent attempt separately.
+    static func validateFinalizationOriginalFields(_ authority: FinalizationWriterAuthorityV1,
+                                                   begin: CheckDraftMutationV1) throws {
+        try validateOriginalFields(finalizedWorkflow(authority), command: begin, finalized: true)
+    }
+
     private static func validateOriginalFields(_ record: V4BackupWorkflowRecordDTO,
                                               command: CheckDraftMutationV1, finalized: Bool) throws {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt

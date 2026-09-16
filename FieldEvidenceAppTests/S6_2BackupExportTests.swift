@@ -4292,6 +4292,68 @@ extension S6_2BackupExportTests {
             throw error
         }
         try await assertDurableBeginHistoryPrefixes()
+        try await assertDurableParentFinalizationArchive()
+    }
+
+    @MainActor
+    private func assertDurableParentFinalizationArchive() async throws {
+        try await withAsyncFrozenBeginFixture("backup-parent-finalization", entry: .check,
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
+            let draft = try await makeFrozenParentFinalizationDraft(h,
+                selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), photoCount: 0)
+            let prepared = try await draft.service.prepareFinalization(draftID: draft.checkpoint.draftID,
+                expectedCheckpointSHA256: draft.checkpoint.checkpointSHA256,
+                sourceApp: .init(build: "parent-backup", version: "1")) {}
+            let harness = Harness(applicationSupportURL: h.root, session: h.session, context: h.context, countedRoots: [])
+            func projection(_ expected: FieldDraftCheckpointV1) throws -> CheckRunnerPhotoBackupHistoryV1 {
+                let before = try h.snapshot(), calls = h.ids.callCount
+                let basis = try canonicalBasis(harness)
+                let records = try BackupCanonicalDecoderV1().decodeRecords(basis.recordsData)
+                let source = V4BackupSourceV1(appBuild: "test", appVersion: "test",
+                    persistentSchemaVersion: basis.persistentSchemaVersion,
+                    replicaID: h.session.replicaID.rawValue, recordsSchemaVersion: records.recordsSchemaVersion,
+                    sourceGenerationID: h.session.generationID, workspaceID: h.workspaceID.rawValue)
+                let history = try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: records)
+                XCTAssertTrue(history.children.isEmpty)
+                XCTAssertEqual(history.parentFinalizations.count, 1)
+                let parent = try XCTUnwrap(history.parentFinalizations.first)
+                XCTAssertEqual(parent.checkpoint, expected)
+                XCTAssertEqual(parent, try h.coordinator.workspaceWriter.checkRunnerItemFinalizationEvidence(
+                    workspaceID: h.workspaceID, draftID: expected.draftID))
+                if let reportID = parent.target.flatMap({ target -> UUID? in
+                    guard case let .finalizeCheck(command) = target.envelope.command else { return nil }
+                    return command.reportID
+                }) {
+                    let report = try XCTUnwrap(records.reports.first { $0.id == reportID })
+                    try parent.validateTargetReport(report)
+                    var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(report)) as? [String: Any])
+                    object["snapshotSHA256"] = String(repeating: "0", count: 64)
+                    let hostile = try JSONDecoder().decode(V4BackupReportDTO.self,
+                        from: JSONSerialization.data(withJSONObject: object))
+                    XCTAssertThrowsError(try parent.validateTargetReport(hostile))
+                }
+                XCTAssertEqual(try h.snapshot(), before); XCTAssertEqual(h.ids.callCount, calls)
+                return history
+            }
+            let initial = try projection(prepared)
+            XCTAssertEqual(initial.parentFinalizations.first?.recordedSagaCount, 0)
+            XCTAssertNil(initial.parentFinalizations.first?.target)
+            let terminal = try await draft.service.resumeFinalization(draftID: prepared.draftID) {}
+            let completed = try projection(terminal)
+            XCTAssertEqual(completed.parentFinalizations.first?.recordedSagaCount, 5)
+            XCTAssertNotNil(completed.parentFinalizations.first?.target)
+            try h.closeCoordinator()
+            let package = try await exportLivePackage(harness, directoryName: "parent-finalization-export")
+            let importer = try BackupImportService(generationRootURL: h.session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: { UUID() }, scopedAccess: .alreadyAuthorized)
+            let validated = try importer.stageAndValidate(selectedPackageURL: package)
+            defer { try? importer.discard(validated) }
+            let exported = try CheckRunnerPhotoBackupHistoryV1.project(source: validated.manifest.source, records: validated.records)
+            XCTAssertEqual(exported.parentFinalizations, completed.parentFinalizations)
+            XCTAssertEqual(exported.requiredHistory, completed.requiredHistory)
+            XCTAssertTrue(exported.children.isEmpty)
+        }
     }
 
     @MainActor

@@ -57,6 +57,9 @@ PHOTO_BACKUP_SELECTORS = [
 
 CLONE_RETIREMENT_SELECTORS = ['FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementOldPointerRollbackRestoresExactIncumbent', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementPointerLagAndPrivateCleanupResume', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementTerminalMetadataResumesWithoutBaseIntent', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementRollbackInterruptionsResume', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementUnclaimedScaffoldAndBindingTamperFailClosed', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementChangedPrivateBytesAndUnknownNodesRemainUntouched', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementAccessAndCancellationRetainRecoveryOwner', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementClaimRejectsAnInodeSubstitution']
 
+PARENT_FINALIZATION_SELECTORS = ['FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckVisibleIssueUsesOriginalFiveSagaHistory', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckCouldNotVerifyUsesOriginalFiveSagaHistory', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckResolvedUsesOriginalFiveSagaHistory', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckStillVisibleUsesOriginalFiveSagaHistory', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckDifferentIssueUsesOriginalFiveSagaHistory', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckCouldNotVerifyUsesOriginalFiveSagaHistory']
+HISTORICAL_PROFILE_HASHES = {'incumbent-v1': ['91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E', 'CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129'], 'prospective-v1': ['203335CCCC8FACDC8560C1F23BA28A762854664264884CBFAFB8A0F0EDF42F6E', '6D74CFA1BA6EBC0B46ED0656F285F8BD59DA61D62CB60E02C2B37B2978973EBD'], 'raw-photo-v1': ['62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB', '77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC'], 'pair-startup-v1': ['62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722', '70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110'], 'photo-backup-v1': ['930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D', '5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248'], 'configuration-clone-v1': ['C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0', '955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E'], 'clone-retirement-v1': ['42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878', '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85']}
+
 spec = importlib.util.spec_from_file_location("v23_selection_generator", GENERATOR)
 generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
@@ -79,6 +82,7 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                "V9_18PackLifecycleIntegrationTests": REPO / "FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift",
                 "S6_2BackupExportTests": REPO / "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
                 "S6_3BackupValidationTests": REPO / "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
                 "S6_4AtomicRestoreTests": REPO / "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
@@ -218,9 +222,25 @@ class GeneratorTests(unittest.TestCase):
                          ('42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878',
                           '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'))
         for profile in self.manifest['profiles']:
-            if profile['id'] == 'clone-retirement-v1': continue
+            if profile['id'] in ('clone-retirement-v1', 'parent-finalization-v1'): continue
             historical, _, _ = self.generate(profile['id'])
             self.assertFalse(set(CLONE_RETIREMENT_SELECTORS) & set(historical['unitTestSelectors']))
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_parent_finalization_appends_seven_and_preserves_all_prior_profiles(self):
+        prior, prior_map, _ = self.generate('clone-retirement-v1')
+        current, current_map, report = self.generate('parent-finalization-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (738, 41))
+        self.assertEqual(current['unitTestSelectors'][:731], prior['unitTestSelectors'])
+        self.assertEqual(current['unitTestSelectors'][731:], PARENT_FINALIZATION_SELECTORS)
+        self.assertEqual(current_map['groups'], [
+            {**group, 'methodCount': group['methodCount'] + (7 if group['id'] == 'report-camera-recovery' else 0)}
+            for group in prior_map['groups']])
+        for profile, hashes in HISTORICAL_PROFILE_HASHES.items():
+            historical, _, proof = self.generate(profile)
+            self.assertEqual([proof['selectionSHA256'], proof['selectionMapSHA256']], hashes)
+            self.assertFalse(set(PARENT_FINALIZATION_SELECTORS) & set(historical['unitTestSelectors']))
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
 

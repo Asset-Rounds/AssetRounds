@@ -134,6 +134,41 @@ final class ProductionRepetitiveCaptureProgressServiceV2 {
         try writer.validateFieldDraftReadContext(modelContext)
     }
 
+    /// Finds only the original ENTRY's unique causal COMPLETE successor. A
+    /// later unrelated navigation step cannot be substituted for this edge.
+    func checkRunnerCompletion(read value: ProductionRepetitiveCaptureReadV2,
+        source: CheckRunnerRoundItemSourceV1, recordID: UUID) throws -> FieldDraftCheckpointV1? {
+        try validateForPublication(value); try source.validate()
+        let chain = value.chain
+        try source.sourceCheckpoint.validate(source: chain.sourceCheckpoint)
+        let entries = chain.nodes.filter { $0.checkpoint.draftID == source.entryProgressCheckpoint.draftID }
+        guard entries.count == 1, let entry = entries.first,
+              entry.step.action == .enter, entry.step.itemID == source.originalItem.itemID,
+              !entry.isPendingRoundEffect,
+              try entry.step.resultingRound.reference == source.roundAtEntry else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        try source.entryProgressCheckpoint.validate(source: entry.checkpoint)
+        let completion = try completionReference(recordID: recordID, item: source.itemAtEntry)
+        let successors = chain.nodes.filter { $0.step.prior?.draftID == entry.checkpoint.draftID }
+        guard successors.count <= 1 else { throw ScanToWorkFailureV1.duplicate }
+        guard let successor = successors.first else {
+            guard chain.nodes.last?.checkpoint == entry.checkpoint else { throw ScanToWorkFailureV1.stale }
+            return nil
+        }
+        guard successor.step.source == source.sourceCheckpoint,
+              successor.step.prior == source.entryProgressCheckpoint,
+              successor.step.action == .complete,
+              successor.step.itemID == source.originalItem.itemID,
+              try successor.step.expectedRound.reference == source.roundAtEntry,
+              let mutation = successor.step.roundMutation,
+              mutation.session.items.first(where: { $0.itemID == source.originalItem.itemID })?.completion == completion else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        try validateForPublication(value)
+        return successor.checkpoint
+    }
+
     func prepareStep(read value: ProductionRepetitiveCaptureReadV2,
                      action: RepetitiveCaptureProgressActionV2,
                      focus: RepetitiveCaptureRequirementFocusV1,

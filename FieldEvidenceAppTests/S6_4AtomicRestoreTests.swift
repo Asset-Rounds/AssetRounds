@@ -4485,6 +4485,14 @@ private extension S6_4AtomicRestoreTests {
         try assertAssessmentCopyPreservesRejectedServiceHistory(records, workspaceID: harness.session.workspaceID.rawValue)
         let destinationCanonical = try BackupCanonicalEncoderV1()
             .encodeRecords(package.records).data
+        // The incumbent reader uses its minimal historical envelope. The real
+        // export supplies the current envelope and its mandatory C12 snapshot.
+        XCTAssertGreaterThanOrEqual(package.records.recordsSchemaVersion,
+            ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
+        XCTAssertNotNil(package.records.reinspectionExceptionQueue)
+        try assertRestoreRecordCopyPipelinePreservesOriginals(package.records,
+            identity: harness.factory.currentWorkspaceIdentity(expectedGenerationID: harness.session.generationID),
+            expectedCanonical: destinationCanonical)
         let payload = configurationCloneDraftRoot(harness.support).appendingPathComponent(
             DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: draft.item.draftID, stageID: draft.item.stageID))
         return .init(harness: harness, draft: draft, package: package,
@@ -4538,7 +4546,6 @@ private extension S6_4AtomicRestoreTests {
 
     func assertRestoreRecordCopyPipelinePreservesOriginals(_ records: V4BackupRecordsV1,
         identity: WorkspaceReplicaIdentityV1, expectedCanonical: Data) throws {
-        XCTAssertNotNil(records.reinspectionExceptionQueue)
         let reliability = try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
             from: records, workspaceID: identity.workspaceID.rawValue)
         let copies = try [
