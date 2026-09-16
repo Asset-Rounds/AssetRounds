@@ -231,7 +231,7 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
             }
             parent.originals.forEach { required.insert(key($0)) }
             required.insert(key(begin.workflowRecord))
-            begin.timeZoneRecord.map { required.insert(key($0)) }
+            _ = begin.timeZoneRecord.map { required.insert(key($0)) }
 
             let stages = rows.stages.values.filter { $0.draftID == checkpoint.draftID }
                 .sorted { $0.stageID.uuidString < $1.stageID.uuidString }
@@ -439,7 +439,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         func frontier(for child: FieldDraftCheckpointV1, committed: Bool) throws
             -> FieldDraftCheckpointV1 {
             let childPayload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(child)
-            let selected = zip(checkpointEvidence, checkpoints).last { _, checkpoint in
+            let selected = Array(zip(checkpointEvidence, checkpoints)).last { _, checkpoint in
                 guard checkpoint.state == .active,
                       let payload = try? CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint),
                       payload.phase == .editing else { return false }
@@ -558,8 +558,8 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         case let .preparedCommit(value, _):
             raw = value.raw; pair = value
             let committing = try exactlyOne(history.fieldDraftHistory(
-                workspaceID: checkpoint.workspaceID, draftID: checkpoint.draftID).compactMap {
-                    guard case let .applyFieldDraft(mutation) = $0.envelope.command,
+                workspaceID: checkpoint.workspaceID, draftID: checkpoint.draftID).compactMap { record -> FieldDraftCheckpointV1? in
+                    guard case let .applyFieldDraft(mutation) = record.envelope.command,
                           let value = RepetitiveCaptureSourceGraphReviewV2.checkpointPostImage(
                             mutation.postImage), value.state == .committing else { return nil }
                     return value

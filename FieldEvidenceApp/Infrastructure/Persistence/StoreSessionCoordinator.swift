@@ -284,9 +284,17 @@ final class StoreSessionCoordinator: ObservableObject {
         guard parentCheckpoint.workspaceID == workspaceID else { throw FieldDraftFailureV1.invalidValue }
         let lifecycle = try packageLifecycleDependencies()
         let profile = try lifecycle.profileRegistry.resolve(parent.source.legacyPackageIdentity)
-        let published = try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(
+        let binding = try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(
             from: profile.package, stage: parent.source.requestedEntry.stage)
-        guard try RoundPackageReleaseReferenceV1(published) == parent.source.packageRelease else {
+        let sources = try ProductionOfflineReadinessSourceClosureV1(context: modelContext,
+                                                                   workspaceID: workspaceID)
+        guard let published = try sources.package(for: parent.source.packageRelease),
+              published.packageReleaseID == binding.packageReleaseID,
+              published.packageID == binding.packageID,
+              published.packageContentVersion == binding.packageContentVersion,
+              published.packageSHA256 == binding.packageSHA256,
+              published.workflowSHA256 == binding.workflowSHA256,
+              try RoundPackageReleaseReferenceV1(published) == parent.source.packageRelease else {
             throw ScanToWorkFailureV1.authorityMismatch
         }
         let transitions = try makeRoundSessionTransitionService(accessGate: accessGate)

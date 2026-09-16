@@ -10340,6 +10340,7 @@ struct StoreGenerationFactory {
         return workspaceID
     }
 
+    @MainActor
     func installRestoreStagingGeneration(
         id: UUID,
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil,

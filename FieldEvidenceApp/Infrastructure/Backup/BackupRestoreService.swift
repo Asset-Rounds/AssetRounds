@@ -11278,7 +11278,7 @@ private extension BackupRestoreService {
                 let selected = try selectedPhotoBinding(current: current, next: next)
                 guard selected == expected else { throw BackupRestoreServiceError.invalidRestoreAuthority }
 
-                func remove(_ leaf: PhotoBindingLeaf, named name: String) throws {
+                @MainActor func remove(_ leaf: PhotoBindingLeaf, named name: String) throws {
                     guard try readPhotoBindingLeaf(name, parent: parent, verify: verify)?.identity == leaf.identity,
                           Darwin.unlinkat(parent, name, 0) == 0, Darwin.fsync(parent) == 0 else {
                         throw BackupRestoreServiceError.invalidRestoreAuthority
