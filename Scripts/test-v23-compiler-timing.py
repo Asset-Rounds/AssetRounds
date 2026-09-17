@@ -30,7 +30,7 @@ class CompilerTimingTests(unittest.TestCase):
         self.artifacts = self.root / "artifacts"
         self.artifacts.mkdir()
         # Legacy admission stays exercised against its frozen source objects,
-        # even while the checked-in active observation uses schema2.
+        # even while the checked-in active observation uses schema3.
         self.config = dict(schemaVersion=1, mode="timing-f6-source-v1",
             sourceHead=TIMING.SOURCE_HEAD, sourceTrees=copy.deepcopy(TIMING.SOURCE_TREES),
             sampleIntervalSeconds=5, **TIMING.SOURCE_SELECTION_HASHES)
@@ -371,7 +371,7 @@ class CurrentSourceTimingTests(unittest.TestCase):
 
     def setUp(self):
         CompilerTimingTests.setUp(self)
-        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
+        self.config = copy.deepcopy(TIMING.CURRENT_PROFILE)
         self.assertEqual(self.config["schemaVersion"], 2)
         default = (ROOT / "Scripts/ci-selection.json").read_bytes()
         mapping = (ROOT / "Scripts/ci-selection-map.json").read_bytes()
@@ -391,8 +391,9 @@ class CurrentSourceTimingTests(unittest.TestCase):
             DISPATCH_NATIVE_SELECTION_SHA256=self.config["resolvedSelectionSHA256"])
 
     def git(self, *args):
-        if args == ("rev-parse", "HEAD^"):
-            return (self.config["sourceHead"] + "\n").encode()
+        if args == ("cat-file", "commit", "HEAD"):
+            parent = self.config.get("parentHead", self.config["sourceHead"])
+            return ("tree " + "c" * 40 + "\nparent " + parent + "\n\nmessage\n").encode()
         return CompilerTimingTests.git(self, *args)
 
     def testCurrentSourceAndConfigurationCannotDriftTogether(self):
@@ -430,11 +431,58 @@ class CurrentSourceTimingTests(unittest.TestCase):
 
     def testCurrentObservationDeniesIndirectParentAndOtherSelectedQuestion(self):
         def wrong_parent(*args):
-            return b"b" * 40 if args == ("rev-parse", "HEAD^") else self.git(*args)
+            return b"parent " + b"b" * 40 + b"\n\nmessage\n" if args == ("cat-file", "commit", "HEAD") else self.git(*args)
         with self.assertRaisesRegex(ValueError, "direct parent"):
             self.admit(git=wrong_parent)
         with self.assertRaisesRegex(ValueError, "NATIVE_SELECTION_ID"):
             self.admit(environment={**self.env, "NATIVE_SELECTION_ID": "catalog-file-authority"})
+
+
+class ShallowSourceTimingTests(CurrentSourceTimingTests):
+    def setUp(self):
+        super().setUp()
+        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
+        self.assertEqual(self.config, TIMING.SHALLOW_PROFILE)
+        self.assertEqual(self.config["schemaVersion"], 3)
+
+    def testActualDepthOneCommitRetainsParentWithoutTraversableHistory(self):
+        origin, shallow = self.root / "origin", self.root / "shallow"
+        origin.mkdir()
+        def run(at, *args):
+            return subprocess.check_output(["git", *args], cwd=at, stderr=subprocess.PIPE)
+        run(origin, "init", "--quiet")
+        for key, value in (("user.name", "Timing Test"), ("user.email", "timing@example.invalid"),
+                           ("commit.gpgsign", "false")):
+            run(origin, "config", key, value)
+        run(origin, "commit", "--quiet", "--allow-empty", "-m", "parent")
+        parent = run(origin, "rev-parse", "HEAD").decode().strip()
+        run(origin, "commit", "--quiet", "--allow-empty", "-m", "child")
+        run(self.root, "clone", "--quiet", "--depth=1", origin.as_uri(), str(shallow))
+        self.assertEqual(run(shallow, "rev-parse", "--is-shallow-repository").strip(), b"true")
+        with self.assertRaises(subprocess.CalledProcessError):
+            run(shallow, "rev-parse", "--verify", "HEAD^")
+        self.assertIsNone(TIMING.require_direct_parent(lambda *a: run(shallow, *a), parent))
+        with self.assertRaisesRegex(ValueError, "direct parent"):
+            TIMING.require_direct_parent(lambda *a: run(shallow, *a), "b" * 40)
+        # Full production admission uses the fixed b8 parent, independently of
+        # this miniature Git fixture's arbitrary object identities.
+        self.assertEqual(self.admit(), self.env["GITHUB_SHA"])
+
+    def testHeaderRejectsRootMergeDuplicateMalformedAndMessageOnlyParent(self):
+        parent = self.config["parentHead"].encode()
+        valid = b"parent " + parent
+        for raw in (b"tree " + b"c" * 40 + b"\n\nparent " + parent,
+                    valid + b"\nparent " + b"d" * 40 + b"\n\nmessage",
+                    valid + b"\n" + valid + b"\n\nmessage",
+                    b"parent\t" + parent + b"\n\nmessage",
+                    valid + b" \n\nmessage", valid + b"\nmessage"):
+            def malformed(*args):
+                return raw if args == ("cat-file", "commit", "HEAD") else self.git(*args)
+            with self.subTest(raw=raw), self.assertRaisesRegex(ValueError, "direct parent"):
+                self.admit(git=malformed)
+        def message_parent(*args):
+            return self.git(*args) + b"parent foreign\n" if args == ("cat-file", "commit", "HEAD") else self.git(*args)
+        self.assertEqual(self.admit(git=message_parent), self.env["GITHUB_SHA"])
 
 
 class CapabilityTests(unittest.TestCase):

@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 2,
-  "mode": "timing-current-source-v2",
+  "schemaVersion": 3,
+  "mode": "timing-shallow-source-v3",
+  "parentHead": "b8c05dc1d567ebf99cdcc4244584f7b7b78951f0",
   "sourceHead": "f849d15991e4520850d09a818877ba4199f25061",
   "sourceTrees": {
     "FieldEvidenceApp": "7af267c17cc2f3f96c32b8d73211a3f60dd746db",

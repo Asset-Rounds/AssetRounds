@@ -37,6 +37,8 @@ SOURCE_SELECTION_HASHES = {
 # Closed current-source observation; the legacy f6 profile remains immutable.
 CURRENT_PROFILE = {'schemaVersion': 2, 'mode': 'timing-current-source-v2', 'sourceHead': 'f849d15991e4520850d09a818877ba4199f25061', 'sourceTrees': {'FieldEvidenceApp': '7af267c17cc2f3f96c32b8d73211a3f60dd746db', 'FieldEvidenceAppTests': 'c9d2357d3612283c9d87d2cf424f592e30df2eb9', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}, 'selectionSHA256': '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'sampleIntervalSeconds': 5, 'selectionMapSHA256': 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E', 'resolvedSelectionSHA256': '2AA4BE676365A3E771FC684BE16A530606DE7EE588F15BA23B9C3DED27C48FB5'}
 CURRENT_SELECTION_ID = "c36-parent-finalization-check-no-issue"
+SHALLOW_PROFILE = dict(CURRENT_PROFILE, schemaVersion=3, mode="timing-shallow-source-v3",
+                       parentHead="b8c05dc1d567ebf99cdcc4244584f7b7b78951f0")
 
 SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bodies=500"
                " -Xfrontend -warn-long-expression-type-checking=200")
@@ -69,6 +71,9 @@ def read_configuration(path):
 
 def validate_configuration(config):
     require(isinstance(config, dict), "configuration object")
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 3:
+        require(config == SHALLOW_PROFILE, "fixed current shallow source profile")
+        return config
     if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 2:
         require(config == CURRENT_PROFILE, "fixed current source profile")
         return config
@@ -113,6 +118,16 @@ def expected_command(environment):
             "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
 
 
+def require_direct_parent(git_output, expected):
+    # HEAD^ traverses history and fails at a shallow boundary. The original
+    # commit object still contains its parents; read those without traversal.
+    raw = git_output("cat-file", "commit", "HEAD")
+    require(b"\n\n" in raw, "direct parent commit header")
+    header = raw.split(b"\n\n", 1)[0].split(b"\n")
+    parents = [line for line in header if line.startswith(b"parent")]
+    require(parents == [b"parent " + expected.encode("ascii")], "exact single direct parent")
+
+
 def admit(config, environment, command, root, git_output, platform=sys.platform):
     validate_configuration(config)
     required = {
@@ -129,7 +144,7 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
         "CODE_SIGNING_ALLOWED": "NO", "RUNNER_ARCH": "ARM64",
         "DEVELOPER_DIR": DEVELOPER_DIR,
     }
-    if config["schemaVersion"] == 2:
+    if config["schemaVersion"] in (2, 3):
         required["NATIVE_SELECTION_ID"] = CURRENT_SELECTION_ID
     require(platform == "darwin", "host platform")
     for key, value in required.items():
@@ -138,9 +153,8 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     head = git_output("rev-parse", "HEAD").decode().strip()
     require(re.fullmatch(r"[a-f0-9]{40}", head)
             and head == environment.get("GITHUB_SHA"), "actual checkout head")
-    if config["schemaVersion"] == 2:
-        require(git_output("rev-parse", "HEAD^").decode().strip() == config["sourceHead"],
-                "current diagnostic direct parent")
+    if config["schemaVersion"] in (2, 3):
+        require_direct_parent(git_output, config.get("parentHead", config["sourceHead"]))
     for path, tree in config["sourceTrees"].items():
         require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree, path + " tree")
     # Synchronized groups would also compile untracked files. Check both tracked
