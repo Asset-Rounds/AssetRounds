@@ -324,7 +324,7 @@ private func resolutionMutation(_ value: ReviewedDraftConflictResolutionV1) thro
 /// A real writer fixture with retained foreign originals and explicit canonical
 /// command writes. It does not claim that restore publication or registration ran.
 @MainActor
-private final class RepetitiveResolutionFixture {
+final class RepetitiveResolutionFixture {
     let root: URL
     let target: RetainedSourceHistoryTargetV2
     let identity: RestoreIdentityV1

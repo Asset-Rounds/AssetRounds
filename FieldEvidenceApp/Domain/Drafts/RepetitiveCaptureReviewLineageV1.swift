@@ -207,10 +207,9 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
             // This preserves a typed historical command; target-specific
             // C36 disposition approval is a separate, still-required boundary.
         case let .applyDiscardTerminal(bundle):
-            try bundle.validate()
-            try value.validateSuccessor(of: previous, expectedDraftRevision: mutation.expectedRevision,
-                                        expectedBaseRevision: mutation.expectedBaseCanonicalRevision)
-            guard previous.state == .discardPending else { throw invalid() }
+            try RepetitiveCaptureDestinationDiscardV1.validateContract(bundle, after: previous)
+            guard mutation.expectedRevision == previous.draftRevision,
+                  mutation.expectedBaseCanonicalRevision == previous.baseCanonicalRevision else { throw invalid() }
         default: throw invalid()
         }
     }

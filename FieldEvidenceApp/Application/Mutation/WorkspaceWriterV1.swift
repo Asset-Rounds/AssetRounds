@@ -10,6 +10,12 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
         occurredAt: Date,
         temporaryRelativePath: String
     ) throws -> WorkspaceMutationEffectV1
+    func applyPreparedRepetitiveCaptureDestinationDiscard(
+        _ mutation: FieldDraftMutationV1,
+        proof: PreparedReviewedFieldDraftApplyProofV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1
     func applyPreparedReviewedFieldDraftResolution(
         _ mutation: FieldDraftMutationV1,
         proof: PreparedReviewedFieldDraftApplyProofV1,
@@ -94,6 +100,15 @@ enum C50IncumbentSoleWriterDelegationBoundaryV1 {
 }
 
 extension WorkspaceWriterAdapterPortV1 {
+    func applyPreparedRepetitiveCaptureDestinationDiscard(
+        _ mutation: FieldDraftMutationV1,
+        proof: PreparedReviewedFieldDraftApplyProofV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+
     func applyPreparedReviewedFieldDraftResolution(
         _ mutation: FieldDraftMutationV1,
         proof: PreparedReviewedFieldDraftApplyProofV1,
@@ -1489,6 +1504,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         guard reversalPlan == nil || portableReversalPlan == nil else {
             throw WorkspaceMutationFailureV1.invalidReversal
         }
+        let effectiveSourceKind = sourceKind
+            ?? (semanticReversalExecution == nil ? .localUser : .semanticReversal)
         switch request.command {
         case let .recordWork(value) where value.writerAuthority != nil:
             guard let authority = value.writerAuthority else { throw WorkspaceMutationFailureV1.invalidCommand }
@@ -1645,7 +1662,14 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                     }
                     try value.validateReviewedTargetWorkspaceRevision(request.expectedRevision.workspaceRevision)
                     if case .repetitiveCapture = resolution.reviewedTargetBasis {
-                        guard sourceKind == .localUser else { throw WorkspaceMutationFailureV1.invalidCommand }
+                        guard effectiveSourceKind == .localUser else { throw WorkspaceMutationFailureV1.invalidCommand }
+                    }
+                } else if case let .applyDiscardTerminal(bundle) = value.postImage,
+                          bundle.discardedCheckpoint.codec == (try RepetitiveCaptureDestinationReviewCodecV1.release()) {
+                    guard effectiveSourceKind == .localUser, occurredAtOverride == nil,
+                          Set(expected.keys) == Set(targets),
+                          try targets.allSatisfy({ expected[$0] == (try value.expectedRevision(for: $0)) }) else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
                     }
                 } else {
                     guard try sourceKind == .importedHistory || occurredAtOverride != nil
@@ -1849,8 +1873,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             envelope = try MutationEnvelopeV1(
                 request: request,
                 identity: identity,
-                sourceKind: sourceKind
-                    ?? (semanticReversalExecution == nil ? .localUser : .semanticReversal),
+                sourceKind: effectiveSourceKind,
                 contentDependencyIDs: contentDependencyIDs,
                 causationMutationID: semanticReversalExecution?.targetMutationID,
                 correlationID: correlationID,
@@ -1921,6 +1944,15 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 mutation,
                 expectedWorkspaceRevision: request.expectedRevision.workspaceRevision
             )
+        }
+        if case let .applyFieldDraft(mutation) = request.command,
+           case let .applyDiscardTerminal(bundle) = mutation.postImage,
+           bundle.discardedCheckpoint.codec == (try RepetitiveCaptureDestinationReviewCodecV1.release()) {
+            guard envelope.sourceKind == .localUser, let journalStore else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            preparedReviewedFieldDraftProof = try journalStore.validatePendingRepetitiveCaptureDestinationDiscard(
+                mutation, expectedWorkspaceRevision: request.expectedRevision.workspaceRevision)
         }
         if request.command.kind == .finalizeCheck || request.command.kind == .finalizeCorrection {
             let authority = try Self.finalizationAuthority(request.command)
@@ -2047,14 +2079,16 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             let applied: WorkspaceMutationEffectV1
             if let proof = preparedReviewedFieldDraftProof {
                 guard case let .applyFieldDraft(mutation) = request.command,
-                      case .resolveConflict = mutation.postImage,
                       envelope.sourceKind != .importedHistory else {
                     throw WorkspaceMutationFailureV1.invalidCommand
                 }
-                applied = try adapter.applyPreparedReviewedFieldDraftResolution(
-                    mutation, proof: proof, occurredAt: occurredAt,
-                    temporaryRelativePath: temporaryRelativePath
-                )
+                if case .resolveConflict = mutation.postImage {
+                    applied = try adapter.applyPreparedReviewedFieldDraftResolution(
+                        mutation, proof: proof, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
+                } else {
+                    applied = try adapter.applyPreparedRepetitiveCaptureDestinationDiscard(
+                        mutation, proof: proof, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
+                }
             } else {
                 applied = try adapter.apply(
                     request.command,
@@ -2564,6 +2598,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
         return try journalStore.fieldDraftEvidence(mutationID: mutationID)
+    }
+
+    func repetitiveCaptureDestinationDiscardEvidence(workspaceID: WorkspaceID, draftID: UUID) throws
+        -> RepetitiveCaptureDestinationDiscardEvidenceV1 {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        return try journalStore.repetitiveCaptureDestinationDiscardEvidence(workspaceID: workspaceID, draftID: draftID)
     }
 
     func reviewedFieldDraftResolutionEvidence(

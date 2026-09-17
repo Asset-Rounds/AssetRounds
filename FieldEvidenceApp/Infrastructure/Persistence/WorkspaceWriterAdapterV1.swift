@@ -193,6 +193,31 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
     }
 
+    func applyPreparedRepetitiveCaptureDestinationDiscard(
+        _ mutation: FieldDraftMutationV1,
+        proof: PreparedReviewedFieldDraftApplyProofV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try prepareAdapterForApply()
+        do {
+            try mutation.validate()
+            guard case let .applyDiscardTerminal(bundle) = mutation.postImage else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try RepetitiveCaptureDestinationReviewCodecV1.validateCheckpoint(bundle.discardedCheckpoint)
+            try proof.validateForApply(mutation, in: modelContext)
+            try applyFieldDraftDiscardTerminal(bundle, expectedDraftRevision: mutation.expectedRevision)
+            return try .init(affectedEntities: mutation.affectedIdentities, temporaryRelativePath: temporaryRelativePath)
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
     func applyPreparedReviewedFieldDraftResolution(
         _ mutation: FieldDraftMutationV1,
         proof: PreparedReviewedFieldDraftApplyProofV1,
@@ -4175,7 +4200,11 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case let .appendContentReservation(value):let identity=affected[0];guard case nil = try fieldDraftRow(identity) else{throw WorkspaceMutationFailureV1.sequenceCollision};guard let checkpoint=try exactDraftCheckpoint(value.draftID,workspaceID:value.workspaceID),checkpoint.stageIDs.contains(value.stageID)else{throw WorkspaceMutationFailureV1.invalidCommand};modelContext.insert(try DraftContentReservationRow(value))
         case let .reviseContentReservation(value):let identity=affected[0];guard case let .reservation(row)?=try fieldDraftRow(identity)else{throw WorkspaceMutationFailureV1.staleEntityRevision(identity)};try row.replace(with:value,expectedRevision:mutation.expectedRevision)
         case let .applyCommitTerminal(bundle,expectedSagaRevision):try applyFieldDraftCommitTerminal(bundle,expectedDraftRevision:mutation.expectedRevision,expectedSagaRevision:expectedSagaRevision)
-        case let .applyDiscardTerminal(bundle):try applyFieldDraftDiscardTerminal(bundle,expectedDraftRevision:mutation.expectedRevision)
+        case let .applyDiscardTerminal(bundle):
+            guard bundle.discardedCheckpoint.codec != (try RepetitiveCaptureDestinationReviewCodecV1.release()) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try applyFieldDraftDiscardTerminal(bundle,expectedDraftRevision:mutation.expectedRevision)
         };return try WorkspaceMutationEffectV1(affectedEntities:affected,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
     private func applyReviewedFieldDraftConflict(_ resolution: ReviewedDraftConflictResolutionV1) throws {
         try resolution.validate()

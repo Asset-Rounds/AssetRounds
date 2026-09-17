@@ -2620,10 +2620,110 @@ final class MutationJournalStoreV1 {
         in context: ModelContext
     ) throws {
         guard ObjectIdentifier(context) == ObjectIdentifier(modelContext) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
-        guard let actual = try validatePendingReviewedFieldDraftResolutionCore(
-            mutation, expectedWorkspaceRevision: expectedWorkspaceRevision
-        ), actual == expectedCheckpoint else {
+        let actual: FieldDraftCheckpointV1?
+        if case .applyDiscardTerminal = mutation.postImage {
+            actual = try validatePendingRepetitiveCaptureDestinationDiscardCore(
+                mutation, expectedWorkspaceRevision: expectedWorkspaceRevision)
+        } else {
+            actual = try validatePendingReviewedFieldDraftResolutionCore(
+                mutation, expectedWorkspaceRevision: expectedWorkspaceRevision)
+        }
+        guard actual == expectedCheckpoint else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+    }
+
+    func validatePendingRepetitiveCaptureDestinationDiscard(
+        _ mutation: FieldDraftMutationV1, expectedWorkspaceRevision: UInt64
+    ) throws -> PreparedReviewedFieldDraftApplyProofV1 {
+        let checkpoint = try validatePendingRepetitiveCaptureDestinationDiscardCore(
+            mutation, expectedWorkspaceRevision: expectedWorkspaceRevision)
+        return try .init(journal: self, mutation: mutation,
+            expectedWorkspaceRevision: expectedWorkspaceRevision, expectedCheckpoint: checkpoint)
+    }
+
+    private func validatePendingRepetitiveCaptureDestinationDiscardCore(
+        _ mutation: FieldDraftMutationV1, expectedWorkspaceRevision: UInt64
+    ) throws -> FieldDraftCheckpointV1 {
+        try mutation.validate()
+        guard case let .applyDiscardTerminal(bundle) = mutation.postImage,
+              mutation.workspaceID == identity.workspaceID,
+              expectedWorkspaceRevision > 0, expectedWorkspaceRevision < UInt64(Int64.max) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        try RepetitiveCaptureDestinationReviewCodecV1.validateCheckpoint(bundle.discardedCheckpoint)
+        try validateCurrentWriterLease()
+        guard case .canonicalWriter = accessMode, !modelContext.hasChanges,
+              try domainRevision(requireState().workspaceRevision) == expectedWorkspaceRevision else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let snapshot = try exportSnapshot()
+        guard !snapshot.quarantines.contains(where: {
+            $0.workspaceID == identity.workspaceID && $0.mutationID == mutation.mutationID.rawValue
+        }) else { throw WorkspaceMutationFailureV1.mutationIDQuarantined }
+        let tip = try currentFieldDraftCheckpoint(draftID: bundle.discardedCheckpoint.draftID)
+        let lineage = try RepetitiveCaptureReviewLineageReaderV1.read(
+            workspaceID: tip.workspaceID, mutationID: tip.mutationID,
+            in: RepetitiveCaptureRetainedJournalHistoryV2(snapshot: snapshot))
+        try RepetitiveCaptureDestinationDiscardV1.validate(mutation, against: lineage)
+        guard lineage.selectedReview.checkpoint == tip else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        try validateRepetitiveCaptureReviewDiscardContent(draftID: tip.draftID, snapshot: snapshot, terminal: nil)
+        return tip
+    }
+
+    /// Current recovery reauthenticates stored originals and the atomic row
+    /// pair. It never infers completion from a checkpoint or a proposed ID.
+    func repetitiveCaptureDestinationDiscardEvidence(workspaceID: WorkspaceID, draftID: UUID) throws
+        -> RepetitiveCaptureDestinationDiscardEvidenceV1 {
+        guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.invalidCommand }
+        try validateCurrentWriterLease()
+        guard case .canonicalWriter = accessMode, !modelContext.hasChanges else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let snapshot = try exportSnapshot()
+        let tip = try currentFieldDraftCheckpoint(draftID: draftID)
+        let lineage = try RepetitiveCaptureReviewLineageReaderV1.read(
+            workspaceID: workspaceID, mutationID: tip.mutationID,
+            in: RepetitiveCaptureRetainedJournalHistoryV2(snapshot: snapshot))
+        let evidence = try RepetitiveCaptureDestinationDiscardV1.terminalEvidence(from: lineage)
+        guard evidence.bundle.discardedCheckpoint == tip else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        try validateRepetitiveCaptureReviewDiscardContent(draftID: draftID, snapshot: snapshot, terminal: evidence.bundle)
+        return evidence
+    }
+
+    private func validateRepetitiveCaptureReviewDiscardContent(
+        draftID: UUID, snapshot: MutationHistorySnapshotV1, terminal: DraftDiscardTerminalBundleV1?
+    ) throws {
+        // This destination review owns no content. Retained foreign source
+        // originals never authorize disposal or cleanup of their content.
+        let stages = try modelContext.fetchCount(FetchDescriptor<AttachmentStagingItemRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let reservations = try modelContext.fetchCount(FetchDescriptor<DraftContentReservationRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let sagas = try modelContext.fetchCount(FetchDescriptor<DraftCommitSagaRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let commits = try modelContext.fetchCount(FetchDescriptor<DraftCommitReceiptRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let discards = try modelContext.fetch(FetchDescriptor<DraftDiscardReceiptRow>(predicate: #Predicate { $0.draftID == draftID }))
+        guard stages == 0, reservations == 0, sagas == 0, commits == 0 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let terminal {
+            guard discards.count == 1, try discards.first?.value() == terminal.receipt else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        } else if !discards.isEmpty { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        for record in snapshot.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard case let .applyFieldDraft(mutation) = envelope.command,
+                  mutation.workspaceID == identity.workspaceID else { continue }
+            let owner: UUID
+            switch mutation.postImage {
+            case .createCheckpoint, .reviseCheckpoint, .resolveConflict: continue
+            case let .appendStagingItem(value), let .reviseStagingItem(value): owner = value.draftID
+            case let .appendCommitSaga(value), let .advanceCommitSaga(value): owner = value.draftID
+            case let .appendContentReservation(value), let .reviseContentReservation(value): owner = value.draftID
+            case let .applyCommitTerminal(value, _): owner = value.committedCheckpoint.draftID
+            case let .publishReadyStage(value): owner = value.successorCheckpoint.draftID
+            case let .applyDiscardTerminal(value):
+                if let terminal, value == terminal { continue }
+                owner = value.discardedCheckpoint.draftID
+            }
+            guard owner != draftID else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         }
     }
 
