@@ -29,9 +29,13 @@ class CompilerTimingTests(unittest.TestCase):
         (self.root / "Scripts").mkdir()
         self.artifacts = self.root / "artifacts"
         self.artifacts.mkdir()
-        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
-        default = (ROOT / "Scripts/ci-selection.json").read_bytes()
-        mapping = (ROOT / "Scripts/ci-selection-map.json").read_bytes()
+        # Legacy admission stays exercised against its frozen source objects,
+        # even while the checked-in active observation uses schema2.
+        self.config = dict(schemaVersion=1, mode="timing-f6-source-v1",
+            sourceHead=TIMING.SOURCE_HEAD, sourceTrees=copy.deepcopy(TIMING.SOURCE_TREES),
+            sampleIntervalSeconds=5, **TIMING.SOURCE_SELECTION_HASHES)
+        default = subprocess.check_output(["git", "show", TIMING.SOURCE_HEAD + ":Scripts/ci-selection.json"], cwd=ROOT)
+        mapping = subprocess.check_output(["git", "show", TIMING.SOURCE_HEAD + ":Scripts/ci-selection-map.json"], cwd=ROOT)
         (self.root / "Scripts/ci-selection.json").write_bytes(default)
         (self.root / "Scripts/ci-selection-map.json").write_bytes(mapping)
         selector_spec = importlib.util.spec_from_file_location("selector", ROOT / "Scripts/v23-native-ci.py")
@@ -357,6 +361,80 @@ sys.exit(code)
         missed = [row for row in events if row["event"] == "sampling-deadline-missed"]
         self.assertEqual(len(missed), 1)
         self.assertEqual(missed[0]["overrunSeconds"], 2.0)
+
+
+class CurrentSourceTimingTests(unittest.TestCase):
+    admit = CompilerTimingTests.admit
+    testClosedConfigurationRejectsUnknownMissingDuplicateAndOverrideFields = CompilerTimingTests.testClosedConfigurationRejectsUnknownMissingDuplicateAndOverrideFields
+    testAdmissionBindsExactHostedSourceSelectorAndUnchangedBudgets = CompilerTimingTests.testAdmissionBindsExactHostedSourceSelectorAndUnchangedBudgets
+    testNativeArgvAddsOnlyTimingObservationsAndLegacyWrapperIsExact = CompilerTimingTests.testNativeArgvAddsOnlyTimingObservationsAndLegacyWrapperIsExact
+
+    def setUp(self):
+        CompilerTimingTests.setUp(self)
+        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
+        self.assertEqual(self.config["schemaVersion"], 2)
+        default = (ROOT / "Scripts/ci-selection.json").read_bytes()
+        mapping = (ROOT / "Scripts/ci-selection-map.json").read_bytes()
+        (self.root / "Scripts/ci-selection.json").write_bytes(default)
+        (self.root / "Scripts/ci-selection-map.json").write_bytes(mapping)
+        spec = importlib.util.spec_from_file_location("current_selector", ROOT / "Scripts/v23-native-ci.py")
+        selector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(selector)
+        selected = selector.resolve_selection(json.loads(default), json.loads(mapping), TIMING.CURRENT_SELECTION_ID)
+        self.resolved.write_bytes(selector.canonical(selected))
+        self.assertEqual(len(json.loads(default)["unitTestSelectors"]), 738)
+        self.assertEqual(len(json.loads(mapping)["groups"]), 41)
+        self.assertEqual(selected["unitTestSelectors"], [
+            "FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/"
+            "testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory"])
+        self.env.update(NATIVE_SELECTION_ID=TIMING.CURRENT_SELECTION_ID,
+            DISPATCH_NATIVE_SELECTION_SHA256=self.config["resolvedSelectionSHA256"])
+
+    def git(self, *args):
+        if args == ("rev-parse", "HEAD^"):
+            return (self.config["sourceHead"] + "\n").encode()
+        return CompilerTimingTests.git(self, *args)
+
+    def testCurrentSourceAndConfigurationCannotDriftTogether(self):
+        # Equivalent schema2 anti-rebinding pair; the superclass retains the
+        # original f6 case independently.
+        for path in TIMING.SOURCE_PATHS:
+            changed = copy.deepcopy(self.config)
+            changed["sourceTrees"][path] = "b" * 40
+            def changed_git(*args):
+                return b"b" * 40 if args == ("rev-parse", "HEAD:" + path) else self.git(*args)
+            with self.subTest(jointTreeDrift=path), self.assertRaisesRegex(ValueError, "fixed current"):
+                self.admit(config=changed, git=changed_git)
+        for key, path in (("selectionSHA256", self.root / "Scripts/ci-selection.json"),
+                          ("selectionMapSHA256", self.root / "Scripts/ci-selection-map.json"),
+                          ("resolvedSelectionSHA256", self.resolved)):
+            before = path.read_bytes()
+            changed_bytes = before + b" "
+            path.write_bytes(changed_bytes)
+            changed = copy.deepcopy(self.config)
+            changed[key] = hashlib.sha256(changed_bytes).hexdigest().upper()
+            environment = dict(self.env)
+            if key == "resolvedSelectionSHA256": environment["DISPATCH_NATIVE_SELECTION_SHA256"] = changed[key]
+            with self.subTest(jointSelectorDrift=key), self.assertRaisesRegex(ValueError, "fixed current"):
+                self.admit(config=changed, environment=environment)
+            path.write_bytes(before)
+        for path, tree in self.config["sourceTrees"].items():
+            actual = subprocess.check_output(["git", "rev-parse", self.config["sourceHead"] + ":" + path], cwd=ROOT).decode().strip()
+            self.assertEqual(actual, tree)
+        for key, path in (("selectionSHA256", "Scripts/ci-selection.json"),
+                          ("selectionMapSHA256", "Scripts/ci-selection-map.json")):
+            actual = subprocess.check_output(["git", "show", self.config["sourceHead"] + ":" + path], cwd=ROOT)
+            self.assertEqual(hashlib.sha256(actual).hexdigest().upper(), self.config[key])
+        self.assertEqual(hashlib.sha256(self.resolved.read_bytes()).hexdigest().upper(),
+            self.config["resolvedSelectionSHA256"])
+
+    def testCurrentObservationDeniesIndirectParentAndOtherSelectedQuestion(self):
+        def wrong_parent(*args):
+            return b"b" * 40 if args == ("rev-parse", "HEAD^") else self.git(*args)
+        with self.assertRaisesRegex(ValueError, "direct parent"):
+            self.admit(git=wrong_parent)
+        with self.assertRaisesRegex(ValueError, "NATIVE_SELECTION_ID"):
+            self.admit(environment={**self.env, "NATIVE_SELECTION_ID": "catalog-file-authority"})
 
 
 class CapabilityTests(unittest.TestCase):

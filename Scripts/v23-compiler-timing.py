@@ -34,6 +34,10 @@ SOURCE_SELECTION_HASHES = {
     "selectionMapSHA256": "09208F042EBAD8B82E09FB90973D9626DAE54FAB026E411632FE91D9B54726E8",
     "resolvedSelectionSHA256": "428CF8C679E28D87B3CB7BD2DC42B191F02A9DB4322D9882E3DF72521179F9B1",
 }
+# Closed current-source observation; the legacy f6 profile remains immutable.
+CURRENT_PROFILE = {'schemaVersion': 2, 'mode': 'timing-current-source-v2', 'sourceHead': 'f849d15991e4520850d09a818877ba4199f25061', 'sourceTrees': {'FieldEvidenceApp': '7af267c17cc2f3f96c32b8d73211a3f60dd746db', 'FieldEvidenceAppTests': 'c9d2357d3612283c9d87d2cf424f592e30df2eb9', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}, 'selectionSHA256': '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'sampleIntervalSeconds': 5, 'selectionMapSHA256': 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E', 'resolvedSelectionSHA256': '2AA4BE676365A3E771FC684BE16A530606DE7EE588F15BA23B9C3DED27C48FB5'}
+CURRENT_SELECTION_ID = "c36-parent-finalization-check-no-issue"
+
 SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bodies=500"
                " -Xfrontend -warn-long-expression-type-checking=200")
 COMPILERS = {"xcodebuild", "swiftc", "swift-frontend", "clang", "clang++", "ld",
@@ -65,6 +69,9 @@ def read_configuration(path):
 
 def validate_configuration(config):
     require(isinstance(config, dict), "configuration object")
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 2:
+        require(config == CURRENT_PROFILE, "fixed current source profile")
+        return config
     require(set(config) == {"schemaVersion", "mode", "sourceHead", "sourceTrees",
                             "selectionSHA256", "selectionMapSHA256", "resolvedSelectionSHA256",
                             "sampleIntervalSeconds"}, "configuration keys")
@@ -122,6 +129,8 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
         "CODE_SIGNING_ALLOWED": "NO", "RUNNER_ARCH": "ARM64",
         "DEVELOPER_DIR": DEVELOPER_DIR,
     }
+    if config["schemaVersion"] == 2:
+        required["NATIVE_SELECTION_ID"] = CURRENT_SELECTION_ID
     require(platform == "darwin", "host platform")
     for key, value in required.items():
         require(environment.get(key) == value, key)
@@ -129,6 +138,9 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     head = git_output("rev-parse", "HEAD").decode().strip()
     require(re.fullmatch(r"[a-f0-9]{40}", head)
             and head == environment.get("GITHUB_SHA"), "actual checkout head")
+    if config["schemaVersion"] == 2:
+        require(git_output("rev-parse", "HEAD^").decode().strip() == config["sourceHead"],
+                "current diagnostic direct parent")
     for path, tree in config["sourceTrees"].items():
         require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree, path + " tree")
     # Synchronized groups would also compile untracked files. Check both tracked
@@ -462,7 +474,7 @@ def main():
     output = Path(os.environ["CI_ARTIFACT_DIR"]) / "v23-compiler-timing"
     output.mkdir(exist_ok=False)
     metadata = {"schemaVersion": 1, "purpose": "compiler-timing-diagnostic",
-                "head": head, "productSourceHead": SOURCE_HEAD,
+                "head": head, "productSourceHead": config["sourceHead"],
                 "configuration": config,
                 "configurationSHA256": hashlib.sha256(config_path.read_bytes()).hexdigest().upper(),
                 "baseCommand": command, "nativeAcceptance": False,
