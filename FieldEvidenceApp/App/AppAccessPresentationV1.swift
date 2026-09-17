@@ -355,6 +355,14 @@ final class AppAccessPresentationV1: ObservableObject {
             var attemptState: RepetitiveCaptureCheckpointAttemptStateV2 { write.attemptState }
         }
 
+        @MainActor
+        struct RepetitiveCaptureContinuationLaunchV1 {
+            fileprivate let write: PreparedRepetitiveCaptureDestinationContinuationV1
+            fileprivate let readiness: RoundReadinessReadV1
+            var checkpoint: FieldDraftCheckpointV1 { write.proposal.checkpoint }
+            var attemptState: RepetitiveCaptureCheckpointAttemptStateV2 { write.attemptState }
+        }
+
         struct RepetitiveCaptureProgressResultV2 {
             let progress: ProductionRepetitiveCaptureReadV2
             fileprivate let readiness: RoundReadinessReadV1
@@ -407,6 +415,51 @@ final class AppAccessPresentationV1: ObservableObject {
         var supportsDraftOrdering: Bool { draftOrdering != nil }
         var supportsSessionTransitions: Bool { sessionTransitions != nil }
         var supportsRepetitiveCaptureProgress: Bool { repetitiveCapture != nil }
+
+        func readRepetitiveCaptureDestinationReview(reviewDraftID: UUID) throws -> RepetitiveCaptureReviewLineageV1 {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try repetitiveCapture.destinationReview(reviewDraftID: reviewDraftID)
+            }
+        }
+
+        func readRepetitiveCaptureDestinationContinuation(reviewDraftID: UUID) throws
+            -> ProductionRepetitiveCaptureContinuationReadV1? {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try repetitiveCapture.destinationContinuation(reviewDraftID: reviewDraftID)
+            }
+        }
+
+        func prepareRepetitiveCaptureDestinationContinuation(reviewDraftID: UUID, round: RoundSessionV1,
+                                                              readiness: RoundReadinessReadV1) throws
+            -> RepetitiveCaptureContinuationLaunchV1 {
+            try validateReadinessForPublication(readiness)
+            return try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                try readinessAuthority.validateSessionForPublication(round)
+                return .init(write: try repetitiveCapture.prepareDestinationContinuation(
+                    reviewDraftID: reviewDraftID, round: round, manifest: readiness.manifest), readiness: readiness)
+            }
+        }
+
+        func persistRepetitiveCaptureDestinationContinuation(_ launch: RepetitiveCaptureContinuationLaunchV1,
+                                                              validateIntent: @MainActor () throws -> Void) throws
+            -> ProductionRepetitiveCaptureContinuationReadV1 {
+            guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            try Task.checkCancellation(); try validateIntent()
+            if let committed = try publicationAccess.withRead({
+                try repetitiveCapture.committedDestinationContinuation(launch.write)
+            }) { return committed }
+            try validateReadinessForPublication(launch.readiness)
+            let result = try publicationAccess.withRead { try repetitiveCapture.persistDestinationContinuation(launch.write) }
+            #if DEBUG
+            try repetitiveCaptureDebugHooks.afterSourceReceipt?()
+            #endif
+            try validateIntent()
+            try publicationAccess.withRead { try repetitiveCapture.validateForPublication(result) }
+            return result
+        }
 
         func prepareRepetitiveCaptureLaunch(round: RoundSessionV1, readiness: RoundReadinessReadV1) throws
             -> RepetitiveCaptureLaunchV2 {

@@ -66,6 +66,31 @@ import SwiftData
 }
 
 extension FieldDraftLifecycleAdapterV1 {
+    func repetitiveCaptureDestinationContinuation(workspaceID: WorkspaceID, reviewDraftID: UUID) throws
+        -> RepetitiveCaptureDestinationContinuationEvidenceV1? {
+        try writer.validateFieldDraftReadContext(context)
+        return try writer.repetitiveCaptureDestinationContinuationEvidence(
+            workspaceID: workspaceID, reviewDraftID: reviewDraftID)
+    }
+
+    func persistRepetitiveCaptureDestinationContinuation(
+        _ proposal: RepetitiveCaptureDestinationContinuationProposalV1
+    ) throws -> RepetitiveCaptureDestinationContinuationEvidenceV1 {
+        guard let binding = proposal.mutation.continuationBinding else { throw FieldDraftFailureV1.invalidValue }
+        if let original = try repetitiveCaptureDestinationContinuation(
+            workspaceID: binding.workspaceID, reviewDraftID: binding.review.draftID) {
+            guard original.original.mutation == proposal.mutation,
+                  original.sourceCheckpoint == proposal.checkpoint else { throw ScanToWorkFailureV1.stale }
+            return original
+        }
+        _ = try writer.commitFieldDraft(proposal.mutation)
+        guard let original = try repetitiveCaptureDestinationContinuation(
+            workspaceID: binding.workspaceID, reviewDraftID: binding.review.draftID),
+              original.original.mutation == proposal.mutation,
+              original.sourceCheckpoint == proposal.checkpoint else { throw ScanToWorkFailureV1.authorityMismatch }
+        return original
+    }
+
     /// Caller supplies the original live scene/readiness capability. This seam
     /// additionally requires actual canonical Round history and its receipt.
     func persistRepetitiveCaptureProgressSource(_ checkpoint: FieldDraftCheckpointV1) throws

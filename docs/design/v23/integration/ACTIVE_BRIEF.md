@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `72506c0bd2f8a18a6ea3e770259ad2885447243f`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `da3462cdf8270163ff24f43c9d3c0e8289fed7b1`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -15,11 +15,11 @@ Originals retain their own heads; Bitrise qualification stays held.
 
 Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings and testNotStarted. AttributionCE8EC8D6 captures36 frontend commands across many app batches; observed high host load proves no provider or single-file cause. No unchanged retry. Combined source0a5ecfe passes738/41/96 and independent indexEB29A4EE. Timing observations are retired; three scripts remain dormant. Native dispatch and Bitrise qualification stay held. One-run larger-runner proposal awaits the owner; no billing/settings change. Unit-only mode still builds the full scheme.
 
-The committed seven record-copy helpers preserve all77 inputs. Root's two-path diagnostic2F039F04 attributes existing insert invalidPackage throws to DEBUG source lines without changing errors/predicates. The C12 nonnil fixture moves to its actual active export; both minimal-incumbent and export copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, larger clone/transport and all retirement acceptance remain unresolved.
+Seven committed record-copy helpers preserve all77 inputs. Root's two-path diagnostic2F039F04 attributes existing insert invalidPackage throws to DEBUG source lines without changing errors/predicates. The C12 nonnil fixture moves to its actual active export; both minimal-incumbent and export copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, clone/transport and retirement acceptance remain unresolved.
 
 ## Current implementation
 
-- Destination resolution is committed as72506c0 after source8E4E61F1 (738/41/96) and indexBC0AC9CF. Terminal discard/recovery is authored: exact recorded pending choice, derived plan, repeated lineage/content/CAS proof, atomic existing writer and original readback. Seven new methods include cold recovery and all three writer fault boundaries. Combined source/index review and native enrollment/execution are due; confirmation UI, continuation, publication/lifecycle and registration remain due;49 drafts stay exact.
+- Destination discard/recovery is committed as da3462c (source4B2B0053/indexE7070436). Continuation is authored with explicit command binding, stable per-review IDs, sole-writer proof, original recovery and existing access/readiness services. Seven paired tests add to28 destination methods needing native enrollment/execution. Source/index review, actual AppAccess journeys, UI, backup/fork/lifecycle and registration remain due;49 drafts stay exact.
 - Durable Begin persists PREPARED before effects and BOUND after original receipts. Historical ENTRY and later/COMPLETE item reads preserve live access and external Round-close rejection.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Source738/41/96, semantic2735C2E7 and indexEB29A4EE pass; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.

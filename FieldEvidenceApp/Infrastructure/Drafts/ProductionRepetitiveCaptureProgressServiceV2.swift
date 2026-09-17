@@ -22,6 +22,25 @@ final class PreparedRepetitiveCaptureSourceV2 {
     fileprivate func markAttempted() { attemptState = .checkpointWriteAttempted }
 }
 
+struct ProductionRepetitiveCaptureContinuationReadV1 {
+    let evidence: RepetitiveCaptureDestinationContinuationEvidenceV1
+    fileprivate let ownerID: UUID
+    fileprivate let revision: WorkspaceRevisionV1
+}
+
+@MainActor
+final class PreparedRepetitiveCaptureDestinationContinuationV1 {
+    let proposal: RepetitiveCaptureDestinationContinuationProposalV1
+    let reviewDraftID: UUID
+    private(set) var attemptState: RepetitiveCaptureCheckpointAttemptStateV2 = .notAttempted
+    fileprivate let ownerID: UUID
+    fileprivate init(proposal: RepetitiveCaptureDestinationContinuationProposalV1,
+                     reviewDraftID: UUID, ownerID: UUID) {
+        self.proposal = proposal; self.reviewDraftID = reviewDraftID; self.ownerID = ownerID
+    }
+    fileprivate func markAttempted() { attemptState = .checkpointWriteAttempted }
+}
+
 @MainActor
 final class PreparedRepetitiveCaptureStepV2 {
     let checkpoint: FieldDraftCheckpointV1
@@ -59,6 +78,67 @@ final class ProductionRepetitiveCaptureProgressServiceV2 {
         rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
         self.transitions = transitions; self.clock = clock; self.idSource = idSource
         try transitions.validateRepetitiveCaptureOwner(session)
+    }
+
+    func destinationReview(reviewDraftID: UUID) throws -> RepetitiveCaptureReviewLineageV1 {
+        let current = try currentSession()
+        guard let checkpoint = try adapter(current).currentCheckpoint(workspaceID: workspaceID, draftID: reviewDraftID)
+        else { throw ScanToWorkFailureV1.stale }
+        return try current.workspaceWriter.repetitiveCaptureDestinationReviewLineage(
+            workspaceID: workspaceID, mutationID: checkpoint.mutationID)
+    }
+
+    /// Recovery precedes allocation and readiness. The result acknowledges a
+    /// source receipt; it never grants entry into the captured Round snapshot.
+    func destinationContinuation(reviewDraftID: UUID) throws -> ProductionRepetitiveCaptureContinuationReadV1? {
+        let current = try currentSession()
+        guard let original = try adapter(current).repetitiveCaptureDestinationContinuation(
+            workspaceID: workspaceID, reviewDraftID: reviewDraftID) else { return nil }
+        return .init(evidence: original, ownerID: ownerID, revision: try current.workspaceWriter.currentRevision())
+    }
+
+    func prepareDestinationContinuation(reviewDraftID: UUID, round: RoundSessionV1,
+                                        manifest: OfflineReadinessManifestV1) throws
+        -> PreparedRepetitiveCaptureDestinationContinuationV1 {
+        let current = try currentSession()
+        if let _ = try destinationContinuation(reviewDraftID: reviewDraftID) { throw ScanToWorkFailureV1.duplicate }
+        let lineage = try destinationReview(reviewDraftID: reviewDraftID)
+        let rounds = try WorkspaceWriterAdapterV1(modelContext: current.modelContext).roundSessionHistory(
+            workspaceID: workspaceID, sessionID: round.sessionID)
+        guard round.workspaceID == workspaceID, rounds.last == round else { throw ScanToWorkFailureV1.stale }
+        let sampled = clock.now().timeIntervalSince1970
+        guard sampled.isFinite, sampled >= 0, (sampled * 1_000).isFinite else { throw FieldDraftFailureV1.invalidValue }
+        let proposal = try RepetitiveCaptureDestinationContinuationV1.propose(from: lineage,
+            currentRoundHistory: rounds, manifest: manifest,
+            preparedAt: Date(timeIntervalSince1970: floor(sampled * 1_000) / 1_000))
+        return .init(proposal: proposal, reviewDraftID: reviewDraftID, ownerID: ownerID)
+    }
+
+    func committedDestinationContinuation(_ prepared: PreparedRepetitiveCaptureDestinationContinuationV1) throws
+        -> ProductionRepetitiveCaptureContinuationReadV1? {
+        try requireOwner(prepared.ownerID)
+        guard let original = try destinationContinuation(reviewDraftID: prepared.reviewDraftID) else { return nil }
+        guard original.evidence.original.mutation == prepared.proposal.mutation,
+              original.evidence.sourceCheckpoint == prepared.proposal.checkpoint else { throw ScanToWorkFailureV1.stale }
+        return original
+    }
+
+    func persistDestinationContinuation(_ prepared: PreparedRepetitiveCaptureDestinationContinuationV1) throws
+        -> ProductionRepetitiveCaptureContinuationReadV1 {
+        try requireOwner(prepared.ownerID)
+        let current = try currentSession()
+        prepared.markAttempted()
+        let original = try adapter(current).persistRepetitiveCaptureDestinationContinuation(prepared.proposal)
+        return .init(evidence: original, ownerID: ownerID, revision: try current.workspaceWriter.currentRevision())
+    }
+
+    func validateForPublication(_ value: ProductionRepetitiveCaptureContinuationReadV1) throws {
+        try requireOwner(value.ownerID)
+        let current = try currentSession()
+        guard try current.workspaceWriter.currentRevision() == value.revision,
+              try destinationContinuation(reviewDraftID: value.evidence.binding.review.draftID)?.evidence == value.evidence else {
+            throw ScanToWorkFailureV1.stale
+        }
     }
 
     func prepareSource(round: RoundSessionV1, manifest: OfflineReadinessManifestV1) throws

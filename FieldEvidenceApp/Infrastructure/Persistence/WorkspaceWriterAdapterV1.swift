@@ -193,6 +193,33 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
     }
 
+    func applyPreparedRepetitiveCaptureDestinationContinuation(
+        _ mutation: FieldDraftMutationV1,
+        proof: PreparedReviewedFieldDraftApplyProofV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try prepareAdapterForApply()
+        do {
+            try mutation.validate()
+            guard mutation.continuationBinding != nil,
+                  case let .createCheckpoint(checkpoint) = mutation.postImage else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try proof.validateForApply(mutation, in: modelContext)
+            let identity = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: checkpoint.draftID)
+            guard case nil = try fieldDraftRow(identity) else { throw WorkspaceMutationFailureV1.sequenceCollision }
+            modelContext.insert(try FieldDraftCheckpointRow(checkpoint))
+            return try .init(affectedEntities: mutation.affectedIdentities, temporaryRelativePath: temporaryRelativePath)
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
     func applyPreparedRepetitiveCaptureDestinationDiscard(
         _ mutation: FieldDraftMutationV1,
         proof: PreparedReviewedFieldDraftApplyProofV1,
@@ -4172,7 +4199,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private func requireWorkLease(_ id:UUID,workspaceID:WorkspaceID)throws->WorkLeaseV1{guard case let .lease(v)=try workPacketValue(.init(kind:.workLease,id:id)),v.workspaceID==workspaceID else{throw WorkspaceMutationFailureV1.invalidCommand};return v}
     private func requireWorkRelease(_ id:UUID,workspaceID:WorkspaceID)throws->WorkReleaseV1{guard case let .release(v)=try workPacketValue(.init(kind:.workRelease,id:id)),v.workspaceID==workspaceID else{throw WorkspaceMutationFailureV1.invalidCommand};return v}
 
-    private func applyFieldDraft(_ mutation:FieldDraftMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let affected=try mutation.affectedIdentities;switch mutation.postImage{
+    private func applyFieldDraft(_ mutation:FieldDraftMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();guard mutation.continuationBinding==nil else{throw WorkspaceMutationFailureV1.invalidCommand};let affected=try mutation.affectedIdentities;switch mutation.postImage{
         case let .createCheckpoint(value):let identity=affected[0];guard case nil = try fieldDraftRow(identity) else{throw WorkspaceMutationFailureV1.sequenceCollision};modelContext.insert(try FieldDraftCheckpointRow(value))
         case let .reviseCheckpoint(value):let identity=affected[0];guard case let .checkpoint(row)?=try fieldDraftRow(identity)else{throw WorkspaceMutationFailureV1.staleEntityRevision(identity)};try row.replace(with:value,expectedRevision:mutation.expectedRevision)
         case let .publishReadyStage(bundle):

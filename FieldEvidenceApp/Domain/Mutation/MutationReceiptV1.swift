@@ -1533,6 +1533,12 @@ struct FieldDraftMutationReceiptV1: Codable, Equatable, Sendable {
                 }
             }
         }
+        if mutation.continuationBinding != nil {
+            guard Set(expected.keys) == Set(concurrency),
+                  concurrency.filter({ !affected.contains($0) }).allSatisfy({ resulting[$0] == expected[$0] }) else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+        }
         mutationSHA256 = try mutation.canonicalSHA256(); self.mutationReceipt = mutationReceipt
         affectedIdentities = affected; concurrencyIdentities = concurrency
     }

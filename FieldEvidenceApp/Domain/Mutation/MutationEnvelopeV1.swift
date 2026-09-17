@@ -112,7 +112,7 @@ struct MutationEnvelopeV1: Codable, Equatable, Sendable {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
         if case let .applyFieldDraft(mutation) = command,
-           case .resolveConflict = mutation.postImage {
+           mutation.requiresExplicitConcurrencyBinding {
             try mutation.validate()
             try mutation.validateReviewedTargetWorkspaceRevision(expectedRevision.workspaceRevision)
             let locks = try mutation.concurrencyIdentities

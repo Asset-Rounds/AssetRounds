@@ -2621,7 +2621,10 @@ final class MutationJournalStoreV1 {
     ) throws {
         guard ObjectIdentifier(context) == ObjectIdentifier(modelContext) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         let actual: FieldDraftCheckpointV1?
-        if case .applyDiscardTerminal = mutation.postImage {
+        if mutation.continuationBinding != nil {
+            actual = try validatePendingRepetitiveCaptureDestinationContinuationCore(
+                mutation, expectedWorkspaceRevision: expectedWorkspaceRevision)
+        } else if case .applyDiscardTerminal = mutation.postImage {
             actual = try validatePendingRepetitiveCaptureDestinationDiscardCore(
                 mutation, expectedWorkspaceRevision: expectedWorkspaceRevision)
         } else {
@@ -2629,6 +2632,117 @@ final class MutationJournalStoreV1 {
                 mutation, expectedWorkspaceRevision: expectedWorkspaceRevision)
         }
         guard actual == expectedCheckpoint else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+    }
+
+    func validatePendingRepetitiveCaptureDestinationContinuation(
+        _ mutation: FieldDraftMutationV1, expectedWorkspaceRevision: UInt64
+    ) throws -> PreparedReviewedFieldDraftApplyProofV1 {
+        let checkpoint = try validatePendingRepetitiveCaptureDestinationContinuationCore(
+            mutation, expectedWorkspaceRevision: expectedWorkspaceRevision)
+        return try .init(journal: self, mutation: mutation,
+            expectedWorkspaceRevision: expectedWorkspaceRevision, expectedCheckpoint: checkpoint)
+    }
+
+    private func validatePendingRepetitiveCaptureDestinationContinuationCore(
+        _ mutation: FieldDraftMutationV1, expectedWorkspaceRevision: UInt64
+    ) throws -> FieldDraftCheckpointV1 {
+        try mutation.validate()
+        guard let binding = mutation.continuationBinding,
+              case let .createCheckpoint(source) = mutation.postImage,
+              mutation.workspaceID == identity.workspaceID,
+              expectedWorkspaceRevision > 0, expectedWorkspaceRevision < UInt64(Int64.max) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        try validateCurrentWriterLease()
+        guard case .canonicalWriter = accessMode, !modelContext.hasChanges,
+              try domainRevision(requireState().workspaceRevision) == expectedWorkspaceRevision else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let snapshot = try exportSnapshot()
+        let history = try RepetitiveCaptureSourceGraphReviewV2.History(snapshot: snapshot)
+        guard !history.quarantinedKeys.contains(RepetitiveCaptureSourceGraphReviewV2.key(
+                mutation.workspaceID, mutation.mutationID)) else {
+            throw WorkspaceMutationFailureV1.mutationIDQuarantined
+        }
+        let tip = try currentFieldDraftCheckpoint(draftID: binding.review.draftID)
+        let lineage = try RepetitiveCaptureReviewLineageReaderV1.read(
+            workspaceID: tip.workspaceID, mutationID: tip.mutationID,
+            in: RepetitiveCaptureRetainedJournalHistoryV2(snapshot: snapshot))
+        guard lineage.selectedReview.checkpoint == tip else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        try requireAbsentRepetitiveCaptureContinuation(source.draftID, history: history)
+        let rounds = try WorkspaceWriterAdapterV1(modelContext: modelContext).roundSessionHistory(
+            workspaceID: binding.workspaceID, sessionID: binding.round.sessionID)
+        try RepetitiveCaptureDestinationContinuationV1.validate(mutation, against: lineage, currentRoundHistory: rounds)
+        // No content from either review or source history is transferred.
+        try validateRepetitiveCaptureReviewDiscardContent(draftID: tip.draftID, snapshot: snapshot, terminal: nil)
+        return tip
+    }
+
+    private func requireAbsentRepetitiveCaptureContinuation(
+        _ draftID: UUID, history: RepetitiveCaptureSourceGraphReviewV2.History
+    ) throws {
+        let checkpoints = try modelContext.fetchCount(FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let stages = try modelContext.fetchCount(FetchDescriptor<AttachmentStagingItemRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let reservations = try modelContext.fetchCount(FetchDescriptor<DraftContentReservationRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let sagas = try modelContext.fetchCount(FetchDescriptor<DraftCommitSagaRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let commits = try modelContext.fetchCount(FetchDescriptor<DraftCommitReceiptRow>(predicate: #Predicate { $0.draftID == draftID }))
+        let discards = try modelContext.fetchCount(FetchDescriptor<DraftDiscardReceiptRow>(predicate: #Predicate { $0.draftID == draftID }))
+        guard checkpoints == 0, stages == 0, reservations == 0, sagas == 0, commits == 0, discards == 0,
+              history.fieldDraftHistory(workspaceID: identity.workspaceID, draftID: draftID).isEmpty else {
+            throw WorkspaceMutationFailureV1.sequenceCollision
+        }
+    }
+
+    /// Recovery uses the exact recorded resolution and historical Round prefix.
+    /// A later Round change cannot cause a second source to be created.
+    func repetitiveCaptureDestinationContinuationEvidence(workspaceID: WorkspaceID, reviewDraftID: UUID) throws
+        -> RepetitiveCaptureDestinationContinuationEvidenceV1? {
+        guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.invalidCommand }
+        try validateCurrentWriterLease()
+        guard case .canonicalWriter = accessMode, !modelContext.hasChanges else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let snapshot = try exportSnapshot()
+        let retained = RepetitiveCaptureRetainedJournalHistoryV2(snapshot: snapshot)
+        let history = try RepetitiveCaptureSourceGraphReviewV2.History(snapshot: snapshot)
+        let tip = try currentFieldDraftCheckpoint(draftID: reviewDraftID)
+        let currentLineage = try RepetitiveCaptureReviewLineageReaderV1.read(
+            workspaceID: workspaceID, mutationID: tip.mutationID, in: retained)
+        guard currentLineage.selectedReview.checkpoint == tip else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let ids = try RepetitiveCaptureDestinationContinuationV1.ids(workspaceID: workspaceID, reviewDraftID: reviewDraftID)
+        let key = RepetitiveCaptureSourceGraphReviewV2.key(workspaceID, ids.mutationID)
+        guard !history.quarantinedKeys.contains(key) else { throw WorkspaceMutationFailureV1.mutationIDQuarantined }
+        guard history.records[key] != nil else {
+            try requireAbsentRepetitiveCaptureContinuation(ids.draftID, history: history)
+            return nil
+        }
+        let record = try history.authenticated(key)
+        let original = try FieldDraftCommittedEvidenceV1(envelope: record.envelope, receipt: record.receipt)
+        guard let binding = original.mutation.continuationBinding,
+              binding.workspaceID == workspaceID, binding.review.draftID == reviewDraftID,
+              currentLineage.selectedReview.prefix.contains(where: {
+                  $0.envelope.mutationID == binding.review.mutationID
+              }) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let boundLineage = try RepetitiveCaptureReviewLineageReaderV1.read(
+            workspaceID: workspaceID, mutationID: binding.review.mutationID, in: retained)
+        let rounds = history.roundsBySession[.init(workspaceID: workspaceID, id: binding.round.sessionID), default: []]
+            .filter { $0.revision <= binding.round.revision }.sorted { $0.revision < $1.revision }
+        for round in rounds {
+            let originalRound = try history.authenticated(workspaceID: workspaceID, mutationID: round.mutationID)
+            guard !history.isQuarantined(originalRound),
+                  case let .applyRoundSession(mutation) = originalRound.envelope.command,
+                  mutation.session == round else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        }
+        let evidence = try RepetitiveCaptureDestinationContinuationV1.evidence(
+            original: original, lineage: boundLineage, historicalRoundPrefix: rounds)
+        let currentSource = try currentFieldDraftCheckpoint(draftID: ids.draftID)
+        guard currentSource.workspaceID == workspaceID,
+              currentSource.codec == evidence.sourceCheckpoint.codec,
+              currentSource.scope == evidence.sourceCheckpoint.scope,
+              currentSource.payloadData == evidence.sourceCheckpoint.payloadData else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return evidence
     }
 
     func validatePendingRepetitiveCaptureDestinationDiscard(
