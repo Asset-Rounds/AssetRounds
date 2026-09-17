@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -585,6 +586,7 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: altered)
         }())
     }
+    @MainActor
     func testCompactReferenceAuthenticatesSourceAndAllOriginalCurrentFrontiers() throws {
         for sourceOnly in [true, false] {
             let fixture = try RepetitiveCaptureSourcePackageFixture(sourceOnly: sourceOnly)
@@ -595,6 +597,12 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
                 RepetitiveCaptureSourceGraphReviewV2.references(from: reviewed).first)
             try reference.validate(against: reviewed)
             let graph = try XCTUnwrap(reviewed.graphs.first)
+            let retained = try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+                for: reference, in: fixture.history)
+            XCTAssertEqual(retained.graph, graph)
+            XCTAssertEqual(retained.reference, reference)
+            XCTAssertEqual(retained.requiredHistory, reviewed.requiredHistory)
+            try assertRetainedDestinationReads(fixture: fixture, reference: reference, expected: retained)
             XCTAssertEqual(reference.value.checkpoints.count, sourceOnly ? 1 : 4)
             XCTAssertEqual(reference.value.sourceWorkspaceID, fixture.workspaceID)
             XCTAssertEqual(reference.value.sourceDraftID, graph.chain.sourceCheckpoint.draftID)
@@ -676,14 +684,39 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
                 rows.swapAt(1, 2)
                 for index in rows.indices { rows[index]["position"] = index }
                 value["checkpoints"] = rows
-            }
+            },
+            { $0["sourcePersistentSchemaVersion"] = PersistentSchemaV4.versionIdentifier.major - 1 },
+            { $0["sourcePersistentSchemaVersion"] = PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major + 1 }
         ]
-        for mutation in mutations {
+        for (index, mutation) in mutations.enumerated() {
             // These are canonical, internally rehashed values. Shape validity
             // alone must never authenticate their claimed source completeness.
             let forged = try modifiedReference(reference, mutation: mutation)
             XCTAssertNoThrow(try forged.validate())
             XCTAssertThrowsError(try forged.validate(against: reviewed))
+            // A retained-journal reader authenticates original records. Archive
+            // metadata additionally requires the original package or the
+            // destination receipt that bound it. The recorded schema must also
+            // support every selected original command and a known release.
+            if index != 1 {
+                XCTAssertThrowsError(try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+                    for: forged, in: fixture.history))
+            }
+        }
+        let original = try XCTUnwrap(fixture.history.receipts.first)
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+        let quarantine = MutationHistoryQuarantineRecordV1(
+            workspaceID: envelope.workspaceID, mutationID: envelope.mutationID.rawValue,
+            identityDomain: .mutationEnvelope, acceptedIdentitySHA256: try envelope.canonicalSHA256(),
+            conflictingIdentitySHA256: String(repeating: "f", count: 64),
+            detectedAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(1_000))
+        for snapshot in [
+            retainedSnapshot(fixture.history, receipts: Array(fixture.history.receipts.dropFirst())),
+            retainedSnapshot(fixture.history, receipts: fixture.history.receipts + [original]),
+            retainedSnapshot(fixture.history, quarantines: fixture.history.quarantines + [quarantine]),
+        ] {
+            XCTAssertThrowsError(try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+                for: reference, in: snapshot))
         }
         XCTAssertThrowsError(try modifiedReference(reference) { value in
             var rows = try XCTUnwrap(value["checkpoints"] as? [[String: Any]])
@@ -713,6 +746,10 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             XCTAssertEqual(frontier.current.state, state)
             XCTAssertEqual(frontier.current.draftRevision, graph.checkpoints.first?.current.draftRevision)
             XCTAssertFalse(reference.value.isUnchangedActiveSource)
+            let retained = try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+                for: reference, in: fixture.history)
+            XCTAssertEqual(retained.graph, graph)
+            XCTAssertEqual(retained.reference, reference)
             XCTAssertEqual(reference.value.historicalRound.canonicalSHA256,
                            try RoundSessionCanonicalCodecV1.sha256(graph.chain.currentRound))
             XCTAssertEqual(reference.value.packageCurrentRound.canonicalSHA256,
@@ -745,11 +782,18 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         XCTAssertEqual(base.value.roundHistory, unrelated.value.roundHistory)
         XCTAssertEqual(base.value.requiredHistory, unrelated.value.requiredHistory)
         XCTAssertNotEqual(base.value.recordsJSONSHA256, unrelated.value.recordsJSONSHA256)
+        let transported = try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+            for: base, in: fixtures[1].history)
+        XCTAssertEqual(transported.graph, reviews[0].graphs.first)
+        XCTAssertEqual(transported.requiredHistory, reviews[0].requiredHistory)
         XCTAssertLessThan(unrelated.value.requiredHistory.recordCount, fixtures[1].history.receipts.count)
         XCTAssertEqual(allReferences[2].count, 2)
         XCTAssertEqual(Set(allReferences[2].map { $0.value.sourceDraftID }).count, 2)
         for (reference, graph) in zip(allReferences[2], reviews[2].graphs) {
             try reference.validate(against: reviews[2])
+            let retained = try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+                for: reference, in: fixtures[2].history)
+            XCTAssertEqual(retained.graph, graph)
             XCTAssertEqual(reference.value.checkpoints.map(\.draftID), graph.checkpoints.map { $0.original.draftID })
             XCTAssertEqual(reference.value.requiredHistory.recordCount,
                 graph.checkpoints.reduce(0) { $0 + $1.lifecycle.count } + fixtures[2].rounds.count)
@@ -777,6 +821,11 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         trace("references-complete")
         try reference.validate(against: reviewed)
         trace("reference-validation-complete")
+        let retained = try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+            for: reference, in: fixture.history)
+        trace("retained-history-validation-complete")
+        XCTAssertEqual(retained.graph, reviewed.graphs.first)
+        XCTAssertEqual(retained.requiredHistory, reviewed.requiredHistory)
         let data = try FieldDraftCanonicalCodecV1.encode(reference)
         trace("reference-encoding-complete")
         XCTAssertEqual(reference.value.checkpoints.count, 401)
@@ -807,6 +856,16 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         let short = references[0], long = references[1]
         try short.validate(against: reviews[0])
         try long.validate(against: reviews[1])
+        let originalPrefix = try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+            for: short, in: fixtures[1].history)
+        XCTAssertEqual(originalPrefix.graph, reviews[0].graphs.first)
+        XCTAssertEqual(originalPrefix.requiredHistory, reviews[0].requiredHistory)
+        let completeLong = try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+            for: long, in: fixtures[1].history)
+        XCTAssertEqual(completeLong.graph, reviews[1].graphs.first)
+        XCTAssertEqual(completeLong.requiredHistory, reviews[1].requiredHistory)
+        XCTAssertThrowsError(try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+            for: long, in: fixtures[0].history))
         XCTAssertEqual(short.value.checkpoints.count, long.value.checkpoints.count)
         XCTAssertEqual(long.value.checkpoints.first?.lifecycle.recordCount, 514)
         XCTAssertEqual(long.value.checkpoints.first?.current.draftRevision, 514)
@@ -825,6 +884,102 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
 }
 
 private extension V23RepetitiveCaptureSourceGraphReviewTests {
+    func retainedSnapshot(_ original: MutationHistorySnapshotV1,
+                          receipts: [MutationHistoryReceiptRecordV1]? = nil,
+                          quarantines: [MutationHistoryQuarantineRecordV1]? = nil)
+        -> MutationHistorySnapshotV1 {
+        .init(workspaceRevision: original.workspaceRevision, lastLocalSequence: original.lastLocalSequence,
+              receipts: receipts ?? original.receipts, quarantines: quarantines ?? original.quarantines,
+              entityRevisions: original.entityRevisions)
+    }
+
+    @MainActor
+    func assertRetainedDestinationReads(fixture: RepetitiveCaptureSourcePackageFixture,
+                                        reference: RepetitiveCaptureSourceGraphReferenceV2,
+                                        expected: RepetitiveCaptureRetainedOriginalsV2) throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c36-retained-reader-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = try RetainedSourceHistoryTargetV2(root: root, records: fixture.history.receipts)
+        defer { try? target.close() }
+        XCTAssertNotEqual(target.session.workspaceID, reference.value.sourceWorkspaceID)
+        let before = try target.rawState()
+        // A valid live destination may retain original foreign receipts with
+        // no current source rows or entity projection. Such history is not a
+        // complete import snapshot and cannot use its separate admission path.
+        XCTAssertNoThrow(try target.journal.validateAll())
+        let foreignHistory = try target.journal.exportSnapshot()
+        XCTAssertTrue(foreignHistory.entityRevisions.isEmpty)
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(foreignHistory))
+        XCTAssertEqual(try target.journal.repetitiveCaptureRetainedOriginals(for: reference), expected)
+        XCTAssertEqual(try target.writer.repetitiveCaptureRetainedOriginals(for: reference), expected)
+        XCTAssertEqual(try target.rawState(), before)
+        XCTAssertFalse(target.context.hasChanges)
+        XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<FieldDraftCheckpointRow>()), 0)
+        XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<RoundSessionRevisionRowV1>()), 0)
+        XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<WorkflowRecord>()), 0)
+
+        let original = try XCTUnwrap(expected.requiredHistory.first)
+        let row = try XCTUnwrap(target.context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+            $0.workspaceMutationKey == MutationWorkspaceKeyV1.value(
+                workspaceID: original.envelope.workspaceID, mutationID: original.envelope.mutationID)
+        })
+        let digest = row.receiptSHA256
+        row.receiptSHA256 = String(repeating: "f", count: 64)
+        XCTAssertTrue(target.context.hasChanges)
+        let dirty = try target.rawState()
+        XCTAssertThrowsError(try target.journal.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertThrowsError(try target.writer.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertEqual(try target.rawState(), dirty)
+        target.context.rollback()
+        XCTAssertEqual(try target.rawState(), before)
+
+        row.receiptSHA256 = String(repeating: "f", count: 64)
+        try target.context.save()
+        let corrupt = try target.rawState()
+        XCTAssertThrowsError(try target.journal.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertThrowsError(try target.writer.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertEqual(try target.rawState(), corrupt)
+        row.receiptSHA256 = digest
+        try target.context.save()
+        XCTAssertEqual(try target.rawState(), before)
+
+        let quarantine = MutationQuarantineRow(
+            workspaceID: original.envelope.workspaceID, mutationID: original.envelope.mutationID,
+            identityDomain: .mutationEnvelope, acceptedIdentitySHA256: original.receipt.envelopeSHA256,
+            conflictingIdentitySHA256: String(repeating: "b", count: 64),
+            detectedAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(1_000))
+        target.context.insert(quarantine)
+        try target.context.save()
+        let quarantined = try target.rawState()
+        XCTAssertThrowsError(try target.journal.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertThrowsError(try target.writer.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertEqual(try target.rawState(), quarantined)
+        target.context.delete(quarantine)
+        try target.context.save()
+
+        target.context.delete(row)
+        try target.context.save()
+        let missing = try target.rawState()
+        XCTAssertThrowsError(try target.journal.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertThrowsError(try target.writer.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertEqual(try target.rawState(), missing)
+        try target.insert(original.original)
+        try target.context.save()
+        XCTAssertEqual(try target.rawState(), before)
+        XCTAssertEqual(try target.writer.repetitiveCaptureRetainedOriginals(for: reference), expected)
+
+        try target.closeJournalLease()
+        let retired = try target.rawState()
+        XCTAssertThrowsError(try target.journal.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertEqual(try target.rawState(), retired)
+        // The independent coordinator writer lease is still live.
+        XCTAssertEqual(try target.writer.repetitiveCaptureRetainedOriginals(for: reference), expected)
+        target.writer.invalidate()
+        XCTAssertThrowsError(try target.writer.repetitiveCaptureRetainedOriginals(for: reference))
+        XCTAssertEqual(try target.rawState(), retired)
+    }
+
     func modifiedReference(_ reference: RepetitiveCaptureSourceGraphReferenceV2,
                            mutation: (inout [String: Any]) throws -> Void) throws
         -> RepetitiveCaptureSourceGraphReferenceV2 {
@@ -885,5 +1040,123 @@ private extension V23RepetitiveCaptureSourceGraphReviewTests {
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(decoded).data
             XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(canonical), decoded)
         }
+    }
+}
+
+
+@MainActor
+private final class RetainedSourceHistoryTargetV2 {
+    struct RawState: Equatable {
+        let receipts: [[String]]
+        let quarantines: [[String]]
+        let states: [[String]]
+        let revisions: [[String]]
+        let canonicalCounts: [Int]
+        let hasChanges: Bool
+    }
+
+    let factory: StoreGenerationFactory
+    let session: StoreGenerationSession
+    let coordinator: StoreSessionCoordinator
+    let journal: MutationJournalStoreV1
+    private let journalLease: GenerationLeaseHandleV1
+    private var journalLeaseClosed = false
+    private var coordinatorClosed = false
+    var context: ModelContext { session.modelContext }
+    var writer: WorkspaceWriterV1 { coordinator.workspaceWriter }
+
+    init(root: URL, records: [MutationHistoryReceiptRecordV1]) throws {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: UUID()), replicaID: ReplicaID(rawValue: UUID()))
+        let localFactory = StoreGenerationFactory(applicationSupportURL: root,
+                                                 pointerEnrichmentIdentity: identity)
+        factory = localFactory
+        let localSession = try localFactory.openOrBootstrapCurrent()
+        session = localSession
+        coordinator = try StoreSessionCoordinator(validatingSession: localSession,
+            lifecycleProfileRegistry: WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        guard let epoch = localSession.generationEpoch else {
+            throw WorkspaceMutationFailureV1.wrongGeneration
+        }
+        let leases = try localFactory.makeGenerationLeaseRegistry()
+        let lease = try leases.acquireHandle(epoch: epoch, role: .writer)
+        journalLease = lease
+        journal = try MutationJournalStoreV1(modelContext: localSession.modelContext,
+            identity: localSession.workspaceIdentity, generationID: localSession.generationID,
+            allowStateBootstrap: false,
+            staleWriterFence: localFactory.makeWriterFence(expectedGenerationEpoch: epoch,
+                writerLeaseToken: lease.token, registry: leases))
+        for record in records { try insert(record) }
+        try context.save()
+    }
+
+    func insert(_ record: MutationHistoryReceiptRecordV1) throws {
+        let row = try MutationReceiptRow(
+            envelope: MutationEnvelopeV1.decodeCanonical(from: record.envelopeData),
+            receipt: MutationReceiptV1.decodeCanonical(from: record.receiptData),
+            reversalBasis: record.reversalBasisData.map { try ReversalBasisV1.decodeCanonical(from: $0) },
+            semanticReversal: record.semanticReversalData.map { try SemanticReversalReceiptV1.decodeCanonical(from: $0) })
+        context.insert(row)
+    }
+
+    func rawState() throws -> RawState {
+        let receipts: [[String]] = try context.fetch(FetchDescriptor<MutationReceiptRow>())
+            .sorted { $0.workspaceMutationKey < $1.workspaceMutationKey }
+            .map { row -> [String] in
+                [row.mutationID.uuidString, row.workspaceMutationKey, row.receiptIdentity,
+                 row.workspaceID.uuidString, row.replicaID.uuidString, String(row.localSequence),
+                 row.commandKind, row.envelopeData.base64EncodedString(), row.envelopeSHA256,
+                 row.receiptData.base64EncodedString(), row.receiptSHA256,
+                 String(describing: row.reversalBasisData?.base64EncodedString()),
+                 String(describing: row.reversalBasisSHA256),
+                 String(describing: row.semanticReversalData?.base64EncodedString())]
+            }
+        let quarantines: [[String]] = try context.fetch(FetchDescriptor<MutationQuarantineRow>())
+            .sorted { $0.workspaceMutationKey < $1.workspaceMutationKey }
+            .map { row -> [String] in
+                [row.workspaceID.uuidString, row.mutationID.uuidString, row.workspaceMutationKey,
+                 row.identityDomain, row.acceptedIdentitySHA256, row.conflictingIdentitySHA256,
+                 String(row.detectedAt.timeIntervalSinceReferenceDate)]
+            }
+        let states: [[String]] = try context.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+            .sorted { $0.workspaceID.uuidString < $1.workspaceID.uuidString }
+            .map { row -> [String] in
+                [row.workspaceID.uuidString, row.generationID.uuidString, row.activeReplicaID.uuidString,
+                 String(row.workspaceRevision), String(row.lastLocalSequence),
+                 String(describing: row.mutableSemanticSHA256)]
+            }
+        let revisions: [[String]] = try context.fetch(FetchDescriptor<EntityMutationRevisionRow>())
+            .sorted { $0.stableIdentity < $1.stableIdentity }
+            .map { row -> [String] in
+                [row.stableIdentity, row.kind, row.entityID.uuidString, String(row.revision),
+                 String(describing: row.externalProjectionSHA256)]
+            }
+        let counts = try [context.fetchCount(FetchDescriptor<FieldDraftCheckpointRow>()),
+                          context.fetchCount(FetchDescriptor<RoundSessionRevisionRowV1>()),
+                          context.fetchCount(FetchDescriptor<WorkflowRecord>()),
+                          context.fetchCount(FetchDescriptor<Site>()),
+                          context.fetchCount(FetchDescriptor<Asset>())]
+        return .init(receipts: receipts, quarantines: quarantines, states: states,
+                     revisions: revisions, canonicalCounts: counts, hasChanges: context.hasChanges)
+    }
+
+    func closeJournalLease() throws {
+        guard !journalLeaseClosed else { return }
+        try journalLease.close()
+        journalLeaseClosed = true
+    }
+
+    func close() throws {
+        if !coordinatorClosed {
+            do {
+                try coordinator.invalidateAndReleaseWriter()
+                coordinatorClosed = true
+            } catch {
+                try? closeJournalLease()
+                throw error
+            }
+        }
+        try closeJournalLease()
     }
 }

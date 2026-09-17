@@ -475,6 +475,193 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
     private static func invalid() -> WorkspaceMutationFailureV1 { .receiptHistoryCorrupt }
 }
 
+/// Original records authenticated relative to one compact reference. This is
+/// historical evidence, not a destination checkpoint, package capability,
+/// readiness result or permission to repeat an effect. The eventual destination
+/// owner must also authenticate the receipt that selected this exact reference.
+struct RepetitiveCaptureRetainedOriginalsV2: Equatable, Sendable {
+    let reference: RepetitiveCaptureSourceGraphReferenceV2
+    let graph: ReviewedRepetitiveCaptureSourceGraphV2
+    let requiredHistory: [RepetitiveCaptureSourceHistoryRecordV2]
+
+    fileprivate init(reference: RepetitiveCaptureSourceGraphReferenceV2,
+                     graph: ReviewedRepetitiveCaptureSourceGraphV2,
+                     requiredHistory: [RepetitiveCaptureSourceHistoryRecordV2]) {
+        self.reference = reference
+        self.graph = graph
+        self.requiredHistory = requiredHistory
+    }
+}
+
+extension RepetitiveCaptureSourceGraphReviewV2 {
+    /// Raw imported snapshots retain the complete import/projection predicate.
+    static func retainedOriginals(
+        for reference: RepetitiveCaptureSourceGraphReferenceV2,
+        in snapshot: MutationHistorySnapshotV1
+    ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
+        try MutationJournalStoreV1.validateImportedSnapshot(snapshot)
+        return try reconstructRetainedOriginals(for: reference, in: snapshot)
+    }
+
+    /// Only the live journal can seal this fully validated immutable history.
+    /// Foreign originals do not imply current source rows in the destination.
+    static func retainedOriginals(
+        for reference: RepetitiveCaptureSourceGraphReferenceV2,
+        in history: RepetitiveCaptureRetainedJournalHistoryV2
+    ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
+        try reconstructRetainedOriginals(for: reference, in: history.snapshot)
+    }
+
+    /// Both complete-history entry points reconstruct the same historical
+    /// namespace/frontiers. Original package hashes remain historical claims;
+    /// this reader does not reauthenticate an unavailable original archive.
+    private static func reconstructRetainedOriginals(
+        for reference: RepetitiveCaptureSourceGraphReferenceV2,
+        in snapshot: MutationHistorySnapshotV1
+    ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
+        try reference.validate()
+        let sourceSchema = reference.value.sourcePersistentSchemaVersion
+        guard sourceSchema >= PersistentSchemaV4.versionIdentifier.major,
+              sourceSchema <= PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major else {
+            throw invalid()
+        }
+        let history = try History(snapshot: snapshot)
+        let workspace = reference.value.sourceWorkspaceID
+        var selected: [String: RepetitiveCaptureSourceHistoryRecordV2] = [:]
+        var current: [UUID: FieldDraftCheckpointV1] = [:]
+        var discarded: [UUID: [DraftDiscardReceiptV1]] = [:]
+
+        for frontier in reference.value.checkpoints {
+            let first = try retainedAnchor(frontier.original.record, workspace: workspace, history: history)
+            let last = try retainedAnchor(frontier.current.record, workspace: workspace, history: history)
+            guard case let .applyFieldDraft(firstMutation) = first.envelope.command,
+                  case let .createCheckpoint(original) = firstMutation.postImage,
+                  case let .applyFieldDraft(lastMutation) = last.envelope.command,
+                  let tip = checkpointPostImage(lastMutation.postImage),
+                  original.workspaceID == workspace, original.draftID == frontier.draftID,
+                  tip.workspaceID == workspace, tip.draftID == frontier.draftID,
+                  original.draftRevision == frontier.original.draftRevision,
+                  original.state == frontier.original.state,
+                  original.checkpointSHA256 == frontier.original.checkpointSHA256,
+                  tip.draftRevision == frontier.current.draftRevision,
+                  tip.state == frontier.current.state,
+                  tip.checkpointSHA256 == frontier.current.checkpointSHA256 else { throw invalid() }
+            current[frontier.draftID] = tip
+            if case let .applyDiscardTerminal(bundle) = lastMutation.postImage {
+                discarded[frontier.draftID] = [bundle.receipt]
+            }
+            let prefix = history.checkpointsByDraft[
+                .init(workspaceID: workspace, id: frontier.draftID), default: []]
+                .filter { $0.receipt.resultingRevision.workspaceRevision
+                    <= last.receipt.resultingRevision.workspaceRevision }
+            guard prefix.count == frontier.lifecycle.recordCount else { throw invalid() }
+            for candidate in prefix {
+                let record = try history.authenticated(key(candidate.envelope))
+                guard !history.isQuarantined(record) else { throw invalid() }
+                selected[key(record.envelope)] = record
+            }
+        }
+
+        let sessionID = reference.value.roundSessionID
+        let rounds = history.roundsBySession[
+            .init(workspaceID: workspace, id: sessionID), default: []]
+            .filter { $0.revision <= reference.value.packageCurrentRound.revision }
+            .sorted { $0.revision < $1.revision }
+        guard rounds.count == reference.value.roundHistory.recordCount,
+              let packageCurrent = try RoundSessionHistoryValidatorV1.validate(
+                rounds, workspaceID: workspace, sessionID: sessionID),
+              packageCurrent.revision == reference.value.packageCurrentRound.revision else { throw invalid() }
+        var previousReceiptRevision: UInt64?
+        for round in rounds {
+            let record = try roundRecord(round, history: history)
+            guard !history.isQuarantined(record),
+                  previousReceiptRevision.map({ record.receipt.resultingRevision.workspaceRevision > $0 }) ?? true
+            else { throw invalid() }
+            previousReceiptRevision = record.receipt.resultingRevision.workspaceRevision
+            selected[key(record.envelope)] = record
+        }
+
+        // This is an index over records selected from the validated full
+        // snapshot, not a replacement snapshot or imported workspace state.
+        let originals = selected.values.sorted(by: recordLess)
+        guard originals.count == reference.value.requiredHistory.recordCount,
+              originals.allSatisfy({
+                  MutationJournalStoreV1.minimumPersistentSchemaVersion(for: $0.envelope.command)
+                    <= sourceSchema
+              }) else { throw invalid() }
+        let bounded = try History(snapshot: .init(
+            workspaceRevision: snapshot.workspaceRevision, lastLocalSequence: snapshot.lastLocalSequence,
+            receipts: originals.map(\.original), quarantines: snapshot.quarantines,
+            entityRevisions: snapshot.entityRevisions))
+        let checkpoints = try reference.value.checkpoints.map { frontier in
+            guard let tip = current[frontier.draftID] else { throw invalid() }
+            return try checkpointHistory(current: tip, history: bounded,
+                discardReceipts: discarded[frontier.draftID, default: []])
+        }
+        guard let source = checkpoints.first?.original else { throw invalid() }
+        let launch = try RepetitiveCaptureProgressDraftCodecV2.source(source)
+        let createImages = checkpoints.map(\.original)
+        let effective = try frontier(source: source, originals: createImages, history: bounded)
+        let unchangedActive = checkpoints.allSatisfy { $0.original == $0.current }
+        guard launch.round.sessionID == sessionID, rounds.contains(effective),
+              unchangedActive == reference.value.isUnchangedActiveSource,
+              !unchangedActive || packageCurrent == effective else { throw invalid() }
+        let selectedRounds = unchangedActive ? rounds : rounds.filter { $0.revision <= effective.revision }
+        let byID = Dictionary(uniqueKeysWithValues: checkpoints.map { ($0.original.draftID, $0) })
+        let chain = try RepetitiveCaptureProgressChainReviewV2.review(
+            workspaceID: workspace, sourceDraftID: source.draftID,
+            authenticatedProgressCheckpoint: { requestedWorkspace, id in
+                guard requestedWorkspace == workspace, let checkpoint = byID[id],
+                      let record = checkpoint.lifecycle.first else { throw invalid() }
+                return (checkpoint.original, record.receipt)
+            },
+            progressRoundHistory: { requestedWorkspace, requestedSession in
+                guard requestedWorkspace == workspace, requestedSession == sessionID else { throw invalid() }
+                return selectedRounds
+            },
+            requireProgressLaunchReceipt: { round in
+                guard round == launch.round else { throw invalid() }
+                return try roundRecord(round, history: bounded).receipt
+            },
+            progressCheckpoints: { requestedWorkspace in
+                guard requestedWorkspace == workspace else { throw invalid() }
+                return createImages
+            },
+            durableReceipt: { mutationID in
+                guard let record = bounded.records[key(workspace, mutationID)] else { return nil }
+                guard case .applyRoundSession = record.envelope.command else { throw invalid() }
+                return record.receipt
+            })
+        guard [source.draftID] + chain.nodes.map({ $0.checkpoint.draftID })
+                == reference.value.checkpoints.map(\.draftID) else { throw invalid() }
+        let graph = ReviewedRepetitiveCaptureSourceGraphV2(chain: chain, checkpoints: checkpoints,
+            packageCurrentRound: packageCurrent, isUnchangedActiveSource: unchangedActive)
+        let roundRecords = try rounds.map { try roundRecord($0, history: bounded) }
+        let roundEvidence = SourceReferenceRoundEvidence(
+            commitment: try sourceHistoryCommitment(roundRecords, role: "round"),
+            records: Dictionary(uniqueKeysWithValues: roundRecords.map { ($0.envelope.mutationID, $0) }))
+        let reconstructed = try sourceReference(graph: graph, sourceWorkspaceID: workspace,
+            sourcePersistentSchemaVersion: reference.value.sourcePersistentSchemaVersion,
+            sourceRecordsSchemaVersion: reference.value.sourceRecordsSchemaVersion,
+            manifestJSONSHA256: reference.value.manifestJSONSHA256,
+            recordsJSONSHA256: reference.value.recordsJSONSHA256, rounds: roundEvidence)
+        guard reconstructed == reference else { throw invalid() }
+        return .init(reference: reference, graph: graph, requiredHistory: originals)
+    }
+
+    private static func retainedAnchor(_ anchor: RepetitiveCaptureSourceGraphReferenceV2.RecordAnchor,
+                                       workspace: WorkspaceID, history: History) throws
+        -> RepetitiveCaptureSourceHistoryRecordV2 {
+        let record = try history.authenticated(workspaceID: workspace, mutationID: anchor.mutationID)
+        guard !history.isQuarantined(record), record.receipt.identity == anchor.receiptIdentity,
+              FieldDraftCanonicalCodecV1.sha256(record.original.envelopeData) == anchor.envelopeSHA256,
+              FieldDraftCanonicalCodecV1.sha256(record.original.receiptData) == anchor.receiptSHA256 else {
+            throw invalid()
+        }
+        return record
+    }
+}
+
 /// A bounded commitment to original source evidence. Decoding or validating its
 /// shape grants no receipt, current readiness, destination identity or writer authority.
 struct RepetitiveCaptureSourceGraphReferenceV2: Codable, Equatable, Sendable,
@@ -634,7 +821,6 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
     /// graph/history arrays can enter this source-reference construction boundary.
     static func references(from reviewed: ReviewedRepetitiveCaptureSourceGraphsV2) throws
         -> [RepetitiveCaptureSourceGraphReferenceV2] {
-        typealias Reference = RepetitiveCaptureSourceGraphReferenceV2
         var roundsBySession: [UUID: [RepetitiveCaptureSourceHistoryRecordV2]] = [:]
         for record in reviewed.requiredHistory {
             if case let .applyRoundSession(mutation) = record.envelope.command {
@@ -652,40 +838,57 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
         return try reviewed.graphs.map { graph in
             let sessionID = graph.packageCurrentRound.sessionID
             guard let rounds = roundEvidence[sessionID] else { throw invalid() }
-            let frontiers = try graph.checkpoints.enumerated().map { position, checkpoint in
-                guard let first = checkpoint.lifecycle.first, let last = checkpoint.lifecycle.last else {
-                    throw invalid()
-                }
-                return Reference.CheckpointFrontier(position: position,
-                    draftID: checkpoint.original.draftID,
-                    original: .init(checkpoint.original, record: first),
-                    current: .init(checkpoint.current, record: last),
-                    lifecycle: try sourceHistoryCommitment(checkpoint.lifecycle, role: "checkpoint"))
-            }
-            let unionChunks = frontiers.map {
-                SourceReferenceHistoryChunk(role: "checkpoint", position: $0.position,
-                    objectID: $0.draftID, commitment: $0.lifecycle)
-            } + [.init(role: "round", position: frontiers.count,
-                       objectID: sessionID, commitment: rounds.commitment)]
-            let unionCount = unionChunks.reduce(0) { $0 + $1.commitment.recordCount }
-            // Checkpoint lifecycle records and Round records have disjoint
-            // command kinds; unique draft membership makes these chunks disjoint.
-            let union = Reference.HistoryCommitment(recordCount: unionCount,
-                recordsSHA256: try sourceCommitmentDigest(
-                    role: "union", count: unionCount, frames: unionChunks))
-            return try Reference(value: .init(format: Reference.format,
-                sourceWorkspaceID: reviewed.sourceWorkspaceID,
+            return try sourceReference(graph: graph, sourceWorkspaceID: reviewed.sourceWorkspaceID,
                 sourcePersistentSchemaVersion: reviewed.sourcePersistentSchemaVersion,
                 sourceRecordsSchemaVersion: reviewed.sourceRecordsSchemaVersion,
                 manifestJSONSHA256: reviewed.manifestJSONSHA256,
-                recordsJSONSHA256: reviewed.recordsJSONSHA256,
-                sourceDraftID: graph.chain.sourceCheckpoint.draftID, checkpoints: frontiers,
-                roundSessionID: sessionID,
-                historicalRound: try sourceReferenceRoundTip(graph.chain.currentRound, evidence: rounds),
-                packageCurrentRound: try sourceReferenceRoundTip(graph.packageCurrentRound, evidence: rounds),
-                roundHistory: rounds.commitment, requiredHistory: union,
-                isUnchangedActiveSource: graph.isUnchangedActiveSource))
+                recordsJSONSHA256: reviewed.recordsJSONSHA256, rounds: rounds)
         }
+    }
+
+    /// Shared frozen value encoding. This does not construct the sealed
+    /// package-review aggregate when reading a retained historical reference.
+    private static func sourceReference(
+        graph: ReviewedRepetitiveCaptureSourceGraphV2, sourceWorkspaceID: WorkspaceID,
+        sourcePersistentSchemaVersion: Int, sourceRecordsSchemaVersion: Int,
+        manifestJSONSHA256: String, recordsJSONSHA256: String,
+        rounds: SourceReferenceRoundEvidence
+    ) throws -> RepetitiveCaptureSourceGraphReferenceV2 {
+        typealias Reference = RepetitiveCaptureSourceGraphReferenceV2
+        let sessionID = graph.packageCurrentRound.sessionID
+        let frontiers = try graph.checkpoints.enumerated().map { position, checkpoint in
+            guard let first = checkpoint.lifecycle.first, let last = checkpoint.lifecycle.last else {
+                throw invalid()
+            }
+            return Reference.CheckpointFrontier(position: position,
+                draftID: checkpoint.original.draftID,
+                original: .init(checkpoint.original, record: first),
+                current: .init(checkpoint.current, record: last),
+                lifecycle: try sourceHistoryCommitment(checkpoint.lifecycle, role: "checkpoint"))
+        }
+        let unionChunks = frontiers.map {
+            SourceReferenceHistoryChunk(role: "checkpoint", position: $0.position,
+                objectID: $0.draftID, commitment: $0.lifecycle)
+        } + [.init(role: "round", position: frontiers.count,
+                   objectID: sessionID, commitment: rounds.commitment)]
+        let unionCount = unionChunks.reduce(0) { $0 + $1.commitment.recordCount }
+        // Checkpoint lifecycle records and Round records have disjoint
+        // command kinds; unique draft membership makes these chunks disjoint.
+        let union = Reference.HistoryCommitment(recordCount: unionCount,
+            recordsSHA256: try sourceCommitmentDigest(
+                role: "union", count: unionCount, frames: unionChunks))
+        return try Reference(value: .init(format: Reference.format,
+            sourceWorkspaceID: sourceWorkspaceID,
+            sourcePersistentSchemaVersion: sourcePersistentSchemaVersion,
+            sourceRecordsSchemaVersion: sourceRecordsSchemaVersion,
+            manifestJSONSHA256: manifestJSONSHA256,
+            recordsJSONSHA256: recordsJSONSHA256,
+            sourceDraftID: graph.chain.sourceCheckpoint.draftID, checkpoints: frontiers,
+            roundSessionID: sessionID,
+            historicalRound: try sourceReferenceRoundTip(graph.chain.currentRound, evidence: rounds),
+            packageCurrentRound: try sourceReferenceRoundTip(graph.packageCurrentRound, evidence: rounds),
+            roundHistory: rounds.commitment, requiredHistory: union,
+            isUnchangedActiveSource: graph.isUnchangedActiveSource))
     }
 
     private struct SourceReferenceRoundEvidence {

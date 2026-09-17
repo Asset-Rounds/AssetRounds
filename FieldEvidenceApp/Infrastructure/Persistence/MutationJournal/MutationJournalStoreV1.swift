@@ -28,6 +28,17 @@ struct StoreMigrationLegacyAssurancePredictionV1: Equatable {
     let timestamp: Date
 }
 
+/// Immutable history read from the live journal after its complete validation.
+/// Foreign originals need no current source projection in this destination.
+/// The file-sealed initializer cannot grant package or destination authority.
+struct RepetitiveCaptureRetainedJournalHistoryV2: Sendable {
+    let snapshot: MutationHistorySnapshotV1
+
+    fileprivate init(snapshot: MutationHistorySnapshotV1) {
+        self.snapshot = snapshot
+    }
+}
+
 /// A successful, immutable result from the complete imported-history validator.
 /// Its initializer and captured snapshot stay file-private so another caller
 /// cannot manufacture facts or apply them to different history bytes.
@@ -2154,6 +2165,21 @@ final class MutationJournalStoreV1 {
             }
         } catch {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+    }
+
+    /// Reads complete retained originals under the current reader lease. The
+    /// supplied reference is historical data; destination receipt/publication
+    /// binding and current readiness remain separate requirements.
+    func repetitiveCaptureRetainedOriginals(
+        for reference: RepetitiveCaptureSourceGraphReferenceV2
+    ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try validateCheckRunnerBeginHistoryValue {
+            let snapshot = try exportSnapshot()
+            let history = RepetitiveCaptureRetainedJournalHistoryV2(snapshot: snapshot)
+            return try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(for: reference, in: history)
         }
     }
 

@@ -2531,6 +2531,16 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         }
     }
 
+    /// Historical source evidence only. This does not accept a destination
+    /// checkpoint, acquire readiness or replay an original mutation.
+    func repetitiveCaptureRetainedOriginals(
+        for reference: RepetitiveCaptureSourceGraphReferenceV2
+    ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        return try journalStore.repetitiveCaptureRetainedOriginals(for: reference)
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
