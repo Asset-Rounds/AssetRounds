@@ -249,6 +249,15 @@ struct RepetitiveCaptureDestinationReviewPayloadV1: Codable, Equatable, Sendable
         guard self == expected else { throw FieldDraftFailureV1.digestMismatch }
     }
 
+    /// Rebuild coverage from authenticated retained originals, never from the
+    /// pair list's own claims. Original archive hashes remain historical data.
+    func validateFirstSource(against retained: RepetitiveCaptureRetainedOriginalsV2) throws {
+        let expected = try RepetitiveCaptureDestinationReviewV1.firstPayload(
+            source: retained.reference, graph: retained.graph,
+            mode: provenance.mode, workspace: provenance.destinationWorkspaceID)
+        guard self == expected else { throw FieldDraftFailureV1.digestMismatch }
+    }
+
     private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, tag, source, provenance }
     init(from decoder: Decoder) throws {
         try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
@@ -318,7 +327,19 @@ enum RepetitiveCaptureDestinationReviewV1 {
               graph.checkpoints.map({ $0.original.draftID }) == source.value.checkpoints.map(\.draftID) else {
             throw FieldDraftFailureV1.invalidValue
         }
-        let workspace = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        return try firstPayload(source: source, graph: graph, mode: mode,
+            workspace: WorkspaceID(rawValue: identity.targetPointer.workspaceID))
+    }
+
+    fileprivate static func firstPayload(source: RepetitiveCaptureSourceGraphReferenceV2,
+                                         graph: ReviewedRepetitiveCaptureSourceGraphV2,
+                                         mode: RepetitiveCaptureReviewModeV1,
+                                         workspace: WorkspaceID) throws
+        -> RepetitiveCaptureDestinationReviewPayloadV1 {
+        guard workspace != source.value.sourceWorkspaceID,
+              graph.chain.sourceCheckpoint.draftID == source.value.sourceDraftID,
+              graph.checkpoints.map({ $0.original.draftID }) == source.value.checkpoints.map(\.draftID)
+        else { throw FieldDraftFailureV1.wrongWorkspace }
         var required = Set<RepetitiveCaptureReviewRelationsV1.Key>()
         for frontier in source.value.checkpoints { required.insert(.init(kind: .checkpoint, id: frontier.draftID)) }
         required.insert(.init(kind: .roundSession, id: source.value.roundSessionID))
@@ -410,7 +431,8 @@ enum RepetitiveCaptureDestinationReviewCodecV1 {
             throw FieldDraftFailureV1.invalidValue
         }
     }
-    fileprivate static func initialIDs(payload: RepetitiveCaptureDestinationReviewPayloadV1,
+    /// Pure deterministic identity derivation; these IDs grant no source or receipt authority.
+    static func initialIDs(payload: RepetitiveCaptureDestinationReviewPayloadV1,
                                        generationID: UUID) throws -> (draftID: UUID, mutationID: MutationIDV1) {
         try payload.validate()
         try FieldDraftValidationV1.id(generationID)

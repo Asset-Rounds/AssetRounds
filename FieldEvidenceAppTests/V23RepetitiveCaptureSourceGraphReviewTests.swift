@@ -1068,7 +1068,7 @@ private extension V23RepetitiveCaptureSourceGraphReviewTests {
 
 
 @MainActor
-private final class RetainedSourceHistoryTargetV2 {
+final class RetainedSourceHistoryTargetV2 {
     struct RawState: Equatable {
         let receipts: [[String]]
         let quarantines: [[String]]

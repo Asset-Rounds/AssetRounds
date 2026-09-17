@@ -1,9 +1,179 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
 
 final class V23RepetitiveCaptureDestinationReviewTests: XCTestCase {
+    func testFirstCreateReceiptAuthenticatesRetainedSourceAndPreservesOriginalBytes() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture()
+        defer { fixture.removePackages() }
+        let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: fixture.validatedPackage())
+        let sourceID = try XCTUnwrap(reviewed.graphs.first).chain.sourceCheckpoint.draftID
+        let before = try FieldDraftCanonicalCodecV1.encode(fixture.history)
+        for mode in [BackupRestoreMode.replaceExisting, .fork] {
+            let identity = try destinationReviewIdentity(mode: mode, source: fixture.workspaceID.rawValue)
+            let prepared = try RepetitiveCaptureDestinationReviewV1.prepareFirst(from: reviewed,
+                sourceDraftID: sourceID, identity: identity, reviewedAt: RepetitiveCaptureSourcePackageFixture.date)
+            let imported = try destinationReviewImportedHistory(source: fixture.history,
+                payload: prepared.payload, generationID: identity.targetPointer.generationID,
+                includeReversalBasis: mode == .fork)
+            XCTAssertEqual(imported.original.reversalBasisData != nil, mode == .fork)
+            XCTAssertEqual(imported.checkpoint, prepared.checkpoint)
+            let evidence = try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+                workspaceID: imported.checkpoint.workspaceID, mutationID: imported.checkpoint.mutationID,
+                in: imported.snapshot)
+            XCTAssertEqual(evidence.checkpoint, prepared.checkpoint)
+            XCTAssertEqual(evidence.payload, prepared.payload)
+            XCTAssertEqual(evidence.original.original, imported.original)
+            XCTAssertEqual(evidence.retainedSource.requiredHistory, reviewed.requiredHistory)
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(fixture.history), before)
+            XCTAssertThrowsError(try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+                workspaceID: fixture.workspaceID, mutationID: imported.checkpoint.mutationID, in: imported.snapshot))
+            let sourceMutation = try XCTUnwrap(reviewed.requiredHistory.first).envelope.mutationID
+            XCTAssertThrowsError(try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+                workspaceID: fixture.workspaceID, mutationID: sourceMutation, in: imported.snapshot))
+            XCTAssertThrowsError(try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+                workspaceID: imported.checkpoint.workspaceID, mutationID: imported.checkpoint.mutationID,
+                in: fixture.history))
+        }
+    }
+
+    func testSelfConsistentCreateReceiptCannotAuthenticateChangedMappingOrGeneration() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture()
+        defer { fixture.removePackages() }
+        let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: fixture.validatedPackage())
+        let identity = try destinationReviewIdentity(mode: .fork, source: fixture.workspaceID.rawValue)
+        let prepared = try RepetitiveCaptureDestinationReviewV1.prepareFirst(from: reviewed,
+            sourceDraftID: XCTUnwrap(reviewed.graphs.first).chain.sourceCheckpoint.draftID,
+            identity: identity, reviewedAt: RepetitiveCaptureSourcePackageFixture.date)
+        var pairs = prepared.payload.provenance.ultimateToDestinationPairs
+        let index = try XCTUnwrap(pairs.firstIndex { $0.kind == .asset })
+        pairs[index] = try .init(kind: .asset, sourceID: destinationReviewID(90_100),
+                                destinationID: destinationReviewID(90_100))
+        pairs.sort(by: destinationReviewPairLess)
+        let wrongMapping = try RepetitiveCaptureDestinationReviewPayloadV1(source: prepared.payload.source,
+            provenance: .init(mode: .fork, destinationWorkspaceID: prepared.checkpoint.workspaceID,
+                ultimateSourceReferenceSHA256: prepared.payload.source.referenceSHA256,
+                ultimateToDestinationPairs: pairs))
+        // Both the changed payload and its actual envelope/receipt hashes are
+        // consistent. Only reconstruction from retained source detects this.
+        let wrong = try destinationReviewImportedHistory(source: fixture.history, payload: wrongMapping,
+            generationID: identity.targetPointer.generationID)
+        let changedGeneration = try destinationReviewImportedHistory(source: fixture.history,
+            payload: prepared.payload, generationID: identity.targetPointer.generationID,
+            envelopeGenerationID: destinationReviewID(90_101))
+        let changedBase = try destinationReviewImportedHistory(source: fixture.history,
+            payload: prepared.payload, generationID: identity.targetPointer.generationID,
+            expectedBaseCanonicalRevision: prepared.checkpoint.baseCanonicalRevision + 1)
+        for imported in [wrong, changedGeneration, changedBase] {
+            try MutationJournalStoreV1.validateImportedSnapshot(imported.snapshot)
+            XCTAssertThrowsError(try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+                workspaceID: imported.checkpoint.workspaceID, mutationID: imported.checkpoint.mutationID,
+                in: imported.snapshot))
+        }
+        let valid = try destinationReviewImportedHistory(source: fixture.history, payload: prepared.payload,
+            generationID: identity.targetPointer.generationID)
+        let missingSource = MutationHistorySnapshotV1(workspaceRevision: valid.snapshot.workspaceRevision,
+            lastLocalSequence: valid.snapshot.lastLocalSequence, receipts: [valid.original],
+            quarantines: [], entityRevisions: valid.snapshot.entityRevisions)
+        XCTAssertThrowsError(try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+            workspaceID: valid.checkpoint.workspaceID, mutationID: valid.checkpoint.mutationID, in: missingSource))
+        let duplicate = MutationHistorySnapshotV1(workspaceRevision: valid.snapshot.workspaceRevision,
+            lastLocalSequence: valid.snapshot.lastLocalSequence, receipts: valid.snapshot.receipts + [valid.original],
+            quarantines: [], entityRevisions: valid.snapshot.entityRevisions)
+        XCTAssertThrowsError(try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+            workspaceID: valid.checkpoint.workspaceID, mutationID: valid.checkpoint.mutationID, in: duplicate))
+    }
+
+    @MainActor
+    func testForeignLiveReviewReadDeniesTamperQuarantineDirtyAndRetiredReadersWithoutEffects() throws {
+        let fixture = try RepetitiveCaptureSourcePackageFixture(sourceOnly: true)
+        defer { fixture.removePackages() }
+        let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: fixture.validatedPackage())
+        let identity = try destinationReviewIdentity(mode: .fork, source: fixture.workspaceID.rawValue)
+        let prepared = try RepetitiveCaptureDestinationReviewV1.prepareFirst(from: reviewed,
+            sourceDraftID: XCTUnwrap(reviewed.graphs.first).chain.sourceCheckpoint.draftID,
+            identity: identity, reviewedAt: RepetitiveCaptureSourcePackageFixture.date)
+        let imported = try destinationReviewImportedHistory(source: fixture.history, payload: prepared.payload,
+            generationID: identity.targetPointer.generationID)
+        let expected = try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+            workspaceID: imported.checkpoint.workspaceID, mutationID: imported.checkpoint.mutationID,
+            in: imported.snapshot)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("c36-review-receipt-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = try RetainedSourceHistoryTargetV2(root: root, records: imported.snapshot.receipts)
+        defer { try? target.close() }
+        @MainActor func read() throws -> RepetitiveCaptureDestinationReviewEvidenceV1 {
+            try target.writer.repetitiveCaptureFirstDestinationReview(
+                workspaceID: imported.checkpoint.workspaceID, mutationID: imported.checkpoint.mutationID)
+        }
+        @MainActor func journalRead() throws -> RepetitiveCaptureDestinationReviewEvidenceV1 {
+            try target.journal.repetitiveCaptureFirstDestinationReview(
+                workspaceID: imported.checkpoint.workspaceID, mutationID: imported.checkpoint.mutationID)
+        }
+        let before = try target.rawState()
+        try target.journal.validateAll()
+        XCTAssertEqual(try read(), expected)
+        XCTAssertEqual(try journalRead(), expected)
+        XCTAssertEqual(try target.rawState(), before)
+        XCTAssertTrue(try target.journal.exportSnapshot().entityRevisions.isEmpty)
+        XCTAssertEqual(before.canonicalCounts, [0, 0, 0, 0, 0])
+        XCTAssertThrowsError(try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+            workspaceID: imported.checkpoint.workspaceID, mutationID: imported.checkpoint.mutationID,
+            in: target.journal.exportSnapshot()))
+        let key = MutationWorkspaceKeyV1.value(workspaceID: imported.checkpoint.workspaceID,
+                                               mutationID: imported.checkpoint.mutationID)
+        let row = try XCTUnwrap(target.context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+            $0.workspaceMutationKey == key
+        })
+        let digest = row.receiptSHA256
+        row.receiptSHA256 = String(repeating: "f", count: 64)
+        let dirty = try target.rawState()
+        XCTAssertThrowsError(try read())
+        XCTAssertThrowsError(try journalRead())
+        XCTAssertEqual(try target.rawState(), dirty)
+        target.context.rollback()
+        XCTAssertEqual(try target.rawState(), before)
+        row.receiptSHA256 = String(repeating: "f", count: 64)
+        try target.context.save()
+        let corrupt = try target.rawState()
+        XCTAssertThrowsError(try read())
+        XCTAssertThrowsError(try journalRead())
+        XCTAssertEqual(try target.rawState(), corrupt)
+        row.receiptSHA256 = digest
+        try target.context.save()
+        let quarantine = MutationQuarantineRow(workspaceID: imported.checkpoint.workspaceID,
+            mutationID: imported.checkpoint.mutationID, identityDomain: .mutationEnvelope,
+            acceptedIdentitySHA256: expected.original.receipt.envelopeSHA256,
+            conflictingIdentitySHA256: String(repeating: "b", count: 64),
+            detectedAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(1_000))
+        target.context.insert(quarantine)
+        try target.context.save()
+        let quarantined = try target.rawState()
+        XCTAssertThrowsError(try read())
+        XCTAssertThrowsError(try journalRead())
+        XCTAssertEqual(try target.rawState(), quarantined)
+        target.context.delete(quarantine)
+        try target.context.save()
+        target.context.delete(row)
+        try target.context.save()
+        let missing = try target.rawState()
+        XCTAssertThrowsError(try read())
+        XCTAssertThrowsError(try journalRead())
+        XCTAssertEqual(try target.rawState(), missing)
+        try target.insert(imported.original)
+        try target.context.save()
+        XCTAssertEqual(try read(), expected)
+        XCTAssertEqual(try target.rawState(), before)
+        try target.closeJournalLease()
+        XCTAssertThrowsError(try journalRead())
+        XCTAssertEqual(try read(), expected)
+        target.writer.invalidate()
+        XCTAssertThrowsError(try read())
+        XCTAssertEqual(try target.rawState(), before)
+    }
+
     func testFirstReviewDerivesCompleteReplacementAndForkRelationsWithoutChangingOriginals() throws {
         let fixture = try RepetitiveCaptureSourcePackageFixture()
         defer { fixture.removePackages() }
@@ -243,6 +413,77 @@ func destinationReviewIdentity(mode: BackupRestoreMode, source: UUID,
         targetGenerationManifestSHA256: String(repeating: "b", count: 64),
         allocatedWorkspaceID: mode == .clone || mode == .fork ? destination : nil,
         allocatedReplicaID: destinationReviewID(80_007)))
+}
+
+private struct DestinationReviewImportedHistory {
+    let checkpoint: FieldDraftCheckpointV1
+    let original: MutationHistoryReceiptRecordV1
+    let snapshot: MutationHistorySnapshotV1
+}
+
+/// Canonical imported-history fixture, not evidence that the not-yet-adopted
+/// restore publisher ran. It exercises the real command/receipt contracts.
+private func destinationReviewImportedHistory(source: MutationHistorySnapshotV1,
+                                               payload: RepetitiveCaptureDestinationReviewPayloadV1,
+                                               generationID: UUID,
+                                               envelopeGenerationID: UUID? = nil,
+                                               expectedBaseCanonicalRevision: UInt64? = nil,
+                                               includeReversalBasis: Bool = false) throws
+    -> DestinationReviewImportedHistory {
+    let ids = try RepetitiveCaptureDestinationReviewCodecV1.initialIDs(payload: payload, generationID: generationID)
+    let workspace = payload.provenance.destinationWorkspaceID
+    let checkpoint = try FieldDraftCheckpointV1(draftID: ids.draftID, workspaceID: workspace,
+        scope: RepetitiveCaptureDestinationReviewCodecV1.scope(draftID: ids.draftID),
+        purpose: .repetitiveCapture, codec: RepetitiveCaptureDestinationReviewCodecV1.release(),
+        baseCanonicalRevision: payload.source.value.packageCurrentRound.revision,
+        draftRevision: 1, payloadData: RepetitiveCaptureDestinationReviewCodecV1.encode(payload), stageIDs: [],
+        resumeAnchor: DraftResumeAnchorV1(sectionID: "sourceReview"), state: .recoveryRequired,
+        updatedAt: RepetitiveCaptureSourcePackageFixture.date, mutationID: ids.mutationID)
+    let mutation = try FieldDraftMutationV1(workspaceID: workspace, expectedRevision: 0,
+        expectedBaseCanonicalRevision: expectedBaseCanonicalRevision ?? checkpoint.baseCanonicalRevision,
+        mutationID: checkpoint.mutationID, postImage: .createCheckpoint(checkpoint))
+    let expected = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+        generationID: envelopeGenerationID ?? generationID, writerInstanceID: destinationReviewID(90_200),
+        workspaceRevision: 0, entityRevisions: mutation.concurrencyIdentities.map {
+            .init(identity: $0, revision: try mutation.expectedRevision(for: $0))
+        }.sorted { $0.identity.stableKey < $1.identity.stableKey })
+    let replica = ReplicaID(rawValue: destinationReviewID(90_201))
+    let receiptIdentity = MutationReceiptIdentityV1(workspaceID: workspace, replicaID: replica, localSequence: 1)
+    let basis: ReversalBasisV1?
+    if includeReversalBasis {
+        let plan = try SemanticReversalPlanV1(mutationID: checkpoint.mutationID, commandKind: .applyFieldDraft,
+            expectedRevision: expected, prospectiveTargets: mutation.affectedIdentities,
+            requiredSemanticValues: [.init(key: "original-review-checkpoint", value: checkpoint.checkpointSHA256)],
+            contentReferences: [], dependencyGraph: [], conflicts: [], compensatingCommands: [])
+        basis = try ReversalBasisV1(targetMutationID: checkpoint.mutationID,
+            targetReceiptIdentity: receiptIdentity, plan: plan)
+    } else { basis = nil }
+    let envelope = try MutationEnvelopeV1(request: .init(mutationID: checkpoint.mutationID,
+        expectedRevision: expected, command: .applyFieldDraft(mutation)),
+        identity: .init(workspaceID: workspace, replicaID: replica), reversalPlanDigest: basis?.planDigest)
+    let images = try mutation.postImage.mutationPostImages
+    let resulting = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+        generationID: expected.generationID, writerInstanceID: expected.writerInstanceID,
+        workspaceRevision: 1, entityRevisions: images.map {
+            .init(identity: try $0.identity, revision: $0.revision)
+        }.sorted { $0.identity.stableKey < $1.identity.stableKey })
+    let receipt = try MutationReceiptV1(identity: receiptIdentity,
+        envelope: envelope, resultingRevision: .init(resulting), postImages: images,
+        committedAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(200))
+    let original = MutationHistoryReceiptRecordV1(envelopeData: try envelope.canonicalData(),
+        receiptData: try receipt.canonicalData(), reversalBasisData: try basis?.canonicalData(), semanticReversalData: nil)
+    let keyed = try (source.receipts + [original]).map { record in
+        (try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity.stableKey, record)
+    }
+    let projection = try images.map {
+        MutationHistoryEntityRevisionV1(identity: try $0.identity, revision: $0.revision)
+    }
+    let snapshot = MutationHistorySnapshotV1(workspaceRevision: max(1, source.workspaceRevision),
+        lastLocalSequence: max(1, source.lastLocalSequence), receipts: keyed.sorted { $0.0 < $1.0 }.map { $0.1 },
+        quarantines: source.quarantines,
+        entityRevisions: (source.entityRevisions + projection).sorted { $0.identity.stableKey < $1.identity.stableKey })
+    try MutationJournalStoreV1.validateImportedSnapshot(snapshot)
+    return .init(checkpoint: checkpoint, original: original, snapshot: snapshot)
 }
 
 private func destinationReviewID(_ value: Int) -> UUID {

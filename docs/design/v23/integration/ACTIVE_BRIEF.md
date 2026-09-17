@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `c177904f1b83fc0fe2f87fa89b34c7e79a83d77b`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `3c0dad6cbf509547cb3d2a3b0583673cb620d91e`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -19,7 +19,7 @@ The committed seven record-copy helpers preserve all77 inputs. Root's two-path d
 
 ## Current implementation
 
-- Retained-history reader is committed asc177904; sourceDA14737D (738/41/96) and semantic/index4FDE5379 pass. New unregistered destination-review contract and six paired methods are authored; existing compact maximum now measures its401-frontier payload. Review/source checks are pending. New methods need native selection; receipt binding, publication, ancestry and lifecycle adoption remain due.49 drafts stay exact.
+- Retained history and review contract are committed through3c0dad6 (source738/41/96,indexC0045893). First-create receipt authentication now joins complete journal validation, actual generation and source-derived correspondence; paired imported/foreign-live hostile tests await review/native. Nine review methods need selection. Publication, ancestry, lifecycle and registration remain due;49 drafts stay exact.
 - Durable Begin persists PREPARED before effects and BOUND after original receipts. Historical ENTRY and later/COMPLETE item reads preserve live access and external Round-close rejection.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Source738/41/96, semantic2735C2E7 and indexEB29A4EE pass; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.

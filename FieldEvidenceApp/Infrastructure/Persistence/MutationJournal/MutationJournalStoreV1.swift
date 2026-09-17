@@ -2183,6 +2183,20 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// Explicit namespace permits retained foreign reviews after another
+    /// workspace transition. The result authenticates only the first create.
+    func repetitiveCaptureFirstDestinationReview(workspaceID: WorkspaceID, mutationID: MutationIDV1)
+        throws -> RepetitiveCaptureDestinationReviewEvidenceV1 {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try validateCheckRunnerBeginHistoryValue {
+            let snapshot = try exportSnapshot()
+            let history = RepetitiveCaptureRetainedJournalHistoryV2(snapshot: snapshot)
+            return try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
+                workspaceID: workspaceID, mutationID: mutationID, in: history)
+        }
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         try validateCurrentWriterLease()
         try validateAll()
