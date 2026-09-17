@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `0a5ecfefb18ceaba56ec425108eae90ba5a252bd`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `c177904f1b83fc0fe2f87fa89b34c7e79a83d77b`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,13 +13,13 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 
 Originals retain their own heads; Bitrise qualification stays held.
 
-Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings and testNotStarted. AttributionCE8EC8D6 captures36 frontend commands across many app batches; observed high host load proves no provider or single-file cause. No unchanged retry. Combined source0a5ecfe passes738/41/96 and independent indexEB29A4EE. Timing observations are retired; three scripts remain dormant. Native dispatch is held. One-run larger-runner proposal awaits the owner; no billing/settings change. Existing Bitrise qualification remains held; current unit-only mode still builds the full scheme.
+Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings and testNotStarted. AttributionCE8EC8D6 captures36 frontend commands across many app batches; observed high host load proves no provider or single-file cause. No unchanged retry. Combined source0a5ecfe passes738/41/96 and independent indexEB29A4EE. Timing observations are retired; three scripts remain dormant. Native dispatch and Bitrise qualification stay held. One-run larger-runner proposal awaits the owner; no billing/settings change. Unit-only mode still builds the full scheme.
 
 The committed seven record-copy helpers preserve all77 inputs. Root's two-path diagnostic2F039F04 attributes existing insert invalidPackage throws to DEBUG source lines without changing errors/predicates. The C12 nonnil fixture moves to its actual active export; both minimal-incumbent and export copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, larger clone/transport and all retirement acceptance remain unresolved.
 
 ## Current implementation
 
-- C36 foundations, frozen Begin preparation/correspondence and V2 source graph authentication are committed. Correspondence passed30/30 at its own head. Retained-history authentication is authored at0a5: bounded original checkpoint/Round reconstruction, real journal/writer reads and six expanded existing tests; sourceDA14737D passes738/41/96 with recorded-schema checks and sealed live-history validation. Independent source/index review is pending. Destination receipt binding, publication and full lifecycle adoption remain due.
+- Retained-history reader is committed asc177904; sourceDA14737D (738/41/96) and semantic/index4FDE5379 pass. New unregistered destination-review contract and six paired methods are authored; existing compact maximum now measures its401-frontier payload. Review/source checks are pending. New methods need native selection; receipt binding, publication, ancestry and lifecycle adoption remain due.49 drafts stay exact.
 - Durable Begin persists PREPARED before effects and BOUND after original receipts. Historical ENTRY and later/COMPLETE item reads preserve live access and external Round-close rejection.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Source738/41/96, semantic2735C2E7 and indexEB29A4EE pass; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.
@@ -30,7 +30,7 @@ The committed seven record-copy helpers preserve all77 inputs. Root's two-path d
 
 ## Cadence and completion gates
 
-Root implements, diagnoses and integrates; at most one Luna Max helper for a very small task or required independent review. Preserve primary settings. Reuse unchanged pinned findings/helpers; review consequential deltas and retain actual-index, committed-route and final gates. One collector owns each original. Refresh refs/ownership/capacity at required boundaries; root alone commits/pushes.
+Root implements; at most one Luna Max helper for a bounded task or required independent review. Preserve primary settings. Reuse unchanged pinned findings/helpers; review consequential deltas and retain actual-index, committed-route and final gates. One collector owns each original. Refresh refs/ownership/capacity at required boundaries; root alone commits/pushes.
 
 Committed source738/41/96 retains all seven historical generated profiles. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six additional retirement interruptions and maximum graphs remain due. Historical results never transfer to a later head. Measured cache/shared-build and provider qualification remain separate work.
 

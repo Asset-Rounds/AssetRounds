@@ -837,6 +837,29 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         // outer scalars, even when each is sized independently at its maximum.
         let maximumScalarGrowth = reference.value.checkpoints.count * 256 + 4_096
         XCTAssertLessThanOrEqual(data.count + maximumScalarGrowth, FieldDraftLimitsV1.maximumPayloadBytes)
+        let identity = try destinationReviewIdentity(mode: .fork, source: fixture.workspaceID.rawValue)
+        let destination = try RepetitiveCaptureDestinationReviewV1.prepareFirst(from: reviewed,
+            sourceDraftID: reference.value.sourceDraftID, identity: identity,
+            reviewedAt: RepetitiveCaptureSourcePackageFixture.date)
+        trace("destination-review-complete")
+        try destination.payload.validateFirstSource(against: reviewed, identity: identity)
+        try RepetitiveCaptureDestinationReviewCodecV1.validateInitialCheckpoint(destination.checkpoint,
+            creationGenerationID: identity.targetPointer.generationID)
+        let pairs = destination.payload.provenance.ultimateToDestinationPairs
+        XCTAssertEqual(pairs.filter { $0.kind == .checkpoint }.count, 401)
+        XCTAssertEqual(pairs.filter { $0.kind == .roundItem }.count, 200)
+        XCTAssertLessThanOrEqual(pairs.count, 1_203)
+        // Reserve the missing fixed-width relation slots too: this fixture need
+        // not have 200 distinct sites or a completion on every selected item.
+        let maximumRelationGrowth = (1_203 - pairs.count) * 256
+        for pair in pairs {
+            XCTAssertLessThanOrEqual(try FieldDraftCanonicalCodecV1.encode(pair).count + 1, 256)
+        }
+        // A future immediate predecessor is flat: at most another complete
+        // relation plus fixed receipt/digest scalars, never an ancestor payload.
+        let maximumPredecessorGrowth = 1_203 * 256 + 4_096
+        XCTAssertLessThanOrEqual(destination.checkpoint.payloadData.count + maximumScalarGrowth
+            + maximumRelationGrowth + maximumPredecessorGrowth, FieldDraftLimitsV1.maximumPayloadBytes)
         print("C36_SOURCE_REFERENCE_METRICS kind=maximum frontiers=401 history=603 bytes=\(data.count) scalarUpperBound=\(data.count + maximumScalarGrowth)")
     }
 
