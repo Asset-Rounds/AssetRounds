@@ -39,6 +39,8 @@ CURRENT_PROFILE = {'schemaVersion': 2, 'mode': 'timing-current-source-v2', 'sour
 CURRENT_SELECTION_ID = "c36-parent-finalization-check-no-issue"
 SHALLOW_PROFILE = dict(CURRENT_PROFILE, schemaVersion=3, mode="timing-shallow-source-v3",
                        parentHead="b8c05dc1d567ebf99cdcc4244584f7b7b78951f0")
+COMMAND_PROFILE = dict(CURRENT_PROFILE, schemaVersion=4, mode="timing-command-source-v4",
+                       parentHead="8d7a886ac1186eceac26d0c3c42f08a92280a206")
 
 SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bodies=500"
                " -Xfrontend -warn-long-expression-type-checking=200")
@@ -71,6 +73,9 @@ def read_configuration(path):
 
 def validate_configuration(config):
     require(isinstance(config, dict), "configuration object")
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 4:
+        require(config == COMMAND_PROFILE, "fixed current command source profile")
+        return config
     if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 3:
         require(config == SHALLOW_PROFILE, "fixed current shallow source profile")
         return config
@@ -144,7 +149,7 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
         "CODE_SIGNING_ALLOWED": "NO", "RUNNER_ARCH": "ARM64",
         "DEVELOPER_DIR": DEVELOPER_DIR,
     }
-    if config["schemaVersion"] in (2, 3):
+    if config["schemaVersion"] in (2, 3, 4):
         required["NATIVE_SELECTION_ID"] = CURRENT_SELECTION_ID
     require(platform == "darwin", "host platform")
     for key, value in required.items():
@@ -153,7 +158,7 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     head = git_output("rev-parse", "HEAD").decode().strip()
     require(re.fullmatch(r"[a-f0-9]{40}", head)
             and head == environment.get("GITHUB_SHA"), "actual checkout head")
-    if config["schemaVersion"] in (2, 3):
+    if config["schemaVersion"] in (2, 3, 4):
         require_direct_parent(git_output, config.get("parentHead", config["sourceHead"]))
     for path, tree in config["sourceTrees"].items():
         require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree, path + " tree")
@@ -232,7 +237,7 @@ def process_commands(processes):
         return {}
     expected = {p["pid"]: p for p in processes}
     result = subprocess.run(["/bin/ps", "-ww", "-p", ",".join(str(p) for p in sorted(expected)),
-                             "-o", "pid=,lstart=,comm=,command="], env=dict(os.environ, LC_ALL="C"),
+                             "-o", "pid=,lstart=,command="], env=dict(os.environ, LC_ALL="C"),
                             timeout=2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     # A short-lived process may disappear between the two observations. Missing
     # argv stays absent, not an empty command or a successful completion claim.
@@ -245,9 +250,13 @@ def process_commands(processes):
         process = expected[int(fields[0])]
         if " ".join(fields[1:6]) != process["startedLocal"]:
             continue  # PID was reused between observations.
-        remainder, executable = fields[6], process["executable"]
-        if remainder.startswith(executable) and remainder[len(executable):].startswith((" ", "\t")):
-            commands[process["key"]] = remainder[len(executable):].strip()
+        # Darwin truncates a non-final comm column to its display width. Keep
+        # the rendered command last, and match its complete executable prefix
+        # against the first observation after checking the same PID/start time.
+        command, executable = fields[6], process["executable"]
+        if command == executable or (command.startswith(executable)
+                and command[len(executable):].startswith((" ", "\t"))):
+            commands[process["key"]] = command
     return commands
 
 

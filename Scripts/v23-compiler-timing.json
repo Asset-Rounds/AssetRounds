@@ -1,16 +1,1 @@
-{
-  "schemaVersion": 3,
-  "mode": "timing-shallow-source-v3",
-  "parentHead": "b8c05dc1d567ebf99cdcc4244584f7b7b78951f0",
-  "sourceHead": "f849d15991e4520850d09a818877ba4199f25061",
-  "sourceTrees": {
-    "FieldEvidenceApp": "7af267c17cc2f3f96c32b8d73211a3f60dd746db",
-    "FieldEvidenceAppTests": "c9d2357d3612283c9d87d2cf424f592e30df2eb9",
-    "FieldEvidenceAppUITests": "978eced2587c6ed6cb280aa6cea7d4e3fa6e4190",
-    "FieldEvidenceApp.xcodeproj": "4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0"
-  },
-  "selectionSHA256": "1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572",
-  "sampleIntervalSeconds": 5,
-  "selectionMapSHA256": "E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E",
-  "resolvedSelectionSHA256": "2AA4BE676365A3E771FC684BE16A530606DE7EE588F15BA23B9C3DED27C48FB5"
-}
+{"mode":"timing-command-source-v4","parentHead":"8d7a886ac1186eceac26d0c3c42f08a92280a206","resolvedSelectionSHA256":"2AA4BE676365A3E771FC684BE16A530606DE7EE588F15BA23B9C3DED27C48FB5","sampleIntervalSeconds":5,"schemaVersion":4,"selectionMapSHA256":"E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E","selectionSHA256":"1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572","sourceHead":"f849d15991e4520850d09a818877ba4199f25061","sourceTrees":{"FieldEvidenceApp":"7af267c17cc2f3f96c32b8d73211a3f60dd746db","FieldEvidenceApp.xcodeproj":"4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0","FieldEvidenceAppTests":"c9d2357d3612283c9d87d2cf424f592e30df2eb9","FieldEvidenceAppUITests":"978eced2587c6ed6cb280aa6cea7d4e3fa6e4190"}}

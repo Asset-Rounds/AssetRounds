@@ -30,7 +30,7 @@ class CompilerTimingTests(unittest.TestCase):
         self.artifacts = self.root / "artifacts"
         self.artifacts.mkdir()
         # Legacy admission stays exercised against its frozen source objects,
-        # even while the checked-in active observation uses schema3.
+        # even while the checked-in active observation uses schema4.
         self.config = dict(schemaVersion=1, mode="timing-f6-source-v1",
             sourceHead=TIMING.SOURCE_HEAD, sourceTrees=copy.deepcopy(TIMING.SOURCE_TREES),
             sampleIntervalSeconds=5, **TIMING.SOURCE_SELECTION_HASHES)
@@ -234,7 +234,7 @@ fi
         row = "123 45 5.2 0:12.44 00:20 15744 S Mon Sep 14 22:05:03 2026 /tool/swift-frontend"
         processes, _ = TIMING.parse_processes(row)
         process = processes[0]
-        output = ("123 Mon Sep 14 22:05:03 2026 /tool/swift-frontend /tool/swift-frontend -primary-file /workspace/A.swift\n"
+        output = ("123 Mon Sep 14 22:05:03 2026 /tool/swift-frontend -primary-file /workspace/A.swift\n"
                   "456 Mon Sep 14 22:05:03 2026 /tool/swift-frontend foreign\n").encode()
         observed = subprocess.CompletedProcess([], 0, output, b"")
         with mock.patch.object(TIMING.subprocess, "run", return_value=observed):
@@ -441,7 +441,7 @@ class CurrentSourceTimingTests(unittest.TestCase):
 class ShallowSourceTimingTests(CurrentSourceTimingTests):
     def setUp(self):
         super().setUp()
-        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
+        self.config = copy.deepcopy(TIMING.SHALLOW_PROFILE)
         self.assertEqual(self.config, TIMING.SHALLOW_PROFILE)
         self.assertEqual(self.config["schemaVersion"], 3)
 
@@ -483,6 +483,49 @@ class ShallowSourceTimingTests(CurrentSourceTimingTests):
         def message_parent(*args):
             return self.git(*args) + b"parent foreign\n" if args == ("cat-file", "commit", "HEAD") else self.git(*args)
         self.assertEqual(self.admit(git=message_parent), self.env["GITHUB_SHA"])
+
+
+class CommandSourceTimingTests(ShallowSourceTimingTests):
+    def setUp(self):
+        super().setUp()
+        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
+        self.assertEqual(self.config, TIMING.COMMAND_PROFILE)
+        self.assertEqual(self.config["schemaVersion"], 4)
+
+    def testFinalCommandColumnPreservesLongSpacedShortAndNoArgumentExecutables(self):
+        for executable in ("/Applications/Xcode_26.6.app/Contents/Developer/Toolchains/"
+                           "XcodeDefault.xctoolchain/usr/bin/swift-frontend",
+                           "/Applications/Tool Chain/usr/bin/swift-frontend", "xcodebuild"):
+            for arguments in (" -primary-file /workspace/A.swift", "", "\t-filelist /workspace/source-files"):
+                metadata = "123 45 5.2 0:12.44 00:20 15744 S Mon Sep 14 22:05:03 2026 " + executable
+                processes, malformed = TIMING.parse_processes(metadata)
+                self.assertEqual(malformed, 0)
+                rendered = executable + arguments
+                output = ("123 Mon Sep 14 22:05:03 2026 " + rendered + "\n").encode()
+                def query(argv, **kwargs):
+                    self.assertEqual(argv, ["/bin/ps", "-ww", "-p", "123", "-o", "pid=,lstart=,command="])
+                    self.assertEqual(kwargs["timeout"], 2)
+                    self.assertEqual(kwargs["env"]["LC_ALL"], "C")
+                    return subprocess.CompletedProcess(argv, 0, output, b"")
+                with self.subTest(executable=executable, arguments=arguments), \
+                     mock.patch.object(TIMING.subprocess, "run", side_effect=query):
+                    self.assertEqual(TIMING.process_commands(processes), {processes[0]["key"]: rendered})
+
+    def testFinalCommandColumnRejectsIdentityAndExecutablePrefixSubstitution(self):
+        executable = "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/swift-frontend"
+        processes, _ = TIMING.parse_processes("123 45 5.2 0:12.44 00:20 15744 S Mon Sep 14 22:05:03 2026 " + executable)
+        prefix = "123 Mon Sep 14 22:05:03 2026 "
+        valid = prefix + executable + " -primary-file /workspace/A.swift\n"
+        for row in (valid.replace("123 ", "456 ", 1), valid.replace("22:05:03", "22:05:04"),
+                    prefix + executable + "-foreign -primary-file /workspace/A.swift\n",
+                    prefix + "/unrelated/process secret\n", prefix + executable[:16] + " " + executable,
+                    "not-a-pid Mon Sep 14 22:05:03 2026 " + executable, "123 malformed", ""):
+            with self.subTest(row=row), mock.patch.object(TIMING.subprocess, "run",
+                    return_value=subprocess.CompletedProcess([], 1, row.encode(), b"")):
+                self.assertEqual(TIMING.process_commands(processes), {})
+        with mock.patch.object(TIMING.subprocess, "run") as query:
+            self.assertEqual(TIMING.process_commands([]), {})
+            query.assert_not_called()
 
 
 class CapabilityTests(unittest.TestCase):
