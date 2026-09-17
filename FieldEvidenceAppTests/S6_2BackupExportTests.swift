@@ -1074,10 +1074,13 @@ final class S6_2BackupExportTests: XCTestCase {
             let currentRestorePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
                 history: currentPhotoHistory, entries: currentValidated.manifest.entries,
                 metadata: { try XCTUnwrap(currentValidated.members[$0]) })
-            let replacementRecords = try compositionReplacementRecords(
-                current: currentRecords, source: decodedRecords)
+            let replacementFixture = try compositionReplacementRecords(
+                current: currentRecords, source: decodedRecords,
+                currentSource: currentValidated.manifest.source, sourceSource: validated.manifest.source,
+                currentIdentity: harness.session.workspaceIdentity, sourceIdentity: harness.session.workspaceIdentity)
+            let replacementRecords = replacementFixture.records
             XCTAssertNotEqual(replacementRecords, decodedRecords)
-            XCTAssertNotEqual(replacementRecords, currentRecords)
+            XCTAssertNotEqual(replacementFixture.withoutRetention, currentRecords)
             let populatedComposition = try CheckRunnerPhotoRestoreCompositionV1.compose(
                 source: validated.manifest.source, sourceRecords: decodedRecords,
                 sourcePlan: restorePlan, currentSource: currentValidated.manifest.source,
@@ -1085,6 +1088,8 @@ final class S6_2BackupExportTests: XCTestCase {
                 replacementRecords: replacementRecords,
                 sourceIdentity: harness.session.workspaceIdentity,
                 currentIdentity: harness.session.workspaceIdentity)
+            try assertExplicitDeletionCannotResurrectRetainedFinalization(
+                replacementFixture, sourcePlan: restorePlan, currentPlan: currentRestorePlan)
             let populatedDestination = try populatedComposition.applying(to: replacementRecords)
             XCTAssertEqual(populatedDestination, currentRecords)
             try populatedComposition.requireDestination(currentRecords)
@@ -1105,7 +1110,7 @@ final class S6_2BackupExportTests: XCTestCase {
             let resolvedRetained = try CheckRunnerPhotoRestoreMemberBindingV1(plan: currentRestorePlan)
                 .resolve(sourceSelection: selectedRetained)
             XCTAssertEqual(resolvedRetained, populatedComposition.photoRestorePlans[1])
-            XCTAssertThrowsError(try populatedComposition.requireDestination(replacementRecords))
+            XCTAssertThrowsError(try populatedComposition.requireDestination(replacementFixture.withoutRetention))
 
             let retainedRow = try XCTUnwrap(currentRecords.fieldDrafts.first { row in
                 guard row.kind == .checkpoint,
@@ -1172,6 +1177,7 @@ final class S6_2BackupExportTests: XCTestCase {
         let success = try await makePhotoRestoreJourney("live-success")
         defer { try? fileManager.removeItem(at: success.harness.applicationSupportURL) }
         try await assertSameLengthCommonGenericCorruptionFailsBeforeEffects(success)
+        try await assertRetainedReportFilesFailClosedBeforePublication(success)
         let successNewID = uuid(701), successRestoreID = uuid(702)
         let successService = try BackupRestoreService(
             applicationSupportURL: success.harness.applicationSupportURL,
@@ -1412,6 +1418,8 @@ final class S6_2BackupExportTests: XCTestCase {
             }, [0, 2], "\(point)")
             XCTAssertEqual(binding.core.currentRecordsSHA256,
                 binding.core.destinationRecordsSHA256, "\(point)")
+            try assertCompositionBindingVersionCompatibility(
+                binding.core.selections[0].composition, records: fixture.records)
             XCTAssertNil(binding.genericReceipt, "\(point)")
             let transition = try XCTUnwrap(binding.rawTransition, "\(point)")
             XCTAssertEqual(transition.newStageIDs, [], "\(point)")
@@ -1907,6 +1915,7 @@ private extension S6_2BackupExportTests {
         let restoredRecords: V4BackupRecordsV1
         let restoredRecordsData: Data
         let expectedMembers: [V4BackupEntryV1]
+        let retainedReportBytes: [String: Data]
         let expectedPlan: CheckRunnerPhotoBackupRestorePlanV1
         let oldRawFacts: [String]
         let rawRoot: URL
@@ -3131,6 +3140,10 @@ private extension S6_2BackupExportTests {
             sourceApp: .init(build: "42", version: "4.0"),
             identifiers: .init(mutationID: uuid(606), packetID: uuid(607),
                 stableRootID: uuid(608), reportID: uuid(609), issueID: nil))
+        _ = try ReportRenderService(modelContext: harness.context,
+            lifecycleDependencies: dependencies, lifecycleProfile: profile,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            .renderPendingReport(id: uuid(609))
 
         let journal = try MutationJournalStoreV1(modelContext: harness.context,
             identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
@@ -3268,6 +3281,16 @@ private extension S6_2BackupExportTests {
                 history: currentHistory, entries: current.manifest.entries,
                 metadata: { try XCTUnwrap(current.members[$0]) })
             let currentMembers = current.manifest.entries
+            let retainedReport = try XCTUnwrap(currentRecords.reports.first { $0.id == uuid(609) })
+            XCTAssertEqual(retainedReport.pdfState, "ready")
+            let retainedPDFPath = try XCTUnwrap(retainedReport.pdfRelativePath)
+            let retainedReportBytes = [
+                retainedReport.snapshotRelativePath: try XCTUnwrap(current.members[retainedReport.snapshotRelativePath]),
+                retainedPDFPath: try XCTUnwrap(current.members[retainedPDFPath]),
+            ]
+            XCTAssertEqual(retainedReportBytes[retainedReport.snapshotRelativePath]?.sha256,
+                retainedReport.snapshotSHA256)
+            XCTAssertEqual(retainedReportBytes[retainedPDFPath]?.sha256, retainedReport.pdfSHA256)
             try currentImporter.discard(current)
 
             let sourceImporter = try BackupImportService(
@@ -3296,8 +3319,12 @@ private extension S6_2BackupExportTests {
             XCTAssertEqual(currentPlan.generationMembers.filter {
                 $0.relativePath.hasPrefix("evidence/") && $0.relativePath.hasSuffix("/thumbnail.jpg")
             }.count, 8)
-            let replacementRecords = try compositionReplacementRecords(
-                current: currentRecords, source: source.records)
+            let replacementFixture = try compositionReplacementRecords(
+                current: currentRecords, source: source.records,
+                currentSource: current.manifest.source, sourceSource: source.manifest.source,
+                currentIdentity: harness.session.workspaceIdentity,
+                sourceIdentity: sourceHarness.session.workspaceIdentity)
+            let replacementRecords = replacementFixture.records
             let composition = try CheckRunnerPhotoRestoreCompositionV1.compose(
                 source: source.manifest.source, sourceRecords: source.records,
                 sourcePlan: sourcePlan, currentSource: current.manifest.source,
@@ -3305,6 +3332,8 @@ private extension S6_2BackupExportTests {
                 replacementRecords: replacementRecords,
                 sourceIdentity: sourceHarness.session.workspaceIdentity,
                 currentIdentity: harness.session.workspaceIdentity)
+            try assertExplicitDeletionCannotResurrectRetainedFinalization(
+                replacementFixture, sourcePlan: sourcePlan, currentPlan: currentPlan)
             let restoredRecords = try composition.applying(to: replacementRecords)
             try composition.requireDestination(restoredRecords)
             XCTAssertNotEqual(restoredRecords, currentRecords)
@@ -3334,7 +3363,7 @@ private extension S6_2BackupExportTests {
                 oldRecords: currentRecords,
                 oldRecordsData: currentRecordsData, restoredRecords: restoredRecords,
                 restoredRecordsData: restoredRecordsData, expectedMembers: currentMembers,
-                expectedPlan: currentPlan, oldRawFacts: try treeFacts(rawRoot),
+                retainedReportBytes: retainedReportBytes, expectedPlan: currentPlan, oldRawFacts: try treeFacts(rawRoot),
                 rawRoot: rawRoot, retainedMyDayDraftID: retainedMyDayDraftID,
                 sourcePhotoDraftIDs: sourceIDs, retainedPhotoDraftIDs: retainedIDs,
                 commonGenericStage: commonGenericStage,
@@ -3471,6 +3500,187 @@ private extension S6_2BackupExportTests {
         let retainedCurrentOnlyBytes = try await adapter.data(
             stageID: currentOnly.item.stageID)
         XCTAssertEqual(retainedCurrentOnlyBytes, currentOnly.bytes)
+    }
+
+    @MainActor
+    func assertRetainedReportFilesFailClosedBeforePublication(_ fixture: PhotoRestoreJourney) async throws {
+        let report = try XCTUnwrap(fixture.oldRecords.reports.first { $0.id == uuid(609) })
+        XCTAssertFalse(fixture.sourcePackage.records.reports.contains { $0.id == report.id })
+        let snapshotURL = fixture.harness.session.generationRootURL.appendingPathComponent(report.snapshotRelativePath)
+        let pdfURL = fixture.harness.session.generationRootURL.appendingPathComponent(try XCTUnwrap(report.pdfRelativePath))
+        let snapshotBytes = try XCTUnwrap(fixture.retainedReportBytes[report.snapshotRelativePath])
+        let pdfBytes = try XCTUnwrap(fixture.retainedReportBytes[try XCTUnwrap(report.pdfRelativePath)])
+        let factory = StoreGenerationFactory(applicationSupportURL: fixture.harness.applicationSupportURL)
+        let pointerBefore = try factory.currentGenerationID()
+        let retiredBefore = try factory.retiredGenerationIDs()
+        let rawBefore = try treeFacts(fixture.rawRoot)
+        let heldURL = fixture.harness.applicationSupportURL.appendingPathComponent("retained-report-original.test")
+        let wrongRoot = fixture.harness.applicationSupportURL.appendingPathComponent("retained-report-wrong-root", isDirectory: true)
+        try fileManager.createDirectory(at: wrongRoot, withIntermediateDirectories: false)
+        defer { try? fileManager.removeItem(at: wrongRoot) }
+
+        @MainActor
+        func overwrite(_ url: URL, _ bytes: Data) throws {
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.write(contentsOf: bytes)
+            try handle.synchronize()
+        }
+        for (offset, fault) in ["snapshot-digest", "pdf-digest", "missing", "symlink", "hardlink", "wrong-root"].enumerated() {
+            let target = fault == "pdf-digest" ? pdfURL : snapshotURL
+            let original = fault == "pdf-digest" ? pdfBytes : snapshotBytes
+            var corrupted = original
+            corrupted[corrupted.startIndex] ^= 0xff
+            var held = false
+            switch fault {
+            case "snapshot-digest", "pdf-digest": try overwrite(target, corrupted)
+            case "missing", "symlink", "hardlink":
+                try fileManager.moveItem(at: target, to: heldURL)
+                held = true
+                if fault == "symlink" { try fileManager.createSymbolicLink(at: target, withDestinationURL: heldURL) }
+                if fault == "hardlink" { try fileManager.linkItem(at: heldURL, to: target) }
+            default: break
+            }
+            let newID = uuid(8_100 + offset * 2), restoreID = uuid(8_101 + offset * 2)
+            let service = try BackupRestoreService(applicationSupportURL: fixture.harness.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: sequence([newID, restoreID]))
+            var reachedPointerBoundary = false
+            service.photoRawPointerObservationForTesting = { _ in reachedPointerBoundary = true }
+            let attempt = Task { @MainActor in
+                _ = try await service.restore(validatedPackage: fixture.sourcePackage,
+                    currentModelContext: fixture.harness.context,
+                    currentGenerationID: fixture.oldGenerationID,
+                    currentGenerationRootURL: fault == "wrong-root" ? wrongRoot : fixture.harness.session.generationRootURL,
+                    mode: .replaceExisting)
+            }
+            await XCTAssertThrowsErrorAsync {
+                try await attempt.value
+            }
+            XCTAssertFalse(reachedPointerBoundary, fault)
+            XCTAssertEqual(try factory.currentGenerationID(), pointerBefore, fault)
+            XCTAssertEqual(try factory.retiredGenerationIDs(), retiredBefore, fault)
+            XCTAssertEqual(try treeFacts(fixture.rawRoot), rawBefore, fault)
+            XCTAssertNil(try RestoreIntentStore(applicationSupportURL: fixture.harness.applicationSupportURL).load(), fault)
+            XCTAssertFalse(fileManager.fileExists(atPath: photoRestoreBindingURL(
+                fixture.harness.applicationSupportURL, restoreID: restoreID).path), fault)
+            XCTAssertTrue(fileManager.fileExists(atPath: fixture.sourcePackage.stagedPackageURL.path), fault)
+            if held {
+                if fault != "missing" { try fileManager.removeItem(at: target) }
+                try fileManager.moveItem(at: heldURL, to: target)
+            } else if fault != "wrong-root" { try overwrite(target, original) }
+            XCTAssertEqual(try Data(contentsOf: target), original, fault)
+            let basis = try BackupExportService(modelContext: fixture.harness.context,
+                generationRootURL: fixture.harness.session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+                .canonicalCheckpointBasis()
+            XCTAssertEqual(basis.recordsData, fixture.oldRecordsData, fault)
+            XCTAssertEqual(basis.memberInventory, fixture.expectedMembers, fault)
+        }
+        try await assertRetainedReportBoundaryRecovery()
+    }
+
+    @MainActor
+    func assertRetainedReportBoundaryRecovery() async throws {
+        for (offset, cancel) in [false, true].enumerated() {
+            // Each late failure consumes its own imported package before install.
+            let fixture = try await makePhotoRestoreJourney("retained-boundary-\(offset)")
+            // makeStartupFixtureSupport removes this fixture after its sessions close.
+            let report = try XCTUnwrap(fixture.oldRecords.reports.first { $0.id == uuid(609) })
+            let target = fixture.harness.session.generationRootURL.appendingPathComponent(report.snapshotRelativePath)
+            let original = try XCTUnwrap(fixture.retainedReportBytes[report.snapshotRelativePath])
+            var corrupted = original
+            corrupted[corrupted.startIndex] ^= 0xff
+            let factory = StoreGenerationFactory(applicationSupportURL: fixture.harness.applicationSupportURL)
+            let retiredBefore = try factory.retiredGenerationIDs()
+            let modelBefore = try modelFacts(fixture.harness.context)
+            let newID = uuid(8_120 + offset * 2), restoreID = uuid(8_121 + offset * 2)
+            let service = try BackupRestoreService(applicationSupportURL: fixture.harness.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                makeUUID: sequence([newID, restoreID]))
+            var reachedPointerBoundary = false
+            service.photoRawPointerObservationForTesting = { published in
+                XCTAssertFalse(published)
+                reachedPointerBoundary = true
+                if cancel {
+                    withUnsafeCurrentTask { $0?.cancel() }
+                } else {
+                    let handle = try FileHandle(forWritingTo: target)
+                    defer { try? handle.close() }
+                    try handle.write(contentsOf: corrupted)
+                    try handle.synchronize()
+                }
+            }
+            let attempt = Task { @MainActor in
+                _ = try await service.restore(validatedPackage: fixture.sourcePackage,
+                    currentModelContext: fixture.harness.context,
+                    currentGenerationID: fixture.oldGenerationID,
+                    currentGenerationRootURL: fixture.harness.session.generationRootURL,
+                    mode: .replaceExisting)
+            }
+            await XCTAssertThrowsErrorAsync {
+                try await attempt.value
+            } verify: { error in
+                if cancel { XCTAssertTrue(error is CancellationError) }
+                else { XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority) }
+            }
+            XCTAssertTrue(reachedPointerBoundary)
+            XCTAssertFalse(Task.isCancelled, "Only the attempted restore task was cancelled")
+            XCTAssertEqual(try factory.currentGenerationID(), fixture.oldGenerationID)
+            XCTAssertEqual(try factory.retiredGenerationIDs(), retiredBefore)
+            XCTAssertEqual(try modelFacts(fixture.harness.context), modelBefore)
+            XCTAssertFalse(fileManager.fileExists(atPath: fixture.sourcePackage.stagedPackageURL.path))
+            let intentStore = try RestoreIntentStore(applicationSupportURL: fixture.harness.applicationSupportURL)
+            let bindingURL = photoRestoreBindingURL(fixture.harness.applicationSupportURL, restoreID: restoreID)
+            let newRoot = factory.installedGenerationURL(id: newID)
+            if cancel {
+                // Raw publication has happened; the original generation pointer has not.
+                // A cancelled task cannot complete asynchronous recovery itself.
+                let intent = try XCTUnwrap(intentStore.load())
+                XCTAssertEqual(intent.phase, .generationInstalled)
+                XCTAssertEqual(intent.oldGenerationID, fixture.oldGenerationID)
+                XCTAssertEqual(intent.newGenerationID, newID)
+                let binding = try readPhotoRestoreBinding(bindingURL)
+                try binding.requireIntent(intent)
+                XCTAssertEqual(binding.core.restoreID, restoreID)
+                XCTAssertEqual(binding.completion, .active)
+                let transition = try XCTUnwrap(binding.rawTransition)
+                XCTAssertNotNil(binding.rawOwnership)
+                XCTAssertEqual(try Data(contentsOf: fixture.rawRoot.appendingPathComponent(
+                    DraftAttachmentStagingAdapterV1.manifestName)), try transition.after.canonicalBytes())
+                let stableBefore = Set(fixture.oldRawFacts.filter {
+                    !$0.hasPrefix(DraftAttachmentStagingAdapterV1.manifestName + "|")
+                })
+                XCTAssertTrue(stableBefore.isSubset(of: Set(try treeFacts(fixture.rawRoot))))
+                XCTAssertTrue(fileManager.fileExists(atPath: newRoot.path))
+            } else {
+                XCTAssertNil(try intentStore.load())
+                XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path))
+                XCTAssertFalse(fileManager.fileExists(atPath: newRoot.path))
+                XCTAssertEqual(try treeFacts(fixture.rawRoot), fixture.oldRawFacts)
+                let handle = try FileHandle(forWritingTo: target)
+                defer { try? handle.close() }
+                try handle.write(contentsOf: original)
+                try handle.synchronize()
+            }
+            XCTAssertEqual(try Data(contentsOf: target), original)
+            let recovery = try BackupRestoreService(applicationSupportURL: fixture.harness.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            let recovered = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(recovered)
+            XCTAssertEqual(try factory.currentGenerationID(), fixture.oldGenerationID)
+            XCTAssertEqual(try factory.retiredGenerationIDs(), retiredBefore)
+            try await assertPhotoRestoreSnapshot(fixture, session: fixture.harness.session, restored: false)
+            XCTAssertNil(try intentStore.load())
+            XCTAssertFalse(fileManager.fileExists(atPath: bindingURL.path))
+            XCTAssertFalse(fileManager.fileExists(atPath: newRoot.path))
+            XCTAssertFalse(fileManager.fileExists(atPath: fixture.sourcePackage.stagedPackageURL.path))
+            let repeated = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(repeated)
+            XCTAssertEqual(try factory.currentGenerationID(), fixture.oldGenerationID)
+            XCTAssertEqual(try factory.retiredGenerationIDs(), retiredBefore)
+            try await assertPhotoRestoreSnapshot(fixture, session: fixture.harness.session, restored: false)
+        }
     }
 
     @MainActor
@@ -3619,6 +3829,13 @@ private extension S6_2BackupExportTests {
         }
         let records = try BackupCanonicalDecoderV1().decodeRecords(basis.recordsData)
         XCTAssertEqual(records, expectedRecords, file: file, line: line)
+        XCTAssertEqual(fixture.retainedReportBytes.count, 2, file: file, line: line)
+        for (path, original) in fixture.retainedReportBytes {
+            XCTAssertEqual(try Data(contentsOf: session.generationRootURL.appendingPathComponent(path)),
+                original, "Original retained report bytes: \(path)", file: file, line: line)
+        }
+        XCTAssertEqual(records.reports.first { $0.id == uuid(609) },
+            fixture.oldRecords.reports.first { $0.id == uuid(609) }, file: file, line: line)
         let history = try XCTUnwrap(records.mutationHistory, file: file, line: line)
         let historyKeys = try history.receipts.map { original in
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
@@ -3759,18 +3976,134 @@ private extension S6_2BackupExportTests {
         )), mutationID: placementMutationID)
     }
 
-    func compositionReplacementRecords(current: V4BackupRecordsV1,
-                                       source: V4BackupRecordsV1) throws -> V4BackupRecordsV1 {
-        var currentObject = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: JSONEncoder().encode(current)) as? [String: Any])
-        let sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: JSONEncoder().encode(source)) as? [String: Any])
-        for key in ["fieldDrafts", "workflowRecords", "evidenceFiles", "roundSessions",
-                    "assets", "sites", "packets", "issues", "requirementAssurance"] {
-            currentObject[key] = sourceObject[key]
+    func assertCompositionBindingVersionCompatibility(
+        _ binding: CheckRunnerPhotoRestoreCompositionBindingV1, records: V4BackupRecordsV1) throws {
+        XCTAssertEqual(binding.schemaVersion, 2)
+        XCTAssertTrue(binding.childDraftIDs.isEmpty)
+        let current = try binding.selectSource(in: records)
+        let encoded = try FieldDraftCanonicalCodecV1.encode(binding)
+        let value = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        // Exact schema1 hash of its original nine empty canonical arrays. Reports
+        // were not a key at all; adding an empty reports array must change schema2.
+        let legacyHash = "1bbf054c21c77cf3e5c40a1f77097cbecedf5d29cfb07340f1537870bee111aa"
+        XCTAssertNotEqual(binding.canonicalClosureSHA256, legacyHash)
+        func decoded(version: Int, hash: String) throws -> CheckRunnerPhotoRestoreCompositionBindingV1 {
+            var changed = value
+            changed["schemaVersion"] = version
+            changed["canonicalClosureSHA256"] = hash
+            return try FieldDraftCanonicalCodecV1.decode(CheckRunnerPhotoRestoreCompositionBindingV1.self,
+                from: JSONSerialization.data(withJSONObject: changed, options: [.sortedKeys, .withoutEscapingSlashes]))
         }
-        return try JSONDecoder().decode(V4BackupRecordsV1.self,
-            from: JSONSerialization.data(withJSONObject: currentObject, options: [.sortedKeys]))
+        let legacy = try decoded(version: 1, hash: legacyHash)
+        XCTAssertEqual(try legacy.selectSource(in: records), current)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(CheckRunnerPhotoRestoreCompositionBindingV1.self,
+            from: FieldDraftCanonicalCodecV1.encode(legacy)), legacy)
+        XCTAssertThrowsError(try decoded(version: 1, hash: binding.canonicalClosureSHA256).selectSource(in: records))
+        XCTAssertThrowsError(try decoded(version: 2, hash: legacyHash).selectSource(in: records))
+        XCTAssertThrowsError(try decoded(version: 3, hash: legacyHash))
+    }
+
+    struct CompositionReplacementFixture {
+        let records: V4BackupRecordsV1
+        let withoutRetention: V4BackupRecordsV1
+        let effectiveIncoming: V4BackupRecordsV1
+        let current: V4BackupRecordsV1
+        let sourceIdentity: WorkspaceReplicaIdentityV1
+        let currentIdentity: WorkspaceReplicaIdentityV1
+        let preparation: CheckRunnerPhotoRestoreCompositionV1.CanonicalPreparation
+        let retainedReport: V4BackupReportDTO
+        let replacementAt: Date
+    }
+
+    func compositionReplacementRecords(current: V4BackupRecordsV1, source: V4BackupRecordsV1,
+        currentSource: V4BackupSourceV1, sourceSource: V4BackupSourceV1,
+        currentIdentity: WorkspaceReplicaIdentityV1, sourceIdentity: WorkspaceReplicaIdentityV1
+    ) throws -> CompositionReplacementFixture {
+        let at = Date(timeIntervalSince1970: 2_000_000_000)
+        let retainedReport = try XCTUnwrap(current.reports.first { $0.id == uuid(609) })
+        XCTAssertFalse(source.reports.contains { $0.id == retainedReport.id })
+        let unprepared = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+            currentRecords: current, currentIdentity: currentIdentity,
+            incomingRecords: source, incomingIdentity: sourceIdentity,
+            mode: .replaceExisting, replacementAt: at)).recordsAfter
+        // The production rule itself proves why adding the retained family later
+        // is too late: omission has already minted the packet tombstone.
+        let omittedPacket = try XCTUnwrap(unprepared.packets.first { $0.id == retainedReport.packetID })
+        XCTAssertNil(omittedPacket.currentRecordID)
+        XCTAssertNotNil(omittedPacket.contentDeletedAt)
+        XCTAssertFalse(unprepared.reports.contains { $0.id == retainedReport.id })
+        let prepared = try CheckRunnerPhotoRestoreCompositionV1.prepareCanonical(
+            source: sourceSource, sourceRecords: source,
+            currentSource: currentSource, currentRecords: current,
+            sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
+        let effective = try prepared.includingRetainedRows(in: source)
+        XCTAssertEqual(effective.mutationHistory, source.mutationHistory)
+        XCTAssertEqual(effective.deletionLedger, source.deletionLedger)
+        let result = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+            currentRecords: current, currentIdentity: currentIdentity,
+            incomingRecords: effective, incomingIdentity: sourceIdentity,
+            mode: .replaceExisting, replacementAt: at)).recordsAfter
+        XCTAssertEqual(result.reports.first { $0.id == retainedReport.id }, retainedReport)
+        XCTAssertEqual(result.packets.first { $0.id == retainedReport.packetID },
+            current.packets.first { $0.id == retainedReport.packetID })
+        let placement = try XCTUnwrap(current.assetPlacementEvents.first { $0.id == uuid(604) })
+        XCTAssertFalse(source.assetPlacementEvents.contains { $0.id == placement.id })
+        XCTAssertEqual(result.assetPlacementEvents.first { $0.id == placement.id }, placement)
+        let typedPlacement = try LocationPersistenceCodecV1.decode(AssetPlacementEventV1.self,
+            from: placement.canonicalData)
+        XCTAssertEqual(typedPlacement.assetID, uuid(602))
+        XCTAssertEqual(typedPlacement.siteID, uuid(601))
+        return .init(records: result, withoutRetention: unprepared, effectiveIncoming: effective,
+            current: current, sourceIdentity: sourceIdentity, currentIdentity: currentIdentity,
+            preparation: prepared, retainedReport: retainedReport, replacementAt: at)
+    }
+
+    func assertExplicitDeletionCannotResurrectRetainedFinalization(
+        _ fixture: CompositionReplacementFixture, sourcePlan: CheckRunnerPhotoBackupRestorePlanV1,
+        currentPlan: CheckRunnerPhotoBackupRestorePlanV1) throws {
+        // Authenticated retained placement dependencies cannot disappear or be
+        // substituted after deletion-winning composition.
+        for substitute in [false, true] {
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(fixture.records)) as? [String: Any])
+            let original = try XCTUnwrap(fixture.records.assetPlacementEvents.first { $0.id == uuid(604) })
+            let changed = fixture.records.assetPlacementEvents.compactMap { row -> V5BackupLocationRecordV1? in
+                guard row.id == original.id else { return row }
+                return substitute ? V5BackupLocationRecordV1(id: row.id,
+                    canonicalData: Data("changed-placement".utf8)) : nil
+            }
+            object["assetPlacementEvents"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(changed))
+            let invalid = try JSONDecoder().decode(V4BackupRecordsV1.self,
+                from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+            XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1.compose(
+                preparation: fixture.preparation, sourcePlan: sourcePlan,
+                currentPlan: currentPlan, replacementRecords: invalid))
+        }
+        let entry = try DeletionLedgerEntryV2(
+            identity: DeletionIdentityV2(kind: .packet, id: fixture.retainedReport.packetID),
+            deletedAt: fixture.replacementAt)
+        func addingDeletion(to records: V4BackupRecordsV1) throws -> V4BackupRecordsV1 {
+            let ledger = try XCTUnwrap(records.deletionLedger)
+                .union(DeletionLedgerV2(entries: [entry]))
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(records)) as? [String: Any])
+            object["deletionLedger"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(ledger))
+            return try JSONDecoder().decode(V4BackupRecordsV1.self,
+                from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+        }
+        for incomingDeletes in [false, true] {
+            let current = try incomingDeletes ? fixture.current : addingDeletion(to: fixture.current)
+            let incoming = try incomingDeletes
+                ? addingDeletion(to: fixture.effectiveIncoming) : fixture.effectiveIncoming
+            let deleted = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+                currentRecords: current, currentIdentity: fixture.currentIdentity,
+                incomingRecords: incoming, incomingIdentity: fixture.sourceIdentity,
+                mode: .replaceExisting, replacementAt: fixture.replacementAt)).recordsAfter
+            XCTAssertFalse(deleted.reports.contains { $0.id == fixture.retainedReport.id })
+            XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1.compose(
+                preparation: fixture.preparation, sourcePlan: sourcePlan,
+                currentPlan: currentPlan, replacementRecords: deleted))
+        }
     }
 
     func expectedGenericStageIDs(_ records: V4BackupRecordsV1,

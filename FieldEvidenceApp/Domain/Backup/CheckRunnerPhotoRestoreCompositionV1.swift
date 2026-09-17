@@ -91,7 +91,7 @@ struct CheckRunnerPhotoRestoreCompositionBindingV1: Codable, Equatable, Sendable
         }.sorted { $0.stableKey < $1.stableKey }
         guard Set(children.map { $0.payload.childDraftID }).count == children.count,
               Set(keys).count == keys.count else { throw failure }
-        schemaVersion = 1
+        schemaVersion = 2
         source = sourceHistory.source
         childDraftIDs = children.map { $0.payload.childDraftID }
         requiredHistoryKeys = keys
@@ -137,13 +137,13 @@ struct CheckRunnerPhotoRestoreCompositionBindingV1: Codable, Equatable, Sendable
                 == requiredHistorySHA256,
               try CheckRunnerPhotoRestoreCompositionV1.canonicalClosure(
                 history: projected, childDraftIDs: Set(childDraftIDs),
-                records: destination).sha256 == canonicalClosureSHA256 else { throw failure }
+                records: destination, bindingVersion: schemaVersion).sha256 == canonicalClosureSHA256 else { throw failure }
         return .init(source: source, children: selected)
     }
 
     private func validateShape() throws {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
-        guard schemaVersion == 1,
+        guard (schemaVersion == 1 || schemaVersion == 2),
               let workspaceID = source.workspaceID,
               requiredHistoryKeys.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
               childDraftIDs.allSatisfy({ $0 != Self.zero }),
@@ -240,6 +240,8 @@ struct CheckRunnerPhotoRestoreDraftClosureV1: Equatable, Sendable {
 }
 
 struct CheckRunnerPhotoRestoreCanonicalRowsV1: Equatable, Sendable {
+    let assetPlacementEvents: [V5BackupLocationRecordV1]
+    let reports: [V4BackupReportDTO]
     let fieldDrafts: [V16BackupFieldDraftRecordV1]
     let workflowRecords: [V4BackupWorkflowRecordDTO]
     let evidenceFiles: [V4BackupEvidenceFileDTO]
@@ -249,22 +251,9 @@ struct CheckRunnerPhotoRestoreCanonicalRowsV1: Equatable, Sendable {
     let packets: [V4BackupPacketDTO]
     let issues: [V4BackupIssueDTO]
     let requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
-}
 
-struct CheckRunnerPhotoRestoreCompositionPlanV1: Equatable, Sendable {
-    let sourcePhotoHistory: CheckRunnerPhotoBackupHistoryV1
-    let currentPhotoHistory: CheckRunnerPhotoBackupHistoryV1
-    let sourceSelection: CheckRunnerPhotoRestoreSourceSelectionV1
-    let sourceBinding: CheckRunnerPhotoRestoreCompositionBindingV1
-    let retainedCurrentBinding: CheckRunnerPhotoRestoreCompositionBindingV1?
-    let mutationHistory: MutationHistorySnapshotV1
-    let canonicalRows: CheckRunnerPhotoRestoreCanonicalRowsV1
-    let retainedCurrentDrafts: [CheckRunnerPhotoRestoreDraftClosureV1]
-    let retainedCurrentPhotoChildDraftIDs: [UUID]
-    let retainedCurrentStageIDs: [UUID]
-    let photoRestorePlans: [CheckRunnerPhotoBackupRestorePlanV1]
-
-    func applying(to records: V4BackupRecordsV1) throws -> V4BackupRecordsV1 {
+    fileprivate func applying(to records: V4BackupRecordsV1,
+                              mutationHistory: MutationHistorySnapshotV1?) -> V4BackupRecordsV1 {
         let result = V4BackupRecordsV1(
             guidedSurveys: records.guidedSurveys,
             assetLocators: records.assetLocators,
@@ -279,7 +268,7 @@ struct CheckRunnerPhotoRestoreCompositionPlanV1: Equatable, Sendable {
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
-            fieldDrafts: canonicalRows.fieldDrafts,
+            fieldDrafts: self.fieldDrafts,
             workPackets: records.workPackets,
             inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
@@ -288,23 +277,23 @@ struct CheckRunnerPhotoRestoreCompositionPlanV1: Equatable, Sendable {
             assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
-            assetPlacementEvents: records.assetPlacementEvents,
-            assets: canonicalRows.assets,
+            assetPlacementEvents: self.assetPlacementEvents,
+            assets: self.assets,
             deletionLedger: records.deletionLedger,
-            evidenceFiles: canonicalRows.evidenceFiles,
-            issues: canonicalRows.issues,
+            evidenceFiles: self.evidenceFiles,
+            issues: self.issues,
             locationHierarchyEvents: records.locationHierarchyEvents,
             locationMigrationReceipts: records.locationMigrationReceipts,
             locationNodes: records.locationNodes,
             mutationHistory: mutationHistory,
-            packets: canonicalRows.packets,
+            packets: self.packets,
             partyAccountability: records.partyAccountability,
             recordsSchemaVersion: records.recordsSchemaVersion,
-            reports: records.reports,
-            requirementAssurance: canonicalRows.requirementAssurance,
+            reports: self.reports,
+            requirementAssurance: self.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
-            sites: canonicalRows.sites,
-            workflowRecords: canonicalRows.workflowRecords,
+            sites: self.sites,
+            workflowRecords: self.workflowRecords,
             evidenceContexts: records.evidenceContexts,
             pairedObservationLinks: records.pairedObservationLinks,
             lighting: records.lighting,
@@ -334,7 +323,7 @@ struct CheckRunnerPhotoRestoreCompositionPlanV1: Equatable, Sendable {
             evidenceAssociationEvents: records.evidenceAssociationEvents,
             evidenceSequenceRevisions: records.evidenceSequenceRevisions,
             shopReportProfiles: records.shopReportProfiles,
-            roundSessions: canonicalRows.roundSessions,
+            roundSessions: self.roundSessions,
             importMappingProfiles: records.importMappingProfiles,
             bulkSessions: records.bulkSessions,
             bulkCommitReceipts: records.bulkCommitReceipts,
@@ -343,6 +332,25 @@ struct CheckRunnerPhotoRestoreCompositionPlanV1: Equatable, Sendable {
             reinspectionExceptionQueue: records.reinspectionExceptionQueue,
             entityIdentityResolution: records.entityIdentityResolution,
             practiceWorkspaceProvenance: records.practiceWorkspaceProvenance)
+        return result
+    }
+}
+
+struct CheckRunnerPhotoRestoreCompositionPlanV1: Equatable, Sendable {
+    let sourcePhotoHistory: CheckRunnerPhotoBackupHistoryV1
+    let currentPhotoHistory: CheckRunnerPhotoBackupHistoryV1
+    let sourceSelection: CheckRunnerPhotoRestoreSourceSelectionV1
+    let sourceBinding: CheckRunnerPhotoRestoreCompositionBindingV1
+    let retainedCurrentBinding: CheckRunnerPhotoRestoreCompositionBindingV1?
+    let mutationHistory: MutationHistorySnapshotV1
+    let canonicalRows: CheckRunnerPhotoRestoreCanonicalRowsV1
+    let retainedCurrentDrafts: [CheckRunnerPhotoRestoreDraftClosureV1]
+    let retainedCurrentPhotoChildDraftIDs: [UUID]
+    let retainedCurrentStageIDs: [UUID]
+    let photoRestorePlans: [CheckRunnerPhotoBackupRestorePlanV1]
+
+    func applying(to records: V4BackupRecordsV1) throws -> V4BackupRecordsV1 {
+        let result = canonicalRows.applying(to: records, mutationHistory: mutationHistory)
         try requireDestination(result)
         return result
     }
@@ -350,6 +358,8 @@ struct CheckRunnerPhotoRestoreCompositionPlanV1: Equatable, Sendable {
     func requireDestination(_ records: V4BackupRecordsV1) throws {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
         guard records.mutationHistory == mutationHistory,
+              records.assetPlacementEvents == canonicalRows.assetPlacementEvents,
+              records.reports == canonicalRows.reports,
               records.fieldDrafts == canonicalRows.fieldDrafts,
               records.workflowRecords == canonicalRows.workflowRecords,
               records.evidenceFiles == canonicalRows.evidenceFiles,
@@ -389,17 +399,54 @@ struct CheckRunnerPhotoRestoreCompositionPlanV1: Equatable, Sendable {
 /// generation installation, and raw publication remain owned by their existing
 /// infrastructure services.
 enum CheckRunnerPhotoRestoreCompositionV1 {
-    static func compose(
-        source: V4BackupSourceV1,
-        sourceRecords: V4BackupRecordsV1,
-        sourcePlan: CheckRunnerPhotoBackupRestorePlanV1,
-        currentSource: V4BackupSourceV1,
-        currentRecords: V4BackupRecordsV1,
-        currentPlan: CheckRunnerPhotoBackupRestorePlanV1?,
-        replacementRecords: V4BackupRecordsV1,
-        sourceIdentity: WorkspaceReplicaIdentityV1,
-        currentIdentity: WorkspaceReplicaIdentityV1
-    ) throws -> CheckRunnerPhotoRestoreCompositionPlanV1 {
+    /// A complete authenticated value closure. It grants no filesystem, writer,
+    /// restore or publication authority. Only prepareCanonical can construct it.
+    struct CanonicalPreparation: Equatable, Sendable {
+        fileprivate let sourceRecords: V4BackupRecordsV1
+        fileprivate let currentRecords: V4BackupRecordsV1
+        fileprivate let sourceIdentity: WorkspaceReplicaIdentityV1
+        fileprivate let currentIdentity: WorkspaceReplicaIdentityV1
+        let sourceHistory: CheckRunnerPhotoBackupHistoryV1
+        let currentHistory: CheckRunnerPhotoBackupHistoryV1
+        fileprivate let historyUnion: CheckRunnerPhotoRestoreHistoryUnionV1
+        fileprivate let sourceClosure: CanonicalClosure
+        fileprivate let currentClosure: CanonicalClosure
+        fileprivate let sourceBinding: CheckRunnerPhotoRestoreCompositionBindingV1
+        fileprivate let sourceSelection: CheckRunnerPhotoRestoreSourceSelectionV1
+        fileprivate let retainedCurrentBinding: CheckRunnerPhotoRestoreCompositionBindingV1?
+        fileprivate let retainedDrafts: [CheckRunnerPhotoRestoreDraftClosureV1]
+        fileprivate let retainedPhotoIDs: Set<UUID>
+        fileprivate let retainedStageIDs: [UUID]
+        fileprivate let retainedCurrentSelection: CheckRunnerPhotoRestoreSourceSelectionV1
+
+        var mutationHistory: MutationHistorySnapshotV1 { historyUnion.merged }
+
+        func requireOriginals(sourceRecords: V4BackupRecordsV1, currentRecords: V4BackupRecordsV1,
+            sourceIdentity: WorkspaceReplicaIdentityV1, currentIdentity: WorkspaceReplicaIdentityV1) throws {
+            guard self.sourceRecords == sourceRecords, self.currentRecords == currentRecords,
+                  self.sourceIdentity == sourceIdentity, self.currentIdentity == currentIdentity else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+
+        /// Add only authenticated retained rows before omission-derived packet
+        /// tombstones are computed. The original source journal and ledger stay
+        /// intact; the incumbent replacement rule still owns their merge.
+        func includingRetainedRows(in sourceRecords: V4BackupRecordsV1) throws -> V4BackupRecordsV1 {
+            guard sourceRecords == self.sourceRecords else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let rows = try CheckRunnerPhotoRestoreCompositionV1.mergedRows(
+                base: sourceRecords, additions: currentClosure)
+            return rows.applying(to: sourceRecords, mutationHistory: sourceRecords.mutationHistory)
+        }
+    }
+
+    static func prepareCanonical(
+        source: V4BackupSourceV1, sourceRecords: V4BackupRecordsV1,
+        currentSource: V4BackupSourceV1, currentRecords: V4BackupRecordsV1,
+        sourceIdentity: WorkspaceReplicaIdentityV1, currentIdentity: WorkspaceReplicaIdentityV1
+    ) throws -> CanonicalPreparation {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
         guard source.workspaceID == currentSource.workspaceID,
               source.workspaceID == sourceIdentity.workspaceID.rawValue,
@@ -407,33 +454,17 @@ enum CheckRunnerPhotoRestoreCompositionV1 {
               source.recordsSchemaVersion == sourceRecords.recordsSchemaVersion,
               currentSource.recordsSchemaVersion == currentRecords.recordsSchemaVersion,
               sourceRecords.recordsSchemaVersion == currentRecords.recordsSchemaVersion,
-              replacementRecords.recordsSchemaVersion == sourceRecords.recordsSchemaVersion,
               let sourceSnapshot = sourceRecords.mutationHistory,
-              let currentSnapshot = currentRecords.mutationHistory,
-              let destinationSnapshot = replacementRecords.mutationHistory else { throw failure }
+              let currentSnapshot = currentRecords.mutationHistory else { throw failure }
 
         let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
             source: source, records: sourceRecords)
         let currentHistory = try CheckRunnerPhotoBackupHistoryV1.project(
             source: currentSource, records: currentRecords)
         guard !sourceHistory.children.isEmpty || !currentHistory.children.isEmpty else { throw failure }
-        let sourceMemberBinding = try CheckRunnerPhotoRestoreMemberBindingV1(plan: sourcePlan)
-        guard sourcePlan.source == source,
-              try sourceMemberBinding.resolve(history: sourceHistory) == sourcePlan else { throw failure }
-        let currentMemberBinding = try currentPlan.map {
-            try CheckRunnerPhotoRestoreMemberBindingV1(plan: $0)
-        }
-        if let currentPlan, let currentMemberBinding {
-            guard currentPlan.source == currentSource,
-                  try currentMemberBinding.resolve(history: currentHistory) == currentPlan else { throw failure }
-        } else if !currentHistory.children.isEmpty {
-            throw failure
-        }
-
         let historyUnion = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(
             source: sourceSnapshot, current: currentSnapshot,
             sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
-        try historyUnion.requireDestination(destinationSnapshot)
         try historyUnion.requireSourcePhotoHistory(sourceHistory)
 
         let sourceDrafts = try DraftProjection(records: sourceRecords)
@@ -460,6 +491,86 @@ enum CheckRunnerPhotoRestoreCompositionV1 {
             source: currentSource,
             children: retainedPhotoIDs.sorted(by: uuidLess).compactMap { currentChildByID[$0] })
 
+        let retainedDrafts = try retainedCurrentDraftClosures(
+            source: draftClosures(sourceDrafts), current: draftClosures(currentDrafts))
+
+        let retainedPhotoClosure = try canonicalClosure(history: currentHistory,
+            childDraftIDs: retainedPhotoIDs, records: currentRecords)
+        let retainedDraftClosure = try canonicalClosure(
+            draftClosures: retainedDrafts, records: currentRecords)
+        let currentClosure = try merged(retainedPhotoClosure, retainedDraftClosure)
+
+        let sourceBinding = try CheckRunnerPhotoRestoreCompositionBindingV1(
+            sourceHistory: sourceHistory, records: sourceRecords)
+        let sourceSelection = try sourceBinding.selectSource(in: sourceRecords)
+        let retainedCurrentBinding: CheckRunnerPhotoRestoreCompositionBindingV1?
+        if retainedPhotoIDs.isEmpty { retainedCurrentBinding = nil }
+        else {
+            retainedCurrentBinding = try .init(sourceHistory: currentHistory,
+                records: currentRecords, selecting: retainedPhotoIDs)
+        }
+        let retainedStageIDs = Set(retainedDrafts.flatMap(\.stageIDs)).sorted(by: uuidLess)
+        return CanonicalPreparation(sourceRecords: sourceRecords, currentRecords: currentRecords,
+            sourceIdentity: sourceIdentity, currentIdentity: currentIdentity,
+            sourceHistory: sourceHistory, currentHistory: currentHistory,
+            historyUnion: historyUnion, sourceClosure: sourceClosure, currentClosure: currentClosure,
+            sourceBinding: sourceBinding, sourceSelection: sourceSelection,
+            retainedCurrentBinding: retainedCurrentBinding, retainedDrafts: retainedDrafts,
+            retainedPhotoIDs: retainedPhotoIDs, retainedStageIDs: retainedStageIDs,
+            retainedCurrentSelection: retainedCurrentSelection)
+    }
+
+    static func compose(
+        source: V4BackupSourceV1,
+        sourceRecords: V4BackupRecordsV1,
+        sourcePlan: CheckRunnerPhotoBackupRestorePlanV1,
+        currentSource: V4BackupSourceV1,
+        currentRecords: V4BackupRecordsV1,
+        currentPlan: CheckRunnerPhotoBackupRestorePlanV1?,
+        replacementRecords: V4BackupRecordsV1,
+        sourceIdentity: WorkspaceReplicaIdentityV1,
+        currentIdentity: WorkspaceReplicaIdentityV1
+    ) throws -> CheckRunnerPhotoRestoreCompositionPlanV1 {
+        let preparation = try prepareCanonical(source: source, sourceRecords: sourceRecords,
+            currentSource: currentSource, currentRecords: currentRecords,
+            sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
+        return try compose(preparation: preparation, sourcePlan: sourcePlan,
+            currentPlan: currentPlan, replacementRecords: replacementRecords)
+    }
+
+    static func compose(preparation: CanonicalPreparation,
+        sourcePlan: CheckRunnerPhotoBackupRestorePlanV1,
+        currentPlan: CheckRunnerPhotoBackupRestorePlanV1?, replacementRecords: V4BackupRecordsV1
+    ) throws -> CheckRunnerPhotoRestoreCompositionPlanV1 {
+        let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        let sourceHistory = preparation.sourceHistory, currentHistory = preparation.currentHistory
+        let source = sourceHistory.source, currentSource = currentHistory.source
+        guard replacementRecords.recordsSchemaVersion == preparation.sourceRecords.recordsSchemaVersion,
+              let destinationSnapshot = replacementRecords.mutationHistory else { throw failure }
+        try preparation.historyUnion.requireDestination(destinationSnapshot)
+        // Explicit deletion never authorizes resurrecting an authenticated row.
+        // Reject an incompatible deletion-filtered destination before any merge.
+        try preparation.sourceClosure.requireSubset(of: replacementRecords)
+        try preparation.currentClosure.requireSubset(of: replacementRecords)
+        if !preparation.currentClosure.assets.isEmpty {
+            try requireUncopiedPlacementDependencies(from: preparation.currentRecords,
+                in: replacementRecords)
+        }
+        let sourceMemberBinding = try CheckRunnerPhotoRestoreMemberBindingV1(plan: sourcePlan)
+        guard sourcePlan.source == source,
+              try sourceMemberBinding.resolve(history: sourceHistory) == sourcePlan else { throw failure }
+        let currentMemberBinding = try currentPlan.map {
+            try CheckRunnerPhotoRestoreMemberBindingV1(plan: $0)
+        }
+        if let currentPlan, let currentMemberBinding {
+            guard currentPlan.source == currentSource,
+                  try currentMemberBinding.resolve(history: currentHistory) == currentPlan else { throw failure }
+        } else if !currentHistory.children.isEmpty {
+            throw failure
+        }
+
+        let retainedPhotoIDs = preparation.retainedPhotoIDs
+        let retainedCurrentSelection = preparation.retainedCurrentSelection
         var retainedPlans: [CheckRunnerPhotoBackupRestorePlanV1] = [sourcePlan]
         if !retainedPhotoIDs.isEmpty {
             guard let currentPlan, let currentMemberBinding else { throw failure }
@@ -472,69 +583,59 @@ enum CheckRunnerPhotoRestoreCompositionV1 {
             retainedPlans.append(selectedPlan)
         }
 
-        let retainedDrafts = try retainedCurrentDraftClosures(
-            source: draftClosures(sourceDrafts), current: draftClosures(currentDrafts))
+        let finalRows = try mergedRows(base: replacementRecords, additions: preparation.currentClosure)
+        return CheckRunnerPhotoRestoreCompositionPlanV1(
+            sourcePhotoHistory: sourceHistory, currentPhotoHistory: currentHistory,
+            sourceSelection: preparation.sourceSelection, sourceBinding: preparation.sourceBinding,
+            retainedCurrentBinding: preparation.retainedCurrentBinding,
+            mutationHistory: preparation.historyUnion.merged, canonicalRows: finalRows,
+            retainedCurrentDrafts: preparation.retainedDrafts,
+            retainedCurrentPhotoChildDraftIDs: retainedPhotoIDs.sorted(by: uuidLess),
+            retainedCurrentStageIDs: preparation.retainedStageIDs, photoRestorePlans: retainedPlans)
+    }
 
-        try sourceClosure.requireSubset(of: replacementRecords)
-        let retainedPhotoClosure = try canonicalClosure(history: currentHistory,
-            childDraftIDs: retainedPhotoIDs, records: currentRecords)
-        let retainedDraftClosure = try canonicalClosure(
-            draftClosures: retainedDrafts, records: currentRecords)
-        let currentClosure = try merged(retainedPhotoClosure, retainedDraftClosure)
-
-        let finalFieldDrafts = try merged(base: replacementRecords.fieldDrafts,
-            additions: currentClosure.fieldDrafts, key: fieldDraftKey, less: fieldDraftLess)
-        let finalRows = CheckRunnerPhotoRestoreCanonicalRowsV1(
+    fileprivate static func mergedRows(base: V4BackupRecordsV1, additions: CanonicalClosure) throws
+        -> CheckRunnerPhotoRestoreCanonicalRowsV1 {
+        let finalFieldDrafts = try merged(base: base.fieldDrafts,
+            additions: additions.fieldDrafts, key: fieldDraftKey, less: fieldDraftLess)
+        return CheckRunnerPhotoRestoreCanonicalRowsV1(
+            assetPlacementEvents: try merged(base: base.assetPlacementEvents,
+                additions: additions.assetPlacementEvents, key: { $0.id.uuidString.lowercased() },
+                less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
+            reports: try merged(base: base.reports, additions: additions.reports,
+                key: { $0.id.uuidString.lowercased() },
+                less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
             fieldDrafts: finalFieldDrafts,
-            workflowRecords: try merged(base: replacementRecords.workflowRecords,
-                additions: currentClosure.workflowRecords, key: { $0.id.uuidString.lowercased() },
+            workflowRecords: try merged(base: base.workflowRecords,
+                additions: additions.workflowRecords, key: { $0.id.uuidString.lowercased() },
                 less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
-            evidenceFiles: try merged(base: replacementRecords.evidenceFiles,
-                additions: currentClosure.evidenceFiles, key: { $0.id.uuidString.lowercased() },
+            evidenceFiles: try merged(base: base.evidenceFiles,
+                additions: additions.evidenceFiles, key: { $0.id.uuidString.lowercased() },
                 less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
-            roundSessions: try merged(base: replacementRecords.roundSessions,
-                additions: currentClosure.roundSessions,
+            roundSessions: try merged(base: base.roundSessions,
+                additions: additions.roundSessions,
                 key: { "\($0.sessionID.uuidString.lowercased()):\($0.revision)" },
                 less: roundLess),
-            assets: try merged(base: replacementRecords.assets, additions: currentClosure.assets,
+            assets: try merged(base: base.assets, additions: additions.assets,
                 key: { $0.id.uuidString.lowercased() },
                 less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
-            sites: try merged(base: replacementRecords.sites, additions: currentClosure.sites,
+            sites: try merged(base: base.sites, additions: additions.sites,
                 key: { $0.id.uuidString.lowercased() },
                 less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
-            packets: try merged(base: replacementRecords.packets, additions: currentClosure.packets,
+            packets: try merged(base: base.packets, additions: additions.packets,
                 key: { $0.id.uuidString.lowercased() },
                 less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
-            issues: try merged(base: replacementRecords.issues, additions: currentClosure.issues,
+            issues: try merged(base: base.issues, additions: additions.issues,
                 key: { $0.id.uuidString.lowercased() },
                 less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
-            requirementAssurance: try merged(base: replacementRecords.requirementAssurance,
-                additions: currentClosure.requirementAssurance,
+            requirementAssurance: try merged(base: base.requirementAssurance,
+                additions: additions.requirementAssurance,
                 key: { "\($0.workflowRecordID.uuidString.lowercased()):\($0.snapshotSHA256)" },
                 less: { lhs, rhs in
                     "\(lhs.workflowRecordID.uuidString.lowercased()):\(lhs.snapshotSHA256)"
                         < "\(rhs.workflowRecordID.uuidString.lowercased()):\(rhs.snapshotSHA256)"
                 }))
 
-        let sourceBinding = try CheckRunnerPhotoRestoreCompositionBindingV1(
-            sourceHistory: sourceHistory, records: sourceRecords)
-        let sourceSelection = try sourceBinding.selectSource(in: sourceRecords)
-        let retainedCurrentBinding: CheckRunnerPhotoRestoreCompositionBindingV1?
-        if retainedPhotoIDs.isEmpty { retainedCurrentBinding = nil }
-        else {
-            retainedCurrentBinding = try .init(sourceHistory: currentHistory,
-                records: currentRecords, selecting: retainedPhotoIDs)
-        }
-        let retainedStageIDs = Set(retainedDrafts.flatMap(\.stageIDs)).sorted(by: uuidLess)
-        let result = CheckRunnerPhotoRestoreCompositionPlanV1(
-            sourcePhotoHistory: sourceHistory, currentPhotoHistory: currentHistory,
-            sourceSelection: sourceSelection, sourceBinding: sourceBinding,
-            retainedCurrentBinding: retainedCurrentBinding,
-            mutationHistory: historyUnion.merged, canonicalRows: finalRows,
-            retainedCurrentDrafts: retainedDrafts,
-            retainedCurrentPhotoChildDraftIDs: retainedPhotoIDs.sorted(by: uuidLess),
-            retainedCurrentStageIDs: retainedStageIDs, photoRestorePlans: retainedPlans)
-        return result
     }
 
     /// Authenticates complete canonical/journal families without granting any
@@ -637,7 +738,7 @@ enum CheckRunnerPhotoRestoreCompositionV1 {
     }
 }
 
-private extension CheckRunnerPhotoRestoreCompositionV1 {
+fileprivate extension CheckRunnerPhotoRestoreCompositionV1 {
     struct AuthenticatedHistoryRecord: Equatable, Sendable {
         let original: MutationHistoryReceiptRecordV1
         let envelope: MutationEnvelopeV1
@@ -866,6 +967,12 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
             for row in closure.workflowRecords {
                 entityIdentities.insert(try .init(kind: .workflowRecord, id: row.id))
             }
+            for row in closure.assetPlacementEvents {
+                entityIdentities.insert(try .init(kind: .assetPlacementEvent, id: row.id))
+            }
+            for row in closure.reports {
+                entityIdentities.insert(try .init(kind: .report, id: row.id))
+            }
             for row in closure.evidenceFiles {
                 entityIdentities.insert(try .init(kind: .evidenceFile, id: row.id))
             }
@@ -962,7 +1069,9 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
         var resumeAnchorSHA256s = Set<String>()
     }
 
-    struct CanonicalClosure {
+    struct CanonicalClosure: Equatable, Sendable {
+        let assetPlacementEvents: [V5BackupLocationRecordV1]
+        let reports: [V4BackupReportDTO]
         let fieldDrafts: [V16BackupFieldDraftRecordV1]
         let workflowRecords: [V4BackupWorkflowRecordDTO]
         let evidenceFiles: [V4BackupEvidenceFileDTO]
@@ -976,7 +1085,10 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
 
         func requireSubset(of records: V4BackupRecordsV1) throws {
             let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
-            guard try isSubset(fieldDrafts, of: records.fieldDrafts, key: fieldDraftKey),
+            guard try isSubset(assetPlacementEvents, of: records.assetPlacementEvents,
+                    key: { $0.id.uuidString.lowercased() }),
+                  try isSubset(reports, of: records.reports, key: { $0.id.uuidString.lowercased() }),
+                  try isSubset(fieldDrafts, of: records.fieldDrafts, key: fieldDraftKey),
                   try isSubset(workflowRecords, of: records.workflowRecords,
                     key: { $0.id.uuidString.lowercased() }),
                   try isSubset(evidenceFiles, of: records.evidenceFiles,
@@ -997,7 +1109,21 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
         }
     }
 
-    struct CanonicalClosureBasis: Codable {
+    struct LegacyCanonicalClosureBasisV1: Codable {
+        let fieldDrafts: [V16BackupFieldDraftRecordV1]
+        let workflowRecords: [V4BackupWorkflowRecordDTO]
+        let evidenceFiles: [V4BackupEvidenceFileDTO]
+        let roundSessions: [RoundSessionV1]
+        let assets: [V4BackupAssetDTO]
+        let sites: [V4BackupSiteDTO]
+        let packets: [V4BackupPacketDTO]
+        let issues: [V4BackupIssueDTO]
+        let requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
+    }
+
+    struct CanonicalClosureBasisV2: Codable {
+        let assetPlacementEvents: [V5BackupLocationRecordV1]
+        let reports: [V4BackupReportDTO]
         let fieldDrafts: [V16BackupFieldDraftRecordV1]
         let workflowRecords: [V4BackupWorkflowRecordDTO]
         let evidenceFiles: [V4BackupEvidenceFileDTO]
@@ -1011,15 +1137,13 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
 
     static func canonicalClosure(history: CheckRunnerPhotoBackupHistoryV1,
                                  childDraftIDs: Set<UUID>,
-                                 records: V4BackupRecordsV1) throws -> CanonicalClosure {
+                                 records: V4BackupRecordsV1, bindingVersion: Int = 2) throws -> CanonicalClosure {
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        guard bindingVersion == 1 || bindingVersion == 2 else { throw failure }
         if childDraftIDs.isEmpty {
-            let basis = CanonicalClosureBasis(fieldDrafts: [], workflowRecords: [],
-                evidenceFiles: [], roundSessions: [], assets: [], sites: [], packets: [],
-                issues: [], requirementAssurance: [])
-            return .init(fieldDrafts: [], workflowRecords: [], evidenceFiles: [], roundSessions: [],
-                assets: [], sites: [], packets: [], issues: [], requirementAssurance: [],
-                sha256: CanonicalJSONV1.sha256(try FieldDraftCanonicalCodecV1.encode(basis)))
+            return try makeCanonicalClosure(fieldDrafts: [], workflowRecords: [], evidenceFiles: [],
+                roundSessions: [], assets: [], sites: [], packets: [], issues: [],
+                requirementAssurance: [], reports: [], bindingVersion: bindingVersion)
         }
         let children = history.children.filter { childDraftIDs.contains($0.payload.childDraftID) }
         guard children.count == childDraftIDs.count else { throw failure }
@@ -1049,6 +1173,11 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
                 }
             }
         }
+        let reports = bindingVersion == 2
+            ? try completeReportDependencies(workflowIDs: &workflowIDs, records: records) : []
+        if bindingVersion == 2 {
+            evidenceIDs.formUnion(records.evidenceFiles.filter { workflowIDs.contains($0.recordID) }.map(\.id))
+        }
         let workflows = records.workflowRecords.filter { workflowIDs.contains($0.id) }
             .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }
         guard Set(workflows.map(\.id)) == workflowIDs else { throw failure }
@@ -1064,13 +1193,15 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
             .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }
         guard Set(assets.map(\.id)) == assetIDs else { throw failure }
         siteIDs.formUnion(assets.map(\.siteID))
+        let placementRows = try placementClosure(assetIDs: assetIDs, records: records,
+            siteIDs: &siteIDs, enabled: bindingVersion == 2)
         let sites = records.sites.filter { siteIDs.contains($0.id) }
             .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }
         guard Set(sites.map(\.id)) == siteIDs else { throw failure }
         let evidence = records.evidenceFiles.filter { evidenceIDs.contains($0.id) }
             .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }
         guard Set(evidence.map(\.id)) == evidenceIDs else { throw failure }
-        let packetIDs = Set(workflows.compactMap(\.packetID))
+        let packetIDs = Set(workflows.compactMap(\.packetID)).union(reports.map(\.packetID))
         let packets = records.packets.filter { packetIDs.contains($0.id) }
             .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }
         guard Set(packets.map(\.id)) == packetIDs else { throw failure }
@@ -1089,13 +1220,10 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
             "\($0.workflowRecordID.uuidString.lowercased()):\($0.snapshotSHA256)"
                 < "\($1.workflowRecordID.uuidString.lowercased()):\($1.snapshotSHA256)"
         }
-        let basis = CanonicalClosureBasis(fieldDrafts: fieldDrafts, workflowRecords: workflows,
-            evidenceFiles: evidence, roundSessions: rounds, assets: assets, sites: sites,
-            packets: packets, issues: issues, requirementAssurance: assurance)
-        return .init(fieldDrafts: fieldDrafts, workflowRecords: workflows,
+        return try makeCanonicalClosure(fieldDrafts: fieldDrafts, workflowRecords: workflows,
             evidenceFiles: evidence, roundSessions: rounds, assets: assets, sites: sites,
             packets: packets, issues: issues, requirementAssurance: assurance,
-            sha256: CanonicalJSONV1.sha256(try FieldDraftCanonicalCodecV1.encode(basis)))
+            reports: reports, assetPlacementEvents: placementRows, bindingVersion: bindingVersion)
     }
 
     /// Resolves the complete canonical family of current-only drafts through
@@ -1181,6 +1309,9 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
                 if let id = row.issueID { issueIDs.insert(id) }
             }
         }
+        let reports = try completeReportDependencies(workflowIDs: &workflowIDs, records: records)
+        evidenceIDs.formUnion(records.evidenceFiles.filter { workflowIDs.contains($0.recordID) }.map(\.id))
+        packetIDs.formUnion(reports.map(\.packetID))
         let workflows = records.workflowRecords.filter { workflowIDs.contains($0.id) }
             .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }
         guard Set(workflows.map(\.id)) == workflowIDs else { throw failure }
@@ -1191,6 +1322,8 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
             .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }
         guard Set(assets.map(\.id)) == assetIDs else { throw failure }
         siteIDs.formUnion(assets.map(\.siteID))
+        let placementRows = try placementClosure(assetIDs: assetIDs, records: records,
+            siteIDs: &siteIDs, enabled: true)
         let sites = records.sites.filter { siteIDs.contains($0.id) }
             .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }
         guard Set(sites.map(\.id)) == siteIDs else { throw failure }
@@ -1215,7 +1348,8 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
         }
         return try makeCanonicalClosure(fieldDrafts: fieldDrafts, workflowRecords: workflows,
             evidenceFiles: evidence, roundSessions: rounds, assets: assets, sites: sites,
-            packets: packets, issues: issues, requirementAssurance: assurance)
+            packets: packets, issues: issues, requirementAssurance: assurance, reports: reports,
+            assetPlacementEvents: placementRows)
     }
 
     static func completeDraftFacts(_ checkpoint: FieldDraftCheckpointV1) throws -> DraftFacts {
@@ -1307,15 +1441,115 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
         workflowRecords: [V4BackupWorkflowRecordDTO], evidenceFiles: [V4BackupEvidenceFileDTO],
         roundSessions: [RoundSessionV1], assets: [V4BackupAssetDTO], sites: [V4BackupSiteDTO],
         packets: [V4BackupPacketDTO], issues: [V4BackupIssueDTO],
-        requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
+        requirementAssurance: [V8BackupRequirementAssuranceRecordV1],
+        reports: [V4BackupReportDTO] = [],
+        assetPlacementEvents: [V5BackupLocationRecordV1] = [], bindingVersion: Int = 2
     ) throws -> CanonicalClosure {
-        let basis = CanonicalClosureBasis(fieldDrafts: fieldDrafts, workflowRecords: workflowRecords,
-            evidenceFiles: evidenceFiles, roundSessions: roundSessions, assets: assets, sites: sites,
-            packets: packets, issues: issues, requirementAssurance: requirementAssurance)
-        return .init(fieldDrafts: fieldDrafts, workflowRecords: workflowRecords,
+        let bytes: Data
+        switch bindingVersion {
+        case 1:
+            guard reports.isEmpty, assetPlacementEvents.isEmpty else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let legacy = LegacyCanonicalClosureBasisV1(fieldDrafts: fieldDrafts,
+                workflowRecords: workflowRecords, evidenceFiles: evidenceFiles, roundSessions: roundSessions,
+                assets: assets, sites: sites, packets: packets, issues: issues,
+                requirementAssurance: requirementAssurance)
+            bytes = try FieldDraftCanonicalCodecV1.encode(legacy)
+        case 2:
+            let current = CanonicalClosureBasisV2(assetPlacementEvents: assetPlacementEvents, reports: reports, fieldDrafts: fieldDrafts,
+                workflowRecords: workflowRecords, evidenceFiles: evidenceFiles, roundSessions: roundSessions,
+                assets: assets, sites: sites, packets: packets, issues: issues,
+                requirementAssurance: requirementAssurance)
+            bytes = try FieldDraftCanonicalCodecV1.encode(current)
+        default:
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return .init(assetPlacementEvents: assetPlacementEvents, reports: reports, fieldDrafts: fieldDrafts, workflowRecords: workflowRecords,
             evidenceFiles: evidenceFiles, roundSessions: roundSessions, assets: assets, sites: sites,
             packets: packets, issues: issues, requirementAssurance: requirementAssurance,
-            sha256: CanonicalJSONV1.sha256(try FieldDraftCanonicalCodecV1.encode(basis)))
+            sha256: CanonicalJSONV1.sha256(bytes))
+    }
+
+    /// Keep the complete predecessor chain for each selected asset, including
+    /// earlier sites. The canonical event bytes remain the existing codec's bytes.
+    static func placementClosure(assetIDs: Set<UUID>, records: V4BackupRecordsV1,
+        siteIDs: inout Set<UUID>, enabled: Bool) throws -> [V5BackupLocationRecordV1] {
+        guard enabled, !assetIDs.isEmpty else { return [] }
+        let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        var selected: [V5BackupLocationRecordV1] = []
+        var events: [AssetPlacementEventV1] = []
+        for row in records.assetPlacementEvents {
+            let event = try LocationPersistenceCodecV1.decode(AssetPlacementEventV1.self,
+                from: row.canonicalData)
+            guard event.id == row.id, row.secondaryCanonicalData == nil else { throw failure }
+            if assetIDs.contains(event.assetID) {
+                selected.append(row); events.append(event); siteIDs.insert(event.siteID)
+            }
+        }
+        for history in Dictionary(grouping: events, by: \.assetID).values {
+            try AssetPlacementHistoryV1.validate(history)
+        }
+        return selected.sorted { uuidLess($0.id, $1.id) }
+    }
+
+    /// This composition does not reconstruct other location/pose codecs. Require
+    /// the incumbent replacement path to retain their exact original rows. Until
+    /// full codec adoption, conservative denial prevents a partial graph restore.
+    static func requireUncopiedPlacementDependencies(from original: V4BackupRecordsV1,
+        in destination: V4BackupRecordsV1) throws {
+        let groups = [
+            (original.assetCompositionEdges, destination.assetCompositionEdges),
+            (original.assetCompositionEvents, destination.assetCompositionEvents),
+            (original.locationHierarchyEvents, destination.locationHierarchyEvents),
+            (original.locationMigrationReceipts, destination.locationMigrationReceipts),
+            (original.locationNodes, destination.locationNodes)
+        ]
+        for (before, after) in groups {
+            guard try isSubset(before, of: after, key: { $0.id.uuidString.lowercased() }) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        guard try isSubset(original.placementPoses, of: destination.placementPoses,
+            key: { "\($0.kind.rawValue):\($0.id.uuidString.lowercased())" }) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+    }
+
+    /// Reports are immutable originals. Include every report for a selected
+    /// workflow and every predecessor, closing their workflow references before
+    /// selecting canonical assets, packets and evidence. Missing links deny.
+    static func completeReportDependencies(workflowIDs: inout Set<UUID>,
+        records: V4BackupRecordsV1) throws -> [V4BackupReportDTO] {
+        let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        let workflows = try checkRunnerPhotoRestoreDictionary(records.workflowRecords) { ($0.id, $0) }
+        let reports = try checkRunnerPhotoRestoreDictionary(records.reports) { ($0.id, $0) }
+        var reportIDs = Set<UUID>()
+        var changed = true
+        while changed {
+            changed = false
+            for id in workflowIDs {
+                guard let row = workflows[id] else { throw failure }
+                for linked in [row.recordRevisionRootID, row.parentRecordID,
+                               row.revisesRecordID, row.evidenceSourceRecordID].compactMap({ $0 }) {
+                    changed = workflowIDs.insert(linked).inserted || changed
+                }
+            }
+            for row in records.reports where workflowIDs.contains(row.sourceRecordID) {
+                changed = reportIDs.insert(row.id).inserted || changed
+            }
+            for id in reportIDs {
+                guard let row = reports[id] else { throw failure }
+                changed = workflowIDs.insert(row.sourceRecordID).inserted || changed
+                if let predecessor = row.replacesReportID {
+                    changed = reportIDs.insert(predecessor).inserted || changed
+                }
+            }
+        }
+        return try reportIDs.sorted(by: uuidLess).map {
+            guard let report = reports[$0] else { throw failure }
+            return report
+        }
     }
 
     static func merged(_ lhs: CanonicalClosure, _ rhs: CanonicalClosure) throws
@@ -1349,7 +1583,13 @@ private extension CheckRunnerPhotoRestoreCompositionV1 {
                 less: {
                     "\($0.workflowRecordID.uuidString.lowercased()):\($0.snapshotSHA256)"
                         < "\($1.workflowRecordID.uuidString.lowercased()):\($1.snapshotSHA256)"
-                }))
+                }),
+            reports: merged(base: lhs.reports, additions: rhs.reports,
+                key: { $0.id.uuidString.lowercased() },
+                less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }),
+            assetPlacementEvents: merged(base: lhs.assetPlacementEvents,
+                additions: rhs.assetPlacementEvents, key: { $0.id.uuidString.lowercased() },
+                less: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() }))
     }
 
     static func requireNoCurrentTouch(source: MutationHistorySnapshotV1,

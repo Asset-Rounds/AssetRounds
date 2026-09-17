@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `8d7a886ac1186eceac26d0c3c42f08a92280a206`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `3ed1b0068819fbb43a0c4ecf0442847f1913ad81`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 
 Originals retain their own heads; Bitrise qualification stays held.
 
-Prior originals stay sealed; unresolved questions remain due. f849 original35158813748 sealed2AFAE644 hit1200s with no Swift errors/testNotStarted. b8 original35168037451 sealed1D014819 failed shallow admission. Corrected8d7 original35173581597 sealedFFF0135E again hit1200s: no Swift errors/testNotStarted,226 samples,38 frontend commands missing. DiagnosisE102A6F5 proves Darwin ps column truncation in the command reader. Scoped schema4 correction preserves product/selectors/native limits;36 runtime tests pass. Exact inverse review01D5FE5A stays held pending attribution.
+Prior originals stay sealed. Command diagnostic35177276313 is sole-collected/root-sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings and testNotStarted. AttributionCE8EC8D6 captures all36 frontend commands across many app batches; high observed host load is a hypothesis, not a proven provider fault or single-file defect. No unchanged retry. Inverse3154F84A passes16 local checks and independent review; retained Swift2735C2E7 remains source-reviewed. Prepare their combined source checkpoint while evaluating the authorized cache/unit-only options; larger hardware requires an owner decision and qualification.
 
 The committed seven record-copy helpers preserve all77 inputs. Root's two-path diagnostic2F039F04 attributes existing insert invalidPackage throws to DEBUG source lines without changing errors/predicates. The C12 nonnil fixture moves to its actual active export; both minimal-incumbent and export copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, larger clone/transport and all retirement acceptance remain unresolved.
 

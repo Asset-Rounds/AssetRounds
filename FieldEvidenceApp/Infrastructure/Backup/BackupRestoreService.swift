@@ -453,6 +453,109 @@ struct CheckRunnerPhotoRestoreRetainedMembersV1: Sendable {
     func metadataBytes(_ path: String) -> Data? { metadata[path] }
 }
 
+/// Exact current-only canonical files selected by authenticated composition.
+/// Retains bounded descriptors and source observations, never an archive of Data.
+/// The existing restore writer remains the only destination owner.
+fileprivate struct RetainedCanonicalRestoreMembersV1: Sendable {
+    private let members: ValidatedV4BackupMembersV1
+    private let entries: [String: StreamingArchiveWriteEntryV1]
+    private let observations: [String: StreamingArchiveSourceObservationV1]
+
+    var keys: Set<String> { Set(entries.keys) }
+    var byteCount: Int64 { entries.values.reduce(0) { $0 + $1.expectedUncompressedByteCount } }
+
+    fileprivate init(root: URL, rootIdentity: StreamingArchiveRootIdentityV1,
+        entries: [String: StreamingArchiveWriteEntryV1],
+        snapshots: [String: StreamingArchiveSourceSnapshotV1],
+        authorityCheck: () throws -> Void) throws {
+        let failure = BackupRestoreServiceError.invalidRestoreAuthority
+        let limits = StreamingArchiveLimitsV1.card17
+        guard Set(entries.keys) == Set(snapshots.keys), entries.count <= limits.maximumEntryCount,
+              let device = dev_t(exactly: rootIdentity.device),
+              let inode = ino_t(exactly: rootIdentity.inode) else { throw failure }
+        var descriptors: [String: ValidatedV4BackupMembersV1.Descriptor] = [:]
+        var observations: [String: StreamingArchiveSourceObservationV1] = [:]
+        let observer = StreamingArchiveService()
+        var total: Int64 = 0
+        for key in entries.keys.sorted() {
+            try Task.checkCancellation()
+            try authorityCheck()
+            guard let entry = entries[key], entry.path == key, entry.sourceRootURL == root,
+                  entry.expectedSourceRootIdentity == rootIdentity,
+                  entry.expectedUncompressedByteCount >= 0,
+                  entry.expectedUncompressedByteCount <= limits.maximumUncompressedEntryByteCount,
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(entry.expectedContentSHA256)
+            else { throw failure }
+            let sum = total.addingReportingOverflow(entry.expectedUncompressedByteCount)
+            guard !sum.overflow, sum.partialValue <= limits.maximumUncompressedAggregateByteCount
+            else { throw failure }
+            total = sum.partialValue
+            let descriptor = ValidatedV4BackupMembersV1.Descriptor(
+                byteCount: entry.expectedUncompressedByteCount, sha256: entry.expectedContentSHA256)
+            guard descriptors.updateValue(descriptor, forKey: entry.sourceRelativePath) == nil
+            else { throw failure }
+            let observation = try observer.sourceObservation(entry)
+            guard observation.file == snapshots[key], observation.file.linkCount == 1
+            else { throw failure }
+            observations[key] = observation
+        }
+        self.members = .init(rootURL: root, rootIdentity: .init(device: device, inode: inode),
+            descriptors: descriptors, maximumMemberByteCount: limits.maximumUncompressedEntryByteCount)
+        self.entries = entries
+        self.observations = observations
+        // Verify complete original hashes without retaining bytes during preparation.
+        for key in entries.keys.sorted() {
+            try read(key, authorityCheck: authorityCheck) { _ in }
+        }
+        try validateObservations(authorityCheck: authorityCheck)
+    }
+
+    func validateObservations(authorityCheck: () throws -> Void) throws {
+        let observer = StreamingArchiveService()
+        for key in entries.keys.sorted() {
+            try Task.checkCancellation()
+            try authorityCheck()
+            guard let entry = entries[key], let original = observations[key],
+                  try observer.sourceObservation(entry) == original else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        try authorityCheck()
+    }
+
+    private func read(_ path: String, authorityCheck: () throws -> Void,
+        consume: (Data) throws -> Void) throws {
+        guard let entry = entries[path], let original = observations[path] else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let observer = StreamingArchiveService()
+        try authorityCheck()
+        guard try observer.sourceObservation(entry) == original else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        try members.readVerifiedChunks(entry.sourceRelativePath,
+            expectedByteCount: entry.expectedUncompressedByteCount,
+            expectedSHA256: entry.expectedContentSHA256,
+            maximumByteCount: StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount,
+            cancellation: .task) { chunk in
+                try authorityCheck()
+                try consume(chunk)
+            }
+        try authorityCheck()
+        guard try observer.sourceObservation(entry) == original else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    /// At most one bounded member lives in memory for the incumbent writeExact.
+    func bytes(_ path: String, authorityCheck: () throws -> Void) throws -> Data? {
+        guard entries[path] != nil else { return nil }
+        var data = Data()
+        try read(path, authorityCheck: authorityCheck) { data.append($0) }
+        return data
+    }
+}
+
 enum CheckRunnerPhotoRestoreMemberSourceV1: Sendable {
     case package(ValidatedV4BackupMembersV1)
     case retained(CheckRunnerPhotoRestoreRetainedMembersV1)
@@ -1733,13 +1836,18 @@ final class BackupRestoreService {
               ) else {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
+        let photoCanonical = try preparePhotoCanonicalRestore(package: validatedPackage,
+            currentRecords: frozenCurrentRecords, currentIdentity: frozenCurrentIdentity,
+            sourceIdentity: incomingIdentity, currentGenerationID: currentGenerationID, mode: mode)
+        let effectiveIncomingRecords = try photoCanonical?.includingRetainedRows(in: validatedPackage.records)
+            ?? validatedPackage.records
         var expectedRecords: V4BackupRecordsV1
         do {
             expectedRecords = try ReplacementRestoreRule.makeDeletionWinningPlan(
                 DeletionWinningRestoreInputV2(
                     currentRecords: frozenCurrentRecords,
                     currentIdentity: frozenCurrentIdentity,
-                    incomingRecords: validatedPackage.records,
+                    incomingRecords: effectiveIncomingRecords,
                     incomingIdentity: incomingIdentity,
                     mode: mode,
                     replacementAt: replacementAt
@@ -1934,12 +2042,12 @@ final class BackupRestoreService {
             guard uniqueModelIDs(in: expectedRecords) else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
-            let photo = try await preparePhotoRestore(package: validatedPackage,
+            let photo = try await preparePhotoRestore(package: validatedPackage, canonical: photoCanonical,
                 currentRecords: frozenCurrentRecords, replacementRecords: expectedRecords,
                 currentIdentity: frozenCurrentIdentity, sourceIdentity: incomingIdentity,
                 currentGenerationID: currentGenerationID, currentRoot: currentGenerationRootURL,
                 newGenerationID: newGenerationID, restoreID: restoreID, mode: mode,
-                validateCurrent: validatePhotoCurrent)
+                validateCurrent: validatePhotoCurrent, validateCurrentLocked: validatePhotoCurrentLocked)
             if let photo { expectedRecords = photo.records }
             let photoPlans = photo?.plans ?? []
             let photoProof = try photo?.proof
@@ -1960,7 +2068,9 @@ final class BackupRestoreService {
                 partsStockOperationID: restoreID,
                 partsStockCompletedAt: replacementAt,
                 photoPlans: photoPlans,
-                cloneFinalMedia: cloneFinalMedia
+                cloneFinalMedia: cloneFinalMedia,
+                retainedCanonicalMembers: photo?.retainedCanonicalMembers,
+                retainedCanonicalAuthorityCheck: validatePhotoCurrentLocked
             )
             if let photo { try await materializePhotoMembers(photo, validateCurrent: validatePhotoCurrent) }
             if let clone {
@@ -2243,6 +2353,8 @@ final class BackupRestoreService {
                             }
                         } else if let photoPublication {
                             try validatePhotoCurrentLocked()
+                            try photo?.retainedCanonicalMembers?.validateObservations(
+                                authorityCheck: validatePhotoCurrentLocked)
                             guard try self.photoPublicationBinding(restoreID: restoreID) == photoPublication.binding else {
                                 throw BackupRestoreServiceError.invalidRestoreAuthority
                             }
@@ -2253,6 +2365,8 @@ final class BackupRestoreService {
 #if DEBUG
                                     try self.photoRawPointerObservationForTesting?(false)
 #endif
+                                    try photo?.retainedCanonicalMembers?.validateObservations(
+                                        authorityCheck: validatePhotoCurrentLocked)
                                     try publishPointer()
 #if DEBUG
                                     try self.photoRawPointerObservationForTesting?(true)
@@ -10340,7 +10454,9 @@ private extension BackupRestoreService {
         partsStockOperationID: UUID,
         partsStockCompletedAt: Date,
         photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = [],
-        cloneFinalMedia: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:]
+        cloneFinalMedia: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:],
+        retainedCanonicalMembers: RetainedCanonicalRestoreMembersV1? = nil,
+        retainedCanonicalAuthorityCheck: () throws -> Void = {}
     ) throws {
 #if DEBUG
         var restoreStagingPhase = "validate-records"
@@ -10437,7 +10553,9 @@ private extension BackupRestoreService {
                 ),
                 generationID: generationID,
                 photoPlans: photoPlans,
-                cloneFinalMedia: cloneFinalMedia
+                cloneFinalMedia: cloneFinalMedia,
+                retainedCanonicalMembers: retainedCanonicalMembers,
+                retainedCanonicalAuthorityCheck: retainedCanonicalAuthorityCheck
             )
 #if DEBUG
             beginRestoreStagingPhase("protect-tree")
@@ -10519,6 +10637,7 @@ private extension BackupRestoreService {
         let core: CheckRunnerPhotoRestoreBindingCoreV1
         let sources: [CheckRunnerPhotoRestoreMemberSourceV1]
         let currentRecords: V4BackupRecordsV1
+        let retainedCanonicalMembers: RetainedCanonicalRestoreMembersV1?
 
         var plans: [CheckRunnerPhotoBackupRestorePlanV1] { composition.photoRestorePlans }
         var childStageIDs: Set<UUID> { Set(plans.flatMap { $0.children.map(\.stageID) }) }
@@ -11320,53 +11439,73 @@ private extension BackupRestoreService {
 
     /// Read-only source preparation; every actor return is followed by the
     /// original live context/pointer/access validation supplied by restore.
-    private func preparePhotoRestore(package: ValidatedV4BackupPackageV1,
-        currentRecords: V4BackupRecordsV1, replacementRecords: V4BackupRecordsV1,
-        currentIdentity: WorkspaceReplicaIdentityV1, sourceIdentity: WorkspaceReplicaIdentityV1?,
-        currentGenerationID: UUID, currentRoot: URL, newGenerationID: UUID, restoreID: UUID,
-        mode: BackupRestoreMode, validateCurrent: @MainActor () async throws -> Void) async throws
-        -> PhotoRestorePreparation? {
-        // Clone uses the complete incumbent preparation above, including
-        // generic stages when neither generation contains photo checkpoints.
+    private func preparePhotoCanonicalRestore(package: ValidatedV4BackupPackageV1,
+        currentRecords: V4BackupRecordsV1, currentIdentity: WorkspaceReplicaIdentityV1,
+        sourceIdentity: WorkspaceReplicaIdentityV1?, currentGenerationID: UUID, mode: BackupRestoreMode
+    ) throws -> CheckRunnerPhotoRestoreCompositionV1.CanonicalPreparation? {
+        // Preserve the existing route boundaries. Clone owns a separate complete
+        // incumbent preparation; parent-only and cross-workspace routes stay held.
         if mode == .clone { return nil }
         let sourceHasPhotos = try hasPhotoCheckpoints(package.records)
         let currentHasPhotos = try hasPhotoCheckpoints(currentRecords)
         guard sourceHasPhotos || currentHasPhotos else { return nil }
+        guard (mode == .emptyInstall || mode == .replaceExisting), let sourceIdentity,
+              sourceIdentity.workspaceID == currentIdentity.workspaceID else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         let currentSource = V4BackupSourceV1(appBuild: package.manifest.source.appBuild,
             appVersion: package.manifest.source.appVersion,
             persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
             replicaID: currentIdentity.replicaID.rawValue, recordsSchemaVersion: currentRecords.recordsSchemaVersion,
             sourceGenerationID: currentGenerationID, workspaceID: currentIdentity.workspaceID.rawValue)
-        let currentHistory = try CheckRunnerPhotoBackupHistoryV1.project(source: currentSource, records: currentRecords)
-        let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
-            source: package.manifest.source, records: package.records)
+        return try CheckRunnerPhotoRestoreCompositionV1.prepareCanonical(
+            source: package.manifest.source, sourceRecords: package.records,
+            currentSource: currentSource, currentRecords: currentRecords,
+            sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
+    }
+
+    private func preparePhotoRestore(package: ValidatedV4BackupPackageV1,
+        canonical: CheckRunnerPhotoRestoreCompositionV1.CanonicalPreparation?,
+        currentRecords: V4BackupRecordsV1, replacementRecords: V4BackupRecordsV1,
+        currentIdentity: WorkspaceReplicaIdentityV1, sourceIdentity: WorkspaceReplicaIdentityV1?,
+        currentGenerationID: UUID, currentRoot: URL, newGenerationID: UUID, restoreID: UUID,
+        mode: BackupRestoreMode, validateCurrent: @MainActor () async throws -> Void,
+        validateCurrentLocked: () throws -> Void) async throws -> PhotoRestorePreparation? {
+        guard let canonical else { return nil }
+        guard (mode == .emptyInstall || mode == .replaceExisting), let sourceIdentity,
+              sourceIdentity.workspaceID == currentIdentity.workspaceID,
+              canonical.sourceHistory.source == package.manifest.source,
+              canonical.currentHistory.source.sourceGenerationID == currentGenerationID else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        try canonical.requireOriginals(sourceRecords: package.records, currentRecords: currentRecords,
+            sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
+        let currentHistory = canonical.currentHistory, sourceHistory = canonical.sourceHistory
         let sourcePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(history: sourceHistory,
             entries: package.manifest.entries) { path in
                 guard let bytes = package.members[path] else { throw BackupRestoreServiceError.invalidPackage }
                 return bytes
             }
-        guard (mode == .emptyInstall || mode == .replaceExisting), let sourceIdentity,
-              sourceIdentity.workspaceID == currentIdentity.workspaceID else {
-            throw BackupRestoreServiceError.invalidPackage
-        }
         let physical = try await prepareCurrentPhotoPhysicalState(currentRecords: currentRecords,
             currentHistory: currentHistory, currentIdentity: currentIdentity, currentRoot: currentRoot,
             validateCurrent: validateCurrent)
         let rootIdentity = physical.rootIdentity
         let media = physical.media
         let currentPlan = physical.plan
-        guard let sourceSnapshot = package.records.mutationHistory,
-              let currentSnapshot = currentRecords.mutationHistory else {
-            throw BackupRestoreServiceError.invalidPackage
-        }
-        let union = try CheckRunnerPhotoRestoreHistoryUnionV1.compose(source: sourceSnapshot,
-            current: currentSnapshot, sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
-        let replacement = replacingPhotoRestoreHistory(in: replacementRecords, with: union.merged)
-        let composition = try CheckRunnerPhotoRestoreCompositionV1.compose(source: package.manifest.source,
-            sourceRecords: package.records, sourcePlan: sourcePlan, currentSource: currentSource,
-            currentRecords: currentRecords, currentPlan: currentPlan, replacementRecords: replacement,
-            sourceIdentity: sourceIdentity, currentIdentity: currentIdentity)
+        let replacement = replacingPhotoRestoreHistory(in: replacementRecords, with: canonical.mutationHistory)
+        let composition = try CheckRunnerPhotoRestoreCompositionV1.compose(preparation: canonical,
+            sourcePlan: sourcePlan, currentPlan: currentPlan, replacementRecords: replacement)
         let target = try composition.applying(to: replacement)
+        let retainedCanonicalMembers = try prepareRetainedCanonicalMembers(package: package,
+            currentRecords: currentRecords, target: target, photoPlans: composition.photoRestorePlans,
+            root: currentRoot, rootIdentity: rootIdentity, authorityCheck: validateCurrentLocked)
+        if let retainedCanonicalMembers {
+            let required = Int64(package.manifest.declaredPayloadByteCount)
+                .addingReportingOverflow(retainedCanonicalMembers.byteCount)
+            guard !required.overflow else { throw BackupRestoreServiceError.invalidPackage }
+            try storagePreflight.checkBackupImport(declaredPayloadByteCount: required.partialValue,
+                onVolumeContaining: applicationSupportURL)
+        }
         var sources: [CheckRunnerPhotoRestoreMemberSourceV1] = [.package(package.members)]
         if composition.photoRestorePlans.count == 2 {
             let retainedPlan = composition.photoRestorePlans[1]
@@ -11389,7 +11528,74 @@ private extension BackupRestoreService {
             workspaceID: currentIdentity.workspaceID, sourceManifestSHA256: manifestDigest,
             currentRecordsSHA256: oldDigest, destinationRecordsSHA256: targetDigest, composition: composition)
         return .init(composition: composition, records: target, core: core, sources: sources,
-            currentRecords: currentRecords)
+            currentRecords: currentRecords, retainedCanonicalMembers: retainedCanonicalMembers)
+    }
+
+    private func prepareRetainedCanonicalMembers(package: ValidatedV4BackupPackageV1,
+        currentRecords: V4BackupRecordsV1, target: V4BackupRecordsV1,
+        photoPlans: [CheckRunnerPhotoBackupRestorePlanV1], root: URL,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity, authorityCheck: () throws -> Void
+    ) throws -> RetainedCanonicalRestoreMembersV1? {
+        let failure = BackupRestoreServiceError.invalidRestoreAuthority
+        let limits = StreamingArchiveLimitsV1.card17
+        let photoMembers = try photoGenerationMembers(photoPlans)
+        let sourceEvidenceIDs = Set(package.records.evidenceFiles.map(\.id))
+        let sourceReportIDs = Set(package.records.reports.map(\.id))
+        let streamRoot = StreamingArchiveRootIdentityV1(
+            device: UInt64(rootIdentity.device), inode: UInt64(rootIdentity.inode))
+        var entries: [String: StreamingArchiveWriteEntryV1] = [:]
+        var snapshots: [String: StreamingArchiveSourceSnapshotV1] = [:]
+        @MainActor
+        func add(path: String, relativePath: String, mimeType: String,
+                 expectedByteCount: Int?, sha256: String) throws {
+            try Task.checkCancellation()
+            try authorityCheck()
+            guard !package.members.keys.contains(path), entries[path] == nil,
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha256),
+                  try ReportPDFAnchoredFile.rootIdentity(at: root) == rootIdentity else { throw failure }
+            let snapshot = try withPinnedExistingItem(root: root, relativePath: relativePath,
+                expectedDirectory: false, authorityCheck: authorityCheck) { _, descriptor, verifyItem in
+                try verifyItem()
+                var info = stat()
+                guard Darwin.fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+                      info.st_nlink == 1, info.st_size >= 0,
+                      info.st_size <= limits.maximumUncompressedEntryByteCount,
+                      expectedByteCount.map({ Int64($0) == info.st_size }) ?? true else { throw failure }
+                return photoBindingSnapshot(info)
+            }
+            entries[path] = StreamingArchiveWriteEntryV1(path: path, mimeType: mimeType,
+                sourceRootURL: root, sourceRelativePath: relativePath,
+                expectedSourceRootIdentity: streamRoot, expectedUncompressedByteCount: snapshot.byteCount,
+                expectedContentSHA256: sha256, compression: .stored)
+            snapshots[path] = snapshot
+        }
+        for evidence in target.evidenceFiles where !sourceEvidenceIDs.contains(evidence.id) {
+            guard currentRecords.evidenceFiles.contains(evidence) else { throw failure }
+            if try photoOwnsEvidence(evidence, members: photoMembers) { continue }
+            let id = canonical(evidence.id)
+            try add(path: "media/\(id).jpg", relativePath: evidence.relativePath,
+                mimeType: "image/jpeg", expectedByteCount: evidence.byteCount, sha256: evidence.sha256)
+            try add(path: "thumbnails/\(id).jpg", relativePath: evidence.thumbnailRelativePath,
+                mimeType: "image/jpeg", expectedByteCount: evidence.thumbnailByteCount,
+                sha256: evidence.thumbnailSHA256)
+        }
+        for report in target.reports where !sourceReportIDs.contains(report.id) {
+            guard currentRecords.reports.contains(report),
+                  report.snapshotRelativePath == "snapshots/\(canonical(report.id)).json" else { throw failure }
+            try add(path: report.snapshotRelativePath, relativePath: report.snapshotRelativePath,
+                mimeType: "application/json", expectedByteCount: nil, sha256: report.snapshotSHA256)
+            if let path = report.pdfRelativePath, let hash = report.pdfSHA256 {
+                guard report.pdfState == "ready", path == "pdfs/\(canonical(report.id)).pdf" else { throw failure }
+                try add(path: path, relativePath: path, mimeType: "application/pdf",
+                    expectedByteCount: nil, sha256: hash)
+            } else {
+                guard report.pdfState != "ready", report.pdfRelativePath == nil, report.pdfSHA256 == nil
+                else { throw failure }
+            }
+        }
+        guard !entries.isEmpty else { return nil }
+        return try RetainedCanonicalRestoreMembersV1(root: root, rootIdentity: streamRoot,
+            entries: entries, snapshots: snapshots, authorityCheck: authorityCheck)
     }
 
     private func materializePhotoMembers(_ photo: PhotoRestorePreparation,
@@ -14816,8 +15022,26 @@ private extension BackupRestoreService {
         to root: URL,
         generationID: UUID,
         photoPlans: [CheckRunnerPhotoBackupRestorePlanV1] = [],
-        cloneFinalMedia: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:]
+        cloneFinalMedia: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:],
+        retainedCanonicalMembers: RetainedCanonicalRestoreMembersV1? = nil,
+        retainedCanonicalAuthorityCheck: () throws -> Void = {}
     ) throws {
+        var consumedRetainedPaths = Set<String>()
+        func canonicalMember(_ path: String) throws -> Data? {
+            if value.members.keys.contains(path) {
+                guard retainedCanonicalMembers?.keys.contains(path) != true else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return value.members[path]
+            }
+            guard let bytes = try retainedCanonicalMembers?.bytes(path,
+                authorityCheck: retainedCanonicalAuthorityCheck) else { return nil }
+            guard consumedRetainedPaths.insert(path).inserted else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return bytes
+        }
+        try retainedCanonicalMembers?.validateObservations(authorityCheck: retainedCanonicalAuthorityCheck)
         var photoMembers = try photoGenerationMembers(photoPlans)
         if !cloneFinalMedia.isEmpty {
             guard photoPlans.isEmpty,
@@ -14835,13 +15059,13 @@ private extension BackupRestoreService {
                 generationID: generationID
             )
             try writeExact(
-                value.members["media/\(id).jpg"],
+                try canonicalMember("media/\(id).jpg"),
                 to: root.appendingPathComponent(evidence.relativePath),
                 expectedHash: evidence.sha256,
                 generationID: generationID
             )
             try writeExact(
-                value.members["thumbnails/\(id).jpg"],
+                try canonicalMember("thumbnails/\(id).jpg"),
                 to: root.appendingPathComponent(evidence.thumbnailRelativePath),
                 expectedHash: evidence.thumbnailSHA256,
                 generationID: generationID
@@ -14950,7 +15174,7 @@ private extension BackupRestoreService {
             )
         }
         for report in records.reports {
-            var snapshotData = value.members[report.snapshotRelativePath]
+            var snapshotData = try canonicalMember(report.snapshotRelativePath)
             if let source = snapshotData,
                CanonicalJSONV1.sha256(source) != report.snapshotSHA256 {
                 guard let workspaceID = temporal.clips.first?.workspaceID
@@ -14973,13 +15197,17 @@ private extension BackupRestoreService {
             if let path = report.pdfRelativePath,
                let hash = report.pdfSHA256 {
                 try writeExact(
-                    value.members[path],
+                    try canonicalMember(path),
                     to: root.appendingPathComponent(path),
                     expectedHash: hash,
                     generationID: generationID
                 )
             }
         }
+        guard consumedRetainedPaths == (retainedCanonicalMembers?.keys ?? []) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        try retainedCanonicalMembers?.validateObservations(authorityCheck: retainedCanonicalAuthorityCheck)
     }
 
     func writeExact(
