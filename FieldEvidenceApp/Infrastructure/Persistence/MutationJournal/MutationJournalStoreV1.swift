@@ -2197,6 +2197,19 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// Anchored historical provenance only, including foreign originals. No
+    /// target disposition, current row or operational readiness is inferred.
+    func repetitiveCaptureDestinationReviewLineage(workspaceID: WorkspaceID, mutationID: MutationIDV1)
+        throws -> RepetitiveCaptureReviewLineageV1 {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try validateCheckRunnerBeginHistoryValue {
+            let snapshot = try exportSnapshot()
+            return try RepetitiveCaptureReviewLineageReaderV1.read(workspaceID: workspaceID,
+                mutationID: mutationID, in: RepetitiveCaptureRetainedJournalHistoryV2(snapshot: snapshot))
+        }
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         try validateCurrentWriterLease()
         try validateAll()

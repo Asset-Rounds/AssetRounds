@@ -258,6 +258,17 @@ struct RepetitiveCaptureDestinationReviewPayloadV1: Codable, Equatable, Sendable
         guard self == expected else { throw FieldDraftFailureV1.digestMismatch }
     }
 
+    /// Pure correspondence comparison. The lineage reader separately owns
+    /// authentication of the supplied predecessor checkpoint and originals.
+    func validatePredecessor(against predecessor: RepetitiveCaptureDestinationReviewPayloadV1,
+                             original: RepetitiveCaptureSourceHistoryRecordV2,
+                             checkpoint: FieldDraftCheckpointV1) throws {
+        let expected = try RepetitiveCaptureDestinationReviewV1.inheritedPayload(
+            predecessor: predecessor, original: original, checkpoint: checkpoint,
+            mode: provenance.mode, workspace: provenance.destinationWorkspaceID)
+        guard self == expected else { throw FieldDraftFailureV1.digestMismatch }
+    }
+
     private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, tag, source, provenance }
     init(from decoder: Decoder) throws {
         try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
@@ -284,16 +295,66 @@ struct PreparedRepetitiveCaptureDestinationReviewV1: Equatable, Sendable {
     }
 }
 
+/// A proposal replacing a source review row, not the ultimate V2 source rows.
+/// Its creation still requires the restore owner's atomic publication receipt.
+struct PreparedRepetitiveCaptureInheritedReviewV1: Equatable, Sendable {
+    let checkpoint: FieldDraftCheckpointV1
+    let payload: RepetitiveCaptureDestinationReviewPayloadV1
+    let sourceReviewDraftID: UUID
+
+    fileprivate init(checkpoint: FieldDraftCheckpointV1,
+                     payload: RepetitiveCaptureDestinationReviewPayloadV1, sourceReviewDraftID: UUID) {
+        self.checkpoint = checkpoint
+        self.payload = payload
+        self.sourceReviewDraftID = sourceReviewDraftID
+    }
+}
+
 enum RepetitiveCaptureDestinationReviewV1 {
     static func prepareFirst(from reviewed: ReviewedRepetitiveCaptureSourceGraphsV2,
                              sourceDraftID: UUID, identity: RestoreIdentityV1,
                              reviewedAt: Date) throws -> PreparedRepetitiveCaptureDestinationReviewV1 {
         let payload = try firstPayload(from: reviewed, sourceDraftID: sourceDraftID, identity: identity)
+        let checkpoint = try initialCheckpoint(payload: payload, generationID: identity.targetPointer.generationID,
+            reviewedAt: reviewedAt, unavailable: Set(reviewed.requiredHistory.map { $0.envelope.mutationID.rawValue }))
+        return .init(checkpoint: checkpoint, payload: payload)
+    }
+
+    static func prepareInherited(from lineage: RepetitiveCaptureReviewLineageV1,
+                                 identity: RestoreIdentityV1, reviewedAt: Date) throws
+        -> PreparedRepetitiveCaptureInheritedReviewV1 {
+        let previous = lineage.selectedReview
+        guard identity.source.workspaceID == previous.checkpoint.workspaceID.rawValue,
+              identity.targetPointer.workspaceID != previous.checkpoint.workspaceID.rawValue,
+              identity.recordIdentityDisposition == .preserve else { throw FieldDraftFailureV1.wrongWorkspace }
+        let mode: RepetitiveCaptureReviewModeV1
+        switch identity.mode {
+        case .replaceExisting: mode = .crossWorkspaceReplace
+        case .fork: mode = .fork
+        case .clone, .emptyInstall: throw FieldDraftFailureV1.invalidValue
+        }
+        let payload = try inheritedPayload(predecessor: previous.payload, original: previous.anchor,
+            checkpoint: previous.checkpoint, mode: mode,
+            workspace: WorkspaceID(rawValue: identity.targetPointer.workspaceID))
+        var unavailable = Set(lineage.requiredHistory.map { $0.envelope.mutationID.rawValue })
+        for review in lineage.reviews {
+            unavailable.insert(review.checkpoint.draftID)
+            unavailable.formUnion(review.payload.provenance.ultimateToDestinationPairs.flatMap {
+                [$0.sourceID, $0.destinationID]
+            })
+        }
+        let checkpoint = try initialCheckpoint(payload: payload, generationID: identity.targetPointer.generationID,
+            reviewedAt: reviewedAt, unavailable: unavailable)
+        return .init(checkpoint: checkpoint, payload: payload, sourceReviewDraftID: previous.checkpoint.draftID)
+    }
+
+    private static func initialCheckpoint(payload: RepetitiveCaptureDestinationReviewPayloadV1,
+                                          generationID: UUID, reviewedAt: Date,
+                                          unavailable: Set<UUID>) throws -> FieldDraftCheckpointV1 {
         let ids = try RepetitiveCaptureDestinationReviewCodecV1.initialIDs(
-            payload: payload, generationID: identity.targetPointer.generationID)
-        var unavailable = Set(payload.provenance.ultimateToDestinationPairs.flatMap { [$0.sourceID, $0.destinationID] })
-        unavailable.formUnion(reviewed.requiredHistory.map { $0.envelope.mutationID.rawValue })
-        guard !unavailable.contains(ids.draftID), !unavailable.contains(ids.mutationID.rawValue),
+            payload: payload, generationID: generationID)
+        let blocked = unavailable.union(payload.provenance.ultimateToDestinationPairs.flatMap { [$0.sourceID, $0.destinationID] })
+        guard !blocked.contains(ids.draftID), !blocked.contains(ids.mutationID.rawValue),
               ids.draftID != ids.mutationID.rawValue else { throw FieldDraftFailureV1.invalidValue }
         let checkpoint = try FieldDraftCheckpointV1(draftID: ids.draftID,
             workspaceID: payload.provenance.destinationWorkspaceID,
@@ -304,8 +365,45 @@ enum RepetitiveCaptureDestinationReviewV1 {
             stageIDs: [], resumeAnchor: DraftResumeAnchorV1(sectionID: "sourceReview"),
             state: .recoveryRequired, updatedAt: reviewedAt, mutationID: ids.mutationID)
         try RepetitiveCaptureDestinationReviewCodecV1.validateInitialCheckpoint(
-            checkpoint, creationGenerationID: identity.targetPointer.generationID)
-        return .init(checkpoint: checkpoint, payload: payload)
+            checkpoint, creationGenerationID: generationID)
+        return checkpoint
+    }
+
+    fileprivate static func inheritedPayload(predecessor: RepetitiveCaptureDestinationReviewPayloadV1,
+                                             original: RepetitiveCaptureSourceHistoryRecordV2,
+                                             checkpoint: FieldDraftCheckpointV1,
+                                             mode: RepetitiveCaptureReviewModeV1, workspace: WorkspaceID) throws
+        -> RepetitiveCaptureDestinationReviewPayloadV1 {
+        try predecessor.validate()
+        try RepetitiveCaptureDestinationReviewCodecV1.validateCheckpoint(checkpoint)
+        let committed = try FieldDraftCommittedEvidenceV1(envelope: original.envelope, receipt: original.receipt)
+        guard workspace != checkpoint.workspaceID,
+              checkpoint.payloadData == (try RepetitiveCaptureDestinationReviewCodecV1.encode(predecessor)),
+              RepetitiveCaptureSourceGraphReviewV2.checkpointPostImage(committed.mutation.postImage) == checkpoint
+        else { throw FieldDraftFailureV1.invalidValue }
+        var immediate: [RepetitiveCaptureReviewIdentityPairV1] = []
+        var composed: [RepetitiveCaptureReviewIdentityPairV1] = []
+        for pair in predecessor.provenance.ultimateToDestinationPairs {
+            // Derive this hop from authenticated predecessor endpoints. Never
+            // transform the ultimate source endpoint again to simulate a chain.
+            let destination = try RepetitiveCaptureReviewRelationsV1.destination(
+                pair.destinationID, kind: pair.kind, mode: mode, workspaceID: workspace)
+            immediate.append(try .init(kind: pair.kind, sourceID: pair.destinationID, destinationID: destination))
+            composed.append(try .init(kind: pair.kind, sourceID: pair.sourceID, destinationID: destination))
+        }
+        immediate.sort(by: RepetitiveCaptureReviewRelationsV1.precedes)
+        composed.sort(by: RepetitiveCaptureReviewRelationsV1.precedes)
+        let link = try RepetitiveCaptureReviewPredecessorV1(workspaceID: checkpoint.workspaceID,
+            reviewDraftID: checkpoint.draftID, reviewCheckpointSHA256: checkpoint.checkpointSHA256,
+            reviewMutationID: original.envelope.mutationID,
+            reviewEnvelopeSHA256: FieldDraftCanonicalCodecV1.sha256(original.original.envelopeData),
+            reviewReceiptIdentity: original.receipt.identity,
+            reviewReceiptSHA256: FieldDraftCanonicalCodecV1.sha256(original.original.receiptData),
+            predecessorProvenanceSHA256: predecessor.provenance.provenanceSHA256,
+            predecessorToDestinationPairs: immediate)
+        return try .init(source: predecessor.source, provenance: .init(mode: mode,
+            destinationWorkspaceID: workspace, ultimateSourceReferenceSHA256: predecessor.source.referenceSHA256,
+            ultimateToDestinationPairs: composed, immediatePredecessor: link))
     }
 
     fileprivate static func firstPayload(from reviewed: ReviewedRepetitiveCaptureSourceGraphsV2,

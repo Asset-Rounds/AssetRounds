@@ -499,7 +499,18 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
         for reference: RepetitiveCaptureSourceGraphReferenceV2,
         in snapshot: MutationHistorySnapshotV1
     ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
-        try MutationJournalStoreV1.validateImportedSnapshot(snapshot)
+        let facts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(snapshot)
+        return try retainedOriginals(for: reference, in: snapshot, validatedBy: facts)
+    }
+
+    /// Reuse only a file-sealed successful validation of these exact bytes.
+    /// A different snapshot still needs the full import/projection predicate.
+    static func retainedOriginals(
+        for reference: RepetitiveCaptureSourceGraphReferenceV2,
+        in snapshot: MutationHistorySnapshotV1,
+        validatedBy facts: MutationHistoryImportedValidationFactsV1
+    ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
+        guard facts.receiptStableKeys(matching: snapshot) != nil else { throw invalid() }
         return try reconstructRetainedOriginals(for: reference, in: snapshot)
     }
 

@@ -2549,6 +2549,14 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return try journalStore.repetitiveCaptureFirstDestinationReview(workspaceID: workspaceID, mutationID: mutationID)
     }
 
+    func repetitiveCaptureDestinationReviewLineage(workspaceID: WorkspaceID, mutationID: MutationIDV1)
+        throws -> RepetitiveCaptureReviewLineageV1 {
+        guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        _ = try currentRevision()
+        return try journalStore.repetitiveCaptureDestinationReviewLineage(
+            workspaceID: workspaceID, mutationID: mutationID)
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }

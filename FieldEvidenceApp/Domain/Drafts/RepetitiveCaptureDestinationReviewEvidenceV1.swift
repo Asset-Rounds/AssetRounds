@@ -26,10 +26,22 @@ enum RepetitiveCaptureDestinationReviewHistoryV1 {
     static func firstReview(workspaceID: WorkspaceID, mutationID: MutationIDV1,
                             in snapshot: MutationHistorySnapshotV1) throws
         -> RepetitiveCaptureDestinationReviewEvidenceV1 {
-        try MutationJournalStoreV1.validateImportedSnapshot(snapshot)
+        let facts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(snapshot)
+        return try firstReview(workspaceID: workspaceID, mutationID: mutationID,
+            in: snapshot, validatedBy: facts)
+    }
+
+    static func firstReview(workspaceID: WorkspaceID, mutationID: MutationIDV1,
+                            in snapshot: MutationHistorySnapshotV1,
+                            validatedBy facts: MutationHistoryImportedValidationFactsV1) throws
+        -> RepetitiveCaptureDestinationReviewEvidenceV1 {
+        guard facts.receiptStableKeys(matching: snapshot) != nil else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         return try reconstruct(workspaceID: workspaceID, mutationID: mutationID,
             snapshot: snapshot) { reference in
-                try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(for: reference, in: snapshot)
+                try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
+                    for: reference, in: snapshot, validatedBy: facts)
             }
     }
 
