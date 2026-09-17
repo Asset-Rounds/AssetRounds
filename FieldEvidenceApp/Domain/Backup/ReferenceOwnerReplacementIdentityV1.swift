@@ -13,6 +13,21 @@ extension RestoreIdentityV1 {
         try referenceOwnerReplacementMutationID(for: sourceID, family: .roundSession)
     }
 
+    /// Pure reconstruction of the existing replacement namespace from an
+    /// authenticated review's source, destination and creation generation.
+    /// It grants no restore identity or command-publication authority.
+    static func destinationRoundSessionMutationID(
+        for sourceID: MutationIDV1, sourceWorkspaceID: WorkspaceID,
+        destinationWorkspaceID: WorkspaceID, generationID: UUID
+    ) throws -> MutationIDV1 {
+        try FieldDraftValidationV1.workspace(sourceWorkspaceID)
+        try FieldDraftValidationV1.workspace(destinationWorkspaceID)
+        try FieldDraftValidationV1.id(generationID)
+        return try referenceOwnerReplacementMutationID(
+            for: sourceID, family: .roundSession, sourceWorkspaceID: sourceWorkspaceID.rawValue,
+            destinationWorkspaceID: destinationWorkspaceID.rawValue, generationID: generationID)
+    }
+
     func destinationScheduleMutationID(for sourceID: MutationIDV1) throws -> MutationIDV1 {
         try referenceOwnerReplacementMutationID(for: sourceID, family: .schedule)
     }
@@ -41,11 +56,20 @@ private extension RestoreIdentityV1 {
         guard let sourceWorkspaceID = source.workspaceID else {
             throw RestoreIdentityDecisionErrorV1.missingSourceIdentity
         }
+        return try Self.referenceOwnerReplacementMutationID(
+            for: sourceID, family: family, sourceWorkspaceID: sourceWorkspaceID,
+            destinationWorkspaceID: targetPointer.workspaceID, generationID: targetPointer.generationID)
+    }
+
+    static func referenceOwnerReplacementMutationID(
+        for sourceID: MutationIDV1, family: ReferenceOwnerReplacementFamilyV1,
+        sourceWorkspaceID: UUID, destinationWorkspaceID: UUID, generationID: UUID
+    ) throws -> MutationIDV1 {
         let components = [
             "reference-owner-replacement-v1", family.rawValue,
             sourceWorkspaceID.uuidString.lowercased(), sourceID.rawValue.uuidString.lowercased(),
-            targetPointer.workspaceID.uuidString.lowercased(),
-            targetPointer.generationID.uuidString.lowercased(),
+            destinationWorkspaceID.uuidString.lowercased(),
+            generationID.uuidString.lowercased(),
         ]
         let digest = CanonicalJSONV1.sha256(Data(components.joined(separator: "\u{0}").utf8))
         var bytes = stride(from: 0, to: 32, by: 2).map {

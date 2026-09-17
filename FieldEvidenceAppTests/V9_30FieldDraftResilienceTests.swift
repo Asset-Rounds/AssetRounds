@@ -2286,6 +2286,34 @@ extension V9_30FieldDraftResilienceTests {
     }
 }
 extension V9_30FieldDraftResilienceTests {
+    func testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes() throws {
+        let fixture = try V23ReviewedConflictDomainFixture.make()
+        let cases: [(ReviewedMyDayTargetBasisV1, FieldDraftCheckpointV1)] = [
+            (.existing(identity: fixture.targetIdentity, key: fixture.key, revision: fixture.target.revision,
+                       canonicalSHA256: fixture.target.planSHA256), fixture.existingSuccessor),
+            (.absent(key: fixture.key, expectedWorkspaceRevision: 0), fixture.absentSuccessor)
+        ]
+        for (basis, successor) in cases {
+            let value = try ReviewedDraftConflictResolutionV1(plan: .reviewAndRebase,
+                expectedCheckpoint: fixture.expected, reviewedTargetBasis: basis, successorCheckpoint: successor)
+            // This is the exact pre-generalization Codable field layout. Its
+            // target is the unchanged legacy enum, with no new wrapper layer.
+            let original = V23LegacyReviewedConflictResolutionBytes(
+                schemaVersion: 1, plan: .reviewAndRebase, expectedCheckpoint: fixture.expected,
+                expectedCheckpointSHA256: fixture.expected.checkpointSHA256, reviewedTargetBasis: basis,
+                successorCheckpoint: successor, successorCheckpointSHA256: successor.checkpointSHA256)
+            let bytes = try FieldDraftCanonicalCodecV1.encode(original)
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(value), bytes)
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(ReviewedDraftConflictResolutionV1.self, from: bytes), value)
+            XCTAssertEqual(value.reviewedTargetBasis, .myDay(basis))
+            XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(value.reviewedTargetBasis),
+                           try FieldDraftCanonicalCodecV1.encode(basis))
+            XCTAssertEqual(value.reviewedTargetBasis.existingIdentity, basis.existingIdentity)
+            XCTAssertEqual(value.reviewedTargetBasis.targetRevision, basis.targetRevision)
+            XCTAssertEqual(value.reviewedTargetBasis.expectedWorkspaceRevision, basis.expectedWorkspaceRevision)
+        }
+    }
+
     func testV23ReviewedConflictResolutionBindsFullMyDayCheckpointsAndTargetLocks() throws {
         let fixture = try V23ReviewedConflictDomainFixture.make()
         let existing = try ReviewedDraftConflictResolutionV1(
@@ -2359,6 +2387,16 @@ extension V9_30FieldDraftResilienceTests {
         XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(ReviewedDraftConflictResolutionV1.self,
             from: Data(repeating: 0x20, count: ReviewedDraftConflictResolutionV1.maximumCanonicalByteCount + 1)))
     }
+}
+
+private struct V23LegacyReviewedConflictResolutionBytes: Codable {
+    let schemaVersion: Int
+    let plan: DraftConflictResolutionPlanV1
+    let expectedCheckpoint: FieldDraftCheckpointV1
+    let expectedCheckpointSHA256: String
+    let reviewedTargetBasis: ReviewedMyDayTargetBasisV1
+    let successorCheckpoint: FieldDraftCheckpointV1
+    let successorCheckpointSHA256: String
 }
 
 private struct V23ReviewedConflictDomainFixture {

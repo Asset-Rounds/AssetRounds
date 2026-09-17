@@ -2627,8 +2627,8 @@ final class MutationJournalStoreV1 {
         }
     }
 
-    /// Returns a checkpoint only for the narrow prepared-origin branch. The
-    /// ordinary editing branch stays receipt-only and receives no proof.
+    /// Prepared My Day origins and C36 destination reviews require an opaque
+    /// apply proof. Ordinary My Day editing retains its receipt-only branch.
     private func validatePendingReviewedFieldDraftResolutionCore(
         _ mutation: FieldDraftMutationV1,
         expectedWorkspaceRevision: UInt64
@@ -2644,6 +2644,39 @@ final class MutationJournalStoreV1 {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
         try validateCurrentWriterLease()
+        if case let .repetitiveCapture(target) = resolution.reviewedTargetBasis {
+            guard case .canonicalWriter = accessMode,
+                  !modelContext.hasChanges,
+                  try domainRevision(requireState().workspaceRevision) == expectedWorkspaceRevision else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let snapshot = try exportSnapshot()
+            guard !snapshot.quarantines.contains(where: {
+                $0.workspaceID == identity.workspaceID && $0.mutationID == mutation.mutationID.rawValue
+            }) else { throw WorkspaceMutationFailureV1.mutationIDQuarantined }
+            let physicalTip = try currentFieldDraftCheckpoint(draftID: resolution.expectedCheckpoint.draftID)
+            guard physicalTip == resolution.expectedCheckpoint else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let lineage = try RepetitiveCaptureReviewLineageReaderV1.read(
+                workspaceID: physicalTip.workspaceID, mutationID: physicalTip.mutationID,
+                in: RepetitiveCaptureRetainedJournalHistoryV2(snapshot: snapshot))
+            let rounds: [RoundSessionV1]
+            if resolution.plan == .discard {
+                rounds = [] // No target lookup or target-presence prerequisite.
+            } else {
+                let workspaceUUID = target.workspaceID.rawValue
+                let sessionID = target.sessionID
+                var descriptor = FetchDescriptor<RoundSessionRevisionRowV1>(predicate: #Predicate {
+                    $0.workspaceID == workspaceUUID && $0.sessionID == sessionID
+                })
+                descriptor.fetchLimit = RoundSessionLimitsV1.maximumHistoryRevisions + 1
+                rounds = try modelContext.fetch(descriptor).map { try $0.value() }.sorted { $0.revision < $1.revision }
+            }
+            try RepetitiveCaptureDestinationResolutionV1.validate(resolution, against: lineage,
+                currentRoundHistory: rounds, expectedWorkspaceRevision: expectedWorkspaceRevision)
+            return physicalTip
+        }
         try validateAll()
         let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: mutation.mutationID)
         guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
@@ -3768,7 +3801,9 @@ final class MutationJournalStoreV1 {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         let allPlans = try planRows.map { try $0.value() }
-        let target = resolution.reviewedTargetBasis
+        guard let target = resolution.reviewedTargetBasis.myDayBasis else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         let matchingKeyPlans = allPlans.filter { $0.key == target.key }
         guard Set(matchingKeyPlans.map(\.planID)).count <= 1 else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt

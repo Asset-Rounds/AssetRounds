@@ -205,19 +205,39 @@ struct ReviewedDraftConflictResolutionV1: Codable, Equatable, Sendable {
     static let maximumCanonicalByteCount = 4 * 1_024 * 1_024
     let schemaVersion: Int; let plan: DraftConflictResolutionPlanV1
     let expectedCheckpoint: FieldDraftCheckpointV1; let expectedCheckpointSHA256: String
-    let reviewedTargetBasis: ReviewedMyDayTargetBasisV1
+    let reviewedTargetBasis: ReviewedDraftTargetBasisV1
     let successorCheckpoint: FieldDraftCheckpointV1; let successorCheckpointSHA256: String
     init(plan: DraftConflictResolutionPlanV1, expectedCheckpoint: FieldDraftCheckpointV1, reviewedTargetBasis: ReviewedMyDayTargetBasisV1, successorCheckpoint: FieldDraftCheckpointV1) throws {
         schemaVersion = Self.schemaVersion; self.plan = plan; self.expectedCheckpoint = expectedCheckpoint
-        expectedCheckpointSHA256 = expectedCheckpoint.checkpointSHA256; self.reviewedTargetBasis = reviewedTargetBasis
+        expectedCheckpointSHA256 = expectedCheckpoint.checkpointSHA256; self.reviewedTargetBasis = .myDay(reviewedTargetBasis)
         self.successorCheckpoint = successorCheckpoint; successorCheckpointSHA256 = successorCheckpoint.checkpointSHA256; try validate()
+    }
+    init(plan: DraftConflictResolutionPlanV1, expectedCheckpoint: FieldDraftCheckpointV1,
+         repetitiveCaptureTargetBasis: ReviewedRepetitiveCaptureTargetBasisV1,
+         successorCheckpoint: FieldDraftCheckpointV1) throws {
+        schemaVersion = Self.schemaVersion; self.plan = plan; self.expectedCheckpoint = expectedCheckpoint
+        expectedCheckpointSHA256 = expectedCheckpoint.checkpointSHA256
+        reviewedTargetBasis = .repetitiveCapture(repetitiveCaptureTargetBasis)
+        self.successorCheckpoint = successorCheckpoint
+        successorCheckpointSHA256 = successorCheckpoint.checkpointSHA256
+        try validate()
     }
     func validate() throws {
         try expectedCheckpoint.validate(); try successorCheckpoint.validate(); try reviewedTargetBasis.validate()
         try FieldDraftValidationV1.digest(expectedCheckpointSHA256); try FieldDraftValidationV1.digest(successorCheckpointSHA256)
         try MyDayLimitsV1.millisecondInstant(expectedCheckpoint.updatedAt); try MyDayLimitsV1.millisecondInstant(successorCheckpoint.updatedAt)
-        guard schemaVersion == Self.schemaVersion, expectedCheckpointSHA256 == expectedCheckpoint.checkpointSHA256, successorCheckpointSHA256 == successorCheckpoint.checkpointSHA256, expectedCheckpoint.workspaceID == successorCheckpoint.workspaceID, expectedCheckpoint.workspaceID == reviewedTargetBasis.key.workspaceID, expectedCheckpoint.draftID == successorCheckpoint.draftID, expectedCheckpoint.scope == successorCheckpoint.scope, expectedCheckpoint.purpose == successorCheckpoint.purpose, expectedCheckpoint.codec == successorCheckpoint.codec, expectedCheckpoint.stageIDs == successorCheckpoint.stageIDs, expectedCheckpoint.resumeAnchor == successorCheckpoint.resumeAnchor, expectedCheckpoint.updatedAt <= successorCheckpoint.updatedAt, expectedCheckpoint.mutationID != successorCheckpoint.mutationID, (expectedCheckpoint.state == .conflicted || expectedCheckpoint.state == .recoveryRequired) else { throw FieldDraftFailureV1.invalidValue }
+        guard schemaVersion == Self.schemaVersion, expectedCheckpointSHA256 == expectedCheckpoint.checkpointSHA256, successorCheckpointSHA256 == successorCheckpoint.checkpointSHA256, expectedCheckpoint.workspaceID == successorCheckpoint.workspaceID, expectedCheckpoint.workspaceID == reviewedTargetBasis.workspaceID, expectedCheckpoint.draftID == successorCheckpoint.draftID, expectedCheckpoint.scope == successorCheckpoint.scope, expectedCheckpoint.purpose == successorCheckpoint.purpose, expectedCheckpoint.codec == successorCheckpoint.codec, expectedCheckpoint.stageIDs == successorCheckpoint.stageIDs, expectedCheckpoint.resumeAnchor == successorCheckpoint.resumeAnchor, expectedCheckpoint.updatedAt <= successorCheckpoint.updatedAt, expectedCheckpoint.mutationID != successorCheckpoint.mutationID, (expectedCheckpoint.state == .conflicted || expectedCheckpoint.state == .recoveryRequired) else { throw FieldDraftFailureV1.invalidValue }
         try FieldDraftValidationV1.next(expectedCheckpoint.draftRevision, successorCheckpoint.draftRevision)
+        switch reviewedTargetBasis {
+        case let .myDay(basis): try validateMyDay(basis)
+        case let .repetitiveCapture(basis):
+            try RepetitiveCaptureDestinationResolutionV1.validateContract(plan: plan,
+                expected: expectedCheckpoint, successor: successorCheckpoint, target: basis)
+        }
+        guard try FieldDraftCanonicalCodecV1.encode(self).count <= Self.maximumCanonicalByteCount else { throw FieldDraftFailureV1.limitExceeded }
+    }
+
+    private func validateMyDay(_ reviewedTargetBasis: ReviewedMyDayTargetBasisV1) throws {
         if expectedCheckpoint.purpose == .myDayPlanning, let attempt = try MyDayPlanningDraftCodecV1.decode(expectedCheckpoint.payloadData).commitAttempt {
             guard !attempt.allOperationalMutationIDs.contains(successorCheckpoint.mutationID) else { throw FieldDraftFailureV1.invalidValue }
         }
@@ -241,7 +261,6 @@ struct ReviewedDraftConflictResolutionV1: Codable, Equatable, Sendable {
             guard successorCheckpoint.state == .discardPending, successorCheckpoint.baseCanonicalRevision == expectedCheckpoint.baseCanonicalRevision, successorCheckpoint.payloadData == expectedCheckpoint.payloadData else { throw FieldDraftFailureV1.invalidValue }
         case .commitAsCopy: throw FieldDraftFailureV1.invalidValue
         }
-        guard try FieldDraftCanonicalCodecV1.encode(self).count <= Self.maximumCanonicalByteCount else { throw FieldDraftFailureV1.limitExceeded }
     }
 }
 struct DraftCommitPlanV1:Codable,Equatable,Hashable,Sendable{let planID:UUID;let workspaceID:WorkspaceID;let draftID:UUID;let draftRevision:UInt64;let baseCanonicalRevision:UInt64;let payloadSHA256:String;let stageDigests:[String];let targetCommandKind:WorkspaceCommandKindV1;let expectedTargetRevision:UInt64;let mutationID:MutationIDV1;let outputKeys:[String];let planSHA256:String

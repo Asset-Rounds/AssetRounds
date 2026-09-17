@@ -2139,7 +2139,7 @@ extension V23ProductionMyDayCommitTests {
         XCTAssertEqual(try fixture.coordinator.workspaceWriter.currentRevision(), beforePrepareRevision)
         XCTAssertEqual(try reviewedSaveRowCounts(in: fixture.coordinator.modelContext), beforePrepareRows)
         XCTAssertEqual(write.review, review)
-        XCTAssertEqual(write.resolution.reviewedTargetBasis, review.capturedTargetBasis)
+        XCTAssertEqual(write.resolution.reviewedTargetBasis, .myDay(review.capturedTargetBasis))
         XCTAssertEqual(write.resolution.successorCheckpoint.payloadData,
                        try MyDayPlanningDraftCodecV1.encode(.init(editing: request.confirmedContext,
                                                                intent: review.reviewRequest.editingIntent)))

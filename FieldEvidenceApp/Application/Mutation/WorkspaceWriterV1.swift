@@ -1637,13 +1637,16 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                       value.mutationID == request.mutationID else {
                     throw WorkspaceMutationFailureV1.invalidCommand
                 }
-                if case .resolveConflict = value.postImage {
+                if case let .resolveConflict(resolution) = value.postImage {
                     guard sourceKind != .importedHistory, occurredAtOverride == nil,
                           Set(expected.keys) == Set(targets),
                           try targets.allSatisfy({ expected[$0] == (try value.expectedRevision(for: $0)) }) else {
                         throw WorkspaceMutationFailureV1.invalidCommand
                     }
                     try value.validateReviewedTargetWorkspaceRevision(request.expectedRevision.workspaceRevision)
+                    if case .repetitiveCapture = resolution.reviewedTargetBasis {
+                        guard sourceKind == .localUser else { throw WorkspaceMutationFailureV1.invalidCommand }
+                    }
                 } else {
                     guard try sourceKind == .importedHistory || occurredAtOverride != nil
                         || targets.allSatisfy({ expected[$0] == (try value.expectedRevision(for: $0)) }) else {

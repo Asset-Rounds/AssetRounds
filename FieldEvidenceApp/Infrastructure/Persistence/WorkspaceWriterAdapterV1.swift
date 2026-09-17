@@ -202,13 +202,20 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         try prepareAdapterForApply()
         do {
             try mutation.validate()
-            guard case let .resolveConflict(resolution) = mutation.postImage,
-                  resolution.plan == .reviewAndRebase,
-                  resolution.expectedCheckpoint.state == .conflicted,
-                  try MyDayPlanningDraftCodecV1.validateCheckpointPayload(
-                    resolution.expectedCheckpoint
-                  ).phase == .preparedCommit else {
+            guard case let .resolveConflict(resolution) = mutation.postImage else {
                 throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            switch resolution.reviewedTargetBasis {
+            case .myDay:
+                guard resolution.plan == .reviewAndRebase,
+                      resolution.expectedCheckpoint.state == .conflicted,
+                      try MyDayPlanningDraftCodecV1.validateCheckpointPayload(
+                        resolution.expectedCheckpoint
+                      ).phase == .preparedCommit else { throw WorkspaceMutationFailureV1.invalidCommand }
+            case .repetitiveCapture:
+                // Its complete source and live Round predicates are repeated
+                // by the same single-use journal proof immediately below.
+                try RepetitiveCaptureDestinationReviewCodecV1.validateCheckpoint(resolution.expectedCheckpoint)
             }
             try proof.validateForApply(mutation, in: modelContext)
             try applyReviewedFieldDraftConflictEffect(resolution)
@@ -4174,7 +4181,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         try resolution.validate()
         // Imported recovery-required checkpoints need the later authenticated
         // provenance path; this ordinary writer slice cannot infer that proof.
-        guard resolution.plan == .reviewAndRebase,
+        guard case .myDay = resolution.reviewedTargetBasis,
+              resolution.plan == .reviewAndRebase,
               resolution.expectedCheckpoint.state == .conflicted,
               try MyDayPlanningDraftCodecV1.validateCheckpointPayload(
                 resolution.expectedCheckpoint
@@ -4187,17 +4195,27 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private func applyReviewedFieldDraftConflictEffect(
         _ resolution: ReviewedDraftConflictResolutionV1
     ) throws {
-        let currentTarget = try currentMyDayPlan(for: resolution.reviewedTargetBasis.key)
         switch resolution.reviewedTargetBasis {
-        case let .existing(identity, key, revision, canonicalSHA256):
-            guard let target = currentTarget, target.key == key,
-                  identity.kind == .myDayPlan, target.planID == identity.id,
-                  target.revision == revision, target.planSHA256 == canonicalSHA256 else {
-                throw WorkspaceMutationFailureV1.staleEntityRevision(identity)
+        case let .myDay(basis):
+            let currentTarget = try currentMyDayPlan(for: basis.key)
+            switch basis {
+            case let .existing(identity, key, revision, canonicalSHA256):
+                guard let target = currentTarget, target.key == key,
+                      identity.kind == .myDayPlan, target.planID == identity.id,
+                      target.revision == revision, target.planSHA256 == canonicalSHA256 else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(identity)
+                }
+            case .absent:
+                guard currentTarget == nil, resolution.expectedCheckpoint.baseCanonicalRevision == 0 else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
             }
-        case .absent:
-            guard currentTarget == nil, resolution.expectedCheckpoint.baseCanonicalRevision == 0 else {
-                throw WorkspaceMutationFailureV1.invalidCommand
+        case let .repetitiveCapture(basis):
+            if basis.round != nil {
+                let history = try roundSessionHistory(workspaceID: basis.workspaceID, sessionID: basis.sessionID)
+                guard try history.last?.reference == basis.round else { throw WorkspaceMutationFailureV1.invalidCommand }
+            } else {
+                guard resolution.plan == .discard else { throw WorkspaceMutationFailureV1.invalidCommand }
             }
         }
         let identity = try WorkspaceEntityIdentityV1(

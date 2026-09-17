@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `6dfaa326a36262075de3ab66df7ae43fd8ddfb0c`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `475263c611d4d5a09230392ea38fc5a0d4accd34`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -19,7 +19,7 @@ The committed seven record-copy helpers preserve all77 inputs. Root's two-path d
 
 ## Current implementation
 
-- First-create authentication is committed as6dfaa32 (source738/41/96,index68CEABFB). Iterative lineage now binds complete receipt prefixes, composes each actual predecessor relation and prepares fresh RECOVERY_REQUIRED reviews. Thirteen paired methods await native selection/execution; source/index review is pending. Target approval, publication, lifecycle and registration remain due;49 drafts stay exact.
+- Lineage is committed as475263c (source738/41/96; index365F7374). Resolution is authored across12 owned paths: legacy-compatible Round/review-only bases, exact mapped history and sole-writer rechecks, no-effect Continue/Rebase and target-independent pending Discard. Seven new methods plus legacy byte coverage await source/index review and native enrollment. Continuation, terminal discard, publication/lifecycle and registration remain due;49 drafts stay exact.
 - Durable Begin persists PREPARED before effects and BOUND after original receipts. Historical ENTRY and later/COMPLETE item reads preserve live access and external Round-close rejection.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Source738/41/96, semantic2735C2E7 and indexEB29A4EE pass; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.
