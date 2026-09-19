@@ -104,6 +104,7 @@ on:
           - c36-destination-continuation
           - c36-production-destination
           - c36-restore-review
+          - c36-restore-review-no-index
           - c36-restore-authority
           - c36-destination-legacy-bytes
       s10_4_minimum_core_smoke_id:

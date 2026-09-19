@@ -46,6 +46,13 @@ H411_SHARED_COMMAND
 fi
 # End H411 producer source argv receipt.
 
+# Closed index-emission experiment. Ordinary and historical argv stays exact.
+v23_index_setting=""
+if [ "${NATIVE_SELECTION_ID:-none}" = c36-restore-review-no-index ]; then
+  python3 Scripts/v23-native-ci.py record-no-index-build
+  v23_index_setting="COMPILER_INDEX_STORE_ENABLE=NO"
+fi
+
 xcodebuild \
   -project "${PROJECT_PATH:?}" \
   -scheme "${SCHEME:?}" \
@@ -54,6 +61,7 @@ xcodebuild \
   -derivedDataPath "$derived_data_path" \
   -resultBundlePath "$result_bundle_path" \
   CODE_SIGNING_ALLOWED=NO \
+  ${v23_index_setting:+"$v23_index_setting"} \
   build-for-testing
 
 test -d "$result_bundle_path"

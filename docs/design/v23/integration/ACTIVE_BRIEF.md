@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementation855ef0e; both test-compiler causes are corrected and reviewed. Authority35471919084 is audited: compile/7tests/transportPASS. Restore35471907662 is audited: compile/1Pass/5Fail/transportPASS; localize runtime invalidIdentity. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Implementation5508d03 has reviewed default-off restore diagnostics. Original35474552539 is audited: build1200 timeout/zero Swift errors/6NotStarted; no runtime localization. Predecessor855: both compile/transportPASS, authority7Pass, restore1Pass/5Fail. Main stays b1d04ae5.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-855ef0e authority35471919084/rootCDE734A7: compilation884s,7Pass/test280s, zero Swift errors/new warning signatures, transport-v2PASS. Restore35471907662/rootCBC18A57: compile/1Pass/5Fail/transportPASS. Four runtime invalidIdentity errors and an early prepublication failure need one scoped phase/type diagnostic; original cause remains unproven. Both originals audited. Prior compiler findings remain under runtime-4971f79/runtime-54d31db and CURRENT_INTEGRATION. N8 budgets, consumed experiments and Bitrise exact-runtime qualification hold remain. This is development evidence, not acceptance.
+855ef0e authority7Pass and restore1Pass/5Fail remain head-bound; both compile/transportPASS, zero new warnings. Diagnostic5508d03/original35474552539/rootB5BBA899 hit build1200/exit124 with6NotStarted, no compiler errors/new warnings and transportINVALID. Both earlier allowances are consumed. Qualify one closed no-index experiment from exact5508 app/tests/project trees: ordinary N8, all6 methods, existing environment/order, only compiler index emission disabled. Review before one original; no assumed speedup or unchanged retry. Runtime invalidIdentity and Bitrise qualification remain unresolved.
 
 Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 
@@ -30,7 +30,7 @@ Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert inval
 
 ## Cadence and completion gates
 
-Root uses Astra xhigh; at most one useful Astra low/medium coding/review helper, Luna low for simple non-coding. Freeze candidate/checkpoints before checks; combine semantic/index review and use qualified mechanical facts for committed binding. No duplicate run or unchanged retry; root alone commits/pushes. Follow MERGE_READINESS.
+Root uses Astra xhigh; at most one useful Astra low/medium coding/review helper, Luna low for simple non-coding. Freeze candidate/checkpoints before checks; combine semantic/index review and use qualified mechanical facts for committed binding. No duplicate run or unchanged retry; root alone commits/pushes. Follow MERGE_READINESS; run qualified validate-native-inputs.py before successor preparation.
 
 Pool790/48 adds13 restore journey/authority methods and preserves all10 historical profiles. Source/protocol and independent index/route checks precede new ordinary-budget native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Historical results never transfer to a later head. Cache/shared-build and provider qualification remain separate work.
 

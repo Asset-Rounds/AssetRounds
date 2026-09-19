@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import shlex
 import stat
 import subprocess
 import time
@@ -40,6 +41,10 @@ BUILD_ORDER_TREES = {
     "FieldEvidenceAppUITests": "978eced2587c6ed6cb280aa6cea7d4e3fa6e4190",
     "FieldEvidenceApp.xcodeproj": "4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0",
 }
+NO_INDEX_SELECTION_ID = "c36-restore-review-no-index"
+NO_INDEX_PARENT = "5508d03a28a39e5b65045935cc9e0b1d8cb06048"
+NO_INDEX_TREES = {'FieldEvidenceApp': 'f8e6a0f47f48576d1d935b7c830a517164497e48', 'FieldEvidenceAppTests': 'c71cd5251150129df2e698eb0e888c1939d472ed', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+NO_INDEX_RECEIPT = "no-index-build-command.json"
 BUILD_ORDER_OBSERVATIONS = "build-before-boot.jsonl"
 BUILD_ORDER_COMMAND = ("bash", "Scripts/build-smoke.sh")
 BUDGET_KEYS = ("setupArtifactTimeoutSeconds", "buildTimeoutSeconds", "testTimeoutSeconds",
@@ -1051,6 +1056,9 @@ def resolve_selection(default, selection_map, selection_id):
         resolved[BUILD_WATCHDOG_SELECTION_ID] = diagnostic
         require(BUILD_ORDER_SELECTION_ID not in resolved, "build order distinct selector")
         resolved[BUILD_ORDER_SELECTION_ID] = dict(resolved["c36-destination-discard"])
+        if "c36-restore-review" in resolved:
+            require(NO_INDEX_SELECTION_ID not in resolved, "no-index distinct selector")
+            resolved[NO_INDEX_SELECTION_ID] = dict(resolved["c36-restore-review"])
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")
@@ -1177,6 +1185,18 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
             tree = subprocess.check_output(["git", "rev-parse", checkout_head + ":" + path],
                                            cwd=root, text=True).strip()
             require(tree == expected_tree, "build order unchanged app/tests/project")
+    if selection_record["selectionID"] == NO_INDEX_SELECTION_ID:
+        require(selection["tier"] == "N8" and provider == "github" and label == "macos-26",
+                "no-index ordinary-budget GitHub route only")
+        require(e["GITHUB_RUN_ATTEMPT"] == "1", "no-index original attempt only")
+        header = subprocess.check_output(["git", "cat-file", "commit", checkout_head], cwd=root)
+        parents = [line[7:].decode("ascii") for line in header.split(b"\n\n", 1)[0].splitlines()
+                   if line.startswith(b"parent ")]
+        require(parents == [NO_INDEX_PARENT], "no-index exact parent")
+        for path, expected_tree in NO_INDEX_TREES.items():
+            tree = subprocess.check_output(["git", "rev-parse", checkout_head + ":" + path],
+                                           cwd=root, text=True).strip()
+            require(tree == expected_tree, "no-index unchanged app/tests/project")
     return {"contractID": CONTRACT, "taskID": TASK, "repository": REPOSITORY,
             "ref": e["GITHUB_REF"], "head": head, "runID": e["GITHUB_RUN_ID"],
             "runAttempt": e["GITHUB_RUN_ATTEMPT"], "executionLane": lane,
@@ -1380,6 +1400,52 @@ def build_order_observations(artifact, record, selected_udid):
             "acceptance": False, "performanceImprovementProven": False}
 
 
+def no_index_build_receipt(root, artifact, record, environment):
+    require(record["selectionID"] == NO_INDEX_SELECTION_ID, "no-index admitted selection")
+    require(read_json(artifact / "native-admission.json") == record, "no-index admission changed")
+    e = environment
+    require(e.get("PROJECT_PATH") == "FieldEvidenceApp.xcodeproj"
+            and e.get("SCHEME") == "FieldEvidenceApp" and e.get("CONFIGURATION") == "Debug"
+            and e.get("CODE_SIGNING_ALLOWED") == "NO", "no-index build configuration")
+    destination = "platform=iOS Simulator,id=" + e["CI_SIMULATOR_UDID"]
+    require(e.get("CI_DESTINATION") == destination, "no-index exact destination")
+    require(e.get("CI_ARTIFACT_DIR") == str(artifact), "no-index artifact path")
+    arguments = ["xcodebuild", "-project", e["PROJECT_PATH"], "-scheme", e["SCHEME"],
+                 "-configuration", e["CONFIGURATION"], "-destination", destination,
+                 "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
+                 "-resultBundlePath", str(artifact / "Build.xcresult"),
+                 "CODE_SIGNING_ALLOWED=NO", "COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"]
+    return {"schemaVersion": 1, "selectionID": NO_INDEX_SELECTION_ID,
+            "head": record["head"], "parent": NO_INDEX_PARENT, "runID": record["runID"],
+            "runAttempt": record["runAttempt"], "admissionSHA256": sha256(canonical(record)),
+            "buildScriptSHA256": sha256((root / "Scripts/build-smoke.sh").read_bytes()),
+            "sourceTrees": NO_INDEX_TREES, "argv": arguments,
+            "diagnosticOnly": True, "acceptance": False}
+
+
+def verify_no_index_build(root, artifact, record, environment):
+    expected = no_index_build_receipt(root, artifact, record, environment)
+    require(read_json(artifact / NO_INDEX_RECEIPT) == expected, "no-index command receipt changed")
+    path = artifact / "build-smoke.log"
+    require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 256 * 1024 * 1024,
+            "no-index original build log")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    markers = [i for i, line in enumerate(lines) if line.strip() == "Command line invocation:"]
+    require(len(markers) == 1 and markers[0] + 1 < len(lines), "no-index single Xcode invocation")
+    actual = shlex.split(lines[markers[0] + 1].strip())
+    require(actual and actual[0] == "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild"
+            and actual[1:] == expected["argv"][1:], "no-index executed command differs")
+    compiler_lines = [line for line in lines if "builtin-SwiftDriver -- " in line]
+    require(compiler_lines and all("-index-store-path" not in line for line in compiler_lines),
+            "no-index compiler still emits index data or command missing")
+    require(any(line.strip() == "** TEST BUILD SUCCEEDED **" for line in lines),
+            "no-index complete test build required")
+    return {"commandReceiptSHA256": sha256(canonical(expected)),
+            "executedCommandExact": True, "compilerDriverCommands": len(compiler_lines),
+            "compilerIndexEmissionDisabled": True, "unchangedSourceTrees": NO_INDEX_TREES,
+            "speedupEstablished": False, "acceptance": False}
+
+
 def verify_checkpoint(root, artifact, record, selection, environment):
     diagnostic_evidence = persist_simulator_diagnostic_observations(root, artifact, record)
     require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
@@ -1415,6 +1481,8 @@ def verify_checkpoint(root, artifact, record, selection, environment):
             and simulator.get("udid") == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID"),
             "fresh owned Simulator")
     build_order = {}
+    if record["selectionID"] == NO_INDEX_SELECTION_ID:
+        build_order["noIndexBuildDiagnostic"] = verify_no_index_build(root, artifact, record, environment)
     if record["selectionID"] == BUILD_ORDER_SELECTION_ID:
         build_order["buildOrderDiagnostic"] = build_order_observations(artifact, record, simulator["udid"])
     units = executed_methods(read_json(artifact / "unit-test-results.json"),
@@ -1452,7 +1520,7 @@ def verify_checkpoint(root, artifact, record, selection, environment):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics", "observe-build-before-boot"))
+    parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics", "observe-build-before-boot", "record-no-index-build"))
     parser.add_argument("--stage", choices=("dispatch", "worker"), default="worker")
     parser.add_argument("--output")
     parser.add_argument("--interrupted", action="store_true")
@@ -1482,8 +1550,8 @@ def main():
                 stream.write("native_selection_sha256=" + record["selectionSHA256"] + "\n")
                 stream.write("native_selection_map_sha256=" + record["selectionMapSHA256"] + "\n")
         return
-    if args.command == "observe-build-before-boot":
-        require(record is not None, "build order command requires admitted integration route")
+    if args.command in ("observe-build-before-boot", "record-no-index-build"):
+        require(record is not None, "diagnostic command requires admitted integration route")
     if record is None:
         return
     subprocess.run(["git", "diff", "--exit-code", "HEAD", "--"], cwd=root, check=True, stdout=subprocess.DEVNULL)
@@ -1493,6 +1561,11 @@ def main():
     require(artifact.is_dir() and not artifact.is_symlink(), "artifact directory")
     if args.command == "observe-build-before-boot":
         raise SystemExit(observe_build_before_boot(root, artifact, record, os.environ))
+    if args.command == "record-no-index-build":
+        receipt = no_index_build_receipt(root, artifact, record, os.environ)
+        with (artifact / NO_INDEX_RECEIPT).open("xb") as stream:
+            stream.write(canonical(receipt))
+        return
     name = "native-admission.json"
     if args.command == "verify":
         record = verify_checkpoint(root, artifact, record, selection, os.environ)

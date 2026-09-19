@@ -370,7 +370,7 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
-    for group_id in ("c36-restore-review", "c36-restore-authority"):
+    for group_id in ("c36-restore-review", CI.NO_INDEX_SELECTION_ID, "c36-restore-authority"):
         choice = "          - " + group_id + "\n"
         if workflow.count(choice) != 1: raise AssertionError("missing exact restore choice")
         workflow = workflow.replace(choice, "")
@@ -735,6 +735,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('c36-parent-finalization-check-no-issue') + 1,
                         CI.BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('c36-destination-discard') + 1, CI.BUILD_ORDER_SELECTION_ID)
+        expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):
@@ -1037,6 +1038,165 @@ class UpdatedBuildBudgetAdmissionTests(unittest.TestCase):
                 stale["DISPATCH_NATIVE_SELECTION_SHA256"] = CI.sha256(CI.canonical(previous))
                 with self.assertRaises(ValueError):
                     CI.admission(previous, stale, HEAD, stage)
+
+
+class NoIndexBuildDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID)
+        self.record = {'selectionID': CI.NO_INDEX_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.NO_INDEX_PARENT + '\n\nmessage\n').encode()
+
+    def bound_environment(self, provider='github'):
+        e = environment(provider)
+        e.update(DISPATCH_NATIVE_SELECTION_ID=self.record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=self.record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=self.record['selectionMapSHA256'])
+        return e
+
+    def git_facts(self, command, **kwargs):
+        if command[1:3] == ['cat-file', 'commit']: return self.header
+        return CI.NO_INDEX_TREES[command[-1].split(':', 1)[1]] + '\n'
+
+    def test_closed_alias_keeps_six_methods_pool_and_ordinary_budgets(self):
+        self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-restore-review'))
+        self.assertEqual(len(self.selected['unitTestSelectors']), 6)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (790, 48))
+        for suffix in ('-retry', '-parallel', '-30m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID + suffix)
+
+    def test_both_admissions_bind_original_github_parent_and_every_source_tree(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts) as read:
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertEqual(read.call_count, 5)
+            self.assertFalse(result['acceptance']); self.assertTrue(result['diagnosticOnly'])
+            wrong_route = dict(self.bound_environment(), **(
+                {'SHARED_LANE':'unknown'} if stage == 'dispatch' else {'CI_RUNNER_LABEL':'macos-latest'}))
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2'), wrong_route):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for bad in (b'tree a\n\nmessage\n', self.header.replace(CI.NO_INDEX_PARENT.encode(), b'b'*40),
+                        self.header.replace(b'\n\n', b'\nparent '+b'b'*40+b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=bad), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.NO_INDEX_TREES:
+                def changed_tree(command, **kwargs):
+                    return 'b'*40 if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=changed_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for key in CI.BUDGET_KEYS:
+                changed = dict(self.selected); changed[key] += 1
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(changed, self.bound_environment(), HEAD, stage, self.record)
+
+    def build_fixture(self, artifact):
+        (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+        e = dict(self.bound_environment(), PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                 CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                 CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=str(artifact),
+                 RUNNER_TEMP=str(artifact.parent/'runner temp'))
+        receipt = CI.no_index_build_receipt(ROOT, artifact, self.record, e)
+        (artifact/CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(receipt))
+        argv = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + receipt['argv'][1:]
+        log = 'Command line invocation:\n    '+CI.shlex.join(argv)+'\nbuiltin-SwiftDriver -- /swiftc -module-name FieldEvidenceApp\n** TEST BUILD SUCCEEDED **\n'
+        (artifact/'build-smoke.log').write_text(log, encoding='utf-8')
+        return e, receipt, log
+
+    def test_receipt_binds_admitted_configuration_and_executed_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory); e, receipt, _ = self.build_fixture(artifact)
+            result = CI.verify_no_index_build(ROOT, artifact, self.record, e)
+            self.assertTrue(result['executedCommandExact']); self.assertFalse(result['acceptance'])
+            self.assertFalse(result['speedupEstablished'])
+            self.assertEqual(receipt['sourceTrees'], CI.NO_INDEX_TREES)
+            for key, value in {'PROJECT_PATH':'Other.xcodeproj', 'SCHEME':'Other', 'CONFIGURATION':'Release',
+                               'CODE_SIGNING_ALLOWED':'YES', 'CI_DESTINATION':'platform=iOS Simulator,name=iPhone',
+                               'CI_ARTIFACT_DIR':str(artifact/'foreign')}.items():
+                with self.assertRaises(ValueError):
+                    CI.no_index_build_receipt(ROOT, artifact, self.record, dict(e, **{key:value}))
+            with self.assertRaises(ValueError):
+                CI.no_index_build_receipt(ROOT, artifact, dict(self.record, selectionID='c36-restore-review'), e)
+            (artifact/'native-admission.json').write_bytes(CI.canonical(dict(self.record, head='a'*40)))
+            with self.assertRaises(ValueError): CI.no_index_build_receipt(ROOT, artifact, self.record, e)
+
+    def test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory); e, receipt, log = self.build_fixture(artifact)
+            variants = [log.replace('Command line invocation:', 'missing:'), log+log,
+                        log.replace('COMPILER_INDEX_STORE_ENABLE=NO', 'COMPILER_INDEX_STORE_ENABLE=YES'),
+                        log.replace('build-for-testing', 'build-for-testing EXTRA=1'),
+                        log.replace('Xcode_26.6.app', 'Xcode_Other.app'),
+                        log.replace(' -module-name', ' -index-store-path /tmp/index -module-name'),
+                        log.replace('builtin-SwiftDriver -- ', 'missing-driver '),
+                        log.replace('** TEST BUILD SUCCEEDED **', '** BUILD INTERRUPTED **')]
+            for changed in variants:
+                (artifact/'build-smoke.log').write_text(changed, encoding='utf-8')
+                with self.assertRaises(ValueError): CI.verify_no_index_build(ROOT, artifact, self.record, e)
+            (artifact/'build-smoke.log').write_text(log, encoding='utf-8')
+            for key, value in (('head','a'*40), ('argv',receipt['argv'][:-1]), ('sourceTrees',{}), ('acceptance',True)):
+                (artifact/CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(dict(receipt, **{key:value})))
+                with self.assertRaises(ValueError): CI.verify_no_index_build(ROOT, artifact, self.record, e)
+
+    def run_mock_build(self, directory, selector, receipt_exit=0, build_exit=0):
+        # Only disposable shell stand-ins execute; never a local native compiler.
+        base = Path(directory); bin_dir = base/'bin'; bin_dir.mkdir()
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        self.assertTrue(bash.is_file(), 'protocol shell tests require Bash')
+        def shell_path(path):
+            if os.name != 'nt': return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        for name, body in {
+            'python3': '#!/bin/bash\nprintf "receipt\\n" >> "$MOCK_EVENTS"\nprintf "%s\\n" "$@" > "$MOCK_RECEIPT_ARGS"\nexit "$MOCK_RECEIPT_EXIT"\n',
+            'xcodebuild': '#!/bin/bash\nprintf "build\\n" >> "$MOCK_EVENTS"\nprintf "%s\\n" "$@" > "$MOCK_BUILD_ARGS"\nif [ "$MOCK_BUILD_EXIT" != 0 ]; then exit "$MOCK_BUILD_EXIT"; fi\nmkdir -p "$CI_ARTIFACT_DIR/Build.xcresult" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app"\ntouch "$CI_ARTIFACT_DIR/Build.xcresult/result" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/fixture.xctestrun" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app/Info.plist"\n'
+        }.items():
+            path = bin_dir/name; path.write_text(body, encoding='utf-8', newline='\n'); path.chmod(0o755)
+        e = os.environ.copy()
+        # Prepend inside Bash: Windows PATH list separators must not rewrite this POSIX prefix.
+        e.update(NATIVE_SELECTION_ID=selector, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                 CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                 CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=shell_path(base/'artifact'),
+                 RUNNER_TEMP=shell_path(base/'runner temp'), CI_S10_4_SHARED_BUILD_MODE='none',
+                 MOCK_EVENTS=shell_path(base/'events'), MOCK_BUILD_ARGS=shell_path(base/'build-args'),
+                 MOCK_RECEIPT_ARGS=shell_path(base/'receipt-args'), MOCK_RECEIPT_EXIT=str(receipt_exit),
+                 MOCK_BUILD_EXIT=str(build_exit))
+        result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                 shell_path(bin_dir), shell_path(ROOT/'Scripts/build-smoke.sh')],
+                                env=e, capture_output=True, text=True)
+        events = (base/'events').read_text().splitlines() if (base/'events').exists() else []
+        args = (base/'build-args').read_text().splitlines() if (base/'build-args').exists() else []
+        return result, e, events, args
+
+    def test_mock_build_default_historical_and_experiment_vectors(self):
+        for selector in ('none', 'c36-restore-review', CI.BUILD_ORDER_SELECTION_ID, CI.NO_INDEX_SELECTION_ID):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, selector)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = ['-project','FieldEvidenceApp.xcodeproj','-scheme','FieldEvidenceApp',
+                            '-configuration','Debug','-destination','platform=iOS Simulator,id='+UDID,
+                            '-derivedDataPath',e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                            '-resultBundlePath',e['CI_ARTIFACT_DIR']+'/Build.xcresult','CODE_SIGNING_ALLOWED=NO']
+                if selector == CI.NO_INDEX_SELECTION_ID:
+                    expected.append('COMPILER_INDEX_STORE_ENABLE=NO')
+                    self.assertEqual(events, ['receipt','build'])
+                    self.assertEqual((Path(directory)/'receipt-args').read_text().splitlines(),
+                                     ['Scripts/v23-native-ci.py','record-no-index-build'])
+                else: self.assertEqual(events, ['build'])
+                self.assertEqual(args, expected+['build-for-testing'])
+
+    def test_mock_build_admission_and_compiler_failures_propagate_without_products(self):
+        for receipt_exit, build_exit, expected_events in ((79,0,['receipt']), (0,83,['receipt','build'])):
+            with tempfile.TemporaryDirectory() as directory:
+                result, _, events, _ = self.run_mock_build(directory, CI.NO_INDEX_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit)
+                self.assertEqual(events, expected_events)
+                self.assertFalse((Path(directory)/'artifact/Build.xcresult').exists())
 
 
 class BuildOrderDiagnosticTests(unittest.TestCase):
