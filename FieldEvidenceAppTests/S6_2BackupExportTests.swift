@@ -3556,6 +3556,20 @@ private extension S6_2BackupExportTests {
             }
             await XCTAssertThrowsErrorAsync {
                 try await attempt.value
+            } verify: { error in
+                if fault == "wrong-root" {
+                    XCTAssertEqual(
+                        error as? BackupRestoreServiceError,
+                        .currentGenerationInvalid,
+                        fault
+                    )
+                } else {
+                    XCTAssertEqual(
+                        error as? BackupExportServiceError,
+                        .invalidAuthority,
+                        fault
+                    )
+                }
             }
             XCTAssertFalse(reachedPointerBoundary, fault)
             XCTAssertEqual(try factory.currentGenerationID(), pointerBefore, fault)
