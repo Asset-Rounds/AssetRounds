@@ -49,11 +49,16 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
     private func assertParentFinalizationHistory(_ label: String, entry: CheckRunnerRequestedEntryV1,
         selection: CheckOutcomeSelection, photoCount: Int, tracePhases: Bool = false) async throws {
         let started = ProcessInfo.processInfo.systemUptime
-        let diagnosticPhase: (@MainActor (String) -> Void)? = tracePhases ? { phase in
-            let elapsed = ProcessInfo.processInfo.systemUptime - started
-            FileHandle.standardError.write(Data(
-                "V23_PARENT_FINALIZATION_PHASE phase=\(phase) elapsedSeconds=\(elapsed)\n".utf8))
-        } : nil
+        let diagnosticPhase: (@MainActor (String) -> Void)?
+        if tracePhases {
+            diagnosticPhase = { phase in
+                let elapsed = ProcessInfo.processInfo.systemUptime - started
+                FileHandle.standardError.write(Data(
+                    "V23_PARENT_FINALIZATION_PHASE phase=\(phase) elapsedSeconds=\(elapsed)\n".utf8))
+            }
+        } else {
+            diagnosticPhase = nil
+        }
         diagnosticPhase?("test.begin")
         try await withAsyncFrozenBeginFixture(label, entry: entry, storedTimeZoneID: "America/Chicago",
             diagnosticPhase: diagnosticPhase) { h in

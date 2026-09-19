@@ -13,7 +13,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 
 Original evidence stays bound to its head.
 
-GitHub compiles successfully at3cdac8b. Original35448676345 is sealedE611A39D:16 integrity checks, build940s/zero compiler errors; Check/no-issue starts but hits900s test watchdog, exit124.124549 repeated protection diagnostics reveal no unfinished phase. Bounded source review found finite loops and no safe causal fix. One phase-instrumented successor under runtime-3cdac8b/test-interruption will retain all operations/assertions/protection evidence and exact N8 limits. Only test helpers change;49 drafts stay exact. No test/acceptance credit. D30 is consumed; Bitrise still needs exact-runtime qualification.
+GitHub compiled3cdac8b in940s with zero errors, then Check/no-issue hit its900s watchdog (original35448676345, sealE611A39D). Instrumented original35451102975 at579aed1 is sealedE9168732:16 evidence checks, Swift diagnostic failure at the optional closure ternary; no phase/test execution. Root replaces only that expression with explicit if/else under runtime-579aed1/phase-closure-fix. All instrumentation/assertions and N8 limits stay exact;49 drafts stay exact. One ordinary compiler-fix successor follows the new diagnosis under AGENTS17/62; no unchanged retry or additional instrumentation. No test/acceptance credit; D30 consumed; Bitrise needs exact-runtime qualification.
 
 Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, clone/transport and retirement acceptance remain unresolved.
 
