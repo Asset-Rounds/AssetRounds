@@ -26,7 +26,11 @@ final class V23RepetitiveCaptureDestinationDiscardTests: XCTestCase {
                 XCTAssertEqual(evidence.bundle, proposal.terminalBundle)
                 XCTAssertEqual(evidence.plan, proposal.plan)
                 XCTAssertEqual(evidence.terminal, try fixture.target.writer.fieldDraftEvidence(mutationID: mutation.mutationID))
-                XCTAssertEqual(evidence.terminal.envelope.expectedRevision, request.expectedRevision)
+                XCTAssertEqual(evidence.terminal.envelope.expectedRevision.workspaceID, request.expectedRevision.workspaceID)
+                XCTAssertEqual(evidence.terminal.envelope.expectedRevision.generationID, request.expectedRevision.generationID)
+                XCTAssertEqual(evidence.terminal.envelope.expectedRevision.workspaceRevision, request.expectedRevision.workspaceRevision)
+                XCTAssertEqual(evidence.terminal.envelope.expectedRevision.entityRevisions,
+                               request.expectedRevision.entityRevisions.sorted { $0.identity.stableKey < $1.identity.stableKey })
                 XCTAssertEqual(outcome.effect.affectedEntities, try mutation.affectedIdentities)
                 XCTAssertEqual(try fixture.currentCheckpoint(), proposal.terminalBundle.discardedCheckpoint)
                 XCTAssertEqual(try fixture.currentCheckpoint().payloadData, fixture.initialCheckpoint.payloadData)
@@ -351,7 +355,11 @@ final class V23RepetitiveCaptureDestinationDiscardTests: XCTestCase {
                 let recovered = try writer.repetitiveCaptureDestinationDiscardEvidence(
                     workspaceID: pending.workspaceID, draftID: pending.draftID)
                 XCTAssertEqual(recovered.bundle, proposal.terminalBundle)
-                XCTAssertEqual(recovered.terminal.envelope.expectedRevision, request.expectedRevision)
+                XCTAssertEqual(recovered.terminal.envelope.expectedRevision.workspaceID, request.expectedRevision.workspaceID)
+                XCTAssertEqual(recovered.terminal.envelope.expectedRevision.generationID, request.expectedRevision.generationID)
+                XCTAssertEqual(recovered.terminal.envelope.expectedRevision.workspaceRevision, request.expectedRevision.workspaceRevision)
+                XCTAssertEqual(recovered.terminal.envelope.expectedRevision.entityRevisions,
+                               request.expectedRevision.entityRevisions.sorted { $0.identity.stableKey < $1.identity.stableKey })
             } else {
                 XCTAssertEqual(try fixture.target.rawState(), before)
                 XCTAssertEqual(try fixture.currentCheckpoint(), pending)

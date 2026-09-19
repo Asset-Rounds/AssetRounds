@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed implementation: `2e60630cb02f697a61d37371bc0a378b6bfe8474`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Implementation: `2e60630cb02f697a61d37371bc0a378b6bfe8474`; compiler correction: `e6cd4bd`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 
 Original evidence stays bound to its head.
 
-GitHub original35444123826 at690a120 consumed the one-run build30m allowance. All16 evidence checks pass; seal7A6BFB0B. Build failed after853s with one unique compiler error: V23MutationReceiptSafetyTests1685 forwarded the generalized target basis to the MyDay initializer. Tests did not start; no timeout or new warning signature. Root is applying the scoped XCTUnwrap correction and ordinary-budget route binding under runtime-690a120/receipt-basis-fix. The hostile method remains unenrolled/unexecuted. Next: original Check/no-issue singleton with N8 build1200/total2400; no D30 reuse or acceptance. Bitrise needs exact-runtime qualification.
+GitHub is working. Original35445574204 at e6cd4bd is sealedE0AD5C57: all16 evidence checks pass, build827s, three compiler errors comparing portable and workspace revision types in destination tests; no tests started. The earlier MyDay basis error is absent. Root is fixing all three assertions as one independently expected field-comparison batch under runtime-e6cd4bd/portable-revision-fix; no app/protocol/helper/budget change. Next: existing Check/no-issue singleton on N8 build1200/total2400. Original35444123826 consumed D30; no reuse or acceptance. Bitrise needs exact-runtime qualification.
 
 Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, clone/transport and retirement acceptance remain unresolved.
 

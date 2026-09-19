@@ -37,7 +37,11 @@ final class V23RepetitiveCaptureDestinationResolutionTests: XCTestCase {
             let original = try XCTUnwrap(fixture.target.writer.fieldDraftEvidence(mutationID: mutation.mutationID))
             let evidence = try ReviewedFieldDraftResolutionEvidenceV1(original: original)
             XCTAssertEqual(evidence.resolution, resolution)
-            XCTAssertEqual(original.envelope.expectedRevision, request.expectedRevision)
+            XCTAssertEqual(original.envelope.expectedRevision.workspaceID, request.expectedRevision.workspaceID)
+            XCTAssertEqual(original.envelope.expectedRevision.generationID, request.expectedRevision.generationID)
+            XCTAssertEqual(original.envelope.expectedRevision.workspaceRevision, request.expectedRevision.workspaceRevision)
+            XCTAssertEqual(original.envelope.expectedRevision.entityRevisions,
+                           request.expectedRevision.entityRevisions.sorted { $0.identity.stableKey < $1.identity.stableKey })
             XCTAssertEqual(outcome.effect.affectedEntities,
                            [try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: fixture.initialCheckpoint.draftID)])
             XCTAssertEqual(try fixture.currentCheckpoint(), resolution.successorCheckpoint)
