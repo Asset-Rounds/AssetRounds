@@ -11,9 +11,9 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 
 ## Native evidence and next questions
 
-Originals retain their heads; Bitrise stays held.
+Original evidence stays bound to its head.
 
-Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings; tests did not start. AttributionCE8EC8D6 establishes no single-file/provider cause. No unchanged retry. Sep19 10:03UTC API still reports Free/unsupported larger runners, the latest five originals terminal and no2e run. Native/Bitrise remain held. Owner decision and qualified native evidence are required; the capped larger-runner proposal remains unapproved and promises no fix.
+Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings; tests did not start. No proven file/provider cause. Sep19 owner approved one GitHub macos-26 Check/no-issue diagnostic: build1800s/total3000s; setup300s/tests900s/UI0/job90min and app/test/project stay exact. Selector `c36-parent-finalization-check-no-issue-build30m` requires a reviewed direct child of6289bef. Protocol102, helper5 and historical replay pass; exact commit/route binding pending. Ordinary budgets/acceptance unchanged; no paid upgrade/retry. Bitrise requires exact-runtime qualification.
 
 Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, clone/transport and retirement acceptance remain unresolved.
 

@@ -33,6 +33,14 @@ Accepted main is `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Preserve S10 brandi
 
 Use the existing five GitHub and three Bitrise capacity only for distinct, source-defined, dependency-ready questions under CURRENT_INTEGRATION. Never dispatch duplicate, speculative, known-failing or unqualified acceptance runs. One collector audits each original once. Preserve all native-environment and final-main gates.
 
+## One-run GitHub build diagnostic — owner approved 2026-09-19
+
+The owner authorizes one diagnostic original on the existing GitHub `macos-26` route: build watchdog 1800 seconds and accounted setup/build/test/artifact budget 3000 seconds. Keep setup/artifact 300 seconds, unit tests 900 seconds, UI disabled and the 90-minute job cap. This narrow exception supersedes the unchanged-watchdog rule only for the closed `c36-parent-finalization-check-no-issue-build30m` selector on the reviewed direct descendant of `6289befddaf75036c7fb7a4d971ba7cc171ec003`; preserve the committed app, Swift tests and project bytes.
+
+Use the existing pinned environment, actual-index/committed-route review, original-attempt check and sole collector. Keep normal and acceptance budgets unchanged. No paid upgrade, duplicate dispatch, Actions rerun or automatic retry is authorized. Audit the terminal original before the next causal fix or run; this experiment grants no provider, merge or release acceptance. Record the original ID when dispatched and its outcome when audited so the allowance cannot be silently reused.
+
+For this CI batch, review only the combined protocol/helper delta and bind unchanged source evidence deterministically. Use parameterized helpers and event waits, retain one compact failure-family checkpoint, and avoid new source layers while their native dependency remains unverified. Resume production integration from retained findings after usable native feedback; do not restart settled investigations.
+
 ## Working cadence — owner confirmed 2026-09-14
 
 Apply the existing efficiency policy directly:

@@ -336,6 +336,9 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    choice = '          - ' + CI.BUILD_WATCHDOG_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact build watchdog choice')
+    workflow = workflow.replace(choice, '')
     workflow = workflow.replace('all 773 methods across 45 bounded groups',
                                 'all 738 methods across 41 bounded groups')
     for group_id in DESTINATION_GROUP_IDS + ['c36-destination-legacy-bytes']:
@@ -624,6 +627,8 @@ class ReportPartitionTests(unittest.TestCase):
             if group['id']=='c36-durable-begin': expected.extend(DURABLE_PARTITION_CHOICES)
             if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES + [CI.CONFIGURATION_CLONE_SELECTION_ID] + [i for i, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS] + [i for i, _ in CI.PARENT_FINALIZATION_METHOD_PARTITIONS])
         expected.append('c36-destination-legacy-bytes')
+        expected.insert(expected.index('c36-parent-finalization-check-no-issue') + 1,
+                        CI.BUILD_WATCHDOG_SELECTION_ID)
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):
@@ -818,7 +823,7 @@ class ReportPartitionTests(unittest.TestCase):
 class AdmissionTests(unittest.TestCase):
     def test_both_providers_and_all_supported_tiers_use_same_contract(self):
         for provider in ("github", "bitrise"):
-            for tier in CI.TIERS:
+            for tier in ("N8", "P12", "F25"):
                 e, s = environment(provider, tier), selection(tier)
                 for stage in ("dispatch", "worker"):
                     with self.subTest(provider=provider, tier=tier, stage=stage):
@@ -926,6 +931,87 @@ class UpdatedBuildBudgetAdmissionTests(unittest.TestCase):
                 stale["DISPATCH_NATIVE_SELECTION_SHA256"] = CI.sha256(CI.canonical(previous))
                 with self.assertRaises(ValueError):
                     CI.admission(previous, stale, HEAD, stage)
+
+
+class BuildWatchdogDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.BUILD_WATCHDOG_SELECTION_ID)
+        self.record = {'selectionID': CI.BUILD_WATCHDOG_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping))}
+        self.header = ('tree ' + 'a' * 40 + '\nparent ' + CI.BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def bound_environment(self, provider='github'):
+        e = environment(provider)
+        e.update(DISPATCH_NATIVE_SELECTION_ID=self.record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=self.record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=self.record['selectionMapSHA256'])
+        return e
+
+    def test_closed_diagnostic_retains_exact_method_pool_and_ordinary_budgets(self):
+        self.assertEqual(self.selected['unitTestSelectors'], [
+            'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory'])
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((self.selected['tier'], self.selected['runUISmoke'], self.selected['uiTestSelectors']),
+                         ('D30', False, []))
+        for name in [CI.DEFAULT_SELECTION_ID, 'c36-parent-finalization-check-no-issue'] + [g['id'] for g in self.mapping['groups']]:
+            old = CI.resolve_selection(self.default, self.mapping, name)
+            self.assertEqual(tuple(old[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual(CI.sha256(CI.canonical(self.default)), CI.GENERATED_SELECTION_POOL_SHA256)
+        self.assertEqual(CI.sha256(CI.canonical(self.mapping)), CI.GENERATED_SELECTION_MAP_SHA256)
+
+    def test_diagnostic_rejects_other_methods_tiers_budgets_and_ids(self):
+        for fields in ({'unitTestSelectors': [UNIT]}, {'unitTestSelectors': self.selected['unitTestSelectors'] * 2},
+                       {'tier': 'N8'}, {'buildTimeoutSeconds': 1801}, {'testTimeoutSeconds': 901},
+                       {'setupArtifactTimeoutSeconds': 301}, {'totalBudgetSeconds': 3001},
+                       {'runUISmoke': True}, {'uiTestSelectors': [UI]}):
+            with self.subTest(fields=fields), self.assertRaises(ValueError):
+                CI.validate_selection(dict(self.selected, **fields))
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(self.default, self.mapping, CI.BUILD_WATCHDOG_SELECTION_ID + '-retry')
+
+    def test_both_admission_stages_bind_original_github_attempt_and_approved_parent(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', return_value=self.header) as read:
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            read.assert_called_once_with(['git', 'cat-file', 'commit', HEAD], cwd=ROOT)
+            self.assertEqual(result['selectionID'], CI.BUILD_WATCHDOG_SELECTION_ID)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance'])
+            self.assertFalse(result['providerQualification'])
+
+    def test_admission_denies_foreign_provider_rerun_parent_and_selector_substitution(self):
+        for stage in ('dispatch', 'worker'):
+            for e, record, selected, header in (
+                (self.bound_environment('bitrise'), self.record, self.selected, self.header),
+                (dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2'), self.record, self.selected, self.header),
+                (self.bound_environment(), self.record, self.selected, b'tree a\n\nmessage\n'),
+                (self.bound_environment(), self.record, self.selected, self.header.replace(CI.BUILD_WATCHDOG_PARENT.encode(), b'b' * 40)),
+                (self.bound_environment(), self.record, self.selected, self.header.replace(b'\n\n', b'\nparent ' + b'b' * 40 + b'\n\n')),
+                (self.bound_environment(), dict(self.record, selectionID='c36-parent-finalization-check-no-issue'), self.selected, self.header),
+                (self.bound_environment(), self.record, CI.resolve_selection(self.default, self.mapping, 'c36-parent-finalization-check-no-issue'), self.header),
+            ):
+                with self.subTest(stage=stage, provider=e['CI_RUNNER_PROVIDER']), mock.patch.object(
+                        CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(selected, e, HEAD, stage, record)
+
+    def test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self):
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        start = worker.index('            def exact_keys:')
+        start = worker.rfind("jq -e '", 0, start) + len("jq -e '")
+        end = worker.index("' \"$CI_SELECTION_PATH\"", start)
+        query = worker[start:end]
+        cases = [(self.selected, True)] + [(selection(tier), True) for tier in ('N8', 'P12', 'F25')]
+        cases += [(dict(self.selected, **fields), False) for fields in (
+            {'buildTimeoutSeconds': 1200}, {'totalBudgetSeconds': 2400}, {'testTimeoutSeconds': 901},
+            {'unitTestSelectors': [UNIT]}, {'taskID': 'S10.4'}, {'runUISmoke': True})]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                result = subprocess.run(['jq', '-e', query], input=json.dumps(value), text=True,
+                                        capture_output=True, check=False)
+                self.assertEqual(result.returncode == 0, expected, result.stderr)
 
 
 class ResultTests(unittest.TestCase):

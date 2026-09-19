@@ -310,6 +310,12 @@ jobs:
                       then [300, 1200, 900, 0, 2400]
                       else [300, 600, 900, 0, 2400]
                       end)
+              elif .tier == "D30" then
+                .taskID == "V23-INTEGRATION-20260910"
+                and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
+                     .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
+                    == [300, 1800, 900, 0, 3000]
+                and .unitTestSelectors == ["FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory"]
               elif .tier == "P12" then
                 [
                   .setupArtifactTimeoutSeconds,
@@ -334,12 +340,12 @@ jobs:
             exact_keys
             and (.schemaVersion == 1)
             and (.taskID | nonempty_string)
-            and (.tier | type == "string" and IN("N8", "P12", "F25"))
+            and (.tier | type == "string" and IN("N8", "D30", "P12", "F25"))
             and (.runUISmoke | type == "boolean")
             and tier_values_match
             and (.unitTestSelectors | selectors("FieldEvidenceAppTests/"; 1))
             and (
-              if .tier == "N8" then
+              if .tier == "N8" or .tier == "D30" then
                 (.runUISmoke == false)
                 and (.uiTestSelectors | type == "array" and length == 0)
               else

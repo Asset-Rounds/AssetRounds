@@ -28,7 +28,9 @@ LANES = {
     "bitrise-build-hub-xcode-26.6-acceptance": ("bitrise", "bitrise-runner-Asset Roundddd"),
 }
 TIERS = {"N8": (300, 1200, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
-         "F25": (300, 900, 1200, 1800, 4500)}
+         "F25": (300, 900, 1200, 1800, 4500), "D30": (300, 1800, 900, 0, 3000)}
+BUILD_WATCHDOG_SELECTION_ID = "c36-parent-finalization-check-no-issue-build30m"
+BUILD_WATCHDOG_PARENT = "6289befddaf75036c7fb7a4d971ba7cc171ec003"
 BUDGET_KEYS = ("setupArtifactTimeoutSeconds", "buildTimeoutSeconds", "testTimeoutSeconds",
                "uiTimeoutSeconds", "totalBudgetSeconds")
 PROTOCOL_PATHS = (
@@ -786,7 +788,7 @@ def validate_selection(selection):
     require(selection["taskID"] == TASK and selection["tier"] in TIERS, "task/tier")
     require(all(type(selection[key]) is int for key in BUDGET_KEYS), "integer budgets")
     require(tuple(selection[key] for key in BUDGET_KEYS) == TIERS[selection["tier"]], "budgets")
-    ui = selection["tier"] != "N8"
+    ui = selection["tier"] not in ("N8", "D30")
     require(type(selection["runUISmoke"]) is bool and selection["runUISmoke"] == ui, "UI/tier")
     for key, bundle in (("unitTestSelectors", "FieldEvidenceAppTests"),
                         ("uiTestSelectors", "FieldEvidenceAppUITests")):
@@ -797,6 +799,9 @@ def validate_selection(selection):
                     for x in selectors), "exact native method selectors")
     require(bool(selection["unitTestSelectors"]), "no unit methods")
     require(len(selection["uiTestSelectors"]) == int(ui), "UI method count")
+    if selection["tier"] == "D30":
+        require(selection["unitTestSelectors"] == list(PARENT_FINALIZATION_METHOD_PARTITIONS[0][1]),
+                "build watchdog exact existing singleton")
 
 
 def selection_class(selector):
@@ -1000,6 +1005,11 @@ def resolve_selection(default, selection_map, selection_id):
         derived["unitTestSelectors"] = list(legacy_members)
         validate_selection(derived)
         resolved[DESTINATION_LEGACY_SELECTION_ID] = derived
+        require(BUILD_WATCHDOG_SELECTION_ID not in resolved, "build watchdog distinct selector")
+        diagnostic = dict(resolved[PARENT_FINALIZATION_METHOD_PARTITIONS[0][0]])
+        diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
+        validate_selection(diagnostic)
+        resolved[BUILD_WATCHDOG_SELECTION_ID] = diagnostic
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")
@@ -1104,6 +1114,16 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(re.fullmatch(r"[0-9a-f]{40}", head) is not None and checkout_head == head, "exact checkout head")
     require(all(re.fullmatch(r"[1-9][0-9]*", e.get(key, ""))
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
+    if selection["tier"] == "D30" or selection_record["selectionID"] == BUILD_WATCHDOG_SELECTION_ID:
+        require(selection["tier"] == "D30"
+                and selection_record["selectionID"] == BUILD_WATCHDOG_SELECTION_ID,
+                "build watchdog selector/tier binding")
+        require(provider == "github" and label == "macos-26", "build watchdog GitHub route only")
+        require(e["GITHUB_RUN_ATTEMPT"] == "1", "build watchdog original attempt only")
+        header = subprocess.check_output(["git", "cat-file", "commit", checkout_head], cwd=root)
+        parents = [line[7:].decode("ascii") for line in header.split(b"\n\n", 1)[0].splitlines()
+                   if line.startswith(b"parent ")]
+        require(parents == [BUILD_WATCHDOG_PARENT], "build watchdog exact approved parent")
     return {"contractID": CONTRACT, "taskID": TASK, "repository": REPOSITORY,
             "ref": e["GITHUB_REF"], "head": head, "runID": e["GITHUB_RUN_ID"],
             "runAttempt": e["GITHUB_RUN_ATTEMPT"], "executionLane": lane,

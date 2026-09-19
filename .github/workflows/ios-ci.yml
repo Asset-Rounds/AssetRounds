@@ -90,6 +90,7 @@ on:
           - c36-clone-retirement-access-cancel
           - c36-clone-retirement-inode-substitution
           - c36-parent-finalization-check-no-issue
+          - c36-parent-finalization-check-no-issue-build30m
           - c36-parent-finalization-check-visible-issue
           - c36-parent-finalization-check-could-not-verify
           - c36-parent-finalization-recheck-resolved
