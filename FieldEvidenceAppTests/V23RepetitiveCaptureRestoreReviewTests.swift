@@ -192,7 +192,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
             }
             try assertOriginals(source.history, retainedIn: harness.history(in: restored))
             let payload = try RepetitiveCaptureDestinationReviewCodecV1.decode(review.payloadData)
-            XCTAssertEqual(payload.source.value.checkpoints.contains { $0.state == .discarded }, discarded)
+            XCTAssertEqual(payload.source.value.checkpoints.contains(where: { $0.current.state == .discarded }), discarded)
             XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<DraftDiscardReceiptRow>()), 0)
         }
     }

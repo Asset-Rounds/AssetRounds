@@ -105,7 +105,7 @@ final class V23RestoreReviewAuthorityTests: XCTestCase {
     private func genericCommand(label: String) throws -> WorkspaceCommandV1 {
         let pack = SignPack.illuminatedSignV1
         let siteID = UUID(), mutationID = try MutationIDV1(rawValue: UUID())
-        return .createFirstSign(.init(siteID: siteID,
+        return try .createFirstSign(.init(siteID: siteID,
             newSite: .init(id: siteID, label: label, address: nil, timeZoneID: "America/New_York"),
             assetID: UUID(), assetLabel: label, packID: pack.packID,
             packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,

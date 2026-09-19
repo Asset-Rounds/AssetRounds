@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementation4971f79; both audited originals35469136737/35469145623 failed compilation at the same2 actor calls;13 tests did not start. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Implementation54d31db; restore35470561498 is audited with two test-compiler causes/6NotStarted; authority35470572705 is also audited with the same causes/7NotStarted. Root has authored both test corrections. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-4971f79 authority35469145623/seal3971BEDF and restore35469136737/seal7643AE18 each show the same2 actor-isolation compiler errors in the local staging validator;13NotStarted, zero new warning signatures. Root corrects its explicit MainActor function/callback types only; both originals are terminal and audited, with independent source/index/route review required before corrected successors. Transport-v2 correction is committed but has not reached execution. Earlier d7 discard7Pass/compile508s retains INVALID2s transport; build-order allowance consumed and no speedup claim. acf resolution7Pass/earlier continuation remain head-bound. Every N8 watchdog and Bitrise exact-runtime qualification hold remains.
+4971f79 authority35469145623/seal3971BEDF and restore35469136737/seal7643AE18 each show the same2 actor-isolation compiler errors in the local staging validator;13NotStarted, zero new warning signatures. Explicit MainActor function/callback correction is now committed54d31db after independent index/route review. Restore35470561498/root529CC3E7 now reaches two test-compiler causes (5 diagnostics): current checkpoint tip state and missing try. Root corrects both; authority35470572705/rootF910D918 is also audited with the same causes/7NotStarted. Both originals are terminal; the two-test-source batch awaits source/index/route verification. All187 observed warning signatures exist in the prior completed d7 build; preserve full warnings. Transport-v2 correction is committed but has not reached execution. Earlier d7 discard7Pass/compile508s retains INVALID2s transport; build-order allowance consumed and no speedup claim. acf resolution7Pass/earlier continuation remain head-bound. Every N8 watchdog and Bitrise exact-runtime qualification hold remains.
 
 Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 
