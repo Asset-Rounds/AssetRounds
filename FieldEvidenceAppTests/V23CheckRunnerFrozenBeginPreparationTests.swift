@@ -932,10 +932,12 @@ func withFrozenBeginFixture<Value>(
 func withAsyncFrozenBeginFixture<Value>(
     _ label: String, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
     appDirectoryLayout: Bool = false,
+    diagnosticPhase: (@MainActor (String) -> Void)? = nil,
     _ body: (FrozenBeginFixture) async throws -> Value
 ) async throws -> Value {
     var root: URL?
     do {
+        diagnosticPhase?("fixture.init.begin")
         let fixtureRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V23-frozen-begin-\(label)-\(UUID().uuidString)", isDirectory: true
         )
@@ -953,18 +955,31 @@ func withAsyncFrozenBeginFixture<Value>(
         let fixture = try FrozenBeginFixture(
             root: support, entry: entry, storedTimeZoneID: storedTimeZoneID
         )
+        diagnosticPhase?("fixture.init.end")
         let value: Value
         do {
+            diagnosticPhase?("fixture.body.begin")
             value = try await body(fixture)
+            diagnosticPhase?("fixture.body.end")
+            diagnosticPhase?("fixture.close.begin")
             try fixture.closeCoordinator()
+            diagnosticPhase?("fixture.close.end")
         } catch {
+            diagnosticPhase?("fixture.body-or-close.error")
+            diagnosticPhase?("fixture.error-close.begin")
             try? fixture.closeCoordinator()
+            diagnosticPhase?("fixture.error-close.end")
             throw error
         }
+        diagnosticPhase?("fixture.remove.begin")
         if let root { try FileManager.default.removeItem(at: root) }
+        diagnosticPhase?("fixture.remove.end")
         return value
     } catch {
+        diagnosticPhase?("fixture.error")
+        diagnosticPhase?("fixture.error-remove.begin")
         if let root { try? FileManager.default.removeItem(at: root) }
+        diagnosticPhase?("fixture.error-remove.end")
         throw error
     }
 }
@@ -1939,9 +1954,13 @@ struct FrozenProductionPhotoV1 {
 
     static func make(_ h: FrozenBeginFixture, parentID: UUID? = nil,
         step: WorkflowDraftStep = .wide, publishRaw: Bool = true,
-        failure: EvidenceBundleStoreFailureInjection? = nil) async throws -> Self {
+        failure: EvidenceBundleStoreFailureInjection? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil) async throws -> Self {
+        diagnosticPhase?("owners.begin")
         let owners = try reopen(owner: h.coordinator, root: h.root, profile: h.profile,
             release: h.publishedRelease, clock: h.clock, ids: h.ids, failure: failure)
+        diagnosticPhase?("owners.end")
+        diagnosticPhase?("parent-and-proposal.begin")
         let service = owners.service
         let parent: FieldDraftCheckpointV1
         if let parentID { parent = try service.read(draftID: parentID) }
@@ -1967,12 +1986,17 @@ struct FrozenProductionPhotoV1 {
             workflowStage: payload.source.requestedEntry.stage, captureStep: step,
             purposeKey: step == .wide ? "wide_context" : "close_detail", origin: .humanCapture,
             phase: .awaitingRawStage(intent))
+        diagnosticPhase?("parent-and-proposal.end")
+        diagnosticPhase?("raw-prepare.begin")
         _ = try service.prepareRawPhoto(parentDraftID: parent.draftID,
             expectedCheckpointSHA256: parent.checkpointSHA256, proposal: proposal)
+        diagnosticPhase?("raw-prepare.end")
         if publishRaw {
+            diagnosticPhase?("raw-publish.begin")
             let url = h.root.appendingPathComponent("picker-\(childID.uuidString).png")
             try bytes.write(to: url)
             _ = try await service.publishRawPhoto(parentDraftID: parent.draftID, childDraftID: childID, sourceURL: url)
+            diagnosticPhase?("raw-publish.end")
         }
         h.clock.value = intent.stageCreatedAt.addingTimeInterval(1)
         return .init(owner: h.coordinator, service: service, runner: owners.runner, adapter: owners.adapter,
@@ -2035,7 +2059,9 @@ struct FrozenProductionPhotoV1 {
 /// Real Begin, photo and finalizer owners; no fabricated positive receipt.
 @MainActor
 func makeFrozenParentFinalizationDraft(_ h: FrozenBeginFixture, selection: CheckOutcomeSelection,
-    photoCount: Int) async throws -> (service: ProductionCheckRunnerItemDraftServiceV1, checkpoint: FieldDraftCheckpointV1) {
+    photoCount: Int, diagnosticPhase: (@MainActor (String) -> Void)? = nil
+) async throws -> (service: ProductionCheckRunnerItemDraftServiceV1, checkpoint: FieldDraftCheckpointV1) {
+    diagnosticPhase?("parent.setup.begin")
     let outcome: CheckRunnerEditableOutcomeV1
     switch selection {
     case .noVisibleIssue: outcome = .init(selection: .noVisibleIssue)
@@ -2054,24 +2080,42 @@ func makeFrozenParentFinalizationDraft(_ h: FrozenBeginFixture, selection: Check
         immutableContentWriter: EvidenceBundleStore(generationRootURL: h.coordinator.generationRootURL))
     let service = try ProductionCheckRunnerItemDraftServiceV1(session: h.coordinator, progress: h.progress,
         coordinator: h.runner, publishedRelease: h.publishedRelease, clock: h.clock, ids: h.ids, attachmentStaging: staging)
+    diagnosticPhase?("parent.setup.end")
+    diagnosticPhase?("parent.create.begin")
     let created = try service.create(source: h.captureSource(), preflight: .init(
         timeZoneID: "America/Chicago", isTimeZoneConfirmed: true, confirmedTimeZoneID: "America/Chicago",
         afterDarkAccepted: true, safePositionAccepted: true), outcome: outcome)
+    diagnosticPhase?("parent.create.end")
+    diagnosticPhase?("parent.prepare-begin.begin")
     _ = try service.prepareBegin(draftID: created.draftID, expectedCheckpointSHA256: created.checkpointSHA256,
         observedAtUTC: h.clock.millisecondValue)
+    diagnosticPhase?("parent.prepare-begin.end")
+    diagnosticPhase?("parent.resume-begin.begin")
     _ = try service.resumeInitialBegin(draftID: created.draftID)
+    diagnosticPhase?("parent.resume-begin.end")
     let photoSteps: [WorkflowDraftStep] = [.wide, .close]
-    for step in photoSteps.prefix(photoCount) {
-        let photo = try await FrozenProductionPhotoV1.make(h, parentID: created.draftID, step: step)
+    for (photoIndex, step) in photoSteps.prefix(photoCount).enumerated() {
+        diagnosticPhase?("photo.\(photoIndex).make.begin")
+        let photo = try await FrozenProductionPhotoV1.make(h, parentID: created.draftID, step: step,
+            diagnosticPhase: diagnosticPhase)
+        diagnosticPhase?("photo.\(photoIndex).make.end")
+        diagnosticPhase?("photo.\(photoIndex).pair.begin")
         let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID, childDraftID: photo.childID)
+        diagnosticPhase?("photo.\(photoIndex).pair.end")
+        diagnosticPhase?("photo.\(photoIndex).commit-prepare.begin")
         let attempt = try photo.attempt(pairCheckpoint: pair)
         _ = try photo.service.preparePhotoCommit(parentDraftID: photo.parentID, childDraftID: photo.childID,
             expectedCheckpointSHA256: pair.checkpointSHA256, proposal: attempt)
+        diagnosticPhase?("photo.\(photoIndex).commit-prepare.end")
+        diagnosticPhase?("photo.\(photoIndex).commit.begin")
         _ = try await photo.service.resumePhotoCommit(parentDraftID: photo.parentID, childDraftID: photo.childID)
+        diagnosticPhase?("photo.\(photoIndex).commit.end")
         h.clock.value = attempt.terminalCheckpointUpdatedAt.addingTimeInterval(1)
     }
+    diagnosticPhase?("parent.final-read.begin")
     let checkpoint = try service.read(draftID: created.draftID)
     h.clock.value = max(h.clock.millisecondValue, checkpoint.updatedAt).addingTimeInterval(1)
+    diagnosticPhase?("parent.final-read.end")
     return (service, checkpoint)
 }
 

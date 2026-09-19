@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementation: `2e60630cb02f697a61d37371bc0a378b6bfe8474`; compiler corrections: `19dc8c7`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Implementation: `2e60630cb02f697a61d37371bc0a378b6bfe8474`; compiler corrections: `3cdac8b`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,13 +13,13 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 
 Original evidence stays bound to its head.
 
-GitHub is working. Original35446766320 at19dc8c7 is sealed0FBC844B: all16 evidence checks pass, build990s, one missing required async verify argument in S6_2BackupExportTests; no tests started. Prior three revision-comparison errors are absent. Root is correcting an isolated committed test copy under runtime-19dc8c7/async-error-verification, checking specific corruption errors and retaining all no-effects. Six-call census found one missing closure. No app/protocol/helper/budget change;49 drafts stay exact. Next: Check/no-issue singleton on N8 build1200/total2400. D30 is consumed; Bitrise still needs exact-runtime qualification.
+GitHub compiles successfully at3cdac8b. Original35448676345 is sealedE611A39D:16 integrity checks, build940s/zero compiler errors; Check/no-issue starts but hits900s test watchdog, exit124.124549 repeated protection diagnostics reveal no unfinished phase. Bounded source review found finite loops and no safe causal fix. One phase-instrumented successor under runtime-3cdac8b/test-interruption will retain all operations/assertions/protection evidence and exact N8 limits. Only test helpers change;49 drafts stay exact. No test/acceptance credit. D30 is consumed; Bitrise still needs exact-runtime qualification.
 
 Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, clone/transport and retirement acceptance remain unresolved.
 
 ## Current implementation
 
-- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Source773/45/97, semantic/index and committed-route reviews pass; native is held. All39 destination methods remain unexecuted:35 enrolled,4 service tests unenrolled. Freeze further native-dependent Swift expansion pending qualified compilation/tests, except a narrow source-proven correction. Restore currently copies/rebinds rows; actual review receipts must join the existing writer, staging/publication and recovery. Trace and resume requirements: runtime-2e60630/restore-dependency-checkpoint. Authentic UI/restore/lifecycle/registration remain due;49 drafts stay exact.
+- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Source773/45/97, semantic/index and committed-route reviews pass; full native acceptance is due. All39 destination methods remain unexecuted:35 enrolled,4 service tests unenrolled. Freeze further native-dependent Swift expansion pending qualified compilation/tests, except a narrow source-proven correction. Restore currently copies/rebinds rows; actual review receipts must join the existing writer, staging/publication and recovery. Trace and resume requirements: runtime-2e60630/restore-dependency-checkpoint. Authentic UI/restore/lifecycle/registration remain due;49 drafts stay exact.
 - Durable Begin persists PREPARED before effects and BOUND after original receipts. Historical ENTRY and later/COMPLETE item reads preserve live access and external Round-close rejection.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Source738/41/96, semantic2735C2E7 and indexEB29A4EE pass; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.

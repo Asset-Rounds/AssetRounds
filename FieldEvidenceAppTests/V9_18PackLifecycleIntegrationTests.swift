@@ -6,7 +6,7 @@ import XCTest
 final class V9_18PackLifecycleIntegrationTests: XCTestCase {
     @MainActor
     func testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory() async throws {
-        try await assertParentFinalizationHistory("check-clear", entry: .check, selection: .noVisibleIssue, photoCount: 2)
+        try await assertParentFinalizationHistory("check-clear", entry: .check, selection: .noVisibleIssue, photoCount: 2, tracePhases: true)
     }
 
     @MainActor
@@ -47,17 +47,29 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
 
     @MainActor
     private func assertParentFinalizationHistory(_ label: String, entry: CheckRunnerRequestedEntryV1,
-        selection: CheckOutcomeSelection, photoCount: Int) async throws {
-        try await withAsyncFrozenBeginFixture(label, entry: entry, storedTimeZoneID: "America/Chicago") { h in
-            let draft = try await makeFrozenParentFinalizationDraft(h, selection: selection, photoCount: photoCount)
+        selection: CheckOutcomeSelection, photoCount: Int, tracePhases: Bool = false) async throws {
+        let started = ProcessInfo.processInfo.systemUptime
+        let diagnosticPhase: (@MainActor (String) -> Void)? = tracePhases ? { phase in
+            let elapsed = ProcessInfo.processInfo.systemUptime - started
+            FileHandle.standardError.write(Data(
+                "V23_PARENT_FINALIZATION_PHASE phase=\(phase) elapsedSeconds=\(elapsed)\n".utf8))
+        } : nil
+        diagnosticPhase?("test.begin")
+        try await withAsyncFrozenBeginFixture(label, entry: entry, storedTimeZoneID: "America/Chicago",
+            diagnosticPhase: diagnosticPhase) { h in
+            let draft = try await makeFrozenParentFinalizationDraft(h, selection: selection, photoCount: photoCount,
+                diagnosticPhase: diagnosticPhase)
+            diagnosticPhase?("finalization.prepare.begin")
             let sourceApp = SourceAppSnapshotV1(build: "parent-finalization", version: "1.0")
             let prepared = try await draft.service.prepareFinalization(draftID: draft.checkpoint.draftID,
                 expectedCheckpointSHA256: draft.checkpoint.checkpointSHA256, sourceApp: sourceApp) {}
+            diagnosticPhase?("finalization.prepare.end")
             let writer = h.coordinator.workspaceWriter
             @MainActor
             func proof() throws -> CheckRunnerItemFinalizationEvidenceV1 {
                 try XCTUnwrap(writer.checkRunnerItemFinalizationEvidence(workspaceID: h.workspaceID, draftID: prepared.draftID))
             }
+            diagnosticPhase?("finalization.initial-proof-and-retries.begin")
             let initial = try proof(), frozen = initial.reconstruction
             XCTAssertThrowsError(try writer.checkRunnerItemFinalizationEvidence(workspaceID: WorkspaceID(),
                 draftID: prepared.draftID)) {
@@ -87,15 +99,21 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             } catch { XCTAssertTrue(error is CancellationError) }
             XCTAssertEqual(try h.snapshot(), preparedSnapshot); XCTAssertEqual(h.ids.callCount, allocated)
             try assertParentFinalizationHistoryDenials(initial)
+            diagnosticPhase?("finalization.initial-proof-and-retries.end")
+            diagnosticPhase?("finalization.initial-sagas.begin")
             let lifecycle = try writer.makeFieldDraftLifecycleAdapter(modelContext: h.context)
             for (index, saga) in [frozen.prepared, frozen.contentPromoted].enumerated() {
+                diagnosticPhase?("finalization.initial-saga.\(index).begin")
                 _ = try lifecycle.append(saga: saga, expectedRevision: UInt64(index))
                 let observed = try proof()
                 XCTAssertEqual(observed.recordedSagaCount, index + 1)
                 XCTAssertEqual(observed.reconstruction, frozen); XCTAssertNil(observed.target)
                 try assertParentFinalizationHistoryDenials(observed)
+                diagnosticPhase?("finalization.initial-saga.\(index).end")
             }
+            diagnosticPhase?("finalization.initial-sagas.end")
             #if DEBUG
+            diagnosticPhase?("finalization.interrupted-target.begin")
             var reached = false
             draft.service.beforeParentTargetAcknowledgementForTesting = {
                 reached = true; throw CancellationError()
@@ -117,14 +135,18 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             try assertParentFinalizationHistoryDenials(uncertain)
             XCTAssertEqual(try h.runner.readParentFinalization(parentCheckpoint: prepared,
                 progress: h.progress, publishedRelease: h.publishedRelease)?.receipt, actualTarget.receipt)
+            diagnosticPhase?("finalization.interrupted-target.end")
             for (index, saga) in [frozen.targetCommitted, frozen.retirePending].enumerated() {
+                diagnosticPhase?("finalization.remaining-saga.\(index).begin")
                 _ = try lifecycle.append(saga: saga, expectedRevision: UInt64(index + 2))
                 let observed = try proof()
                 XCTAssertEqual(observed.recordedSagaCount, index + 3)
                 XCTAssertEqual(observed.target, actualTarget); XCTAssertEqual(observed.reconstruction, frozen)
                 try assertParentFinalizationHistoryDenials(observed)
+                diagnosticPhase?("finalization.remaining-saga.\(index).end")
             }
             #endif
+            diagnosticPhase?("finalization.cold-recovery.begin")
             let cold = try ProductionCheckRunnerItemDraftServiceV1(session: h.coordinator, progress: h.progress,
                 coordinator: h.runner, publishedRelease: h.publishedRelease, clock: h.clock, ids: h.ids)
             let terminal = try await cold.resumeFinalization(draftID: prepared.draftID) {}
@@ -135,10 +157,14 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             XCTAssertEqual(terminal.mutationID, frozen.rowMutationIDs.terminalBundleMutationID)
             XCTAssertEqual(h.ids.callCount, allocated)
             try assertParentFinalizationHistoryDenials(completed)
+            diagnosticPhase?("finalization.cold-recovery.end")
+            diagnosticPhase?("finalization.terminal-replay.begin")
             let settled = try h.snapshot()
             let retried = try await cold.resumeFinalization(draftID: prepared.draftID) {}
             XCTAssertEqual(retried, terminal); XCTAssertEqual(try h.snapshot(), settled)
             XCTAssertEqual(h.ids.callCount, allocated)
+            diagnosticPhase?("finalization.terminal-replay.end")
+            diagnosticPhase?("finalization.snapshot-history-denials.begin")
             let facts = try cold.terminalFinalizationSource(draftID: prepared.draftID, progress: h.progress)
             guard case let .finalizeCheck(finalCommand) = target.envelope.command else {
                 return XCTFail("Expected the original Check finalization")
@@ -170,6 +196,8 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
                 .appendingPathComponent(report.snapshotRelativePath)), snapshotBytes)
             XCTAssertEqual(try h.snapshot(), settled); XCTAssertEqual(h.ids.callCount, allocated)
             XCTAssertEqual(facts.recordID, finalCommand.recordID)
+            diagnosticPhase?("finalization.snapshot-history-denials.end")
+            diagnosticPhase?("finalization.progress-completion.begin")
             let progress = try h.progress.read(sourceDraftID: facts.source.sourceCheckpoint.draftID)
             XCTAssertNil(try h.progress.checkRunnerCompletion(read: progress, source: facts.source, recordID: facts.recordID))
             let step = try h.progress.prepareStep(read: progress, action: .complete, focus: .facts,
@@ -183,7 +211,9 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             XCTAssertThrowsError(try h.progress.checkRunnerCompletion(read: checkpointOnly,
                 source: facts.source, recordID: UUID()))
             XCTAssertEqual(try h.snapshot(), beforeLookup); XCTAssertEqual(h.ids.callCount, beforeLookupIDs)
+            diagnosticPhase?("finalization.progress-completion.end")
         }
+        diagnosticPhase?("test.end")
     }
 
     /// Every positive input is an original writer observation. Negative variants
