@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `8af7a78c0b2add1319033279568b75049ad792b9`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed implementation: `2e60630cb02f697a61d37371bc0a378b6bfe8474`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,20 +13,20 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 
 Originals retain their heads; Bitrise stays held.
 
-Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings and testNotStarted. AttributionCE8EC8D6 captures36 frontend commands across many app batches; observed high host load proves no provider or single-file cause. No unchanged retry. Timing observations are retired; three scripts remain dormant. Native dispatch and Bitrise qualification stay held. Larger-runner proposal awaits owner; Sep19 API reports Free/unsupported. Unit-only mode still builds the full scheme.
+Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings; tests did not start. AttributionCE8EC8D6 establishes no single-file/provider cause. No unchanged retry. Sep19 10:03UTC API still reports Free/unsupported larger runners, the latest five originals terminal and no2e run. Native/Bitrise remain held. Owner decision and qualified native evidence are required; the capped larger-runner proposal remains unapproved and promises no fix.
 
-Seven committed record-copy helpers preserve all77 inputs. Root's two-path diagnostic2F039F04 attributes existing insert invalidPackage throws to DEBUG source lines without changing errors/predicates. The C12 nonnil fixture moves to its actual active export; both minimal-incumbent and export copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, clone/transport and retirement acceptance remain unresolved.
+Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, clone/transport and retirement acceptance remain unresolved.
 
 ## Current implementation
 
-- Destination review/discard/continuation and35 regression selectors are committed through8af7a78 (773/45). Production resolution and confirmed-discard operations are now authored through the existing service/AppAccess/sole writer;4 new service tests await enrollment/execution. Source773/45/97 and revised semantic review pass. Original receipt recovery, stable prepared IDs, CAS and publication fences remain required. Authentic AppAccess/UI, backup/fork/lifecycle and registration remain due;49 drafts stay exact.
+- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Source773/45/97, semantic/index and committed-route reviews pass; native is held. All39 destination methods remain unexecuted:35 enrolled,4 service tests unenrolled. Freeze further native-dependent Swift expansion pending qualified compilation/tests, except a narrow source-proven correction. Restore currently copies/rebinds rows; actual review receipts must join the existing writer, staging/publication and recovery. Trace and resume requirements: runtime-2e60630/restore-dependency-checkpoint. Authentic UI/restore/lifecycle/registration remain due;49 drafts stay exact.
 - Durable Begin persists PREPARED before effects and BOUND after original receipts. Historical ENTRY and later/COMPLETE item reads preserve live access and external Round-close rejection.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Source738/41/96, semantic2735C2E7 and indexEB29A4EE pass; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.
 - Clone includes populated incumbent proof, reversible quarantine, schema4 binding, one-shot G/R pointer publication, rollback and exact-owned orphan cleanup. Native correction and all eight interruption questions remain due.
 - Begin history authenticates real PREPARED prefixes and BOUND originals, rejecting quarantines, missing required timezone and omitted zero-photo parents. The legacy fixture remains. The assessment copy preserves all77 constructor inputs, with genuine canonical identity and rejected nonempty C53-history regressions. Reviewed/committed;5d originals are sealed and the insert rejection remains unresolved.
 - Parent finalization is committed across30 paths: typed history, package/report joins, the existing finalizer/readback, five-saga terminal and exact COMPLETE recovery. Seven outcomes and paired denials are authored. SourceEC9BA842 passes738/41/96;13 generator and17 helper checks preserve historical profiles. Source6424D56F, indexFD3A0FDF and committed route5241AF3C pass. Native execution, destination/lifecycle closure and registration remain due; all49 live drafts remain exact.
-- Maximum graph timing within900s remains unproven despite reviewed canonical reuse;200/401/603/202 bounds stay fixed.
+- Maximum graph timing within900s remains unproven;200/401/603/202 bounds stay fixed.
 
 ## Cadence and completion gates
 
