@@ -5,7 +5,7 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `da3462cdf8270163ff24f43c9d3c0e8289fed7b1`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `6c6d2e2dc14c6d3e35c6c7fa5283958a6ec25f70`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -19,7 +19,7 @@ Seven committed record-copy helpers preserve all77 inputs. Root's two-path diagn
 
 ## Current implementation
 
-- Destination discard/recovery is committed as da3462c (source4B2B0053/indexE7070436). Continuation is authored with explicit command binding, stable per-review IDs, sole-writer proof, original recovery and existing access/readiness services. Seven paired tests add to28 destination methods needing native enrollment/execution. Source/index review, actual AppAccess journeys, UI, backup/fork/lifecycle and registration remain due;49 drafts stay exact.
+- Destination discard/recovery da3462c and continuation6c6d2e2 are committed. Continuation binds one stable identity set per review, sole-writer proof, original recovery and existing access/readiness services. Source738/41/96 and semantic0C235554/index2F2576A9 pass. All35 destination methods need native enrollment/execution; actual AppAccess journeys, UI, backup/fork/lifecycle and registration remain due. All49 drafts stay exact.
 - Durable Begin persists PREPARED before effects and BOUND after original receipts. Historical ENTRY and later/COMPLETE item reads preserve live access and external Round-close rejection.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Source738/41/96, semantic2735C2E7 and indexEB29A4EE pass; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.
@@ -30,7 +30,7 @@ Seven committed record-copy helpers preserve all77 inputs. Root's two-path diagn
 
 ## Cadence and completion gates
 
-Root implements; at most one Luna Max helper for a bounded task or required independent review. Preserve primary settings. Reuse unchanged pinned findings/helpers; review consequential deltas and retain actual-index, committed-route and final gates. One collector owns each original. Refresh refs/ownership/capacity at required boundaries; root alone commits/pushes.
+Root uses Astra xhigh hands-on. One helper only when useful: Astra low/medium for bounded coding/review, xhigh for difficult unresolved work; Luna low for simple non-coding only. Group causal compiler families and paired fixes; reuse exact evidence and script routine collection. Preserve actual-index, committed-route and final gates. Stop unchanged retries; root alone commits/pushes.
 
 Committed source738/41/96 retains all seven historical generated profiles. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six additional retirement interruptions and maximum graphs remain due. Historical results never transfer to a later head. Measured cache/shared-build and provider qualification remain separate work.
 
