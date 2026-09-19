@@ -100,6 +100,7 @@ on:
           - c36-destination-review
           - c36-destination-resolution
           - c36-destination-discard
+          - c36-destination-discard-build-before-boot
           - c36-destination-continuation
           - c36-production-destination
           - c36-destination-legacy-bytes

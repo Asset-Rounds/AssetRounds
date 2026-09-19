@@ -1731,6 +1731,26 @@ jobs:
             > "$CI_ARTIFACT_DIR/s10-4-shared-restore-budget.txt"
           printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
 
+      - name: Build unsigned simulator app before boot (diagnostic)
+        id: build_before_simulator_boot
+        if: ${{ inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && inputs.native_selection_id == 'c36-destination-discard-build-before-boot' }}
+        shell: bash
+        env:
+          DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
+          DISPATCH_S10_4_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
+          DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
+          DISPATCH_S10_4_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
+          DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID: ${{ inputs.s10_4_diagnostic_probe_id }}
+          DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE: ${{ inputs.s10_4_diagnostic_execution_lane }}
+          DISPATCH_S10_4_UNIT_ONLY: ${{ inputs.s10_4_unit_only }}
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
+            python3 Scripts/v23-native-ci.py observe-build-before-boot \
+            2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"
+
       - name: Boot selected Simulator
         id: simulator_boot
         background: true
@@ -1817,7 +1837,7 @@ jobs:
 
       - name: Build unsigned simulator app
         id: build_unsigned_simulator_app
-        if: ${{ inputs.s10_4_execution_role != 'payload-consumer' }}
+        if: ${{ inputs.s10_4_execution_role != 'payload-consumer' && inputs.native_selection_id != 'c36-destination-discard-build-before-boot' }}
         shell: bash
         env:
           BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}

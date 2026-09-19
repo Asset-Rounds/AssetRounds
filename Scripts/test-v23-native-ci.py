@@ -357,6 +357,9 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    choice = '          - ' + CI.BUILD_ORDER_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact build order choice')
+    workflow = workflow.replace(choice, '')
     choice = '          - c36-production-destination\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact production destination choice')
     workflow = workflow.replace(choice, '')
@@ -683,6 +686,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.append('c36-destination-legacy-bytes')
         expected.insert(expected.index('c36-parent-finalization-check-no-issue') + 1,
                         CI.BUILD_WATCHDOG_SELECTION_ID)
+        expected.insert(expected.index('c36-destination-discard') + 1, CI.BUILD_ORDER_SELECTION_ID)
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):
@@ -985,6 +989,175 @@ class UpdatedBuildBudgetAdmissionTests(unittest.TestCase):
                 stale["DISPATCH_NATIVE_SELECTION_SHA256"] = CI.sha256(CI.canonical(previous))
                 with self.assertRaises(ValueError):
                     CI.admission(previous, stale, HEAD, stage)
+
+
+class BuildOrderDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID)
+        self.record = {'selectionID': CI.BUILD_ORDER_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping))}
+        self.header = ('tree ' + 'a' * 40 + '\nparent ' + CI.BUILD_ORDER_PARENT + '\n\nmessage\n').encode()
+
+    def bound_environment(self, provider='github'):
+        e = environment(provider)
+        e.update(DISPATCH_NATIVE_SELECTION_ID=self.record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=self.record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=self.record['selectionMapSHA256'])
+        return e
+
+    def git_facts(self, command, **kwargs):
+        if command[1:3] == ['cat-file', 'commit']:
+            return self.header
+        return CI.BUILD_ORDER_TREES[command[-1].split(':', 1)[1]] + '\n'
+
+    def test_closed_alias_preserves_all_seven_methods_and_ordinary_budgets(self):
+        self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-destination-discard'))
+        self.assertEqual(len(self.selected['unitTestSelectors']), 7)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        for suffix in ('-retry', '-parallel', '-30m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID + suffix)
+        self.assertEqual(len(self.default['unitTestSelectors']), 777)
+        self.assertEqual(len(self.mapping['groups']), 46)
+
+    def test_both_admission_stages_require_original_github_parent_and_all_four_source_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts) as read:
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertEqual(read.call_count, 5)
+            self.assertFalse(result['acceptance'])
+            self.assertTrue(result['diagnosticOnly'])
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for bad_header in (b'tree a\n\nmessage\n', self.header.replace(CI.BUILD_ORDER_PARENT.encode(), b'b'*40),
+                               self.header.replace(b'\n\n', b'\nparent ' + b'b'*40 + b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=bad_header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.BUILD_ORDER_TREES:
+                def changed_tree(command, **kwargs):
+                    return 'b'*40 if command[-1] == HEAD + ':' + path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=changed_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def devices(self, state='Shutdown'):
+        return CI.canonical({'devices': {'com.apple.CoreSimulator.SimRuntime.iOS-26-2': [
+            {'udid': UDID, 'state': state, 'isAvailable': True}]}})
+
+    def test_device_samples_reject_missing_duplicate_unavailable_malformed_and_oversized_inventory(self):
+        self.assertEqual(CI.build_order_device_state(self.devices(), UDID)['selectedState'], 'Shutdown')
+        value = json.loads(self.devices())
+        members = next(iter(value['devices'].values()))
+        members.append(dict(members[0]))
+        for raw in (CI.canonical(value), b'{"devices":{}}', b'{"devices":{},"devices":{}}',
+                    b'x'*(2*1024*1024+1), self.devices().replace(b'00000000-', b'zzzzzzzz-'),
+                    self.devices().replace(b'true', b'false'), b'not JSON'):
+            with self.subTest(prefix=raw[:50]), self.assertRaises(ValueError):
+                CI.build_order_device_state(raw, UDID)
+
+    def run_observer(self, artifact, code=0, during='Shutdown', unavailable=False):
+        (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+        e = {'CI_BUILD_TIMEOUT_SECONDS': '1200', 'CI_SIMULATOR_UDID': UDID,
+             'CI_NATIVE_CREATED_SIMULATOR_UDID': UDID, 'CI_SIMULATOR_INITIAL_STATE': 'Shutdown'}
+        child = mock.Mock(pid=4321)
+        child.wait.side_effect = [subprocess.TimeoutExpired('build', 60), code]
+        middle = subprocess.TimeoutExpired('simctl', 5) if unavailable else mock.Mock(stdout=self.devices(during))
+        with mock.patch.object(CI.subprocess, 'run', side_effect=[mock.Mock(stdout=self.devices()), middle,
+                                                               mock.Mock(stdout=self.devices())]) as sample, \
+             mock.patch.object(CI.subprocess, 'Popen', return_value=child) as launch:
+            result = CI.observe_build_before_boot(ROOT, artifact, self.record, e)
+        launch.assert_called_once_with(['bash', 'Scripts/build-smoke.sh'], cwd=ROOT)
+        self.assertEqual(child.wait.call_args_list, [mock.call(timeout=60), mock.call(timeout=60)])
+        for call in sample.call_args_list:
+            self.assertEqual(call, mock.call(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'],
+                                            cwd=ROOT, capture_output=True, timeout=5, check=True))
+        return result
+
+    def test_unchanged_build_exit_and_signal_codes_propagate_and_failed_build_never_passes_evidence(self):
+        for code, expected in ((0, 0), (65, 65), (-15, 143), (-9, 137)):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                self.assertEqual(self.run_observer(artifact, code), expected)
+                if code == 0:
+                    result = CI.build_order_observations(artifact, self.record, UDID)
+                    self.assertTrue(result['selectedSimulatorObservedShutdownThroughout'])
+                    self.assertFalse(result['continuousStateProof'])
+                    self.assertFalse(result['performanceImprovementProven'])
+                else:
+                    with self.assertRaises(ValueError): CI.build_order_observations(artifact, self.record, UDID)
+
+    def test_implicit_boot_and_unavailable_samples_are_retained_without_claiming_shutdown_or_speedup(self):
+        for during, unavailable, status in (('Booted', False, 'COMPLETE'), ('Shutdown', True, 'INCONCLUSIVE')):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                self.assertEqual(self.run_observer(artifact, during=during, unavailable=unavailable), 0)
+                result = CI.build_order_observations(artifact, self.record, UDID)
+                self.assertEqual(result['observationStatus'], status)
+                self.assertFalse(result['selectedSimulatorObservedShutdownThroughout'])
+                if not unavailable: self.assertIn('Booted', result['observedSelectedStates'])
+
+    def test_wrong_admission_device_precondition_and_existing_evidence_deny_before_child_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+            e = {'CI_BUILD_TIMEOUT_SECONDS': '1200', 'CI_SIMULATOR_UDID': UDID,
+                 'CI_NATIVE_CREATED_SIMULATOR_UDID': UDID, 'CI_SIMULATOR_INITIAL_STATE': 'Shutdown'}
+            for changed in ({'CI_BUILD_TIMEOUT_SECONDS': '1800'}, {'CI_SIMULATOR_UDID': 'foreign'},
+                            {'CI_NATIVE_CREATED_SIMULATOR_UDID': 'foreign'}, {'CI_SIMULATOR_INITIAL_STATE': 'Booted'}):
+                with mock.patch.object(CI.subprocess, 'Popen') as launch, self.assertRaises(ValueError):
+                    CI.observe_build_before_boot(ROOT, artifact, self.record, dict(e, **changed))
+                launch.assert_not_called()
+            for result in (mock.Mock(stdout=self.devices('Booted')), subprocess.TimeoutExpired('simctl', 5)):
+                with mock.patch.object(CI.subprocess, 'run', side_effect=[result]), \
+                     mock.patch.object(CI.subprocess, 'Popen') as launch, self.assertRaises(ValueError):
+                    CI.observe_build_before_boot(ROOT, artifact, self.record, e)
+                launch.assert_not_called()
+                (artifact/CI.BUILD_ORDER_OBSERVATIONS).unlink()
+            (artifact/CI.BUILD_ORDER_OBSERVATIONS).write_bytes(b'owned prefix\n')
+            with mock.patch.object(CI.subprocess, 'Popen') as launch, self.assertRaises(ValueError):
+                CI.observe_build_before_boot(ROOT, artifact, self.record, e)
+            launch.assert_not_called()
+            self.assertEqual((artifact/CI.BUILD_ORDER_OBSERVATIONS).read_bytes(), b'owned prefix\n')
+
+    def test_changed_truncated_reordered_or_false_success_evidence_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory); self.run_observer(artifact)
+            path = artifact/CI.BUILD_ORDER_OBSERVATIONS
+            raw = path.read_bytes(); events = [json.loads(line) for line in raw.splitlines()]
+            variants = [raw[:-1], b''.join(CI.canonical(e) for e in events[:-1])]
+            for index, updates in ((0, {'admissionSHA256': '0'*64}), (0, {'command': ['different']}),
+                                   (1, {'selectedState': 'Booted'}), (2, {'kind': 'completed'}),
+                                   (-1, {'returnCode': False}), (-1, {'elapsedSeconds': 1201}),
+                                   (3, {'elapsedSeconds': -1})):
+                changed = copy.deepcopy(events); changed[index].update(updates)
+                variants.append(b''.join(CI.canonical(e) for e in changed))
+            for changed in variants:
+                path.write_bytes(changed)
+                with self.assertRaises(ValueError): CI.build_order_observations(artifact, self.record, UDID)
+
+    def test_workflow_diagnostic_and_ordinary_paths_preserve_commands_order_and_failure_gates(self):
+        worker = (ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        names = ['Build unsigned simulator app before boot (diagnostic)', 'Boot selected Simulator',
+                 'Await selected Simulator boot', 'Build unsigned simulator app', 'Prepare S10.4 shared build payload']
+        positions = [worker.index('      - name: '+name+'\n') for name in names]
+        self.assertEqual(positions, sorted(positions))
+        early = worker[positions[0]:positions[1]]
+        self.assertIn("inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && inputs.native_selection_id == '"+CI.BUILD_ORDER_SELECTION_ID+"'", early)
+        self.assertIn('bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS"', early)
+        self.assertIn('python3 Scripts/v23-native-ci.py observe-build-before-boot', early)
+        self.assertNotIn('continue-on-error', early)
+        boot = worker[positions[1]:positions[2]]
+        wait = worker[positions[2]:positions[3]]
+        self.assertNotIn('if:', boot); self.assertNotIn('if:', wait)
+        self.assertIn('wait: simulator_boot', wait)
+        self.assertIn('xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b', boot)
+        normal = worker[positions[3]:positions[4]]
+        self.assertIn("inputs.s10_4_execution_role != 'payload-consumer' && inputs.native_selection_id != '"+CI.BUILD_ORDER_SELECTION_ID+"'", normal)
+        self.assertIn('bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"', normal)
+        self.assertNotIn('continue-on-error', normal)
 
 
 class BuildWatchdogDiagnosticTests(unittest.TestCase):

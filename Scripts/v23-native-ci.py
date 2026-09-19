@@ -10,6 +10,7 @@ import contextlib
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -31,6 +32,16 @@ TIERS = {"N8": (300, 1200, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
          "F25": (300, 900, 1200, 1800, 4500), "D30": (300, 1800, 900, 0, 3000)}
 BUILD_WATCHDOG_SELECTION_ID = "c36-parent-finalization-check-no-issue-build30m"
 BUILD_WATCHDOG_PARENT = "6289befddaf75036c7fb7a4d971ba7cc171ec003"
+BUILD_ORDER_SELECTION_ID = "c36-destination-discard-build-before-boot"
+BUILD_ORDER_PARENT = "acf0e7a75969627019ed0dcb7c6254b411af94ed"
+BUILD_ORDER_TREES = {
+    "FieldEvidenceApp": "34676b2dd2f55f00b3b551a79c06fa565549b511",
+    "FieldEvidenceAppTests": "23500681d0ec7cf97deb4b22a9e638cdc4c35311",
+    "FieldEvidenceAppUITests": "978eced2587c6ed6cb280aa6cea7d4e3fa6e4190",
+    "FieldEvidenceApp.xcodeproj": "4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0",
+}
+BUILD_ORDER_OBSERVATIONS = "build-before-boot.jsonl"
+BUILD_ORDER_COMMAND = ("bash", "Scripts/build-smoke.sh")
 BUDGET_KEYS = ("setupArtifactTimeoutSeconds", "buildTimeoutSeconds", "testTimeoutSeconds",
                "uiTimeoutSeconds", "totalBudgetSeconds")
 PROTOCOL_PATHS = (
@@ -1010,6 +1021,8 @@ def resolve_selection(default, selection_map, selection_id):
         diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(diagnostic)
         resolved[BUILD_WATCHDOG_SELECTION_ID] = diagnostic
+        require(BUILD_ORDER_SELECTION_ID not in resolved, "build order distinct selector")
+        resolved[BUILD_ORDER_SELECTION_ID] = dict(resolved["c36-destination-discard"])
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")
@@ -1124,6 +1137,18 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         parents = [line[7:].decode("ascii") for line in header.split(b"\n\n", 1)[0].splitlines()
                    if line.startswith(b"parent ")]
         require(parents == [BUILD_WATCHDOG_PARENT], "build watchdog exact approved parent")
+    if selection_record["selectionID"] == BUILD_ORDER_SELECTION_ID:
+        require(selection["tier"] == "N8" and provider == "github" and label == "macos-26",
+                "build order ordinary-budget GitHub route only")
+        require(e["GITHUB_RUN_ATTEMPT"] == "1", "build order original attempt only")
+        header = subprocess.check_output(["git", "cat-file", "commit", checkout_head], cwd=root)
+        parents = [line[7:].decode("ascii") for line in header.split(b"\n\n", 1)[0].splitlines()
+                   if line.startswith(b"parent ")]
+        require(parents == [BUILD_ORDER_PARENT], "build order exact parent")
+        for path, expected_tree in BUILD_ORDER_TREES.items():
+            tree = subprocess.check_output(["git", "rev-parse", checkout_head + ":" + path],
+                                           cwd=root, text=True).strip()
+            require(tree == expected_tree, "build order unchanged app/tests/project")
     return {"contractID": CONTRACT, "taskID": TASK, "repository": REPOSITORY,
             "ref": e["GITHUB_REF"], "head": head, "runID": e["GITHUB_RUN_ID"],
             "runAttempt": e["GITHUB_RUN_ATTEMPT"], "executionLane": lane,
@@ -1192,6 +1217,141 @@ def source_binding(root):
             "simulatorFileProtectionDiagnosticPolicy": simulator_diagnostic_policy_binding(root)}
 
 
+def build_order_device_state(raw, selected_udid):
+    require(isinstance(raw, bytes) and len(raw) <= 2 * 1024 * 1024, "bounded device observation")
+    value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_pairs)
+    require(isinstance(value, dict) and isinstance(value.get("devices"), dict), "device inventory")
+    devices = []
+    for runtime, members in value["devices"].items():
+        require(isinstance(runtime, str) and isinstance(members, list), "runtime devices")
+        for member in members:
+            require(isinstance(member, dict), "device object")
+            udid, state = member.get("udid"), member.get("state")
+            require(isinstance(udid, str) and re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", udid)
+                    and isinstance(state, str) and 0 < len(state) <= 80, "device identity/state")
+            devices.append({"runtime": runtime, "udid": udid.upper(), "state": state,
+                            "available": member.get("isAvailable") is True})
+            require(len(devices) <= 256, "device observation count")
+    require(len({item["udid"] for item in devices}) == len(devices), "duplicate device identity")
+    selected = [item for item in devices if item["udid"] == selected_udid.upper()]
+    require(len(selected) == 1 and selected[0]["available"], "selected available device")
+    return {"selectedState": selected[0]["state"],
+            "devices": sorted(devices, key=lambda item: (item["runtime"], item["udid"]))}
+
+
+def observe_build_before_boot(root, artifact, record, environment):
+    """Run the unchanged build under the incumbent outer watchdog; never boot.
+
+    The child and simctl samples inherit that watchdog's process group. A timeout
+    retains the append-only prefix, which cannot pass completed-evidence checks.
+    No signal handler or new session can detach build descendants from the owner.
+    """
+    require(record["selectionID"] == BUILD_ORDER_SELECTION_ID, "build order command admission")
+    require(read_json(artifact / "native-admission.json") == record, "build order admission changed")
+    require(environment.get("CI_BUILD_TIMEOUT_SECONDS") == "1200", "build order unchanged watchdog")
+    udid = environment.get("CI_SIMULATOR_UDID", "")
+    require(re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", udid)
+            and udid == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID")
+            and environment.get("CI_SIMULATOR_INITIAL_STATE") == "Shutdown",
+            "build order exact fresh selected device")
+    output = artifact / BUILD_ORDER_OBSERVATIONS
+    require(not output.exists() and not output.is_symlink(), "build order evidence already exists")
+    started = time.monotonic()
+    with output.open("xb") as stream:
+        def append(value):
+            value["elapsedSeconds"] = round(time.monotonic() - started, 6)
+            stream.write(canonical(value))
+            stream.flush()
+            os.fsync(stream.fileno())
+
+        def sample(phase):
+            try:
+                result = subprocess.run(["xcrun", "simctl", "list", "devices", "available", "-j"],
+                                        cwd=root, capture_output=True, timeout=5, check=True)
+                value = {"kind": "sample", "phase": phase, "status": "OBSERVED",
+                         **build_order_device_state(result.stdout, udid)}
+            except (OSError, subprocess.SubprocessError, UnicodeError, ValueError, TypeError) as error:
+                value = {"kind": "sample", "phase": phase, "status": "UNAVAILABLE",
+                         "errorType": type(error).__name__}
+            append(value)
+            return value
+
+        append({"kind": "header", "schemaVersion": 1, "admissionSHA256": sha256(canonical(record)),
+                "selectedUDID": udid, "command": list(BUILD_ORDER_COMMAND), "watchdogSeconds": 1200})
+        before = sample("before")
+        require(before.get("selectedState") == "Shutdown", "build order requires observed shutdown before build")
+        child = subprocess.Popen(list(BUILD_ORDER_COMMAND), cwd=root)
+        append({"kind": "started", "processID": child.pid})
+        samples = 0
+        while True:
+            try:
+                code = child.wait(timeout=60)
+                break
+            except subprocess.TimeoutExpired:
+                # The existing 1200s watchdog bounds the process. This additional
+                # cap bounds observer work even if its caller is misconfigured.
+                if samples < 24:
+                    sample("during")
+                    samples += 1
+        sample("after")
+        append({"kind": "completed", "returnCode": code})
+    return code if code >= 0 else 128 - code
+
+
+def build_order_observations(artifact, record, selected_udid):
+    path = artifact / BUILD_ORDER_OBSERVATIONS
+    require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 4 * 1024 * 1024,
+            "bounded build order evidence")
+    raw = path.read_bytes()
+    require(raw.endswith(b"\n"), "complete build order observation line")
+    events = [json.loads(line, object_pairs_hook=unique_pairs) for line in raw.splitlines()]
+    require(5 <= len(events) <= 29 and all(isinstance(event, dict) for event in events),
+            "build order event count")
+    times = [event.get("elapsedSeconds") for event in events]
+    require(all(type(value) in (int, float) and math.isfinite(value) and value >= 0 for value in times)
+            and times == sorted(times) and times[-1] <= 1200, "build order event timing")
+    header = dict(events[0]); header.pop("elapsedSeconds")
+    require(header == {"kind": "header", "schemaVersion": 1,
+                       "admissionSHA256": sha256(canonical(record)), "selectedUDID": selected_udid,
+                       "command": list(BUILD_ORDER_COMMAND), "watchdogSeconds": 1200},
+            "build order source/command binding")
+    require(events[2].get("kind") == "started" and type(events[2].get("processID")) is int
+            and events[2]["processID"] > 0, "build order child start")
+    require(events[-1].get("kind") == "completed" and type(events[-1].get("returnCode")) is int
+            and events[-1]["returnCode"] == 0,
+            "successful build order completion")
+    samples = [events[1], *events[3:-1]]
+    require([item.get("phase") for item in samples] == ["before"] + ["during"] * (len(samples) - 2) + ["after"]
+            and all(item.get("kind") == "sample" for item in samples), "build order sample sequence")
+    observed_states = []
+    for item in samples:
+        require(item.get("status") in ("OBSERVED", "UNAVAILABLE"), "build order sample status")
+        if item["status"] == "OBSERVED":
+            devices = item.get("devices")
+            require(isinstance(devices, list) and 0 < len(devices) <= 256, "retained device inventory")
+            canonical_devices = {}
+            for device in devices:
+                require(isinstance(device, dict) and set(device) == {"runtime", "udid", "state", "available"}
+                        and type(device["available"]) is bool, "retained device fields")
+                canonical_devices.setdefault(device["runtime"], []).append(
+                    {"udid": device["udid"], "state": device["state"], "isAvailable": device["available"]})
+            parsed = build_order_device_state(canonical({"devices": canonical_devices}), selected_udid)
+            require(parsed == {"devices": devices, "selectedState": item.get("selectedState")},
+                    "retained device state binding")
+            observed_states.append(item["selectedState"])
+        else:
+            require(isinstance(item.get("errorType"), str) and "selectedState" not in item
+                    and "devices" not in item, "unavailable observation is not a state")
+    require(samples[0].get("selectedState") == "Shutdown", "observed initial shutdown")
+    complete = all(item["status"] == "OBSERVED" for item in samples)
+    return {"path": BUILD_ORDER_OBSERVATIONS, "sha256": sha256(raw), "sampleCount": len(samples),
+            "observationStatus": "COMPLETE" if complete else "INCONCLUSIVE",
+            "selectedSimulatorObservedShutdownThroughout": complete and all(state == "Shutdown" for state in observed_states),
+            "observedSelectedStates": observed_states, "elapsedSeconds": times[-1],
+            "samplingIntervalSeconds": 60, "continuousStateProof": False,
+            "acceptance": False, "performanceImprovementProven": False}
+
+
 def verify_checkpoint(root, artifact, record, selection, environment):
     diagnostic_evidence = persist_simulator_diagnostic_observations(root, artifact, record)
     require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
@@ -1226,6 +1386,9 @@ def verify_checkpoint(root, artifact, record, selection, environment):
     require(simulator.get("initial_state") == "Shutdown"
             and simulator.get("udid") == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID"),
             "fresh owned Simulator")
+    build_order = {}
+    if record["selectionID"] == BUILD_ORDER_SELECTION_ID:
+        build_order["buildOrderDiagnostic"] = build_order_observations(artifact, record, simulator["udid"])
     units = executed_methods(read_json(artifact / "unit-test-results.json"),
                              selection["unitTestSelectors"], "FieldEvidenceAppTests", "Unit test bundle")
     ui = []
@@ -1251,7 +1414,7 @@ def verify_checkpoint(root, artifact, record, selection, environment):
                 and activation.count("benchmark_phase=established") == activation.count("activation_exit=0")
                 and activation.count("cache=true") == activation.count("activation_exit=0")
                 and activation.count("cache_push=true") == activation.count("activation_exit=0"), "cache activation")
-    return {**record, "recordType": "validated-native-checkpoint", "executedUnitMethods": units,
+    return {**record, **build_order, "recordType": "validated-native-checkpoint", "executedUnitMethods": units,
             "executedUIMethods": ui, "simulator": simulator, "provider": provider, "sdk": sdk,
             "simulatorFileProtectionDiagnostics": diagnostic_evidence,
             "wholeAppAcceptance": False, "humanReviewComplete": False,
@@ -1261,7 +1424,7 @@ def verify_checkpoint(root, artifact, record, selection, environment):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics"))
+    parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics", "observe-build-before-boot"))
     parser.add_argument("--stage", choices=("dispatch", "worker"), default="worker")
     parser.add_argument("--output")
     parser.add_argument("--interrupted", action="store_true")
@@ -1291,6 +1454,8 @@ def main():
                 stream.write("native_selection_sha256=" + record["selectionSHA256"] + "\n")
                 stream.write("native_selection_map_sha256=" + record["selectionMapSHA256"] + "\n")
         return
+    if args.command == "observe-build-before-boot":
+        require(record is not None, "build order command requires admitted integration route")
     if record is None:
         return
     subprocess.run(["git", "diff", "--exit-code", "HEAD", "--"], cwd=root, check=True, stdout=subprocess.DEVNULL)
@@ -1298,6 +1463,8 @@ def main():
     record["gitTree"] = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=root, text=True).strip()
     artifact = Path(os.environ["CI_ARTIFACT_DIR"])
     require(artifact.is_dir() and not artifact.is_symlink(), "artifact directory")
+    if args.command == "observe-build-before-boot":
+        raise SystemExit(observe_build_before_boot(root, artifact, record, os.environ))
     name = "native-admission.json"
     if args.command == "verify":
         record = verify_checkpoint(root, artifact, record, selection, os.environ)
