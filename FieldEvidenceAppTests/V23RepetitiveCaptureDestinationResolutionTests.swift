@@ -49,7 +49,21 @@ final class V23RepetitiveCaptureDestinationResolutionTests: XCTestCase {
             XCTAssertEqual(try fixture.target.rawState().canonicalCounts, before.canonicalCounts)
             try fixture.assertOriginalsRetained()
             let after = try fixture.target.rawState()
-            XCTAssertEqual(try fixture.target.writer.execute(request), outcome)
+            let replay = try fixture.target.writer.execute(request)
+            XCTAssertEqual(replay.mutationID, outcome.mutationID)
+            XCTAssertEqual(replay.commandDigest, outcome.commandDigest)
+            XCTAssertEqual(replay.occurredAt, original.receipt.committedAt)
+            XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(replay.occurredAt),
+                           try WorkspaceMutationCanonicalV1.data(outcome.occurredAt))
+            XCTAssertEqual(replay.after, outcome.after)
+            XCTAssertEqual(replay.effect, outcome.effect)
+            // Durable replay reconstructs its basis from the saved envelope.
+            let expectedRevision = original.envelope.expectedRevision
+            XCTAssertEqual(replay.before.workspaceID, expectedRevision.workspaceID)
+            XCTAssertEqual(replay.before.generationID, expectedRevision.generationID)
+            XCTAssertEqual(replay.before.writerInstanceID, outcome.before.writerInstanceID)
+            XCTAssertEqual(replay.before.revision, expectedRevision.workspaceRevision)
+            XCTAssertEqual(replay.before.entityRevisions, expectedRevision.entityRevisions)
             XCTAssertEqual(try fixture.target.rawState(), after)
             let resolved = try fixture.lineage()
             XCTAssertEqual(resolved.selectedReview.prefix.count, 2)

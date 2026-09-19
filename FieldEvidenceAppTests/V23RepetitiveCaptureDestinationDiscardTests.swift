@@ -43,7 +43,11 @@ final class V23RepetitiveCaptureDestinationDiscardTests: XCTestCase {
                 let replay = try fixture.target.writer.execute(request)
                 XCTAssertEqual(replay.mutationID, outcome.mutationID)
                 XCTAssertEqual(replay.commandDigest, outcome.commandDigest)
-                XCTAssertEqual(replay.occurredAt, outcome.occurredAt)
+                // Replay returns the stored receipt instant; authenticate the
+                // initial clock value at the canonical wire precision.
+                XCTAssertEqual(replay.occurredAt, evidence.terminal.receipt.committedAt)
+                XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(replay.occurredAt),
+                               try WorkspaceMutationCanonicalV1.data(outcome.occurredAt))
                 XCTAssertEqual(replay.after, outcome.after)
                 XCTAssertEqual(replay.effect, outcome.effect)
                 // Durable replay includes explicit zero revisions for absent
