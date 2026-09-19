@@ -69,6 +69,45 @@ def git_bytes(path, commit=HISTORICAL_COMMIT):
     return subprocess.check_output(["git", "show", commit + ":" + path], cwd=REPO)
 
 
+DESTINATION_SELECTORS = [
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testIterativeLineageComposesFortyHopsAcrossRepeatedWorkspacesWithoutPayloadGrowth",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testLineageBindsLaterCheckpointPrefixAndRejectsBranchPayloadDriftAndUnreviewedActivation",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testLineageRejectsRehashedPredecessorClaimsAndCannotReuseValidationForDifferentHistory",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testForeignLiveLineageReadPreservesAllOriginalsAndDeniesDirtyAncestorQuarantineAndRetirement",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstCreateReceiptAuthenticatesRetainedSourceAndPreservesOriginalBytes",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testSelfConsistentCreateReceiptCannotAuthenticateChangedMappingOrGeneration",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testForeignLiveReviewReadDeniesTamperQuarantineDirtyAndRetiredReadersWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstReviewDerivesCompleteReplacementAndForkRelationsWithoutChangingOriginals",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstReviewRetryUsesGenerationBoundFreshIdentities",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testRehashedPlausibleRelationsStillRequireExactSourceCoverage",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testClosedCodecRejectsUnknownTagsKeysNoncanonicalAndInitialStateSubstitutions",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testEachRetainedGraphGetsItsOwnReviewWithoutRevivingItsDisposition",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testPredecessorShapeIsClosedAndDoesNotAuthenticateAnAncestor",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testContinueUsesActualWriterReceiptAndPreservesRoundSourceAndReplay",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testRebaseRequiresAnAdvancedMappedRoundAndGrantsNoReadinessOrRoundEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testDiscardBindsAbsentAndArchivedTargetsWithoutLosingHistoryOrRevivingWork",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testClosedTargetContractRejectsUnboundClaimsAndWrongRoundDigestWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testPreparedProofRejectsContextCommandAndLateRoundChangesAndCannotBeReused",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testResolutionRechecksDirtyCorruptMissingQuarantinedAndRetiredSourceWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testReplacementThenForkRetainsOriginalNamespaceAndRequiresFreshReviewReceipt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testConfirmedTerminalUsesActualAtomicReceiptForAbsentAndArchivedTargetsAndExactReplay",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalRecoveryAfterReopenReadsStoredOriginalWithoutAllocatingAnotherAttempt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalRequiresExplicitPendingDiscardAndRejectsWrongPlanTimePayloadAndKnownIDs",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testPreparedTerminalProofIsSingleUseContextBoundAndRechecksCompetingWrites",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testOwnedContentAndUnboundStageWritesDenyDiscardBeforeAnyEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalAdmissionRejectsDirtyCorruptMissingQuarantinedAndRetiredHistoryWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testOriginalWriterInterruptionBoundariesRollbackOrRecoverExactlyOneTerminal",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testSeparateContinuationBindsActualResolutionAndPreservesOneSourceAcrossRereview",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testLegacyCommandBytesStayExactAndClosedBindingTamperingHasNoEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testPreparedContinuationIsSingleUseContextBoundAndRechecksCurrentRoundAndReview",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testColdOriginalRecoverySurvivesArchivedRoundAndRejectsMissingSourceReceipt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testDirtyCorruptQuarantinedAndPreemptedSourceStateDeniesWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testRealWriterFaultBoundariesRollbackOrRecoverExactlyOneContinuation",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testProductionServiceRecoversBeforePreparationAndRejectsForeignOrRetiredOwners",
+    "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes"
+]
+DESTINATION_GROUP_IDS = ['c36-destination-review', 'c36-destination-resolution', 'c36-destination-discard', 'c36-destination-continuation']
+
 class GeneratorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -82,6 +121,11 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                'V23RepetitiveCaptureDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests.swift',
+                'V23RepetitiveCaptureDestinationResolutionTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests.swift',
+                'V23RepetitiveCaptureDestinationDiscardTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests.swift',
+                'V23RepetitiveCaptureDestinationContinuationTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests.swift',
+                'V9_30FieldDraftResilienceTests': REPO / 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTests.swift',
                 "V9_18PackLifecycleIntegrationTests": REPO / "FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift",
                 "S6_2BackupExportTests": REPO / "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
                 "S6_3BackupValidationTests": REPO / "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
@@ -222,7 +266,7 @@ class GeneratorTests(unittest.TestCase):
                          ('42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878',
                           '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'))
         for profile in self.manifest['profiles']:
-            if profile['id'] in ('clone-retirement-v1', 'parent-finalization-v1'): continue
+            if profile['id'] in ('clone-retirement-v1', 'parent-finalization-v1', 'destination-review-v1'): continue
             historical, _, _ = self.generate(profile['id'])
             self.assertFalse(set(CLONE_RETIREMENT_SELECTORS) & set(historical['unitTestSelectors']))
         self.assertFalse(report['nativeReady'])
@@ -241,6 +285,30 @@ class GeneratorTests(unittest.TestCase):
             historical, _, proof = self.generate(profile)
             self.assertEqual([proof['selectionSHA256'], proof['selectionMapSHA256']], hashes)
             self.assertFalse(set(PARENT_FINALIZATION_SELECTORS) & set(historical['unitTestSelectors']))
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_destination_profile_enrolls_exact_family_and_preserves_eight_historical_outputs(self):
+        prior, prior_map, _ = self.generate('parent-finalization-v1')
+        current, current_map, report = self.generate('destination-review-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (773, 45))
+        self.assertEqual(current['unitTestSelectors'][:738], prior['unitTestSelectors'])
+        self.assertEqual(current['unitTestSelectors'][738:], DESTINATION_SELECTORS)
+        self.assertEqual(len(set(DESTINATION_SELECTORS)), 35)
+        self.assertFalse(set(DESTINATION_SELECTORS) & set(prior['unitTestSelectors']))
+        self.assertEqual(current_map['groups'][:41], [
+            {**group, 'methodCount': group['methodCount'] + (1 if group['id'] == 'c36-raw-staging' else 0)}
+            for group in prior_map['groups']])
+        self.assertEqual([g['id'] for g in current_map['groups'][41:]], DESTINATION_GROUP_IDS)
+        self.assertEqual([g['methodCount'] for g in current_map['groups'][41:]], [13, 7, 7, 7])
+        historical_hashes = dict(HISTORICAL_PROFILE_HASHES)
+        historical_hashes['parent-finalization-v1'] = [
+            '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572',
+            'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E']
+        for profile, hashes in historical_hashes.items():
+            historical, _, proof = self.generate(profile)
+            self.assertEqual([proof['selectionSHA256'], proof['selectionMapSHA256']], hashes)
+            self.assertFalse(set(DESTINATION_SELECTORS) & set(historical['unitTestSelectors']))
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
 

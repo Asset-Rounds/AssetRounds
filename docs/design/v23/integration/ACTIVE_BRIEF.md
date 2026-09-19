@@ -5,21 +5,21 @@ Checkpoint. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope/gates; 
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed baseline: `6c6d2e2dc14c6d3e35c6c7fa5283958a6ec25f70`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Committed baseline: `c10d851fed3157938e541eabeb89a6ba18acb494`. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve one app/shared scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime and physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
 ## Native evidence and next questions
 
-Originals retain their own heads; Bitrise qualification stays held.
+Originals retain their heads; Bitrise stays held.
 
-Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings and testNotStarted. AttributionCE8EC8D6 captures36 frontend commands across many app batches; observed high host load proves no provider or single-file cause. No unchanged retry. Combined source0a5ecfe passes738/41/96 and independent indexEB29A4EE. Timing observations are retired; three scripts remain dormant. Native dispatch and Bitrise qualification stay held. One-run larger-runner proposal awaits the owner; no billing/settings change. Unit-only mode still builds the full scheme.
+Original35177276313 is sealed754D15FC:1200s build timeout, zero Swift errors,800 warnings and testNotStarted. AttributionCE8EC8D6 captures36 frontend commands across many app batches; observed high host load proves no provider or single-file cause. No unchanged retry. Combined source0a5ecfe passes738/41/96 and independent indexEB29A4EE. Timing observations are retired; three scripts remain dormant. Native dispatch and Bitrise qualification stay held. Larger-runner proposal awaits owner; Sep19 API reports Free/unsupported. Unit-only mode still builds the full scheme.
 
 Seven committed record-copy helpers preserve all77 inputs. Root's two-path diagnostic2F039F04 attributes existing insert invalidPackage throws to DEBUG source lines without changing errors/predicates. The C12 nonnil fixture moves to its actual active export; both minimal-incumbent and export copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw, clone/transport and retirement acceptance remain unresolved.
 
 ## Current implementation
 
-- Destination discard/recovery da3462c and continuation6c6d2e2 are committed. Continuation binds one stable identity set per review, sole-writer proof, original recovery and existing access/readiness services. Source738/41/96 and semantic0C235554/index2F2576A9 pass. All35 destination methods need native enrollment/execution; actual AppAccess journeys, UI, backup/fork/lifecycle and registration remain due. All49 drafts stay exact.
+- Destination discard/recovery da3462c and continuation6c6d2e2 are committed. Continuation binds one stable identity set per review, sole-writer proof, original recovery and existing access/readiness services. Source738/41/96 and semantic0C235554/index2F2576A9 pass. All35 destination methods are authored into the closed773/45 profile; native execution remains due, alongside AppAccess/UI, backup/fork/lifecycle and registration. All49 drafts stay exact.
 - Durable Begin persists PREPARED before effects and BOUND after original receipts. Historical ENTRY and later/COMPLETE item reads preserve live access and external Round-close rejection.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Source738/41/96, semantic2735C2E7 and indexEB29A4EE pass; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.
@@ -32,7 +32,7 @@ Seven committed record-copy helpers preserve all77 inputs. Root's two-path diagn
 
 Root uses Astra xhigh hands-on. One helper only when useful: Astra low/medium for bounded coding/review, xhigh for difficult unresolved work; Luna low for simple non-coding only. Group causal compiler families and paired fixes; reuse exact evidence and script routine collection. Preserve actual-index, committed-route and final gates. Stop unchanged retries; root alone commits/pushes.
 
-Committed source738/41/96 retains all seven historical generated profiles. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six additional retirement interruptions and maximum graphs remain due. Historical results never transfer to a later head. Measured cache/shared-build and provider qualification remain separate work.
+Destination source773/45/97 and14 generator checks pass; 8 older profiles remain exact;8 support checks preserve12 historical cases. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six additional retirement interruptions and maximum graphs remain due. Historical results never transfer to a later head. Measured cache/shared-build and provider qualification remain separate work.
 
 Complete C36 lifecycle/codec adoption, child/finalizer recovery, destination correspondence, field/scene/focus/resume composition, source-graph live effects, native finalization/protection, Work/Round adoption and C55 replacement/C57 fork/mixed-history preservation. Locked saved-detail editing and detailed-notification fields/wording remain unresolved product choices; uncertain OS notifications remain visibly incomplete with their cleanup owner.
 

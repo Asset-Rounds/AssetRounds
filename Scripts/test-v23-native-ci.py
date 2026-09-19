@@ -178,10 +178,62 @@ PHOTO_BACKUP_PARTITION_CHOICES = ['c36-photo-backup-transport', 'c36-photo-backu
 
 EXPECTED_PARENT_FINALIZATION_PARTITIONS = [['c36-parent-finalization-check-no-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-check-visible-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckVisibleIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-check-could-not-verify', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckCouldNotVerifyUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-resolved', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckResolvedUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-still-visible', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckStillVisibleUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-different-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckDifferentIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-could-not-verify', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckCouldNotVerifyUsesOriginalFiveSagaHistory']]
 
+EXPECTED_DESTINATION_SELECTORS = [
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testIterativeLineageComposesFortyHopsAcrossRepeatedWorkspacesWithoutPayloadGrowth",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testLineageBindsLaterCheckpointPrefixAndRejectsBranchPayloadDriftAndUnreviewedActivation",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testLineageRejectsRehashedPredecessorClaimsAndCannotReuseValidationForDifferentHistory",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testForeignLiveLineageReadPreservesAllOriginalsAndDeniesDirtyAncestorQuarantineAndRetirement",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstCreateReceiptAuthenticatesRetainedSourceAndPreservesOriginalBytes",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testSelfConsistentCreateReceiptCannotAuthenticateChangedMappingOrGeneration",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testForeignLiveReviewReadDeniesTamperQuarantineDirtyAndRetiredReadersWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstReviewDerivesCompleteReplacementAndForkRelationsWithoutChangingOriginals",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstReviewRetryUsesGenerationBoundFreshIdentities",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testRehashedPlausibleRelationsStillRequireExactSourceCoverage",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testClosedCodecRejectsUnknownTagsKeysNoncanonicalAndInitialStateSubstitutions",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testEachRetainedGraphGetsItsOwnReviewWithoutRevivingItsDisposition",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testPredecessorShapeIsClosedAndDoesNotAuthenticateAnAncestor",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testContinueUsesActualWriterReceiptAndPreservesRoundSourceAndReplay",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testRebaseRequiresAnAdvancedMappedRoundAndGrantsNoReadinessOrRoundEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testDiscardBindsAbsentAndArchivedTargetsWithoutLosingHistoryOrRevivingWork",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testClosedTargetContractRejectsUnboundClaimsAndWrongRoundDigestWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testPreparedProofRejectsContextCommandAndLateRoundChangesAndCannotBeReused",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testResolutionRechecksDirtyCorruptMissingQuarantinedAndRetiredSourceWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testReplacementThenForkRetainsOriginalNamespaceAndRequiresFreshReviewReceipt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testConfirmedTerminalUsesActualAtomicReceiptForAbsentAndArchivedTargetsAndExactReplay",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalRecoveryAfterReopenReadsStoredOriginalWithoutAllocatingAnotherAttempt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalRequiresExplicitPendingDiscardAndRejectsWrongPlanTimePayloadAndKnownIDs",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testPreparedTerminalProofIsSingleUseContextBoundAndRechecksCompetingWrites",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testOwnedContentAndUnboundStageWritesDenyDiscardBeforeAnyEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalAdmissionRejectsDirtyCorruptMissingQuarantinedAndRetiredHistoryWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testOriginalWriterInterruptionBoundariesRollbackOrRecoverExactlyOneTerminal",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testSeparateContinuationBindsActualResolutionAndPreservesOneSourceAcrossRereview",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testLegacyCommandBytesStayExactAndClosedBindingTamperingHasNoEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testPreparedContinuationIsSingleUseContextBoundAndRechecksCurrentRoundAndReview",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testColdOriginalRecoverySurvivesArchivedRoundAndRejectsMissingSourceReceipt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testDirtyCorruptQuarantinedAndPreemptedSourceStateDeniesWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testRealWriterFaultBoundariesRollbackOrRecoverExactlyOneContinuation",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testProductionServiceRecoversBeforePreparationAndRejectsForeignOrRetiredOwners",
+    "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes"
+]
+DESTINATION_GROUP_IDS = ['c36-destination-review', 'c36-destination-resolution', 'c36-destination-discard', 'c36-destination-continuation']
+
 def prepartition_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) == 738:
+    if len(default.get('unitTestSelectors', [])) == 773:
         if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
                 CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError('changed generated destination inputs')
+        if default['unitTestSelectors'][738:] != EXPECTED_DESTINATION_SELECTORS:
+            raise AssertionError('changed exact destination append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:738]
+        if [g['id'] for g in mapping['groups'][41:]] != DESTINATION_GROUP_IDS:
+            raise AssertionError('changed destination group order')
+        mapping['groups'] = mapping['groups'][:41]
+        for group in mapping['groups']:
+            group['methodCount'] -= 1 if group['id'] == 'c36-raw-staging' else 0
+    if len(default.get('unitTestSelectors', [])) == 738:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E'):
             raise AssertionError('changed generated parent-finalization inputs')
         default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
         if tuple(default['unitTestSelectors'][731:]) != CI.PARENT_FINALIZATION_SELECTORS:
@@ -284,6 +336,10 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    workflow = workflow.replace('all 773 methods across 45 bounded groups',
+                                'all 738 methods across 41 bounded groups')
+    for group_id in DESTINATION_GROUP_IDS + ['c36-destination-legacy-bytes']:
+        workflow = workflow.replace('          - ' + group_id + '\n', '')
     for group_id, _ in CI.PARENT_FINALIZATION_METHOD_PARTITIONS:
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact parent finalization choice')
@@ -351,8 +407,8 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (738, 41))
-        for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 4),
+        self.assertEqual((report['selectorCount'], report['groupCount']), (773, 45))
+        for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
                                 ('notification-owner', 77), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
                                 ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7)]:
@@ -433,6 +489,41 @@ class ReportPartitionTests(unittest.TestCase):
         self.assertEqual(len(observed), len(set(observed)))
         self.assertFalse(set(observed) & set(default['unitTestSelectors'][:723]))
 
+    def test_destination_family_has_exact_closed_groups_and_legacy_pair(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(default['unitTestSelectors'][738:], EXPECTED_DESTINATION_SELECTORS)
+        observed = []
+        for group_id, count in zip(DESTINATION_GROUP_IDS, [13, 7, 7, 7]):
+            selected = CI.resolve_selection(default, mapping, group_id)
+            self.assertEqual(len(selected['unitTestSelectors']), count)
+            self.assertEqual({k: selected[k] for k in CI.BUDGET_KEYS},
+                             {k: default[k] for k in CI.BUDGET_KEYS})
+            observed.extend(selected['unitTestSelectors'])
+        legacy = CI.resolve_selection(default, mapping, 'c36-destination-legacy-bytes')
+        self.assertEqual(legacy['unitTestSelectors'], [EXPECTED_DESTINATION_SELECTORS[-1]])
+        observed.extend(legacy['unitTestSelectors'])
+        self.assertEqual(observed, EXPECTED_DESTINATION_SELECTORS)
+        self.assertEqual(len(observed), len(set(observed)))
+        self.assertFalse(set(observed) & set(default['unitTestSelectors'][:738]))
+        for index in range(738, 773):
+            missing = copy.deepcopy(default); del missing['unitTestSelectors'][index]
+            duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'][index] = default['unitTestSelectors'][738 if index != 738 else 739]
+            foreign = copy.deepcopy(default); foreign['unitTestSelectors'][index] += 'Unknown'
+            for hostile in (missing, duplicate, foreign):
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    CI.resolve_selection(hostile, mapping, 'c36-destination-legacy-bytes')
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][738:] = reversed(reordered['unitTestSelectors'][738:])
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(reordered, mapping, 'c36-destination-review')
+        overlap = copy.deepcopy(mapping)
+        overlap['groups'][-1]['classes'].append(overlap['groups'][-2]['classes'][0])
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, overlap, 'c36-destination-review')
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-destination-unknown')
+
     def test_parent_finalization_singletons_have_exact_membership_and_unchanged_contract(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
@@ -450,7 +541,7 @@ class ReportPartitionTests(unittest.TestCase):
             self.assertEqual(record['selectionID'], selection_id)
             self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
             observed.extend(selected['unitTestSelectors'])
-        self.assertEqual(observed, default['unitTestSelectors'][731:])
+        self.assertEqual(observed, default['unitTestSelectors'][731:738])
         self.assertEqual(len(observed), len(set(observed)))
         self.assertFalse(set(observed) & set(default['unitTestSelectors'][:731]))
 
@@ -467,7 +558,7 @@ class ReportPartitionTests(unittest.TestCase):
                 with self.subTest(index=index), self.assertRaises(ValueError):
                     CI.resolve_selection(hostile, mapping, selected_id)
         reordered = copy.deepcopy(default)
-        reordered['unitTestSelectors'][731:] = reversed(reordered['unitTestSelectors'][731:])
+        reordered['unitTestSelectors'][731:738] = reversed(reordered['unitTestSelectors'][731:738])
         changed_budget = copy.deepcopy(default); changed_budget['testTimeoutSeconds'] += 1
         for hostile in (reordered, changed_budget):
             with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, selected_id)
@@ -503,7 +594,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),738)
+        self.assertEqual(len(default['unitTestSelectors']),773)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -515,7 +606,7 @@ class ReportPartitionTests(unittest.TestCase):
                 source=(ROOT / 'FieldEvidenceAppTests' / (klass+'.swift')).read_text(encoding='utf-8')
                 declared=re.findall(r'^    func (test\w+)\(',source,re.M)
                 self.assertEqual({s.rsplit('/',1)[1] for s in members if s.split('/')[1]==klass},set(declared))
-            if group['id'] not in ['report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
+            if group['id'] not in DESTINATION_GROUP_IDS + ['report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
                 self.assertEqual(actual,CI.resolve_selection(prior,prior_map,group['id']))
         self.assertEqual(len(seen),len(set(seen)))
         self.assertEqual(set(seen),set(default['unitTestSelectors']))
@@ -532,6 +623,7 @@ class ReportPartitionTests(unittest.TestCase):
             if group['id']=='c36-source-graph': expected.extend(SOURCE_GRAPH_PARTITION_CHOICES)
             if group['id']=='c36-durable-begin': expected.extend(DURABLE_PARTITION_CHOICES)
             if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES + [CI.CONFIGURATION_CLONE_SELECTION_ID] + [i for i, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS] + [i for i, _ in CI.PARENT_FINALIZATION_METHOD_PARTITIONS])
+        expected.append('c36-destination-legacy-bytes')
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):

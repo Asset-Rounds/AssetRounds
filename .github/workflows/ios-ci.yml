@@ -26,7 +26,7 @@ on:
           - s10-4-minimum-diagnostic-pilot
           - s10-4-focused-diagnostics-development-only
       native_selection_id:
-        description: Closed V23 N8 selection; default retains all 738 methods across 41 bounded groups
+        description: Closed V23 N8 selection; default retains all 773 methods across 45 bounded groups
         required: true
         default: default-132
         type: choice
@@ -96,6 +96,11 @@ on:
           - c36-parent-finalization-recheck-still-visible
           - c36-parent-finalization-recheck-different-issue
           - c36-parent-finalization-recheck-could-not-verify
+          - c36-destination-review
+          - c36-destination-resolution
+          - c36-destination-discard
+          - c36-destination-continuation
+          - c36-destination-legacy-bytes
       s10_4_minimum_core_smoke_id:
         description: Explicit minimum functional smoke; none preserves full legacy behavior
         required: false

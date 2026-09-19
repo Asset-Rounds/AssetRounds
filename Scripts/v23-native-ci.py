@@ -69,9 +69,11 @@ DURABLE_BEGIN_METHOD_PARTITIONS = (
 )
 DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E"
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
-GENERATED_SELECTION_PROFILE = "parent-finalization-v1"
-GENERATED_SELECTION_POOL_SHA256 = "1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572"
-GENERATED_SELECTION_MAP_SHA256 = "E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E"
+DESTINATION_LEGACY_SELECTION_ID = "c36-destination-legacy-bytes"
+DESTINATION_LEGACY_SELECTOR = 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes'
+GENERATED_SELECTION_PROFILE = "destination-review-v1"
+GENERATED_SELECTION_POOL_SHA256 = "575C83D0CAC78A35C9BB240193B5AC345425175762A73C7604A2EE5AABB04A1F"
+GENERATED_SELECTION_MAP_SHA256 = "86AC237B0F2A650CCB3B083DD8C8DA50F7176D76C0B9F15816EBD27FD79E5411"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -843,7 +845,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 41
+        isinstance(groups, list) and len(groups) == 45
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )
@@ -971,7 +973,7 @@ def resolve_selection(default, selection_map, selection_id):
             derived["unitTestSelectors"] = list(members)
             validate_selection(derived)
             resolved[partition_id] = derived
-        parent_members = tuple(default["unitTestSelectors"][731:])
+        parent_members = tuple(default["unitTestSelectors"][731:738])
         require(parent_members == PARENT_FINALIZATION_SELECTORS
                 and len(parent_members) == len(set(parent_members)) == 7,
                 "parent finalization exact ordered source enrollment")
@@ -987,6 +989,17 @@ def resolve_selection(default, selection_map, selection_id):
             derived["unitTestSelectors"] = list(members)
             validate_selection(derived)
             resolved[partition_id] = derived
+    if generated_profile_shape:
+        legacy_members = tuple(item for item in default["unitTestSelectors"][738:]
+                               if selection_class(item) == "V9_30FieldDraftResilienceTests")
+        require(legacy_members == (DESTINATION_LEGACY_SELECTOR,),
+                "destination legacy exact source enrollment")
+        require(DESTINATION_LEGACY_SELECTION_ID not in resolved,
+                "destination legacy distinct selector")
+        derived = dict(default)
+        derived["unitTestSelectors"] = list(legacy_members)
+        validate_selection(derived)
+        resolved[DESTINATION_LEGACY_SELECTION_ID] = derived
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")
