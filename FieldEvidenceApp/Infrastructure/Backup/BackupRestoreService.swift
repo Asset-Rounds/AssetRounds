@@ -1372,6 +1372,8 @@ final class BackupRestoreService {
     var configurationCloneRetirementObservationForTesting: ((String) throws -> Void)?
     var configurationCloneRetirementBeforeClaimForTesting: ((URL, Bool) throws -> Void)?
     var photoRawPointerObservationForTesting: ((Bool) throws -> Void)?
+    // Opt-in fixed phase labels only; never changes restore decisions or errors.
+    var restorePhaseDiagnosticForTesting: (@MainActor (String) -> Void)?
 #endif
 
     init(
@@ -1651,6 +1653,12 @@ final class BackupRestoreService {
         )
     }
 
+    private func traceRestorePhase(_ phase: String) {
+#if DEBUG
+        restorePhaseDiagnosticForTesting?(phase)
+#endif
+    }
+
     /// The only restore mutation path. Its explicit mode keeps Welcome and
     /// maintenance empty-only while Settings owns confirmed replacement.
     func restore(
@@ -1679,6 +1687,7 @@ final class BackupRestoreService {
         mode: BackupRestoreMode = .emptyInstall,
         validateAccess: @MainActor () async throws -> Void
     ) async throws -> StoreGenerationSession {
+        traceRestorePhase("access-and-admission")
         // The caller's permit guards every private restore read.  Wrap its
         // failure so the generic recovery path cannot turn an initial denial
         // into a recovery attempt.
@@ -1688,12 +1697,15 @@ final class BackupRestoreService {
         guard !currentModelContext.hasChanges else {
             throw BackupRestoreServiceError.contextHasChanges
         }
+        traceRestorePhase("generation-authority")
         try ensureGenerationAuthority()
+        traceRestorePhase("lifecycle-scope")
         try validateLifecycleScope(
             currentModelContext,
             generationID: currentGenerationID,
             generationRootURL: currentGenerationRootURL
         )
+        traceRestorePhase("current-generation-admission")
         try generationAuthority.requireNoEraseAuthority()
         let initialRetiredIDs = try generationAuthority.retiredGenerationIDs()
         guard try generationFactory.currentGenerationID(
@@ -1711,6 +1723,7 @@ final class BackupRestoreService {
                try intentStore.load() == nil else {
             throw BackupRestoreServiceError.currentGenerationInvalid
         }
+        traceRestorePhase("current-and-source-identity")
         let frozenCurrentIdentity: WorkspaceReplicaIdentityV1
         let incomingIdentity: WorkspaceReplicaIdentityV1?
         do {
@@ -1725,6 +1738,7 @@ final class BackupRestoreService {
         } catch {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
+        traceRestorePhase("current-records")
         let initialIsEmpty = Self.isEmptyCurrent(currentModelContext)
         let frozenCurrentRecords: V4BackupRecordsV1?
         switch mode {
@@ -1745,6 +1759,7 @@ final class BackupRestoreService {
         case .clone, .fork:
             frozenCurrentRecords = try records(in: currentModelContext)
         }
+        traceRestorePhase("package-revalidation")
         let packageValidator = BackupPackageValidatorV1(route: packageValidationRoute())
         let packageURL = validatedPackage.stagedPackageURL
         do {
@@ -1755,6 +1770,7 @@ final class BackupRestoreService {
             throw BackupRestoreServiceError.invalidPackage
         }
         try await validateRestoreAccess(validateAccess)
+        traceRestorePhase("review-source-validation")
         let reviewSourcePackage: ValidatedRepetitiveCaptureSourcePackageV2?
         let revalidatedPackage: ValidatedV4BackupPackageV1
         if try RepetitiveCaptureRestoreReviewPlanV1.containsReviewSource(validatedPackage.records) {
@@ -1786,6 +1802,7 @@ final class BackupRestoreService {
             mode: mode
         )
         try C32AssistanceBackupRestorePolicyV1.validate(validatedPackage.records, mode: mode)
+        traceRestorePhase("portable-exchange-snapshot")
         let portableExchangeSnapshot: PortableExchangeBackupSnapshotV2
         do {
             portableExchangeSnapshot = try C48PortableExchangeBackupPackageValidationV2.snapshot(
@@ -1800,6 +1817,7 @@ final class BackupRestoreService {
         } catch {
             throw BackupRestoreServiceError.invalidPackage
         }
+        traceRestorePhase("storage-preflight")
         try storagePreflight.checkBackupImport(
             declaredPayloadByteCount: Int64(
                 validatedPackage.manifest.declaredPayloadByteCount
@@ -1807,6 +1825,7 @@ final class BackupRestoreService {
             onVolumeContaining: applicationSupportURL
         )
         try generationAuthority.requireNoEraseAuthority()
+        traceRestorePhase("exclusive-import-staging")
         try requireExclusiveLiveStaging(
             validatedPackage,
             currentGenerationID: currentGenerationID,
@@ -1848,11 +1867,13 @@ final class BackupRestoreService {
               ) else {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
+        traceRestorePhase("photo-canonical-plan")
         let photoCanonical = try preparePhotoCanonicalRestore(package: validatedPackage,
             currentRecords: frozenCurrentRecords, currentIdentity: frozenCurrentIdentity,
             sourceIdentity: incomingIdentity, currentGenerationID: currentGenerationID, mode: mode)
         let effectiveIncomingRecords = try photoCanonical?.includingRetainedRows(in: validatedPackage.records)
             ?? validatedPackage.records
+        traceRestorePhase("deletion-winning-plan")
         var expectedRecords: V4BackupRecordsV1
         do {
             expectedRecords = try ReplacementRestoreRule.makeDeletionWinningPlan(
@@ -1889,6 +1910,7 @@ final class BackupRestoreService {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         try Task.checkCancellation()
+        traceRestorePhase("destination-identity")
         let preliminaryIdentityDecision = try makeIdentityDecision(
             package: validatedPackage,
             mode: mode,
@@ -1896,6 +1918,7 @@ final class BackupRestoreService {
             newGenerationID: newGenerationID,
             targetManifestDigest: String(repeating: "0", count: 64)
         )
+        traceRestorePhase("reliability-and-metadata")
         let serviceReliabilityTargetWorkspaceID: UUID? = mode == .clone || mode == .fork
             ? preliminaryIdentityDecision?.targetPointer.workspaceID
             : frozenCurrentIdentity.workspaceID.rawValue
@@ -1975,6 +1998,7 @@ final class BackupRestoreService {
             try validatePhotoCurrentLocked()
         }
 
+        traceRestorePhase("destination-review-plan")
         let destinationReviewPlan: RepetitiveCaptureRestoreReviewPlanV1?
         if let reviewSourcePackage {
             guard let preliminaryIdentityDecision else {
@@ -1996,6 +2020,7 @@ final class BackupRestoreService {
                     in: expectedRecords, with: history,
                     fieldDrafts: try destinationReviewPlan.retainingUnownedRows(expectedRecords.fieldDrafts))
             }
+            traceRestorePhase("records-for-materialization")
             expectedRecords = try recordsForMaterialization(
                 expectedRecords,
                 members: validatedPackage.members,
@@ -2005,6 +2030,7 @@ final class BackupRestoreService {
                 currentOriginalRecords: frozenCurrentRecords,
                 incomingOriginalRecords: validatedPackage.records
             )
+            traceRestorePhase("parts-stock-lifecycle")
             if let snapshot = expectedRecords.partsStockSnapshot {
                 let targetWorkspaceID = WorkspaceID(rawValue:
                     preliminaryIdentityDecision?.targetPointer.workspaceID
@@ -2055,6 +2081,7 @@ final class BackupRestoreService {
             }
             let lightingDayInventoryWorkflows = expectedRecords.lightingDayInventoryWorkflows
             let lightingNightWorkflows = expectedRecords.lightingNightWorkflows
+            traceRestorePhase("accessible-documents")
             let accessibleDocumentAssessments = try await preparedAccessibleDocumentAssessments(
                 expectedRecords.accessibleDocumentAssessments,
                 identityDecision: preliminaryIdentityDecision,
@@ -2071,6 +2098,7 @@ final class BackupRestoreService {
             guard uniqueModelIDs(in: expectedRecords) else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
+            traceRestorePhase("photo-and-clone-plan")
             let photo = try await preparePhotoRestore(package: validatedPackage, canonical: photoCanonical,
                 currentRecords: frozenCurrentRecords, replacementRecords: expectedRecords,
                 currentIdentity: frozenCurrentIdentity, sourceIdentity: incomingIdentity,
@@ -2093,6 +2121,7 @@ final class BackupRestoreService {
             let cloneStagingProof = clone?.emptyProof
             let cloneFinalMedia = mode == .clone
                 ? try configurationCloneFinalMedia(package: validatedPackage, records: expectedRecords) : [:]
+            traceRestorePhase("materialize")
             try materialize(
                 validatedPackage,
                 records: expectedRecords,
@@ -2111,6 +2140,7 @@ final class BackupRestoreService {
                 guard let history = expectedRecords.mutationHistory else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
+                traceRestorePhase("write-destination-reviews")
                 let written = try generationFactory.writeRestoreDestinationReviews(
                     plan: destinationReviewPlan, authority: generationAuthority,
                     clock: RestoreReviewClockV1(value: replacementAt),
@@ -2140,6 +2170,7 @@ final class BackupRestoreService {
                 try clone.physical.staging.withVerificationLock {}
             }
             try Task.checkCancellation()
+            traceRestorePhase("validate-staging")
             try validateStagingGeneration(
                 id: newGenerationID,
                 expected: expectedRecords,
@@ -2154,6 +2185,7 @@ final class BackupRestoreService {
                 stagingPhotoFiles = try await preparePhotoFileSnapshot(core: photo.core, plans: photoPlans, staging: true)
                 try await validatePhotoCurrent()
             } else { stagingPhotoFiles = nil }
+            traceRestorePhase("staging-manifest")
             let targetManifestDigest = try generationFactory
                 .prepareRestoreStagingGenerationManifest(
                     expectedOldID: currentGenerationID,
@@ -2212,6 +2244,7 @@ final class BackupRestoreService {
                 sourceWorkspaceID: validatedPackage.manifest.source.workspaceID,
                 targetWorkspaceID: targetPortableExchangeWorkspaceID
             )
+            traceRestorePhase("prepare-intent")
             let unboundIntent: RestoreIntentV1
             if let identityDecision {
                 unboundIntent = RestoreIntentV1(

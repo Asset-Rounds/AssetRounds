@@ -275,15 +275,28 @@ private final class RestoreReviewHarness {
 
     func restore(_ package: URL, mode: BackupRestoreMode,
                  failure: BackupRestoreFailureInjection? = nil) async throws -> StoreGenerationSession {
-        let current = try factory.openOrBootstrapCurrent()
-        let imported = try BackupImportService(generationRootURL: current.generationRootURL,
-            scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: package)
-        let service = try BackupRestoreService(applicationSupportURL: support,
-            now: { RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(3_600) },
-            failureInjection: failure)
-        return try await service.restore(validatedPackage: imported,
-            currentModelContext: current.modelContext, currentGenerationID: current.generationID,
-            currentGenerationRootURL: current.generationRootURL, mode: mode)
+        var phase = "open-current"
+        do {
+            let current = try factory.openOrBootstrapCurrent()
+            phase = "import-package"
+            let imported = try BackupImportService(generationRootURL: current.generationRootURL,
+                scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: package)
+            phase = "create-restore-service"
+            let service = try BackupRestoreService(applicationSupportURL: support,
+                now: { RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(3_600) },
+                failureInjection: failure)
+#if DEBUG
+            service.restorePhaseDiagnosticForTesting = { phase = $0 }
+#endif
+            phase = "invoke-restore"
+            return try await service.restore(validatedPackage: imported,
+                currentModelContext: current.modelContext, currentGenerationID: current.generationID,
+                currentGenerationRootURL: current.generationRootURL, mode: mode)
+        } catch {
+            // Fixed phase and error type only: no paths, identifiers or error payload.
+            print("RestoreReviewHarness.failure phase=\(phase) type=\(String(reflecting: type(of: error)))")
+            throw error
+        }
     }
 
     func history(in session: StoreGenerationSession) throws -> MutationHistorySnapshotV1 {
