@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementation2e60630; latest audited native input e1a5507; compile PASS on two e1 originals. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Implementation2e60630; latest audited native input06ca188; resolution compile PASS. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,13 +13,13 @@
 
 Evidence stays bound to its head.
 
-e1 originals sealed: continuation7Pass; discard6Pass/1Fail, only initial-vs-durable Date equality; parent1/production4 NotStarted at build1200 exit124. Zero Swift errors/new warning signatures. Discard/resolution replay assertions now authenticate exact receipt time and canonical initial instant without epsilon. Protection error did not recur; no proven protection fix. Photo-reader synchronous validation reuse remains unmeasured. Prior6d parent Check/no-issue hit900s: two-photo setup640s, interrupted-target entry743s. N8 build1200/test900/total2400; D30 consumed; no unchanged retry. Bitrise public26.6 image lacks required26.2 runtime.
+06ca188 originals sealed: resolution5Pass/2Fail after build1092s/test582s; discard7NotStarted after build1200 timeout. Zero Swift errors/new warning signatures. Actual-receipt/canonical-clock replay passes. Both failures come from one fixture XCTUnwrap recording expected reader throws; evaluate the reader before unwrapping its optional, preserving nil failure and every assertion. Prior e1 continuation7Pass stays head-bound; parent1/production4 NotStarted. Photo validation reuse remains unmeasured. N8 build1200/test900/total2400; D30 consumed. Bitrise public26.6 lacks26.2 runtime. No unchanged timeout retry.
 
 Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 
 ## Current implementation
 
-- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Committed777/46/103 and source/index/route checks pass; full native acceptance is due. Destination39 at e1:13Pass/1Fail/25unexecuted; results remain head-bound. Compilation feedback is usable; destination runtime and production adoption remain due. Restore currently copies/rebinds rows; actual review receipts must join the existing writer, staging/publication and recovery. Trace and resume requirements: runtime-2e60630/restore-dependency-checkpoint. UI/restore/lifecycle/registration remain due;49 drafts exact.
+- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Pool777/46/103; full native acceptance is due. Latest06 resolution5Pass/2Fail; other results remain head-bound. Restore copies/rebinds rows; authentic review receipts must join the existing writer, staging/publication and recovery. Reuse runtime-2e60630/restore-dependency-checkpoint. UI/restore/lifecycle/registration remain due;49 drafts exact.
 - Durable Begin retains PREPARED/BOUND original-history, live-access and external-close guards.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Reviewed source passes; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.
@@ -32,8 +32,8 @@ Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert inval
 
 Root uses Astra xhigh; at most one useful Astra low/medium coding/review helper, Luna low for simple non-coding. Freeze candidate/checkpoints before checks; combine semantic/index review and use qualified mechanical facts for committed binding. No duplicate run or unchanged retry; root alone commits/pushes. Follow MERGE_READINESS.
 
-Pool777/46 retains all9 historical profiles; generator15 passes. The new correction still requires source/protocol103, route and native discard7/resolution7 checks. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six additional retirement interruptions and maximum graphs remain due. Historical results never transfer to a later head. Measured cache/shared-build and provider qualification remain separate work.
+Pool777/46 retains all9 historical profiles; generator15 passes. Required checks: source/protocol103, independent index/route and native resolution7. Discard remains held at build timeout. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six additional retirement interruptions and maximum graphs remain due. Historical results never transfer to a later head. Measured cache/shared-build and provider qualification remain separate work.
 
-Complete C36 lifecycle/codec adoption, child/finalizer recovery, destination correspondence, field/scene/focus/resume composition, source-graph live effects, native finalization/protection, Work/Round adoption and C55 replacement/C57 fork/mixed-history preservation. Locked saved-detail editing and detailed-notification fields/wording remain unresolved product choices; uncertain OS notifications remain visibly incomplete with their cleanup owner.
+Complete C36 lifecycle/codec, child/finalizer recovery, destination/field/scene/resume, live effects, native protection, Work/Round and C55/C57 preservation. Reminder choices resolved: require unlocked access when AppLock is on; root selects Round/Work due plus effective date/time/zone. Complete Settings-to-Preferences-to-OS adoption remains due. Keep generic AppLock copy, consent and strict finality.
 
 Main advances only after complete retained same-head functional/compatibility evidence, qualified provider routes as applicable, affected-state S10 visuals, independent integration review and genuine human visual review, followed by controlling non-force integration and exact-main verification.

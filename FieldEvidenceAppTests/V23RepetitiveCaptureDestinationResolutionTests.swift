@@ -462,8 +462,9 @@ final class RepetitiveResolutionFixture {
     }
 
     func proof(_ mutation: FieldDraftMutationV1) throws -> PreparedReviewedFieldDraftApplyProofV1 {
-        try XCTUnwrap(target.journal.validatePendingReviewedFieldDraftResolution(mutation,
-            expectedWorkspaceRevision: target.writer.currentRevision().revision))
+        let proof = try target.journal.validatePendingReviewedFieldDraftResolution(mutation,
+            expectedWorkspaceRevision: target.writer.currentRevision().revision)
+        return try XCTUnwrap(proof)
     }
 
     func assertOriginalsRetained(file: StaticString = #filePath, line: UInt = #line) throws {
