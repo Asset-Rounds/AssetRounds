@@ -28,6 +28,40 @@ struct ProductionRepetitiveCaptureContinuationReadV1 {
     fileprivate let revision: WorkspaceRevisionV1
 }
 
+struct ProductionRepetitiveCaptureResolutionReadV1 {
+    let evidence: ReviewedFieldDraftResolutionEvidenceV1
+    fileprivate let ownerID: UUID
+    fileprivate let revision: WorkspaceRevisionV1
+}
+
+@MainActor
+final class PreparedRepetitiveCaptureDestinationResolutionV1 {
+    let mutation: FieldDraftMutationV1
+    private(set) var attemptState: RepetitiveCaptureCheckpointAttemptStateV2 = .notAttempted
+    fileprivate let ownerID: UUID
+    fileprivate init(mutation: FieldDraftMutationV1, ownerID: UUID) {
+        self.mutation = mutation; self.ownerID = ownerID
+    }
+    fileprivate func markAttempted() { attemptState = .checkpointWriteAttempted }
+}
+
+struct ProductionRepetitiveCaptureDiscardReadV1 {
+    let evidence: RepetitiveCaptureDestinationDiscardEvidenceV1
+    fileprivate let ownerID: UUID
+    fileprivate let revision: WorkspaceRevisionV1
+}
+
+@MainActor
+final class PreparedRepetitiveCaptureDestinationDiscardV1 {
+    let proposal: RepetitiveCaptureDestinationDiscardProposalV1
+    private(set) var attemptState: RepetitiveCaptureCheckpointAttemptStateV2 = .notAttempted
+    fileprivate let ownerID: UUID
+    fileprivate init(proposal: RepetitiveCaptureDestinationDiscardProposalV1, ownerID: UUID) {
+        self.proposal = proposal; self.ownerID = ownerID
+    }
+    fileprivate func markAttempted() { attemptState = .checkpointWriteAttempted }
+}
+
 @MainActor
 final class PreparedRepetitiveCaptureDestinationContinuationV1 {
     let proposal: RepetitiveCaptureDestinationContinuationProposalV1
@@ -86,6 +120,128 @@ final class ProductionRepetitiveCaptureProgressServiceV2 {
         else { throw ScanToWorkFailureV1.stale }
         return try current.workspaceWriter.repetitiveCaptureDestinationReviewLineage(
             workspaceID: workspaceID, mutationID: checkpoint.mutationID)
+    }
+
+    func prepareDestinationResolution(reviewDraftID: UUID, plan: DraftConflictResolutionPlanV1,
+                                      round: RoundSessionV1?) throws
+        -> PreparedRepetitiveCaptureDestinationResolutionV1 {
+        let current = try currentSession()
+        let lineage = try destinationReview(reviewDraftID: reviewDraftID)
+        let rounds: [RoundSessionV1]
+        if plan == .discard {
+            guard round == nil else { throw FieldDraftFailureV1.invalidValue }
+            rounds = []
+        } else {
+            guard let round, round.workspaceID == workspaceID else { throw ScanToWorkFailureV1.stale }
+            rounds = try WorkspaceWriterAdapterV1(modelContext: current.modelContext).roundSessionHistory(
+                workspaceID: workspaceID, sessionID: round.sessionID)
+            guard rounds.last == round else { throw ScanToWorkFailureV1.stale }
+        }
+        let resolution = try RepetitiveCaptureDestinationResolutionV1.propose(plan: plan, from: lineage,
+            currentRoundHistory: rounds, expectedWorkspaceRevision: current.workspaceWriter.currentRevision().revision,
+            mutationID: MutationIDV1(rawValue: idSource.makeID()), reviewedAt: destinationOperationInstant())
+        let previous = resolution.expectedCheckpoint
+        let mutation = try FieldDraftMutationV1(workspaceID: workspaceID,
+            expectedRevision: previous.draftRevision, expectedBaseCanonicalRevision: previous.baseCanonicalRevision,
+            mutationID: resolution.successorCheckpoint.mutationID, postImage: .resolveConflict(resolution))
+        return .init(mutation: mutation, ownerID: ownerID)
+    }
+
+    func committedDestinationResolution(_ prepared: PreparedRepetitiveCaptureDestinationResolutionV1) throws
+        -> ProductionRepetitiveCaptureResolutionReadV1? {
+        try requireOwner(prepared.ownerID)
+        return try destinationResolution(mutation: prepared.mutation)
+    }
+
+    private func destinationResolution(mutation: FieldDraftMutationV1) throws
+        -> ProductionRepetitiveCaptureResolutionReadV1? {
+        let current = try currentSession()
+        guard let original = try current.workspaceWriter.fieldDraftEvidence(mutationID: mutation.mutationID)
+        else { return nil }
+        guard original.mutation == mutation else { throw ScanToWorkFailureV1.stale }
+        let evidence = try ReviewedFieldDraftResolutionEvidenceV1(original: original)
+        let lineage = try destinationReview(reviewDraftID: evidence.resolution.expectedCheckpoint.draftID)
+        guard lineage.selectedReview.prefix.contains(where: {
+            $0.envelope == original.envelope && $0.receipt == original.receipt
+        }) else { throw ScanToWorkFailureV1.authorityMismatch }
+        return .init(evidence: evidence, ownerID: ownerID, revision: try current.workspaceWriter.currentRevision())
+    }
+
+    func persistDestinationResolution(_ prepared: PreparedRepetitiveCaptureDestinationResolutionV1) throws
+        -> ProductionRepetitiveCaptureResolutionReadV1 {
+        if let original = try committedDestinationResolution(prepared) { return original }
+        let current = try currentSession()
+        prepared.markAttempted()
+        _ = try current.workspaceWriter.commitFieldDraft(prepared.mutation)
+        guard let result = try committedDestinationResolution(prepared) else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        return result
+    }
+
+    func destinationDiscard(reviewDraftID: UUID) throws -> ProductionRepetitiveCaptureDiscardReadV1? {
+        let current = try currentSession()
+        let lineage = try destinationReview(reviewDraftID: reviewDraftID)
+        guard lineage.selectedReview.checkpoint.state == .discarded else { return nil }
+        let evidence = try current.workspaceWriter.repetitiveCaptureDestinationDiscardEvidence(
+            workspaceID: workspaceID, draftID: reviewDraftID)
+        return .init(evidence: evidence, ownerID: ownerID, revision: try current.workspaceWriter.currentRevision())
+    }
+
+    func prepareDestinationDiscard(reviewDraftID: UUID) throws -> PreparedRepetitiveCaptureDestinationDiscardV1 {
+        let lineage = try destinationReview(reviewDraftID: reviewDraftID)
+        let proposal = try RepetitiveCaptureDestinationDiscardV1.propose(from: lineage,
+            receiptID: idSource.makeID(), mutationID: MutationIDV1(rawValue: idSource.makeID()),
+            discardedAt: destinationOperationInstant())
+        return .init(proposal: proposal, ownerID: ownerID)
+    }
+
+    func committedDestinationDiscard(_ prepared: PreparedRepetitiveCaptureDestinationDiscardV1) throws
+        -> ProductionRepetitiveCaptureDiscardReadV1? {
+        try requireOwner(prepared.ownerID)
+        guard let original = try destinationDiscard(reviewDraftID: prepared.proposal.expectedCheckpoint.draftID)
+        else { return nil }
+        guard original.evidence.bundle == prepared.proposal.terminalBundle,
+              original.evidence.plan == prepared.proposal.plan else { throw ScanToWorkFailureV1.stale }
+        return original
+    }
+
+    /// Recovery acknowledges the original confirmation and effect. A new
+    /// nonempty discard always requires explicit confirmation of this proposal.
+    func persistDestinationDiscard(_ prepared: PreparedRepetitiveCaptureDestinationDiscardV1,
+                                   confirmed: Bool) throws -> ProductionRepetitiveCaptureDiscardReadV1 {
+        if let original = try committedDestinationDiscard(prepared) { return original }
+        guard confirmed else { throw FieldDraftFailureV1.invalidTransition }
+        let current = try currentSession()
+        prepared.markAttempted()
+        _ = try current.workspaceWriter.commitFieldDraft(prepared.proposal.mutation)
+        guard let result = try committedDestinationDiscard(prepared) else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        return result
+    }
+
+    func validateForPublication(_ value: ProductionRepetitiveCaptureResolutionReadV1) throws {
+        try requireOwner(value.ownerID)
+        let current = try currentSession()
+        guard try current.workspaceWriter.currentRevision() == value.revision,
+              try destinationResolution(mutation: value.evidence.original.mutation)?.evidence == value.evidence else {
+            throw ScanToWorkFailureV1.stale
+        }
+    }
+
+    func validateForPublication(_ value: ProductionRepetitiveCaptureDiscardReadV1) throws {
+        try requireOwner(value.ownerID)
+        let current = try currentSession()
+        guard try current.workspaceWriter.currentRevision() == value.revision,
+              try destinationDiscard(reviewDraftID: value.evidence.bundle.discardedCheckpoint.draftID)?.evidence
+                == value.evidence else { throw ScanToWorkFailureV1.stale }
+    }
+
+    private func destinationOperationInstant() throws -> Date {
+        let value = clock.now().timeIntervalSince1970
+        guard value.isFinite, value >= 0, (value * 1_000).isFinite else { throw FieldDraftFailureV1.invalidValue }
+        return Date(timeIntervalSince1970: floor(value * 1_000) / 1_000)
     }
 
     /// Recovery precedes allocation and readiness. The result acknowledges a

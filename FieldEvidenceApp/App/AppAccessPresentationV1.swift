@@ -423,6 +423,60 @@ final class AppAccessPresentationV1: ObservableObject {
             }
         }
 
+        func prepareRepetitiveCaptureDestinationResolution(reviewDraftID: UUID,
+            plan: DraftConflictResolutionPlanV1, round: RoundSessionV1?) throws
+            -> PreparedRepetitiveCaptureDestinationResolutionV1 {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try repetitiveCapture.prepareDestinationResolution(
+                    reviewDraftID: reviewDraftID, plan: plan, round: round)
+            }
+        }
+
+        func persistRepetitiveCaptureDestinationResolution(_ prepared: PreparedRepetitiveCaptureDestinationResolutionV1,
+            validateIntent: @MainActor () throws -> Void) throws -> ProductionRepetitiveCaptureResolutionReadV1 {
+            guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            try Task.checkCancellation(); try validateIntent()
+            if let original = try publicationAccess.withRead({
+                try repetitiveCapture.committedDestinationResolution(prepared)
+            }) { return original }
+            let result = try publicationAccess.withRead { try repetitiveCapture.persistDestinationResolution(prepared) }
+            try validateIntent()
+            try publicationAccess.withRead { try repetitiveCapture.validateForPublication(result) }
+            return result
+        }
+
+        func readRepetitiveCaptureDestinationDiscard(reviewDraftID: UUID) throws
+            -> ProductionRepetitiveCaptureDiscardReadV1? {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try repetitiveCapture.destinationDiscard(reviewDraftID: reviewDraftID)
+            }
+        }
+
+        func prepareRepetitiveCaptureDestinationDiscard(reviewDraftID: UUID) throws
+            -> PreparedRepetitiveCaptureDestinationDiscardV1 {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try repetitiveCapture.prepareDestinationDiscard(reviewDraftID: reviewDraftID)
+            }
+        }
+
+        func persistRepetitiveCaptureDestinationDiscard(_ prepared: PreparedRepetitiveCaptureDestinationDiscardV1,
+            confirmed: Bool, validateIntent: @MainActor () throws -> Void) throws -> ProductionRepetitiveCaptureDiscardReadV1 {
+            guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            try Task.checkCancellation(); try validateIntent()
+            if let original = try publicationAccess.withRead({
+                try repetitiveCapture.committedDestinationDiscard(prepared)
+            }) { return original }
+            let result = try publicationAccess.withRead {
+                try repetitiveCapture.persistDestinationDiscard(prepared, confirmed: confirmed)
+            }
+            try validateIntent()
+            try publicationAccess.withRead { try repetitiveCapture.validateForPublication(result) }
+            return result
+        }
+
         func readRepetitiveCaptureDestinationContinuation(reviewDraftID: UUID) throws
             -> ProductionRepetitiveCaptureContinuationReadV1? {
             try publicationAccess.withRead {
