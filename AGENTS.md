@@ -49,6 +49,8 @@ For this CI batch, review only the combined protocol/helper delta and bind uncha
 
 ## Working cadence — owner confirmed 2026-09-14
 
+Completed-test evidence collection correction, 2026-09-19: retain all N8 native/job watchdogs. Simulator diagnostic transport v2 distinguishes completed collection (30 seconds total, 29.5 seconds work, one 10-second app-container lookup) from interrupted collection (unchanged 3/2.5/2 seconds). Completed collection consumes the existing 900-second test allowance; it adds no native time and authorizes no retry. Retain exact v1 historical interpretation, source/container ownership, original hashes, partial evidence and failure status. A missing or invalid transport remains a failure and grants no acceptance/provider credit. This corrects the audited original35465985235 collection timeout; compilation and its seven tests passed only on its original head.
+
 Apply the existing efficiency policy directly:
 
 - Keep ACTIVE_BRIEF current and short (normally no more than 60 lines/6 KB); update its sections instead of prepending history. Read prior detail only for a relevant unresolved question.

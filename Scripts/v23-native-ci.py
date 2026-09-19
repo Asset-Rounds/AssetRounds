@@ -84,9 +84,9 @@ DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
 DESTINATION_LEGACY_SELECTION_ID = "c36-destination-legacy-bytes"
 DESTINATION_LEGACY_SELECTOR = 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes'
-GENERATED_SELECTION_PROFILE = "production-destination-v1"
-GENERATED_SELECTION_POOL_SHA256 = "C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5"
-GENERATED_SELECTION_MAP_SHA256 = "732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76"
+GENERATED_SELECTION_PROFILE = "restore-review-v1"
+GENERATED_SELECTION_POOL_SHA256 = "658B54FBAA5E5907778892FD8F6B07BA5DEE82E5542580AC20723DC711E33584"
+GENERATED_SELECTION_MAP_SHA256 = "143C205A5011FDBF1688CDF885B047070F192471AEDC5BF5B06FBFC20517DB98"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -208,7 +208,8 @@ SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY = "simulator-file-protection-transport"
 SIMULATOR_DIAGNOSTIC_APP_DIRECTORY = "Library/Caches/AssetRoundsNativeDiagnostics"
 SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID = "com.palatis3.fieldrecord"
 SIMULATOR_DIAGNOSTIC_FRAME_SCHEMA = "v23-simulator-file-protection-frame-v1"
-SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA = "v23-simulator-file-protection-transport-v1"
+SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA = "v23-simulator-file-protection-transport-v2"
+SIMULATOR_DIAGNOSTIC_LEGACY_TRANSPORT_SCHEMA = "v23-simulator-file-protection-transport-v1"
 SIMULATOR_DIAGNOSTIC_MAX_FILES = 64
 SIMULATOR_DIAGNOSTIC_MAX_EVENTS = 100_000
 SIMULATOR_DIAGNOSTIC_MAX_TOTAL_EVENTS = SIMULATOR_DIAGNOSTIC_MAX_FILES * SIMULATOR_DIAGNOSTIC_MAX_EVENTS
@@ -217,8 +218,12 @@ SIMULATOR_DIAGNOSTIC_MAX_FILE_BYTES = (
     SIMULATOR_DIAGNOSTIC_MAX_EVENTS * SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES
 )
 SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES = 1024 * 1024 * 1024
-SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS = 3
-SIMULATOR_DIAGNOSTIC_WORK_SECONDS = 2.5
+SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS = 30
+SIMULATOR_DIAGNOSTIC_WORK_SECONDS = 29.5
+SIMULATOR_DIAGNOSTIC_LOOKUP_SECONDS = 10
+SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS = 3
+SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS = 2.5
+SIMULATOR_DIAGNOSTIC_INTERRUPTED_LOOKUP_SECONDS = 2
 SIMULATOR_DIAGNOSTIC_COPY_CHUNK_BYTES = 64 * 1024
 SIMULATOR_DIAGNOSTIC_FIELDS = (
     "policyID", "disposition", "kind", "request", "capabilityBefore", "capabilityAfter",
@@ -437,8 +442,8 @@ def _diagnostic_real_time_limit(seconds):
         signal.signal(signal.SIGALRM, previous)
 
 
-def _require_collection_time(started, monotonic):
-    if monotonic() - started >= SIMULATOR_DIAGNOSTIC_WORK_SECONDS:
+def _require_collection_time(started, monotonic, work_seconds):
+    if monotonic() - started >= work_seconds:
         raise _DiagnosticCollectionDeadline("diagnostic collection deadline")
 
 
@@ -446,6 +451,13 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
                                            run=subprocess.run, monotonic=time.monotonic,
                                            read_chunk=None):
     """Collect closed app-container originals; never parse, repair, or infer a PASS."""
+    require(type(interrupted) is bool, "diagnostic interruption mode")
+    collection_seconds = (SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS if interrupted
+                          else SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS)
+    work_seconds = (SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS if interrupted
+                    else SIMULATOR_DIAGNOSTIC_WORK_SECONDS)
+    lookup_seconds = (SIMULATOR_DIAGNOSTIC_INTERRUPTED_LOOKUP_SECONDS if interrupted
+                      else SIMULATOR_DIAGNOSTIC_LOOKUP_SECONDS)
     started = monotonic()
     source_path = root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH
     source_sha = None
@@ -462,7 +474,8 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
         "fileCount": 0,
         "totalBytes": 0,
         "inventorySHA256": sha256(canonical([])),
-        "collectionBoundSeconds": SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS,
+        "collectionBoundSeconds": collection_seconds,
+        "collectionMode": "interrupted" if interrupted else "completed",
     }
     if interrupted:
         base["error"] = "native command interrupted"
@@ -481,7 +494,7 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
             "inventorySHA256": sha256(canonical(originals)),
         })
         _write_transport_status(artifact, base, replace=True)
-    remaining = SIMULATOR_DIAGNOSTIC_WORK_SECONDS - (monotonic() - started)
+    remaining = work_seconds - (monotonic() - started)
     try:
         with _diagnostic_real_time_limit(remaining):
             source_sha = (sha256(source_path.read_bytes())
@@ -499,12 +512,15 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
             base["sourceSHA256"] = source_sha
             retain("INTERRUPTED" if interrupted else "UNAVAILABLE",
                    "native command interrupted" if interrupted else "diagnostic collection incomplete")
+            _require_collection_time(started, monotonic, work_seconds)
+            remaining = work_seconds - (monotonic() - started)
             completed = run(
                 ["xcrun", "simctl", "get_app_container", udid,
                  SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID, "data"],
-                capture_output=True, text=True, timeout=min(2, max(0.001, remaining)), check=False,
+                capture_output=True, text=True,
+                timeout=min(lookup_seconds, max(0.001, remaining)), check=False,
             )
-            _require_collection_time(started, monotonic)
+            _require_collection_time(started, monotonic, work_seconds)
             require(completed.returncode == 0 and completed.stderr == "", "diagnostic app container unavailable")
             require(completed.stdout.endswith("\n") and completed.stdout.count("\n") == 1,
                     "diagnostic app container output")
@@ -525,7 +541,7 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
             name_pattern = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.jsonl")
             reader = read_chunk or (lambda stream, count: stream.read(count))
             for source in entries:
-                _require_collection_time(started, monotonic)
+                _require_collection_time(started, monotonic, work_seconds)
                 info = source.lstat()
                 require(name_pattern.fullmatch(source.name) is not None, "diagnostic transport file name")
                 require(stat.S_ISREG(info.st_mode) and not source.is_symlink() and info.st_nlink == 1,
@@ -539,7 +555,7 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
                 active = {"name": source.name, "bytes": 0, "sha256": digest.hexdigest().upper()}
                 with source.open("rb", buffering=0) as incoming, target.open("xb", buffering=0) as outgoing:
                     while True:
-                        _require_collection_time(started, monotonic)
+                        _require_collection_time(started, monotonic, work_seconds)
                         chunk = reader(incoming, SIMULATOR_DIAGNOSTIC_COPY_CHUNK_BYTES)
                         if not chunk:
                             break
@@ -553,7 +569,7 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
                         active.update(bytes=active["bytes"] + written,
                                       sha256=digest.hexdigest().upper())
                         require(written == len(chunk), "diagnostic transport short write")
-                        _require_collection_time(started, monotonic)
+                        _require_collection_time(started, monotonic, work_seconds)
                     outgoing.flush()
                     os.fsync(outgoing.fileno())
                 originals.append(active)
@@ -566,7 +582,7 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
                         "diagnostic transport changed during collection")
                 require(originals[-1]["bytes"] == info.st_size,
                         "diagnostic transport copy size")
-            _require_collection_time(started, monotonic)
+            _require_collection_time(started, monotonic, work_seconds)
             base.update({
                 "status": "INTERRUPTED" if interrupted else ("AVAILABLE" if originals else "ZERO_USE"),
                 "files": originals,
@@ -678,14 +694,26 @@ def simulator_diagnostic_observations(root, artifact, record):
             "sourcePath", "sourceSHA256", "files", "fileCount", "totalBytes",
             "inventorySHA256", "collectionBoundSeconds",
         }
+        if status.get("schema") == SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA:
+            exact_status_keys.add("collectionMode")
+            mode = status.get("collectionMode")
+            expected_bound = {"completed": 30, "interrupted": 3}.get(
+                mode if isinstance(mode, str) else "")
+            require(expected_bound is not None
+                    and (status.get("status") == "INTERRUPTED") == (mode == "interrupted"),
+                    "diagnostic transport mode")
+        else:
+            require(status.get("schema") == SIMULATOR_DIAGNOSTIC_LEGACY_TRANSPORT_SCHEMA,
+                    "diagnostic transport schema")
+            expected_bound = 3
         require(set(status) in (exact_status_keys, exact_status_keys | {"error"}),
                 "diagnostic transport status fields")
-        require(status["schema"] == SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA
-                and status["appBundleID"] == SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID
+        require(status["appBundleID"] == SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID
                 and status["appRelativeDirectory"] == SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
                 and status["sourcePath"] == SIMULATOR_DIAGNOSTIC_SOURCE_PATH
                 and status["sourceSHA256"] == binding["allowanceSourceSHA256"]
-                and status["collectionBoundSeconds"] == 3,
+                and type(status["collectionBoundSeconds"]) is int
+                and status["collectionBoundSeconds"] == expected_bound,
                 "diagnostic transport binding")
         require(status["status"] in {
             "AVAILABLE", "ZERO_USE", "UNAVAILABLE", "UNSAFE", "INTERRUPTED"
@@ -861,7 +889,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 46
+        isinstance(groups, list) and len(groups) == 48
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )

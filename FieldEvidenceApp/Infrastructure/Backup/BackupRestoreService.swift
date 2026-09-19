@@ -1755,8 +1755,20 @@ final class BackupRestoreService {
             throw BackupRestoreServiceError.invalidPackage
         }
         try await validateRestoreAccess(validateAccess)
-        let revalidatedPackage = try await BackupOffMainWorkV1.run {
-            try packageValidator.validate(stagedPackageURL: packageURL)
+        let reviewSourcePackage: ValidatedRepetitiveCaptureSourcePackageV2?
+        let revalidatedPackage: ValidatedV4BackupPackageV1
+        if try RepetitiveCaptureRestoreReviewPlanV1.containsReviewSource(validatedPackage.records) {
+            let source = try await BackupOffMainWorkV1.run {
+                try ValidatedRepetitiveCaptureSourcePackageV2.validate(
+                    stagedPackageURL: packageURL, using: packageValidator)
+            }
+            reviewSourcePackage = source
+            revalidatedPackage = source.validatedPackage
+        } else {
+            reviewSourcePackage = nil
+            revalidatedPackage = try await BackupOffMainWorkV1.run {
+                try packageValidator.validate(stagedPackageURL: packageURL)
+            }
         }
         try await validateRestoreAccess(validateAccess)
         guard revalidatedPackage == validatedPackage else {
@@ -1963,10 +1975,27 @@ final class BackupRestoreService {
             try validatePhotoCurrentLocked()
         }
 
+        let destinationReviewPlan: RepetitiveCaptureRestoreReviewPlanV1?
+        if let reviewSourcePackage {
+            guard let preliminaryIdentityDecision else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            destinationReviewPlan = try RepetitiveCaptureRestoreReviewPlanV1.prepare(
+                sourcePackage: reviewSourcePackage, identity: preliminaryIdentityDecision,
+                restoreID: restoreID, reviewedAt: replacementAt)
+        } else { destinationReviewPlan = nil }
         var retainedCloneGuard: ConfigurationCloneEmptyStagingGuardV1?
         var retainedCloneRetirement: ConfigurationCloneRetirementBindingV1?
         do {
             try Task.checkCancellation()
+            if let destinationReviewPlan {
+                guard let history = expectedRecords.mutationHistory else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                expectedRecords = replacingMutationHistoryForCurrentWriter(
+                    in: expectedRecords, with: history,
+                    fieldDrafts: try destinationReviewPlan.retainingUnownedRows(expectedRecords.fieldDrafts))
+            }
             expectedRecords = try recordsForMaterialization(
                 expectedRecords,
                 members: validatedPackage.members,
@@ -2049,6 +2078,11 @@ final class BackupRestoreService {
                 newGenerationID: newGenerationID, restoreID: restoreID, mode: mode,
                 validateCurrent: validatePhotoCurrent, validateCurrentLocked: validatePhotoCurrentLocked)
             if let photo { expectedRecords = photo.records }
+            // Cross-workspace photo correspondence remains a separate complete
+            // graph requirement. Never issue reviews around that held boundary.
+            guard destinationReviewPlan == nil || photo == nil else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
             let photoPlans = photo?.plans ?? []
             let photoProof = try photo?.proof
             let clone = mode == .clone ? try await prepareConfigurationClone(package: validatedPackage,
@@ -2072,6 +2106,32 @@ final class BackupRestoreService {
                 retainedCanonicalMembers: photo?.retainedCanonicalMembers,
                 retainedCanonicalAuthorityCheck: validatePhotoCurrentLocked
             )
+            if let destinationReviewPlan {
+                try validatePhotoCurrentLocked()
+                guard let history = expectedRecords.mutationHistory else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let written = try generationFactory.writeRestoreDestinationReviews(
+                    plan: destinationReviewPlan, authority: generationAuthority,
+                    clock: RestoreReviewClockV1(value: replacementAt),
+                    idSource: SystemApplicationIDSource(), fileAuthority: SystemApplicationFileAuthorityV1())
+                try destinationReviewPlan.requireWrittenHistory(written.history, preserving: history)
+                guard written.checkpoints == destinationReviewPlan.checkpoints else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let reviewRows: [V16BackupFieldDraftRecordV1] = try written.checkpoints.map { checkpoint in
+                    .init(kind: .checkpoint, id: checkpoint.draftID,
+                          workspaceID: checkpoint.workspaceID.rawValue, revision: checkpoint.draftRevision,
+                          canonicalData: try FieldDraftCanonicalCodecV1.encode(checkpoint))
+                }
+                let allDraftRows = (expectedRecords.fieldDrafts + reviewRows).sorted {
+                    $0.kind.rawValue == $1.kind.rawValue
+                        ? $0.id.uuidString < $1.id.uuidString : $0.kind.rawValue < $1.kind.rawValue
+                }
+                expectedRecords = replacingMutationHistoryForCurrentWriter(
+                    in: expectedRecords, with: written.history, fieldDrafts: allDraftRows)
+                try validatePhotoCurrentLocked()
+            }
             if let photo { try await materializePhotoMembers(photo, validateCurrent: validatePhotoCurrent) }
             if let clone {
                 try await materializeConfigurationCloneFinalMedia(cloneFinalMedia,
@@ -3753,7 +3813,8 @@ private extension BackupRestoreService {
     func replacingMutationHistoryForCurrentWriter(
         in records: V4BackupRecordsV1,
         with history: MutationHistorySnapshotV1,
-        partyAccountability: [V9BackupPartyAccountabilityRecordV1]? = nil
+        partyAccountability: [V9BackupPartyAccountabilityRecordV1]? = nil,
+        fieldDrafts: [V16BackupFieldDraftRecordV1]? = nil
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
@@ -3769,7 +3830,7 @@ private extension BackupRestoreService {
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
-            fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+            fieldDrafts: fieldDrafts ?? records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -17921,4 +17982,9 @@ private func attributedRestorePackageFailureV1(line: UInt) -> BackupRestoreServi
     print("BackupRestoreService invalidPackageLine=\(line)")
     #endif
     return .invalidPackage
+}
+
+private struct RestoreReviewClockV1: ApplicationClock {
+    let value: Date
+    func now() -> Date { value }
 }

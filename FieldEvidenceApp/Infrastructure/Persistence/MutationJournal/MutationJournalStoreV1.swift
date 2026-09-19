@@ -304,6 +304,7 @@ final class MutationJournalStoreV1 {
 
     private enum AccessMode {
         case canonicalWriter(StaleWriterFenceV1)
+        case restoreReview(StoreRestoreReviewWriteAuthorityV1)
         case aggregateCandidate(StoreMigrationFinalCandidateAuthorityV1)
         case maintenanceOrTest
     }
@@ -669,6 +670,21 @@ final class MutationJournalStoreV1 {
         )
     }
 
+    /// The factory alone issues this synchronous, unpublished-stage capability.
+    convenience init(
+        modelContext: ModelContext,
+        identity: WorkspaceReplicaIdentityV1,
+        generationID: UUID,
+        restoreReviewAuthority: StoreRestoreReviewWriteAuthorityV1
+    ) throws {
+        try restoreReviewAuthority.validate(context: modelContext, identity: identity,
+                                           generationID: generationID)
+        try self.init(modelContext: modelContext, identity: identity,
+                      generationID: generationID, failureInjection: nil,
+                      allowStateBootstrap: false, allowMissingCheckpoint: false,
+                      accessMode: .restoreReview(restoreReviewAuthority))
+    }
+
     /// Legacy maintenance/read access. Canonical writer and recovery entry
     /// points reject this mode in release builds; DEBUG retains the existing
     /// isolated in-memory test seam.
@@ -826,6 +842,9 @@ final class MutationJournalStoreV1 {
     /// A conflicting body is durably quarantined and always fails closed.
     func resolveReplay(envelope: MutationEnvelopeV1, detectedAt: Date) throws -> MutationReceiptV1? {
         try validateCurrentWriterLease()
+        if case let .restoreReview(authority) = accessMode {
+            try authority.admit(envelope: envelope)
+        }
         try envelope.validate()
         guard envelope.workspaceID == identity.workspaceID,
               envelope.generationID == generationID else {
@@ -845,6 +864,9 @@ final class MutationJournalStoreV1 {
         ))
         guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         guard let row = rows.first else { return nil }
+        if case .restoreReview = accessMode {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
         let incoming = try envelope.canonicalSHA256()
         guard row.envelopeSHA256 == incoming else {
             modelContext.insert(MutationQuarantineRow(
@@ -877,6 +899,9 @@ final class MutationJournalStoreV1 {
         replayIdentitySHA256: String,
         detectedAt: Date
     ) throws -> MutationReceiptV1? {
+        if case .restoreReview = accessMode {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
         try validateCurrentWriterLease()
         guard request.expectedRevision.workspaceID == identity.workspaceID,
               request.expectedRevision.generationID == generationID,
@@ -936,6 +961,9 @@ final class MutationJournalStoreV1 {
         semanticReversalExecution: SemanticReversalExecutionV1? = nil
     ) throws -> MutationReceiptV1 {
         beginCommitAttempt()
+        if case let .restoreReview(authority) = accessMode {
+            try authority.requireAdmitted(envelope: envelope)
+        }
         do {
             return try withStaleWriterFence {
                 try commitAfterFence(
@@ -6302,6 +6330,9 @@ final class MutationJournalStoreV1 {
     func withAuthorizedRecovery<Value>(
         _ operation: () throws -> Value
     ) throws -> Value {
+        if case .restoreReview = accessMode {
+            throw WorkspaceMutationFailureV1.wrongGeneration
+        }
         if case let .aggregateCandidate(authority) = accessMode {
             return try authority.withAuthorizedContext { _, _ in try operation() }
         }
@@ -6316,6 +6347,8 @@ final class MutationJournalStoreV1 {
 
     private func saveWithMaintenanceAuthorization() throws {
         switch accessMode {
+        case .restoreReview:
+            throw WorkspaceMutationFailureV1.wrongGeneration
         case .canonicalWriter:
             try saveWithStaleWriterFence()
         case let .aggregateCandidate(authority):
@@ -6327,6 +6360,9 @@ final class MutationJournalStoreV1 {
 
     private func validateCurrentWriterLease() throws {
         switch accessMode {
+        case let .restoreReview(authority):
+            try authority.validate(context: modelContext, identity: identity,
+                                   generationID: generationID)
         case .canonicalWriter(let staleWriterFence):
             do {
                 try staleWriterFence.validateCurrent()
@@ -6350,6 +6386,11 @@ final class MutationJournalStoreV1 {
         _ operation: () throws -> Value
     ) throws -> Value {
         switch accessMode {
+        case let .restoreReview(authority):
+            try authority.validate(context: modelContext, identity: identity,
+                                   generationID: generationID)
+            try authority.requireAdmittedOperation()
+            return try operation()
         case .canonicalWriter(let staleWriterFence):
             do {
                 return try staleWriterFence.withAuthorizedCommit(operation)

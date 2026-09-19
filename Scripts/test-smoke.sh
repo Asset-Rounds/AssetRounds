@@ -18,8 +18,9 @@ test ! -e "$result_bundle_path"
 mkdir -p "$CI_ARTIFACT_DIR" "$derived_data_path"
 
 # The ordinary V23 lane retains strict Simulator diagnostics outside XCTest's
-# shared console pipe. Collection is bounded by the existing watchdog's TERM
-# grace period and never changes the native command, destination, or result.
+# shared console pipe. Completed collection stays inside the existing test
+# watchdog; interrupted collection retains its three-second TERM-grace bound.
+# Neither mode changes the native command, destination, or result.
 diagnostic_transport_interrupted=false
 collect_v23_diagnostic_transport() {
   local command_status="$?"

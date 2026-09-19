@@ -137,7 +137,8 @@ def diagnostic_transport(artifact, streams=(), status=None, **changes):
         "fileCount": len(files),
         "totalBytes": sum(item["bytes"] for item in files),
         "inventorySHA256": CI.sha256(CI.canonical(files)),
-        "collectionBoundSeconds": 3,
+        "collectionBoundSeconds": 3 if status == "INTERRUPTED" else 30,
+        "collectionMode": "interrupted" if status == "INTERRUPTED" else "completed",
     }
     value.update(changes)
     (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).write_bytes(CI.canonical(value))
@@ -225,10 +226,22 @@ PRODUCTION_DESTINATION_SELECTORS = [
     )
 ]
 
+RESTORE_REVIEW_SELECTORS = ['FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPopulatedCrossWorkspaceReplacementCreatesOnlyReviewAndRetainsOriginalHistory', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testSameWorkspaceReplacementPreservesCheckpointAndOriginalReceiptBytes', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPrepublicationInterruptionReconcilesToUnchangedPopulatedGeneration', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPhysicalForkKeepsTerminalHistoryAndUnrelatedDraftOwners', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testReviewPlanRejectsMissingOrChangedOwnedRowsWithoutConsumingUnrelatedDrafts', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testWrongContextIdentityAndGenerationHaveNoEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedBindingDeniesAdmissionAndCommitWithoutEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedCommandAndEnvelopeAreDeniedBeforeEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedCommandOrEnvelopeCannotCommitAfterExactAdmission', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testGenericWriterCommandReachesAdmissionAndIsDeniedWithoutEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testRecoveryBodyNeverRunsAndHasNoEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testSynchronousRevocationDeniesReadAdmissionAndPreviouslyAdmittedCommit']
+
 def prepartition_values(default, mapping):
+    if len(default.get("unitTestSelectors", [])) == 790:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError("changed generated restore review inputs")
+        if default["unitTestSelectors"][777:] != RESTORE_REVIEW_SELECTORS:
+            raise AssertionError("changed exact restore review append")
+        if mapping["groups"][46:] != [{"id": "c36-restore-review", "classes": ["V23RepetitiveCaptureRestoreReviewTests"], "methodCount": 6}, {"id": "c36-restore-authority", "classes": ["V23RestoreReviewAuthorityTests"], "methodCount": 7}]:
+            raise AssertionError("changed restore review groups")
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default["unitTestSelectors"] = default["unitTestSelectors"][:777]
+        mapping["groups"] = mapping["groups"][:46]
     if len(default.get('unitTestSelectors', [])) == 777:
         if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
-                CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+                'C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5', '732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76'):
             raise AssertionError('changed generated production destination inputs')
         if default['unitTestSelectors'][773:] != PRODUCTION_DESTINATION_SELECTORS:
             raise AssertionError('changed exact production destination append')
@@ -357,6 +370,11 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    for group_id in ("c36-restore-review", "c36-restore-authority"):
+        choice = "          - " + group_id + "\n"
+        if workflow.count(choice) != 1: raise AssertionError("missing exact restore choice")
+        workflow = workflow.replace(choice, "")
+    workflow = workflow.replace("all 790 methods across 48 bounded groups", "all 777 methods across 46 bounded groups")
     choice = '          - ' + CI.BUILD_ORDER_SELECTION_ID + '\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact build order choice')
     workflow = workflow.replace(choice, '')
@@ -439,12 +457,12 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (777, 46))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (790, 48))
         for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
                                 ('notification-owner', 77), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
                                 ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7),
-                                ('c36-production-destination', 4)]:
+                                ('c36-production-destination', 4), ('c36-restore-review', 6), ('c36-restore-authority', 7)]:
             e = environment()
             e['NATIVE_SELECTION_ID'] = group_id
             selected, record = CI.selected_input(self.root, e)
@@ -563,7 +581,7 @@ class ReportPartitionTests(unittest.TestCase):
         selected_id = 'c36-production-destination'
         selected = CI.resolve_selection(default, mapping, selected_id)
         self.assertEqual(selected['unitTestSelectors'], PRODUCTION_DESTINATION_SELECTORS)
-        self.assertEqual(default['unitTestSelectors'][773:], PRODUCTION_DESTINATION_SELECTORS)
+        self.assertEqual(default['unitTestSelectors'][773:777], PRODUCTION_DESTINATION_SELECTORS)
         self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
                          {k: v for k, v in default.items() if k != 'unitTestSelectors'})
         self.assertFalse(set(selected['unitTestSelectors']) & set(default['unitTestSelectors'][:773]))
@@ -583,6 +601,36 @@ class ReportPartitionTests(unittest.TestCase):
             CI.resolve_selection(default, overlap, selected_id)
         with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
             CI.resolve_selection(default, mapping, selected_id + '-unknown')
+
+    def test_restore_review_groups_bind_exact_membership_and_reject_hostile_inputs(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(default['unitTestSelectors'][777:], RESTORE_REVIEW_SELECTORS)
+        observed = []
+        for group_id, expected in [('c36-restore-review', RESTORE_REVIEW_SELECTORS[:6]),
+                                   ('c36-restore-authority', RESTORE_REVIEW_SELECTORS[6:])]:
+            selected = CI.resolve_selection(default, mapping, group_id)
+            self.assertEqual(selected['unitTestSelectors'], expected)
+            self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+            observed.extend(expected)
+            with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+                CI.resolve_selection(default, mapping, group_id + '-unknown')
+        self.assertEqual(len(set(observed)), 13)
+        self.assertFalse(set(observed) & set(default['unitTestSelectors'][:777]))
+        for index in range(777, 790):
+            for kind in ('missing', 'duplicate', 'unknown'):
+                changed = copy.deepcopy(default)
+                if kind == 'missing': del changed['unitTestSelectors'][index]
+                elif kind == 'duplicate': changed['unitTestSelectors'][index] = changed['unitTestSelectors'][0]
+                else: changed['unitTestSelectors'][index] += 'Unknown'
+                with self.subTest(index=index, kind=kind), self.assertRaises(ValueError):
+                    CI.resolve_selection(changed, mapping, 'c36-restore-review')
+        overlap = copy.deepcopy(mapping)
+        overlap['groups'][-1]['classes'].append(overlap['groups'][-2]['classes'][0])
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, overlap, 'c36-restore-review')
+        prior, prior_map = prepartition_values(default, mapping)
+        self.assertEqual(len(prior['unitTestSelectors']), 692)
 
     def test_parent_finalization_singletons_have_exact_membership_and_unchanged_contract(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
@@ -654,7 +702,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),777)
+        self.assertEqual(len(default['unitTestSelectors']),790)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -666,7 +714,7 @@ class ReportPartitionTests(unittest.TestCase):
                 source=(ROOT / 'FieldEvidenceAppTests' / (klass+'.swift')).read_text(encoding='utf-8')
                 declared=re.findall(r'^    func (test\w+)\(',source,re.M)
                 self.assertEqual({s.rsplit('/',1)[1] for s in members if s.split('/')[1]==klass},set(declared))
-            if group['id'] not in DESTINATION_GROUP_IDS + ['c36-production-destination','report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
+            if group['id'] not in DESTINATION_GROUP_IDS + ['c36-restore-review','c36-restore-authority','c36-production-destination','report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
                 self.assertEqual(actual,CI.resolve_selection(prior,prior_map,group['id']))
         self.assertEqual(len(seen),len(set(seen)))
         self.assertEqual(set(seen),set(default['unitTestSelectors']))
@@ -1020,8 +1068,8 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID + suffix)
-        self.assertEqual(len(self.default['unitTestSelectors']), 777)
-        self.assertEqual(len(self.mapping['groups']), 46)
+        self.assertEqual(len(self.default['unitTestSelectors']), 790)
+        self.assertEqual(len(self.mapping['groups']), 48)
 
     def test_both_admission_stages_require_original_github_parent_and_all_four_source_trees(self):
         for stage in ('dispatch', 'worker'):
@@ -1528,7 +1576,7 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
 
     def test_collector_binds_fresh_simulator_and_retains_available_zero_interrupted_and_unsafe(self):
         def fixture(directory, app_entries=(), interrupted=False, returncode=0,
-                    monotonic=time.monotonic, read_chunk=None):
+                    monotonic=time.monotonic, read_chunk=None, lookup_seconds=0):
             root = Path(directory)
             artifact = root / "artifact"
             container = root / "container"
@@ -1545,6 +1593,8 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
             calls = []
             def fake_run(arguments, **keywords):
                 calls.append((arguments, keywords))
+                if lookup_seconds > keywords["timeout"]:
+                    raise subprocess.TimeoutExpired(arguments, keywords["timeout"])
                 return subprocess.CompletedProcess(
                     arguments, returncode,
                     stdout=(str(container) + "\n") if returncode == 0 else "",
@@ -1556,13 +1606,25 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
             self.assertEqual(calls[0][0], [
                 "xcrun", "simctl", "get_app_container", UDID,
                 CI.SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID, "data"])
-            self.assertEqual(calls[0][1]["timeout"], 2)
+            self.assertEqual(calls[0][1]["timeout"], 2 if interrupted else 10)
+            self.assertEqual(status["collectionMode"], "interrupted" if interrupted else "completed")
+            self.assertEqual(status["collectionBoundSeconds"], 3 if interrupted else 30)
             self.assertEqual(CI.read_json(
                 artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS), status)
             return artifact, status
 
         stream = "00000000-0000-0000-0000-000000000041"
         raw = diagnostic_frame(stream, 1, diagnostic_line())
+        for interrupted, duration, expected in (
+                (False, 4, "AVAILABLE"), (False, 11, "UNSAFE"), (True, 4, "INTERRUPTED")):
+            with self.subTest(interrupted=interrupted, duration=duration), tempfile.TemporaryDirectory(
+                    prefix="v23-collect-lookup-bound-") as directory:
+                _, status = fixture(directory, [(stream + ".jsonl", raw)],
+                                    interrupted=interrupted, lookup_seconds=duration)
+                self.assertEqual(status["status"], expected)
+                if duration > (2 if interrupted else 10):
+                    self.assertIn("timed out", status["error"])
+                    self.assertEqual(status["files"], [])
         with tempfile.TemporaryDirectory(prefix="v23-collect-available-") as directory:
             artifact, status = fixture(directory, [(stream + ".jsonl", raw)])
             self.assertEqual(status["status"], "AVAILABLE")
@@ -1617,6 +1679,53 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
             }])
             self.assertLess(clock[0], CI.SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS)
             self.assertFalse((artifact / (CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS + ".next")).exists())
+
+        with tempfile.TemporaryDirectory(prefix="v23-collect-interrupted-deadline-") as directory:
+            clock = [0.0]
+            def monotonic():
+                return clock[0]
+            def slow_read(source, count):
+                chunk = source.read(count)
+                clock[0] = CI.SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS + 0.01
+                return chunk
+            artifact, status = fixture(directory, [(stream + ".jsonl", raw)],
+                interrupted=True, monotonic=monotonic, read_chunk=slow_read)
+            self.assertEqual(status["status"], "INTERRUPTED")
+            self.assertIn("deadline", status["error"])
+            self.assertEqual(status["files"][0]["sha256"], CI.sha256(raw))
+            self.assertLess(clock[0], CI.SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS)
+
+    def test_transport_versions_bind_modes_and_preserve_exact_legacy_interpretation(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        for legacy in (False, True):
+            for change in (None, "wrong-bound", "mode-mismatch", "unknown-schema", "boolean-bound"):
+                with self.subTest(legacy=legacy, change=change), tempfile.TemporaryDirectory(
+                        prefix="v23-transport-version-") as directory:
+                    artifact = Path(directory)
+                    (artifact / "test-smoke.log").write_text("ordinary\n")
+                    value = diagnostic_transport(artifact)
+                    if legacy:
+                        value["schema"] = CI.SIMULATOR_DIAGNOSTIC_LEGACY_TRANSPORT_SCHEMA
+                        value["collectionBoundSeconds"] = 3
+                        del value["collectionMode"]
+                    if change == "wrong-bound":
+                        value["collectionBoundSeconds"] = 30 if legacy else 3
+                    elif change == "mode-mismatch":
+                        value["collectionMode"] = "interrupted"
+                    elif change == "unknown-schema":
+                        value["schema"] = "v23-simulator-file-protection-transport-v999"
+                    elif change == "boolean-bound":
+                        value["collectionBoundSeconds"] = True
+                    (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).write_bytes(CI.canonical(value))
+                    evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+                    if change is None:
+                        self.assertIsNone(error)
+                        self.assertTrue(evidence["zeroUseObserved"])
+                        self.assertEqual(evidence["transport"], value)
+                    else:
+                        self.assertIsInstance(error, ValueError)
+                        self.assertEqual(evidence["parseStatus"], "INVALID")
+                        self.assertFalse(evidence["zeroUseObserved"])
 
     def test_smoke_collection_trap_preserves_all_three_native_command_vectors(self):
         source = (ROOT / "Scripts/test-smoke.sh").read_text()

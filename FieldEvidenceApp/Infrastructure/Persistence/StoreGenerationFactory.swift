@@ -6396,7 +6396,7 @@ final class StoreRestoreGenerationAuthority {
     private let stagingGenerationsIdentity: Identity
     private let importStagingDescriptor: Int32
     private let importStagingIdentity: Identity
-    private let mutationRegistry: GenerationLeaseRegistryV1
+    fileprivate let mutationRegistry: GenerationLeaseRegistryV1
 
     init(
         applicationSupportURL: URL,
@@ -6808,6 +6808,13 @@ final class StoreRestoreGenerationAuthority {
         guard reopened >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
         defer { _ = Darwin.close(reopened) }
         guard try Self.identity(reopened) == expected else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try verify()
+    }
+
+    fileprivate func requireRestoreReviewRoot(_ root: URL) throws {
+        guard root.standardizedFileURL == applicationSupportURL else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         try verify()
@@ -9555,8 +9562,177 @@ struct StoreGenerationFactory {
         )
     }
 
+    /// Creates only the sealed plan's destination reviews in an unpublished generation.
+    /// No writer, journal or temporary capability leaves this synchronous scope.
+    @MainActor
+    func writeRestoreDestinationReviews(
+        plan: RepetitiveCaptureRestoreReviewPlanV1,
+        authority: StoreRestoreGenerationAuthority,
+        clock: any ApplicationClock,
+        idSource: any ApplicationIDSource,
+        fileAuthority: any ApplicationFileAuthorityV1
+    ) throws -> (history: MutationHistorySnapshotV1, checkpoints: [FieldDraftCheckpointV1]) {
+        try authority.mutationRegistry.withNoMigrationReservation {
+            try plan.validate()
+            let target = plan.identity.targetPointer
+            let identity = try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: target.workspaceID),
+                replicaID: ReplicaID(rawValue: target.replicaID))
+            let manifestStore = try StoreMigrationJournalStoreV1(
+                applicationSupportURL: applicationSupportURL)
+            func requireUnpublished() throws {
+                try authority.requireRestoreReviewRoot(applicationSupportURL)
+                try authority.requireNoRestoreJournal()
+                _ = try requireCurrentPointer(plan.identity.oldPointer, authority: authority)
+                let presence = try authority.presence(id: target.generationID)
+                guard presence.staging, !presence.installed,
+                      target.generationID != plan.identity.oldPointer.generationID,
+                      try manifestStore.loadManifestIfPresent(targetGenerationID: target.generationID) == nil,
+                      try !authority.mutationRegistry.activeEpochs().contains(where: {
+                          $0.generationID == target.generationID
+                      }) else { throw WorkspaceMutationFailureV1.wrongGeneration }
+                try authority.requireStagingGeneration(id: target.generationID)
+            }
+            try requireUnpublished()
+            let session = try openRestoreStagingGeneration(id: target.generationID,
+                identity: identity, authority: authority)
+            let context = session.modelContext
+            guard !context.hasChanges, session.workspaceIdentity == identity,
+                  session.generationID == target.generationID,
+                  session.generationEpoch == nil else {
+                throw WorkspaceMutationFailureV1.wrongGeneration
+            }
+            let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
+            let mutations: [FieldDraftMutationV1] = try plan.checkpoints.map { checkpoint in
+                try FieldDraftMutationV1(workspaceID: checkpoint.workspaceID,
+                    expectedRevision: 0,
+                    expectedBaseCanonicalRevision: checkpoint.baseCanonicalRevision,
+                    mutationID: checkpoint.mutationID, postImage: .createCheckpoint(checkpoint))
+            }
+            let capability = StoreRestoreReviewWriteAuthorityV1(
+                context: context, identity: identity, generationID: target.generationID,
+                commands: mutations.map { WorkspaceCommandV1.applyFieldDraft($0) },
+                validateBinding: {
+                    try requireUnpublished()
+                    guard session.modelContext === context,
+                          session.workspaceIdentity == identity,
+                          session.generationID == target.generationID,
+                          try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL) == rootIdentity else {
+                        throw WorkspaceMutationFailureV1.wrongGeneration
+                    }
+                })
+            defer { capability.revoke(); context.rollback() }
+            let journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+                generationID: target.generationID, restoreReviewAuthority: capability)
+            let originalHistory = try journal.exportSnapshot()
+            let originalCheckpoints = try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
+            let originalDraftIDs = Set(originalCheckpoints.map(\.draftID))
+            let originalDraftRevisionIDs = Set(originalHistory.entityRevisions.filter {
+                $0.identity.kind == .fieldDraftCheckpoint
+            }.map { $0.identity.id })
+            let originalMutationIDs = try Set(originalHistory.receipts.map {
+                try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).mutationID
+            })
+            guard Set(plan.checkpoints.map(\.draftID)).count == plan.checkpoints.count,
+                  Set(mutations.map(\.mutationID)).count == mutations.count,
+                  plan.checkpoints.allSatisfy({
+                      !originalDraftIDs.contains($0.draftID) && !originalDraftRevisionIDs.contains($0.draftID)
+                  }),
+                  mutations.allSatisfy({ !originalMutationIDs.contains($0.mutationID) }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let initial = try WorkspaceRevisionV1(workspaceID: identity.workspaceID,
+                generationID: target.generationID, revision: 0, entityRevisions: [])
+            let writer = try WorkspaceWriterV1(identity: identity, generationID: target.generationID,
+                initialRevision: initial, clock: clock, idSource: idSource,
+                fileAuthority: fileAuthority,
+                adapter: WorkspaceWriterAdapterV1(modelContext: context,
+                    generationRootURL: session.generationRootURL, expectedRootIdentity: rootIdentity),
+                journalStore: journal)
+            defer { writer.invalidate() }
+            var createdRecords: [MutationHistoryReceiptRecordV1] = []
+            for mutation in mutations {
+                let current = try writer.currentRevision()
+                let entities: [WorkspaceEntityRevisionV1] = try mutation.concurrencyIdentities.map {
+                    WorkspaceEntityRevisionV1(identity: $0, revision: 0)
+                }
+                let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+                    generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                    workspaceRevision: current.revision, entityRevisions: entities)
+                let request = WorkspaceMutationRequestV1(mutationID: mutation.mutationID,
+                    expectedRevision: expected, command: .applyFieldDraft(mutation))
+                let envelope = try MutationEnvelopeV1(request: request, identity: identity)
+                try capability.bind(envelope: envelope)
+                _ = try writer.execute(request)
+                try session.reproofAfterSave()
+                guard !context.hasChanges, let receipt = try journal.receipt(mutationID: mutation.mutationID),
+                      receipt.envelopeSHA256 == (try envelope.canonicalSHA256()) else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                let record = MutationHistoryReceiptRecordV1(envelopeData: try envelope.canonicalData(),
+                    receiptData: try receipt.canonicalData(), reversalBasisData: nil, semanticReversalData: nil)
+                createdRecords.append(record)
+                try capability.finish(envelope: envelope)
+            }
+            try requireUnpublished()
+            let history = try journal.exportSnapshot()
+            let addedRevisions: [MutationHistoryEntityRevisionV1] = try plan.checkpoints.map {
+                MutationHistoryEntityRevisionV1(
+                    identity: try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: $0.draftID),
+                    revision: $0.draftRevision)
+            }
+            let createdIDs = Set(mutations.map(\.mutationID))
+            var retainedRecords: [MutationHistoryReceiptRecordV1] = []
+            var newRecords: [MutationHistoryReceiptRecordV1] = []
+            for record in history.receipts {
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                if createdIDs.contains(envelope.mutationID) { newRecords.append(record) }
+                else { retainedRecords.append(record) }
+            }
+            let newRevisionIDs = Set(addedRevisions.map(\.identity))
+            let retainedRevisions = history.entityRevisions.filter { !newRevisionIDs.contains($0.identity) }
+            let newRevisions = history.entityRevisions.filter { newRevisionIDs.contains($0.identity) }
+            let count = UInt64(createdRecords.count)
+            let revision = originalHistory.workspaceRevision.addingReportingOverflow(count)
+            let sequence = originalHistory.lastLocalSequence.addingReportingOverflow(count)
+            let checkpoints = try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
+            guard !context.hasChanges, !revision.overflow, !sequence.overflow,
+                  history.workspaceRevision == revision.partialValue,
+                  history.lastLocalSequence == sequence.partialValue,
+                  history.entityRevisions.count == originalHistory.entityRevisions.count + addedRevisions.count,
+                  retainedRevisions == originalHistory.entityRevisions,
+                  newRevisions == addedRevisions.sorted(by: { $0.identity.stableKey < $1.identity.stableKey }),
+                  history.receipts.count == originalHistory.receipts.count + createdRecords.count,
+                  retainedRecords == originalHistory.receipts, newRecords == createdRecords,
+                  history.quarantines == originalHistory.quarantines,
+                  checkpoints.count == originalCheckpoints.count + plan.checkpoints.count,
+                  Set(checkpoints) == Set(originalCheckpoints + plan.checkpoints) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let createdCheckpoints = checkpoints.filter { !originalDraftIDs.contains($0.draftID) }
+                .sorted { $0.draftID.uuidString < $1.draftID.uuidString }
+            return (history, createdCheckpoints)
+        }
+    }
+
     @MainActor
     func prepareRestoreStagingGenerationManifest(
+        expectedOldID: UUID,
+        newID: UUID,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
+        authority: StoreRestoreGenerationAuthority
+    ) throws -> String {
+        try authority.mutationRegistry.withNoMigrationReservation {
+            try authority.requireRestoreReviewRoot(applicationSupportURL)
+            return try prepareRestoreStagingGenerationManifestLocked(expectedOldID: expectedOldID,
+                newID: newID, restoreProof: restoreProof, restoreFileSnapshot: restoreFileSnapshot,
+                authority: authority)
+        }
+    }
+
+    @MainActor
+    private func prepareRestoreStagingGenerationManifestLocked(
         expectedOldID: UUID,
         newID: UUID,
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
@@ -14370,6 +14546,224 @@ extension StoreGenerationFactory {
         release: PersistentSchemaReleaseV1
     ) throws -> Data {
         try semanticProjection(in: context, release: release)
+    }
+}
+#endif
+
+/// An opaque capability issued only by the factory's synchronous staging scope.
+/// It has no lease/epoch and cannot authorize active-generation writes or recovery.
+@MainActor
+final class StoreRestoreReviewWriteAuthorityV1 {
+    private let context: ModelContext
+    private let identity: WorkspaceReplicaIdentityV1
+    private let generationID: UUID
+    private var commands: [WorkspaceCommandV1]
+    private let validateBinding: () throws -> Void
+    private var active = true
+    private var pending: MutationEnvelopeV1?
+    private var admitted = false
+#if DEBUG
+    fileprivate private(set) var probeAdmissionAttempts = 0
+#endif
+
+    fileprivate init(context: ModelContext, identity: WorkspaceReplicaIdentityV1,
+                     generationID: UUID, commands: [WorkspaceCommandV1],
+                     validateBinding: @escaping () throws -> Void) {
+        self.context = context
+        self.identity = identity
+        self.generationID = generationID
+        self.commands = commands
+        self.validateBinding = validateBinding
+    }
+
+    func validate(context: ModelContext, identity: WorkspaceReplicaIdentityV1,
+                  generationID: UUID) throws {
+        guard active, context === self.context, identity == self.identity,
+              generationID == self.generationID else {
+            throw WorkspaceMutationFailureV1.wrongGeneration
+        }
+        try validateBinding()
+    }
+
+    fileprivate func bind(envelope: MutationEnvelopeV1) throws {
+        try validate(context: context, identity: identity, generationID: generationID)
+        try envelope.validate()
+        guard !context.hasChanges, pending == nil,
+              commands.first == envelope.command,
+              envelope.workspaceID == identity.workspaceID,
+              envelope.replicaID == identity.replicaID,
+              envelope.generationID == generationID,
+              envelope.sourceKind == .localUser,
+              case let .applyFieldDraft(mutation) = envelope.command,
+              mutation.continuationBinding == nil,
+              case .createCheckpoint = mutation.postImage else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        pending = envelope
+        admitted = false
+    }
+
+    func admit(envelope: MutationEnvelopeV1) throws {
+#if DEBUG
+        probeAdmissionAttempts += 1
+#endif
+        try validate(context: context, identity: identity, generationID: generationID)
+        guard !context.hasChanges, !admitted, pending == envelope else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        admitted = true
+    }
+
+    func requireAdmitted(envelope: MutationEnvelopeV1) throws {
+        try requireAdmittedOperation()
+        guard pending == envelope else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    func requireAdmittedOperation() throws {
+        try validate(context: context, identity: identity, generationID: generationID)
+        guard admitted, pending != nil else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    fileprivate func finish(envelope: MutationEnvelopeV1) throws {
+        try requireAdmitted(envelope: envelope)
+        guard !context.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        pending = nil
+        admitted = false
+        commands.removeFirst()
+    }
+
+    fileprivate func revoke() {
+        active = false
+        pending = nil
+        admitted = false
+        commands.removeAll()
+    }
+}
+
+#if DEBUG
+/// Closed negative probes for the actual opaque implementation. No caller can
+/// obtain or execute an admitted writer, journal or capability through this seam.
+@MainActor
+enum StoreRestoreReviewAuthorityProbeV1 {
+    enum Attack: CaseIterable {
+        case wrongContext, wrongIdentity, wrongGeneration, changedBindingBeforeAdmission
+        case changedBindingBeforeCommit, changedCommandAdmission, changedEnvelopeAdmission
+        case changedCommandCommit, changedEnvelopeCommit, genericWriter, recovery, revokedRead, revokedAdmission, revokedCommit
+    }
+    struct Result {
+        let failure: WorkspaceMutationFailureV1?
+        let admissionAttempts: Int
+        let recoveryEntered: Bool
+        let hadChangesBeforeCleanup: Bool
+    }
+
+    static func run(_ attack: Attack, session: StoreGenerationSession,
+                    otherContext: ModelContext, checkpoint: FieldDraftCheckpointV1,
+                    changedCheckpoint: FieldDraftCheckpointV1,
+                    genericCommand: WorkspaceCommandV1) throws -> Result {
+        guard !session.modelContext.hasChanges, otherContext !== session.modelContext,
+              checkpoint.workspaceID == session.workspaceID,
+              changedCheckpoint.workspaceID == session.workspaceID,
+              changedCheckpoint != checkpoint,
+              case let .createFirstSign(generic) = genericCommand,
+              let genericMutationID = generic.initialPlacementMutationID else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let identity = session.workspaceIdentity
+        let context = session.modelContext
+        func command(_ value: FieldDraftCheckpointV1) throws -> WorkspaceCommandV1 {
+            .applyFieldDraft(try FieldDraftMutationV1(workspaceID: value.workspaceID,
+                expectedRevision: 0, expectedBaseCanonicalRevision: value.baseCanonicalRevision,
+                mutationID: value.mutationID, postImage: .createCheckpoint(value)))
+        }
+        let allowedCommand = try command(checkpoint)
+        let changedCommand = try command(changedCheckpoint)
+        var bindingIsValid = true
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
+        let capability = StoreRestoreReviewWriteAuthorityV1(context: context, identity: identity,
+            generationID: session.generationID, commands: [allowedCommand], validateBinding: {
+                guard bindingIsValid,
+                      try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL) == rootIdentity else {
+                    throw WorkspaceMutationFailureV1.wrongGeneration
+                }
+            })
+        defer { capability.revoke(); context.rollback() }
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: session.generationID, restoreReviewAuthority: capability)
+        let initial = try WorkspaceRevisionV1(workspaceID: session.workspaceID,
+            generationID: session.generationID, revision: 0, entityRevisions: [])
+        let writer = try WorkspaceWriterV1(identity: identity, generationID: session.generationID,
+            initialRevision: initial, clock: SystemApplicationClock(), idSource: SystemApplicationIDSource(),
+            fileAuthority: SystemApplicationFileAuthorityV1(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context,
+                generationRootURL: session.generationRootURL, expectedRootIdentity: rootIdentity),
+            journalStore: journal)
+        defer { writer.invalidate() }
+        let current = try writer.currentRevision()
+        let entity = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: checkpoint.draftID)
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+            generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: [WorkspaceEntityRevisionV1(identity: entity, revision: 0)])
+        let request = WorkspaceMutationRequestV1(mutationID: checkpoint.mutationID,
+            expectedRevision: expected, command: allowedCommand)
+        let envelope = try MutationEnvelopeV1(request: request, identity: identity)
+        let changedBody = try MutationEnvelopeV1(request: WorkspaceMutationRequestV1(
+            mutationID: changedCheckpoint.mutationID, expectedRevision: expected,
+            command: changedCommand), identity: identity)
+        let changedEnvelope = try MutationEnvelopeV1(request: request, identity: identity,
+            correlationID: UUID())
+        try capability.bind(envelope: envelope)
+        var recoveryEntered = false
+        var failure: WorkspaceMutationFailureV1?
+        do {
+            switch attack {
+            case .wrongContext:
+                try capability.validate(context: otherContext, identity: identity, generationID: session.generationID)
+            case .wrongIdentity:
+                let wrong = try WorkspaceReplicaIdentityV1(workspaceID: identity.workspaceID, replicaID: ReplicaID())
+                try capability.validate(context: context, identity: wrong, generationID: session.generationID)
+            case .wrongGeneration:
+                try capability.validate(context: context, identity: identity, generationID: UUID())
+            case .changedBindingBeforeAdmission:
+                bindingIsValid = false
+                _ = try journal.resolveReplay(envelope: envelope, detectedAt: checkpoint.updatedAt)
+            case .changedBindingBeforeCommit:
+                _ = try journal.resolveReplay(envelope: envelope, detectedAt: checkpoint.updatedAt)
+                bindingIsValid = false
+                _ = try journal.commit(envelope: envelope, writerInstanceID: current.writerInstanceID,
+                    affectedEntities: [entity], committedAt: checkpoint.updatedAt)
+            case .changedCommandAdmission:
+                _ = try journal.resolveReplay(envelope: changedBody, detectedAt: checkpoint.updatedAt)
+            case .changedEnvelopeAdmission:
+                _ = try journal.resolveReplay(envelope: changedEnvelope, detectedAt: checkpoint.updatedAt)
+            case .changedCommandCommit:
+                _ = try journal.resolveReplay(envelope: envelope, detectedAt: checkpoint.updatedAt)
+                _ = try journal.commit(envelope: changedBody, writerInstanceID: current.writerInstanceID,
+                    affectedEntities: [entity], committedAt: checkpoint.updatedAt)
+            case .changedEnvelopeCommit:
+                _ = try journal.resolveReplay(envelope: envelope, detectedAt: checkpoint.updatedAt)
+                _ = try journal.commit(envelope: changedEnvelope, writerInstanceID: current.writerInstanceID,
+                    affectedEntities: [entity], committedAt: checkpoint.updatedAt)
+            case .genericWriter:
+                _ = try writer.execute(genericCommand, mutationID: genericMutationID)
+            case .recovery:
+                try journal.withAuthorizedRecovery { recoveryEntered = true }
+            case .revokedRead:
+                capability.revoke()
+                _ = try writer.currentRevision()
+            case .revokedAdmission:
+                capability.revoke()
+                _ = try journal.resolveReplay(envelope: envelope, detectedAt: checkpoint.updatedAt)
+            case .revokedCommit:
+                _ = try journal.resolveReplay(envelope: envelope, detectedAt: checkpoint.updatedAt)
+                capability.revoke()
+                _ = try journal.commit(envelope: envelope, writerInstanceID: current.writerInstanceID,
+                    affectedEntities: [entity], committedAt: checkpoint.updatedAt)
+            }
+        } catch let value as WorkspaceMutationFailureV1 { failure = value }
+        return Result(failure: failure, admissionAttempts: capability.probeAdmissionAttempts,
+                      recoveryEntered: recoveryEntered, hadChangesBeforeCleanup: context.hasChanges)
     }
 }
 #endif

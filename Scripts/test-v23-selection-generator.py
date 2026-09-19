@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+EXPECTED_RESTORE_REVIEW_SELECTORS = ['FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPopulatedCrossWorkspaceReplacementCreatesOnlyReviewAndRetainsOriginalHistory', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testSameWorkspaceReplacementPreservesCheckpointAndOriginalReceiptBytes', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPrepublicationInterruptionReconcilesToUnchangedPopulatedGeneration', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPhysicalForkKeepsTerminalHistoryAndUnrelatedDraftOwners', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testReviewPlanRejectsMissingOrChangedOwnedRowsWithoutConsumingUnrelatedDrafts', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testWrongContextIdentityAndGenerationHaveNoEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedBindingDeniesAdmissionAndCommitWithoutEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedCommandAndEnvelopeAreDeniedBeforeEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedCommandOrEnvelopeCannotCommitAfterExactAdmission', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testGenericWriterCommandReachesAdmissionAndIsDeniedWithoutEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testRecoveryBodyNeverRunsAndHasNoEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testSynchronousRevocationDeniesReadAdmissionAndPreviouslyAdmittedCommit']
+
 import copy
 import hashlib
 import importlib.util
@@ -121,6 +123,8 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                'V23RepetitiveCaptureRestoreReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests.swift',
+                'V23RestoreReviewAuthorityTests': REPO / 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests.swift',
                 'V23ProductionDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests.swift',
                 'V23RepetitiveCaptureDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests.swift',
                 'V23RepetitiveCaptureDestinationResolutionTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests.swift',
@@ -267,7 +271,7 @@ class GeneratorTests(unittest.TestCase):
                          ('42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878',
                           '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'))
         for profile in self.manifest['profiles']:
-            if profile['id'] in ('clone-retirement-v1', 'parent-finalization-v1', 'destination-review-v1', 'production-destination-v1'): continue
+            if profile['id'] in ('clone-retirement-v1', 'parent-finalization-v1', 'destination-review-v1', 'production-destination-v1', 'restore-review-v1'): continue
             historical, _, _ = self.generate(profile['id'])
             self.assertFalse(set(CLONE_RETIREMENT_SELECTORS) & set(historical['unitTestSelectors']))
         self.assertFalse(report['nativeReady'])
@@ -333,6 +337,21 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(mapping['groups'][-1], {'id': 'c36-production-destination',
             'classes': ['V23ProductionDestinationReviewTests'], 'methodCount': 4})
         self.assertEqual(len(set(expected)), 4)
+        self.assertEqual(generator.sha256(generator.canonical(current)), 'C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5')
+        self.assertEqual(generator.sha256(generator.canonical(mapping)), '732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76')
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_restore_review_profile_preserves_all_historical_outputs_and_enrolls_exact_groups(self):
+        expected = EXPECTED_RESTORE_REVIEW_SELECTORS
+        prior, prior_map, _ = self.generate('production-destination-v1')
+        current, mapping, report = self.generate('restore-review-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (790, 48))
+        self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + expected)
+        self.assertEqual(mapping['groups'][:-2], prior_map['groups'])
+        self.assertEqual(mapping['groups'][-2:], [
+            {'id':'c36-restore-review','classes':['V23RepetitiveCaptureRestoreReviewTests'],'methodCount':6},
+            {'id':'c36-restore-authority','classes':['V23RestoreReviewAuthorityTests'],'methodCount':7}])
         self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
         self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
         self.assertFalse(report['nativeReady'])
