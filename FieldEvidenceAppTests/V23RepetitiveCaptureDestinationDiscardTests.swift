@@ -40,7 +40,20 @@ final class V23RepetitiveCaptureDestinationDiscardTests: XCTestCase {
                 XCTAssertEqual(try fixture.rounds(), rounds)
                 try fixture.assertOriginalsRetained()
                 let after = try fixture.target.rawState()
-                XCTAssertEqual(try fixture.target.writer.execute(request), outcome)
+                let replay = try fixture.target.writer.execute(request)
+                XCTAssertEqual(replay.mutationID, outcome.mutationID)
+                XCTAssertEqual(replay.commandDigest, outcome.commandDigest)
+                XCTAssertEqual(replay.occurredAt, outcome.occurredAt)
+                XCTAssertEqual(replay.after, outcome.after)
+                XCTAssertEqual(replay.effect, outcome.effect)
+                // Durable replay includes explicit zero revisions for absent
+                // entities; the initial process-local snapshot can omit them.
+                let expected = evidence.terminal.envelope.expectedRevision
+                XCTAssertEqual(replay.before.workspaceID, expected.workspaceID)
+                XCTAssertEqual(replay.before.generationID, expected.generationID)
+                XCTAssertEqual(replay.before.writerInstanceID, outcome.before.writerInstanceID)
+                XCTAssertEqual(replay.before.revision, expected.workspaceRevision)
+                XCTAssertEqual(replay.before.entityRevisions, expected.entityRevisions)
                 XCTAssertEqual(try discardEvidence(in: fixture), evidence)
                 XCTAssertEqual(try fixture.target.rawState(), after)
                 XCTAssertThrowsError(try discardProposal(in: fixture, seed: 50))

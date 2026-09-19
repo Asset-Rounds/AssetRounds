@@ -73,9 +73,9 @@ DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
 DESTINATION_LEGACY_SELECTION_ID = "c36-destination-legacy-bytes"
 DESTINATION_LEGACY_SELECTOR = 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes'
-GENERATED_SELECTION_PROFILE = "destination-review-v1"
-GENERATED_SELECTION_POOL_SHA256 = "575C83D0CAC78A35C9BB240193B5AC345425175762A73C7604A2EE5AABB04A1F"
-GENERATED_SELECTION_MAP_SHA256 = "86AC237B0F2A650CCB3B083DD8C8DA50F7176D76C0B9F15816EBD27FD79E5411"
+GENERATED_SELECTION_PROFILE = "production-destination-v1"
+GENERATED_SELECTION_POOL_SHA256 = "C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5"
+GENERATED_SELECTION_MAP_SHA256 = "732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -850,7 +850,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 45
+        isinstance(groups, list) and len(groups) == 46
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )

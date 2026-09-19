@@ -121,6 +121,7 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                'V23ProductionDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests.swift',
                 'V23RepetitiveCaptureDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests.swift',
                 'V23RepetitiveCaptureDestinationResolutionTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests.swift',
                 'V23RepetitiveCaptureDestinationDiscardTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests.swift',
@@ -266,7 +267,7 @@ class GeneratorTests(unittest.TestCase):
                          ('42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878',
                           '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'))
         for profile in self.manifest['profiles']:
-            if profile['id'] in ('clone-retirement-v1', 'parent-finalization-v1', 'destination-review-v1'): continue
+            if profile['id'] in ('clone-retirement-v1', 'parent-finalization-v1', 'destination-review-v1', 'production-destination-v1'): continue
             historical, _, _ = self.generate(profile['id'])
             self.assertFalse(set(CLONE_RETIREMENT_SELECTORS) & set(historical['unitTestSelectors']))
         self.assertFalse(report['nativeReady'])
@@ -309,6 +310,31 @@ class GeneratorTests(unittest.TestCase):
             historical, _, proof = self.generate(profile)
             self.assertEqual([proof['selectionSHA256'], proof['selectionMapSHA256']], hashes)
             self.assertFalse(set(DESTINATION_SELECTORS) & set(historical['unitTestSelectors']))
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_production_destination_appends_four_and_preserves_nine_profiles(self):
+        expected = ['FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement']
+        prior_manifest = json.loads(git_bytes('Scripts/v23-selection-manifest.json',
+            'a8200c279894ce0c10f0e6f766577ec22c5d941d'))
+        self.assertEqual(len(prior_manifest['profiles']), 9)
+        for profile in prior_manifest['profiles']:
+            with self.subTest(profile=profile['id']):
+                old = self.generate(profile['id'], manifest=prior_manifest)
+                current = self.generate(profile['id'])
+                self.assertEqual(generator.canonical(current[0]), generator.canonical(old[0]))
+                self.assertEqual(generator.canonical(current[1]), generator.canonical(old[1]))
+                self.assertFalse(set(expected) & set(current[0]['unitTestSelectors']))
+        prior, prior_map, _ = self.generate('destination-review-v1')
+        current, mapping, report = self.generate('production-destination-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (777, 46))
+        self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + expected)
+        self.assertEqual(mapping['groups'][:-1], prior_map['groups'])
+        self.assertEqual(mapping['groups'][-1], {'id': 'c36-production-destination',
+            'classes': ['V23ProductionDestinationReviewTests'], 'methodCount': 4})
+        self.assertEqual(len(set(expected)), 4)
+        self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
+        self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
 

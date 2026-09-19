@@ -10,58 +10,83 @@ final class V23RepetitiveCaptureDestinationContinuationTests: XCTestCase {
         defer { source.removePackages() }
         for mode in [BackupRestoreMode.fork, .replaceExisting] {
             for plan in [DraftConflictResolutionPlanV1.continueEditing, .reviewAndRebase] {
-                let fixture = try RepetitiveResolutionFixture(source: source, mode: mode)
-                defer { try? fixture.close() }
-                XCTAssertThrowsError(try continuationProposal(in: fixture))
-                if plan == .reviewAndRebase {
-                    try fixture.advance(.pause, state: .paused, mutationSeed: 510)
-                    try fixture.advance(.resume, state: .active, mutationSeed: 511)
-                }
-                let resolution = try continueResolution(in: fixture, plan: plan)
-                let proposal = try continuationProposal(in: fixture)
-                let request = try fixture.request(proposal.mutation)
-                let before = try fixture.target.journal.exportSnapshot().receipts
-                let rounds = try fixture.rounds()
-                XCTAssertEqual(try proposal.mutation.concurrencyIdentities.count, 3)
-                let result = try fixture.target.writer.execute(request)
-                let original = try continuationEvidence(in: fixture)
-                XCTAssertEqual(original.original.mutation, proposal.mutation)
-                XCTAssertEqual(original.resolution.resolution, resolution)
-                XCTAssertEqual(original.sourceCheckpoint, proposal.checkpoint)
-                XCTAssertEqual(original.binding.review.draftID, fixture.initialCheckpoint.draftID)
-                XCTAssertNotEqual(original.sourceCheckpoint.draftID, fixture.initialCheckpoint.draftID)
-                XCTAssertEqual(try RepetitiveCaptureProgressDraftCodecV2.source(proposal.checkpoint).round, rounds.last)
-                XCTAssertEqual(result.effect.affectedEntities,
-                    [try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: proposal.checkpoint.draftID)])
-                XCTAssertEqual(try fixture.currentCheckpoint(), resolution.successorCheckpoint)
-                XCTAssertEqual(try fixture.rounds(), rounds)
-                let after = try fixture.target.rawState()
-                _ = try fixture.target.writer.execute(request)
-                XCTAssertEqual(try fixture.target.rawState(), after)
-                XCTAssertEqual(try continuationEvidence(in: fixture), original)
-                let retained = try fixture.target.journal.exportSnapshot().receipts
-                XCTAssertTrue(before.allSatisfy { retained.contains($0) })
+                var diagnosticPhase = "fixture"
+                do {
+                    let fixture = try RepetitiveResolutionFixture(source: source, mode: mode)
+                    defer { try? fixture.close() }
+                    XCTAssertThrowsError(try continuationProposal(in: fixture))
+                    if plan == .reviewAndRebase {
+                        try fixture.advance(.pause, state: .paused, mutationSeed: 510)
+                        try fixture.advance(.resume, state: .active, mutationSeed: 511)
+                    }
+                    diagnosticPhase = "resolution"
+                    let resolution = try continueResolution(in: fixture, plan: plan)
+                    diagnosticPhase = "proposal"
+                    let proposal = try continuationProposal(in: fixture)
+                    let request = try fixture.request(proposal.mutation)
+                    let before = try fixture.target.journal.exportSnapshot().receipts
+                    let rounds = try fixture.rounds()
+                    XCTAssertEqual(try proposal.mutation.concurrencyIdentities.count, 3)
+                    diagnosticPhase = "first-write"
+                    let result = try fixture.target.writer.execute(request)
+                    diagnosticPhase = "first-readback"
+                    let original = try continuationEvidence(in: fixture)
+                    XCTAssertEqual(original.original.mutation, proposal.mutation)
+                    XCTAssertEqual(original.resolution.resolution, resolution)
+                    XCTAssertEqual(original.sourceCheckpoint, proposal.checkpoint)
+                    XCTAssertEqual(original.binding.review.draftID, fixture.initialCheckpoint.draftID)
+                    XCTAssertNotEqual(original.sourceCheckpoint.draftID, fixture.initialCheckpoint.draftID)
+                    XCTAssertEqual(try RepetitiveCaptureProgressDraftCodecV2.source(proposal.checkpoint).round, rounds.last)
+                    XCTAssertEqual(result.effect.affectedEntities,
+                        [try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: proposal.checkpoint.draftID)])
+                    XCTAssertEqual(try fixture.currentCheckpoint(), resolution.successorCheckpoint)
+                    XCTAssertEqual(try fixture.rounds(), rounds)
+                    diagnosticPhase = "exact-replay"
+                    let after = try fixture.target.rawState()
+                    _ = try fixture.target.writer.execute(request)
+                    XCTAssertEqual(try fixture.target.rawState(), after)
+                    XCTAssertEqual(try continuationEvidence(in: fixture), original)
+                    let retained = try fixture.target.journal.exportSnapshot().receipts
+                    XCTAssertTrue(before.allSatisfy { retained.contains($0) })
 
-                // A later explicit review cannot allocate a second source or
-                // rewrite which original resolution authorized the first one.
-                let current = try fixture.currentCheckpoint()
-                let conflicted = try continuationCheckpoint(current, state: .conflicted, seed: 701)
-                let revise = try FieldDraftMutationV1(workspaceID: current.workspaceID,
-                    expectedRevision: current.draftRevision, expectedBaseCanonicalRevision: current.baseCanonicalRevision,
-                    mutationID: conflicted.mutationID, postImage: .reviseCheckpoint(conflicted))
-                _ = try fixture.target.writer.execute(fixture.request(revise))
-                _ = try continueResolution(in: fixture, plan: plan, seed: 702)
-                let second = try continuationProposal(in: fixture, offset: 3_100)
-                XCTAssertEqual(second.checkpoint.draftID, proposal.checkpoint.draftID)
-                XCTAssertEqual(second.mutation.mutationID, proposal.mutation.mutationID)
-                XCTAssertNotEqual(second.mutation.continuationBinding, proposal.mutation.continuationBinding)
-                let rereviewed = try fixture.target.rawState()
-                XCTAssertThrowsError(try fixture.target.writer.execute(fixture.request(second.mutation)))
-                XCTAssertEqual(try fixture.target.rawState(), rereviewed)
-                XCTAssertEqual(try continuationEvidence(in: fixture), original)
-                XCTAssertEqual(try fixture.target.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
-                    .filter { $0.draftID == proposal.checkpoint.draftID }.count, 1)
-                try fixture.assertOriginalsRetained()
+                    // A later explicit review cannot allocate a second source or
+                    // rewrite which original resolution authorized the first one.
+                    diagnosticPhase = "rereview"
+                    let current = try fixture.currentCheckpoint()
+                    let conflicted = try continuationCheckpoint(current, state: .conflicted, seed: 701)
+                    let revise = try FieldDraftMutationV1(workspaceID: current.workspaceID,
+                        expectedRevision: current.draftRevision, expectedBaseCanonicalRevision: current.baseCanonicalRevision,
+                        mutationID: conflicted.mutationID, postImage: .reviseCheckpoint(conflicted))
+                    _ = try fixture.target.writer.execute(fixture.request(revise))
+                    _ = try continueResolution(in: fixture, plan: plan, seed: 702)
+                    diagnosticPhase = "second-proposal"
+                    let second = try continuationProposal(in: fixture, offset: 3_100)
+                    XCTAssertEqual(second.checkpoint.draftID, proposal.checkpoint.draftID)
+                    XCTAssertEqual(second.mutation.mutationID, proposal.mutation.mutationID)
+                    XCTAssertNotEqual(second.mutation.continuationBinding, proposal.mutation.continuationBinding)
+                    diagnosticPhase = "second-preparation"
+                    let rereviewed = try fixture.target.rawState()
+                    XCTAssertThrowsError(try continuationProof(second.mutation, in: fixture))
+                    XCTAssertEqual(try fixture.target.rawState(), rereviewed)
+                    XCTAssertEqual(try continuationEvidence(in: fixture), original)
+                    XCTAssertEqual(try fixture.target.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
+                        .filter { $0.draftID == proposal.checkpoint.draftID }.count, 1)
+                    try fixture.assertOriginalsRetained()
+                    diagnosticPhase = "generic-collision"
+                    // A generic writer collision is different from a rejected
+                    // preparation: it durably quarantines the reused mutation ID.
+                    XCTAssertThrowsError(try fixture.target.writer.execute(fixture.request(second.mutation))) {
+                        XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+                    }
+                    try assertContinuationCollision(in: fixture, before: rereviewed,
+                        accepted: original.original)
+                    XCTAssertThrowsError(try fixture.target.writer.repetitiveCaptureDestinationContinuationEvidence(
+                        workspaceID: fixture.initialCheckpoint.workspaceID,
+                        reviewDraftID: fixture.initialCheckpoint.draftID))
+                } catch {
+                    print("V23DestinationContinuation phase=\(diagnosticPhase) mode=\(mode) plan=\(plan) error=\(error)")
+                    throw error
+                }
             }
         }
     }
@@ -247,9 +272,14 @@ final class V23RepetitiveCaptureDestinationContinuationTests: XCTestCase {
             mutationID: proposal.mutation.mutationID, postImage: proposal.mutation.postImage)
         _ = try fixture.target.writer.execute(fixture.request(preempted))
         let occupied = try fixture.target.rawState()
-        XCTAssertThrowsError(try continuationEvidence(in: fixture))
-        XCTAssertThrowsError(try fixture.target.writer.execute(fixture.request(proposal.mutation)))
+        XCTAssertThrowsError(try fixture.target.writer.repetitiveCaptureDestinationContinuationEvidence(
+            workspaceID: fixture.initialCheckpoint.workspaceID, reviewDraftID: fixture.initialCheckpoint.draftID))
         XCTAssertEqual(try fixture.target.rawState(), occupied)
+        let accepted = try XCTUnwrap(fixture.target.writer.fieldDraftEvidence(mutationID: preempted.mutationID))
+        XCTAssertThrowsError(try fixture.target.writer.execute(fixture.request(proposal.mutation))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        try assertContinuationCollision(in: fixture, before: occupied, accepted: accepted)
         try fixture.assertOriginalsRetained()
     }
 
@@ -392,6 +422,33 @@ private func continuationProof(_ mutation: FieldDraftMutationV1, in fixture: Rep
     -> PreparedReviewedFieldDraftApplyProofV1 {
     try fixture.target.journal.validatePendingRepetitiveCaptureDestinationContinuation(
         mutation, expectedWorkspaceRevision: fixture.target.writer.currentRevision().revision)
+}
+
+@MainActor
+private func assertContinuationCollision(in fixture: RepetitiveResolutionFixture,
+    before: RetainedSourceHistoryTargetV2.RawState, accepted: FieldDraftCommittedEvidenceV1,
+    file: StaticString = #filePath, line: UInt = #line) throws {
+    let after = try fixture.target.rawState()
+    XCTAssertTrue(before.quarantines.isEmpty, file: file, line: line)
+    XCTAssertEqual(after.receipts, before.receipts, file: file, line: line)
+    XCTAssertEqual(after.states, before.states, file: file, line: line)
+    XCTAssertEqual(after.revisions, before.revisions, file: file, line: line)
+    XCTAssertEqual(after.canonicalCounts, before.canonicalCounts, file: file, line: line)
+    XCTAssertEqual(after.hasChanges, before.hasChanges, file: file, line: line)
+    XCTAssertEqual(after.quarantines.count, 1, file: file, line: line)
+    let rows = try fixture.target.context.fetch(FetchDescriptor<MutationQuarantineRow>())
+    XCTAssertEqual(rows.count, 1, file: file, line: line)
+    let quarantine = try XCTUnwrap(rows.first, file: file, line: line)
+    XCTAssertEqual(quarantine.workspaceID, accepted.envelope.workspaceID.rawValue, file: file, line: line)
+    XCTAssertEqual(quarantine.mutationID, accepted.envelope.mutationID.rawValue, file: file, line: line)
+    XCTAssertEqual(quarantine.identityDomain, MutationQuarantineIdentityDomainV1.mutationEnvelope.rawValue,
+                   file: file, line: line)
+    XCTAssertEqual(quarantine.acceptedIdentitySHA256, accepted.receipt.envelopeSHA256, file: file, line: line)
+    XCTAssertNotEqual(quarantine.conflictingIdentitySHA256, quarantine.acceptedIdentitySHA256,
+                      file: file, line: line)
+    XCTAssertTrue(MutationEnvelopeV1.isSHA256(quarantine.conflictingIdentitySHA256), file: file, line: line)
+    XCTAssertTrue(quarantine.detectedAt.timeIntervalSinceReferenceDate.isFinite, file: file, line: line)
+    try fixture.assertOriginalsRetained(file: file, line: line)
 }
 
 @MainActor

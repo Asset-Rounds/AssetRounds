@@ -216,11 +216,32 @@ EXPECTED_DESTINATION_SELECTORS = [
     "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes"
 ]
 DESTINATION_GROUP_IDS = ['c36-destination-review', 'c36-destination-resolution', 'c36-destination-discard', 'c36-destination-continuation']
+PRODUCTION_DESTINATION_SELECTORS = [
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/' + method for method in (
+        'testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs',
+        'testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects',
+        'testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects',
+        'testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement',
+    )
+]
 
 def prepartition_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) == 773:
+    if len(default.get('unitTestSelectors', [])) == 777:
         if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
                 CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError('changed generated production destination inputs')
+        if default['unitTestSelectors'][773:] != PRODUCTION_DESTINATION_SELECTORS:
+            raise AssertionError('changed exact production destination append')
+        if mapping['groups'][45:] != [{'id': 'c36-production-destination',
+                'classes': ['V23ProductionDestinationReviewTests'], 'methodCount': 4}]:
+            raise AssertionError('changed production destination group')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:773]
+        mapping['groups'] = mapping['groups'][:45]
+    if len(default.get('unitTestSelectors', [])) == 773:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                '575C83D0CAC78A35C9BB240193B5AC345425175762A73C7604A2EE5AABB04A1F',
+                '86AC237B0F2A650CCB3B083DD8C8DA50F7176D76C0B9F15816EBD27FD79E5411'):
             raise AssertionError('changed generated destination inputs')
         if default['unitTestSelectors'][738:] != EXPECTED_DESTINATION_SELECTORS:
             raise AssertionError('changed exact destination append')
@@ -336,6 +357,11 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    choice = '          - c36-production-destination\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact production destination choice')
+    workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 777 methods across 46 bounded groups',
+                                'all 773 methods across 45 bounded groups')
     choice = '          - ' + CI.BUILD_WATCHDOG_SELECTION_ID + '\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact build watchdog choice')
     workflow = workflow.replace(choice, '')
@@ -410,11 +436,12 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (773, 45))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (777, 46))
         for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
                                 ('notification-owner', 77), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
-                                ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7)]:
+                                ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7),
+                                ('c36-production-destination', 4)]:
             e = environment()
             e['NATIVE_SELECTION_ID'] = group_id
             selected, record = CI.selected_input(self.root, e)
@@ -495,7 +522,7 @@ class ReportPartitionTests(unittest.TestCase):
     def test_destination_family_has_exact_closed_groups_and_legacy_pair(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(default['unitTestSelectors'][738:], EXPECTED_DESTINATION_SELECTORS)
+        self.assertEqual(default['unitTestSelectors'][738:773], EXPECTED_DESTINATION_SELECTORS)
         observed = []
         for group_id, count in zip(DESTINATION_GROUP_IDS, [13, 7, 7, 7]):
             selected = CI.resolve_selection(default, mapping, group_id)
@@ -517,7 +544,7 @@ class ReportPartitionTests(unittest.TestCase):
                 with self.subTest(index=index), self.assertRaises(ValueError):
                     CI.resolve_selection(hostile, mapping, 'c36-destination-legacy-bytes')
         reordered = copy.deepcopy(default)
-        reordered['unitTestSelectors'][738:] = reversed(reordered['unitTestSelectors'][738:])
+        reordered['unitTestSelectors'][738:773] = reversed(reordered['unitTestSelectors'][738:773])
         with self.assertRaises(ValueError):
             CI.resolve_selection(reordered, mapping, 'c36-destination-review')
         overlap = copy.deepcopy(mapping)
@@ -526,6 +553,33 @@ class ReportPartitionTests(unittest.TestCase):
             CI.resolve_selection(default, overlap, 'c36-destination-review')
         with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
             CI.resolve_selection(default, mapping, 'c36-destination-unknown')
+
+    def test_production_destination_group_is_exact_closed_and_preserves_existing_groups(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected_id = 'c36-production-destination'
+        selected = CI.resolve_selection(default, mapping, selected_id)
+        self.assertEqual(selected['unitTestSelectors'], PRODUCTION_DESTINATION_SELECTORS)
+        self.assertEqual(default['unitTestSelectors'][773:], PRODUCTION_DESTINATION_SELECTORS)
+        self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
+                         {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+        self.assertFalse(set(selected['unitTestSelectors']) & set(default['unitTestSelectors'][:773]))
+        for index in range(773, 777):
+            missing = copy.deepcopy(default); del missing['unitTestSelectors'][index]
+            duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'][index] = default['unitTestSelectors'][773 if index != 773 else 774]
+            foreign = copy.deepcopy(default); foreign['unitTestSelectors'][index] += 'Unknown'
+            for hostile in (missing, duplicate, foreign):
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    CI.resolve_selection(hostile, mapping, selected_id)
+        changed_budget = copy.deepcopy(default); changed_budget['testTimeoutSeconds'] += 1
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(changed_budget, mapping, selected_id)
+        overlap = copy.deepcopy(mapping)
+        overlap['groups'][-1]['classes'].append(mapping['groups'][-2]['classes'][0])
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, overlap, selected_id)
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, selected_id + '-unknown')
 
     def test_parent_finalization_singletons_have_exact_membership_and_unchanged_contract(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
@@ -597,7 +651,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),773)
+        self.assertEqual(len(default['unitTestSelectors']),777)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -609,7 +663,7 @@ class ReportPartitionTests(unittest.TestCase):
                 source=(ROOT / 'FieldEvidenceAppTests' / (klass+'.swift')).read_text(encoding='utf-8')
                 declared=re.findall(r'^    func (test\w+)\(',source,re.M)
                 self.assertEqual({s.rsplit('/',1)[1] for s in members if s.split('/')[1]==klass},set(declared))
-            if group['id'] not in DESTINATION_GROUP_IDS + ['report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
+            if group['id'] not in DESTINATION_GROUP_IDS + ['c36-production-destination','report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
                 self.assertEqual(actual,CI.resolve_selection(prior,prior_map,group['id']))
         self.assertEqual(len(seen),len(set(seen)))
         self.assertEqual(set(seen),set(default['unitTestSelectors']))

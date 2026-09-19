@@ -1880,8 +1880,9 @@ final class MutationJournalStoreV1 {
             }
             let wide: CheckRunnerPhotoCurrentTargetEvidenceV1?
             if captureStep == .close, let slot = parent.validated.parent.field.wideContext {
-                wide = try checkRunnerPhotoCurrentTargetEvidence(workspaceID: workspaceID,
-                    parentDraftID: parentDraftID, childDraftID: slot.childDraftID, writerInstanceID: writerInstanceID)
+                wide = try readCheckRunnerPhotoCurrentTargetEvidence(workspaceID: workspaceID,
+                    parentDraftID: parentDraftID, childDraftID: slot.childDraftID,
+                    writerInstanceID: writerInstanceID, validatedRevision: before)
             } else { wide = nil }
             return try .init(parentHistory: parent.history, parentCheckpoint: parent.checkpoint,
                 workflow: parent.workflow, timeZone: parent.timeZone,
@@ -1953,8 +1954,9 @@ final class MutationJournalStoreV1 {
             }
             let precedingWide: CheckRunnerPhotoCurrentTargetEvidenceV1?
             if photo.captureStep == .close, let wide = parent.validated.parent.field.wideContext {
-                precedingWide = try checkRunnerPhotoCurrentTargetEvidence(workspaceID: workspaceID,
-                    parentDraftID: parentDraftID, childDraftID: wide.childDraftID, writerInstanceID: writerInstanceID)
+                precedingWide = try readCheckRunnerPhotoCurrentTargetEvidence(workspaceID: workspaceID,
+                    parentDraftID: parentDraftID, childDraftID: wide.childDraftID,
+                    writerInstanceID: writerInstanceID, validatedRevision: before)
             } else { precedingWide = nil }
             return try .init(parentHistory: parent.history, parentCheckpoint: parent.checkpoint,
                 workflow: parent.workflow, timeZone: parent.timeZone, childHistory: history,
@@ -2075,11 +2077,27 @@ final class MutationJournalStoreV1 {
         workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID,
         writerInstanceID: UUID
     ) throws -> CheckRunnerPhotoCurrentTargetEvidenceV1? {
+        try readCheckRunnerPhotoCurrentTargetEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID,
+            writerInstanceID: writerInstanceID, validatedRevision: nil)
+    }
+
+    /// A supplied revision belongs only to the enclosing synchronous clean read,
+    /// after its full journal validation. Fresh lease/revision checks still run;
+    /// no validation may be reused across callbacks, mutation or suspension.
+    private func readCheckRunnerPhotoCurrentTargetEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID,
+        writerInstanceID: UUID, validatedRevision: WorkspaceRevisionV1?
+    ) throws -> CheckRunnerPhotoCurrentTargetEvidenceV1? {
         try validateCurrentWriterLease()
         guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
         guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
         let before = try currentRevision(writerInstanceID: writerInstanceID)
-        try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        if let validatedRevision {
+            guard before == validatedRevision else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        } else {
+            try validateCheckRunnerBeginHistoryValue { try validateAll() }
+        }
         let value: CheckRunnerPhotoCurrentTargetEvidenceV1? = try validateCheckRunnerBeginHistoryValue {
             guard let parent = try readCheckRunnerPhotoParentEvidence(workspaceID: workspaceID,
                 parentDraftID: parentDraftID, childDraftID: childDraftID) else { return nil }
