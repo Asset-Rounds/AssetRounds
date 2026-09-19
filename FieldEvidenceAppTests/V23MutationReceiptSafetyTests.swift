@@ -1681,8 +1681,9 @@ extension V23MutationReceiptSafetyTests {
             workspaceRevision: harness.writer.currentRevision().revision)
         guard case let .resolveConflict(basis) = basisMutation.postImage else { return XCTFail("Wrong fixture") }
         let successor = try ReviewedResolutionHistoryFixtureV1.next(classified)
+        let myDayBasis = try XCTUnwrap(basis.reviewedTargetBasis.myDayBasis)
         let resolution = try ReviewedDraftConflictResolutionV1(plan: .reviewAndRebase,
-            expectedCheckpoint: classified, reviewedTargetBasis: basis.reviewedTargetBasis,
+            expectedCheckpoint: classified, reviewedTargetBasis: myDayBasis,
             successorCheckpoint: successor)
         let mutation = try FieldDraftMutationV1(workspaceID: fixture.workspaceID,
             expectedRevision: classified.draftRevision, expectedBaseCanonicalRevision: 0,

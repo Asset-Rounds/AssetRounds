@@ -39,6 +39,8 @@ The owner authorizes one diagnostic original on the existing GitHub `macos-26` r
 
 Use the existing pinned environment, actual-index/committed-route review, original-attempt check and sole collector. Keep normal and acceptance budgets unchanged. No paid upgrade, duplicate dispatch, Actions rerun or automatic retry is authorized. Audit the terminal original before the next causal fix or run; this experiment grants no provider, merge or release acceptance. Record the original ID when dispatched and its outcome when audited so the allowance cannot be silently reused.
 
+Allowance consumed: GitHub original `35444123826`, commit `690a1202664066a5934e513576c7cc7818e35c3c`. Audited: one compiler type mismatch, build failed after 853 seconds; tests did not start. The 30-minute limit was not reached. Correct that source-proven failure and resume ordinary-budget development checks; do not dispatch another build30m original.
+
 For this CI batch, review only the combined protocol/helper delta and bind unchanged source evidence deterministically. Use parameterized helpers and event waits, retain one compact failure-family checkpoint, and avoid new source layers while their native dependency remains unverified. Resume production integration from retained findings after usable native feedback; do not restart settled investigations.
 
 ## Working cadence — owner confirmed 2026-09-14
