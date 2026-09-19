@@ -9580,7 +9580,7 @@ struct StoreGenerationFactory {
                 replicaID: ReplicaID(rawValue: target.replicaID))
             let manifestStore = try StoreMigrationJournalStoreV1(
                 applicationSupportURL: applicationSupportURL)
-            func requireUnpublished() throws {
+            @MainActor func requireUnpublished() throws {
                 try authority.requireRestoreReviewRoot(applicationSupportURL)
                 try authority.requireNoRestoreJournal()
                 _ = try requireCurrentPointer(plan.identity.oldPointer, authority: authority)
@@ -14558,7 +14558,7 @@ final class StoreRestoreReviewWriteAuthorityV1 {
     private let identity: WorkspaceReplicaIdentityV1
     private let generationID: UUID
     private var commands: [WorkspaceCommandV1]
-    private let validateBinding: () throws -> Void
+    private let validateBinding: @MainActor () throws -> Void
     private var active = true
     private var pending: MutationEnvelopeV1?
     private var admitted = false
@@ -14568,7 +14568,7 @@ final class StoreRestoreReviewWriteAuthorityV1 {
 
     fileprivate init(context: ModelContext, identity: WorkspaceReplicaIdentityV1,
                      generationID: UUID, commands: [WorkspaceCommandV1],
-                     validateBinding: @escaping () throws -> Void) {
+                     validateBinding: @escaping @MainActor () throws -> Void) {
         self.context = context
         self.identity = identity
         self.generationID = generationID

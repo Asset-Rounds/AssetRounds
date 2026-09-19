@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementation2e60630; latest audited native inputd7e7901; discard compile/7 methods PASS but diagnostic transport INVALID. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
+- Implementation4971f79; both audited originals35469136737/35469145623 failed compilation at the same2 actor calls;13 tests did not start. Accepted main stays `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,13 +13,13 @@
 
 Evidence stays bound to its head.
 
-d7e7901 original35465985235 sealed8E79A3B8: compile508s, discard7Pass/test744s, zero Swift errors/new warning signatures;172 retained files. Workflow failed because get_app_container exceeded2s; transport INVALID, never zero-use/acceptance. Build-order allowance consumed;10 sampled Shutdown states and one cold build do not prove a speedup. acf resolution7Pass and earlier continuation results remain head-bound. Root corrects completed collection30/lookup10 inside unchanged test900, retaining interruption3/lookup2, strict historical replay and every N8 watchdog. Bitrise exact26.2 runtime remains unqualified.
+4971f79 authority35469145623/seal3971BEDF and restore35469136737/seal7643AE18 each show the same2 actor-isolation compiler errors in the local staging validator;13NotStarted, zero new warning signatures. Root corrects its explicit MainActor function/callback types only; both originals are terminal and audited, with independent source/index/route review required before corrected successors. Transport-v2 correction is committed but has not reached execution. Earlier d7 discard7Pass/compile508s retains INVALID2s transport; build-order allowance consumed and no speedup claim. acf resolution7Pass/earlier continuation remain head-bound. Every N8 watchdog and Bitrise exact-runtime qualification hold remains.
 
 Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 
 ## Current implementation
 
-- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Production non-photo Replace/Fork review composition is authored through the existing writer with a private synchronous staging capability; genuine physical package/history, exact-owner suppression, receipt readback and prepublication fences. Six journey and seven authority regressions are enrolled790/48; native execution remains due. Retain runtime-d7e7901/restore-production. Photo cross-workspace correspondence, UI/restore/lifecycle/registration remain due;49 drafts exact.
+- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Production non-photo Replace/Fork review composition is committed at4971f79 through the existing writer with a private synchronous staging capability; genuine physical package/history, exact-owner suppression, receipt readback and prepublication fences. Six journey and seven authority regressions are enrolled790/48; native execution remains due. Retain runtime-d7e7901/restore-production. Photo cross-workspace correspondence, UI/restore/lifecycle/registration remain due;49 drafts exact.
 - Durable Begin retains PREPARED/BOUND original-history, live-access and external-close guards.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Reviewed source passes; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.

@@ -5,7 +5,7 @@ Current navigation checkpoint, 2026-09-19. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 ## Destination and present state
 
 - `main` and `phase/s10-brand-refresh` both remain at accepted S10 `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.
-- Work is on `codex/v23-s10-integration-20260910`, a descendant of that base. Latest audited native input is `d7e79012e52fa26116830a56276b35561ea5efa3`: compilation/discard7 passed; transport failed its2s container lookup.
+- Work is on `codex/v23-s10-integration-20260910`, a descendant of that base. Current implementation is `4971f79959f7dfe9a7af3d9ca05243ecc923546c`; both originals35469136737/35469145623 are audited, with the same2 actor-isolation compiler errors and13NotStarted.
 - The branch has one `FieldEvidenceApp.xcodeproj`, one shared `FieldEvidenceApp` scheme and the existing app architecture. The remaining problem is completing and verifying its production integration, not combining two app projects.
 - Atacf0e7a, original35463314535 compiles in832s and passes all7 resolution methods in325s; the expected-throw fixture correction is verified. Zero Swift errors/new warning signatures. Prior06 discard7 never started after build1200 timeout. A closed build-before-boot diagnostic candidate preserves app/tests/project source, all7 discard methods and every budget; its new evidence is actual selected-device state and elapsed timings.
 - Parent Check/no-issue remains unresolved: prior6d exceeded900 seconds after parent/two-photo preparation640s and interrupted-target entry743s. The e1 synchronous validation optimization has no runtime measurement because its build timed out.
@@ -25,7 +25,7 @@ Current navigation checkpoint, 2026-09-19. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 ## Execution order
 
-1. Audit35465985235 is complete: compilation508s/discard7Pass, but transport INVALID at its2s lookup. Qualify the completed/interrupted collection split inside unchanged N8/test900 budgets with strict original retention. The one-original build-order selector is consumed; no retry or speedup claim. Freeze/review the complete restore source/13 paired tests and protocol batch; run only its distinct dependency-ready ordinary selectors after index/route gates. Bitrise exact-runtime and same-provider build sharing remain unqualified. Do not transfer passes between heads.
+1. Correct the source-proven staging-validator MainActor boundary from audited authority35469145623; preserve all13 paired methods and790/48/113 protocol. Both originals are audited; reuse unchanged source reviews and qualify the exact same-protocol continuation before a corrected commit/run. Transport-v2 is committed but unexercised; all native budgets remain unchanged. The earlier build-order selector stays consumed. Bitrise exact-runtime and shared build qualification remain due; no cross-head acceptance.
 2. Continue the parent-finalization performance diagnosis from its retained phase timings; batch only source-proven fixes and keep one collector per original.
 3. Complete the remaining production journeys and enroll their missing regressions. Parallelize only disjoint, dependency-ready work on existing qualified capacity.
 4. Freeze one complete candidate; collect final coverage and affected-state reviews, then advance and verify main.
