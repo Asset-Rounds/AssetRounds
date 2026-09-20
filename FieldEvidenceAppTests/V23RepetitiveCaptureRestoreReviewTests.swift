@@ -6,11 +6,18 @@ import XCTest
 @MainActor
 final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
     func testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval() async throws {
+        let timing = RestoreReviewTimingV1(enabled: true)
+        timing.mark("source-fixture.begin")
         let source = try RepetitiveCaptureSourcePackageFixture(sourceOnly: true)
+        timing.mark("source-fixture.end")
         defer { source.removePackages() }
-        let harness = try RestoreReviewHarness()
+        let harness = try RestoreReviewHarness(timing: timing)
         defer { harness.remove() }
-        let first = try await harness.restore(try source.package(named: "first"), mode: .fork)
+        timing.mark("first-package.begin")
+        let firstPackage = try source.package(named: "first")
+        timing.mark("first-package.end")
+        let first = try await harness.restore(firstPackage, mode: .fork)
+        timing.mark("first-review.begin")
         let firstReview = try harness.onlyReview(in: first)
         let firstHistory = try harness.history(in: first)
         try assertOriginals(source.history, retainedIn: firstHistory)
@@ -21,20 +28,31 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         XCTAssertFalse(source.checkpoints.contains { $0.draftID == firstReview.draftID })
         XCTAssertNil(try RepetitiveCaptureDestinationReviewCodecV1.decode(firstReview.payloadData)
             .provenance.immediatePredecessor)
+        timing.mark("first-review.end")
+        timing.mark("first-export.begin")
         let exported = try harness.export(first)
+        timing.mark("first-export.end")
         source.removePackages()
+        timing.mark("source-packages.removed")
 
         let second = try await harness.restore(exported, mode: .fork)
+        timing.mark("second-review.begin")
         let secondReview = try harness.onlyReview(in: second)
         let secondHistory = try harness.history(in: second)
         try assertOriginals(firstHistory, retainedIn: secondHistory)
         XCTAssertEqual(secondHistory.receipts.count, firstHistory.receipts.count + 1)
         XCTAssertNotEqual(firstReview.workspaceID, secondReview.workspaceID)
         XCTAssertNotEqual(firstReview.draftID, secondReview.draftID)
+        timing.mark("second-review.end")
+        timing.mark("reopen.begin")
         let reopened = try harness.factory.openOrBootstrapCurrent()
+        timing.mark("reopen.end")
         XCTAssertEqual(reopened.generationID, second.generationID)
+        timing.mark("coordinator.begin")
         let coordinator = try StoreSessionCoordinator(validatingSession: reopened)
+        timing.mark("coordinator.end")
         defer { try? coordinator.invalidateAndReleaseWriter() }
+        timing.mark("lineage.begin")
         let lineage = try RepetitiveCaptureReviewLineageReaderV1.read(
             workspaceID: secondReview.workspaceID, mutationID: secondReview.mutationID,
             in: harness.history(in: reopened))
@@ -43,6 +61,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         XCTAssertEqual(lineage.selectedReview.initialCheckpoint, secondReview)
         XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<FieldDraftCheckpointRow>()), 1)
         XCTAssertEqual(try harness.history(in: reopened), secondHistory)
+        timing.mark("journey.complete")
     }
 
     func testPopulatedCrossWorkspaceReplacementCreatesOnlyReviewAndRetainsOriginalHistory() async throws {
@@ -278,18 +297,42 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
     }
 }
 
+/// Test-only, fixed-label progress for one reviewed interrupted journey.
+/// Disabled unless the existing diagnostic test explicitly opts in. It has
+/// no timeout, assertion, persistence or production behavior of its own.
+@MainActor
+final class RestoreReviewTimingV1 {
+    private let enabled: Bool
+    private let startedAt: UInt64
+
+    init(enabled: Bool = false) {
+        self.enabled = enabled
+        startedAt = DispatchTime.now().uptimeNanoseconds
+    }
+
+    func mark(_ phase: String) {
+        guard enabled else { return }
+        let elapsedMilliseconds = (DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+        print("RestoreReviewTimingV1 phase=\(phase) elapsedMs=\(elapsedMilliseconds)")
+    }
+}
+
 @MainActor
 final class RestoreReviewHarness {
     let root: URL
     let support: URL
     let factory: StoreGenerationFactory
+    private let timing: RestoreReviewTimingV1?
 
-    init() throws {
+    init(timing: RestoreReviewTimingV1? = nil) throws {
+        self.timing = timing
+        timing?.mark("harness.begin")
         root = FileManager.default.temporaryDirectory.appendingPathComponent("c36-real-restore-\(UUID())")
         support = root.appendingPathComponent("Application Support", isDirectory: true)
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
         factory = StoreGenerationFactory(applicationSupportURL: support)
         _ = try factory.openOrBootstrapCurrent()
+        timing?.mark("harness.end")
     }
 
     func remove() { try? FileManager.default.removeItem(at: root) }
@@ -315,21 +358,30 @@ final class RestoreReviewHarness {
                  failure: BackupRestoreFailureInjection? = nil) async throws -> StoreGenerationSession {
         var phase = "open-current"
         do {
+            timing?.mark(phase)
             let current = try factory.openOrBootstrapCurrent()
             phase = "import-package"
+            timing?.mark(phase)
             let imported = try BackupImportService(generationRootURL: current.generationRootURL,
                 scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: package)
             phase = "create-restore-service"
+            timing?.mark(phase)
             let service = try BackupRestoreService(applicationSupportURL: support,
                 now: { RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(3_600) },
                 failureInjection: failure)
 #if DEBUG
-            service.restorePhaseDiagnosticForTesting = { phase = $0 }
+            service.restorePhaseDiagnosticForTesting = { [timing] value in
+                phase = value
+                timing?.mark("restore." + value)
+            }
 #endif
             phase = "invoke-restore"
-            return try await service.restore(validatedPackage: imported,
+            timing?.mark(phase)
+            let restored = try await service.restore(validatedPackage: imported,
                 currentModelContext: current.modelContext, currentGenerationID: current.generationID,
                 currentGenerationRootURL: current.generationRootURL, mode: mode)
+            timing?.mark("restore.returned")
+            return restored
         } catch {
             // Fixed phase and error type only: no paths, identifiers or error payload.
             print("RestoreReviewHarness.failure phase=\(phase) type=\(String(reflecting: type(of: error)))")

@@ -1295,8 +1295,8 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '94df47d940ef3cdbc993336a157c5145d84ee812')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '06e9a66d9f6a2fae87aaf4db9fd8469449f6495b')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'e3ef8bd78bd682d8d198021d73544eb9269d749a')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
             def substituted(command, **kwargs):
@@ -1307,7 +1307,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
                 CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
         with self.assertRaises(ValueError): CI.no_index_source_trees('c36-restore-review')
 
-    def test_both_admissions_bind_new_original_parent_and_all_unchanged_trees(self):
+    def test_both_admissions_bind_diagnostic_parent_and_exact_source_trees(self):
         for stage in ('dispatch', 'worker'):
             with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
                 result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
@@ -1325,7 +1325,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
             for e in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
                 with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
                     CI.admission(self.selected, e, HEAD, stage, self.record)
-            for parent in (CI.NO_INDEX_PARENT, CI.BUILD_WATCHDOG_PARENT, 'f'*40):
+            for parent in (CI.NO_INDEX_PARENT, CI.BUILD_WATCHDOG_PARENT, '94df47d940ef3cdbc993336a157c5145d84ee812', 'f'*40):
                 with mock.patch.object(CI.subprocess, 'check_output', return_value=self.header.replace(CI.RESTORE_BUILD_WATCHDOG_PARENT.encode(), parent.encode())), self.assertRaises(ValueError):
                     CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
             for fields in ({'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},

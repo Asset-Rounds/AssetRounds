@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Committed94df47d corrects staging, original receipt preservation and Round receipt/row integration. Original35488379036 timed out during build; six restore journeys did not start. Main stays b1d04ae5.
+- Committed94df47d staging/receipt/Round corrections compile at06e9a66; first restore test interrupts at900s, five never start. Main stays b1d04ae5.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-35488379036/rootC9C32D65: build1200s timeout/exit124,0Swift errors/new warning signatures,6NotStarted;125files verified. Prior35484197328 compiled933s then1Pass5Fail; its staging/Round causes are corrected at94df47d (source130/helper76). Owner-approved reusable development D30 now binds unchanged94df47d product trees to1800s build/3000s total; next question is compilation and the same6 restore journeys. No dispatch yet. Historical30m originals remain consumed, acceptance budgets unchanged, Bitrise unqualified. Nine new restore regressions and Round reversal correspondence remain due.
+35490344333/head06e9a66 is terminal, sole-collected/root-audited14D36ED0: buildPASS1789s/0Swift errors; first physicalFork test Interrupted900s,5NotStarted; transportINVALID. No new warning signatures versus last complete build35484197328. Runtime cause is unproven. Failure-family A268ACE2 records exhausted hypotheses; the next scoped diagnostic adds default-off elapsed phase markers only to the existing first test/harness. Same6 methods/assertions, app/UI/project bytes, build1800/test900/total3000/UI0; no unchanged retry or acceptance. Existing GitHub route remains; Bitrise public stack still omits exact iOS26.2/23C54. Nine restore regressions and Round reversal correspondence remain due.
 
 ## Current implementation
 
@@ -32,6 +32,6 @@ Astra xhigh root; at most one useful Astra low/medium coding/review helper, Luna
 
 Pool790/48 adds13 restore journey/authority methods and preserves all10 historical profiles. Source/protocol and independent index/route checks precede new ordinary-budget native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Keep evidence head-bound. Cache/shared-build and provider qualification remain separate work.
 
-Complete C36 lifecycle/codec, child/finalizer recovery, destination/field/scene/resume, live effects, native protection, Work/Round and C55/C57 preservation. Reminder drafts checkpointed at runtime-94df47d/reminder-production (source review618432FF,10 new continuation tests unexecuted): require unlocked access when AppLock on; Round/Work due plus effective date/time/zone. Finish Settings-to-Preferences-to-OS and paired concurrency/Erase/permission/copy tests. Generic AppLock copy, consent and finality remain strict.
+Complete C36 lifecycle/codec, child/finalizer recovery, destination/field/scene/resume, live effects, native protection, Work/Round and C55/C57 preservation. Reminder Settings/current-owner/OS journey is source-reviewed at runtime-06e9a66/reminder-production/source-checkpoint-v2.json (44B49A81): unlocked edits, source-bound Round/Work copy with frozen UTC offset, generic AppLock copy, permission/Erase/privacy cleanup and explicit retry. V1 source/protocol130 PASS; later test-cleanup delta reviewed but outside that proof.41 new methods await enrollment/native execution;27 retained unselected methods stay explicit. No native acceptance.
 
 Main advances only after complete retained same-head functional/compatibility evidence, qualified provider routes as applicable, affected-state S10 visuals, independent integration review and genuine human visual review, followed by controlling non-force integration and exact-main verification.
