@@ -57,18 +57,23 @@ enum PartsStockReplacementHistoryProjectionV1 {
         let targetSnapshot: PartsStockBackupSnapshotV1
         let history: MutationHistorySnapshotV1
         let workResources: [WorkResourceEntryV1]
+        let roundSessions: [RoundSessionV1]
     }
 
     static func requirements(
         incomingSnapshot: PartsStockBackupSnapshotV1,
         incomingHistory: MutationHistorySnapshotV1,
-        incomingWorkResources: [WorkResourceEntryV1]
+        incomingWorkResources: [WorkResourceEntryV1],
+        roundProjection: RoundSessionReplacementCommandProjectionV1.Projection? = nil
     ) throws -> Requirements {
         try incomingSnapshot.validate()
         try MutationJournalStoreV1.validateImportedSnapshot(incomingHistory)
         let values = try ReplacementHistoryCommandEmissionV1.decoded(incomingHistory)
+        let roundCommands = try authenticatedRoundCommands(roundProjection,
+            history: incomingHistory, workspaceID: incomingSnapshot.workspaceID)
+        let roundIDs = Set(roundCommands.map { $0.source.envelope.mutationID })
         let owned = values.filter {
-            ($0.isWorkResource || $0.isPartsStock)
+            ($0.isWorkResource || $0.isPartsStock || roundIDs.contains($0.envelope.mutationID))
                 && $0.envelope.workspaceID == incomingSnapshot.workspaceID
                 && $0.receipt.identity.workspaceID == incomingSnapshot.workspaceID
         }
@@ -103,7 +108,8 @@ enum PartsStockReplacementHistoryProjectionV1 {
         )
     }
 
-    static func project(_ input: Input) throws -> Result {
+    static func project(_ input: Input,
+                        roundProjection: RoundSessionReplacementCommandProjectionV1.Projection? = nil) throws -> Result {
         try input.currentSnapshot.validate()
         try input.incomingSnapshot.validate()
         try MutationJournalStoreV1.validateImportedSnapshot(input.currentHistory)
@@ -119,8 +125,18 @@ enum PartsStockReplacementHistoryProjectionV1 {
         let currentValues = try ReplacementHistoryCommandEmissionV1.decoded(input.currentHistory)
         let incomingValues = try ReplacementHistoryCommandEmissionV1.decoded(input.incomingHistory)
         let plannedValues = try ReplacementHistoryCommandEmissionV1.decoded(input.plannedHistory)
+        let roundCommands = try authenticatedRoundCommands(roundProjection,
+            history: input.incomingHistory, workspaceID: input.incomingSnapshot.workspaceID)
+        if let roundProjection {
+            guard roundProjection.identity.targetPointer.workspaceID == input.targetWorkspaceID.rawValue,
+                  roundProjection.identity.targetPointer.generationID == input.targetGenerationID else {
+                throw PartsStockReplacementHistoryProjectionFailureV1.invalidBinding
+            }
+        }
+        let roundBySourceID = Dictionary(uniqueKeysWithValues:
+            roundCommands.map { ($0.source.envelope.mutationID, $0) })
         let incomingOwned = incomingValues.filter {
-            ($0.isWorkResource || $0.isPartsStock)
+            ($0.isWorkResource || $0.isPartsStock || roundBySourceID[$0.envelope.mutationID] != nil)
                 && $0.envelope.workspaceID == input.incomingSnapshot.workspaceID
                 && $0.receipt.identity.workspaceID == input.incomingSnapshot.workspaceID
         }
@@ -143,11 +159,15 @@ enum PartsStockReplacementHistoryProjectionV1 {
         let requirements = try requirements(
             incomingSnapshot: input.incomingSnapshot,
             incomingHistory: input.incomingHistory,
-            incomingWorkResources: input.incomingWorkResources
+            incomingWorkResources: input.incomingWorkResources,
+            roundProjection: roundProjection
         )
         let mutationIDBySource = try exactMutationBindings(
             input.mutationBindings, required: requirements.mutationIDs
         )
+        guard roundCommands.allSatisfy({
+            mutationIDBySource[$0.source.envelope.mutationID.rawValue] == $0.mutation.mutationID
+        }) else { throw PartsStockReplacementHistoryProjectionFailureV1.invalidBinding }
         let subjectBySource = try exactSubjectBindings(
             input.subjectBindings,
             required: requirements.subjects,
@@ -340,6 +360,13 @@ enum PartsStockReplacementHistoryProjectionV1 {
         >()
 
         for value in incomingOwned {
+            if let round = roundBySourceID[value.envelope.mutationID] {
+                guard round.source.record == value.record else {
+                    throw PartsStockReplacementHistoryProjectionFailureV1.invalidSource
+                }
+                projectedValues.append((value, .applyRoundSession(round.mutation)))
+                continue
+            }
             if let sourceMutation = value.workResourceMutation {
                 guard let targetMutationID = mutationIDBySource[sourceMutation.mutationID.rawValue],
                       let targetSubject = subjectBySource[sourceMutation.postImage.subject] else {
@@ -444,6 +471,25 @@ enum PartsStockReplacementHistoryProjectionV1 {
             throw PartsStockReplacementHistoryProjectionFailureV1.incompleteProjection
         }
 
+        // An empty C49/C55 replacement has no receipt ownership. Rebuilding
+        // unrelated target receipts would change their original generation,
+        // source kind and bytes despite there being no stock effect to emit.
+        // Reach this only after the complete source, binding and value checks.
+        let preservesUnrelatedTargetHistory = isEmpty(input.currentSnapshot)
+            && isEmpty(input.incomingSnapshot) && isEmpty(valueResult.targetSnapshot)
+            && input.currentWorkResources.isEmpty && input.incomingWorkResources.isEmpty
+            && input.plannedWorkResources.isEmpty
+            && currentValues.allSatisfy({ !$0.isWorkResource && !$0.isPartsStock })
+            && incomingValues.allSatisfy({ !$0.isWorkResource && !$0.isPartsStock })
+            && plannedValues.allSatisfy({ !$0.isWorkResource && !$0.isPartsStock })
+            && currentRemovedMutationKeys.isEmpty && originalBaselines.isEmpty
+            && targetWorkByID.isEmpty
+        if preservesUnrelatedTargetHistory && projectedValues.isEmpty {
+            return Result(sourceSnapshotSHA256: valueResult.sourceSnapshotSHA256,
+                          targetSnapshot: valueResult.targetSnapshot,
+                          history: input.plannedHistory, workResources: [], roundSessions: [])
+        }
+
         var terminal: [WorkspaceEntityIdentityV1: UInt64] = [:]
         var externalRevisionByIdentity: [
             WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1
@@ -484,6 +530,28 @@ enum PartsStockReplacementHistoryProjectionV1 {
         var targetRecords: [MutationHistoryReceiptRecordV1] = []
         var identityMapBySourceKey: [String: IdentityMap] = [:]
         var workspaceRevision: UInt64 = 0
+        if preservesUnrelatedTargetHistory {
+            // Retained source receipts remain historical evidence. Only the
+            // actual destination receipt prefix seeds this emission frontier.
+            // The final snapshot below still covers every historical postimage.
+            targetRecords = retainedTarget.map(\.record)
+            for value in retainedTarget {
+                workspaceRevision = max(workspaceRevision, value.receipt.resultingRevision.workspaceRevision)
+                for row in value.receipt.resultingRevision.entityRevisions {
+                    terminal[row.identity] = max(terminal[row.identity, default: 0], row.revision)
+                }
+                for image in value.receipt.postImages {
+                    for identity in try ReplacementHistoryCommandEmissionV1.terminalIdentities(for: image) {
+                        terminal[identity] = max(terminal[identity, default: 0], image.revision)
+                    }
+                }
+            }
+            for command in roundCommands {
+                guard terminal[try command.mutation.concurrencyIdentity] == nil else {
+                    throw PartsStockReplacementHistoryProjectionFailureV1.collision
+                }
+            }
+        }
 
         for value in projectedValues {
             let emitted = try ReplacementHistoryCommandEmissionV1.emitProjected(
@@ -513,7 +581,7 @@ enum PartsStockReplacementHistoryProjectionV1 {
             snapshot: input.currentSnapshot,
             stockWorkEntryIDs: currentStockWorkEntryIDs
         )
-        for value in retainedTarget {
+        for value in retainedTarget where !preservesUnrelatedTargetHistory {
             let emitted = try ReplacementHistoryCommandEmissionV1.emitRetained(
                 source: value,
                 workspaceRevision: workspaceRevision,
@@ -538,6 +606,11 @@ enum PartsStockReplacementHistoryProjectionV1 {
                 mutationID: quarantine.mutationID
             )
             guard let mapped = identityMapBySourceKey[sourceKey] else {
+                if preservesUnrelatedTargetHistory,
+                   retainedTarget.contains(where: { $0.mutationKey == sourceKey }) {
+                    quarantines.append(quarantine)
+                    continue
+                }
                 if currentRemovedMutationKeys.contains(sourceKey) { continue }
                 if quarantine.workspaceID != input.targetWorkspaceID,
                    !incomingOwnedMutationKeys.contains(sourceKey) {
@@ -588,6 +661,11 @@ enum PartsStockReplacementHistoryProjectionV1 {
             revisionByIdentity[row.identity] = row
         }
         for (identity, revision) in terminal {
+            if let existing = revisionByIdentity[identity], existing.revision > revision {
+                // The retained foreign receipts still require this frontier.
+                // A destination append must not erase their higher revision.
+                continue
+            }
             if let existing = revisionByIdentity[identity],
                existing.revision == revision,
                existing.externalProjectionSHA256 != nil {
@@ -626,12 +704,34 @@ enum PartsStockReplacementHistoryProjectionV1 {
             workResources: targetWorkByID.values.sorted {
                 ($0.workspaceID.rawValue.uuidString, $0.entryID.uuidString)
                     < ($1.workspaceID.rawValue.uuidString, $1.entryID.uuidString)
-            }
+            },
+            roundSessions: roundCommands.map { $0.mutation.session }
         )
     }
 }
 
 private extension PartsStockReplacementHistoryProjectionV1 {
+    static func authenticatedRoundCommands(
+        _ projection: RoundSessionReplacementCommandProjectionV1.Projection?,
+        history: MutationHistorySnapshotV1, workspaceID: WorkspaceID
+    ) throws -> [RoundSessionReplacementCommandProjectionV1.Command] {
+        guard let projection else { return [] }
+        guard projection.source.history == history,
+              projection.source.workspaceID == workspaceID,
+              projection.identity.mode == .replaceExisting,
+              projection.identity.source.workspaceID == workspaceID.rawValue,
+              projection.identity.targetPointer.workspaceID != workspaceID.rawValue else {
+            throw PartsStockReplacementHistoryProjectionFailureV1.invalidSource
+        }
+        return projection.commands
+    }
+
+    static func isEmpty(_ snapshot: PartsStockBackupSnapshotV1) -> Bool {
+        snapshot.parts.isEmpty && snapshot.locations.isEmpty && snapshot.movements.isEmpty
+            && snapshot.uses.isEmpty && snapshot.reversals.isEmpty
+            && snapshot.returns.isEmpty && snapshot.abandonments.isEmpty
+    }
+
     private typealias DecodedReceipt = ReplacementHistoryCommandEmissionV1.DecodedReceipt
     private typealias IdentityMap = ReplacementHistoryCommandEmissionV1.IdentityMap
 

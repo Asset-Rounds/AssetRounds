@@ -146,6 +146,30 @@ enum ReplacementHistoryCommandEmissionV1 {
                 ($0, try mutation.expectedRevision(for: $0))
             })
             postImages = try mutation.mutationPostImages
+        case let .applyRoundSession(mutation):
+            try mutation.validate()
+            // The archived reversal-plan exception belongs to C49/C55 only.
+            // Round needs its own qualified restoration of those semantics.
+            guard source.record.reversalBasisData == nil,
+                  source.record.semanticReversalData == nil,
+                  source.envelope.reversalPlanDigest == nil,
+                  source.envelope.semanticReversalExecution == nil,
+                  source.envelope.semanticReversalReplayIdentitySHA256 == nil,
+                  source.receipt.reversesMutationID == nil else {
+                throw PartsStockReplacementHistoryProjectionFailureV1.invalidSource
+            }
+            guard case let .applyRoundSession(original) = source.envelope.command,
+                  original.workspaceID == source.envelope.workspaceID,
+                  original.mutationID == source.envelope.mutationID,
+                  mutation.workspaceID == targetWorkspaceID,
+                  mutation.mutationID == targetMutationID else {
+                throw PartsStockReplacementHistoryProjectionFailureV1.invalidSource
+            }
+            _ = try RoundSessionMutationReceiptV1(mutation: original, mutationReceipt: source.receipt)
+            let entity = try mutation.concurrencyIdentity
+            concurrency = [entity]
+            expectedValues = [entity: mutation.expectedRevision]
+            postImages = [try mutation.mutationPostImage]
         default:
             throw PartsStockReplacementHistoryProjectionFailureV1.invalidSource
         }
@@ -325,6 +349,9 @@ enum ReplacementHistoryCommandEmissionV1 {
                 compensatingMutationIDs: [targetMutationID],
                 resultingRevision: receipt.resultingRevision
             )
+        }
+        if case let .applyRoundSession(mutation) = command {
+            _ = try RoundSessionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
         }
         let record = MutationHistoryReceiptRecordV1(
             envelopeData: try envelope.canonicalData(),

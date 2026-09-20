@@ -60,11 +60,16 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         let history = try harness.history(in: restored)
         try assertOriginals(source.history, retainedIn: history)
         try assertOriginals(incumbentHistory, retainedIn: history)
+        try assertProjectedRoundRows(source.rounds, in: restored, history: history)
         XCTAssertEqual(try RepetitiveCaptureDestinationReviewCodecV1.decode(review.payloadData)
             .provenance.mode, .crossWorkspaceReplace)
         XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<FieldDraftCheckpointRow>()), 1)
         XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<DraftCommitSagaRow>()), 0)
         XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<DraftContentReservationRow>()), 0)
+        let cold = try harness.factory.openOrBootstrapCurrent()
+        XCTAssertEqual(cold.generationID, restored.generationID)
+        XCTAssertEqual(try harness.history(in: cold), history)
+        try assertProjectedRoundRows(source.rounds, in: cold, history: history)
     }
 
     func testSameWorkspaceReplacementPreservesCheckpointAndOriginalReceiptBytes() async throws {
@@ -108,6 +113,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
                 identity: current.workspaceIdentity, authority: authority)
             _ = try harness.onlyReview(in: staged)
             try assertOriginals(source.history, retainedIn: harness.history(in: staged))
+            try assertProjectedRoundRows(source.rounds, in: staged, history: harness.history(in: staged))
             XCTAssertEqual(try harness.factory.currentGenerationID(), originalID)
             let reopened = try harness.factory.openOrBootstrapCurrent()
             XCTAssertEqual(try harness.history(in: reopened), before)
@@ -224,6 +230,38 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         XCTAssertThrowsError(try plan.retainingUnownedRows([changed]))
     }
 
+    private func assertProjectedRoundRows(_ originals: [RoundSessionV1],
+                                         in session: StoreGenerationSession,
+                                         history: MutationHistorySnapshotV1,
+                                         file: StaticString = #filePath, line: UInt = #line) throws {
+        let rows = try session.modelContext.fetch(FetchDescriptor<RoundSessionRevisionRowV1>()).map {
+            try $0.value()
+        }
+        XCTAssertEqual(rows.count, originals.count, file: file, line: line)
+        let values = try ReplacementHistoryCommandEmissionV1.decoded(history).filter {
+            $0.envelope.workspaceID == session.workspaceIdentity.workspaceID
+                && $0.envelope.command.kind == .applyRoundSession
+        }
+        XCTAssertEqual(values.count, rows.count, file: file, line: line)
+        for original in originals {
+            let row = try XCTUnwrap(rows.first {
+                $0.sessionID == original.sessionID && $0.revision == original.revision
+            }, file: file, line: line)
+            XCTAssertEqual(row.workspaceID, session.workspaceIdentity.workspaceID, file: file, line: line)
+            XCTAssertNotEqual(row.mutationID, original.mutationID, file: file, line: line)
+            XCTAssertEqual(row.state, original.state, file: file, line: line)
+            XCTAssertEqual(row.recordedAt, original.recordedAt, file: file, line: line)
+            XCTAssertEqual(row.items.map(\.selection), original.items.map(\.selection), file: file, line: line)
+            let value = try XCTUnwrap(values.first { $0.envelope.mutationID == row.mutationID },
+                                      file: file, line: line)
+            guard case let .applyRoundSession(mutation) = value.envelope.command else {
+                return XCTFail("Expected the destination Round command", file: file, line: line)
+            }
+            XCTAssertEqual(mutation.session, row, file: file, line: line)
+            _ = try RoundSessionMutationReceiptV1(mutation: mutation, mutationReceipt: value.receipt)
+        }
+    }
+
     private func assertOriginals(_ before: MutationHistorySnapshotV1,
                                 retainedIn after: MutationHistorySnapshotV1,
                                 file: StaticString = #filePath, line: UInt = #line) throws {
@@ -241,7 +279,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
 }
 
 @MainActor
-private final class RestoreReviewHarness {
+final class RestoreReviewHarness {
     let root: URL
     let support: URL
     let factory: StoreGenerationFactory

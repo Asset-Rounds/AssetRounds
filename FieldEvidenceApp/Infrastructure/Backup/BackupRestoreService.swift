@@ -3985,6 +3985,41 @@ private extension BackupRestoreService {
         do {
         let currentOriginal = currentOriginalRecords ?? records
         let incomingOriginal = incomingOriginalRecords ?? records
+        let roundProjection: RoundSessionReplacementCommandProjectionV1.Projection?
+        if let identityDecision, identityDecision.mode == .replaceExisting,
+           identityDecision.source.workspaceID != identityDecision.targetPointer.workspaceID,
+           records.recordsSchemaVersion >= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion {
+            guard let sourceWorkspaceID = identityDecision.source.workspaceID,
+                  let sourceHistory = incomingOriginal.mutationHistory else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let source = try ReferenceOwnerReplacementSourceV1.source(
+                workspaceID: WorkspaceID(rawValue: sourceWorkspaceID), history: sourceHistory)
+            let projected = try RoundSessionReplacementCommandProjectionV1.project(
+                source: source, identity: identityDecision)
+            let originals: [RoundSessionV1] = try projected.commands.map { command in
+                guard case let .applyRoundSession(mutation) = command.source.envelope.command else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return mutation.session
+            }
+            func ordered(_ rows: [RoundSessionV1]) -> [RoundSessionV1] {
+                rows.sorted {
+                    if $0.sessionID != $1.sessionID {
+                        return $0.sessionID.uuidString < $1.sessionID.uuidString
+                    }
+                    return $0.revision < $1.revision
+                }
+            }
+            guard ordered(originals) == ordered(incomingOriginal.roundSessions),
+                  ordered(records.roundSessions) == ordered(originals) else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            roundProjection = projected
+        } else { roundProjection = nil }
+        let roundRows: [RoundSessionV1] = roundProjection.map {
+            $0.commands.map { $0.mutation.session }
+        } ?? records.roundSessions
         if records.recordsSchemaVersion >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
             _ = try records.validateC47ActivityContracts()
             try validateResolvedActivityContracts(in: records, members: members)
@@ -4067,7 +4102,7 @@ private extension BackupRestoreService {
                 let sessions: [RoundSessionV1]
                 if let identityDecision {
                     sessions = try C05RoundSessionRestoreIdentityBoundaryV1.rebinding(
-                        records.roundSessions,
+                        roundRows,
                         identity: identityDecision
                     )
                 } else {
@@ -4341,7 +4376,8 @@ private extension BackupRestoreService {
                     currentOriginal: currentOriginal,
                     incomingOriginal: incomingOriginal,
                     identity: identityDecision,
-                    historicReplicas: &historicReplicas
+                    historicReplicas: &historicReplicas,
+                    roundProjection: roundProjection
                 )
             } else {
                 normalized = try rebindingWorkResources(
@@ -4480,10 +4516,13 @@ private extension BackupRestoreService {
         }
         if normalized.recordsSchemaVersion >= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion {
             do {
+                guard roundProjection == nil || normalized.roundSessions == roundRows else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
                 let sessions: [RoundSessionV1]
                 if let identityDecision {
                     sessions = try C05RoundSessionRestoreIdentityBoundaryV1.rebinding(
-                        records.roundSessions,
+                        roundRows,
                         identity: identityDecision
                     )
                 } else {
@@ -6316,7 +6355,8 @@ private extension BackupRestoreService {
         currentOriginal: V4BackupRecordsV1,
         incomingOriginal: V4BackupRecordsV1,
         identity: RestoreIdentityV1,
-        historicReplicas: inout RestoreHistoricReplicaScope
+        historicReplicas: inout RestoreHistoricReplicaScope,
+        roundProjection: RoundSessionReplacementCommandProjectionV1.Projection? = nil
     ) throws -> V4BackupRecordsV1 {
 #if DEBUG
         var c55Phase = "preconditions"
@@ -6368,7 +6408,8 @@ private extension BackupRestoreService {
             let requirements = try PartsStockReplacementHistoryProjectionV1.requirements(
                 incomingSnapshot: incomingSnapshot,
                 incomingHistory: incomingHistory,
-                incomingWorkResources: incomingWorkResources
+                incomingWorkResources: incomingWorkResources,
+                roundProjection: roundProjection
             )
 
 #if DEBUG
@@ -6397,6 +6438,13 @@ private extension BackupRestoreService {
                         throw BackupRestoreServiceError.invalidPackage
                     }
                     target = try identity.destinationPartsStockMutationID(for: source)
+                case .applyRoundSession:
+                    guard roundProjection?.commands.contains(where: {
+                        $0.source.envelope.mutationID == source
+                    }) == true, !partsStockMutationIDs.contains(source.rawValue) else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    target = try identity.destinationRoundSessionMutationID(for: source)
                 case nil where partsStockMutationIDs.contains(source.rawValue):
                     // A projected catalog baseline can retain the mutation ID
                     // of its unarchived revision-one predecessor. It has no
@@ -6456,7 +6504,7 @@ private extension BackupRestoreService {
                 mutationBindings: mutationBindings,
                 subjectBindings: subjectBindings,
                 replicaBindings: replicaBindings
-            ))
+            ), roundProjection: roundProjection)
 #if DEBUG
             c55Phase = "source-snapshot"
 #endif
@@ -6469,6 +6517,12 @@ private extension BackupRestoreService {
             var result = planned.replacingWorkResources(
                 try projection.workResources.map(V37BackupWorkResourceRecordV1.init)
             )
+            if let roundProjection {
+                guard projection.roundSessions == roundProjection.commands.map({ $0.mutation.session }) else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                result = result.replacingRoundSessions(projection.roundSessions)
+            }
 #if DEBUG
             c55Phase = "result-stock"
 #endif

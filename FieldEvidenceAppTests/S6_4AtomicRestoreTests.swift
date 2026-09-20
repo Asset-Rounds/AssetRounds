@@ -36,6 +36,57 @@ private final class C30EvidenceContextAnchorS6_4AtomicRestore: XCTestCase {
 
 final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
+    func testRoundArchiveStagingPreservesVersionAndAuthorityBoundaries() throws {
+        let harness = try makeHarness("round-archive-staging")
+        defer { try? fileManager.removeItem(at: harness.root) }
+        let authority = try harness.factory.makeRestoreGenerationAuthority()
+        let originalID = harness.session.generationID
+        let digest = String(repeating: "a", count: 64)
+        let stagedID = UUID()
+        var populated = false
+        try harness.factory.createRestoreStagingGeneration(
+            id: stagedID, authority: authority, recordsSchemaVersion: 44,
+            sourceGenerationID: originalID, archiveProvenanceSHA256: digest
+        ) { context in
+            let markers = try context.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>())
+            XCTAssertEqual(markers.count, 1)
+            let marker = try XCTUnwrap(markers.first)
+            XCTAssertEqual(marker.schemaVersion, 45)
+            populated = true
+        }
+        XCTAssertTrue(populated)
+        let present = try harness.factory.generationPresence(id: stagedID, authority: authority)
+        XCTAssertTrue(present.staging)
+        XCTAssertFalse(present.installed)
+        XCTAssertEqual(try harness.factory.currentGenerationID(authority: authority), originalID)
+        try harness.factory.removeRestoreStagingGeneration(id: stagedID, authority: authority)
+
+        // The newly admitted Round version must not bypass provenance or
+        // source identity, and versions outside the constructor range deny
+        // before creating a generation or invoking the population callback.
+        let hostile: [(Int, UUID?, String)] = [
+            (0, nil, digest), (53, originalID, digest),
+            (44, nil, digest), (44, originalID, "invalid")
+        ]
+        for (version, sourceID, provenance) in hostile {
+            let deniedID = UUID()
+            var invoked = false
+            XCTAssertThrowsError(try harness.factory.createRestoreStagingGeneration(
+                id: deniedID, authority: authority, recordsSchemaVersion: version,
+                sourceGenerationID: sourceID, archiveProvenanceSHA256: provenance,
+                populate: { _ in invoked = true }
+            )) { error in
+                XCTAssertEqual(error as? StoreGenerationFailure, .dataPointerInvalid)
+            }
+            XCTAssertFalse(invoked)
+            let absent = try harness.factory.generationPresence(id: deniedID, authority: authority)
+            XCTAssertFalse(absent.staging)
+            XCTAssertFalse(absent.installed)
+            XCTAssertEqual(try harness.factory.currentGenerationID(authority: authority), originalID)
+        }
+    }
+
+    @MainActor
     func testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages() throws {
         let harness = try makeHarness("owned-grammar-import-separation")
         defer { try? fileManager.removeItem(at: harness.root) }

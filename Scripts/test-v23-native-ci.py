@@ -1100,13 +1100,13 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
 
     def test_source_correction_rejects_consumed_parents_and_pre_correction_trees(self):
         for stage in ('dispatch', 'worker'):
-            for consumed_parent in ('5508d03a28a39e5b65045935cc9e0b1d8cb06048',
+            for consumed_parent in ('5a0df2b7c1d50c6ad509e2d13cf50abca141a82d', '5508d03a28a39e5b65045935cc9e0b1d8cb06048',
                                     '28a6963dea7162011894093e45af50ce04bb0968'):
                 header = self.header.replace(CI.NO_INDEX_PARENT.encode(), consumed_parent.encode())
                 with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
                     CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
-            prior_trees = {'FieldEvidenceApp': 'f8e6a0f47f48576d1d935b7c830a517164497e48',
-                           'FieldEvidenceAppTests': 'c71cd5251150129df2e698eb0e888c1939d472ed'}
+            prior_trees = {'FieldEvidenceApp': 'afbd988ca56a30da3bf2064ea3cbb4abd676c598',
+                           'FieldEvidenceAppTests': '6f16af532f61c7f5292bfab15b511c282216cac4'}
             for path, prior_tree in prior_trees.items():
                 def stale_tree(command, **kwargs):
                     return prior_tree+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
@@ -1294,10 +1294,10 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
                 CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
 
     def test_causal_fixture_source_does_not_rebind_consumed_build30_source(self):
-        self.assertEqual(CI.NO_INDEX_PARENT, '5a0df2b7c1d50c6ad509e2d13cf50abca141a82d')
+        self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
         self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, 'a7c9d82bdb961e9a4dc57cd5f01340c4d0ae8dbd')
         self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51')
-        self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6f16af532f61c7f5292bfab15b511c282216cac4')
+        self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
             def substituted(command, **kwargs):
                 if command[-1] == HEAD+':FieldEvidenceAppTests':
@@ -3065,10 +3065,30 @@ class WorkflowWiringTests(unittest.TestCase):
                 self.assertEqual(actual, expected)
 
     def prior_bf6_stock_method_inventory(self, declared):
+        new_methods = ['testEmptyStockProjectionPreservesUnrelatedOriginalHistories',
+                       'testEmptyStockRowsCannotHideOwnedCommandHistory']
+        if any(name in declared for name in new_methods):
+            self.assertEqual(declared[:2], new_methods)
+            declared = declared[2:]
         self.assertEqual(declared, ['testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock', 'testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming', 'testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory', 'testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates', 'testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection', 'testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor', 'testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork', 'testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder', 'testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord', 'testOriginalMembershipAndBindingHostilesFailBeforeProjection', 'testIncomingOtherFamilyOriginalsAndCausalTargetHistoryArePreserved'])
         prior = [name for name in declared if name not in ['testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates', 'testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection']]
         self.assertEqual(prior, ['testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock', 'testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming', 'testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory', 'testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor', 'testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork', 'testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder', 'testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord', 'testOriginalMembershipAndBindingHostilesFailBeforeProjection', 'testIncomingOtherFamilyOriginalsAndCausalTargetHistoryArePreserved'])
         return prior
+
+    def test_empty_stock_regressions_preserve_exact_historical_inventory(self):
+        source = (ROOT / 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift').read_text(encoding='utf-8')
+        declared = re.findall(r"\bfunc\s+(test\w+)\s*\(", source)
+        added = ['testEmptyStockProjectionPreservesUnrelatedOriginalHistories',
+                 'testEmptyStockRowsCannotHideOwnedCommandHistory']
+        self.assertEqual(declared[:2], added)
+        legacy = declared[2:]
+        expected = self.prior_bf6_stock_method_inventory(legacy)
+        self.assertEqual(self.prior_bf6_stock_method_inventory(declared), expected)
+        for hostile in (added[:1] + legacy, added[1:] + legacy,
+                        added[::-1] + legacy, added + added + legacy,
+                        added + ['testUnknownExtraCase'] + legacy):
+            with self.subTest(hostile=hostile[:4]), self.assertRaises(AssertionError):
+                self.prior_bf6_stock_method_inventory(hostile)
 
     def prior_bf6a1bc_pool(self, default):
         if len(default['unitTestSelectors']) in (673, 677, 683, 692):

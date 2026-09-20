@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Sourcea7c9d82 fixes supported import pairs; CI-only5a0df2b is current. Original35479951867 is audited: build1200 timeout,6NotStarted. Parent98 is audited: compilePASS/restore1Pass5Fail/transportPASS, all5 at import.855 authority7Pass stays head-bound. Main stays b1d04ae5.
+- Current5c1e983 compiles and imports the corrected schema pairs. Original35484197328 ran six restore journeys:1Pass/5Fail, now at staging/materialization. Authority7Pass at855 stays head-bound. Main stays b1d04ae5.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-98e93ac/root58EB1EF9 compiled in858s: restore1Pass/5Fail, all5 at import; transportPASS. Import omitted supported pairs4/30/29,4/33/32,4/45/44. Correctiona7c9d82 remains natively unverified: original35479951867/root8EDDAA34 hit build1200,6NotStarted. Approved CI-only5a0df2b original35482404167/rootACFEDC42 failed compilation in516s: S6_3 references a private encoder helper; atomic inference is downstream. Two diagnostics/6NotStarted/transportINVALID; no new warnings. All58 inputs archived258F32F2. Local explicit-encoder correction is scoped; same six methods and ordinary N8/no-index successor require independent index/route gates. Both30m allowances consumed. No unchanged retry, speedup or acceptance claim; Bitrise remains unqualified.
+35484197328/rootA4933BF3: buildPASS933s, tests409s/1Pass5Fail, transportPASS/no new warnings;1197 files sealed. Import passes. Three failures are the factory version gap (admits1...42 or52, Round is44); two Replace failures lack Round receipt/frontier integration. Scoped runtime-5c1e983/restore-runtime-fix now includes staging, empty-stock history and authenticated Round shared receipt/materialization fixes. Base source130PASS; final Round reversal-scope guard/regression require delta review and rebound proof before continuation/index/route gates. Nine new regressions remain unenrolled; no new native result yet. Source129/helper68/index+route evidence stays head-bound. Both30m allowances are consumed; no unchanged retry or acceptance. Bitrise remains unqualified.
 
 Copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 
@@ -34,6 +34,6 @@ Astra xhigh root; at most one useful Astra low/medium coding/review helper, Luna
 
 Pool790/48 adds13 restore journey/authority methods and preserves all10 historical profiles. Source/protocol and independent index/route checks precede new ordinary-budget native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Keep evidence head-bound. Cache/shared-build and provider qualification remain separate work.
 
-Complete C36 lifecycle/codec, child/finalizer recovery, destination/field/scene/resume, live effects, native protection, Work/Round and C55/C57 preservation. Reminder choices resolved: require unlocked access when AppLock is on; root selects Round/Work due plus effective date/time/zone. Complete Settings-to-Preferences-to-OS adoption remains due. Keep generic AppLock copy, consent and strict finality.
+Complete C36 lifecycle/codec, child/finalizer recovery, destination/field/scene/resume, live effects, native protection, Work/Round and C55/C57 preservation. Resume saved reminder source via runtime-5c1e983/reminder-production: require unlocked access when AppLock on; Round/Work due plus effective date/time/zone. Finish Settings-to-Preferences-to-OS and paired concurrency/Erase/permission/copy tests. Generic AppLock copy, consent and finality remain strict.
 
 Main advances only after complete retained same-head functional/compatibility evidence, qualified provider routes as applicable, affected-state S10 visuals, independent integration review and genuine human visual review, followed by controlling non-force integration and exact-main verification.

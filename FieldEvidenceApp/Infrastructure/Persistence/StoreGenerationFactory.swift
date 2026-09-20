@@ -10130,9 +10130,11 @@ struct StoreGenerationFactory {
         archiveProvenanceSHA256: String,
         populate: (ModelContext) throws -> Void
     ) throws {
-        guard (1...C05EvidenceCurationMigrationBoundaryV1.currentRecordsSchemaVersion)
-                .contains(recordsSchemaVersion)
-                || recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        // Every archive version through the existing V53 constructor has a
+        // source container and a closed migration path below. Do not skip the
+        // Round and later versions between evidence curation and V53.
+        guard (1...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(recordsSchemaVersion),
               CompatibilityCanonicalV1.validSHA256(archiveProvenanceSHA256),
               (recordsSchemaVersion >= 5) == (sourceGenerationID != nil) else {
             throw StoreGenerationFailure.dataPointerInvalid

@@ -8,6 +8,79 @@ import XCTest
 final class V23PartsStockReplacementHistoryTests: XCTestCase {
     fileprivate typealias Projector = PartsStockReplacementHistoryProjectionV1
 
+    func testEmptyStockProjectionPreservesUnrelatedOriginalHistories() throws {
+        func empty(_ workspaceID: WorkspaceID) throws -> PartsStockBackupSnapshotV1 {
+            try .init(workspaceID: workspaceID, parts: [], locations: [], movements: [],
+                      uses: [], reversals: [], returns: [], abandonments: [])
+        }
+        func original(_ slot: Int) throws -> MutationHistorySnapshotV1 {
+            let identity = try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: Fixture.id(slot)),
+                replicaID: ReplicaID(rawValue: Fixture.id(slot + 1)))
+            let pack = SignPack.illuminatedSignV1
+            let mutationID = try Fixture.mutation(slot + 2)
+            return try Fixture.history(commands: [.createFirstSign(.init(
+                siteID: Fixture.id(slot + 3),
+                newSite: .init(id: Fixture.id(slot + 3), label: "Original site",
+                               address: nil, timeZoneID: "America/New_York"),
+                assetID: Fixture.id(slot + 4), assetLabel: "Original sign",
+                packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+                packContentVersion: pack.contentVersion, createdAt: Fixture.fixedDate,
+                initialPlacementMutationID: mutationID,
+                initialPlacementEventID: Fixture.id(slot + 5),
+                initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: Fixture.id(slot + 6))))],
+                identities: [identity], generationID: Fixture.id(slot + 7),
+                writerID: Fixture.id(slot + 8), explicitMutationIDs: [0: mutationID])
+        }
+        let target = WorkspaceID(rawValue: Fixture.id(3_200))
+        let source = WorkspaceID(rawValue: Fixture.id(3_300))
+        let current = try original(3_200), incoming = try original(3_300)
+        let planned = MutationHistorySnapshotV1(
+            workspaceRevision: max(current.workspaceRevision, incoming.workspaceRevision),
+            lastLocalSequence: max(current.lastLocalSequence, incoming.lastLocalSequence),
+            receipts: current.receipts + incoming.receipts,
+            quarantines: current.quarantines + incoming.quarantines,
+            entityRevisions: current.entityRevisions + incoming.entityRevisions)
+        try MutationJournalStoreV1.validateImportedSnapshot(planned)
+        let result = try Projector.project(.init(
+            currentSnapshot: empty(target), incomingSnapshot: empty(source),
+            currentHistory: current, incomingHistory: incoming, plannedHistory: planned,
+            currentWorkResources: [], incomingWorkResources: [], plannedWorkResources: [],
+            targetWorkspaceID: target, targetGenerationID: Fixture.id(3_400),
+            writerInstanceID: Fixture.id(3_401), mutationBindings: [],
+            subjectBindings: [], replicaBindings: []))
+        XCTAssertEqual(result.history, planned)
+        XCTAssertEqual(result.history.receipts, current.receipts + incoming.receipts)
+        XCTAssertEqual(result.targetSnapshot, try empty(target))
+        XCTAssertEqual(result.sourceSnapshotSHA256, try empty(source).snapshotSHA256)
+        XCTAssertTrue(result.workResources.isEmpty)
+        try MutationJournalStoreV1.validateImportedSnapshot(result.history)
+    }
+
+    func testEmptyStockRowsCannotHideOwnedCommandHistory() throws {
+        let fixture = try Fixture.make()
+        let requirements = try Projector.requirements(incomingSnapshot: fixture.incoming.snapshot,
+            incomingHistory: fixture.incoming.history,
+            incomingWorkResources: fixture.incoming.workResources)
+        let base = try fixture.input(requirements: requirements)
+        let emptyCurrent = try PartsStockBackupSnapshotV1(workspaceID: base.targetWorkspaceID,
+            parts: [], locations: [], movements: [], uses: [], reversals: [], returns: [], abandonments: [])
+        let emptyIncoming = try PartsStockBackupSnapshotV1(workspaceID: fixture.sourceWorkspaceID,
+            parts: [], locations: [], movements: [], uses: [], reversals: [], returns: [], abandonments: [])
+        XCTAssertFalse(base.currentHistory.receipts.isEmpty)
+        XCTAssertFalse(base.incomingHistory.receipts.isEmpty)
+        XCTAssertThrowsError(try Projector.project(.init(
+            currentSnapshot: emptyCurrent, incomingSnapshot: emptyIncoming,
+            currentHistory: base.currentHistory, incomingHistory: base.incomingHistory,
+            plannedHistory: base.plannedHistory,
+            currentWorkResources: [], incomingWorkResources: [], plannedWorkResources: [],
+            targetWorkspaceID: base.targetWorkspaceID, targetGenerationID: base.targetGenerationID,
+            writerInstanceID: base.writerInstanceID, mutationBindings: base.mutationBindings,
+            subjectBindings: base.subjectBindings, replicaBindings: base.replicaBindings)))
+        XCTAssertEqual(base.currentSnapshot, fixture.current.snapshot)
+        XCTAssertEqual(base.incomingSnapshot, fixture.incoming.snapshot)
+    }
+
     @MainActor
     func testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock() async throws {
         try await assertPublicEmptyIncomingReplacement(
