@@ -887,6 +887,46 @@ struct StoreGenerationFileDigestV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Manifest schema 1 retains its original nested canonical SHA256 meaning.
+/// Schema 2 explicitly opts into this closed, V53-only format.
+enum StoreSemanticDigestAlgorithmV1: String, Codable, Equatable, Sendable {
+    case framedLayersV1
+}
+
+/// Hashes every complete local validation envelope once, in V3...V53 order.
+/// Framing is domain UTF8 (including NUL), UInt64 big-endian release, then
+/// (layer number, byte count, canonical bytes) per layer, and final layer count.
+/// No encoded layer or predecessor byte stream is retained after append returns.
+struct StoreSemanticLayerDigestV1 {
+    private var hasher = SHA256()
+    private var layerCount: UInt64 = 0
+
+    init(release: PersistentSchemaReleaseV1) throws {
+        guard release == .v53 else { throw StoreMigrationFailure.invalidContract }
+        hasher.update(data: Data("AssetRounds.StoreSemanticDigest.framed-layers.v1\0".utf8))
+        appendInteger(53)
+    }
+
+    mutating func append(_ canonicalLayer: Data) throws {
+        guard layerCount < 51 else { throw StoreMigrationFailure.invalidContract }
+        appendInteger(layerCount + 3)
+        appendInteger(UInt64(canonicalLayer.count))
+        hasher.update(data: canonicalLayer)
+        layerCount += 1
+    }
+
+    mutating func finalize() throws -> String {
+        guard layerCount == 51 else { throw StoreMigrationFailure.invalidContract }
+        appendInteger(layerCount)
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private mutating func appendInteger(_ integer: UInt64) {
+        var bigEndian = integer.bigEndian
+        hasher.update(data: withUnsafeBytes(of: &bigEndian) { Data($0) })
+    }
+}
+
 struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
     let schemaVersion: Int
     let generationID: UUID
@@ -899,6 +939,7 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
     /// frozen in `StoreMigrationJournalV1.sourceSemanticDigest`. V2 manifests
     /// always carry the validated semantic digest.
     let semanticSHA256: String?
+    let semanticDigestAlgorithm: StoreSemanticDigestAlgorithmV1?
     let frozenIdentityDigest: String
     let files: [StoreGenerationFileDigestV1]
     let restoreProof: StoreRestoreGenerationManifestProofV1?
@@ -906,7 +947,7 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, generationID, predecessorGenerationID, migrationID
         case storeSchemaRelease, semanticSHA256, frozenIdentityDigest, files
-        case restoreProof
+        case restoreProof, semanticDigestAlgorithm
     }
 
     init(
@@ -916,6 +957,7 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
         migrationID: UUID,
         storeSchemaRelease: PersistentSchemaReleaseV1,
         semanticSHA256: String?,
+        semanticDigestAlgorithm: StoreSemanticDigestAlgorithmV1? = nil,
         frozenIdentityDigest: String,
         files: [StoreGenerationFileDigestV1],
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil
@@ -926,6 +968,7 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
         self.migrationID = migrationID
         self.storeSchemaRelease = storeSchemaRelease
         self.semanticSHA256 = semanticSHA256
+        self.semanticDigestAlgorithm = semanticDigestAlgorithm
         self.frozenIdentityDigest = frozenIdentityDigest
         self.files = files
         self.restoreProof = restoreProof
@@ -948,6 +991,13 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
         semanticSHA256 = try values.decodeIfPresent(
             String.self,
             forKey: .semanticSHA256
+        )
+        // A legacy manifest must omit this field, even when its JSON value is null.
+        guard schemaVersion != 1 || !values.contains(.semanticDigestAlgorithm) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        semanticDigestAlgorithm = try values.decodeIfPresent(
+            StoreSemanticDigestAlgorithmV1.self, forKey: .semanticDigestAlgorithm
         )
         frozenIdentityDigest = try values.decode(
             String.self,
@@ -976,14 +1026,27 @@ struct StoreGenerationManifestV1: Codable, Equatable, Sendable {
         try values.encode(migrationID, forKey: .migrationID)
         try values.encode(storeSchemaRelease, forKey: .storeSchemaRelease)
         try values.encodeIfPresent(semanticSHA256, forKey: .semanticSHA256)
+        try values.encodeIfPresent(semanticDigestAlgorithm, forKey: .semanticDigestAlgorithm)
         try values.encode(frozenIdentityDigest, forKey: .frozenIdentityDigest)
         try values.encode(files, forKey: .files)
         try values.encodeIfPresent(restoreProof, forKey: .restoreProof)
     }
 
     func validate() throws {
-        guard schemaVersion == 1,
-              generationID != predecessorGenerationID else {
+        guard generationID != predecessorGenerationID else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        switch schemaVersion {
+        case 1:
+            guard semanticDigestAlgorithm == nil else {
+                throw StoreMigrationFailure.invalidContract
+            }
+        case 2:
+            guard semanticDigestAlgorithm == .framedLayersV1,
+                  storeSchemaRelease == .v53 else {
+                throw StoreMigrationFailure.invalidContract
+            }
+        default:
             throw StoreMigrationFailure.invalidContract
         }
         guard semanticSHA256.map(

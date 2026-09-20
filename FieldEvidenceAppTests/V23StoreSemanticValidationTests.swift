@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SwiftData
 import XCTest
@@ -20,6 +21,15 @@ final class V23StoreSemanticValidationTests: XCTestCase {
             let active = try semanticObserved("traversal open current store") {
                 try factory.openOrBootstrapCurrent()
             }
+            let manifestStore = try StoreMigrationJournalStoreV1(applicationSupportURL: support)
+            let bootstrap = try XCTUnwrap(manifestStore.loadManifestIfPresent(targetGenerationID: active.generationID))
+            XCTAssertEqual(bootstrap.manifest.schemaVersion, 2)
+            XCTAssertEqual(bootstrap.manifest.semanticDigestAlgorithm, .framedLayersV1)
+            XCTAssertEqual(bootstrap.manifest.semanticSHA256,
+                try factory.manifestSemanticDigestForTesting(in: active.modelContext, manifest: bootstrap.manifest))
+            let bootstrapBytes = try bootstrap.manifest.canonicalData()
+            XCTAssertEqual(try manifestStore.loadManifest(targetGenerationID: active.generationID,
+                expectedDigest: bootstrap.digest), bootstrap.manifest)
             let persisted = try semanticObserved("traversal populate current store") {
                 try populateCurrentStore(active, lighting: lighting)
             }
@@ -42,6 +52,9 @@ final class V23StoreSemanticValidationTests: XCTestCase {
                 ) { traversal.append($0) }
             }
             try assertValidationTraversal(traversal, location: locationBefore, night: lighting.night)
+            let boundedDigest = try factory.framedSemanticDigestForTesting(in: active.modelContext)
+            XCTAssertEqual(boundedDigest, expectedFramedDigest(traversal))
+            try assertFramedLayerTamperAndBounds(traversal)
             XCTAssertFalse(active.modelContext.hasChanges)
             XCTAssertEqual(persisted.location.canonicalData, locationBefore)
             XCTAssertEqual(persisted.night.canonicalData, nightBefore)
@@ -51,13 +64,19 @@ final class V23StoreSemanticValidationTests: XCTestCase {
             return SemanticValidationStoreFacts(generationID: active.generationID,
                 generationRoot: active.generationRootURL, pointer: pointerBefore,
                 location: locationBefore, night: nightBefore, receipts: receiptsBefore,
-                traversalCount: traversal.count)
+                traversalCount: traversal.count, boundedDigest: boundedDigest, bootstrapManifest: bootstrapBytes)
         }
         try autoreleasepool { () throws -> Void in
             let factory = StoreGenerationFactory(applicationSupportURL: support)
             let cold = try semanticObserved("traversal cold open") { try factory.openOrBootstrapCurrent() }
             XCTAssertEqual(cold.generationID, facts.generationID)
             XCTAssertEqual(cold.storeSchemaRelease, .v53)
+            let manifestStore = try StoreMigrationJournalStoreV1(applicationSupportURL: support)
+            let bootstrap = try XCTUnwrap(manifestStore.loadManifestIfPresent(targetGenerationID: cold.generationID))
+            XCTAssertEqual(try bootstrap.manifest.canonicalData(), facts.bootstrapManifest)
+            // Activation proof stays immutable after legitimate production writes.
+            XCTAssertEqual(bootstrap.manifest.schemaVersion, 2)
+            XCTAssertEqual(bootstrap.manifest.semanticDigestAlgorithm, .framedLayersV1)
             let modelURL = facts.generationRoot.appendingPathComponent("model.sqlite")
             let storeBefore = try Data(contentsOf: modelURL)
             var traversal: [Data] = []
@@ -66,6 +85,8 @@ final class V23StoreSemanticValidationTests: XCTestCase {
             }
             try assertValidationTraversal(traversal, location: facts.location, night: lighting.night)
             XCTAssertEqual(traversal.count, facts.traversalCount)
+            XCTAssertEqual(try factory.framedSemanticDigestForTesting(in: cold.modelContext), facts.boundedDigest)
+            XCTAssertEqual(expectedFramedDigest(traversal), facts.boundedDigest)
             XCTAssertEqual(try XCTUnwrap(cold.modelContext.fetch(FetchDescriptor<LocationNodeRow>()).first).canonicalData, facts.location)
             XCTAssertEqual(try XCTUnwrap(cold.modelContext.fetch(FetchDescriptor<LightingNightWorkflowRowV1>()).first).canonicalData, facts.night)
             XCTAssertEqual(try receiptBytes(in: cold.modelContext), facts.receipts)
@@ -106,6 +127,7 @@ final class V23StoreSemanticValidationTests: XCTestCase {
     }
 
     func testLowReleaseCanonicalProjectionsRetainExactNestedPredecessorBytes() throws {
+        try assertManifestDigestFormatsAndFrozenFrameVector()
         let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         let container = try ModelContainer(
             for: schema,
@@ -167,6 +189,24 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         let actualV4 = try factory.canonicalSemanticProjectionForTesting(in: context, release: .v4)
         let actualV5 = try factory.canonicalSemanticProjectionForTesting(in: context, release: .v5)
         let actualV6 = try factory.canonicalSemanticProjectionForTesting(in: context, release: .v6)
+        let manifestHash = String(repeating: "1", count: 64)
+        let file = try StoreGenerationFileDigestV1(relativePath: "model.sqlite", byteCount: 1,
+                                                  sha256: manifestHash, kind: .database)
+        let oldManifest = try StoreGenerationManifestV1(generationID: semanticID(820),
+            predecessorGenerationID: semanticID(821), migrationID: semanticID(822), storeSchemaRelease: .v3,
+            semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(expectedV3),
+            frozenIdentityDigest: manifestHash, files: [file])
+        XCTAssertEqual(try factory.manifestSemanticDigestForTesting(in: context, manifest: oldManifest),
+                       StoreMigrationCanonicalJSONV1.sha256(expectedV3))
+        var currentLayers: [Data] = []
+        try factory.validateSemanticRowsForTesting(in: context, through: .v53) { currentLayers.append($0) }
+        let expectedModern = expectedFramedDigest(currentLayers)
+        let newManifest = try StoreGenerationManifestV1(schemaVersion: 2, generationID: semanticID(823),
+            predecessorGenerationID: semanticID(824), migrationID: semanticID(825), storeSchemaRelease: .v53,
+            semanticSHA256: expectedModern, semanticDigestAlgorithm: .framedLayersV1,
+            frozenIdentityDigest: manifestHash, files: [file])
+        XCTAssertEqual(try factory.manifestSemanticDigestForTesting(in: context, manifest: newManifest), expectedModern)
+        XCTAssertNotEqual(expectedModern, oldManifest.semanticSHA256)
         XCTAssertEqual(actualV3, expectedV3)
         XCTAssertEqual(actualV4, expectedV4)
         XCTAssertEqual(actualV5, expectedV5)
@@ -184,6 +224,101 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         XCTAssertEqual(try decodedData(v3Object, key: "records"), records)
         XCTAssertEqual(try decodedData(v3Object, key: "deletionLedger"), ledger)
         XCTAssertFalse(context.hasChanges)
+    }
+
+    // Independent whole-frame oracle used only for small test fixtures.
+    // Production hashes incrementally and never keeps this aggregate buffer.
+    private func expectedFramedDigest(_ layers: [Data]) -> String {
+        func integer(_ value: UInt64) -> [UInt8] {
+            (0..<8).reversed().map { UInt8(truncatingIfNeeded: value >> ($0 * 8)) }
+        }
+        var frame = Array("AssetRounds.StoreSemanticDigest.framed-layers.v1\0".utf8)
+        frame += integer(53)
+        for (offset, layer) in layers.enumerated() {
+            frame += integer(UInt64(offset + 3))
+            frame += integer(UInt64(layer.count))
+            frame += layer
+        }
+        frame += integer(UInt64(layers.count))
+        return SHA256.hash(data: Data(frame)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func digestLayers(_ layers: [Data]) throws -> String {
+        var digest = try StoreSemanticLayerDigestV1(release: .v53)
+        for layer in layers { try digest.append(layer) }
+        return try digest.finalize()
+    }
+
+    private func assertFramedLayerTamperAndBounds(_ layers: [Data]) throws {
+        XCTAssertEqual(layers.count, 51)
+        guard layers.count == 51 else { return }
+        let expected = expectedFramedDigest(layers)
+        XCTAssertEqual(try digestLayers(layers), expected)
+        // Covers base records/ledger, receipt history, locations and latest rows.
+        for index in [0, 1, 3, 50] {
+            var changed = layers
+            changed[index].append(0x20)
+            XCTAssertNotEqual(try digestLayers(changed), expected)
+        }
+        var reordered = layers
+        reordered.swapAt(0, 50)
+        XCTAssertNotEqual(try digestLayers(reordered), expected)
+        XCTAssertThrowsError(try digestLayers(Array(layers.dropLast())))
+        XCTAssertThrowsError(try digestLayers(layers + [Data()]))
+        XCTAssertThrowsError(try StoreSemanticLayerDigestV1(release: .v52))
+    }
+
+    private func assertManifestDigestFormatsAndFrozenFrameVector() throws {
+        let vector = (3...53).map { Data("layer-\($0)".utf8) }
+        // Frozen independently with Python hashlib and >Q framing.
+        let golden = "8dc72f3178421dc3f690025e5aab119da2f556d658bf84ac9553896cd63835a3"
+        XCTAssertEqual(expectedFramedDigest(vector), golden)
+        XCTAssertEqual(try digestLayers(vector), golden)
+        try assertFramedLayerTamperAndBounds(vector)
+
+        let generation = try XCTUnwrap(UUID(uuidString: "10000000-0000-4000-8000-000000000001"))
+        let predecessor = try XCTUnwrap(UUID(uuidString: "10000000-0000-4000-8000-000000000002"))
+        let migration = try XCTUnwrap(UUID(uuidString: "10000000-0000-4000-8000-000000000003"))
+        let hash = String(repeating: "1", count: 64)
+        let file = try StoreGenerationFileDigestV1(relativePath: "model.sqlite", byteCount: 1,
+                                                  sha256: hash, kind: .database)
+        let legacy = try StoreGenerationManifestV1(generationID: generation,
+            predecessorGenerationID: predecessor, migrationID: migration, storeSchemaRelease: .v53,
+            semanticSHA256: hash, frozenIdentityDigest: hash, files: [file])
+        let legacyBytes = try legacy.canonicalData()
+        // Independent legacy shape: the new optional field must not alter old bytes.
+        let expectedLegacy: [String: Any] = [
+            "schemaVersion": 1, "generationID": generation.uuidString,
+            "predecessorGenerationID": predecessor.uuidString, "migrationID": migration.uuidString,
+            "storeSchemaRelease": "V53", "semanticSHA256": hash, "frozenIdentityDigest": hash,
+            "files": [["relativePath": "model.sqlite", "byteCount": 1, "sha256": hash, "kind": "database"]]
+        ]
+        let jsonOptions: JSONSerialization.WritingOptions = [.sortedKeys, .withoutEscapingSlashes]
+        XCTAssertEqual(legacyBytes, try JSONSerialization.data(withJSONObject: expectedLegacy, options: jsonOptions))
+        XCTAssertEqual(try StoreGenerationManifestV1.decodeCanonical(from: legacyBytes), legacy)
+        XCTAssertNil(legacy.semanticDigestAlgorithm)
+        let modern = try StoreGenerationManifestV1(schemaVersion: 2, generationID: generation,
+            predecessorGenerationID: predecessor, migrationID: migration, storeSchemaRelease: .v53,
+            semanticSHA256: golden, semanticDigestAlgorithm: .framedLayersV1,
+            frozenIdentityDigest: hash, files: [file])
+        let modernBytes = try modern.canonicalData()
+        XCTAssertEqual(try StoreGenerationManifestV1.decodeCanonical(from: modernBytes), modern)
+        XCTAssertNotEqual(try modern.canonicalSHA256(), try legacy.canonicalSHA256())
+        let modernObject = try jsonObject(modernBytes)
+        var invalidObjects: [[String: Any]] = []
+        for version in [0, 1, 3] {
+            var changed = modernObject; changed["schemaVersion"] = version; invalidObjects.append(changed)
+        }
+        for algorithm in ["unknown", "canonicalNestedV1"] {
+            var changed = modernObject; changed["semanticDigestAlgorithm"] = algorithm; invalidObjects.append(changed)
+        }
+        var missing = modernObject; missing.removeValue(forKey: "semanticDigestAlgorithm"); invalidObjects.append(missing)
+        var wrongRelease = modernObject; wrongRelease["storeSchemaRelease"] = "V52"; invalidObjects.append(wrongRelease)
+        var nullLegacy = expectedLegacy; nullLegacy["semanticDigestAlgorithm"] = NSNull(); invalidObjects.append(nullLegacy)
+        for value in invalidObjects {
+            let bytes = try JSONSerialization.data(withJSONObject: value, options: jsonOptions)
+            XCTAssertThrowsError(try StoreGenerationManifestV1.decodeCanonical(from: bytes))
+        }
     }
 
     private enum CorruptionKind: String {
@@ -274,6 +409,8 @@ final class V23StoreSemanticValidationTests: XCTestCase {
                     }
                 }
             }
+            XCTAssertThrowsError(try factory.framedSemanticDigestForTesting(in: active.modelContext),
+                                 file: file, line: line)
             XCTAssertThrowsError(try factory.validateSemanticRowsForTesting(
                 in: active.modelContext, through: .v53, didEncode: { _ in }
             ), file: file, line: line) { error in
@@ -546,6 +683,8 @@ private struct SemanticValidationStoreFacts {
     let night: Data
     let receipts: [SemanticValidationReceiptBytes]
     let traversalCount: Int
+    let boundedDigest: String
+    let bootstrapManifest: Data
 }
 
 private struct SemanticValidationCorruptFacts {

@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = "2f362ef84e2038a54417b3c8021c93c8de3defa4"
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '05cd44340053c7d260b3868037e4d9bd7b222593', 'FieldEvidenceAppTests': 'ff733d7b6d068504bae6b81c2a6202b4c75a4e12', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = "8453dbd924ce0d7fa0d674dab46945cfd99bd6f8"
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '81f184904b78add6698533b66dd333b1f884b015', 'FieldEvidenceAppTests': 'f7b1518a7db7a2163d25c8daaa2478ca89f9a1b0', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",

@@ -62,7 +62,7 @@ private extension StoreGenerationFactory {
         ), targetRelease.predecessorVersionIdentifier == sourceRelease.versionIdentifier else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
-        guard sourceManifest.storeSchemaRelease == sourceRelease,
+        guard sourceManifest.schemaVersion == 1, sourceManifest.storeSchemaRelease == sourceRelease,
               sourceManifest.semanticSHA256 != nil else {
             throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
         }
@@ -786,7 +786,7 @@ private extension StoreGenerationFactory {
             targetGenerationID: journal.sourceGenerationID,
             expectedDigest: journal.sourceManifestDigest
         )
-        guard manifest.generationID == journal.sourceGenerationID,
+        guard manifest.schemaVersion == 1, manifest.generationID == journal.sourceGenerationID,
               manifest.migrationID == journal.migrationID,
               manifest.storeSchemaRelease == journal.sourceRelease,
               manifest.frozenIdentityDigest == journal.frozenIdentityDigest,
@@ -821,7 +821,7 @@ private extension StoreGenerationFactory {
             targetGenerationID: journal.targetGenerationID,
             expectedDigest: digest
         )
-        guard manifest.generationID == journal.targetGenerationID,
+        guard manifest.schemaVersion == 1, manifest.generationID == journal.targetGenerationID,
               manifest.predecessorGenerationID == journal.sourceGenerationID,
               manifest.migrationID == journal.migrationID,
               manifest.storeSchemaRelease == journal.targetRelease,
@@ -836,7 +836,7 @@ private extension StoreGenerationFactory {
         manifest: StoreGenerationManifestV1,
         at generationRootURL: URL
     ) throws {
-        guard manifest.generationID == journal.targetGenerationID,
+        guard manifest.schemaVersion == 1, manifest.generationID == journal.targetGenerationID,
               manifest.files == (try generationFileDigests(
                   at: generationRootURL,
                   durable: true
@@ -2516,6 +2516,61 @@ private extension StoreGenerationFactory {
     @MainActor private func semanticExportV51(in c:ModelContext, purpose: StoreSemanticExportPurposeV1 = .canonicalBytes)throws->Data{let rows=try c.fetch(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>()).map{try $0.value()}.sorted{$0.provenanceID.uuidString<$1.provenanceID.uuidString};return try purpose.encode(StoreSemanticEnvelopeV51(base:semanticExportV50(in:c, purpose: purpose),rows:rows))}
     @MainActor private func semanticExportV52(in c:ModelContext, purpose: StoreSemanticExportPurposeV1 = .canonicalBytes)throws->Data{let rows=try c.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>()).map{try $0.value()}.sorted{$0.recordID.uuidString<$1.recordID.uuidString};return try purpose.encode(StoreSemanticEnvelopeV52(base:semanticExportV51(in:c, purpose: purpose),rows:rows))}
     @MainActor private func semanticExportV53(in c:ModelContext, purpose: StoreSemanticExportPurposeV1 = .canonicalBytes)throws->Data{let rows=try c.fetch(FetchDescriptor<LightingNightWorkflowRowV1>()).map{try $0.value()}.sorted{$0.recordID.uuidString<$1.recordID.uuidString};return try purpose.encode(StoreSemanticEnvelopeV53(base:semanticExportV52(in:c, purpose: purpose),rows:rows))}
+
+    @MainActor
+    private func framedSemanticDigest(
+        in context: ModelContext,
+        release: PersistentSchemaReleaseV1
+    ) throws -> String {
+        var digest = try StoreSemanticLayerDigestV1(release: release)
+        var purpose = StoreSemanticExportPurposeV1.validationOnly
+        purpose.consumeLayer = { try digest.append($0) }
+        _ = try semanticProjection(in: context, release: release, purpose: purpose)
+        return try digest.finalize()
+    }
+
+    @MainActor
+    private func framedSemanticDigest(
+        at modelStoreURL: URL,
+        release: PersistentSchemaReleaseV1,
+        markerMigrationID: UUID? = nil
+    ) throws -> String {
+        try autoreleasepool {
+            let container = try openReleasedContainer(
+                at: modelStoreURL, release: release, markerMigrationID: markerMigrationID
+            )
+            return try framedSemanticDigest(in: container.mainContext, release: release)
+        }
+    }
+
+    /// Verify the recorded format only. A mismatch never falls back to another hash.
+    @MainActor
+    private func semanticDigest(
+        at modelStoreURL: URL,
+        manifest: StoreGenerationManifestV1
+    ) throws -> String {
+        try manifest.validate()
+        return try autoreleasepool {
+            let container = try openReleasedContainer(
+                at: modelStoreURL, release: manifest.storeSchemaRelease, markerMigrationID: nil
+            )
+            return try semanticDigest(in: container.mainContext, manifest: manifest)
+        }
+    }
+
+    @MainActor
+    private func semanticDigest(
+        in context: ModelContext,
+        manifest: StoreGenerationManifestV1
+    ) throws -> String {
+        try manifest.validate()
+        if manifest.semanticDigestAlgorithm == .framedLayersV1 {
+            return try framedSemanticDigest(in: context, release: manifest.storeSchemaRelease)
+        }
+        return StoreMigrationCanonicalJSONV1.sha256(
+            try semanticProjection(in: context, release: manifest.storeSchemaRelease)
+        )
+    }
 
     @MainActor
     private func semanticDigest(
@@ -5041,7 +5096,7 @@ private extension StoreGenerationFactory {
                 manifestDigest: existing.digest
             )
         }
-        let semantic = try semanticExport(
+        let semantic = try framedSemanticDigest(
             at: modelStoreURL,
             release: PersistentSchemaReleaseRegistryV1.activeRelease,
             markerMigrationID: markerMigrationID
@@ -5050,11 +5105,13 @@ private extension StoreGenerationFactory {
             try protectGeneration(at: root, staging: false, requireModel: true)
         }
         let manifest = try StoreGenerationManifestV1(
+            schemaVersion: 2,
             generationID: newID,
             predecessorGenerationID: expectedOldID,
             migrationID: markerMigrationID,
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
-            semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(semantic),
+            semanticSHA256: semantic,
+            semanticDigestAlgorithm: .framedLayersV1,
             frozenIdentityDigest: try frozenIdentityDigest(
                 for: root,
                 restoreProof: restoreProof,
@@ -5345,7 +5402,7 @@ private extension StoreGenerationFactory {
               manifest.migrationID == markerMigrationID,
               manifest.semanticSHA256 == (try semanticDigest(
                   at: modelStoreURL,
-                  release: manifest.storeSchemaRelease
+                  manifest: manifest
               )),
               manifest.files == (try generationFileDigests(
                   at: root,
@@ -9856,7 +9913,7 @@ struct StoreGenerationFactory {
             digest = existing.digest
         } else {
             diagnosticPhase?("recovery.manifest.semantic.begin")
-            let semanticSHA256: String = try semanticDigest(
+            let semanticSHA256: String = try framedSemanticDigest(
                 at: modelStoreURL,
                 release: PersistentSchemaReleaseRegistryV1.activeRelease
             )
@@ -9878,11 +9935,13 @@ struct StoreGenerationFactory {
             diagnosticPhase?("recovery.manifest.files.end")
             diagnosticPhase?("recovery.manifest.construct.begin")
             let manifest = try StoreGenerationManifestV1(
+                schemaVersion: 2,
                 generationID: newID,
                 predecessorGenerationID: expectedOldID,
                 migrationID: markerMigrationID,
                 storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
                 semanticSHA256: semanticSHA256,
+                semanticDigestAlgorithm: .framedLayersV1,
                 frozenIdentityDigest: identityDigest,
                 files: fileDigests,
                 restoreProof: restoreProof
@@ -13261,7 +13320,7 @@ struct StoreGenerationFactory {
             let root = try requireAggregateCandidate(journal, authority: authority, staging: staging)
             guard let digest = journal.targetManifestSHA256 else { throw StoreMigrationFailure.invalidContract }
             let manifest = try store.loadManifest(targetGenerationID: journal.targetGenerationID, expectedDigest: digest)
-            guard manifest.predecessorGenerationID == journal.sourceGenerationID, manifest.migrationID == journal.migrationID,
+            guard manifest.schemaVersion == 1, manifest.predecessorGenerationID == journal.sourceGenerationID, manifest.migrationID == journal.migrationID,
                   manifest.storeSchemaRelease == journal.targetRelease,
                   manifest.semanticSHA256 == journal.currentCandidateSemanticSHA256,
                   try generationFileDigests(at: root, durable: true) == manifest.files,
@@ -13741,16 +13800,18 @@ struct StoreGenerationFactory {
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
 
         let manifest = try StoreGenerationManifestV1(
+            schemaVersion: 2,
             generationID: generationID,
             predecessorGenerationID: syntheticPredecessor(
                 excluding: generationID
             ),
             migrationID: Self.bootstrapManifestMigrationID,
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
-            semanticSHA256: try semanticDigest(
+            semanticSHA256: try framedSemanticDigest(
                 at: modelStoreURL,
                 release: PersistentSchemaReleaseRegistryV1.activeRelease
             ),
+            semanticDigestAlgorithm: .framedLayersV1,
             frozenIdentityDigest: try frozenIdentityDigest(
                 for: generationRootURL
             ),
@@ -14595,6 +14656,7 @@ private func diagnosedGenerationLeaseInvalidIdentityV1(
 /// base64-encoded again. Canonical migration consumers keep the original bytes.
 private struct StoreSemanticExportPurposeV1 {
     let retainsCanonicalBytes: Bool
+    var consumeLayer: ((Data) throws -> Void)? = nil
 #if DEBUG
     var didEncode: ((Data) -> Void)? = nil
 #endif
@@ -14604,6 +14666,7 @@ private struct StoreSemanticExportPurposeV1 {
 
     func encode<Value: Encodable>(_ value: Value) throws -> Data {
         let bytes = try StoreMigrationCanonicalJSONV1.encode(value)
+        try consumeLayer?(bytes)
 #if DEBUG
         didEncode?(bytes)
 #endif
@@ -14623,6 +14686,22 @@ extension StoreGenerationFactory {
         var purpose = StoreSemanticExportPurposeV1.validationOnly
         purpose.didEncode = didEncode
         _ = try semanticProjection(in: context, release: release, purpose: purpose)
+    }
+
+    @MainActor
+    internal func manifestSemanticDigestForTesting(
+        in context: ModelContext,
+        manifest: StoreGenerationManifestV1
+    ) throws -> String {
+        try semanticDigest(in: context, manifest: manifest)
+    }
+
+    @MainActor
+    internal func framedSemanticDigestForTesting(
+        in context: ModelContext,
+        release: PersistentSchemaReleaseV1 = .v53
+    ) throws -> String {
+        try framedSemanticDigest(in: context, release: release)
     }
 
     @MainActor

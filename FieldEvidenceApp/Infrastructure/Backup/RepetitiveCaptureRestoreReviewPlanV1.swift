@@ -166,8 +166,14 @@ struct RepetitiveCaptureRestoreReviewPlanV1: Sendable {
                   actual == checkpoint else { throw Self.invalid() }
             diagnosticPhase?("history.target.end")
             diagnosticPhase?("history.lineage.begin")
+            diagnosticPhase?("history.lineage.imported-facts.begin")
+            let facts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(written)
+            diagnosticPhase?("history.lineage.imported-facts.end")
+            diagnosticPhase?("history.lineage.reconstruct.begin")
             let lineage = try RepetitiveCaptureReviewLineageReaderV1.read(
-                workspaceID: checkpoint.workspaceID, mutationID: checkpoint.mutationID, in: written)
+                workspaceID: checkpoint.workspaceID, mutationID: checkpoint.mutationID,
+                in: written, validatedBy: facts)
+            diagnosticPhase?("history.lineage.reconstruct.end")
             diagnosticPhase?("history.lineage.end")
             diagnosticPhase?("history.selected-checkpoint.begin")
             guard lineage.selectedReview.initialCheckpoint == checkpoint else { throw Self.invalid() }
