@@ -2141,10 +2141,18 @@ final class BackupRestoreService {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
                 traceRestorePhase("write-destination-reviews")
+                let reviewDiagnostic: (@MainActor (String) -> Void)?
+                #if DEBUG
+                reviewDiagnostic = restorePhaseDiagnosticForTesting
+                #else
+                reviewDiagnostic = nil
+                #endif
                 let written = try generationFactory.writeRestoreDestinationReviews(
                     plan: destinationReviewPlan, authority: generationAuthority,
                     clock: RestoreReviewClockV1(value: replacementAt),
-                    idSource: SystemApplicationIDSource(), fileAuthority: SystemApplicationFileAuthorityV1())
+                    idSource: SystemApplicationIDSource(), fileAuthority: SystemApplicationFileAuthorityV1(),
+                    diagnosticPhase: reviewDiagnostic)
+                traceRestorePhase("write-destination-reviews.returned")
                 try destinationReviewPlan.requireWrittenHistory(written.history, preserving: history)
                 guard written.checkpoints == destinationReviewPlan.checkpoints else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority

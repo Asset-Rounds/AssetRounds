@@ -313,7 +313,8 @@ final class RestoreReviewTimingV1 {
     func mark(_ phase: String) {
         guard enabled else { return }
         let elapsedMilliseconds = (DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
-        print("RestoreReviewTimingV1 phase=\(phase) elapsedMs=\(elapsedMilliseconds)")
+        let line = "RestoreReviewTimingV1 phase=\(phase) elapsedMs=\(elapsedMilliseconds)\n"
+        FileHandle.standardError.write(Data(line.utf8))
     }
 }
 

@@ -9570,45 +9570,61 @@ struct StoreGenerationFactory {
         authority: StoreRestoreGenerationAuthority,
         clock: any ApplicationClock,
         idSource: any ApplicationIDSource,
-        fileAuthority: any ApplicationFileAuthorityV1
+        fileAuthority: any ApplicationFileAuthorityV1,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> (history: MutationHistorySnapshotV1, checkpoints: [FieldDraftCheckpointV1]) {
-        try authority.mutationRegistry.withNoMigrationReservation {
+        diagnosticPhase?("reviews.lock.begin")
+        return try authority.mutationRegistry.withNoMigrationReservation {
+            diagnosticPhase?("reviews.lock.acquired")
+            diagnosticPhase?("reviews.plan")
             try plan.validate()
             let target = plan.identity.targetPointer
             let identity = try WorkspaceReplicaIdentityV1(
                 workspaceID: WorkspaceID(rawValue: target.workspaceID),
                 replicaID: ReplicaID(rawValue: target.replicaID))
+            diagnosticPhase?("reviews.manifest-store")
             let manifestStore = try StoreMigrationJournalStoreV1(
                 applicationSupportURL: applicationSupportURL)
             @MainActor func requireUnpublished() throws {
+                diagnosticPhase?("reviews.unpublished.root")
                 try authority.requireRestoreReviewRoot(applicationSupportURL)
+                diagnosticPhase?("reviews.unpublished.no-journal")
                 try authority.requireNoRestoreJournal()
+                diagnosticPhase?("reviews.unpublished.current-pointer")
                 _ = try requireCurrentPointer(plan.identity.oldPointer, authority: authority)
+                diagnosticPhase?("reviews.unpublished.presence")
                 let presence = try authority.presence(id: target.generationID)
+                diagnosticPhase?("reviews.unpublished.guards")
                 guard presence.staging, !presence.installed,
                       target.generationID != plan.identity.oldPointer.generationID,
                       try manifestStore.loadManifestIfPresent(targetGenerationID: target.generationID) == nil,
                       try !authority.mutationRegistry.activeEpochs().contains(where: {
                           $0.generationID == target.generationID
                       }) else { throw WorkspaceMutationFailureV1.wrongGeneration }
+                diagnosticPhase?("reviews.unpublished.staging")
                 try authority.requireStagingGeneration(id: target.generationID)
             }
             try requireUnpublished()
+            diagnosticPhase?("reviews.open-staging")
             let session = try openRestoreStagingGeneration(id: target.generationID,
-                identity: identity, authority: authority)
+                identity: identity, authority: authority, diagnosticPhase: diagnosticPhase)
+            diagnosticPhase?("reviews.open-staging.end")
             let context = session.modelContext
             guard !context.hasChanges, session.workspaceIdentity == identity,
                   session.generationID == target.generationID,
                   session.generationEpoch == nil else {
                 throw WorkspaceMutationFailureV1.wrongGeneration
             }
+            diagnosticPhase?("reviews.root-identity")
             let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
+            diagnosticPhase?("reviews.mutations")
             let mutations: [FieldDraftMutationV1] = try plan.checkpoints.map { checkpoint in
                 try FieldDraftMutationV1(workspaceID: checkpoint.workspaceID,
                     expectedRevision: 0,
                     expectedBaseCanonicalRevision: checkpoint.baseCanonicalRevision,
                     mutationID: checkpoint.mutationID, postImage: .createCheckpoint(checkpoint))
             }
+            diagnosticPhase?("reviews.capability")
             let capability = StoreRestoreReviewWriteAuthorityV1(
                 context: context, identity: identity, generationID: target.generationID,
                 commands: mutations.map { WorkspaceCommandV1.applyFieldDraft($0) },
@@ -9621,11 +9637,19 @@ struct StoreGenerationFactory {
                         throw WorkspaceMutationFailureV1.wrongGeneration
                     }
                 })
-            defer { capability.revoke(); context.rollback() }
+            defer {
+                diagnosticPhase?("reviews.cleanup.begin")
+                capability.revoke(); context.rollback()
+                diagnosticPhase?("reviews.cleanup.end")
+            }
+            diagnosticPhase?("reviews.journal-init")
             let journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
                 generationID: target.generationID, restoreReviewAuthority: capability)
+            diagnosticPhase?("reviews.original-history")
             let originalHistory = try journal.exportSnapshot()
+            diagnosticPhase?("reviews.original-checkpoints")
             let originalCheckpoints = try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
+            diagnosticPhase?("reviews.original-history.end")
             let originalDraftIDs = Set(originalCheckpoints.map(\.draftID))
             let originalDraftRevisionIDs = Set(originalHistory.entityRevisions.filter {
                 $0.identity.kind == .fieldDraftCheckpoint
@@ -9643,6 +9667,7 @@ struct StoreGenerationFactory {
             }
             let initial = try WorkspaceRevisionV1(workspaceID: identity.workspaceID,
                 generationID: target.generationID, revision: 0, entityRevisions: [])
+            diagnosticPhase?("reviews.writer-init")
             let writer = try WorkspaceWriterV1(identity: identity, generationID: target.generationID,
                 initialRevision: initial, clock: clock, idSource: idSource,
                 fileAuthority: fileAuthority,
@@ -9650,9 +9675,12 @@ struct StoreGenerationFactory {
                     generationRootURL: session.generationRootURL, expectedRootIdentity: rootIdentity),
                 journalStore: journal)
             defer { writer.invalidate() }
+            diagnosticPhase?("reviews.writer-init.end")
             var createdRecords: [MutationHistoryReceiptRecordV1] = []
             for mutation in mutations {
+                diagnosticPhase?("reviews.current-revision")
                 let current = try writer.currentRevision()
+                diagnosticPhase?("reviews.request")
                 let entities: [WorkspaceEntityRevisionV1] = try mutation.concurrencyIdentities.map {
                     WorkspaceEntityRevisionV1(identity: $0, revision: 0)
                 }
@@ -9662,9 +9690,13 @@ struct StoreGenerationFactory {
                 let request = WorkspaceMutationRequestV1(mutationID: mutation.mutationID,
                     expectedRevision: expected, command: .applyFieldDraft(mutation))
                 let envelope = try MutationEnvelopeV1(request: request, identity: identity)
+                diagnosticPhase?("reviews.bind")
                 try capability.bind(envelope: envelope)
+                diagnosticPhase?("reviews.execute")
                 _ = try writer.execute(request)
+                diagnosticPhase?("reviews.reproof")
                 try session.reproofAfterSave()
+                diagnosticPhase?("reviews.receipt")
                 guard !context.hasChanges, let receipt = try journal.receipt(mutationID: mutation.mutationID),
                       receipt.envelopeSHA256 == (try envelope.canonicalSHA256()) else {
                     throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -9672,10 +9704,13 @@ struct StoreGenerationFactory {
                 let record = MutationHistoryReceiptRecordV1(envelopeData: try envelope.canonicalData(),
                     receiptData: try receipt.canonicalData(), reversalBasisData: nil, semanticReversalData: nil)
                 createdRecords.append(record)
+                diagnosticPhase?("reviews.finish")
                 try capability.finish(envelope: envelope)
             }
             try requireUnpublished()
+            diagnosticPhase?("reviews.final-history")
             let history = try journal.exportSnapshot()
+            diagnosticPhase?("reviews.final-history.end")
             let addedRevisions: [MutationHistoryEntityRevisionV1] = try plan.checkpoints.map {
                 MutationHistoryEntityRevisionV1(
                     identity: try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: $0.draftID),
@@ -9695,7 +9730,9 @@ struct StoreGenerationFactory {
             let count = UInt64(createdRecords.count)
             let revision = originalHistory.workspaceRevision.addingReportingOverflow(count)
             let sequence = originalHistory.lastLocalSequence.addingReportingOverflow(count)
+            diagnosticPhase?("reviews.final-checkpoints")
             let checkpoints = try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
+            diagnosticPhase?("reviews.final-comparison")
             guard !context.hasChanges, !revision.overflow, !sequence.overflow,
                   history.workspaceRevision == revision.partialValue,
                   history.lastLocalSequence == sequence.partialValue,
@@ -9711,6 +9748,7 @@ struct StoreGenerationFactory {
             }
             let createdCheckpoints = checkpoints.filter { !originalDraftIDs.contains($0.draftID) }
                 .sorted { $0.draftID.uuidString < $1.draftID.uuidString }
+            diagnosticPhase?("reviews.return")
             return (history, createdCheckpoints)
         }
     }
@@ -11920,14 +11958,16 @@ struct StoreGenerationFactory {
     func openRestoreStagingGeneration(
         id: UUID,
         identity: WorkspaceReplicaIdentityV1,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> StoreGenerationSession {
         try authority.requireStagingGeneration(id: id)
         try authority.protectStagingGeneration(id: id)
         let session = try openGeneration(
             id: id,
             at: restoreStagingGenerationURL(id: id),
-            identity: identity
+            identity: identity,
+            diagnosticPhase: diagnosticPhase
         )
         try authority.protectStagingGeneration(id: id)
         try authority.requireStagingGeneration(id: id)
@@ -13954,7 +13994,8 @@ struct StoreGenerationFactory {
     private func openGeneration(
         id: UUID,
         at generationRootURL: URL,
-        identity: WorkspaceReplicaIdentityV1? = nil
+        identity: WorkspaceReplicaIdentityV1? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> StoreGenerationSession {
         guard generationRootURL.lastPathComponent == canonicalString(for: id) else {
             throw StoreGenerationFailure.dataGenerationMissing
@@ -14001,8 +14042,11 @@ struct StoreGenerationFactory {
         }
         let container: ModelContainer
         do {
+            diagnosticPhase?("reviews.staging.container.begin")
             container = try makeV53Container(at: modelStoreURL, migrate: false)
+            diagnosticPhase?("reviews.staging.marker.begin")
             _ = try requireV53Marker(in: container.mainContext, expectedMigrationID: nil)
+            diagnosticPhase?("reviews.staging.marker.end")
         }
         catch { throw StoreGenerationFailure.dataPointerInvalid }
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)
