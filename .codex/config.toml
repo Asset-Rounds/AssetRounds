@@ -7,11 +7,12 @@ model = "gpt-6-astra"
 model_reasoning_effort = "xhigh"
 
 # Root implements; one bounded helper. Luna is selected explicitly only for
-# simple non-coding work. "low" is the supported value for light assistance.
+# simple non-coding work. Medium is the consequential-review default; choose
+# low explicitly for mechanical checks and bounded coding assistance.
 [agents]
-max_threads = 1
+max_threads = 2
 default_subagent_model = "gpt-6-astra"
-default_subagent_reasoning_effort = "low"
+default_subagent_reasoning_effort = "medium"
 
 [features]
 goals = true

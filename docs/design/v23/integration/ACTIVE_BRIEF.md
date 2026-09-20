@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-Original35518478675/headaa63fce is terminal/sole-collected/root-audited2AD287FA: compilationPASS1632s/0errors/0newwarnings;6executed1Pass5Fail, transportPASS. Two replacement failures hit the active-sequence/workspace-frontier guard; source proves projection drops incumbent sequence. Same-workspace first install reaches semantic bootstrap before imported entity revisions. Both fork failures reach the first anchor envelope-digest guard; package-to-normalized history equality remains unmeasured. Correct both established journal causes and add default-off first-anchor boundary comparisons, preserving all predicates/assertions. Reminder33 dispatch was rejectedHTTP422 by a missing public choice; no original or test result exists. Correct that choice and verify full139/index/committed routes before distinct originals. No active native run or acceptance credit.
+Both227e370 originals are terminal/sole-collected/root-audited: restore35521990505 compiles,1Pass/5Fail; reminder35522059378 compiles,32Pass/1Fail. Zero Swift errors or new warning signatures. Restore journal import now completes; fork diagnostics show package-to-normalized history differs while normalized-to-written stays equal. Diagnose that boundary and later replacement/recovery failures from retained excerpts; isolate the single reminder failure. No active native run, unchanged retry or acceptance credit. Detailed evidence: .codex-temp/runtime-227e370/root-original-<runID>.json and restore-causal-excerpts.json.
 
 ## Current implementation
 
@@ -28,7 +28,7 @@ Original35518478675/headaa63fce is terminal/sole-collected/root-audited2AD287FA:
 
 ## Cadence and completion gates
 
-Astra xhigh root; one useful Astra low/medium helper, Luna low for simple non-coding. Freeze source/checkpoints; combine semantic/index review and qualified committed facts. Root alone commits/pushes. No duplicate or unchanged retry; one collector per original. Reuse audited summaries and parameterized helpers. Shared restore6/reminder33 D30 protocol qualification is complete; adopt only with reviewed candidate bindings. Follow MERGE_READINESS and validate-native-inputs.py.
+Astra xhigh root; one Astra medium reviewer owns each consequential affected contract, low for mechanical checks, Luna low for simple non-coding. Follow AGENTS review ordering and REVIEW_EFFICIENCY.md for the next five batches. Root alone commits/pushes. No duplicate or unchanged retry; one collector per original. Reuse audited summaries and parameterized helpers. Shared restore6/reminder33 D30 protocol qualification is complete; adopt only with reviewed candidate bindings. Follow MERGE_READINESS and validate-native-inputs.py.
 
 Committed pool868/53 includes the13 restore journey/authority methods and78 later additions;12 historical profiles remain exact. Source/protocol and independent index/route checks precede new reviewed native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Keep evidence head-bound. Cache/shared-build and provider qualification remain separate work.
 

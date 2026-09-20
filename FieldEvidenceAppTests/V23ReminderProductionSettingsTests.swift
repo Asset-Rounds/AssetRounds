@@ -100,8 +100,19 @@ private actor ReminderJourneyAuthentication: LocalAuthenticationClient {
         guard case .ready(let coordinator, let diagnostics, _) = router.route else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        try await presentation.performErase(applicationSupportURL: support, confirmation: "ERASE",
-            coordinator: coordinator, diagnosticsStore: diagnostics)
+        do {
+            try await presentation.performErase(applicationSupportURL: support, confirmation: "ERASE",
+                coordinator: coordinator, diagnosticsStore: diagnostics)
+        } catch {
+            // Failure-only fixture attribution: preserve the original error and
+            // every stale-authority/owner-replacement assertion at the caller.
+            let failure = error as NSError
+            print("ReminderJourney.erase.failure type=\(String(reflecting: type(of: error))) domain=\(failure.domain) code=\(failure.code)")
+            if let eraseFailure = error as? EraseAllServiceError {
+                print("ReminderJourney.erase.failure case=\(eraseFailure)")
+            }
+            throw error
+        }
     }
 
     func remove() {

@@ -2336,6 +2336,7 @@ final class BackupRestoreService {
             } else { initialPhotoBinding = nil }
             try inject(.beforePreparedWrite)
             try Task.checkCancellation()
+            traceRestorePhase("intent.create")
             try intentStore.create(intent)
 #if DEBUG
             if initialCloneRetirement != nil {
@@ -2358,6 +2359,7 @@ final class BackupRestoreService {
                 expectedBeforeEnvelopeSHA256:
                     expectedBeforePortableExchangeEnvelopeSHA256
             )
+            traceRestorePhase("intent.portable-sidecar")
             try persistPortableExchangeRestoreSidecar(portableExchangeRestoreSidecar)
             try inject(.afterPreparedWrite)
             let cloneRetirement: ConfigurationCloneRetirementBindingV1?
@@ -2373,12 +2375,14 @@ final class BackupRestoreService {
                     validateCurrentLocked: validatePhotoCurrentLocked)
             } else {
                 photoPublication = nil
+                traceRestorePhase("intent.draft-publication")
                 if let receipt = try publishRestoredDraftStaging(package: validatedPackage,
                     records: expectedRecords, identityDecision: identityDecision, restoreID: restoreID) {
                     try persistDraftPublicationBinding(receipt)
                 }
             }
             try validateDraftPublicationBinding(intent: intent, records: expectedRecords)
+            traceRestorePhase("intent.discard-package")
             try discardImportedPackage(validatedPackage, currentGenerationRootURL)
             let expectedInstalledNames = Set(
                 (initialRetiredIDs + [currentGenerationID]).map(canonical)
@@ -2398,6 +2402,7 @@ final class BackupRestoreService {
                 try protectGenerationTree(id: newGenerationID,
                     root: generationFactory.restoreStagingGenerationURL(id: newGenerationID), staging: true)
             }
+            traceRestorePhase("intent.install-generation")
             try generationFactory.installRestoreStagingGeneration(id: newGenerationID,
                 restoreProof: photoProof, restoreFileSnapshot: stagingPhotoFiles, authority: generationAuthority)
             try protectGenerationTree(
@@ -3503,7 +3508,9 @@ private extension BackupRestoreService {
                 currentRecords: old,
                 currentIdentity: try? workspaceIdentity(identity.oldPointer),
                 incomingRecords: target,
-                incomingIdentity: try? sourceWorkspaceIdentity(identity.source),
+                // Recovery consumes the authenticated normalized generation,
+                // whose identity is the target rather than the source archive.
+                incomingIdentity: try? workspaceIdentity(identity.targetPointer),
                 mode: identity.mode,
                 replacementAt: replacementAt
             )
@@ -7375,6 +7382,14 @@ private extension BackupRestoreService {
                 }
             } else {
                 causation = nil
+            }
+            // An unrelated original is historical authority, including its
+            // source kind and sidecars. Reissue only when stock projection or
+            // causation rebinding actually changes its portable contract.
+            if !expectedRevisionChanged, !resultingRevisionChanged,
+               causation == destinationEnvelope.causationMutationID {
+                try noteTerminalRevisions(destinationReceipt)
+                return originalRecord
             }
             let targetEnvelope = try reissuedEnvelope(
                 destinationEnvelope,
@@ -16554,6 +16569,23 @@ private extension BackupRestoreService {
     ) throws {
         let actual = try records(in: context)
         if actual == expected { return }
+#if DEBUG
+        if let diagnostic = restorePhaseDiagnosticForTesting {
+            diagnostic("rows.schema.actual.\(actual.recordsSchemaVersion).expected.\(expected.recordsSchemaVersion)")
+            if let actualData = try? JSONEncoder().encode(actual),
+               let expectedData = try? JSONEncoder().encode(expected),
+               let actualObject = (try? JSONSerialization.jsonObject(with: actualData)) as? [String: Any],
+               let expectedObject = (try? JSONSerialization.jsonObject(with: expectedData)) as? [String: Any] {
+                let keys = Set(actualObject.keys).union(expectedObject.keys).sorted()
+                for key in keys {
+                    let actualValue = actualObject[key] as? NSObject
+                    let expectedValue = expectedObject[key] as? NSObject
+                    let equal = actualValue?.isEqual(expectedValue) ?? (expectedValue == nil)
+                    if !equal { diagnostic("rows.different.\(key)") }
+                }
+            } else { diagnostic("rows.comparison.unavailable") }
+        }
+#endif
         guard expected.recordsSchemaVersion < 9,
               (actual.recordsSchemaVersion == 9 || actual.recordsSchemaVersion == 10
                 || actual.recordsSchemaVersion == 11

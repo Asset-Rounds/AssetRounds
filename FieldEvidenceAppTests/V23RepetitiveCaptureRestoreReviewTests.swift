@@ -286,6 +286,21 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         let changed = V16BackupFieldDraftRecordV1(kind: first.kind, id: first.id,
             workspaceID: first.workspaceID, revision: first.revision + 1, canonicalData: first.canonicalData)
         XCTAssertThrowsError(try plan.retainingUnownedRows([changed]))
+
+        // Exercise the real normalization boundary before a writer or recovery
+        // can mask an unnecessary rewrite of an authenticated original.
+        let harness = try RestoreReviewHarness()
+        defer { harness.remove() }
+        let service = try BackupRestoreService(applicationSupportURL: harness.support)
+        let normalized = try service.c55RecordsForMaterializationForTesting(
+            package.records, members: package.validatedPackage.members,
+            identityDecision: identity, legacyWorkspaceID: identity.oldPointer.workspaceID,
+            partsStockOperationID: plan.restoreID)
+        let originalHistory = try XCTUnwrap(package.records.mutationHistory)
+        let normalizedHistory = try XCTUnwrap(normalized.mutationHistory)
+        XCTAssertEqual(normalizedHistory.receipts, originalHistory.receipts)
+        XCTAssertEqual(normalizedHistory.quarantines, originalHistory.quarantines)
+        try MutationJournalStoreV1.validateImportedSnapshot(normalizedHistory)
     }
 
     private func assertProjectedRoundRows(_ originals: [RoundSessionV1],
