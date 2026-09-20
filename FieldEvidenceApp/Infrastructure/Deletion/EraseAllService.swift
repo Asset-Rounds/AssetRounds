@@ -2352,6 +2352,36 @@ private extension EraseAllService {
               expectedFiles.isSubset(of: tree.files),
               tree.files.isSubset(of: expectedFiles.union(optionalFiles)),
               !modelContext.hasChanges else {
+#if DEBUG
+            if erasePhaseDiagnosticForTesting != nil {
+                // Observe only the failed boundary's retained values. No paths,
+                // payloads, model refetches or filesystem reads are emitted.
+                let contextClean: Bool = !modelContext.hasChanges
+                let allowedDirectories: Set<String> = expectedDirectories
+                    .union(allowedStagingDirectories).union(optionalDirectories)
+                let allowedFiles: Set<String> = expectedFiles.union(optionalFiles)
+                let missingDirectories: Set<String> = expectedDirectories.subtracting(tree.directories)
+                let unexpectedDirectories: Set<String> = tree.directories.subtracting(allowedDirectories)
+                let missingFiles: Set<String> = expectedFiles.subtracting(tree.files)
+                let unexpectedFiles: Set<String> = tree.files.subtracting(allowedFiles)
+                traceErasePhase("frozen.failure.expectedDirectoriesPresent=\(missingDirectories.isEmpty)")
+                traceErasePhase("frozen.failure.directoriesAllowed=\(unexpectedDirectories.isEmpty)")
+                traceErasePhase("frozen.failure.expectedFilesPresent=\(missingFiles.isEmpty)")
+                traceErasePhase("frozen.failure.filesAllowed=\(unexpectedFiles.isEmpty)")
+                traceErasePhase("frozen.failure.contextClean=\(contextClean)")
+                traceErasePhase("frozen.failure.missingDirectories=\(missingDirectories.count).unexpectedDirectories=\(unexpectedDirectories.count).missingFiles=\(missingFiles.count).unexpectedFiles=\(unexpectedFiles.count)")
+                let modelFilePresent: Bool = tree.files.contains("model.sqlite")
+                let activeLabels: Int = acceptedLabelSnapshots.filter { $0.disposition == .activeSourceWorkspace }.count
+                traceErasePhase("frozen.failure.modelFilePresent=\(modelFilePresent).evidenceRows=\(evidence.count).reportRows=\(reports.count).activeLabels=\(activeLabels)")
+                let families: [String] = ["evidence", "snapshots", "pdfs", "content", ".staging", ".staging/evidence", ".staging/snapshots", ".staging/pdfs", ".staging/evidence-derivatives"]
+                for family in families {
+                    let directories: Int = unexpectedDirectories.filter { $0 == family || $0.hasPrefix(family + "/") }.count
+                    let files: Int = unexpectedFiles.filter { $0 == family || $0.hasPrefix(family + "/") }.count
+                    let rootPresent: Bool = unexpectedDirectories.contains(family)
+                    traceErasePhase("frozen.failure.family=\(family).directories=\(directories).files=\(files).rootPresent=\(rootPresent)")
+                }
+            }
+#endif
             traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
     }

@@ -3715,7 +3715,8 @@ private extension BackupRestoreService {
             replicaID: ReplicaID(rawValue: pointer.replicaID),
             knownReplicaIDs: Set(pointer.knownReplicaIDs.map {
                 ReplicaID(rawValue: $0)
-            })
+            }),
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
         )
     }
 

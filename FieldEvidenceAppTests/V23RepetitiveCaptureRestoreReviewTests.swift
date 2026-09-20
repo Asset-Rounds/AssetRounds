@@ -415,6 +415,10 @@ final class RestoreReviewHarness {
         do {
             timing?.mark(phase)
             let current = try factory.openOrBootstrapCurrent()
+            let incumbentPointer = try factory.currentGenerationPointerV3(
+                expectedGenerationID: current.generationID)
+            XCTAssertEqual(incumbentPointer.storeSchemaVersion,
+                PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
             phase = "import-package"
             timing?.mark(phase)
             let imported = try BackupImportService(generationRootURL: current.generationRootURL,
@@ -436,6 +440,10 @@ final class RestoreReviewHarness {
                 currentModelContext: current.modelContext, currentGenerationID: current.generationID,
                 currentGenerationRootURL: current.generationRootURL, mode: mode)
             timing?.mark("restore.returned")
+            let publishedPointer = try factory.currentGenerationPointerV3(
+                expectedGenerationID: restored.generationID)
+            XCTAssertEqual(publishedPointer.storeSchemaVersion, incumbentPointer.storeSchemaVersion)
+            XCTAssertEqual(try publishedPointer.identity(), restored.workspaceIdentity)
             return restored
         } catch {
             // Fixed phase and error type only: no paths, identifiers or error payload.

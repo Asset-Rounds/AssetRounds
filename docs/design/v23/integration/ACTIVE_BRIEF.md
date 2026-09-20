@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-Current4fbcf8f originals35526801549/35526882279 are terminal, sole-collected and root-audited (B2CF7FA7/9A23B4B7). Both compile with zero errors/new warning signatures; restore1/6 and reminders32/33 pass. Fork history advances through reconstruction. Remaining installed-generation/reopen, mutationHistory equality, cold-recovery and real-Erase invalidAuthority questions need bounded attribution. No active collector or successor. Runtime-4fbcf8f/CURRENT.json retains exact evidence. No acceptance credit.
+Current1cca6e9 originals35530329297/35530412291 are terminal, sole-collected and root-auditedC1A0AB20/26BF9054. Both compile0errors/0newwarning signatures; restore1/6 and reminder32/33. Three restore cases pass installed validation then reject pointer publication; source proves restore conversion defaults schema2 instead of active schema. Erase rejects frozen inventory/context guard; exact conjunct unresolved. Cold recovery and same-workspace history remain unverified; this original's same-workspace fixture fails resourceValueMismatch before restore. No live collector or successor; runtime-1cca6e9/CURRENT.json retains evidence. No acceptance.
 
 ## Current implementation
 
