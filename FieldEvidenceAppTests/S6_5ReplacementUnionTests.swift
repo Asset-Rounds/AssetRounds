@@ -100,6 +100,10 @@ final class S6_5ReplacementUnionTests: XCTestCase {
             label: "Restored sign",
             observedAt: Date(timeIntervalSince1970: 1_786_709_000)
         )
+        let currentHistory = try MutationJournalStoreV1(
+            modelContext: current.session.modelContext, identity: current.session.workspaceIdentity,
+            generationID: current.session.generationID, allowStateBootstrap: false
+        ).exportSnapshot()
         let package = try exportPackage(incoming, root: root, name: "incoming")
         let sourceBefore = try fileTree(package)
         let validated = try importPackage(package, into: current.session, stageID: uuid(190))
@@ -137,6 +141,31 @@ final class S6_5ReplacementUnionTests: XCTestCase {
         XCTAssertNil(currentTombstone.currentRecordID)
         XCTAssertEqual(currentTombstone.contentDeletedAt, replacementAt)
         XCTAssertEqual(currentTombstone.createdAt, current.packetCreatedAt)
+        let restoredHistory = try MutationJournalStoreV1(
+            modelContext: restored.modelContext, identity: restored.workspaceIdentity,
+            generationID: restored.generationID, allowStateBootstrap: false
+        ).exportSnapshot()
+        let packetIdentity = try WorkspaceEntityIdentityV1(kind: .packet, id: current.packetID)
+        let priorTerminal = try XCTUnwrap(currentHistory.entityRevisions.first { $0.identity == packetIdentity })
+        let terminal = try XCTUnwrap(restoredHistory.entityRevisions.first { $0.identity == packetIdentity })
+        XCTAssertEqual(terminal.revision, priorTerminal.revision)
+        struct PacketBasis: Codable {
+            let identity: WorkspaceEntityIdentityV1
+            let revision: UInt64
+            let value: V4BackupPacketDTO
+        }
+        // A retained packet tombstone hashes its DTO, never an absent row.
+        let expectedPacket = V4BackupPacketDTO(
+            id: current.packetID, schemaVersion: currentTombstone.schemaVersion,
+            stableRootID: current.rootID, currentRecordID: nil, evaluationCounted: true,
+            contentDeletedAt: replacementAt, createdAt: current.packetCreatedAt
+        )
+        XCTAssertEqual(terminal.externalProjectionSHA256,
+            try WorkspaceMutationCanonicalV1.sha256(PacketBasis(identity: packetIdentity,
+                revision: priorTerminal.revision, value: expectedPacket)))
+        for original in currentHistory.receipts {
+            XCTAssertTrue(restoredHistory.receipts.contains(original))
+        }
         let incomingLive = try XCTUnwrap(
             packets.first(where: { $0.stableRootID == incoming.rootID })
         )
@@ -163,6 +192,10 @@ final class S6_5ReplacementUnionTests: XCTestCase {
 
         let reopened = try current.factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, restored.generationID)
+        XCTAssertEqual(try MutationJournalStoreV1(
+            modelContext: reopened.modelContext, identity: reopened.workspaceIdentity,
+            generationID: reopened.generationID, allowStateBootstrap: false
+        ).exportSnapshot(), restoredHistory)
         XCTAssertEqual(
             Set(try reopened.modelContext.fetch(FetchDescriptor<Packet>()).map(\.stableRootID)),
             Set([current.rootID, incoming.rootID])

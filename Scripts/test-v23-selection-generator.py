@@ -408,11 +408,28 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(len(set(EXPECTED_SETTINGS_COMPATIBILITY_SELECTORS)), 7)
         self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + EXPECTED_SETTINGS_COMPATIBILITY_SELECTORS)
         self.assertEqual(mapping['groups'], [dict(group, methodCount=group['methodCount'] + (7 if group['id'] == 'notification-controls' else 0)) for group in prior_map['groups']])
+        self.assertEqual(generator.sha256(generator.canonical(current)), '63394DBA6A8D5EF9C18C556473C5B3B28BE8178D3C9BEAC5032B611CA797A72A')
+        self.assertEqual(generator.sha256(generator.canonical(mapping)), '73A11321226C73B195635CB75DD3046F0B49AE5BA8671D3B5A8255DA4D58A0D1')
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+
+    def test_restore_history_appends_one_packet_method_and_replays_all_thirteen_profiles(self):
+        pins = {'incumbent-v1': ['91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E', 'CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129'], 'prospective-v1': ['203335CCCC8FACDC8560C1F23BA28A762854664264884CBFAFB8A0F0EDF42F6E', '6D74CFA1BA6EBC0B46ED0656F285F8BD59DA61D62CB60E02C2B37B2978973EBD'], 'raw-photo-v1': ['62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB', '77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC'], 'pair-startup-v1': ['62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722', '70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110'], 'photo-backup-v1': ['930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D', '5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248'], 'configuration-clone-v1': ['C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0', '955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E'], 'clone-retirement-v1': ['42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878', '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'], 'parent-finalization-v1': ['1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E'], 'destination-review-v1': ['575C83D0CAC78A35C9BB240193B5AC345425175762A73C7604A2EE5AABB04A1F', '86AC237B0F2A650CCB3B083DD8C8DA50F7176D76C0B9F15816EBD27FD79E5411'], 'production-destination-v1': ['C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5', '732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76'], 'restore-review-v1': ['658B54FBAA5E5907778892FD8F6B07BA5DEE82E5542580AC20723DC711E33584', '143C205A5011FDBF1688CDF885B047070F192471AEDC5BF5B06FBFC20517DB98'], 'reminder-production-v1': ['5484325202957B1DFF6BCD00918273A7792D6D2E5280D32BFEE1368D67CBAE70', '38554B50BAE48ED14098ED2B243B1D19497EB98EBA480A274741BDF6B6416B04'], 'reminder-compatibility-v1': ['63394DBA6A8D5EF9C18C556473C5B3B28BE8178D3C9BEAC5032B611CA797A72A', '73A11321226C73B195635CB75DD3046F0B49AE5BA8671D3B5A8255DA4D58A0D1']}
+        self.assertEqual(len(pins), 13)
+        for profile, expected in pins.items():
+            selection, mapping, _ = self.generate(profile)
+            self.assertEqual([generator.sha256(generator.canonical(x)) for x in (selection, mapping)], expected)
+        prior, prior_map, _ = self.generate('reminder-compatibility-v1')
+        current, mapping, report = self.generate('restore-history-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (869, 54))
+        self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + ['FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'])
+        self.assertEqual(mapping['groups'], prior_map['groups'] + [
+            {'id': 'replacement-packet-union', 'classes': ['S6_5ReplacementUnionTests'], 'methodCount': 1}])
         self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
         self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
-
 
     def test_legacy_consumer_shape_disjoint_exhaustive_and_deterministic(self):
         selection, selection_map, report = self.generate()

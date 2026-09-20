@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = '00c301311d23c6113bf87417b00161a66f819ec3'
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'c0981c89623cb93619f0e8c0b10ce798028c1d89', 'FieldEvidenceAppTests': '33c78c66aab80ea739114cbaef63bf9080376f59', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = '4f2cb573832d07cad49357ef98be960e51362ca0'
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'e9e1508cbf720ec6062afb4c56054ae34a4cc4f5', 'FieldEvidenceAppTests': '9918d1289d55d2e7764136323bbb5034660b2248', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -59,8 +59,8 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = '00c301311d23c6113bf87417b00161a66f819ec3'
-REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'c0981c89623cb93619f0e8c0b10ce798028c1d89', 'FieldEvidenceAppTests': '33c78c66aab80ea739114cbaef63bf9080376f59', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_PARENT = '4f2cb573832d07cad49357ef98be960e51362ca0'
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'e9e1508cbf720ec6062afb4c56054ae34a4cc4f5', 'FieldEvidenceAppTests': '9918d1289d55d2e7764136323bbb5034660b2248', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',
@@ -97,7 +97,14 @@ REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testMissingDisabledControlWithStampOrPendingIsNotReady',
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
 )
+RESTORE_HISTORY_SELECTION_ID = "restore-history-no-index-build30m"
+RESTORE_HISTORY_PARENT = '4f2cb573832d07cad49357ef98be960e51362ca0'
+RESTORE_HISTORY_TREES = {'FieldEvidenceApp': 'e9e1508cbf720ec6062afb4c56054ae34a4cc4f5', 'FieldEvidenceAppTests': '9918d1289d55d2e7764136323bbb5034660b2248', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_HISTORY_GROUPS = ("c36-restore-review", "replacement-packet-union")
+RESTORE_HISTORY_PACKET_SELECTOR = 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'
+RESTORE_HISTORY_SELECTORS = RESTORE_BUILD_WATCHDOG_SELECTORS + (RESTORE_HISTORY_PACKET_SELECTOR,)
 NO_INDEX_ROUTES = {
+    RESTORE_HISTORY_SELECTION_ID: (RESTORE_HISTORY_PARENT, "D30"),
     NO_INDEX_SELECTION_ID: (NO_INDEX_PARENT, "N8"),
     RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, "D30"),
     REMINDER_BUILD_WATCHDOG_SELECTION_ID: (REMINDER_BUILD_WATCHDOG_PARENT, "D30"),
@@ -106,6 +113,8 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id == RESTORE_HISTORY_SELECTION_ID:
+        return RESTORE_HISTORY_TREES
     if selection_id == REMINDER_BUILD_WATCHDOG_SELECTION_ID:
         return REMINDER_BUILD_WATCHDOG_TREES
     return (RESTORE_BUILD_WATCHDOG_TREES if selection_id == RESTORE_BUILD_WATCHDOG_SELECTION_ID
@@ -156,9 +165,9 @@ DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
 DESTINATION_LEGACY_SELECTION_ID = "c36-destination-legacy-bytes"
 DESTINATION_LEGACY_SELECTOR = 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes'
-GENERATED_SELECTION_PROFILE = "reminder-compatibility-v1"
-GENERATED_SELECTION_POOL_SHA256 = "63394DBA6A8D5EF9C18C556473C5B3B28BE8178D3C9BEAC5032B611CA797A72A"
-GENERATED_SELECTION_MAP_SHA256 = "73A11321226C73B195635CB75DD3046F0B49AE5BA8671D3B5A8255DA4D58A0D1"
+GENERATED_SELECTION_PROFILE = "restore-history-v1"
+GENERATED_SELECTION_POOL_SHA256 = "C46A725BF7F425DACBB8DEFEBC31F2543354E6366958C385198DB48C22E9A978"
+GENERATED_SELECTION_MAP_SHA256 = "AC74ED40BF913D6CAC95195935FC142C261478DD4413188891026218231EB556"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -913,7 +922,7 @@ def validate_selection(selection):
     if selection["tier"] == "D30":
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
-            REMINDER_BUILD_WATCHDOG_SELECTORS),
+            REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS),
             "build watchdog exact approved methods")
 
 
@@ -963,7 +972,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 53
+        isinstance(groups, list) and len(groups) == 54
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )
@@ -1149,6 +1158,20 @@ def resolve_selection(default, selection_map, selection_id):
                           **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(diagnostic)
         resolved[REMINDER_BUILD_WATCHDOG_SELECTION_ID] = diagnostic
+    if "replacement-packet-union" in resolved:
+        require(all(group in resolved for group in RESTORE_HISTORY_GROUPS),
+                "restore history complete groups")
+        members = tuple(method for group in RESTORE_HISTORY_GROUPS
+                        for method in resolved[group]["unitTestSelectors"])
+        require(len(members) == len(set(members)) == 7
+                and members == RESTORE_HISTORY_SELECTORS,
+                "restore history exact ordered disjoint union")
+        require(RESTORE_HISTORY_SELECTION_ID not in resolved,
+                "restore history distinct selection")
+        diagnostic = dict(default, unitTestSelectors=list(members))
+        diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
+        validate_selection(diagnostic)
+        resolved[RESTORE_HISTORY_SELECTION_ID] = diagnostic
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")
@@ -1257,6 +1280,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         BUILD_WATCHDOG_SELECTION_ID: (BUILD_WATCHDOG_PARENT, PARENT_FINALIZATION_METHOD_PARTITIONS[0][1]),
         RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, RESTORE_BUILD_WATCHDOG_SELECTORS),
         REMINDER_BUILD_WATCHDOG_SELECTION_ID: (REMINDER_BUILD_WATCHDOG_PARENT, REMINDER_BUILD_WATCHDOG_SELECTORS),
+        RESTORE_HISTORY_SELECTION_ID: (RESTORE_HISTORY_PARENT, RESTORE_HISTORY_SELECTORS),
     }
     if selection["tier"] == "D30" or selection_record["selectionID"] in watchdog_routes:
         require(selection["tier"] == "D30"

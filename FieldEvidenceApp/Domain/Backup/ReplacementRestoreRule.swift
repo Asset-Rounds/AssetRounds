@@ -280,10 +280,15 @@ enum ReplacementRestoreRule {
             #if DEBUG
             diagnosticPhase = "filtered-records"
             #endif
-            let recordsAfter = try filtering(
+            let filtered = try filtering(
                 incoming,
                 through: ledger,
                 validatesPartsStock: !crossWorkspacePartsStockReplacement
+            )
+            let historyWorkspace = input.mode == .replaceExisting
+                ? input.currentIdentity?.workspaceID : input.incomingIdentity?.workspaceID
+            let recordsAfter = try planningDeletionHistory(
+                in: filtered, ledger: ledger, workspaceID: historyWorkspace
             )
             return DeletionWinningRestorePlanV2(
                 recordsAfter: recordsAfter,
@@ -638,6 +643,93 @@ private extension ReplacementRestoreRule {
             #endif
             throw error
         }
+    }
+
+    // Plan only effects owned by this deletion-winning transformation. No
+    // destination readback is copied into the independent expected records.
+    static func planningDeletionHistory(
+        in records: V4BackupRecordsV1,
+        ledger: DeletionLedgerV2,
+        workspaceID: WorkspaceID?
+    ) throws -> V4BackupRecordsV1 {
+        guard let history = records.mutationHistory else { return records }
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        try ledger.validate()
+        // Released identity-less recovery retains its original plan semantics.
+        // Only an explicitly bound workspace can select receipt-backed images;
+        // never infer that authority from an arbitrary retained receipt.
+        guard let workspaceID else { return records }
+        let receiptImages = try MutationJournalStoreV1.receiptTerminalImages(
+            in: history, workspaceID: workspaceID
+        )
+        let deleted = Set(ledger.entries.map(\.identity))
+        let liveIDs: [WorkspaceEntityKindV1: Set<UUID>] = [
+            .site: Set(records.sites.map(\.id)),
+            .asset: Set(records.assets.map(\.id)),
+            .workflowRecord: Set(records.workflowRecords.map(\.id)),
+            .evidenceFile: Set(records.evidenceFiles.map(\.id)),
+            .issue: Set(records.issues.map(\.id)),
+            .report: Set(records.reports.map(\.id)),
+        ]
+        let deletionKinds: [WorkspaceEntityKindV1: DeletionRecordKindV2] = [
+            .site: .site, .asset: .asset, .workflowRecord: .workflowRecord,
+            .evidenceFile: .evidenceFile, .issue: .issue, .report: .report,
+        ]
+        let packets = Dictionary(grouping: records.packets, by: \.id)
+        let ledgerByID = Dictionary(grouping: ledger.entries, by: { $0.identity.id })
+        let terminals = try history.entityRevisions.map { value -> MutationHistoryEntityRevisionV1 in
+            let plannedDigest: String
+            if let deletionKind = deletionKinds[value.identity.kind],
+               deleted.contains(try DeletionIdentityV2(kind: deletionKind, id: value.identity.id)) {
+                guard liveIDs[value.identity.kind]?.contains(value.identity.id) == false else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                plannedDigest = try MutationJournalStoreV1.restoreTombstoneSHA256(
+                    identity: value.identity, revision: value.revision
+                )
+            } else if value.identity.kind == .packet,
+                      let matches = packets[value.identity.id],
+                      matches.contains(where: { $0.currentRecordID == nil && $0.contentDeletedAt != nil }) {
+                guard matches.count == 1, let packet = matches.first else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                plannedDigest = try MutationJournalStoreV1.restorePacketSHA256(
+                    packet, revision: value.revision
+                )
+            } else if value.identity.kind == .deletionLedgerEntry,
+                      let matches = ledgerByID[value.identity.id] {
+                // Journal identity is the UUID; two typed deletions sharing it
+                // cannot be resolved by choosing an arbitrary ledger entry.
+                guard matches.count == 1, let entry = matches.first else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                plannedDigest = try MutationJournalStoreV1.restoreDeletionEntrySHA256(
+                    entry, revision: value.revision
+                )
+            } else {
+                return value
+            }
+            if value.externalProjectionSHA256 == plannedDigest { return value }
+            if value.externalProjectionSHA256 == nil,
+               let image = receiptImages[value.identity],
+               image.revision == value.revision,
+               image.semanticSHA256 == plannedDigest { return value }
+            return MutationHistoryEntityRevisionV1(
+                identity: value.identity, revision: value.revision,
+                externalProjectionSHA256: plannedDigest
+            )
+        }
+        let planned = MutationHistorySnapshotV1(
+            workspaceRevision: history.workspaceRevision,
+            lastLocalSequence: history.lastLocalSequence,
+            receipts: history.receipts, quarantines: history.quarantines,
+            entityRevisions: terminals.sorted { $0.identity.stableKey < $1.identity.stableKey }
+        )
+        try MutationJournalStoreV1.validateImportedSnapshot(planned)
+        return replacingMutationHistory(
+            in: records, with: planned,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+        )
     }
 
     static func replacingPackets(

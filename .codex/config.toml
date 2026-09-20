@@ -6,13 +6,11 @@
 model = "gpt-6-astra"
 model_reasoning_effort = "xhigh"
 
-# Root implements; one bounded helper. Luna is selected explicitly only for
-# simple non-coding work. Medium is the consequential-review default; choose
-# low explicitly for mechanical checks and bounded coding assistance.
+# Root implements; one bounded helper. Select model and effort explicitly
+# when spawning, following AGENTS.md (medium for consequential reviews).
+# Installed CLI 0.144.5 rejects the newer default_subagent_* settings.
 [agents]
 max_threads = 2
-default_subagent_model = "gpt-6-astra"
-default_subagent_reasoning_effort = "medium"
 
 [features]
 goals = true

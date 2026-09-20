@@ -5391,13 +5391,9 @@ final class MutationJournalStoreV1 {
                         guard Self.minimumRelease(for: entity.kind) <= releaseVersion else {
                             diagnosticPhase?("validate.guard.line-5347"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                         }
-                        if let prior = latestPostImageByIdentity[entity] {
-                            if prior.revision == image.revision, prior != image {
-                                diagnosticPhase?("validate.guard.line-5351"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
-                            }
-                            if prior.revision >= image.revision { continue }
-                        }
-                        latestPostImageByIdentity[entity] = image
+                        guard try Self.retainLatestTerminalImage(
+                            image, for: entity, in: &latestPostImageByIdentity
+                        ) else { continue }
                         latestReceiptAnchorByIdentity[entity] = StoreMigrationReceiptRowAnchorV1(
                             row: row,
                             postImage: image
@@ -6151,6 +6147,42 @@ final class MutationJournalStoreV1 {
         )
     }
 
+    // Shared by live validation and restore planning. Equal-revision images
+    // must agree; receipt array order never resolves a conflicting frontier.
+    nonisolated private static func retainLatestTerminalImage(
+        _ image: MutationPostImageV1,
+        for entity: WorkspaceEntityIdentityV1,
+        in images: inout [WorkspaceEntityIdentityV1: MutationPostImageV1]
+    ) throws -> Bool {
+        if let prior = images[entity] {
+            if prior.revision == image.revision, prior != image {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            if prior.revision >= image.revision { return false }
+        }
+        images[entity] = image
+        return true
+    }
+
+    // Callers first authenticate the complete imported snapshot. Foreign
+    // originals do not establish this workspace's receipt-backed live image.
+    nonisolated static func receiptTerminalImages(
+        in snapshot: MutationHistorySnapshotV1,
+        workspaceID: WorkspaceID
+    ) throws -> [WorkspaceEntityIdentityV1: MutationPostImageV1] {
+        var images: [WorkspaceEntityIdentityV1: MutationPostImageV1] = [:]
+        for record in snapshot.receipts {
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            guard receipt.identity.workspaceID == workspaceID else { continue }
+            for image in receipt.postImages {
+                for entity in try terminalStateIdentities(for: image) {
+                    _ = try retainLatestTerminalImage(image, for: entity, in: &images)
+                }
+            }
+        }
+        return images
+    }
+
     /// Materializes imported history without minting receipts. The immutable
     /// historic receipt identities remain unchanged; clone/fork changes only
     /// the active destination state and resets its local sequence.
@@ -6229,6 +6261,12 @@ final class MutationJournalStoreV1 {
             ))
         }
         diagnosticPhase?("replace.entities")
+        // Empty install changes the replica while retaining the workspace.
+        // Its valid receipt-backed images need no metadata rewrite either.
+        // Foreign originals never enter this destination-workspace frontier.
+        let retainedReceiptImages = try Self.receiptTerminalImages(
+            in: snapshot, workspaceID: identity.workspaceID
+        )
         for value in snapshot.entityRevisions {
             diagnosticPhase?("replace.entity-kind." + value.identity.kind.rawValue)
             let externalProjection: String?
@@ -6262,10 +6300,19 @@ final class MutationJournalStoreV1 {
                         : nil
                 }
             } else if destinationProjection {
-                externalProjection = try currentPostImage(
+                let current = try currentPostImage(
                     identity: value.identity,
                     revision: value.revision
-                ).semanticSHA256
+                )
+                if value.externalProjectionSHA256 == current.semanticSHA256
+                    || (value.externalProjectionSHA256 == nil
+                        && retainedReceiptImages[value.identity] == current) {
+                    // An unchanged valid receipt-backed terminal stays nil.
+                    // Only an actual authorized projection needs new metadata.
+                    externalProjection = value.externalProjectionSHA256
+                } else {
+                    externalProjection = current.semanticSHA256
+                }
             } else {
                 externalProjection = value.externalProjectionSHA256
             }
@@ -8002,6 +8049,32 @@ final class MutationJournalStoreV1 {
         return try Self.postImage(identity: identity, revision: revision, digest: digest)
     }
 
+    nonisolated static func restoreTombstoneSHA256(
+        identity: WorkspaceEntityIdentityV1, revision: UInt64
+    ) throws -> String {
+        try WorkspaceMutationCanonicalV1.sha256(
+            PersistedTombstoneDigestBasis(identity: identity, revision: revision)
+        )
+    }
+
+    nonisolated static func restorePacketSHA256(
+        _ packet: V4BackupPacketDTO, revision: UInt64
+    ) throws -> String {
+        let identity = try WorkspaceEntityIdentityV1(kind: .packet, id: packet.id)
+        return try WorkspaceMutationCanonicalV1.sha256(
+            PersistedPostImageDigestBasis(identity: identity, revision: revision, value: packet)
+        )
+    }
+
+    nonisolated static func restoreDeletionEntrySHA256(
+        _ entry: DeletionLedgerEntryV2, revision: UInt64
+    ) throws -> String {
+        let identity = try WorkspaceEntityIdentityV1(kind: .deletionLedgerEntry, id: entry.identity.id)
+        return try WorkspaceMutationCanonicalV1.sha256(
+            PersistedPostImageDigestBasis(identity: identity, revision: revision, value: entry)
+        )
+    }
+
     private func tombstone(
         _ identity: WorkspaceEntityIdentityV1,
         _ revision: UInt64
@@ -8009,8 +8082,8 @@ final class MutationJournalStoreV1 {
         .tombstone(
             identity: identity,
             revision: revision,
-            semanticSHA256: try WorkspaceMutationCanonicalV1.sha256(
-                PersistedTombstoneDigestBasis(identity: identity, revision: revision)
+            semanticSHA256: try Self.restoreTombstoneSHA256(
+                identity: identity, revision: revision
             )
         )
     }

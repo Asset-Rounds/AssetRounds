@@ -297,7 +297,22 @@ extension V23ReminderProductionSettingsTests {
             try await old.update(expected: initial.policy, isEnabled: true, detail: .details)
             XCTFail("Pre-Erase permission reply edited replacement Preferences")
         } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        // Returning from performErase may mean cleanup is deferred until its
+        // original lifecycle dependencies release the old generation. Resume
+        // the retained production ticket only after the permission call unwinds.
+        if case .eraseCleanupPending = fixture.router.route {
+            XCTAssertFalse(fixture.presentation.permitsContentPresentation)
+            XCTAssertNil(fixture.presentation.reminderSettingsAccess)
+            let pendingOwners = try fixture.owners()
+            XCTAssertTrue(oldOwners.preferences === pendingOwners.preferences)
+            XCTAssertTrue(oldOwners.notifications === pendingOwners.notifications)
+            XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
+            await fixture.presentation.retryStartup()
+        }
         let freshOwners = try fixture.owners()
+        XCTAssertNil(fixture.presentation.failure)
+        XCTAssertTrue(fixture.presentation.permitsContentPresentation)
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
         XCTAssertFalse(oldOwners.preferences === freshOwners.preferences)
         XCTAssertFalse(oldOwners.notifications === freshOwners.notifications)
         let fresh = try XCTUnwrap(fixture.presentation.reminderSettingsAccess)

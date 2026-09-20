@@ -6,14 +6,16 @@
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
 - Main remains accepted S10 b1d04ae5; the expansion is not accepted.
-- Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
+- Preserve the existing app/scheme/design system, S10 branding, five receipts,52 protected drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
 ## Native evidence and next questions
 
 Evidence stays bound to its head.
 
-Current00c3013 originals35533198689/35533300628 are terminal, sole-collected and root-audited45545BA3/CBAC9202. Both compile0errors/0newwarning signatures; restore2/6 and reminder32/33. Pointer publication/reopen now succeed; populated cross-workspace replacement passes. Erase rejects exactly the legitimate empty snapshots root. Second-hop restore rejects legacy C08 max45 on current52; same-workspace terminal projection and fork mapped-ID revision closure need separate corrections. The prior setup protection failure did not recur. Cold recovery remains due. No live collector or successor; runtime-00c3013/CURRENT.json retains evidence. No acceptance.
+Current4f2cb57 reminder35536052172 is terminal, sole-collected/root-audited BEA26100: compilation PASS,0errors/0newwarning signatures;33 executed,32Pass/1Fail. Optional snapshots-root rejection cleared. Remaining failure is post-Erase owner replacement; performErase can return pending cleanup before completion. Follow the real retryStartup route after the permission call unwinds, preserving stale-access assertions. No live collector. Prior00c restore35533198689 remains2/6: initial empty-install terminal projection, fork mapped terminals and cold recovery remain due.
+
+Root has isolated restore-history corrections and paired deletion/ledger/mapped-hostile tests; exact destination receipt frontier applies to all non-C55 import modes. One medium CI helper qualifies closed restore7 plus unchanged reminder33 under869/54, replaying all13 prior profiles. Freeze and run deterministic/source checks before one fresh medium complete-contract review; no static result is native acceptance.
 
 ## Current implementation
 

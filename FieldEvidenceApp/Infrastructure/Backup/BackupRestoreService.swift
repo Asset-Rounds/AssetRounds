@@ -5127,7 +5127,10 @@ private extension BackupRestoreService {
             sourcePreviews: sourceAssurancePreviews
         )
         let workPackets = try rebindingWorkPackets(records.workPackets, workspaceID:workspaceID)
-        let fieldDrafts = try rebindingFieldDrafts(records.fieldDrafts, identity: identity)
+        let fieldDraftResult = try rebindingFieldDrafts(
+            records.fieldDrafts, history: records.mutationHistory, identity: identity
+        )
+        let fieldDrafts = fieldDraftResult.records
         let packageEvolution = try rebindingPackageEvolution(
             records.packageEvolution, workspaceID: workspaceID,
             sourcePartyAccountability: records.partyAccountability,
@@ -5229,7 +5232,7 @@ private extension BackupRestoreService {
                 evidenceFiles: records.evidenceFiles, issues: records.issues,
                 locationHierarchyEvents: hierarchyEvents,
                 locationMigrationReceipts: [], locationNodes: nodes,
-                mutationHistory: records.mutationHistory, packets: records.packets,
+                mutationHistory: fieldDraftResult.history, packets: records.packets,
                 partyAccountability: partyAccountability,
                 recordsSchemaVersion: records.recordsSchemaVersion,
                 reports: reports, requirementAssurance: requirementAssurance,
@@ -5333,7 +5336,7 @@ private extension BackupRestoreService {
                 canonicalData: try LocationPersistenceCodecV1.encode(rebound)
             )],
             locationNodes: nodes,
-            mutationHistory: records.mutationHistory,
+            mutationHistory: fieldDraftResult.history,
             packets: records.packets,
             partyAccountability: partyAccountability,
             recordsSchemaVersion: records.recordsSchemaVersion,
@@ -10020,15 +10023,16 @@ private extension BackupRestoreService {
 
     func rebindingFieldDrafts(
         _ records: [V16BackupFieldDraftRecordV1],
+        history: MutationHistorySnapshotV1?,
         identity: RestoreIdentityV1
-    ) throws -> [V16BackupFieldDraftRecordV1] {
+    ) throws -> (records: [V16BackupFieldDraftRecordV1], history: MutationHistorySnapshotV1?) {
         // C36 configuration clone excludes the complete operational draft
         // family; source validation precedes this target transformation.
-        if identity.mode == .clone { return [] }
-        guard !records.isEmpty else { return [] }
+        if identity.mode == .clone { return ([], history) }
+        guard !records.isEmpty else { return ([], history) }
         if identity.mode == .emptyInstall || identity.mode == .replaceExisting,
            records.allSatisfy({ $0.workspaceID == identity.targetPointer.workspaceID }) {
-            return records
+            return (records, history)
         }
         let target = identity.destinationFieldDraftWorkspaceID()
         func mapped(_ id: UUID, _ namespace: String) throws -> UUID {
@@ -10056,6 +10060,57 @@ private extension BackupRestoreService {
             reservationIDs: try pairs(decodedReservations.map(\.reservationID), "reservation"),
             receiptIDs: try pairs(receiptIDs, "receipt")
         )
+        guard let history else { throw BackupRestoreServiceError.invalidPackage }
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        let originalTerminals = Dictionary(uniqueKeysWithValues: history.entityRevisions.map {
+            ($0.identity, $0)
+        })
+        let wrappers = Dictionary(grouping: records, by: { "\($0.kind.rawValue):\($0.id.uuidString)" })
+        guard wrappers.count == records.count else { throw BackupRestoreServiceError.invalidPackage }
+        var consumedSources = Set<WorkspaceEntityIdentityV1>()
+        var addedTargets = Set<WorkspaceEntityIdentityV1>()
+        var additions: [MutationHistoryEntityRevisionV1] = []
+        var receiptImagesByWorkspace: [WorkspaceID: [WorkspaceEntityIdentityV1: MutationPostImageV1]] = [:]
+        func appendTerminal(
+            sourceID: UUID, sourceWorkspace: WorkspaceID, sourceRevision: UInt64,
+            sourceDigest: String, kind: WorkspaceEntityKindV1,
+            targetRecord: V16BackupFieldDraftRecordV1, expectedTargetID: UUID,
+            targetDigest: String
+        ) throws {
+            let sourceIdentity = try WorkspaceEntityIdentityV1(kind: kind, id: sourceID)
+            let targetIdentity = try WorkspaceEntityIdentityV1(kind: kind, id: targetRecord.id)
+            let wrapperKey = "\(targetRecord.kind.rawValue):\(sourceID.uuidString)"
+            guard let sourceRecords = wrappers[wrapperKey], sourceRecords.count == 1,
+                  let wrapper = sourceRecords.first,
+                  wrapper.id == sourceID, wrapper.workspaceID == sourceWorkspace.rawValue,
+                  wrapper.revision == sourceRevision, sourceRevision > 0,
+                  targetRecord.id == expectedTargetID, targetRecord.id != sourceID,
+                  targetRecord.workspaceID == target.rawValue,
+                  targetRecord.revision == sourceRevision,
+                  let terminal = originalTerminals[sourceIdentity], terminal.revision == sourceRevision,
+                  originalTerminals[targetIdentity] == nil,
+                  consumedSources.insert(sourceIdentity).inserted,
+                  addedTargets.insert(targetIdentity).inserted else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            if let projected = terminal.externalProjectionSHA256 {
+                guard projected == sourceDigest else { throw BackupRestoreServiceError.invalidPackage }
+            } else {
+                if receiptImagesByWorkspace[sourceWorkspace] == nil {
+                    receiptImagesByWorkspace[sourceWorkspace] = try MutationJournalStoreV1.receiptTerminalImages(
+                        in: history, workspaceID: sourceWorkspace
+                    )
+                }
+                guard let image = receiptImagesByWorkspace[sourceWorkspace]?[sourceIdentity],
+                      image.revision == sourceRevision, image.semanticSHA256 == sourceDigest else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+            }
+            additions.append(MutationHistoryEntityRevisionV1(
+                identity: targetIdentity, revision: sourceRevision,
+                externalProjectionSHA256: targetDigest
+            ))
+        }
         func mutation(_ id: MutationIDV1, _ namespace: String) throws -> MutationIDV1 {
             try MutationIDV1(rawValue: mapped(id.rawValue, "mutation.\(namespace)"))
         }
@@ -10080,27 +10135,67 @@ private extension BackupRestoreService {
                 }
             )
             let value = try source.rebound(using: map, scope: scope, mutationID: mutation(source.mutationID, "checkpoint"))
-            output.append(.init(kind:.checkpoint,id:value.draftID,workspaceID:target.rawValue,revision:value.draftRevision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+            let targetRecord = V16BackupFieldDraftRecordV1(
+                kind: .checkpoint, id: value.draftID, workspaceID: value.workspaceID.rawValue,
+                revision: value.draftRevision, canonicalData: try FieldDraftCanonicalCodecV1.encode(value)
+            )
+            try appendTerminal(
+                sourceID: source.draftID, sourceWorkspace: source.workspaceID,
+                sourceRevision: source.draftRevision, sourceDigest: source.checkpointSHA256,
+                kind: .fieldDraftCheckpoint, targetRecord: targetRecord,
+                expectedTargetID: map.draftID(source.draftID), targetDigest: value.checkpointSHA256
+            )
+            output.append(targetRecord)
         }
         for source in decodedStages {
             let contentReference = try source.contentReference.map { reference in
                 try ContentReferenceV1(workspaceID: target.rawValue.uuidString.lowercased(), contentID: reference.contentID, byteLength: reference.byteLength, mediaType: reference.mediaType, digests: reference.digests, byteRole: reference.byteRole, createdAt: reference.createdAt)
             }
             let value = try source.rebound(using: map, scratchLeaseID: mapped(source.scratchLeaseID, "scratchLease"), contentReference: contentReference, processingJobID: try source.processingJobID.map { try mapped($0, "processingJob") }, mutationID: mutation(source.mutationID, "stage"))
-            output.append(.init(kind:.stagingItem,id:value.stageID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+            let targetRecord = V16BackupFieldDraftRecordV1(
+                kind: .stagingItem, id: value.stageID, workspaceID: value.workspaceID.rawValue,
+                revision: value.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(value)
+            )
+            try appendTerminal(
+                sourceID: source.stageID, sourceWorkspace: source.workspaceID,
+                sourceRevision: source.revision, sourceDigest: source.stageSHA256,
+                kind: .attachmentStagingItem, targetRecord: targetRecord,
+                expectedTargetID: map.stageID(source.stageID), targetDigest: value.stageSHA256
+            )
+            output.append(targetRecord)
         }
         var reboundSagaSHA: [String: String] = [:]
         for source in decodedSagas.sorted(by: { $0.revision < $1.revision }) {
             guard let plan = planByDigest[source.plan.planSHA256] else { throw BackupRestoreServiceError.invalidPackage }
             let value = try source.rebound(using: map, plan: plan, mutationID: mutation(source.mutationID, "saga"))
             reboundSagaSHA[source.sagaSHA256] = value.sagaSHA256
-            output.append(.init(kind:.commitSaga,id:value.sagaID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+            let targetRecord = V16BackupFieldDraftRecordV1(
+                kind: .commitSaga, id: value.sagaID, workspaceID: value.workspaceID.rawValue,
+                revision: value.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(value)
+            )
+            try appendTerminal(
+                sourceID: source.sagaID, sourceWorkspace: source.workspaceID,
+                sourceRevision: source.revision, sourceDigest: source.sagaSHA256,
+                kind: .draftCommitSaga, targetRecord: targetRecord,
+                expectedTargetID: map.sagaID(source.sagaID), targetDigest: value.sagaSHA256
+            )
+            output.append(targetRecord)
         }
         for source in decodedReservations {
             guard let plan = planByDigest[source.commitPlanSHA256] else { throw BackupRestoreServiceError.invalidPackage }
             let locator = try ContentLocatorV1(locatorID: source.locator.locatorID, workspaceID: target.rawValue.uuidString.lowercased(), contentID: source.locator.contentID, locatorRevision: source.locator.locatorRevision, contentDigest: source.contentDigest, expectedByteLength: source.locator.expectedByteLength)
             let value = try source.rebound(using: map, commitPlanSHA256: plan.planSHA256, contentDigest: source.contentDigest, locator: locator, mutationID: mutation(source.mutationID, "reservation"))
-            output.append(.init(kind:.contentReservation,id:value.reservationID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+            let targetRecord = V16BackupFieldDraftRecordV1(
+                kind: .contentReservation, id: value.reservationID, workspaceID: value.workspaceID.rawValue,
+                revision: value.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(value)
+            )
+            try appendTerminal(
+                sourceID: source.reservationID, sourceWorkspace: source.workspaceID,
+                sourceRevision: source.revision, sourceDigest: source.reservationSHA256,
+                kind: .draftContentReservation, targetRecord: targetRecord,
+                expectedTargetID: map.reservationID(source.reservationID), targetDigest: value.reservationSHA256
+            )
+            output.append(targetRecord)
         }
         for source in decodedCommitReceipts {
             guard let plan = planByDigest[source.commitPlanSHA256] else { throw BackupRestoreServiceError.invalidPackage }
@@ -10114,13 +10209,46 @@ private extension BackupRestoreService {
                 return rebound
             }
             let value = try source.rebound(using: map, commitPlanSHA256: plan.planSHA256, sagaEventSHA256Chain: chain, targetMutationID: mutation(source.targetMutationID, "target"), targetReceiptSHA256: source.targetReceiptSHA256, consumedStageToContentID: consumed, mutationID: mutation(source.mutationID, "commitReceipt"))
-            output.append(.init(kind:.commitReceipt,id:value.receiptID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+            let targetRecord = V16BackupFieldDraftRecordV1(
+                kind: .commitReceipt, id: value.receiptID, workspaceID: value.workspaceID.rawValue,
+                revision: value.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(value)
+            )
+            try appendTerminal(
+                sourceID: source.receiptID, sourceWorkspace: source.workspaceID,
+                sourceRevision: source.revision, sourceDigest: source.receiptSHA256,
+                kind: .draftCommitReceipt, targetRecord: targetRecord,
+                expectedTargetID: map.receiptID(source.receiptID), targetDigest: value.receiptSHA256
+            )
+            output.append(targetRecord)
         }
         for source in decodedDiscardReceipts {
             let value = try source.rebound(using: map, planSHA256: source.planSHA256, mutationID: mutation(source.mutationID, "discardReceipt"))
-            output.append(.init(kind:.discardReceipt,id:value.receiptID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+            let targetRecord = V16BackupFieldDraftRecordV1(
+                kind: .discardReceipt, id: value.receiptID, workspaceID: value.workspaceID.rawValue,
+                revision: value.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(value)
+            )
+            try appendTerminal(
+                sourceID: source.receiptID, sourceWorkspace: source.workspaceID,
+                sourceRevision: source.revision, sourceDigest: source.receiptSHA256,
+                kind: .draftDiscardReceipt, targetRecord: targetRecord,
+                expectedTargetID: map.receiptID(source.receiptID), targetDigest: value.receiptSHA256
+            )
+            output.append(targetRecord)
         }
-        return output.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+        guard additions.count == records.count, output.count == records.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let mappedHistory = MutationHistorySnapshotV1(
+            workspaceRevision: history.workspaceRevision, lastLocalSequence: history.lastLocalSequence,
+            receipts: history.receipts, quarantines: history.quarantines,
+            entityRevisions: (history.entityRevisions + additions).sorted {
+                $0.identity.stableKey < $1.identity.stableKey
+            }
+        )
+        try MutationJournalStoreV1.validateImportedSnapshot(mappedHistory)
+        return (output.sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
+        }, mappedHistory)
     }
 
     func rebindingPackageEvolution(

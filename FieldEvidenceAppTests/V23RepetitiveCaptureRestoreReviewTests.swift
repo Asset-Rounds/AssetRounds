@@ -143,8 +143,131 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         let rows = try restored.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
         XCTAssertEqual(rows, firstRows)
         XCTAssertEqual(try harness.history(in: restored).receipts, firstHistory.receipts)
+        let restoredHistory = try harness.history(in: restored)
+        XCTAssertEqual(restoredHistory, firstHistory)
+        XCTAssertTrue(firstHistory.entityRevisions.contains { $0.externalProjectionSHA256 == nil })
+        let coldFactory = StoreGenerationFactory(applicationSupportURL: harness.support)
+        let cold = try coldFactory.openOrBootstrapCurrent()
+        XCTAssertEqual(try harness.history(in: cold), firstHistory)
         let reviewRelease = try RepetitiveCaptureDestinationReviewCodecV1.release()
         XCTAssertTrue(rows.allSatisfy { $0.codec != reviewRelease })
+        try assertDeletionHistoryPlanningUsesFinalLedgerWithoutInventingReceipts()
+        try await assertSameWorkspaceDeletionWinsIncomingLiveAssetAndPreservesOriginalHistory()
+    }
+
+    private func assertDeletionHistoryPlanningUsesFinalLedgerWithoutInventingReceipts() throws {
+        // A deliberately minimal projected-history fixture tests the pure plan;
+        // the physical deletion case below separately exercises the real store.
+        let workspace = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: UUID()), replicaID: ReplicaID(rawValue: UUID()))
+        let deletedID = UUID()
+        let deletionIdentity = try DeletionIdentityV2(kind: .asset, id: deletedID)
+        let late = try DeletionLedgerEntryV2(identity: deletionIdentity,
+            deletedAt: RepetitiveCaptureSourcePackageFixture.date)
+        let early = try DeletionLedgerEntryV2(identity: deletionIdentity,
+            deletedAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(-60))
+        let terminalIdentity = try WorkspaceEntityIdentityV1(kind: .deletionLedgerEntry, id: deletedID)
+        struct LedgerBasis: Codable {
+            let identity: WorkspaceEntityIdentityV1
+            let revision: UInt64
+            let value: DeletionLedgerEntryV2
+        }
+        let oldDigest = try WorkspaceMutationCanonicalV1.sha256(
+            LedgerBasis(identity: terminalIdentity, revision: 7, value: late))
+        let expectedDigest = try WorkspaceMutationCanonicalV1.sha256(
+            LedgerBasis(identity: terminalIdentity, revision: 7, value: early))
+        XCTAssertNotEqual(oldDigest, expectedDigest)
+        let history = MutationHistorySnapshotV1(workspaceRevision: 0, lastLocalSequence: 0,
+            receipts: [], quarantines: [], entityRevisions: [
+                .init(identity: terminalIdentity, revision: 7, externalProjectionSHA256: oldDigest)
+            ])
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        let emptyHistory = MutationHistorySnapshotV1(workspaceRevision: 0, lastLocalSequence: 0,
+            receipts: [], quarantines: [], entityRevisions: [])
+        func records(_ entries: [DeletionLedgerEntryV2], _ history: MutationHistorySnapshotV1) throws -> V4BackupRecordsV1 {
+            V4BackupRecordsV1(assets: [], deletionLedger: try DeletionLedgerV2(entries:
+                entries.sorted { $0.identity < $1.identity }), evidenceFiles: [], issues: [],
+                mutationHistory: history, packets: [], recordsSchemaVersion: 3,
+                reports: [], sites: [], workflowRecords: [])
+        }
+        let current = try records([late], history)
+        let incoming = try records([early], emptyHistory)
+        let result = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+            currentRecords: current, currentIdentity: workspace,
+            incomingRecords: incoming, incomingIdentity: workspace,
+            mode: .replaceExisting, replacementAt: late.deletedAt.addingTimeInterval(60)))
+        let planned = try XCTUnwrap(result.recordsAfter.mutationHistory)
+        XCTAssertEqual(result.deletionLedger.entries, [early])
+        XCTAssertEqual(planned.entityRevisions, [
+            .init(identity: terminalIdentity, revision: 7, externalProjectionSHA256: expectedDigest)
+        ])
+        XCTAssertEqual(planned.receipts, history.receipts)
+        XCTAssertEqual(planned.quarantines, history.quarantines)
+        XCTAssertEqual(planned.workspaceRevision, history.workspaceRevision)
+        XCTAssertEqual(planned.lastLocalSequence, history.lastLocalSequence)
+        try MutationJournalStoreV1.validateImportedSnapshot(planned)
+        // No new terminal is invented for a newly introduced ledger row.
+        let extra = try DeletionLedgerEntryV2(identity: DeletionIdentityV2(kind: .asset, id: UUID()),
+            deletedAt: early.deletedAt)
+        let expanded = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+            currentRecords: current, currentIdentity: workspace,
+            incomingRecords: records([early, extra], emptyHistory), incomingIdentity: workspace,
+            mode: .replaceExisting, replacementAt: late.deletedAt.addingTimeInterval(60)))
+        XCTAssertEqual(expanded.recordsAfter.mutationHistory?.entityRevisions, planned.entityRevisions)
+        // Typed deletion identities sharing a UUID cannot choose one live
+        // journal image by array order.
+        let collision = try DeletionLedgerEntryV2(identity: DeletionIdentityV2(kind: .site, id: deletedID),
+            deletedAt: early.deletedAt)
+        XCTAssertThrowsError(try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+            currentRecords: current, currentIdentity: workspace,
+            incomingRecords: records([early, collision], emptyHistory), incomingIdentity: workspace,
+            mode: .replaceExisting, replacementAt: late.deletedAt.addingTimeInterval(60))))
+        // Existing identity-less callers retain their released plan semantics.
+        let legacy = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+            currentRecords: current, incomingRecords: incoming,
+            mode: .replaceExisting, replacementAt: late.deletedAt.addingTimeInterval(60)))
+        XCTAssertEqual(legacy.recordsAfter.mutationHistory, history)
+    }
+
+    private func assertSameWorkspaceDeletionWinsIncomingLiveAssetAndPreservesOriginalHistory() async throws {
+        let harness = try RestoreReviewHarness(timing: RestoreReviewTimingV1(enabled: true))
+        defer { harness.remove() }
+        let current = try harness.populate()
+        let asset = try XCTUnwrap(current.modelContext.fetch(FetchDescriptor<Asset>()).first)
+        let assetID = asset.id
+        let original = try harness.history(in: current)
+        let incoming = try harness.export(current)
+        let deletedAt = RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(60)
+        _ = try await WholeSignDeletionService(
+            modelContext: current.modelContext, generationRootURL: current.generationRootURL,
+            now: { deletedAt }
+        ).delete(assetID: assetID)
+        let deletedHistory = try harness.history(in: current)
+        let ledgerBefore = try DeletionLedgerStore(context: current.modelContext).snapshot()
+        XCTAssertEqual(try current.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertTrue(ledgerBefore.entries.contains { $0.identity.kind == .asset && $0.identity.id == assetID })
+        let restored = try await harness.restore(incoming, mode: .replaceExisting)
+        let history = try harness.history(in: restored)
+        try assertOriginals(original, retainedIn: history)
+        try assertOriginals(deletedHistory, retainedIn: history)
+        XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertEqual(try DeletionLedgerStore(context: restored.modelContext).snapshot(), ledgerBefore)
+        let identity = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+        let originalTerminal = try XCTUnwrap(original.entityRevisions.first { $0.identity == identity })
+        let terminal = try XCTUnwrap(history.entityRevisions.first { $0.identity == identity })
+        XCTAssertEqual(terminal.revision, originalTerminal.revision)
+        struct AbsentBasis: Codable {
+            let identity: WorkspaceEntityIdentityV1
+            let revision: UInt64
+            let disposition: String
+        }
+        XCTAssertEqual(terminal.externalProjectionSHA256,
+            try WorkspaceMutationCanonicalV1.sha256(AbsentBasis(identity: identity,
+                revision: originalTerminal.revision, disposition: "ABSENT_AFTER_MUTATION")))
+        let coldFactory = StoreGenerationFactory(applicationSupportURL: harness.support)
+        let cold = try coldFactory.openOrBootstrapCurrent()
+        XCTAssertEqual(try harness.history(in: cold), history)
+        XCTAssertEqual(try cold.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
     }
 
     func testPrepublicationInterruptionReconcilesToUnchangedPopulatedGeneration() async throws {
@@ -181,8 +304,22 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
             XCTAssertEqual(try RestoreIntentStore(applicationSupportURL: harness.support).load() != nil,
                            point == .afterPreparedWrite)
         }
-        let recovery = try BackupRestoreService(applicationSupportURL: harness.support)
-        let recovered = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+        var recoveryPhase = "create-recovery-service"
+        let recovered: StoreGenerationSession?
+        let recovery: BackupRestoreService
+        do {
+            recovery = try BackupRestoreService(applicationSupportURL: harness.support)
+#if DEBUG
+            recovery.restorePhaseDiagnosticForTesting = { value in
+                recoveryPhase = value
+            }
+#endif
+            recoveryPhase = "invoke-cold-recovery"
+            recovered = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+        } catch {
+            print("RestoreReviewColdRecovery.failure phase=\(recoveryPhase) type=\(String(reflecting: type(of: error)))")
+            throw error
+        }
         XCTAssertNil(recovered)
         XCTAssertEqual(try harness.factory.currentGenerationID(), originalID)
         let coldFactory = StoreGenerationFactory(applicationSupportURL: harness.support)
@@ -230,6 +367,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
             }
             let expectedIDs = try unrelated.map { try mapped($0.draftID, namespace: "draft") }
             XCTAssertEqual(Set(rows.map(\.draftID)), Set(expectedIDs + [review.draftID]))
+            let restoredHistory = try harness.history(in: restored)
             for original in unrelated {
                 let expectedID = try mapped(original.draftID, namespace: "draft")
                 let rebound = try XCTUnwrap(rows.first { $0.draftID == expectedID })
@@ -253,8 +391,39 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
                 XCTAssertEqual(rebound.updatedAt, original.updatedAt)
                 XCTAssertEqual(rebound.resumeAnchor, original.resumeAnchor)
                 XCTAssertEqual(rebound.stageIDs, [])
+                let mappedIdentity = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: expectedID)
+                let mappedTerminal = try XCTUnwrap(restoredHistory.entityRevisions.first {
+                    $0.identity == mappedIdentity
+                })
+                XCTAssertEqual(mappedTerminal.revision, original.draftRevision)
+                XCTAssertEqual(mappedTerminal.externalProjectionSHA256, rebound.checkpointSHA256)
+                let originalIdentity = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: original.draftID)
+                let originalTerminal = try XCTUnwrap(restoredHistory.entityRevisions.first {
+                    $0.identity == originalIdentity
+                })
+                XCTAssertEqual(originalTerminal.revision, original.draftRevision)
+                // Independent wire basis; do not derive expectations from the
+                // journal helper whose restore behavior this test exercises.
+                struct AbsentBasis: Codable {
+                    let identity: WorkspaceEntityIdentityV1
+                    let revision: UInt64
+                    let disposition: String
+                }
+                XCTAssertEqual(originalTerminal.externalProjectionSHA256,
+                    try WorkspaceMutationCanonicalV1.sha256(AbsentBasis(
+                        identity: originalIdentity, revision: original.draftRevision,
+                        disposition: "ABSENT_AFTER_MUTATION")))
             }
             try assertOriginals(source.history, retainedIn: harness.history(in: restored))
+            let coldFactory = StoreGenerationFactory(applicationSupportURL: harness.support)
+            let cold = try coldFactory.openOrBootstrapCurrent()
+            XCTAssertEqual(try harness.history(in: cold), restoredHistory)
+            let nextPackage = try harness.export(cold)
+            let secondHarness = try RestoreReviewHarness(timing: RestoreReviewTimingV1(enabled: true))
+            defer { secondHarness.remove() }
+            let second = try await secondHarness.restore(nextPackage, mode: .fork)
+            let secondHistory = try secondHarness.history(in: second)
+            try assertOriginals(restoredHistory, retainedIn: secondHistory)
             let payload = try RepetitiveCaptureDestinationReviewCodecV1.decode(review.payloadData)
             XCTAssertEqual(payload.source.value.checkpoints.contains(where: { $0.current.state == .discarded }), discarded)
             XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<DraftDiscardReceiptRow>()), 0)
@@ -301,6 +470,54 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         XCTAssertEqual(normalizedHistory.receipts, originalHistory.receipts)
         XCTAssertEqual(normalizedHistory.quarantines, originalHistory.quarantines)
         try MutationJournalStoreV1.validateImportedSnapshot(normalizedHistory)
+        let sourceCheckpoint = try XCTUnwrap(package.records.fieldDrafts.first { $0.kind == .checkpoint })
+        let sourceIdentity = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: sourceCheckpoint.id)
+        let sourceTerminal = try XCTUnwrap(originalHistory.entityRevisions.first { $0.identity == sourceIdentity })
+        let targetID = try XCTUnwrap(identity.destinationFieldDraftID(for: sourceCheckpoint.id, namespace: "draft"))
+        let targetIdentity = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: targetID)
+        let targetTerminal = try XCTUnwrap(normalizedHistory.entityRevisions.first { $0.identity == targetIdentity })
+        let before = try harness.factory.openOrBootstrapCurrent()
+        let beforeHistory = try harness.history(in: before)
+        let beforePointer = try harness.factory.currentGenerationPointerV3(expectedGenerationID: before.generationID)
+
+        // Each hostile input reaches the real records-for-materialization
+        // entry. An equal-value target collision is still a collision; it
+        // must never be silently merged into the original history.
+        for failure in ["missing-source", "wrong-revision", "wrong-digest", "target-collision"] {
+            var terminals = originalHistory.entityRevisions.filter { $0.identity != sourceIdentity }
+            switch failure {
+            case "missing-source": break
+            case "wrong-revision":
+                terminals.append(.init(identity: sourceIdentity, revision: sourceTerminal.revision + 1,
+                    externalProjectionSHA256: sourceTerminal.externalProjectionSHA256))
+            case "wrong-digest":
+                terminals.append(.init(identity: sourceIdentity, revision: sourceTerminal.revision,
+                    externalProjectionSHA256: String(repeating: "e", count: 64)))
+            default:
+                terminals.append(sourceTerminal)
+                terminals.append(targetTerminal)
+            }
+            let hostileHistory = MutationHistorySnapshotV1(
+                workspaceRevision: originalHistory.workspaceRevision,
+                lastLocalSequence: originalHistory.lastLocalSequence,
+                receipts: originalHistory.receipts, quarantines: originalHistory.quarantines,
+                entityRevisions: terminals.sorted { $0.identity.stableKey < $1.identity.stableKey })
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(package.records)) as? [String: Any])
+            object["mutationHistory"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hostileHistory))
+            let hostileRecords = try JSONDecoder().decode(V4BackupRecordsV1.self,
+                from: JSONSerialization.data(withJSONObject: object))
+            XCTAssertThrowsError(try service.c55RecordsForMaterializationForTesting(
+                hostileRecords, members: package.validatedPackage.members,
+                identityDecision: identity, legacyWorkspaceID: identity.oldPointer.workspaceID,
+                partsStockOperationID: plan.restoreID), failure)
+            XCTAssertEqual(try harness.factory.currentGenerationPointerV3(
+                expectedGenerationID: before.generationID), beforePointer, failure)
+            XCTAssertEqual(try harness.history(in: before), beforeHistory, failure)
+            let authority = try harness.factory.makeRestoreGenerationAuthority()
+            XCTAssertEqual(try authority.restoreGenerationNames(), [], failure)
+            XCTAssertFalse(before.modelContext.hasChanges, failure)
+        }
     }
 
     private func assertProjectedRoundRows(_ originals: [RoundSessionV1],
