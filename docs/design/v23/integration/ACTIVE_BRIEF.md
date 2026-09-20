@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementation98e93ac/original35478040945 is audited: compilePASS, restore1Pass/5Fail, transportPASS. All5 fail package import; a source-proven schema admission correction is being prepared.855 authority7Pass stays head-bound. Main stays b1d04ae5.
+- Implementationa7c9d82 corrects three supported import schema pairs. Original35479951867 is audited: build1200 timeout,6NotStarted. Parent98 is audited: compilePASS/restore1Pass5Fail/transportPASS, all5 at import.855 authority7Pass stays head-bound. Main stays b1d04ae5.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-98e93ac/root58EB1EF9 builds in858s; tests250s (1Pass/5Fail), transportPASS, no new warning signatures. No-index argv verified; no speedup/acceptance claim. Import omits supported pairs4/30/29,4/33/32,4/45/44; Round uses45/44. Root adds those pairs with real import/discard and hostile-pair regression;49 drafts stay exact. One reviewed direct98 causal successor retains six methods, new source-tree pins, UI/project, environment and N8. Source/helper/index/route gates precede dispatch. Prior28 setup and5508 timeout originals remain consumed; Bitrise qualification remains unresolved.
+98e93ac/root58EB1EF9 builds in858s; tests250s (1Pass/5Fail), transportPASS, no new warning signatures. No-index argv verified; no speedup/acceptance claim. Import omits supported pairs4/30/29,4/33/32,4/45/44; Round uses45/44. Correctiona7c9d82 retains49 drafts, six methods and N8/environment. Source121/helper49/index/route PASS. Original35479951867/root8EDDAA34 timed out at build1200 without Swift errors;6NotStarted/transportINVALID. Fix still unverified; no unchanged retry. No qualified unit-only build route; owner approved one new30m original, exact a7 app/tests/project and six methods. Preparing route. Prior allowances consumed; Bitrise unqualified.
 
 Copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 

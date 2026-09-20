@@ -370,7 +370,8 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
-    for group_id in ("c36-restore-review", CI.NO_INDEX_SELECTION_ID, "c36-restore-authority"):
+    for group_id in ("c36-restore-review", CI.NO_INDEX_SELECTION_ID,
+                     CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, "c36-restore-authority"):
         choice = "          - " + group_id + "\n"
         if workflow.count(choice) != 1: raise AssertionError("missing exact restore choice")
         workflow = workflow.replace(choice, "")
@@ -736,6 +737,7 @@ class ReportPartitionTests(unittest.TestCase):
                         CI.BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('c36-destination-discard') + 1, CI.BUILD_ORDER_SELECTION_ID)
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
+        expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):
@@ -1225,7 +1227,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             artifact = Path(directory)
             e = dict(self.bound_environment(), GITHUB_WORKSPACE=str(ROOT),
-                     NATIVE_SELECTION_ID=CI.NO_INDEX_SELECTION_ID,
+                     NATIVE_SELECTION_ID=self.record['selectionID'],
                      PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
                      CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
                      CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=str(artifact),
@@ -1259,8 +1261,97 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
                     cwd=ROOT.resolve(), check=True, stdout=subprocess.DEVNULL)
             receipt = CI.read_json(artifact/CI.NO_INDEX_RECEIPT)
             self.assertEqual(receipt, CI.no_index_build_receipt(ROOT, artifact, record, e))
-            self.assertEqual(receipt['parent'], CI.NO_INDEX_PARENT)
+            self.assertEqual(receipt['parent'], CI.NO_INDEX_ROUTES[self.record['selectionID']][0])
             self.assertEqual(receipt['argv'][-2:], ['COMPILER_INDEX_STORE_ENABLE=NO','build-for-testing'])
+
+
+class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
+        self.record = {'selectionID': CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.RESTORE_BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def test_closed_six_method_budget_extension_preserves_ordinary_selection(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'c36-restore-review')
+        self.assertEqual(self.selected, dict(ordinary, tier='D30', **dict(zip(CI.BUDGET_KEYS, (300,1800,900,0,3000)))))
+        self.assertEqual(tuple(self.selected['unitTestSelectors']), CI.RESTORE_BUILD_WATCHDOG_SELECTORS)
+        self.assertEqual(len(self.selected['unitTestSelectors']), 6)
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300,1200,900,0,2400))
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID), ordinary)
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (790,48))
+        for suffix in ('-retry', '-parallel', '-permanent'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
+
+    def test_both_admissions_bind_new_original_parent_and_all_unchanged_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertEqual(result['selectionID'], CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance']); self.assertFalse(result['providerQualification'])
+            for path in CI.NO_INDEX_TREES:
+                def wrong_tree(command, **kwargs):
+                    return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_foreign_route_attempt_parent_budget_or_closed_method_substitution_denies(self):
+        for stage in ('dispatch', 'worker'):
+            for e in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, self.record)
+            for parent in (CI.NO_INDEX_PARENT, CI.BUILD_WATCHDOG_PARENT, 'f'*40):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=self.header.replace(CI.RESTORE_BUILD_WATCHDOG_PARENT.encode(), parent.encode())), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for fields in ({'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                           {'unitTestSelectors': self.selected['unitTestSelectors'][::-1]},
+                           {'unitTestSelectors': list(CI.PARENT_FINALIZATION_METHOD_PARTITIONS[0][1])},
+                           {'buildTimeoutSeconds': 1801}, {'testTimeoutSeconds': 901},
+                           {'totalBudgetSeconds': 3001}, {'tier': 'N8'}, {'runUISmoke': True}):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+            for selector in (CI.NO_INDEX_SELECTION_ID, CI.BUILD_WATCHDOG_SELECTION_ID, 'c36-restore-review'):
+                record = dict(self.record, selectionID=selector)
+                e = dict(self.bound_environment(), DISPATCH_NATIVE_SELECTION_ID=selector)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, record)
+
+    def test_new_shell_route_preserves_argv_and_propagates_receipt_or_build_failure(self):
+        for receipt_exit, build_exit in ((0,0), (79,0), (0,83)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt','build'])
+                if not receipt_exit:
+                    expected = ['-project','FieldEvidenceApp.xcodeproj','-scheme','FieldEvidenceApp',
+                                '-configuration','Debug','-destination','platform=iOS Simulator,id='+UDID,
+                                '-derivedDataPath',e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                                '-resultBundlePath',e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                                'CODE_SIGNING_ALLOWED=NO','COMPILER_INDEX_STORE_ENABLE=NO','build-for-testing']
+                    self.assertEqual(args, expected)
+                if receipt_exit or build_exit:
+                    self.assertFalse((Path(directory)/'artifact/Build.xcresult').exists())
+
+    def test_new_route_real_receipt_cli_requires_all_original_build_step_inputs(self):
+        NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+
+    def test_new_receipt_verifies_execution_and_denies_tampering(self):
+        NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+        NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_actual_worker_filter_admits_only_complete_six_method_budget(self):
+        BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
 
 
 class BuildOrderDiagnosticTests(unittest.TestCase):

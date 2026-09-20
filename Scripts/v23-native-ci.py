@@ -45,6 +45,22 @@ NO_INDEX_SELECTION_ID = "c36-restore-review-no-index"
 NO_INDEX_PARENT = '98e93ac4be338d8e29494325ae1f9fc9d7fbecec'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'afbd988ca56a30da3bf2064ea3cbb4abd676c598', 'FieldEvidenceAppTests': 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
+RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
+RESTORE_BUILD_WATCHDOG_PARENT = "a7c9d82bdb961e9a4dc57cd5f01340c4d0ae8dbd"
+RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
+    "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
+        "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
+        "testPopulatedCrossWorkspaceReplacementCreatesOnlyReviewAndRetainsOriginalHistory",
+        "testSameWorkspaceReplacementPreservesCheckpointAndOriginalReceiptBytes",
+        "testPrepublicationInterruptionReconcilesToUnchangedPopulatedGeneration",
+        "testPhysicalForkKeepsTerminalHistoryAndUnrelatedDraftOwners",
+        "testReviewPlanRejectsMissingOrChangedOwnedRowsWithoutConsumingUnrelatedDrafts",
+    )
+)
+NO_INDEX_ROUTES = {
+    NO_INDEX_SELECTION_ID: (NO_INDEX_PARENT, "N8"),
+    RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, "D30"),
+}
 BUILD_ORDER_OBSERVATIONS = "build-before-boot.jsonl"
 BUILD_ORDER_COMMAND = ("bash", "Scripts/build-smoke.sh")
 BUDGET_KEYS = ("setupArtifactTimeoutSeconds", "buildTimeoutSeconds", "testTimeoutSeconds",
@@ -844,8 +860,9 @@ def validate_selection(selection):
     require(bool(selection["unitTestSelectors"]), "no unit methods")
     require(len(selection["uiTestSelectors"]) == int(ui), "UI method count")
     if selection["tier"] == "D30":
-        require(selection["unitTestSelectors"] == list(PARENT_FINALIZATION_METHOD_PARTITIONS[0][1]),
-                "build watchdog exact existing singleton")
+        require(tuple(selection["unitTestSelectors"]) in (
+            PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS),
+            "build watchdog exact approved methods")
 
 
 def selection_class(selector):
@@ -1059,6 +1076,12 @@ def resolve_selection(default, selection_map, selection_id):
         if "c36-restore-review" in resolved:
             require(NO_INDEX_SELECTION_ID not in resolved, "no-index distinct selector")
             resolved[NO_INDEX_SELECTION_ID] = dict(resolved["c36-restore-review"])
+            require(RESTORE_BUILD_WATCHDOG_SELECTION_ID not in resolved,
+                    "restore build watchdog distinct selector")
+            diagnostic = dict(resolved["c36-restore-review"])
+            diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
+            validate_selection(diagnostic)
+            resolved[RESTORE_BUILD_WATCHDOG_SELECTION_ID] = diagnostic
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")
@@ -1163,16 +1186,23 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(re.fullmatch(r"[0-9a-f]{40}", head) is not None and checkout_head == head, "exact checkout head")
     require(all(re.fullmatch(r"[1-9][0-9]*", e.get(key, ""))
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
-    if selection["tier"] == "D30" or selection_record["selectionID"] == BUILD_WATCHDOG_SELECTION_ID:
+    watchdog_routes = {
+        BUILD_WATCHDOG_SELECTION_ID: (BUILD_WATCHDOG_PARENT, PARENT_FINALIZATION_METHOD_PARTITIONS[0][1]),
+        RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, RESTORE_BUILD_WATCHDOG_SELECTORS),
+    }
+    if selection["tier"] == "D30" or selection_record["selectionID"] in watchdog_routes:
         require(selection["tier"] == "D30"
-                and selection_record["selectionID"] == BUILD_WATCHDOG_SELECTION_ID,
+                and selection_record["selectionID"] in watchdog_routes,
                 "build watchdog selector/tier binding")
+        approved_parent, approved_methods = watchdog_routes[selection_record["selectionID"]]
+        require(tuple(selection["unitTestSelectors"]) == approved_methods,
+                "build watchdog selector/method binding")
         require(provider == "github" and label == "macos-26", "build watchdog GitHub route only")
         require(e["GITHUB_RUN_ATTEMPT"] == "1", "build watchdog original attempt only")
         header = subprocess.check_output(["git", "cat-file", "commit", checkout_head], cwd=root)
         parents = [line[7:].decode("ascii") for line in header.split(b"\n\n", 1)[0].splitlines()
                    if line.startswith(b"parent ")]
-        require(parents == [BUILD_WATCHDOG_PARENT], "build watchdog exact approved parent")
+        require(parents == [approved_parent], "build watchdog exact approved parent")
     if selection_record["selectionID"] == BUILD_ORDER_SELECTION_ID:
         require(selection["tier"] == "N8" and provider == "github" and label == "macos-26",
                 "build order ordinary-budget GitHub route only")
@@ -1185,14 +1215,15 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
             tree = subprocess.check_output(["git", "rev-parse", checkout_head + ":" + path],
                                            cwd=root, text=True).strip()
             require(tree == expected_tree, "build order unchanged app/tests/project")
-    if selection_record["selectionID"] == NO_INDEX_SELECTION_ID:
-        require(selection["tier"] == "N8" and provider == "github" and label == "macos-26",
-                "no-index ordinary-budget GitHub route only")
+    if selection_record["selectionID"] in NO_INDEX_ROUTES:
+        approved_parent, approved_tier = NO_INDEX_ROUTES[selection_record["selectionID"]]
+        require(selection["tier"] == approved_tier and provider == "github" and label == "macos-26",
+                "no-index exact-budget GitHub route only")
         require(e["GITHUB_RUN_ATTEMPT"] == "1", "no-index original attempt only")
         header = subprocess.check_output(["git", "cat-file", "commit", checkout_head], cwd=root)
         parents = [line[7:].decode("ascii") for line in header.split(b"\n\n", 1)[0].splitlines()
                    if line.startswith(b"parent ")]
-        require(parents == [NO_INDEX_PARENT], "no-index exact parent")
+        require(parents == [approved_parent], "no-index exact parent")
         for path, expected_tree in NO_INDEX_TREES.items():
             tree = subprocess.check_output(["git", "rev-parse", checkout_head + ":" + path],
                                            cwd=root, text=True).strip()
@@ -1401,7 +1432,7 @@ def build_order_observations(artifact, record, selected_udid):
 
 
 def no_index_build_receipt(root, artifact, record, environment):
-    require(record["selectionID"] == NO_INDEX_SELECTION_ID, "no-index admitted selection")
+    require(record["selectionID"] in NO_INDEX_ROUTES, "no-index admitted selection")
     require(read_json(artifact / "native-admission.json") == record, "no-index admission changed")
     e = environment
     require(e.get("PROJECT_PATH") == "FieldEvidenceApp.xcodeproj"
@@ -1415,8 +1446,8 @@ def no_index_build_receipt(root, artifact, record, environment):
                  "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
                  "-resultBundlePath", str(artifact / "Build.xcresult"),
                  "CODE_SIGNING_ALLOWED=NO", "COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"]
-    return {"schemaVersion": 1, "selectionID": NO_INDEX_SELECTION_ID,
-            "head": record["head"], "parent": NO_INDEX_PARENT, "runID": record["runID"],
+    return {"schemaVersion": 1, "selectionID": record["selectionID"],
+            "head": record["head"], "parent": NO_INDEX_ROUTES[record["selectionID"]][0], "runID": record["runID"],
             "runAttempt": record["runAttempt"], "admissionSHA256": sha256(canonical(record)),
             "buildScriptSHA256": sha256((root / "Scripts/build-smoke.sh").read_bytes()),
             "sourceTrees": NO_INDEX_TREES, "argv": arguments,
@@ -1481,7 +1512,7 @@ def verify_checkpoint(root, artifact, record, selection, environment):
             and simulator.get("udid") == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID"),
             "fresh owned Simulator")
     build_order = {}
-    if record["selectionID"] == NO_INDEX_SELECTION_ID:
+    if record["selectionID"] in NO_INDEX_ROUTES:
         build_order["noIndexBuildDiagnostic"] = verify_no_index_build(root, artifact, record, environment)
     if record["selectionID"] == BUILD_ORDER_SELECTION_ID:
         build_order["buildOrderDiagnostic"] = build_order_observations(artifact, record, simulator["udid"])
