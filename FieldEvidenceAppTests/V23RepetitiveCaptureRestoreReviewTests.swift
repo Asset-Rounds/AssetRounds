@@ -77,6 +77,16 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         let review = try harness.onlyReview(in: restored)
         XCTAssertEqual(review.workspaceID, incumbentIdentity.workspaceID)
         let history = try harness.history(in: restored)
+        XCTAssertGreaterThan(incumbentHistory.lastLocalSequence, 0)
+        XCTAssertEqual(history.lastLocalSequence, incumbentHistory.lastLocalSequence + 1)
+        XCTAssertGreaterThan(history.workspaceRevision, incumbentHistory.workspaceRevision)
+        let activeReceipts = try history.receipts.map {
+            try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+        }.filter {
+            $0.identity.workspaceID == incumbentIdentity.workspaceID
+                && $0.identity.replicaID == incumbentIdentity.replicaID
+        }
+        XCTAssertEqual(activeReceipts.map(\.identity.localSequence).max(), history.lastLocalSequence)
         try assertOriginals(source.history, retainedIn: history)
         try assertOriginals(incumbentHistory, retainedIn: history)
         try assertProjectedRoundRows(source.rounds, in: restored, history: history)
@@ -100,6 +110,35 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         let firstRows = try first.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
         let firstHistory = try harness.history(in: first)
         XCTAssertEqual(firstRows, source.checkpoints)
+        XCTAssertTrue(firstRows.contains { $0.draftRevision > 0 })
+        // Imported validation must still reject an incomplete revision frontier,
+        // and the restore-only initializer must not leave its bootstrap state.
+        let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
+            ModelConfiguration("RejectedRestoreHistory", schema: schema, isStoredInMemoryOnly: true,
+                               allowsSave: true, cloudKitDatabase: .none)
+        ])
+        let rejectedContext = ModelContext(container)
+        rejectedContext.autosaveEnabled = false
+        let missingRevision = try XCTUnwrap(source.history.entityRevisions.first {
+            $0.identity.kind == .fieldDraftCheckpoint
+        })
+        let incomplete = MutationHistorySnapshotV1(
+            workspaceRevision: source.history.workspaceRevision,
+            lastLocalSequence: source.history.lastLocalSequence,
+            receipts: source.history.receipts,
+            quarantines: source.history.quarantines,
+            entityRevisions: source.history.entityRevisions.filter { $0.identity != missingRevision.identity }
+        )
+        XCTAssertThrowsError(try MutationJournalStoreV1(
+            modelContext: rejectedContext, identity: first.workspaceIdentity, generationID: UUID(),
+            importingHistory: incomplete, identityDisposition: .preserve
+        )) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(try rejectedContext.fetchCount(FetchDescriptor<WorkspaceMutationStateRow>()), 0)
+        XCTAssertEqual(try rejectedContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        XCTAssertEqual(try rejectedContext.fetchCount(FetchDescriptor<EntityMutationRevisionRow>()), 0)
         let restored = try await harness.restore(try source.package(named: "same-workspace"), mode: .replaceExisting)
         let rows = try restored.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
         XCTAssertEqual(rows, firstRows)

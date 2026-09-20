@@ -394,6 +394,9 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    choice = '          - ' + CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact combined reminder choice')
+    workflow = workflow.replace(choice, '')
     for group in REMINDER_PRODUCTION_GROUPS:
         choice = '          - ' + group['id'] + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact reminder/restore choice')
@@ -817,6 +820,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('c36-destination-discard') + 1, CI.BUILD_ORDER_SELECTION_ID)
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
+        expected.insert(expected.index('reminder-control-continuation') + 1, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):
@@ -1375,8 +1379,8 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '5e0d863efdcf3efbb1b9d8b1e0ca700af9d7cf11')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'd272b7364d2df6cec7fcabb2ce65defdc45f7a0a')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, 'aa63fce51374aafaffd009a8e12d65e5bd41837a')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '5f7cb4006b2cd5edea21ac5bcb6a33e14d85adfa')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
             def substituted(command, **kwargs):
@@ -1463,6 +1467,15 @@ class ReminderBuildWatchdogDiagnosticTests(unittest.TestCase):
                        'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
                        'head': HEAD, 'runID': '123', 'runAttempt': '1'}
         self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.REMINDER_BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def test_public_dispatch_exposes_combined_reminder_selection_once(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        self.assertIn('        type: choice\n', block.group(1))
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID), 1)
+        self.assertEqual(len(options), len(set(options)))
 
     def test_exact_ordered_union_preserves_four_ordinary_groups_and_default(self):
         members = []

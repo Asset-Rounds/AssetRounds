@@ -6596,9 +6596,30 @@ private extension BackupRestoreService {
 #if DEBUG
             c55Phase = "result-history"
 #endif
+            // Projection appends historic replicas, but replacement can retain
+            // the incumbent active replica. Keep its allocation floor even if
+            // the highest allocated sequence has no surviving receipt.
+            let preservesActiveReplica = identity.targetPointer.workspaceID == identity.oldPointer.workspaceID
+                && identity.targetPointer.replicaID == identity.oldPointer.replicaID
+            var activeSequence = preservesActiveReplica ? currentHistory.lastLocalSequence : 0
+            for record in projection.history.receipts {
+                let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+                if receipt.identity.workspaceID == targetIdentity.workspaceID,
+                   receipt.identity.replicaID == targetIdentity.replicaID {
+                    activeSequence = max(activeSequence, receipt.identity.localSequence)
+                }
+            }
+            let projectedHistory = MutationHistorySnapshotV1(
+                workspaceRevision: projection.history.workspaceRevision,
+                lastLocalSequence: activeSequence,
+                receipts: projection.history.receipts,
+                quarantines: projection.history.quarantines,
+                entityRevisions: projection.history.entityRevisions
+            )
+            try MutationJournalStoreV1.validateImportedSnapshot(projectedHistory)
             result = replacingMutationHistoryForCurrentWriter(
                 in: result,
-                with: projection.history
+                with: projectedHistory
             )
 #if DEBUG
             c55Phase = "validate-result-c49"
@@ -15202,14 +15223,6 @@ private extension BackupRestoreService {
                 let identity = try identityDecision.map {
                     try workspaceIdentity($0)
                 } ?? legacyDestinationIdentity
-                journalDiagnostic?("init.begin")
-                let journal = try MutationJournalStoreV1(
-                    modelContext: context,
-                    identity: identity,
-                    generationID: generationID,
-                    diagnosticPhase: journalDiagnostic
-                )
-                journalDiagnostic?("init.end")
                 let disposition: MutationHistoryRestoreIdentityV1
                 if identityDecision == nil
                     || (identityDecision?.mode == .replaceExisting
@@ -15233,13 +15246,16 @@ private extension BackupRestoreService {
                         generationID: generationID
                     )
                 }
-                journalDiagnostic?("replace.begin")
-                try journal.replaceHistory(
-                    with: mutationHistory,
+                journalDiagnostic?("init.import.begin")
+                _ = try MutationJournalStoreV1(
+                    modelContext: context,
+                    identity: identity,
+                    generationID: generationID,
+                    importingHistory: mutationHistory,
                     identityDisposition: disposition,
                     diagnosticPhase: journalDiagnostic
                 )
-                journalDiagnostic?("replace.end")
+                journalDiagnostic?("init.import.end")
             } catch {
                 if let journalDiagnostic {
                     let label: String

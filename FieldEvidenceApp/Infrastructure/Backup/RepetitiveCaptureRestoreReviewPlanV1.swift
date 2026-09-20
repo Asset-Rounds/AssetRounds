@@ -165,6 +165,10 @@ struct RepetitiveCaptureRestoreReviewPlanV1: Sendable {
                   case .createCheckpoint(let actual) = evidence.mutation.postImage,
                   actual == checkpoint else { throw Self.invalid() }
             diagnosticPhase?("history.target.end")
+            if checkpoint.draftID == checkpoints.first?.draftID, let diagnosticPhase {
+                diagnoseFirstAnchor(checkpoint, before: beforeByKey, written: afterByKey,
+                                    emit: diagnosticPhase)
+            }
             diagnosticPhase?("history.lineage.begin")
             diagnosticPhase?("history.lineage.imported-facts.begin")
             let facts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(written)
@@ -191,6 +195,40 @@ struct RepetitiveCaptureRestoreReviewPlanV1: Sendable {
             guard lineage.selectedReview.initialCheckpoint == checkpoint else { throw Self.invalid() }
             diagnosticPhase?("history.selected-checkpoint.end")
         }
+    }
+
+    @MainActor
+    private func diagnoseFirstAnchor(
+        _ checkpoint: FieldDraftCheckpointV1,
+        before: [String: MutationHistoryReceiptRecordV1],
+        written: [String: MutationHistoryReceiptRecordV1],
+        emit: @MainActor (String) -> Void
+    ) {
+        guard let payload = try? RepetitiveCaptureDestinationReviewCodecV1.decode(checkpoint.payloadData),
+              let anchor = payload.source.value.checkpoints.first?.original.record,
+              let packageHistory = sourcePackage.records.mutationHistory,
+              let package = try? Self.originals(packageHistory) else {
+            emit("history.anchor-boundary.unavailable")
+            return
+        }
+        let key = MutationWorkspaceKeyV1.value(workspaceID: payload.source.value.sourceWorkspaceID,
+                                              mutationID: anchor.mutationID)
+        let records: [(String, MutationHistoryReceiptRecordV1?)] = [
+            ("package", package[key]), ("before", before[key]), ("written", written[key])
+        ]
+        for (label, record) in records {
+            guard let record else {
+                emit("history.anchor-boundary." + label + ".missing")
+                continue
+            }
+            emit("history.anchor-boundary." + label + ".present")
+            let envelopeDigest: String = FieldDraftCanonicalCodecV1.sha256(record.envelopeData)
+            let receiptDigest: String = FieldDraftCanonicalCodecV1.sha256(record.receiptData)
+            emit("history.anchor-boundary." + label + ".envelope." + (envelopeDigest == anchor.envelopeSHA256 ? "match" : "mismatch"))
+            emit("history.anchor-boundary." + label + ".receipt." + (receiptDigest == anchor.receiptSHA256 ? "match" : "mismatch"))
+        }
+        emit("history.anchor-boundary.package-before." + (package[key] == before[key] ? "equal" : "different"))
+        emit("history.anchor-boundary.before-written." + (before[key] == written[key] ? "equal" : "different"))
     }
 
     private static func originals(_ history: MutationHistorySnapshotV1) throws

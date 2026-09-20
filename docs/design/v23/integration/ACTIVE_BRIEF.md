@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-Original35515208706/head5e0d863 is terminal/sole-collected/root-audited50ED02D5: compilationPASS1083s/0errors/0newwarnings; all6 restore methods executed (1Pass/5Fail), transportPASS. Prior cleanup SIGTRAPs are gone. Both forks reject the first retained source-checkpoint anchor; replacements fail during journal setup/history replacement before lineage review. The precise predicate is unproven; the next default-off diagnostic distinguishes anchor authentication/binding and journal phase/error without changing validation or assertions. Four prior reminder originals hit build1200/exit124 with33NotStarted. Their combined33 no-index D30 route has source138/helper qualification and scoped review; actual candidate/index/route gates remain. No active native original and no acceptance credit.
+Original35518478675/headaa63fce is terminal/sole-collected/root-audited2AD287FA: compilationPASS1632s/0errors/0newwarnings;6executed1Pass5Fail, transportPASS. Two replacement failures hit the active-sequence/workspace-frontier guard; source proves projection drops incumbent sequence. Same-workspace first install reaches semantic bootstrap before imported entity revisions. Both fork failures reach the first anchor envelope-digest guard; package-to-normalized history equality remains unmeasured. Correct both established journal causes and add default-off first-anchor boundary comparisons, preserving all predicates/assertions. Reminder33 dispatch was rejectedHTTP422 by a missing public choice; no original or test result exists. Correct that choice and verify full139/index/committed routes before distinct originals. No active native run or acceptance credit.
 
 ## Current implementation
 

@@ -111,6 +111,7 @@ on:
           - reminder-production-settings
           - reminder-detailed-delivery
           - reminder-control-continuation
+          - reminder-production-no-index-build30m
           - round-restore-history
           - c36-destination-legacy-bytes
       s10_4_minimum_core_smoke_id:

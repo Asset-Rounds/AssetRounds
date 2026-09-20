@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = "5e0d863efdcf3efbb1b9d8b1e0ca700af9d7cf11"
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '3cab86b26b18af8e24bf355a317dc009c60cecbb', 'FieldEvidenceAppTests': 'd272b7364d2df6cec7fcabb2ce65defdc45f7a0a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = 'aa63fce51374aafaffd009a8e12d65e5bd41837a'
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '43e7b6c4a8aa74ad6c66da69daeb543bd21e0329', 'FieldEvidenceAppTests': '5f7cb4006b2cd5edea21ac5bcb6a33e14d85adfa', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -59,8 +59,8 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = "5e0d863efdcf3efbb1b9d8b1e0ca700af9d7cf11"
-REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '3cab86b26b18af8e24bf355a317dc009c60cecbb', 'FieldEvidenceAppTests': 'd272b7364d2df6cec7fcabb2ce65defdc45f7a0a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_PARENT = 'aa63fce51374aafaffd009a8e12d65e5bd41837a'
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '43e7b6c4a8aa74ad6c66da69daeb543bd21e0329', 'FieldEvidenceAppTests': '5f7cb4006b2cd5edea21ac5bcb6a33e14d85adfa', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',

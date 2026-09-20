@@ -724,7 +724,19 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
         diagnosticPhase?("anchor.binding.receipt-identity")
         guard record.receipt.identity == anchor.receiptIdentity else { throw invalid() }
         diagnosticPhase?("anchor.binding.envelope-digest")
-        guard FieldDraftCanonicalCodecV1.sha256(record.original.envelopeData) == anchor.envelopeSHA256 else { throw invalid() }
+        let rawEnvelopeDigest: String = FieldDraftCanonicalCodecV1.sha256(record.original.envelopeData)
+        guard rawEnvelopeDigest == anchor.envelopeSHA256 else {
+            if let diagnosticPhase {
+                diagnosticPhase("anchor.binding.selected.raw-envelope-anchor.mismatch")
+                if let canonicalDigest = try? record.envelope.canonicalSHA256() {
+                    diagnosticPhase("anchor.binding.selected.canonical-receipt." + (canonicalDigest == record.receipt.envelopeSHA256 ? "match" : "mismatch"))
+                    diagnosticPhase("anchor.binding.selected.raw-canonical." + (rawEnvelopeDigest == canonicalDigest ? "match" : "mismatch"))
+                } else { diagnosticPhase("anchor.binding.selected.canonical.unavailable") }
+                let rawReceiptDigest: String = FieldDraftCanonicalCodecV1.sha256(record.original.receiptData)
+                diagnosticPhase("anchor.binding.selected.raw-receipt-anchor." + (rawReceiptDigest == anchor.receiptSHA256 ? "match" : "mismatch"))
+            }
+            throw invalid()
+        }
         diagnosticPhase?("anchor.binding.receipt-digest")
         guard FieldDraftCanonicalCodecV1.sha256(record.original.receiptData) == anchor.receiptSHA256 else { throw invalid() }
         return record

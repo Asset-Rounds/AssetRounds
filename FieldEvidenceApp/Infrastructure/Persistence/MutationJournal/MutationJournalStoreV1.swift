@@ -708,6 +708,45 @@ final class MutationJournalStoreV1 {
         )
     }
 
+    /// Imports a fresh, unpublished restore journal as one transaction. Its
+    /// materialized rows already carry imported revisions, so the first semantic
+    /// checkpoint must follow history installation. No partial journal escapes.
+    init(
+        modelContext: ModelContext,
+        identity: WorkspaceReplicaIdentityV1,
+        generationID: UUID,
+        importingHistory snapshot: MutationHistorySnapshotV1,
+        identityDisposition: MutationHistoryRestoreIdentityV1,
+        diagnosticPhase: ((String) -> Void)? = nil
+    ) throws {
+        self.modelContext = modelContext
+        self.identity = identity
+        self.generationID = generationID
+        self.failureInjection = nil
+        self.accessMode = .maintenanceOrTest
+        do {
+            diagnosticPhase?("init.import.empty-state")
+            guard try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).isEmpty,
+                  try modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).isEmpty,
+                  try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>()).isEmpty,
+                  try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>()).isEmpty else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            modelContext.insert(WorkspaceMutationStateRow(
+                workspaceID: identity.workspaceID.rawValue,
+                generationID: generationID,
+                activeReplicaID: identity.replicaID.rawValue
+            ))
+            try replaceHistory(with: snapshot, identityDisposition: identityDisposition,
+                               diagnosticPhase: diagnosticPhase)
+        } catch {
+            // Includes imported validation and projection failures before the
+            // existing final validation/save catch in replaceHistory.
+            modelContext.rollback()
+            throw error
+        }
+    }
+
     private init(
         modelContext: ModelContext,
         identity: WorkspaceReplicaIdentityV1,
