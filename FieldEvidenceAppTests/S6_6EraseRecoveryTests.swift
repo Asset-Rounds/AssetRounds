@@ -631,6 +631,14 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             try reopened.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
             0
         )
+        // Physical cleanup leaves the old lease retired and all frozen roots
+        // absent. Explicit standalone activation creates the new writer only
+        // after those postconditions have been checked.
+        let retiredWriter = coordinator.workspaceWriter
+        XCTAssertThrowsError(try retiredWriter.currentRevision())
+        try coordinator.activateAfterErasedCleanup(session: erased.session)
+        XCTAssertFalse(coordinator.workspaceWriter === retiredWriter)
+        XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
     }
 
     @MainActor

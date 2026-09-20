@@ -141,7 +141,7 @@ final class StartupRouter: ObservableObject {
     }
 
     private let applicationSupportURL: URL
-    private let generationFactory: StoreGenerationFactory
+    private var generationFactory: StoreGenerationFactory
     private let diagnosticsStore: DiagnosticsStore
     private let fileManager: FileManager
     private let entitlementRuntime: StoreKitEntitlementRuntimeV1
@@ -263,6 +263,15 @@ final class StartupRouter: ObservableObject {
     // non-content route owner independently of the writer retired on locking.
     private var deferredEraseCoordinator: StoreSessionCoordinator?
     private var pendingErasedActivation: (owner: OwnedWriter, session: StoreGenerationSession, operationID: UUID)?
+    /// Exact pre-cleanup ownership survives invalidation and a failed close.
+    /// It never authorizes reads through the retired writer or another binding.
+    private struct EraseCleanupRetirement {
+        let owner: OwnedWriter
+        let session: StoreGenerationSession
+        let operationID: UUID
+        var released = false
+    }
+    private var eraseCleanupRetirement: EraseCleanupRetirement?
     private var retainsGenerationsUntilColdLaunch = false
     private var pendingWriterLeaseReleases: [StoreSessionWriterCleanupFailureV1] = []
     private var pendingCoordinatorReleases: [OwnedWriter] = []
@@ -644,6 +653,9 @@ final class StartupRouter: ObservableObject {
 
     private func removeOriginalOperation(_ operation: UUID) {
         originalOperations.removeValue(forKey: operation)
+        if eraseCleanupRetirement?.operationID == operation {
+            eraseCleanupRetirement = nil
+        }
     }
 
     /// A stale or foreign completion cannot tear down the operation which
@@ -1341,6 +1353,7 @@ final class StartupRouter: ObservableObject {
     /// A suspended continuation cannot reclaim a newer binding in the same
     /// mutable coordinator when its own operation resumes.
     private func invalidateOperationAndPublishedWriter() {
+        retainOwnedWriter(eraseCleanupRetirement?.owner)
         if let operationID { removeOriginalOperation(operationID) }
         operationID = nil
         operationKind = nil
@@ -1353,6 +1366,7 @@ final class StartupRouter: ObservableObject {
         retainOwnedWriter(pendingErasedActivation?.owner)
         retainOwnedWriter(publishedWriter)
         retainOwnedWriter(preparedStartup?.owner)
+        eraseCleanupRetirement = nil
         operationOwnedWriter = nil
         pendingErasedActivation = nil
         publishedWriter = nil
@@ -1479,10 +1493,66 @@ final class StartupRouter: ObservableObject {
         coordinator: StoreSessionCoordinator,
         ticket: OriginalOperationTicket
     ) async throws {
+        if operationID == nil, !isRunning,
+           let retirement = eraseCleanupRetirement,
+           retirement.operationID == ticket.operationID,
+           retirement.released,
+           retirement.owner.coordinator === coordinator,
+           retirement.owner.writer === coordinator.workspaceWriter,
+           retirement.session.generationID == session.generationID,
+           retirement.session.generationRootURL.standardizedFileURL
+            == session.generationRootURL.standardizedFileURL,
+           deferredEraseCoordinator === coordinator,
+           ticket.owner === originalOperationOwner,
+           let retained = originalOperations[ticket.operationID],
+           retained.owner === ticket.owner, retained.mint === ticket.mint,
+           retained.kind == .erase {
+            guard try EraseIntentStore(applicationSupportURL: applicationSupportURL).load() == nil else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            operationID = ticket.operationID
+            operationKind = .erase
+            operationAuthorization = nil
+            isRunning = true
+        }
         let state = try await validateOriginalOperation(ticket, kind: .erase)
         guard state.source.coordinator === coordinator,
               state.sourceGenerationID != session.generationID else {
             throw AppAccessContractFailureV1.staleAttempt
+        }
+        if let retirement = eraseCleanupRetirement {
+            // A second activation is only the exact completed cleanup's fresh
+            // binding. Keep the retired owner on failure so receipt-backed
+            // recovery can retry without repeating the physical Erase.
+            try requireEraseCleanupOwner(retirement, ticket: ticket)
+            guard retirement.released,
+                  retirement.owner.coordinator === coordinator,
+                  session.generationID == retirement.session.generationID,
+                  session.generationRootURL.standardizedFileURL
+                    == retirement.session.generationRootURL.standardizedFileURL,
+                  BackupRestoreService.isEmptyCurrent(session.modelContext),
+                  try EraseIntentStore(applicationSupportURL: applicationSupportURL).load() == nil,
+                  resolvePendingWriterCleanup() else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            do { try coordinator.activateAfterErasedCleanup(session: session) }
+            catch {
+                // Preserve an uninstalled replacement's failed release as well
+                // as the original ticket; never hide either cleanup failure.
+                retainWriterCleanup(error, owner: nil)
+                throw error
+            }
+            let owner = OwnedWriter(coordinator)
+            generationFactory = StoreGenerationFactory(
+                applicationSupportURL: applicationSupportURL, fileManager: fileManager
+            )
+            operationOwnedWriter = owner
+            pendingErasedActivation = (owner, session, ticket.operationID)
+            publishedWriter = nil
+            deferredEraseCoordinator = nil
+            eraseCleanupRetirement = nil
+            route = .checking
+            return
         }
         // The admission token is expected to be revoked by the lifecycle
         // reservation.  Its identity remains bound in state; no replacement
@@ -1546,6 +1616,9 @@ final class StartupRouter: ObservableObject {
             let owner = OwnedWriter(coordinator)
             operationOwnedWriter = owner
             pendingErasedActivation = (owner, session, operation)
+            eraseCleanupRetirement = EraseCleanupRetirement(
+                owner: owner, session: session, operationID: operation
+            )
         } catch {
             // A failed replacement did not transfer ownership of the old
             // coordinator. Retain only any uninstalled failed-release lease.
@@ -1879,6 +1952,55 @@ final class StartupRouter: ObservableObject {
         route = .eraseCleanupPending(coordinator)
     }
 
+    private func requireEraseCleanupOwner(
+        _ retirement: EraseCleanupRetirement,
+        ticket: OriginalOperationTicket
+    ) throws {
+        let state = try awaitlessValidateEraseTicket(ticket)
+        let owner = retirement.owner
+        guard retirement.operationID == ticket.operationID,
+              state.source.coordinator === owner.coordinator,
+              state.acknowledgedReservation != nil,
+              state.eraseSubject?.newGenerationID == owner.generationID,
+              state.acknowledgedReservation?.subject == state.eraseSubject,
+              owner.coordinator.workspaceWriter === owner.writer,
+              owner.coordinator.generationID == owner.generationID,
+              owner.generationID == retirement.session.generationID,
+              owner.coordinator.modelContext === retirement.session.modelContext,
+              owner.coordinator.generationRootURL.standardizedFileURL
+                == retirement.session.generationRootURL.standardizedFileURL,
+              try generationFactory.currentGenerationID() == owner.generationID,
+              BackupRestoreService.isEmptyCurrent(retirement.session.modelContext),
+              pendingEraseDrainProof?.isDrained == true else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+
+    func prepareErasedSessionCleanup(_ ticket: OriginalOperationTicket) throws {
+        guard let retirement = eraseCleanupRetirement else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try requireEraseCleanupOwner(retirement, ticket: ticket)
+        guard !retirement.released else { return }
+        // The structural owner is retained before invalidation. A failed close
+        // is retried on this same handle, never through a now-invalid writer.
+        try retirement.owner.coordinator.invalidateAndReleaseWriter()
+        eraseCleanupRetirement?.released = true
+    }
+
+    /// An admitted cleanup failure retains its exact authority and private
+    /// owner. Unlike generic failure this must not discard the original ticket.
+    func suspendErasedSessionCleanup(_ ticket: OriginalOperationTicket) {
+        guard let retirement = eraseCleanupRetirement,
+              retirement.operationID == ticket.operationID,
+              (try? awaitlessValidateEraseTicket(ticket)) != nil else { return }
+        deferredEraseCoordinator = retirement.owner.coordinator
+        pendingErasedActivation = nil
+        publishedWriter = nil
+        endOperation(ticket.operationID)
+        route = .eraseCleanupPending(retirement.owner.coordinator)
+    }
+
     /// Same-process recovery must continue the original erase subject through
     /// its lifecycle hook.  The caller supplies that real service route; this
     /// method never falls back to generic startup, which would manufacture a
@@ -1902,6 +2024,7 @@ final class StartupRouter: ObservableObject {
         operationAuthorization = nil
         isRunning = true
         do {
+            try prepareErasedSessionCleanup(ticket)
             let session = try await reconcile()
             guard operationID == ticket.operationID else {
                 throw AppAccessContractFailureV1.staleAttempt

@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = '4f2cb573832d07cad49357ef98be960e51362ca0'
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'e9e1508cbf720ec6062afb4c56054ae34a4cc4f5', 'FieldEvidenceAppTests': '9918d1289d55d2e7764136323bbb5034660b2248', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = '0d5b812fe40bb84628e9f276cc447be7d231f10d'
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'f1366ca3b52c8dba3242c910cf8a23b2931bca3f', 'FieldEvidenceAppTests': '0e5a15f3fba1079135f43589012bc7468a3df654', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -59,8 +59,8 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = '4f2cb573832d07cad49357ef98be960e51362ca0'
-REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'e9e1508cbf720ec6062afb4c56054ae34a4cc4f5', 'FieldEvidenceAppTests': '9918d1289d55d2e7764136323bbb5034660b2248', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_PARENT = '0d5b812fe40bb84628e9f276cc447be7d231f10d'
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'f1366ca3b52c8dba3242c910cf8a23b2931bca3f', 'FieldEvidenceAppTests': '0e5a15f3fba1079135f43589012bc7468a3df654', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',
@@ -98,8 +98,8 @@ REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
 )
 RESTORE_HISTORY_SELECTION_ID = "restore-history-no-index-build30m"
-RESTORE_HISTORY_PARENT = '4f2cb573832d07cad49357ef98be960e51362ca0'
-RESTORE_HISTORY_TREES = {'FieldEvidenceApp': 'e9e1508cbf720ec6062afb4c56054ae34a4cc4f5', 'FieldEvidenceAppTests': '9918d1289d55d2e7764136323bbb5034660b2248', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_HISTORY_PARENT = '0d5b812fe40bb84628e9f276cc447be7d231f10d'
+RESTORE_HISTORY_TREES = {'FieldEvidenceApp': 'f1366ca3b52c8dba3242c910cf8a23b2931bca3f', 'FieldEvidenceAppTests': '0e5a15f3fba1079135f43589012bc7468a3df654', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_HISTORY_GROUPS = ("c36-restore-review", "replacement-packet-union")
 RESTORE_HISTORY_PACKET_SELECTOR = 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'
 RESTORE_HISTORY_SELECTORS = RESTORE_BUILD_WATCHDOG_SELECTORS + (RESTORE_HISTORY_PACKET_SELECTOR,)
@@ -165,9 +165,12 @@ DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
 DESTINATION_LEGACY_SELECTION_ID = "c36-destination-legacy-bytes"
 DESTINATION_LEGACY_SELECTOR = 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes'
-GENERATED_SELECTION_PROFILE = "restore-history-v1"
-GENERATED_SELECTION_POOL_SHA256 = "C46A725BF7F425DACBB8DEFEBC31F2543354E6366958C385198DB48C22E9A978"
-GENERATED_SELECTION_MAP_SHA256 = "AC74ED40BF913D6CAC95195935FC142C261478DD4413188891026218231EB556"
+ERASE_RECOVERY_SELECTION_ID = "erase-recovery"
+ERASE_LEASE_SELECTORS = ('FieldEvidenceAppTests/S2PersistenceLedgerTests/testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testPostAdoptionExecutionRevokedAtFirstAwaitCannotInstallAStaleTokenOrRead', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testSupersededPostAdoptionCatchCannotOverwriteNewReadyExecution', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testEraseCleanupReleaseFailureRetainsOriginalOwnerAndRetries', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testEraseCleanupInterruptionAfterRetirementResumesOriginalTicket', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testImmediateEraseCleanupReplacesRetiredWriterBeforePublication', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testErasedActivationMismatchAndRepeatedBeginReleaseOnlyTheAcquiredWriter')
+ERASE_RECOVERY_SELECTORS = ERASE_LEASE_SELECTORS + ('FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationDeferredEraseRetainsDrainAcrossPauseAndResumesWithFreshService', 'FieldEvidenceAppTests/V23ProductionAppAccessTests/testProductionEraseAdoptsFreshSettingOwnerAndNextToggleCommits', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionCompletedEraseReplacesOwnersAndRejectsPendingPermissionEdit', 'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState')
+GENERATED_SELECTION_PROFILE = "erase-recovery-v1"
+GENERATED_SELECTION_POOL_SHA256 = "74C22D3BC39737E08CE20331DD429724EF4DDBC5574B2346C4754FBDEAB94D27"
+GENERATED_SELECTION_MAP_SHA256 = "714083DCC599E6D6A3F58B1B0D91C1E990B66327A60E3F500F1E68CDC5368840"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -972,7 +975,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 54
+        isinstance(groups, list) and len(groups) == 55
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )
@@ -1172,6 +1175,16 @@ def resolve_selection(default, selection_map, selection_id):
         diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(diagnostic)
         resolved[RESTORE_HISTORY_SELECTION_ID] = diagnostic
+    if "erase-lease-lifecycle" in resolved:
+        require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
+                "erase exact enrolled lifecycle methods")
+        require(len(ERASE_RECOVERY_SELECTORS) == len(set(ERASE_RECOVERY_SELECTORS)) == 13
+                and set(ERASE_RECOVERY_SELECTORS) <= defaults,
+                "erase exact closed recovery question")
+        require(ERASE_RECOVERY_SELECTION_ID not in resolved, "erase distinct selection")
+        diagnostic = dict(default, unitTestSelectors=list(ERASE_RECOVERY_SELECTORS))
+        validate_selection(diagnostic)
+        resolved[ERASE_RECOVERY_SELECTION_ID] = diagnostic
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")

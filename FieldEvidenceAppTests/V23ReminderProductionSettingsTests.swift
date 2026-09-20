@@ -313,6 +313,11 @@ extension V23ReminderProductionSettingsTests {
         XCTAssertNil(fixture.presentation.failure)
         XCTAssertTrue(fixture.presentation.permitsContentPresentation)
         XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
+        if case .ready(let coordinator, _, _) = fixture.router.route {
+            XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
+        } else {
+            XCTFail("Completed Erase must publish a fresh valid writer")
+        }
         XCTAssertFalse(oldOwners.preferences === freshOwners.preferences)
         XCTAssertFalse(oldOwners.notifications === freshOwners.notifications)
         let fresh = try XCTUnwrap(fixture.presentation.reminderSettingsAccess)

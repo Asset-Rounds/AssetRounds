@@ -482,6 +482,7 @@ final class V23ProductionAppAccessTests: XCTestCase {
         retainedOldContext = nil
         await fulfillment(of: [oldContextReleased], timeout: 30)
         XCTAssertNil(weakOldContext)
+        let preCleanupWriter = coordinator.workspaceWriter
         await presentation.retryStartup()
         XCTAssertEqual(serviceCount, 2)
         XCTAssertTrue(presentation.permitsContentPresentation)
@@ -493,6 +494,9 @@ final class V23ProductionAppAccessTests: XCTestCase {
             return XCTFail("Fresh-service recovery must publish the retained ticket's Erase session")
         }
         XCTAssertTrue(recoveredCoordinator === coordinator)
+        XCTAssertFalse(coordinator.workspaceWriter === preCleanupWriter)
+        XCTAssertThrowsError(try preCleanupWriter.currentRevision())
+        XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
         XCTAssertNil(try originalScenePort.loadSceneNavigationData())
         let freshScenePort = session.sceneNavigationStatePort()
         XCTAssertFalse(freshScenePort === originalScenePort)

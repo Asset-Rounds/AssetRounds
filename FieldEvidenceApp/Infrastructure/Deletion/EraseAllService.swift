@@ -430,6 +430,11 @@ enum EraseAllServiceError: Error, Equatable {
 }
 
 struct EraseAllOutcome {
+    /// Cleanup retires the pre-cleanup writer before removing its registry.
+    /// After nondeferred completion, install this session through the original
+    /// router ticket or, for a standalone owner, activateAfterErasedCleanup(session:)
+    /// before using the coordinator's writer. Deferred recovery keeps its own
+    /// original drain and cleanup authority.
     let session: StoreGenerationSession
     let cleanupDeferred: Bool
 }
@@ -660,6 +665,7 @@ final class EraseAllService {
         confirmation: String,
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
+        prepareCleanup: (@MainActor () throws -> Void)? = nil,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void
     ) async throws -> EraseAllOutcome {
         try await erase(
@@ -667,6 +673,7 @@ final class EraseAllService {
             coordinator: coordinator,
             diagnosticsStore: diagnosticsStore,
             activate: activate,
+            prepareCleanup: prepareCleanup,
             lifecycleRoute: .expiringCompatibility(
                 posture: WorkspacePackageLifecycleCompatibilityV1.expiration
             )
@@ -677,6 +684,7 @@ final class EraseAllService {
         confirmation: String,
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
+        prepareCleanup: (@MainActor () throws -> Void)? = nil,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
         lifecycleDependencies dependencies: WorkspacePackageLifecycleDependenciesV1
     ) async throws -> EraseAllOutcome {
@@ -685,6 +693,7 @@ final class EraseAllService {
             coordinator: coordinator,
             diagnosticsStore: diagnosticsStore,
             activate: activate,
+            prepareCleanup: prepareCleanup,
             lifecycleRoute: .live(dependencies: dependencies)
         )
     }
@@ -694,6 +703,7 @@ final class EraseAllService {
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
+        prepareCleanup: (@MainActor () throws -> Void)?,
         lifecycleRoute: EraseAllLifecycleRouteV1
     ) async throws -> EraseAllOutcome {
         traceErasePhase("entry.integration-projections")
@@ -990,6 +1000,15 @@ final class EraseAllService {
                 )
             }
             let activated = intent.advancing(to: .sessionActivated)
+            // Cleanup removes the registry namespace used by the activated
+            // writer. A failed release must stop before any auxiliary deletion.
+            // Router callers retain the exact ticket for recovery; standalone
+            // callers explicitly install the returned completed session.
+            if let prepareCleanup {
+                try prepareCleanup()
+            } else {
+                try coordinator.invalidateAndReleaseWriter()
+            }
             let completed = try await completeCleanup(
                 activated,
                 session: session,

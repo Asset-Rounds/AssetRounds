@@ -26,7 +26,7 @@ on:
           - s10-4-minimum-diagnostic-pilot
           - s10-4-focused-diagnostics-development-only
       native_selection_id:
-        description: Closed V23 N8 selection; default retains all 869 methods across 54 bounded groups
+        description: Closed V23 N8 selection; default retains all 880 methods across 55 bounded groups
         required: true
         default: default-132
         type: choice
@@ -113,6 +113,8 @@ on:
           - reminder-control-continuation
           - reminder-production-no-index-build30m
           - round-restore-history
+          - erase-lease-lifecycle
+          - erase-recovery
           - replacement-packet-union
           - restore-history-no-index-build30m
           - c36-destination-legacy-bytes

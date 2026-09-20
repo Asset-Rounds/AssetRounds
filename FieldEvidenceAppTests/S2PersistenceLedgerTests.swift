@@ -1208,6 +1208,7 @@ extension S2PersistenceLedgerTests {
                 confirmation: "ERASE",
                 coordinator: coordinator,
                 diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                prepareCleanup: { try router.prepareErasedSessionCleanup(eraseTicket) },
                 activate: { session in
                 do {
                     try await router.beginErasedSessionActivation(
@@ -1538,10 +1539,45 @@ extension S2PersistenceLedgerTests {
     }
 
     @MainActor
+    func testEraseCleanupReleaseFailureRetainsOriginalOwnerAndRetries() async throws {
+        for failure in [EraseCleanupCase.releaseFailure, .rebindFailure] {
+            let fixture = try await makePostAdoptionEraseFixture(cleanupCase: failure)
+            defer { cleanupPostAdoptionEraseFixture(fixture) }
+            try await fixture.router.finishErasedSessionActivation(fixture.session,
+                coordinator: fixture.coordinator, ticket: fixture.ticket, accessGate: fixture.gate)
+            XCTAssertNoThrow(try fixture.coordinator.workspaceWriter.currentRevision())
+            XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+        }
+    }
+
+    @MainActor
+    func testEraseCleanupInterruptionAfterRetirementResumesOriginalTicket() async throws {
+        let fixture = try await makePostAdoptionEraseFixture(cleanupCase: .afterRetirement)
+        defer { cleanupPostAdoptionEraseFixture(fixture) }
+        try await fixture.router.finishErasedSessionActivation(fixture.session,
+            coordinator: fixture.coordinator, ticket: fixture.ticket, accessGate: fixture.gate)
+        XCTAssertNoThrow(try fixture.coordinator.workspaceWriter.currentRevision())
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+    }
+
+    @MainActor
+    func testImmediateEraseCleanupReplacesRetiredWriterBeforePublication() async throws {
+        let fixture = try await makePostAdoptionEraseFixture(cleanupCase: .immediate)
+        defer { cleanupPostAdoptionEraseFixture(fixture) }
+        try await fixture.router.finishErasedSessionActivation(fixture.session,
+            coordinator: fixture.coordinator, ticket: fixture.ticket, accessGate: fixture.gate)
+        XCTAssertNoThrow(try fixture.coordinator.workspaceWriter.currentRevision())
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+    }
+
+    private enum EraseCleanupCase { case ordinary, releaseFailure, rebindFailure, afterRetirement, immediate }
+
+    @MainActor
     private func makePostAdoptionEraseFixture(
         beforePostAdoptionContentRead: @escaping @MainActor (UUID) async -> Void = { _ in },
         willReadPostAdoptionCanonicalContent: @escaping @MainActor (UUID) -> Void = { _ in },
-        beforeCommerceActivation: @escaping @MainActor (UUID) async -> Void = { _ in }
+        beforeCommerceActivation: @escaping @MainActor (UUID) async -> Void = { _ in },
+        cleanupCase: EraseCleanupCase = .ordinary
     ) async throws -> S2PostAdoptionEraseFixture {
         let root = try makeTemporaryApplicationSupportURL()
         let caches = root.deletingLastPathComponent().appendingPathComponent(
@@ -1585,7 +1621,13 @@ extension S2PersistenceLedgerTests {
             )
             var reservation: AppAccessGateV1.EraseAdoptionToken?
             var receipt: CompletedEraseReceiptV1?
+            var completionCount = 0
             var activationFailure: Error?
+            var retainedOldContext: ModelContext? = (cleanupCase == .releaseFailure || cleanupCase == .afterRetirement)
+                ? coordinator.modelContext : nil
+            weak var weakOldContext = retainedOldContext
+            let cleanupFailure = cleanupCase == .afterRetirement
+                ? EraseAllFailureInjection(failOnceAt: .beforeCleanup) : nil
             let makeService: @MainActor () -> EraseAllService = {
                 EraseAllService(
                     applicationSupportURL: root,
@@ -1594,6 +1636,7 @@ extension S2PersistenceLedgerTests {
                     userDefaults: defaults,
                     bundleIdentifier: defaultsSuiteName,
                     defaultsDomainName: defaultsSuiteName,
+                    failureInjection: cleanupFailure,
                     privateSystemDiscoveryIndex: nil,
                     notificationSystem: S2EmptyNotificationSystem(),
                     admitErase: { subject in
@@ -1613,26 +1656,38 @@ extension S2PersistenceLedgerTests {
                         return reservation
                     },
                     didCompleteErase: { completed in
+                        completionCount += 1
                         if receipt == nil { receipt = completed }
                     }
                 )
             }
-            let dependencies = try coordinator.packageLifecycleDependencies()
-            let outcome = try await makeService().erase(
-                confirmation: "ERASE",
-                coordinator: coordinator,
-                diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
-                activate: { session in
-                    do {
-                        try await router.beginErasedSessionActivation(
-                            session, coordinator: coordinator, ticket: ticket
-                        )
-                    } catch {
-                        activationFailure = error
-                    }
-                },
-                lifecycleDependencies: dependencies
-            )
+            let activate: @MainActor (StoreGenerationSession) async -> Void = { session in
+                do {
+                    try await router.beginErasedSessionActivation(
+                        session, coordinator: coordinator, ticket: ticket)
+                } catch { activationFailure = error }
+            }
+            let prepare: @MainActor () throws -> Void = {
+                try router.prepareErasedSessionCleanup(ticket)
+            }
+            let outcome: EraseAllOutcome
+            if cleanupCase == .immediate {
+                // Exercise the real compatibility entry without retaining live
+                // lifecycle dependencies; this must complete in the first call.
+                outcome = try await makeService().erase(confirmation: "ERASE",
+                    coordinator: coordinator, diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                    prepareCleanup: prepare, activate: activate)
+                XCTAssertFalse(outcome.cleanupDeferred)
+            } else {
+                // End the source-dependency lifetime before deferred recovery.
+                let start: @MainActor () async throws -> EraseAllOutcome = {
+                    let dependencies = try coordinator.packageLifecycleDependencies()
+                    return try await makeService().erase(confirmation: "ERASE",
+                        coordinator: coordinator, diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                        prepareCleanup: prepare, activate: activate, lifecycleDependencies: dependencies)
+                }
+                outcome = try await start()
+            }
             if let activationFailure { throw activationFailure }
             var session = outcome.session
             if outcome.cleanupDeferred {
@@ -1640,17 +1695,82 @@ extension S2PersistenceLedgerTests {
                     session, coordinator: coordinator, ticket: ticket
                 )
                 await Task.yield()
+                if cleanupCase == .releaseFailure || cleanupCase == .afterRetirement {
+                    XCTAssertNotNil(retainedOldContext)
+                    retainedOldContext = nil
+                    let drained = expectation(for: NSPredicate { _, _ in weakOldContext == nil }, evaluatedWith: NSObject())
+                    await fulfillment(of: [drained], timeout: 30)
+                    XCTAssertNil(weakOldContext)
+                    let intentBefore = try EraseIntentStore(applicationSupportURL: root).load()
+                    let retiredWriter = coordinator.workspaceWriter
+                    let registryURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")
+                    let registryBytes = try Data(contentsOf: registryURL)
+                    if cleanupCase == .releaseFailure {
+                        // Preserve the real inode and owner lock; corrupt only
+                        // registry content so the actual close must fail.
+                        try Data("invalid-registry".utf8).write(to: registryURL)
+                    }
+                    do {
+                        _ = try await router.resumeDeferredErase(ticket) {
+                            try await makeService().reconcileAtStartup(
+                                diagnosticsStore: DiagnosticsStore(applicationSupportURL: root))
+                        }
+                        XCTFail("The injected cleanup failure must not complete")
+                    } catch { }
+                    XCTAssertEqual(try EraseIntentStore(applicationSupportURL: root).load(), intentBefore)
+                    XCTAssertNil(receipt)
+                    XCTAssertTrue(coordinator.workspaceWriter === retiredWriter)
+                    XCTAssertThrowsError(try retiredWriter.currentRevision())
+                    if cleanupCase == .releaseFailure {
+                        XCTAssertEqual(try Data(contentsOf: registryURL), Data("invalid-registry".utf8))
+                        try registryBytes.write(to: registryURL)
+                        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+                    } else {
+                        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+                    }
+                    guard case let .eraseCleanupPending(held) = router.route, held === coordinator else {
+                        throw AppAccessContractFailureV1.staleAttempt
+                    }
+                }
                 let resumed = try await router.resumeDeferredErase(ticket) {
                     try await makeService().reconcileAtStartup(
                         diagnosticsStore: DiagnosticsStore(applicationSupportURL: root)
                     )
                 }
                 session = try XCTUnwrap(resumed)
-                try await router.beginErasedSessionActivation(
-                    session, coordinator: coordinator, ticket: ticket
-                )
             }
+            if cleanupCase == .releaseFailure || cleanupCase == .afterRetirement {
+                XCTAssertTrue(outcome.cleanupDeferred, "The recovery regression must exercise deferred cleanup")
+            }
+            let retiredWriter = coordinator.workspaceWriter
+            XCTAssertThrowsError(try retiredWriter.currentRevision())
             let completed = try XCTUnwrap(receipt)
+            if cleanupCase == .rebindFailure {
+                // Fail the real fresh-binding entry after its authentic receipt,
+                // retaining the exact retired owner for a binding-only retry.
+                let searchRoot = root.appendingPathComponent(LocalSearchIndexStoreV1.directoryName)
+                XCTAssertFalse(fileManager.fileExists(atPath: searchRoot.path))
+                let blocker = Data("not-a-search-directory".utf8)
+                try blocker.write(to: searchRoot)
+                do {
+                    try await router.beginErasedSessionActivation(
+                        session, coordinator: coordinator, ticket: ticket)
+                    XCTFail("Fresh activation must reject a file in place of its search directory")
+                } catch { }
+                XCTAssertEqual(try Data(contentsOf: searchRoot), blocker)
+                XCTAssertTrue(coordinator.workspaceWriter === retiredWriter)
+                XCTAssertThrowsError(try retiredWriter.currentRevision())
+                XCTAssertNil(try EraseIntentStore(applicationSupportURL: root).load())
+                XCTAssertEqual(completionCount, 1)
+                try fileManager.removeItem(at: searchRoot)
+            }
+            try await router.beginErasedSessionActivation(
+                session, coordinator: coordinator, ticket: ticket
+            )
+            XCTAssertFalse(coordinator.workspaceWriter === retiredWriter)
+            XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
+            XCTAssertNil(try EraseIntentStore(applicationSupportURL: root).load())
+            XCTAssertEqual(completionCount, 1, "Activation retry must not repeat physical completion")
             let adopted = try XCTUnwrap(reservation)
             try await gate.adoptCompletedErase(completed, token: adopted)
             return S2PostAdoptionEraseFixture(

@@ -1068,6 +1068,7 @@ final class AppAccessPresentationV1: ObservableObject {
         var abortedAdmission: AbortedEraseAdmissionReceiptV1?
         var reservation: AppAccessGateV1.EraseAdoptionToken?
         var adopted = false
+        var cleanupActivationRefreshed = false
         var activationFailure: Error?
 
         init(ticket: StartupRouter.OriginalOperationTicket,
@@ -1379,6 +1380,12 @@ final class AppAccessPresentationV1: ObservableObject {
             let dependencies = try coordinator.packageLifecycleDependencies()
             let outcome = try await service.erase(confirmation: confirmation,
                 coordinator: coordinator, diagnosticsStore: diagnosticsStore,
+                prepareCleanup: { [weak self, weak pending] in
+                    guard let self, let pending, self.pendingErase === pending else {
+                        throw AppAccessContractFailureV1.staleAttempt
+                    }
+                    try self.startupRouter.prepareErasedSessionCleanup(pending.ticket)
+                },
                 activate: { [weak self, weak pending] erased in
                     guard let self, let pending, self.pendingErase === pending else { return }
                     pending.session = erased
@@ -1414,6 +1421,8 @@ final class AppAccessPresentationV1: ObservableObject {
             } else if pending.reservation == nil {
                 startupRouter.failExternalOperation(ticket)
                 if pendingErase === pending { pendingErase = nil }
+            } else {
+                startupRouter.suspendErasedSessionCleanup(ticket)
             }
             _ = try? await refreshState(session)
             failure = pendingErase == nil && accessState?.permitsContentAccess == false ? nil : .startup
@@ -1441,12 +1450,15 @@ final class AppAccessPresentationV1: ObservableObject {
             }
             if let recovered {
                 pending.session = recovered
-                try await startupRouter.beginErasedSessionActivation(recovered,
-                    coordinator: pending.coordinator, ticket: pending.ticket)
             }
         }
         guard let receipt = pending.receipt, let erasedSession = pending.session else {
             throw AppAccessContractFailureV1.configurationUnknown
+        }
+        if !pending.cleanupActivationRefreshed {
+            try await startupRouter.beginErasedSessionActivation(erasedSession,
+                coordinator: pending.coordinator, ticket: pending.ticket)
+            pending.cleanupActivationRefreshed = true
         }
         if !pending.adopted {
             guard let makeReplacement = access.completedEraseReplacement else {

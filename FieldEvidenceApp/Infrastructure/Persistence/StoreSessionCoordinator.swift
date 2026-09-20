@@ -29,7 +29,7 @@ final class StoreSessionCoordinator: ObservableObject {
     private let clock: any ApplicationClock
     private let idSource: any ApplicationIDSource
     private let fileAuthority: any ApplicationFileAuthorityV1
-    private let generationFactory: StoreGenerationFactory
+    private var generationFactory: StoreGenerationFactory
     let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
     private var writerLeaseHandle: GenerationLeaseHandleV1
     private var writerFence: StaleWriterFenceV1
@@ -393,6 +393,32 @@ final class StoreSessionCoordinator: ObservableObject {
     }
 
     func activateValidating(session: StoreGenerationSession) throws {
+        try activateValidating(session: session, generationFactory: generationFactory)
+    }
+
+    /// Physical Erase removes the old registry namespace. Ordinary activation
+    /// must keep its factory/fences; only completed cleanup replaces that owner.
+    func activateAfterErasedCleanup(session: StoreGenerationSession) throws {
+        let support = Self.applicationSupportURL(for: session)
+        guard support == generationFactory.restoreApplicationSupportURL.standardizedFileURL,
+              session.generationID == generationID,
+              session.generationRootURL.standardizedFileURL == generationRootURL.standardizedFileURL,
+              try generationFactory.currentGenerationID() == session.generationID,
+              BackupRestoreService.isEmptyCurrent(session.modelContext),
+              try EraseIntentStore(applicationSupportURL: support).load() == nil else {
+            throw GenerationLeaseRegistryFailureV1.staleGeneration
+        }
+        // If pre-cleanup retirement failed, the handle still rejects its
+        // missing registry. Never reinterpret deletion as successful close.
+        try invalidateAndReleaseWriter()
+        let freshFactory = StoreGenerationFactory(applicationSupportURL: support)
+        try activateValidating(session: session, generationFactory: freshFactory)
+    }
+
+    private func activateValidating(
+        session: StoreGenerationSession,
+        generationFactory: StoreGenerationFactory
+    ) throws {
         guard Self.applicationSupportURL(for: session)
                 == generationFactory.restoreApplicationSupportURL.standardizedFileURL else {
             throw GenerationLeaseRegistryFailureV1.invalidPath
@@ -429,6 +455,7 @@ final class StoreSessionCoordinator: ObservableObject {
         }
         workspaceWriter.invalidate()
         self.session = session
+        self.generationFactory = generationFactory
         searchIndexStore = replacementSearchIndexStore
         searchServices = replacementSearchServices
         writerLeaseHandle = binding.leaseHandle
