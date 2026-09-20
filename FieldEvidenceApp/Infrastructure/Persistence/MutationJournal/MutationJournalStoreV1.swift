@@ -693,7 +693,8 @@ final class MutationJournalStoreV1 {
         identity: WorkspaceReplicaIdentityV1,
         generationID: UUID,
         failureInjection: MutationJournalFailureInjectionV1? = nil,
-        allowStateBootstrap: Bool = true
+        allowStateBootstrap: Bool = true,
+        diagnosticPhase: ((String) -> Void)? = nil
     ) throws {
         try self.init(
             modelContext: modelContext,
@@ -702,7 +703,8 @@ final class MutationJournalStoreV1 {
             failureInjection: failureInjection,
             allowStateBootstrap: allowStateBootstrap,
             allowMissingCheckpoint: false,
-            accessMode: .maintenanceOrTest
+            accessMode: .maintenanceOrTest,
+            diagnosticPhase: diagnosticPhase
         )
     }
 
@@ -713,7 +715,8 @@ final class MutationJournalStoreV1 {
         failureInjection: MutationJournalFailureInjectionV1?,
         allowStateBootstrap: Bool,
         allowMissingCheckpoint: Bool,
-        accessMode: AccessMode
+        accessMode: AccessMode,
+        diagnosticPhase: ((String) -> Void)? = nil
     ) throws {
         self.modelContext = modelContext
         self.identity = identity
@@ -722,7 +725,8 @@ final class MutationJournalStoreV1 {
         self.accessMode = accessMode
         try bootstrapOrValidateState(
             allowBootstrap: allowStateBootstrap,
-            allowMissingCheckpoint: allowMissingCheckpoint
+            allowMissingCheckpoint: allowMissingCheckpoint,
+            diagnosticPhase: diagnosticPhase
         )
     }
 
@@ -5283,24 +5287,26 @@ final class MutationJournalStoreV1 {
         return try ReversalBasisV1.decodeCanonical(from: data)
     }
 
-    func validateAll() throws {
+    func validateAll(diagnosticPhase: ((String) -> Void)? = nil) throws {
         _ = try validateAll(
             release: PersistentSchemaReleaseRegistryV1.activeRelease,
-            historicalAuthority: nil
+            historicalAuthority: nil,
+            diagnosticPhase: diagnosticPhase
         )
     }
 
     private func validateAll(
         release: PersistentSchemaReleaseV1,
-        historicalAuthority: StoreMigrationHistoricalCheckpointAuthorityV1?
+        historicalAuthority: StoreMigrationHistoricalCheckpointAuthorityV1?,
+        diagnosticPhase: ((String) -> Void)? = nil
     ) throws -> StoreMigrationValidatedTerminalImagesV1 {
         let releaseVersion = release.versionIdentifier.major
         guard (4...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
                 .contains(releaseVersion) else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            diagnosticPhase?("validate.guard.line-5300"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         guard C50IncumbentFileExchangeMutationJournalBoundaryV1.validate() else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            diagnosticPhase?("validate.guard.line-5303"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         if releaseVersion >= 21 {
             try validateRecoverabilityVerificationReceipts()
@@ -5309,7 +5315,7 @@ final class MutationJournalStoreV1 {
         descriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
         let rows = try modelContext.fetch(descriptor)
         guard rows.count <= Self.maximumReceiptValidationCount else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            diagnosticPhase?("validate.guard.line-5312"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         let sourceReceiptAnchors = rows.map(StoreMigrationReceiptCollectionAnchorV1.init)
         var identities = Set<String>()
@@ -5326,11 +5332,11 @@ final class MutationJournalStoreV1 {
             let receipt = try validate(row: row, expectedEnvelope: nil, release: release)
             guard identities.insert(row.receiptIdentity).inserted,
                   mutations.insert(row.workspaceMutationKey).inserted else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5329"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let replica = "\(row.workspaceID.uuidString.lowercased()):\(row.replicaID.uuidString.lowercased())"
             guard sequenceKeys.insert("\(replica):\(receipt.identity.localSequence)").inserted else {
-                throw WorkspaceMutationFailureV1.sequenceCollision
+                diagnosticPhase?("validate.guard.line-5333"); throw WorkspaceMutationFailureV1.sequenceCollision
             }
             maximumSequenceByReplica[replica] = max(
                 maximumSequenceByReplica[replica, default: 0],
@@ -5344,11 +5350,11 @@ final class MutationJournalStoreV1 {
                 for image in receipt.postImages {
                     for entity in try Self.terminalStateIdentities(for: image) {
                         guard Self.minimumRelease(for: entity.kind) <= releaseVersion else {
-                            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                            diagnosticPhase?("validate.guard.line-5347"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                         }
                         if let prior = latestPostImageByIdentity[entity] {
                             if prior.revision == image.revision, prior != image {
-                                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                                diagnosticPhase?("validate.guard.line-5351"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                             }
                             if prior.revision >= image.revision { continue }
                         }
@@ -5369,14 +5375,14 @@ final class MutationJournalStoreV1 {
                     workspaceID: request.expectedRevision.workspaceID,
                     mutationID: request.mutationID
                )).inserted {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5372"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
         var assistanceReceiptMutationKeys = Set<String>()
         if releaseVersion >= 32 {
             let assistanceRows = try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>())
             guard assistanceRows.count <= Self.maximumReceiptValidationCount else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5379"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             for row in assistanceRows {
                 let key = MutationWorkspaceKeyV1.value(
@@ -5384,13 +5390,13 @@ final class MutationJournalStoreV1 {
                     mutationID: try MutationIDV1(rawValue: row.mutationID)
                 )
                 guard assistanceReceiptMutationKeys.insert(key).inserted else {
-                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    diagnosticPhase?("validate.guard.line-5387"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
                 _ = try validateAssistanceAcceptanceRow(row)
             }
         }
         guard assistanceReceiptMutationKeys == assistanceMutationKeys else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            diagnosticPhase?("validate.guard.line-5393"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         for (mutationKey, row) in rowsByMutation where row.semanticReversalData != nil {
             guard let data = row.semanticReversalData else { continue }
@@ -5407,7 +5413,7 @@ final class MutationJournalStoreV1 {
                   target.identity == reversal.targetReceiptIdentity,
                   let targetRow = rowsByMutation[targetKey],
                   let basisData = targetRow.reversalBasisData else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5410"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let basis = try ReversalBasisV1.decodeCanonical(from: basisData)
             guard reversal.reversalBasisSHA256 == (try basis.canonicalSHA256()),
@@ -5416,14 +5422,14 @@ final class MutationJournalStoreV1 {
                     reversal,
                     receiptsByMutation: receiptsByMutation
                   ) else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5419"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
         var quarantineDescriptor = FetchDescriptor<MutationQuarantineRow>()
         quarantineDescriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
         let quarantineRows = try modelContext.fetch(quarantineDescriptor)
         guard quarantineRows.count <= Self.maximumReceiptValidationCount else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            diagnosticPhase?("validate.guard.line-5426"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         var quarantineKeys = Set<String>()
         for quarantine in quarantineRows {
@@ -5432,7 +5438,7 @@ final class MutationJournalStoreV1 {
             let key = MutationWorkspaceKeyV1.value(workspaceID: workspace, mutationID: mutation)
             guard let domain = MutationQuarantineIdentityDomainV1(rawValue: quarantine.identityDomain),
                   let receiptRow = rowsByMutation[key] else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5435"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let acceptedIdentity: String
             switch domain {
@@ -5450,18 +5456,18 @@ final class MutationJournalStoreV1 {
                   quarantine.acceptedIdentitySHA256 != quarantine.conflictingIdentitySHA256,
                   acceptedIdentity == quarantine.acceptedIdentitySHA256,
                   quarantine.detectedAt.timeIntervalSinceReferenceDate.isFinite else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5453"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
         let state = try requireState()
         let activeKey = "\(state.workspaceID.uuidString.lowercased()):\(state.activeReplicaID.uuidString.lowercased())"
         guard try domainRevision(state.lastLocalSequence) >= maximumSequenceByReplica[activeKey, default: 0],
               try domainRevision(state.workspaceRevision) >= maximumWorkspaceRevision else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            diagnosticPhase?("validate.guard.line-5460"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         if let checkpoint = state.mutableSemanticSHA256 {
             guard MutationEnvelopeV1.isSHA256(checkpoint) else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5464"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let releasedCheckpoint = try mutableSemanticSHA256(release: release)
             if checkpoint != releasedCheckpoint {
@@ -5469,12 +5475,12 @@ final class MutationJournalStoreV1 {
                       let historicalAuthority,
                       releasedCheckpoint == (try mutableSemanticSHA256(release: .v10)),
                       checkpoint == (try mutableSemanticSHA256(release: .v9)) else {
-                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    diagnosticPhase?("validate.guard.line-5472"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
                 try historicalAuthority.requireOriginalV10LegacyBaseline()
             }
         } else if releaseVersion >= 8 {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            diagnosticPhase?("validate.guard.line-5477"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         var balanceStreamFrontier: [WorkspaceEntityIdentityV1: UInt64] = [:]
         let orderedReceipts = receiptsByMutation.values.filter {
@@ -5499,11 +5505,11 @@ final class MutationJournalStoreV1 {
                       let expected = expectedByIdentity[concurrency],
                       let resulting = resultingByIdentity[concurrency],
                       expected == balanceStreamFrontier[concurrency, default: 0] else {
-                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    diagnosticPhase?("validate.guard.line-5502"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
                 let (successor, overflow) = expected.addingReportingOverflow(1)
                 guard !overflow, imageRevision == successor, resulting == imageRevision else {
-                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    diagnosticPhase?("validate.guard.line-5506"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
                 balanceStreamFrontier[concurrency] = imageRevision
             }
@@ -5516,23 +5522,23 @@ final class MutationJournalStoreV1 {
         }
         let revisionIdentities = try Set(revisionRows.map { row -> WorkspaceEntityIdentityV1 in
             guard let kind = WorkspaceEntityKindV1(rawValue: row.kind) else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5519"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             guard Self.minimumRelease(for: kind) <= releaseVersion else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5522"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             return try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
         })
         let balanceStreamRevisionIdentities = try Set(revisionRows.compactMap { row -> WorkspaceEntityIdentityV1? in
             guard let kind = WorkspaceEntityKindV1(rawValue: row.kind) else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5528"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             guard kind == .stockBalanceStream else { return nil }
             return try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
         })
         guard balanceStreamRevisionIdentities.count == revisionRows.filter({ $0.kind == WorkspaceEntityKindV1.stockBalanceStream.rawValue }).count,
               balanceStreamRevisionIdentities == Set(balanceStreamFrontier.keys) else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            diagnosticPhase?("validate.guard.line-5535"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         let hasProjectedBaseline = revisionRows.contains { $0.externalProjectionSHA256 != nil }
         let hasC55CatalogBaseline = revisionRows.contains { row in
@@ -5545,7 +5551,7 @@ final class MutationJournalStoreV1 {
             allowsNonzeroNativeBaseline: hasProjectedBaseline && !hasC55CatalogBaseline
         ) {
             guard try domainRevision(state.workspaceRevision) == activeTerminal else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("validate.guard.line-5548"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
         return try validateTerminalRows(
@@ -6111,16 +6117,21 @@ final class MutationJournalStoreV1 {
     /// the active destination state and resets its local sequence.
     func replaceHistory(
         with snapshot: MutationHistorySnapshotV1,
-        identityDisposition: MutationHistoryRestoreIdentityV1
+        identityDisposition: MutationHistoryRestoreIdentityV1,
+        diagnosticPhase: ((String) -> Void)? = nil
     ) throws {
+        diagnosticPhase?("replace.imported-snapshot")
         try Self.validateImportedSnapshot(snapshot)
+        diagnosticPhase?("replace.empty-rows")
         guard try modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).isEmpty,
               try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>()).isEmpty,
               try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>()).isEmpty else {
-            throw WorkspaceMutationFailureV1.persistenceFailed
+            diagnosticPhase?("replace.guard.line-6120"); throw WorkspaceMutationFailureV1.persistenceFailed
         }
+        diagnosticPhase?("replace.state")
         let state = try requireState()
         let destinationProjection: Bool
+        diagnosticPhase?("replace.disposition")
         switch identityDisposition {
         case .preserve:
             // Replacement is itself an authorized projection boundary: the
@@ -6129,38 +6140,45 @@ final class MutationJournalStoreV1 {
             destinationProjection = true
             guard snapshot.workspaceRevision <= UInt64(Int64.max),
                   snapshot.lastLocalSequence <= UInt64(Int64.max) else {
-                throw WorkspaceMutationFailureV1.revisionOverflow
+                diagnosticPhase?("replace.guard.line-6132"); throw WorkspaceMutationFailureV1.revisionOverflow
             }
             state.workspaceRevision = Int64(snapshot.workspaceRevision)
             state.lastLocalSequence = Int64(snapshot.lastLocalSequence)
         case let .destination(destination, targetGenerationID):
             destinationProjection = true
             guard destination == identity, targetGenerationID == generationID else {
-                throw WorkspaceMutationFailureV1.wrongGeneration
+                diagnosticPhase?("replace.guard.line-6139"); throw WorkspaceMutationFailureV1.wrongGeneration
             }
             guard snapshot.workspaceRevision <= UInt64(Int64.max) else {
-                throw WorkspaceMutationFailureV1.revisionOverflow
+                diagnosticPhase?("replace.guard.line-6142"); throw WorkspaceMutationFailureV1.revisionOverflow
             }
             state.workspaceRevision = Int64(snapshot.workspaceRevision)
             state.lastLocalSequence = 0
         case let .destinationPreservingPartsStock(destination, targetGenerationID):
             destinationProjection = true
             guard destination == identity, targetGenerationID == generationID else {
-                throw WorkspaceMutationFailureV1.wrongGeneration
+                diagnosticPhase?("replace.guard.line-6149"); throw WorkspaceMutationFailureV1.wrongGeneration
             }
             guard snapshot.workspaceRevision <= UInt64(Int64.max) else {
-                throw WorkspaceMutationFailureV1.revisionOverflow
+                diagnosticPhase?("replace.guard.line-6152"); throw WorkspaceMutationFailureV1.revisionOverflow
             }
             state.workspaceRevision = Int64(snapshot.workspaceRevision)
             state.lastLocalSequence = 0
         }
+        diagnosticPhase?("replace.receipts")
         for record in snapshot.receipts {
+            diagnosticPhase?("replace.receipt-envelope")
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            diagnosticPhase?("replace.receipt-body")
             let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            diagnosticPhase?("replace.receipt-basis")
             let basis = try record.reversalBasisData.map { try ReversalBasisV1.decodeCanonical(from: $0) }
+            diagnosticPhase?("replace.receipt-reversal")
             let reversal = try record.semanticReversalData.map { try SemanticReversalReceiptV1.decodeCanonical(from: $0) }
+            diagnosticPhase?("replace.receipt-insert")
             modelContext.insert(try MutationReceiptRow(envelope: envelope, receipt: receipt, reversalBasis: basis, semanticReversal: reversal))
         }
+        diagnosticPhase?("replace.quarantines")
         for value in snapshot.quarantines {
             modelContext.insert(MutationQuarantineRow(
                 workspaceID: value.workspaceID,
@@ -6171,7 +6189,9 @@ final class MutationJournalStoreV1 {
                 detectedAt: value.detectedAt
             ))
         }
+        diagnosticPhase?("replace.entities")
         for value in snapshot.entityRevisions {
+            diagnosticPhase?("replace.entity-kind." + value.identity.kind.rawValue)
             let externalProjection: String?
             if Self.isPartsStockKind(value.identity.kind) {
                 switch identityDisposition {
@@ -6216,16 +6236,19 @@ final class MutationJournalStoreV1 {
                 externalProjectionSHA256: externalProjection
             ))
         }
+        diagnosticPhase?("replace.mutable-semantic")
         state.mutableSemanticSHA256 = try mutableSemanticSHA256()
         do {
-            try validateAll()
+            diagnosticPhase?("replace.validate-all")
+            try validateAll(diagnosticPhase: diagnosticPhase)
+            diagnosticPhase?("replace.save")
             try saveWithMaintenanceAuthorization()
         } catch let error as WorkspaceMutationFailureV1 {
             modelContext.rollback()
-            throw error
+            diagnosticPhase?("replace.rethrow.line-6225"); throw error
         } catch {
             modelContext.rollback()
-            throw WorkspaceMutationFailureV1.persistenceFailed
+            diagnosticPhase?("replace.guard.line-6228"); throw WorkspaceMutationFailureV1.persistenceFailed
         }
     }
 
@@ -6285,41 +6308,46 @@ final class MutationJournalStoreV1 {
 
     private func bootstrapOrValidateState(
         allowBootstrap: Bool,
-        allowMissingCheckpoint: Bool = false
+        allowMissingCheckpoint: Bool = false,
+        diagnosticPhase: ((String) -> Void)? = nil
     ) throws {
         let workspace = identity.workspaceID.rawValue
+        diagnosticPhase?("init.state.fetch")
         let rows = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>(
             predicate: #Predicate { $0.workspaceID == workspace }
         ))
-        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard rows.count <= 1 else { diagnosticPhase?("init.state.guard.line-6294"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        diagnosticPhase?("init.state.branch")
         if let row = rows.first {
             guard row.generationID == generationID, row.activeReplicaID == identity.replicaID.rawValue else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                diagnosticPhase?("init.state.guard.line-6297"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             if row.mutableSemanticSHA256 == nil {
                 if allowMissingCheckpoint { return }
-                guard allowBootstrap else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                guard allowBootstrap else { diagnosticPhase?("init.state.guard.line-6301"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
                 // Candidate initialization is one transaction: receipt recovery
                 // must succeed before either the rebind or checkpoint is saved.
                 if case .aggregateCandidate = accessMode { return }
+                diagnosticPhase?("init.state.existing-semantic")
                 row.mutableSemanticSHA256 = try mutableSemanticSHA256()
-                do { try saveWithMaintenanceAuthorization() } catch {
+                do { diagnosticPhase?("init.state.save"); try saveWithMaintenanceAuthorization() } catch {
                     modelContext.rollback()
-                    throw WorkspaceMutationFailureV1.persistenceFailed
+                    diagnosticPhase?("init.state.guard.line-6308"); throw WorkspaceMutationFailureV1.persistenceFailed
                 }
             }
         } else {
-            guard allowBootstrap else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            guard allowBootstrap else { diagnosticPhase?("init.state.guard.line-6312"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
             let row = WorkspaceMutationStateRow(
                 workspaceID: workspace,
                 generationID: generationID,
                 activeReplicaID: identity.replicaID.rawValue
             )
             modelContext.insert(row)
+            diagnosticPhase?("init.state.new-semantic")
             row.mutableSemanticSHA256 = try mutableSemanticSHA256()
-            do { try saveWithMaintenanceAuthorization() } catch {
+            do { diagnosticPhase?("init.state.save"); try saveWithMaintenanceAuthorization() } catch {
                 modelContext.rollback()
-                throw WorkspaceMutationFailureV1.persistenceFailed
+                diagnosticPhase?("init.state.guard.line-6322"); throw WorkspaceMutationFailureV1.persistenceFailed
             }
         }
     }

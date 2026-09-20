@@ -298,27 +298,57 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
             })
         }
 
-        func authenticated(_ recordKey: String) throws -> RepetitiveCaptureSourceHistoryRecordV2 {
+        func authenticated(_ recordKey: String, diagnosticPhase: ((String) -> Void)? = nil) throws -> RepetitiveCaptureSourceHistoryRecordV2 {
+            diagnosticPhase?("anchor.authentication.lookup")
             guard let value = records[recordKey] else { throw RepetitiveCaptureSourceGraphReviewV2.invalid() }
             let envelope = value.envelope, receipt = value.receipt
-            guard receipt.identity.workspaceID == envelope.workspaceID,
-                  receipt.identity.replicaID == envelope.replicaID,
-                  receipt.mutationID == envelope.mutationID,
-                  receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
-                  receipt.commandBodySHA256 == envelope.commandBodySHA256,
-                  receipt.expectedRevision == envelope.expectedRevision,
-                  receipt.contentDependencyIDs == envelope.contentDependencyIDs,
-                  receipt.sourceKind == envelope.sourceKind,
-                  receipt.causationMutationID == envelope.causationMutationID,
-                  receipt.correlationID == envelope.correlationID else {
+            diagnosticPhase?("anchor.authentication.workspace")
+            guard receipt.identity.workspaceID == envelope.workspaceID else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.replica")
+            guard receipt.identity.replicaID == envelope.replicaID else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.mutation")
+            guard receipt.mutationID == envelope.mutationID else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.envelope-digest")
+            guard receipt.envelopeSHA256 == (try envelope.canonicalSHA256()) else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.command-digest")
+            guard receipt.commandBodySHA256 == envelope.commandBodySHA256 else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.revision")
+            guard receipt.expectedRevision == envelope.expectedRevision else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.dependencies")
+            guard receipt.contentDependencyIDs == envelope.contentDependencyIDs else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.source-kind")
+            guard receipt.sourceKind == envelope.sourceKind else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.causation")
+            guard receipt.causationMutationID == envelope.causationMutationID else {
+                throw RepetitiveCaptureSourceGraphReviewV2.invalid()
+            }
+            diagnosticPhase?("anchor.authentication.correlation")
+            guard receipt.correlationID == envelope.correlationID else {
                 throw RepetitiveCaptureSourceGraphReviewV2.invalid()
             }
             return value
         }
 
-        func authenticated(workspaceID: WorkspaceID, mutationID: MutationIDV1) throws
+        func authenticated(workspaceID: WorkspaceID, mutationID: MutationIDV1,
+                           diagnosticPhase: ((String) -> Void)? = nil) throws
             -> RepetitiveCaptureSourceHistoryRecordV2 {
-            try authenticated(RepetitiveCaptureSourceGraphReviewV2.key(workspaceID, mutationID))
+            try authenticated(RepetitiveCaptureSourceGraphReviewV2.key(workspaceID, mutationID), diagnosticPhase: diagnosticPhase)
         }
 
         func fieldDraftHistory(workspaceID: WorkspaceID, draftID: UUID)
@@ -549,9 +579,9 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
         diagnosticPhase?("source.checkpoints.begin")
         for frontier in reference.value.checkpoints {
             diagnosticPhase?("source.checkpoint.first")
-            let first = try retainedAnchor(frontier.original.record, workspace: workspace, history: history)
+            let first = try retainedAnchor(frontier.original.record, workspace: workspace, history: history, diagnosticPhase: diagnosticPhase)
             diagnosticPhase?("source.checkpoint.last")
-            let last = try retainedAnchor(frontier.current.record, workspace: workspace, history: history)
+            let last = try retainedAnchor(frontier.current.record, workspace: workspace, history: history, diagnosticPhase: diagnosticPhase)
             diagnosticPhase?("source.checkpoint.equality")
             guard case let .applyFieldDraft(firstMutation) = first.envelope.command,
                   case let .createCheckpoint(original) = firstMutation.postImage,
@@ -685,14 +715,18 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
     }
 
     private static func retainedAnchor(_ anchor: RepetitiveCaptureSourceGraphReferenceV2.RecordAnchor,
-                                       workspace: WorkspaceID, history: History) throws
+                                       workspace: WorkspaceID, history: History,
+                                       diagnosticPhase: ((String) -> Void)? = nil) throws
         -> RepetitiveCaptureSourceHistoryRecordV2 {
-        let record = try history.authenticated(workspaceID: workspace, mutationID: anchor.mutationID)
-        guard !history.isQuarantined(record), record.receipt.identity == anchor.receiptIdentity,
-              FieldDraftCanonicalCodecV1.sha256(record.original.envelopeData) == anchor.envelopeSHA256,
-              FieldDraftCanonicalCodecV1.sha256(record.original.receiptData) == anchor.receiptSHA256 else {
-            throw invalid()
-        }
+        let record = try history.authenticated(workspaceID: workspace, mutationID: anchor.mutationID, diagnosticPhase: diagnosticPhase)
+        diagnosticPhase?("anchor.binding.quarantine")
+        guard !history.isQuarantined(record) else { throw invalid() }
+        diagnosticPhase?("anchor.binding.receipt-identity")
+        guard record.receipt.identity == anchor.receiptIdentity else { throw invalid() }
+        diagnosticPhase?("anchor.binding.envelope-digest")
+        guard FieldDraftCanonicalCodecV1.sha256(record.original.envelopeData) == anchor.envelopeSHA256 else { throw invalid() }
+        diagnosticPhase?("anchor.binding.receipt-digest")
+        guard FieldDraftCanonicalCodecV1.sha256(record.original.receiptData) == anchor.receiptSHA256 else { throw invalid() }
         return record
     }
 }

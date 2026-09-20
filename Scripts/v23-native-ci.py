@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = "5b495970f8d2397890d59f65f909cce217f23a53"
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '16271a31beeeb00ced3082c9d1b363adae076362', 'FieldEvidenceAppTests': 'd272b7364d2df6cec7fcabb2ce65defdc45f7a0a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = "5e0d863efdcf3efbb1b9d8b1e0ca700af9d7cf11"
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '3cab86b26b18af8e24bf355a317dc009c60cecbb', 'FieldEvidenceAppTests': 'd272b7364d2df6cec7fcabb2ce65defdc45f7a0a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -58,14 +58,56 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
         "testReviewPlanRejectsMissingOrChangedOwnedRowsWithoutConsumingUnrelatedDrafts",
     )
 )
+REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
+REMINDER_BUILD_WATCHDOG_PARENT = "5e0d863efdcf3efbb1b9d8b1e0ca700af9d7cf11"
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '3cab86b26b18af8e24bf355a317dc009c60cecbb', 'FieldEvidenceAppTests': 'd272b7364d2df6cec7fcabb2ce65defdc45f7a0a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
+REMINDER_BUILD_WATCHDOG_SELECTORS = (
+    'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',
+    'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testDisabledForegroundEditAndFreshAuthorityReplayPreserveExactBytes',
+    'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testEnabledPolicyRequiresUnlockAndOldCommandCannotSurviveRelock',
+    'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testCommandsCannotTransferAcrossAdaptersOrGateIssuers',
+    'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testReplacementOwnerAcceptsOnlyFreshCommandsAndRetirementIsMonotonic',
+    'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testProtectedDataAndConfigurationTransitionsRevokeHeldEditsWithoutEffects',
+    'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testActualPreferenceWriteSerializesWithRevocationAndRetirement',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionReconciliationRetryKeepsSavedRevisionAndNeverPrompts',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionSettingsReadDoesNotPromptAndDeniedEnablePersistsExplicitChoice',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionDetailChoiceWhileDisabledDoesNotPromptAndRejectsStaleEdit',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionAppLockRequiresUnlockAndOldSettingsPublicationStaysRevoked',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionPermissionReplyAfterBackgroundCannotSaveConsent',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionCompletedEraseReplacesOwnersAndRejectsPendingPermissionEdit',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testPermissionReadNeverPromptsAndExplicitRequestNeverWritesConsent',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testInactiveDisabledAndLockedEnabledStatesCannotPrompt',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testRevocationDuringAuthorizationReadPreventsPrompt',
+    'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testPermissionReplyAfterRevocationCannotRenewForegroundOrConsent',
+    'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testGenericEncodingAndReadbackRetainExactLegacyShape',
+    'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testBothKindsUseApprovedCopyAndTokenOnlySystemPayload',
+    'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testFrozenZoneAndEffectiveInstantDistinguishDSTFold',
+    'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testDetailedReadbackRejectsUnapprovedCopyAndAncillaryFields',
+    'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testNumericZoneFallbackUsesExplicitOffsetWithoutDeviceDefaults',
+    'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testFrozenOffsetCopyDoesNotResolveCurrentTimeZoneRules',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testIncompleteEnableAndDisableRemainAvailableForAuthenticatedRecovery',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testEnabledAndCompletedDisabledEditsReopenWithoutReplayingPolicyOrOSEffects',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testSecondEditRollsContinuationAndRejectsOldOperationAndAuthenticationSubject',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testInterruptedPreferenceAndPendingPublicationRecoverMetadataExactlyOnce',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testInterruptedPolicyEditRejectsOldSubjectBeforeNewToggleSourceOrOSEffects',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testDivergentPendingBlocksSettlementAndSecondPolicyWriteWithoutDiscardingEvidence',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testUnstampedResetEraseAndChangedStampCannotRepairControl',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testForeignPreferencesControlBindingAndChangedSettingDenyBeforePolicyWrite',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testMissingDisabledControlWithStampOrPendingIsNotReady',
+    'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
+)
 NO_INDEX_ROUTES = {
     NO_INDEX_SELECTION_ID: (NO_INDEX_PARENT, "N8"),
     RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, "D30"),
+    REMINDER_BUILD_WATCHDOG_SELECTION_ID: (REMINDER_BUILD_WATCHDOG_PARENT, "D30"),
 }
 
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id == REMINDER_BUILD_WATCHDOG_SELECTION_ID:
+        return REMINDER_BUILD_WATCHDOG_TREES
     return (RESTORE_BUILD_WATCHDOG_TREES if selection_id == RESTORE_BUILD_WATCHDOG_SELECTION_ID
             else NO_INDEX_TREES)
 
@@ -870,7 +912,8 @@ def validate_selection(selection):
     require(len(selection["uiTestSelectors"]) == int(ui), "UI method count")
     if selection["tier"] == "D30":
         require(tuple(selection["unitTestSelectors"]) in (
-            PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS),
+            PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
+            REMINDER_BUILD_WATCHDOG_SELECTORS),
             "build watchdog exact approved methods")
 
 
@@ -1091,6 +1134,21 @@ def resolve_selection(default, selection_map, selection_id):
             diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
             validate_selection(diagnostic)
             resolved[RESTORE_BUILD_WATCHDOG_SELECTION_ID] = diagnostic
+    if any(group in resolved for group in REMINDER_BUILD_WATCHDOG_GROUPS):
+        require(all(group in resolved for group in REMINDER_BUILD_WATCHDOG_GROUPS),
+                "reminder build watchdog complete source groups")
+        members = tuple(method for group in REMINDER_BUILD_WATCHDOG_GROUPS
+                        for method in resolved[group]["unitTestSelectors"])
+        require(len(members) == len(set(members)) == 33
+                and members == REMINDER_BUILD_WATCHDOG_SELECTORS,
+                "reminder build watchdog exact ordered disjoint union")
+        require(REMINDER_BUILD_WATCHDOG_SELECTION_ID not in resolved,
+                "reminder build watchdog distinct selector")
+        diagnostic = dict(default)
+        diagnostic.update(unitTestSelectors=list(members), tier="D30",
+                          **dict(zip(BUDGET_KEYS, TIERS["D30"])))
+        validate_selection(diagnostic)
+        resolved[REMINDER_BUILD_WATCHDOG_SELECTION_ID] = diagnostic
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")
@@ -1198,6 +1256,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     watchdog_routes = {
         BUILD_WATCHDOG_SELECTION_ID: (BUILD_WATCHDOG_PARENT, PARENT_FINALIZATION_METHOD_PARTITIONS[0][1]),
         RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, RESTORE_BUILD_WATCHDOG_SELECTORS),
+        REMINDER_BUILD_WATCHDOG_SELECTION_ID: (REMINDER_BUILD_WATCHDOG_PARENT, REMINDER_BUILD_WATCHDOG_SELECTORS),
     }
     if selection["tier"] == "D30" or selection_record["selectionID"] in watchdog_routes:
         require(selection["tier"] == "D30"
@@ -1482,7 +1541,7 @@ def verify_no_index_build(root, artifact, record, environment):
             "no-index complete test build required")
     return {"commandReceiptSHA256": sha256(canonical(expected)),
             "executedCommandExact": True, "compilerDriverCommands": len(compiler_lines),
-            "compilerIndexEmissionDisabled": True, "unchangedSourceTrees": NO_INDEX_TREES,
+            "compilerIndexEmissionDisabled": True, "unchangedSourceTrees": no_index_source_trees(record["selectionID"]),
             "speedupEstablished": False, "acceptance": False}
 
 

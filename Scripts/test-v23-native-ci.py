@@ -1212,6 +1212,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
             self.assertTrue(result['executedCommandExact']); self.assertFalse(result['acceptance'])
             self.assertFalse(result['speedupEstablished'])
             self.assertEqual(receipt['sourceTrees'], CI.no_index_source_trees(self.record['selectionID']))
+            self.assertEqual(result['unchangedSourceTrees'], receipt['sourceTrees'])
             for key, value in {'PROJECT_PATH':'Other.xcodeproj', 'SCHEME':'Other', 'CONFIGURATION':'Release',
                                'CODE_SIGNING_ALLOWED':'YES', 'CI_DESTINATION':'platform=iOS Simulator,name=iPhone',
                                'CI_ARTIFACT_DIR':str(artifact/'foreign')}.items():
@@ -1374,7 +1375,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '5b495970f8d2397890d59f65f909cce217f23a53')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '5e0d863efdcf3efbb1b9d8b1e0ca700af9d7cf11')
         self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'd272b7364d2df6cec7fcabb2ce65defdc45f7a0a')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
@@ -1444,6 +1445,100 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
         NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
 
     def test_actual_worker_filter_admits_only_complete_six_method_budget(self):
+        BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+
+class ReminderBuildWatchdogDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
+        self.record = {'selectionID': CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.REMINDER_BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def test_exact_ordered_union_preserves_four_ordinary_groups_and_default(self):
+        members = []
+        for group, count in zip(CI.REMINDER_BUILD_WATCHDOG_GROUPS, (7, 10, 6, 10)):
+            selected = CI.resolve_selection(self.default, self.mapping, group)
+            self.assertEqual(len(selected['unitTestSelectors']), count)
+            self.assertEqual(selected['tier'], 'N8')
+            self.assertEqual(tuple(selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+            members.extend(selected['unitTestSelectors'])
+        self.assertEqual(len(set(members)), 33)
+        self.assertEqual(tuple(members), CI.REMINDER_BUILD_WATCHDOG_SELECTORS)
+        self.assertEqual(self.selected['unitTestSelectors'], members)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertFalse(self.selected['runUISmoke'])
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (868, 53))
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
+        for suffix in ('-retry', '-parallel', '-34'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID + suffix)
+        for altered in (tuple(members[:-1]), tuple(members[::-1]), tuple(members[:-1] + members[:1])):
+            with mock.patch.object(CI, 'REMINDER_BUILD_WATCHDOG_SELECTORS', altered), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
+
+    def test_both_admissions_require_exact_original_github_parent_and_product_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance']); self.assertFalse(result['providerQualification'])
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for header in (b'tree a\n\nmessage\n', self.header.replace(CI.REMINDER_BUILD_WATCHDOG_PARENT.encode(), b'f'*40),
+                           self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.REMINDER_BUILD_WATCHDOG_TREES:
+                def wrong_tree(command, **kwargs):
+                    return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_budget_or_member_or_selector_substitution_denies(self):
+        for stage in ('dispatch', 'worker'):
+            changes = [{'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                       {'unitTestSelectors': self.selected['unitTestSelectors'][::-1]},
+                       {'unitTestSelectors': list(CI.RESTORE_BUILD_WATCHDOG_SELECTORS)},
+                       {'tier': 'N8'}, {'runUISmoke': True}]
+            changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+            for fields in changes:
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+            for selector in (CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, 'reminder-production-settings', 'unknown'):
+                e = dict(self.bound_environment(), DISPATCH_NATIVE_SELECTION_ID=selector)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, dict(self.record, selectionID=selector))
+
+    def test_real_shell_uses_exact_no_index_recipe_and_propagates_failures(self):
+        for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                if not receipt_exit:
+                    self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                        '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                        '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                        '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                        'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_receipt_cli_and_actual_execution_reject_omissions_and_tampering(self):
+        NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+        NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+        NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_worker_budget_filter_accepts_complete_union_only(self):
         BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
 
 

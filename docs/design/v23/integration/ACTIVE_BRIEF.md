@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-Original35511619294/head5b49597 is terminal/sole-collected/root-auditedF27E10B6: compilationPASS/0newwarnings; all6 restore methods executed (1Pass/5Fail), transportPASS. Fresh manifest digest returns83ms; imported-facts passes, lineage reconstruction rejects. Two cleanup SIGTRAPs share requireV53Marker through temporary-container manifest verification. Current bounded batch retains the selected container through marker read and adds default-off inner-lineage observations; no validator change or proven internal SwiftData cause. Four reminder originals35512699228/35512728877/35512752306/35512778714 are terminal/audited: all hit build1200/exit124 with0 compiler errors;33 tests NotStarted. Do not repeat that unchanged route; qualify one combined33 development diagnostic under the owner-approved30-minute allowance. No merge or release acceptance.
+Original35515208706/head5e0d863 is terminal/sole-collected/root-audited50ED02D5: compilationPASS1083s/0errors/0newwarnings; all6 restore methods executed (1Pass/5Fail), transportPASS. Prior cleanup SIGTRAPs are gone. Both forks reject the first retained source-checkpoint anchor; replacements fail during journal setup/history replacement before lineage review. The precise predicate is unproven; the next default-off diagnostic distinguishes anchor authentication/binding and journal phase/error without changing validation or assertions. Four prior reminder originals hit build1200/exit124 with33NotStarted. Their combined33 no-index D30 route has source138/helper qualification and scoped review; actual candidate/index/route gates remain. No active native original and no acceptance credit.
 
 ## Current implementation
 
@@ -28,7 +28,7 @@ Original35511619294/head5b49597 is terminal/sole-collected/root-auditedF27E10B6:
 
 ## Cadence and completion gates
 
-Astra xhigh root; one useful Astra low/medium helper, Luna low for simple non-coding. Freeze candidate/checkpoints; combine semantic/index review and qualified committed facts. Root alone commits/pushes; no duplicate run or unchanged retry. Qualified peer dispatcherD180F25F admits distinct source-defined groups, complete original receipts, disjoint selectors and total capacity5, while preserving base78722AFF. Each original retains one collector; reminder inputs80 archivedE3C9ADEE. Follow MERGE_READINESS and validate-native-inputs.py.
+Astra xhigh root; one useful Astra low/medium helper, Luna low for simple non-coding. Freeze source/checkpoints; combine semantic/index review and qualified committed facts. Root alone commits/pushes. No duplicate or unchanged retry; one collector per original. Reuse audited summaries and parameterized helpers. Shared restore6/reminder33 D30 protocol qualification is complete; adopt only with reviewed candidate bindings. Follow MERGE_READINESS and validate-native-inputs.py.
 
 Committed pool868/53 includes the13 restore journey/authority methods and78 later additions;12 historical profiles remain exact. Source/protocol and independent index/route checks precede new reviewed native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Keep evidence head-bound. Cache/shared-build and provider qualification remain separate work.
 

@@ -15185,15 +15185,31 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
                 throw attributedRestorePackageFailureV1(line: #line)
             }
+            let journalDiagnostic: ((String) -> Void)?
+#if DEBUG
+            if let restorePhaseDiagnosticForTesting {
+                journalDiagnostic = { phase in
+                    MainActor.assumeIsolated {
+                        restorePhaseDiagnosticForTesting("materialize.journal." + phase)
+                    }
+                }
+            } else { journalDiagnostic = nil }
+#else
+            journalDiagnostic = nil
+#endif
             do {
+                journalDiagnostic?("identity")
                 let identity = try identityDecision.map {
                     try workspaceIdentity($0)
                 } ?? legacyDestinationIdentity
+                journalDiagnostic?("init.begin")
                 let journal = try MutationJournalStoreV1(
                     modelContext: context,
                     identity: identity,
-                    generationID: generationID
+                    generationID: generationID,
+                    diagnosticPhase: journalDiagnostic
                 )
+                journalDiagnostic?("init.end")
                 let disposition: MutationHistoryRestoreIdentityV1
                 if identityDecision == nil
                     || (identityDecision?.mode == .replaceExisting
@@ -15217,11 +15233,40 @@ private extension BackupRestoreService {
                         generationID: generationID
                     )
                 }
+                journalDiagnostic?("replace.begin")
                 try journal.replaceHistory(
                     with: mutationHistory,
-                    identityDisposition: disposition
+                    identityDisposition: disposition,
+                    diagnosticPhase: journalDiagnostic
                 )
+                journalDiagnostic?("replace.end")
             } catch {
+                if let journalDiagnostic {
+                    let label: String
+                    if let failure = error as? WorkspaceMutationFailureV1 {
+                        switch failure {
+                        case .writerInvalidated: label = "error.writerInvalidated"
+                        case .wrongWriterInstance: label = "error.wrongWriterInstance"
+                        case .wrongWorkspace: label = "error.wrongWorkspace"
+                        case .wrongGeneration: label = "error.wrongGeneration"
+                        case .staleWorkspaceRevision: label = "error.staleWorkspaceRevision"
+                        case .staleEntityRevision(_): label = "error.staleEntityRevision"
+                        case .mutationIDQuarantined: label = "error.mutationIDQuarantined"
+                        case .idempotencyCapacityReached: label = "error.idempotencyCapacityReached"
+                        case .revisionOverflow: label = "error.revisionOverflow"
+                        case .unsupportedCommand: label = "error.unsupportedCommand"
+                        case .invalidCommand: label = "error.invalidCommand"
+                        case .invalidEnvelope: label = "error.invalidEnvelope"
+                        case .invalidReceipt: label = "error.invalidReceipt"
+                        case .invalidReversal: label = "error.invalidReversal"
+                        case .receiptHistoryCorrupt: label = "error.receiptHistoryCorrupt"
+                        case .sequenceCollision: label = "error.sequenceCollision"
+                        case .storageAdmissionFailed: label = "error.storageAdmissionFailed"
+                        case .persistenceFailed: label = "error.persistenceFailed"
+                        }
+                    } else { label = "error.other-type" }
+                    journalDiagnostic(label)
+                }
                 throw attributedRestorePackageFailureV1(line: #line)
             }
         }
